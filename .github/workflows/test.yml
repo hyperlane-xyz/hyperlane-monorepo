@@ -396,7 +396,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -436,7 +436,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -472,7 +472,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-tron-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
@@ -541,7 +541,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -639,6 +639,8 @@ jobs:
           persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/cosmos-sdk...'
 
       - name: Cosmos SDK e2e tests
         run: pnpm -C typescript/cosmos-sdk test:e2e
@@ -659,7 +661,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -678,6 +680,8 @@ jobs:
           persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/aleo-sdk...'
 
       - name: Aleo SDK e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/aleo-sdk test:e2e
@@ -700,7 +704,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -709,6 +713,8 @@ jobs:
           persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/radix-sdk...'
 
       - name: Radix SDK e2e tests
         run: pnpm -C typescript/radix-sdk test:e2e
@@ -726,10 +732,10 @@ jobs:
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
   tron-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -738,6 +744,8 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/tron-sdk...'
 
       - name: Tron SDK e2e tests with coverage
         run: pnpm -C typescript/tron-sdk coverage
@@ -914,7 +922,7 @@ jobs:
       - name: Install OpenSSL 1.1 for Solana toolchain
         if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
-          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          wget --tries=3 --retry-connrefused -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
           sudo dpkg -i libssl1.1.deb
 
       - name: Checkout registry

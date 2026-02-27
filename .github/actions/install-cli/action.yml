@@ -9,6 +9,10 @@ inputs:
     description: 'Whether to skip the cache'
     required: false
     default: false
+  build-filter:
+    description: 'Turbo filter to scope the build'
+    required: false
+    default: '@hyperlane-xyz/cli...'
 
 runs:
   using: 'composite'
@@ -21,6 +25,8 @@ runs:
     - name: pnpm-build-with-cache
       if: inputs.no-cache == 'false'
       uses: ./.github/actions/pnpm-build-with-cache
+      with:
+        build-filter: ${{ inputs.build-filter }}
 
     - name: Setup Foundry
       if: inputs.no-cache != 'false'
@@ -35,7 +41,11 @@ runs:
       shell: bash
       run: |
         pnpm install --frozen-lockfile
-        pnpm run build
+        if [ -n "${{ inputs.build-filter }}" ]; then
+          pnpm exec turbo run build --filter='${{ inputs.build-filter }}'
+        else
+          pnpm run build
+        fi
 
     - name: Pack the CLI
       shell: bash
