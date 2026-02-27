@@ -428,7 +428,7 @@ describe('EvmEventLogsReader', () => {
 
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
@@ -465,7 +465,7 @@ describe('EvmEventLogsReader', () => {
 
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
@@ -492,11 +492,11 @@ describe('EvmEventLogsReader', () => {
       // Two calls without fromBlock — both need the deployment block
       await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
       });
       await reader.getLogsByTopic({
-        eventTopic: ethers.utils.id('Approval(address,address,uint256)'),
-        contractAddress: testContract.address,
+        eventTopic: ethers.id('Approval(address,address,uint256)'),
+        contractAddress: testContractAddress,
       });
 
       expect(deploymentSpy.callCount).to.equal(1);
@@ -518,7 +518,7 @@ describe('EvmEventLogsReader', () => {
 
       await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
