@@ -1,0 +1,13 @@
+[profile.default]
+src = 'contracts'
+test = 'test'
+out = 'out'
+cache_path = 'forge-cache'
+libs = ["../dependencies", "../lib"]
+solc_version = '0.8.22'
+evm_version = 'paris'
+optimizer_runs = 200
+allow_paths = [".."]
+
+[fuzz]
+runs = 50
