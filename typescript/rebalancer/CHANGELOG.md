@@ -1,5 +1,27 @@
 # @hyperlane-xyz/rebalancer
 
+## 3.2.0
+
+### Minor Changes
+
+- b50aa7b: Added ERC20 inventory rebalancing support with collateral token approval handling and comprehensive e2e tests.
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/core@11.0.0
+  - @hyperlane-xyz/metrics@0.1.9
+
 ## 3.1.1
 
 ### Patch Changes

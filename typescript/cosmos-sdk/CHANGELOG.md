@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 25.4.0
+
+### Minor Changes
+
+- 1f021bf: Implemented warp artifact API for supported Cosmos warp tokens. A CosmosWarpArtifactManager class was added that provides factory methods for creating readers and writers for collateral and synthetic warp tokens. The implementation includes query helpers for reading token configuration, transaction builders for creating and updating tokens, and comprehensive e2e tests. The CosmosNativeProvider was refactored to use the extracted warp functions, reducing code duplication.
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/cosmos-types@25.4.0
+
 ## 25.3.2
 
 ### Patch Changes
