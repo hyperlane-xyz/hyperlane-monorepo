@@ -15,7 +15,7 @@ use crate::program::Program;
 use crate::starknet::types::{AgentConfigOut, ValidatorConfig};
 use crate::starknet::utils::{STARKNET_ACCOUNT, STARKNET_KEY};
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
-use crate::{fetch_metric, AGENT_BIN_PATH};
+use crate::{fetch_metric, fetch_metric_exact, AGENT_BIN_PATH};
 
 use self::cli::StarknetCLI;
 use self::source::{CodeSource, StarknetCLISource};
@@ -590,7 +590,7 @@ fn termination_invariants_met(
 
     let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
 
-    let dispatched_messages_scraped = fetch_metric(
+    let dispatched_messages_scraped = fetch_metric_exact(
         &scraper_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_dispatch"},
@@ -606,7 +606,7 @@ fn termination_invariants_met(
         return Ok(false);
     }
 
-    let delivered_messages_scraped = fetch_metric(
+    let delivered_messages_scraped = fetch_metric_exact(
         &scraper_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_delivery"},
