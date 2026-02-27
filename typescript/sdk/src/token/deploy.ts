@@ -7,6 +7,7 @@ import {
   IMessageTransmitter__factory,
   MovableCollateralRouter__factory,
   TokenBridgeCctpBase__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
@@ -173,12 +174,13 @@ abstract class TokenDeployer<
             config.minFinalityThreshold !== undefined,
             'minFinalityThreshold is undefined for CCTP V2 config',
           );
+          const maxFeePpm = Math.round(config.maxFeeBps * 100);
           return [
             config.token,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
-            config.maxFeeBps,
+            maxFeePpm,
             config.minFinalityThreshold,
           ];
         default:
@@ -287,6 +289,22 @@ abstract class TokenDeployer<
           chain,
           tokenBridge.addDomains(remoteDomains),
         );
+
+        if (_config.cctpVersion === 'V2') {
+          assert(
+            _config.maxFeeBps !== undefined,
+            'maxFeeBps is undefined for CCTP V2 config',
+          );
+          const maxFeePpm = Math.round(_config.maxFeeBps * 100);
+          const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
+            router,
+            this.multiProvider.getSigner(chain),
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridgeV2.setMaxFeePpm(maxFeePpm),
+          );
+        }
       }),
     );
   }
