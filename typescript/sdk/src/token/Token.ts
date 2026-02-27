@@ -227,6 +227,12 @@ export class Token implements IToken {
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
     const mailbox = chainMetadata?.mailbox;
 
+    if (standard === TokenStandard.EvmNative && this.connections?.length) {
+      return new EvmHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    }
+
     assert(
       this.isMultiChainToken(),
       `Token standard ${standard} not applicable to hyp adapter`,

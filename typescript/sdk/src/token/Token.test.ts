@@ -16,6 +16,7 @@ import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
+import { TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
 
 // null values represent TODOs here, ideally all standards should be tested
@@ -301,6 +302,49 @@ describe('Token', () => {
       sandbox.restore();
     });
   }
+
+  describe('getHypAdapter', () => {
+    it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 18,
+        symbol: 'TIA',
+        name: 'TIA',
+      });
+      evmNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Hyperlane,
+      });
+
+      const adapter = evmNativeToken.getHypAdapter(multiProvider);
+      expect(adapter).to.not.be.undefined;
+    });
+
+    it('throws for EvmNative without connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+        'not applicable to hyp adapter',
+      );
+    });
+  });
 
   describe('isFungibleWith', () => {
     const evmNativeToken = Token.FromChainMetadataNativeToken(test1);
