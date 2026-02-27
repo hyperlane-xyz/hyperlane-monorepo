@@ -8,11 +8,13 @@ import {
   HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
+  Token,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TokenAmount,
   type WarpCore,
   WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -839,14 +841,34 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Using pre-calculated gas quote for transferRemote',
     );
 
+    // Convert pre-calculated gas quote to TokenAmount for WarpCore
+    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
+    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
+    const igpToken =
+      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
+        ? Token.FromChainMetadataNativeToken(originChainMetadata)
+        : this.warpCore.findToken(origin, igpAddressOrDenom);
+    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
+    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
+
+    let tokenFeeQuote: TokenAmount | undefined;
+    if (gasQuote.tokenFeeQuote?.amount) {
+      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
+      const feeToken =
+        !feeAddress || isZeroishAddress(feeAddress)
+          ? Token.FromChainMetadataNativeToken(originChainMetadata)
+          : originToken;
+      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
+    }
+
     const originTokenAmount = originToken.amount(amount);
     const transactions = await this.warpCore.getTransferRemoteTxs({
       originTokenAmount,
       destination,
       sender: this.config.inventorySigner,
       recipient: this.config.inventorySigner,
-      // TODO: pass gasQuote as interchainFee/tokenFeeQuote to avoid
-      // re-deriving fees and ensure consistency with calculateTransferCosts
+      interchainFee,
+      tokenFeeQuote,
     });
     assert(
       transactions.length > 0,

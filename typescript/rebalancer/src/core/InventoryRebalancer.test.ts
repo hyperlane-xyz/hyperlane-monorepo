@@ -10,6 +10,7 @@ import {
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -136,6 +137,7 @@ describe('InventoryRebalancer E2E', () => {
         getProvider: Sinon.stub(),
         getSigner: Sinon.stub(),
       },
+      findToken: Sinon.stub().returns(null),
       getTransferRemoteTxs: Sinon.stub().resolves([
         {
           category: 'transfer',
@@ -180,9 +182,11 @@ describe('InventoryRebalancer E2E', () => {
         if (domain === SOLANA_DOMAIN) return SOLANA_CHAIN;
         return 'unknown';
       }),
-      getChainMetadata: Sinon.stub().returns({
+      getChainMetadata: Sinon.stub().callsFake((chain: ChainName) => ({
+        name: chain,
+        protocol: ProtocolType.Ethereum,
         blocks: { reorgPeriod: 1 }, // Quick confirmations for tests
-      }),
+      })),
       getProvider: Sinon.stub().returns(mockProvider),
       getSigner: Sinon.stub().returns(TEST_WALLET),
       sendTransaction: Sinon.stub().resolves({
