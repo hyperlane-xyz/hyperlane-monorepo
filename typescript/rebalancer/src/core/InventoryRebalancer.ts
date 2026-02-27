@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import { Wallet } from 'ethers';
+import { Wallet, type ContractReceipt } from 'ethers';
 
 import {
   type AnnotatedEV5Transaction,
@@ -864,7 +864,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Sending transferRemote transaction',
     );
 
-    let receipt: any;
+    let receipt: ContractReceipt | undefined;
     for (const tx of transactions) {
       this.logger.debug(
         { origin, destination, category: tx.category },
@@ -885,6 +885,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     // Extract messageId from the transaction receipt logs
+    assert(receipt, 'Expected receipt from transferRemote transactions');
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
     const messageId = dispatchedMessages[0]?.id;
 
