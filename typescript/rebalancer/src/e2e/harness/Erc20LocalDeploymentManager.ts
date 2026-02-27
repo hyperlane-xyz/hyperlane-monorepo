@@ -63,11 +63,12 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
         chainInfra[config.name].mailbox,
       );
       await monitoredRoute.waitForDeployment();
-      await monitoredRoute.initialize(
+      const initializeMonitoredTx = await monitoredRoute.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeMonitoredTx.wait();
 
       const bridgeRoute1 = await new HypERC20Collateral__factory(
         deployer,
@@ -78,11 +79,12 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute1.waitForDeployment();
-      await bridgeRoute1.initialize(
+      const initializeBridge1Tx = await bridgeRoute1.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeBridge1Tx.wait();
 
       const bridgeRoute2 = await new HypERC20Collateral__factory(
         deployer,
@@ -93,11 +95,12 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute2.waitForDeployment();
-      await bridgeRoute2.initialize(
+      const initializeBridge2Tx = await bridgeRoute2.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeBridge2Tx.wait();
 
       chainDeployments[config.name] = {
         mailbox: chainInfra[config.name].mailbox,
@@ -129,8 +132,13 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
           );
         }
 
-        await localRoute.enrollRemoteRouters(remoteDomains, remoteRouters);
-        await localRoute.addRebalancer(deployerAddress);
+        const enrollTx = await localRoute.enrollRemoteRouters(
+          remoteDomains,
+          remoteRouters,
+        );
+        await enrollTx.wait();
+        const addRebalancerTx = await localRoute.addRebalancer(deployerAddress);
+        await addRebalancerTx.wait();
       }
     }
 
@@ -138,14 +146,16 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       const monitoredRoute = monitoredRouters[chain.name];
       for (const destination of TEST_CHAIN_CONFIGS) {
         if (destination.name === chain.name) continue;
-        await monitoredRoute.addBridge(
+        const addBridge1Tx = await monitoredRoute.addBridge(
           destination.domainId,
           await bridgeRouters1[chain.name].getAddress(),
         );
-        await monitoredRoute.addBridge(
+        await addBridge1Tx.wait();
+        const addBridge2Tx = await monitoredRoute.addBridge(
           destination.domainId,
           await bridgeRouters2[chain.name].getAddress(),
         );
+        await addBridge2Tx.wait();
       }
     }
 
@@ -157,14 +167,16 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
         await tokens[chain.name].getAddress(),
         deployer,
       );
-      await token.transfer(
+      const bridge1SeedTx = await token.transfer(
         await bridgeRouters1[chain.name].getAddress(),
         bridgeSeedAmount,
       );
-      await token.transfer(
+      await bridge1SeedTx.wait();
+      const bridge2SeedTx = await token.transfer(
         await bridgeRouters2[chain.name].getAddress(),
         bridgeSeedAmount,
       );
+      await bridge2SeedTx.wait();
     }
 
     return {

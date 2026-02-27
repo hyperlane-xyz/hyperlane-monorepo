@@ -2,6 +2,7 @@ import {
   Provider,
   TransactionReceipt,
   JsonRpcProvider,
+  NonceManager,
   Wallet,
   hexlify,
   parseEther,
@@ -139,7 +140,7 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
-    const signer = new Wallet(privateKey, provider);
+    const signer = new NonceManager(new Wallet(privateKey, provider));
 
     const recipientBytes32 = zeroPadValue(hexlify(route.toAddress), 32);
 
@@ -153,7 +154,11 @@ export class MockExternalBridge implements IExternalBridge {
         this.deployedAddresses as Erc20InventoryDeployedAddresses
       ).tokens[fromChainName];
       const token = ERC20Test__factory.connect(tokenAddress, signer);
-      await token.approve(bridgeRouteAddress, quote.fromAmount);
+      const approveTx = await token.approve(
+        bridgeRouteAddress,
+        quote.fromAmount,
+      );
+      await approveTx.wait();
 
       const bridgeRoute = HypERC20Collateral__factory.connect(
         bridgeRouteAddress,
@@ -214,11 +219,12 @@ export class MockExternalBridge implements IExternalBridge {
         const relayProvider = relayMultiProvider.getProvider(
           chain,
         ) as JsonRpcProvider;
-        const relaySigner = new Wallet(ANVIL_TEST_PRIVATE_KEY, relayProvider);
+        const relayWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY, relayProvider);
         await relayProvider.send('anvil_setBalance', [
-          relaySigner.address,
+          relayWallet.address,
           toBeHex(parseEther('100')),
         ]);
+        const relaySigner = new NonceManager(relayWallet);
         relayMultiProvider.setSigner(chain, relaySigner);
       }
 

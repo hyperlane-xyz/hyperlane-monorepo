@@ -83,10 +83,10 @@ export async function getRouterBalances(
 }
 
 export async function getErc20RouterBalances(
-  localProviders: Map<string, providers.JsonRpcProvider>,
+  localProviders: Map<string, JsonRpcProvider>,
   addresses: Erc20InventoryDeployedAddresses,
-): Promise<Record<string, BigNumber>> {
-  const balances: Record<string, BigNumber> = {};
+): Promise<Record<string, bigint>> {
+  const balances: Record<string, bigint> = {};
   for (const chain of TEST_CHAINS) {
     const provider = localProviders.get(chain);
     assert(provider, `Missing provider for chain ${chain}`);
@@ -158,8 +158,7 @@ export async function relayInProgressInventoryDeposits(
     ).to.be.true;
   }
 
-  // Use provider.send to bypass ethers v5 _maxInternalBlockNumber cache
-  // which refuses to return lower block numbers after evm_revert.
+  // Use provider.send to bypass provider block-number cache after evm_revert.
   const tags: Record<string, number> = {};
   for (const chain of TEST_CHAINS) {
     const p = localProviders.get(chain);
