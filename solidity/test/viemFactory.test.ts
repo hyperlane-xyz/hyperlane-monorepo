@@ -81,6 +81,16 @@ const GET_PAIR_ABI = [
     },
 ] as const satisfies Abi;
 
+const GET_IDS_ABI = [
+    {
+        type: "function",
+        name: "getIds",
+        stateMutability: "view",
+        inputs: [],
+        outputs: [{name: "", type: "uint256[]"}],
+    },
+] as const satisfies Abi;
+
 describe("viemFactory", () => {
     it("resolves overloaded short-name calls using provided args", async () => {
         const sentPayloads: Record<string, unknown>[] = [];
@@ -387,6 +397,43 @@ describe("viemFactory", () => {
 
         expect(directRead).to.deep.equal([1n, 2n]);
         expect(wrappedRead).to.deep.equal([1n, 2n]);
+    });
+
+    it("wraps single-array-output contract.functions reads like ethers-v5", async () => {
+        const runner = {
+            request: async ({
+                method,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_call") {
+                    return encodeFunctionResult({
+                        abi: [GET_IDS_ABI[0]],
+                        functionName: "getIds",
+                        result: [1n, 2n],
+                    });
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            GET_IDS_ABI,
+            runner,
+        ) as unknown as {
+            getIds: () => Promise<readonly bigint[]>;
+            functions: {
+                getIds: () => Promise<readonly [readonly bigint[]]>;
+            };
+        };
+
+        const directRead = await contract.getIds();
+        const wrappedRead = await contract.functions.getIds();
+
+        expect(directRead).to.deep.equal([1n, 2n]);
+        expect(wrappedRead).to.deep.equal([[1n, 2n]]);
     });
 
     it("times out receipt polling fallback when no receipt appears", async () => {
