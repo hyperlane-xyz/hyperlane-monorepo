@@ -529,6 +529,23 @@ async fn test_estimate_gas_limit_returns_error_on_missing_gas_price() {
 }
 
 #[tokio::test]
+async fn test_estimate_gas_limit_for_preparation_matches_estimate_gas_limit() {
+    let provider = MockTronProvider::new()
+        .with_gas_estimate(U256::from(150_000))
+        .with_gas_price(U256::from(250));
+    let adapter = create_test_adapter(provider);
+    let payload = create_test_payload();
+
+    let estimate = adapter.estimate_gas_limit(&payload).await.unwrap();
+    let preparation_estimate = adapter
+        .estimate_gas_limit_for_preparation(&payload)
+        .await
+        .unwrap();
+
+    assert_eq!(preparation_estimate, estimate);
+}
+
+#[tokio::test]
 async fn test_estimate_tx_skips_when_gas_already_set() {
     let provider = MockTronProvider::new().with_gas_estimate(U256::from(500_000));
     let adapter = create_test_adapter(provider.clone());
