@@ -845,6 +845,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination,
       sender: this.config.inventorySigner,
       recipient: this.config.inventorySigner,
+      // TODO: pass gasQuote as interchainFee/tokenFeeQuote to avoid
+      // re-deriving fees and ensure consistency with calculateTransferCosts
     });
     assert(
       transactions.length > 0,
