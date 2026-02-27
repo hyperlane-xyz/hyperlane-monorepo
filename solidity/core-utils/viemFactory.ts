@@ -743,7 +743,10 @@ function normalizeTupleArgument(
   parameter: AbiParameter,
   arg: unknown,
 ): unknown {
-  const components = parameter.components ?? [];
+  const components =
+    'components' in parameter && Array.isArray(parameter.components)
+      ? parameter.components
+      : [];
   if (Array.isArray(arg)) {
     return arg.map((value, index) =>
       normalizeAbiArgument(components[index], value),
