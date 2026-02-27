@@ -375,6 +375,73 @@ impl EthereumAdapter {
         Ok(vec![tx_building_result])
     }
 
+    async fn estimate_tx_cost(
+        &self,
+        payload: &FullPayload,
+        with_gas_limit_overrides: bool,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        // Decode payload to transaction precursor
+        let mut precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+
+        // Estimate gas limit
+        gas_limit_estimator::estimate_gas_limit(
+            self.provider.clone(),
+            &mut precursor,
+            &self.transaction_overrides,
+            &self.domain,
+            with_gas_limit_overrides,
+        )
+        .await?;
+
+        // Extract estimated gas limit from the precursor
+        let gas_limit: U256 = precursor
+            .tx
+            .gas()
+            .copied()
+            .ok_or_else(|| LanderError::EstimationFailed)?
+            .into();
+
+        // Estimate gas price
+        let estimated_gas_price = gas_price::estimate_gas_price(
+            &self.provider,
+            &precursor,
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await;
+
+        // Convert GasPrice to FixedPointNumber
+        let gas_price = estimated_gas_price
+            .to_fixed_point_number()
+            .map_err(LanderError::ChainCommunicationError)?;
+
+        // Estimate L2 gas for Arbitrum chains
+        let l2_gas_limit = if !self.domain.is_arbitrum_nitro() {
+            None
+        } else {
+            let calldata = precursor.tx.data().cloned().unwrap_or_default();
+            let to_address = precursor
+                .tx
+                .to()
+                .and_then(|to| match to {
+                    ethers::types::NameOrAddress::Address(addr) => Some(*addr),
+                    _ => None,
+                })
+                .ok_or(LanderError::EstimationFailed)?;
+
+            self.provider
+                .arbitrum_estimate_l2_gas(to_address, calldata.0.to_vec())
+                .await
+                .map_err(LanderError::ChainCommunicationError)?
+        };
+
+        Ok(hyperlane_core::TxCostEstimate {
+            gas_limit,
+            gas_price,
+            l2_gas_limit,
+        })
+    }
+
     pub fn metrics(&self) -> &EthereumAdapterMetrics {
         &self.metrics
     }
@@ -384,9 +451,16 @@ impl EthereumAdapter {
 impl AdaptsChain for EthereumAdapter {
     async fn estimate_gas_limit(
         &self,
-        _payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
-        todo!()
+        payload: &FullPayload,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        self.estimate_tx_cost(payload, true).await
+    }
+
+    async fn estimate_gas_limit_for_preparation(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        self.estimate_tx_cost(payload, false).await
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {

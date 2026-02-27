@@ -89,6 +89,13 @@ mockall::mock! {
             tx: &TypedTransaction,
         ) -> ChainResult<ZksyncEstimateFeeResponse>;
 
+        /// Estimate the L2 gas for an Arbitrum transaction
+        async fn arbitrum_estimate_l2_gas(
+            &self,
+            to: Address,
+            calldata: Vec<u8>,
+        ) -> ChainResult<Option<U256>>;
+
         /// Get default sender
         fn get_signer(&self) -> Option<H160>;
     }

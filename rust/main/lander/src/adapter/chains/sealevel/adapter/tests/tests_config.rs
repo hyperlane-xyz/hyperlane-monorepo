@@ -22,6 +22,7 @@ fn test_configuration_fields() {
             key: Default::default(),
         }),
         submitter: SubmitterType::Lander,
+        gas_estimator: SubmitterType::Lander,
         estimated_block_time: expected_estimated_block_time,
         reorg_period: expected_reorg_period.clone(),
         addresses: Default::default(),

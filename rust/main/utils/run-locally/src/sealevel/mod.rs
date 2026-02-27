@@ -109,6 +109,18 @@ fn run_locally() {
         .hyp_env("CHAINS_SEALEVELTEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("CHAINS_SEALEVELTEST2_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("CHAINS_SEALEVELTEST3_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env(
+            "CHAINS_SEALEVELTEST1_GASESTIMATOR",
+            SUBMITTER_TYPE.to_string(),
+        )
+        .hyp_env(
+            "CHAINS_SEALEVELTEST2_GASESTIMATOR",
+            SUBMITTER_TYPE.to_string(),
+        )
+        .hyp_env(
+            "CHAINS_SEALEVELTEST3_GASESTIMATOR",
+            SUBMITTER_TYPE.to_string(),
+        )
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
