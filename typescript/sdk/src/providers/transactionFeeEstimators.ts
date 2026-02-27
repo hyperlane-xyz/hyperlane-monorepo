@@ -20,6 +20,8 @@ import {
   CosmJsTransaction,
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
+  EvmProvider,
+  EvmTransaction,
   EthersV5Provider,
   EthersV5Transaction,
   ProviderType,
@@ -48,6 +50,18 @@ export async function estimateTransactionFeeEthersV5({
 }: {
   transaction: EthersV5Transaction;
   provider: EthersV5Provider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return estimateTransactionFeeEvmLike({ transaction, provider, sender });
+}
+
+async function estimateTransactionFeeEvmLike({
+  transaction,
+  provider,
+  sender,
+}: {
+  transaction: EvmTransaction | EthersV5Transaction;
+  provider: EvmProvider | EthersV5Provider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
   const ethersProvider = provider.provider;
@@ -329,10 +343,12 @@ export function estimateTransactionFee({
   senderPubKey?: HexString;
 }): Promise<TransactionFeeEstimate> {
   if (
-    transaction.type === ProviderType.EthersV5 &&
-    provider.type === ProviderType.EthersV5
+    (transaction.type === ProviderType.EthersV5 ||
+      transaction.type === ProviderType.Evm) &&
+    (provider.type === ProviderType.EthersV5 ||
+      provider.type === ProviderType.Evm)
   ) {
-    return estimateTransactionFeeEthersV5({ transaction, provider, sender });
+    return estimateTransactionFeeEvmLike({ transaction, provider, sender });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem

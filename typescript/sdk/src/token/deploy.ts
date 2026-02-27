@@ -165,7 +165,7 @@ abstract class TokenDeployer<
             config.messageTransmitter,
             config.tokenMessenger,
           ];
-        case 'V2':
+        case 'V2': {
           assert(
             config.maxFeeBps !== undefined,
             'maxFeeBps is undefined for CCTP V2 config',
@@ -183,6 +183,7 @@ abstract class TokenDeployer<
             maxFeePpm,
             config.minFinalityThreshold,
           ];
+        }
         default:
           throw new Error('Unsupported CCTP version');
       }

@@ -1714,12 +1714,6 @@ describe('EvmWarpModule', async () => {
         .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
         .resolves('6.0.0');
 
-      // Also stub fetchScale to avoid version mismatch when reading scale
-      // For old contracts (< 11.0.0), scale would default to 1
-      const scaleStub = sinon
-        .stub(evmERC20WarpModule.reader, 'fetchScale')
-        .resolves(undefined);
-
       // In update, we do a check see if the package version is old
       // If it is, we deploy a new implementation and run upgradeTo
       await sendTxs(
@@ -1730,7 +1724,6 @@ describe('EvmWarpModule', async () => {
       );
 
       versionStub.restore();
-      scaleStub.restore();
       const updatedConfig = await evmERC20WarpModule.read();
 
       // Assert
