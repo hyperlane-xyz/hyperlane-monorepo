@@ -68,7 +68,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
     {
       description:
         'should allow updating the ism configuration to the default ism (0 address)',
-      targetIsmConfig: ethers.constants.AddressZero,
+      targetIsmConfig: ethers.ZeroAddress,
       initialIsmConfig: {
         type: IsmType.PAUSABLE,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
@@ -141,7 +141,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
           REGISTRY_PATH,
         );
 
-        ismDeployConfig = testOffchainLookupIsm.address;
+        ismDeployConfig = await testOffchainLookupIsm.getAddress();
       }
 
       const warpDeployConfig: WarpRouteDeployConfig = {

@@ -24,7 +24,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "build:dist": "tsc -p tsconfig.build.json",
     "bundle": "pnpm build:dist && rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
@@ -62,7 +62,6 @@
     "zod-validation-error": "catalog:"
   },
   "devDependencies": {
-    "@ethersproject/constants": "*",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "catalog:",

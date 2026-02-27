@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { formatUnits } from 'ethers';
 import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -45,8 +45,8 @@ export type ProtocolAgnositicGasOracleConfigWithTypicalCost = z.output<
 >;
 
 export type OracleData = {
-  tokenExchangeRate: ethers.BigNumber;
-  gasPrice: ethers.BigNumber;
+  tokenExchangeRate: bigint;
+  gasPrice: bigint;
 };
 
 export const formatGasOracleConfig = (
@@ -56,35 +56,33 @@ export const formatGasOracleConfig = (
   tokenExchangeRate: string;
   gasPrice: string;
 } => ({
-  tokenExchangeRate: ethers.utils.formatUnits(
+  tokenExchangeRate: formatUnits(
     config.tokenExchangeRate,
     getProtocolExchangeRateDecimals(localChainProtocol),
   ),
-  gasPrice: ethers.utils.formatUnits(config.gasPrice, 'gwei'),
+  gasPrice: formatUnits(config.gasPrice, 'gwei'),
 });
 
-const percentDifference = (
-  actual: ethers.BigNumber,
-  expected: ethers.BigNumber,
-): ethers.BigNumber => expected.sub(actual).mul(100).div(actual);
+const percentDifference = (actual: bigint, expected: bigint): bigint =>
+  ((expected - actual) * 100n) / actual;
 
 const serializePercentDifference = (
-  actual: ethers.BigNumber,
-  expected: ethers.BigNumber,
+  actual: bigint,
+  expected: bigint,
 ): string => {
-  if (actual.isZero()) {
+  if (actual === 0n) {
     return 'new';
   }
   const diff = percentDifference(actual, expected);
-  return diff.isNegative() ? `${diff.toString()}%` : `+${diff.toString()}%`;
+  return diff < 0n ? `${diff.toString()}%` : `+${diff.toString()}%`;
 };
 
 // TODO: replace once #3771 is fixed
 export const oracleConfigToOracleData = (
   config: StorageGasOracleConfig,
 ): OracleData => ({
-  gasPrice: ethers.BigNumber.from(config.gasPrice),
-  tokenExchangeRate: ethers.BigNumber.from(config.tokenExchangeRate),
+  gasPrice: BigInt(config.gasPrice),
+  tokenExchangeRate: BigInt(config.tokenExchangeRate),
 });
 
 export const serializeDifference = (
@@ -102,8 +100,8 @@ export const serializeDifference = (
   );
 
   const productDiff = serializePercentDifference(
-    actual.tokenExchangeRate.mul(actual.gasPrice),
-    expected.tokenExchangeRate.mul(expected.gasPrice),
+    actual.tokenExchangeRate * actual.gasPrice,
+    expected.tokenExchangeRate * expected.gasPrice,
   );
 
   const formatted = formatGasOracleConfig(localChainProtocol, expected);

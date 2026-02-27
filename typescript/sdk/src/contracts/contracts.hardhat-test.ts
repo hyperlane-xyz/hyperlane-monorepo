@@ -24,13 +24,13 @@ describe('Contracts', () => {
       '100000000000000000000',
       18,
     );
-    await contract.deployed();
+    await contract.waitForDeployment();
   });
   describe('isAddressActive', async () => {
     it('should return false for AddressZero', async () => {
       const isActive = await isAddressActive(
         multiProvider.getProvider(TestChainName.test1),
-        ethers.constants.AddressZero,
+        ethers.ZeroAddress,
       );
 
       expect(isActive).to.be.false;
@@ -48,7 +48,7 @@ describe('Contracts', () => {
     it('should return true for contracts address with a non-zero nonce', async () => {
       const active = await isAddressActive(
         multiProvider.getProvider(TestChainName.test1),
-        contract.address,
+        await contract.getAddress(),
       );
 
       expect(active).to.be.true;

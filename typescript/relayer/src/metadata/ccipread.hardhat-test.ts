@@ -1,4 +1,3 @@
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
@@ -60,7 +59,9 @@ describe('Offchain Lookup ISM Integration', () => {
     );
 
     // Configure the TestRecipient to use the CCIP-Read ISM
-    await testRecipient.setInterchainSecurityModule(ccipReadIsm.address);
+    await testRecipient.setInterchainSecurityModule(
+      await ccipReadIsm.getAddress(),
+    );
 
     // Prepare the metadata builder
     metadataBuilder = new BaseMetadataBuilder(core);
@@ -78,7 +79,7 @@ describe('Offchain Lookup ISM Integration', () => {
     const { dispatchTx, message } = await core.sendMessage(
       'test1',
       'test2',
-      testRecipient.address,
+      await testRecipient.getAddress(),
       '0x1234',
     );
 
@@ -86,7 +87,7 @@ describe('Offchain Lookup ISM Integration', () => {
     const derivedIsm = await new EvmIsmReader(
       multiProvider,
       'test2',
-    ).deriveOffchainLookupConfig(ccipReadIsm.address);
+    ).deriveOffchainLookupConfig(await ccipReadIsm.getAddress());
 
     // Build the metadata using the CCIP-Read builder
     const context = {
@@ -112,7 +113,7 @@ describe('Offchain Lookup ISM Integration', () => {
     const { dispatchTx, message } = await core.sendMessage(
       'test1',
       'test2',
-      testRecipient.address,
+      await testRecipient.getAddress(),
       '0x1234',
     );
 
@@ -121,7 +122,7 @@ describe('Offchain Lookup ISM Integration', () => {
       multiProvider,
       'test2',
     ).deriveIsmConfig(
-      ccipReadIsm.address,
+      await ccipReadIsm.getAddress(),
     )) as WithAddress<OffchainLookupIsmConfig>;
 
     // Build the metadata using the CCIP-Read builder
@@ -143,10 +144,10 @@ describe('Offchain Lookup ISM Integration', () => {
 
     // Should include sender, data, and signature
     expect(payload).to.include.keys('sender', 'data', 'signature');
-    expect(payload.sender).to.equal(ccipReadIsm.address);
+    expect(payload.sender).to.equal(await ccipReadIsm.getAddress());
 
-    const recovered = ethers.utils.verifyMessage(
-      ethers.utils.arrayify(
+    const recovered = ethers.verifyMessage(
+      ethers.getBytes(
         offchainLookupRequestMessageHash(
           payload.sender,
           payload.data,
@@ -155,10 +156,12 @@ describe('Offchain Lookup ISM Integration', () => {
       ),
       payload.signature,
     );
-    expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
+    expect(recovered).to.equal(
+      await (await hre.ethers.getSigners())[0].getAddress(),
+    );
   });
 
   afterEach(() => {
-    fetchStub.restore();
+    fetchStub?.restore();
   });
 });

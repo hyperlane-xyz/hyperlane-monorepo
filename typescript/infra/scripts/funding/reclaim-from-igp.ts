@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { formatEther, parseEther } from 'ethers/lib/utils.js';
+import { formatEther, parseEther } from 'ethers';
 
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import {
@@ -94,7 +94,7 @@ async function main() {
     (chain, paymaster) => {
       if (
         chainsToProcess.includes(chain) &&
-        !isZeroishAddress(paymaster.address)
+        !isZeroishAddress(paymaster.target as string)
       ) {
         return paymaster;
       }
@@ -110,7 +110,7 @@ async function main() {
 
       try {
         const provider = multiProvider.getProvider(chain);
-        const balance = await provider.getBalance(paymaster.address);
+        const balance = await provider.getBalance(paymaster.target as string);
         const formattedBalance = formatEther(balance);
 
         // Get the threshold for this chain from config, default to 0.1 ETH if not set
@@ -119,20 +119,19 @@ async function main() {
         const thresholdStr = igpClaimThresholds[chain];
         if (thresholdStr) {
           // igpClaimThresholds values are in ETH (e.g., '0.1'), need to parse as ether
-          threshold = BigInt(parseEther(thresholdStr).toString());
+          threshold = parseEther(thresholdStr);
         } else {
           // Use desired balance / 5 as fallback threshold if not explicitly set
           const desired = desiredBalances[chain];
           if (desired) {
-            const fallback = parseEther(desired).div(5);
-            threshold = BigInt(fallback.toString());
+            threshold = parseEther(desired) / 5n;
             rootLogger.debug(
               { chain },
               'Inferring IGP claim threshold from desired balance',
             );
           } else {
             // Default minimal fallback, e.g. 0.1 ETH
-            threshold = BigInt(parseEther('0.1').toString());
+            threshold = parseEther('0.1');
             rootLogger.warn(
               { chain },
               'No IGP claim threshold or desired balance for chain, using default',
@@ -141,7 +140,7 @@ async function main() {
         }
 
         // Skip if balance is zero (even with --force)
-        if (balance.isZero()) {
+        if (balance === 0n) {
           return {
             chain,
             balance: formatTo5SF(formattedBalance),
@@ -151,7 +150,7 @@ async function main() {
         }
 
         // Only reclaim when greater than the reclaim threshold (unless --force is used)
-        if (!force && balance.lt(threshold)) {
+        if (!force && balance < threshold) {
           return {
             chain,
             balance: formatTo5SF(formattedBalance),
@@ -161,7 +160,7 @@ async function main() {
         }
 
         // Estimate the gas cost for the claim transaction
-        const gasEstimate = await paymaster.estimateGas.claim();
+        const gasEstimate = await paymaster.claim.estimateGas();
         const feeData = await provider.getFeeData();
 
         // Calculate total cost: gas * (gasPrice or maxFeePerGas)
@@ -175,11 +174,11 @@ async function main() {
           };
         }
 
-        const estimatedCost = gasEstimate.mul(gasPrice);
-        const costThreshold = estimatedCost.mul(2); // 2x the cost
+        const estimatedCost = gasEstimate * gasPrice;
+        const costThreshold = estimatedCost * 2n; // 2x the cost
 
         // Only proceed if balance > 2x the estimated cost (unless --force is used)
-        if (!force && balance.lte(costThreshold)) {
+        if (!force && balance <= costThreshold) {
           return {
             chain,
             balance: formatTo5SF(formattedBalance),
@@ -212,7 +211,7 @@ async function main() {
         let balance = 'N/A';
         let thresholdDisplay = '0.1';
         try {
-          const bal = await provider.getBalance(paymaster.address);
+          const bal = await provider.getBalance(paymaster.target as string);
           balance = formatTo5SF(formatEther(bal));
         } catch {
           // Balance fetch failed, leave as N/A
@@ -225,7 +224,7 @@ async function main() {
         } else {
           const desired = desiredBalances[chain];
           if (desired) {
-            thresholdDisplay = formatEther(parseEther(desired).div(5));
+            thresholdDisplay = formatEther(parseEther(desired) / 5n);
           }
         }
 

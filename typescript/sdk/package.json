@@ -77,11 +77,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ethersproject/providers": "*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@nomiclabs/hardhat-ethers": "catalog:",
-    "@nomiclabs/hardhat-waffle": "catalog:",
+    "@nomicfoundation/hardhat-chai-matchers": "catalog:",
+    "@nomicfoundation/hardhat-ethers": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
@@ -92,7 +91,6 @@
     "chai-as-promised": "catalog:",
     "dotenv": "catalog:",
     "eslint": "catalog:",
-    "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",
     "mocha": "catalog:",
@@ -104,7 +102,7 @@
     "yaml": "catalog:"
   },
   "peerDependencies": {
-    "@ethersproject/abi": "*"
+    "ethers": "*"
   },
   "engines": {
     "node": ">=16"

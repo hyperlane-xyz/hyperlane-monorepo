@@ -8,6 +8,7 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -46,7 +47,7 @@ import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { isStaticDeploymentSupported } from '../ism/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
@@ -71,6 +72,30 @@ export class EvmCoreModule extends HyperlaneModule<
 
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
+
+  private isDerivedIsmConfig(
+    config: IsmConfig | DerivedIsmConfig,
+  ): config is DerivedIsmConfig {
+    return (
+      typeof config === 'object' &&
+      config !== null &&
+      'address' in config &&
+      typeof config.address === 'string'
+    );
+  }
+
+  private getDerivedIsmAddress(config: IsmConfig | DerivedIsmConfig): Address {
+    if (typeof config === 'string') return config;
+    assert(
+      this.isDerivedIsmConfig(config),
+      `Missing derived ISM address for chain ${this.chainName}`,
+    );
+    assert(
+      typeof config.address === 'string',
+      `Missing derived ISM address for chain ${this.chainName}`,
+    );
+    return config.address;
+  }
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -112,11 +137,11 @@ export class EvmCoreModule extends HyperlaneModule<
    */
   public async update(
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedEV5Transaction[] = [
+    const transactions: AnnotatedEvmTransaction[] = [
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
     ];
 
@@ -173,7 +198,7 @@ export class EvmCoreModule extends HyperlaneModule<
     setHookFunctionName: CoreConfigHookFieldKey,
     actualConfig: DerivedHookConfig,
     expectedConfig: HookConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     return getEvmHookUpdateTransactions(this.args.addresses.mailbox, {
       actualConfig: actualConfig,
       expectedConfig: expectedConfig,
@@ -211,14 +236,16 @@ export class EvmCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): Promise<AnnotatedEvmTransaction[]> {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
 
-    const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
+    const actualDefaultIsmAddress = this.getDerivedIsmAddress(
+      actualConfig.defaultIsm,
+    );
 
     // Try to update (may also deploy) Ism with the expected config
     const { deployedIsm, ismUpdateTxs } = await this.deployOrUpdateIsm(
-      actualDefaultIsmConfig,
+      actualConfig.defaultIsm,
       expectedConfig.defaultIsm,
     );
 
@@ -226,10 +253,7 @@ export class EvmCoreModule extends HyperlaneModule<
       updateTransactions.push(...ismUpdateTxs);
     }
 
-    const newIsmDeployed = !eqAddress(
-      actualDefaultIsmConfig.address,
-      deployedIsm,
-    );
+    const newIsmDeployed = !eqAddress(actualDefaultIsmAddress, deployedIsm);
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       const contractToUpdate = Mailbox__factory.connect(
@@ -239,7 +263,7 @@ export class EvmCoreModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
         chainId: this.chainId,
-        to: contractToUpdate.address,
+        to: contractToUpdate.target as Address,
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
           deployedIsm,
         ]),
@@ -255,13 +279,16 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns Object with deployedIsm address, and update Transactions
    */
   public async deployOrUpdateIsm(
-    actualDefaultIsmConfig: DerivedIsmConfig,
+    actualDefaultIsmConfig: IsmConfig | DerivedIsmConfig,
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: AnnotatedEV5Transaction[];
+    ismUpdateTxs: AnnotatedEvmTransaction[];
   }> {
     const { mailbox } = this.serialize();
+    const actualDefaultIsmAddress = this.getDerivedIsmAddress(
+      actualDefaultIsmConfig,
+    );
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
@@ -269,7 +296,7 @@ export class EvmCoreModule extends HyperlaneModule<
       addresses: {
         mailbox,
         ...extractIsmAndHookFactoryAddresses(this.serialize()),
-        deployedIsm: actualDefaultIsmConfig.address,
+        deployedIsm: actualDefaultIsmAddress,
       },
     });
     this.logger.info(
@@ -291,7 +318,7 @@ export class EvmCoreModule extends HyperlaneModule<
   createMailboxOwnerUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     return transferOwnershipTransactions(
       this.chainId,
       this.args.addresses.mailbox,
@@ -372,15 +399,17 @@ export class EvmCoreModule extends HyperlaneModule<
       'proxyAdmin',
       [],
     );
+    const proxyAdminAddress = await proxyAdmin.getAddress();
 
     // Deploy Mailbox
     const mailbox = await this.deployMailbox({
       config,
       coreDeployer,
-      proxyAdmin: proxyAdmin.address,
+      proxyAdmin: proxyAdminAddress,
       multiProvider,
       chain,
     });
+    const mailboxAddress = await mailbox.getAddress();
 
     // Deploy ICA ISM and Router
     const { interchainAccountRouter } = (
@@ -388,7 +417,7 @@ export class EvmCoreModule extends HyperlaneModule<
         chain: chainName,
         multiProvider: multiProvider,
         config: {
-          mailbox: mailbox.address,
+          mailbox: mailboxAddress,
           owner: await multiProvider.getSigner(chain).getAddress(),
           commitmentIsm: {
             type: IsmType.OFFCHAIN_LOOKUP,
@@ -402,15 +431,15 @@ export class EvmCoreModule extends HyperlaneModule<
 
     // Deploy Validator announce
     const validatorAnnounce = (
-      await coreDeployer.deployValidatorAnnounce(chainName, mailbox.address)
-    ).address;
+      await coreDeployer.deployValidatorAnnounce(chainName, mailboxAddress)
+    ).target as Address;
 
     // Deploy timelock controller if config.upgrade is set
     let timelockController;
     if (config.upgrade) {
       timelockController = (
         await coreDeployer.deployTimelock(chainName, config.upgrade.timelock)
-      ).address;
+      ).target as Address;
     }
 
     // Deploy Test Recipient
@@ -419,7 +448,7 @@ export class EvmCoreModule extends HyperlaneModule<
         chainName,
         await mailbox.defaultIsm(),
       )
-    ).address;
+    ).target as Address;
 
     // Obtain addresses of every contract created by the deployer
     // and extract only the merkleTreeHook and interchainGasPaymaster
@@ -439,9 +468,9 @@ export class EvmCoreModule extends HyperlaneModule<
     ) {
       await multiProvider.sendTransaction(chainName, {
         annotation: `Transferring ownership of ProxyAdmin to the configured address ${config.proxyAdmin.owner}`,
-        to: proxyAdmin.address,
+        to: proxyAdminAddress,
         data: Ownable__factory.createInterface().encodeFunctionData(
-          'transferOwnership(address)',
+          'transferOwnership',
           [config.proxyAdmin.owner],
         ),
       });
@@ -450,8 +479,8 @@ export class EvmCoreModule extends HyperlaneModule<
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
-      proxyAdmin: proxyAdmin.address,
-      mailbox: mailbox.address,
+      proxyAdmin: proxyAdminAddress,
+      mailbox: mailboxAddress,
       interchainAccountRouter,
       validatorAnnounce,
       timelockController,
@@ -517,7 +546,7 @@ export class EvmCoreModule extends HyperlaneModule<
     const deployedDefaultIsm = await deployer.deployIsm(
       chainName,
       config.defaultIsm,
-      mailbox.address,
+      await mailbox.getAddress(),
     );
 
     // @todo refactor when 1) HookModule is ready, and 2) Hooks Config can handle strings
@@ -525,7 +554,7 @@ export class EvmCoreModule extends HyperlaneModule<
       chainName,
       config.defaultHook,
       {
-        mailbox: mailbox.address,
+        mailbox: await mailbox.getAddress(),
         proxyAdmin,
       },
     );
@@ -535,7 +564,7 @@ export class EvmCoreModule extends HyperlaneModule<
       chainName,
       config.requiredHook,
       {
-        mailbox: mailbox.address,
+        mailbox: await mailbox.getAddress(),
         proxyAdmin,
       },
     );
@@ -546,8 +575,8 @@ export class EvmCoreModule extends HyperlaneModule<
       mailbox.initialize(
         config.owner,
         deployedDefaultIsm,
-        deployedDefaultHook.address,
-        deployedRequiredHook.address,
+        deployedDefaultHook.target as Address,
+        deployedRequiredHook.target as Address,
         multiProvider.getTransactionOverrides(chain),
       ),
     );

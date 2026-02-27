@@ -1,4 +1,14 @@
-import { BigNumber, ethers, type providers } from 'ethers';
+import {
+  Provider,
+  TransactionReceipt,
+  JsonRpcProvider,
+  NonceManager,
+  Wallet,
+  hexlify,
+  parseEther,
+  toBeHex,
+  zeroPadValue,
+} from 'ethers';
 import { pino, type Logger } from 'pino';
 
 import {
@@ -17,10 +27,11 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../../interfaces/IExternalBridge.js';
-import type {
+import {
+  ANVIL_TEST_PRIVATE_KEY,
   Erc20InventoryDeployedAddresses,
-  NativeDeployedAddresses,
-  TestChain,
+  type NativeDeployedAddresses,
+  type TestChain,
 } from '../fixtures/routes.js';
 
 type MockBridgeRoute = {
@@ -129,12 +140,9 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
-    const signer = new ethers.Wallet(privateKey, provider);
+    const signer = new NonceManager(new Wallet(privateKey, provider));
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(route.toAddress),
-      32,
-    );
+    const recipientBytes32 = zeroPadValue(hexlify(route.toAddress), 32);
 
     let tx;
     if (this.tokenType === 'erc20') {
@@ -146,7 +154,11 @@ export class MockExternalBridge implements IExternalBridge {
         this.deployedAddresses as Erc20InventoryDeployedAddresses
       ).tokens[fromChainName];
       const token = ERC20Test__factory.connect(tokenAddress, signer);
-      await token.approve(bridgeRouteAddress, quote.fromAmount);
+      const approveTx = await token.approve(
+        bridgeRouteAddress,
+        quote.fromAmount,
+      );
+      await approveTx.wait();
 
       const bridgeRoute = HypERC20Collateral__factory.connect(
         bridgeRouteAddress,
@@ -197,10 +209,34 @@ export class MockExternalBridge implements IExternalBridge {
         return { status: 'not_found' };
       }
 
-      const relayer = new HyperlaneRelayer({ core: this.core });
+      const relayChains = this.core.chains();
+      const coreAddresses = Object.fromEntries(
+        relayChains.map((chain) => [chain, this.core.getAddresses(chain)]),
+      );
+      const { result: relayMultiProvider } =
+        this.multiProvider.intersect(relayChains);
+      for (const chain of relayChains) {
+        const relayProvider = relayMultiProvider.getProvider(
+          chain,
+        ) as JsonRpcProvider;
+        const relayWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY, relayProvider);
+        await relayProvider.send('anvil_setBalance', [
+          relayWallet.address,
+          toBeHex(parseEther('100')),
+        ]);
+        const relaySigner = new NonceManager(relayWallet);
+        relayMultiProvider.setSigner(chain, relaySigner);
+      }
+
+      const relayCore = HyperlaneCore.fromAddressesMap(
+        coreAddresses,
+        relayMultiProvider,
+      );
+      const relayer = new HyperlaneRelayer({ core: relayCore });
       const receipts = await relayer.relayAll(dispatchTxReceipt);
 
-      const destinationDomain = this.multiProvider.getDomainId(toChainName);
+      const destinationDomain =
+        relayCore.multiProvider.getDomainId(toChainName);
       const destinationReceipts =
         receipts[toChainName] ??
         receipts[toChain] ??
@@ -214,10 +250,15 @@ export class MockExternalBridge implements IExternalBridge {
         provider,
         dispatchTxReceipt,
       );
+      const receivingTxHash =
+        (destinationReceipts[0] as { hash?: string; transactionHash?: string })
+          .hash ??
+        (destinationReceipts[0] as { transactionHash?: string })
+          .transactionHash;
 
       return {
         status: 'complete',
-        receivingTxHash: destinationReceipts[0].transactionHash,
+        receivingTxHash,
         receivedAmount,
       };
     } catch (error) {
@@ -260,10 +301,7 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
     const provider = this.multiProvider.getProvider(fromChainName);
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(toAddress),
-      32,
-    );
+    const recipientBytes32 = zeroPadValue(hexlify(toAddress), 32);
 
     // Use 1 wei for estimation — gas usage doesn't depend on transfer amount
     const estimateAmount = 1n;
@@ -271,20 +309,21 @@ export class MockExternalBridge implements IExternalBridge {
       // ERC20 transferRemote requires token approval which isn't set up during estimation.
       // Return 0n as a mock — gas costs don't affect test logic.
       return 0n;
-    } else {
-      const bridgeRoute = HypNative__factory.connect(
-        bridgeRouteAddress,
-        provider,
-      );
-      const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
-        destinationDomain,
-        recipientBytes32,
-        estimateAmount,
-        { value: estimateAmount, from: fromAddress },
-      );
-      const gasPrice = await provider.getGasPrice();
-      return gasEstimate.mul(gasPrice).toBigInt();
     }
+
+    const bridgeRoute = HypNative__factory.connect(
+      bridgeRouteAddress,
+      provider,
+    );
+    const gasEstimate = await bridgeRoute.transferRemote.estimateGas(
+      destinationDomain,
+      recipientBytes32,
+      estimateAmount,
+      { value: estimateAmount, from: fromAddress },
+    );
+
+    const gasPrice = (await provider.getFeeData()).gasPrice ?? 0n;
+    return gasEstimate * gasPrice;
   }
 
   private parseRoute(route: unknown): MockBridgeRoute {
@@ -330,14 +369,19 @@ export class MockExternalBridge implements IExternalBridge {
   }
 
   private async getTransferredAmount(
-    provider: providers.Provider,
-    receipt: providers.TransactionReceipt,
+    provider: Provider,
+    receipt: TransactionReceipt,
   ): Promise<bigint> {
-    const tx = await provider.getTransaction(receipt.transactionHash);
+    const txHash =
+      (receipt as { hash?: string; transactionHash?: string }).hash ??
+      (receipt as { transactionHash?: string }).transactionHash;
+    if (!txHash) {
+      throw new Error('Missing transaction hash on receipt');
+    }
+
+    const tx = await provider.getTransaction(txHash);
     if (!tx) {
-      throw new Error(
-        `Transaction ${receipt.transactionHash} not found on provider`,
-      );
+      throw new Error(`Transaction ${txHash} not found on provider`);
     }
 
     try {
@@ -353,9 +397,6 @@ export class MockExternalBridge implements IExternalBridge {
       }
 
       const amount = parsed.args[2];
-      if (BigNumber.isBigNumber(amount)) {
-        return amount.toBigInt();
-      }
       if (typeof amount === 'bigint') {
         return amount;
       }
@@ -363,7 +404,7 @@ export class MockExternalBridge implements IExternalBridge {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        { txHash: receipt.transactionHash, error: message },
+        { txHash, error: message },
         'Failed to parse transferRemote amount from tx',
       );
       throw new Error(`Failed to parse transferred amount: ${message}`);

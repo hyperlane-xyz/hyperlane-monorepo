@@ -3,22 +3,22 @@
     "description": "Core solidity contracts for Hyperlane",
     "version": "11.0.0",
     "devDependencies": {
-        "@ethersproject/abi": "*",
-        "@hyperlane-xyz/utils": "workspace:*",
-        "@ethersproject/providers": "*",
+        "@arbitrum/nitro-contracts": "catalog:",
+        "@chainlink/contracts-ccip": "catalog:",
         "@hyperlane-xyz/tsconfig": "workspace:^",
+        "@hyperlane-xyz/utils": "workspace:*",
         "@matterlabs/hardhat-zksync-solc": "1.2.5",
         "@matterlabs/hardhat-zksync-verify": "1.7.1",
+        "@nomicfoundation/hardhat-chai-matchers": "catalog:",
+        "@nomicfoundation/hardhat-ethers": "catalog:",
         "@nomicfoundation/hardhat-foundry": "1.2.0",
-        "@nomiclabs/hardhat-ethers": "catalog:",
-        "@nomiclabs/hardhat-waffle": "catalog:",
-        "@typechain/ethers-v5": "catalog:",
+        "@openzeppelin/contracts": "catalog:",
+        "@openzeppelin/contracts-upgradeable": "catalog:",
         "@typechain/ethers-v6": "catalog:",
         "@typechain/hardhat": "catalog:",
         "@types/node": "catalog:",
         "chai": "catalog:",
         "eslint": "catalog:",
-        "ethereum-waffle": "catalog:",
         "ethers": "catalog:",
         "hardhat": "catalog:",
         "hardhat-gas-reporter": "catalog:",
@@ -102,8 +102,7 @@
         "test:interface": "pnpm tsx ./test/interface.test.ts"
     },
     "peerDependencies": {
-        "@ethersproject/abi": "*",
-        "@ethersproject/providers": "*",
-        "@types/sinon-chai": "*"
+        "@types/sinon-chai": "*",
+        "ethers": "*"
     }
 }

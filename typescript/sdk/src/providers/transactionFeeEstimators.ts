@@ -19,8 +19,8 @@ import {
   CosmJsTransaction,
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
-  EthersV5Provider,
-  EthersV5Transaction,
+  EthersV6Provider,
+  EthersV6Transaction,
   ProviderType,
   RadixProvider,
   RadixTransaction,
@@ -40,13 +40,13 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
-export async function estimateTransactionFeeEthersV5({
+export async function estimateTransactionFeeEthersV6({
   transaction,
   provider,
   sender,
 }: {
-  transaction: EthersV5Transaction;
-  provider: EthersV5Provider;
+  transaction: EthersV6Transaction;
+  provider: EthersV6Provider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
   const ethersProvider = provider.provider;
@@ -54,18 +54,18 @@ export async function estimateTransactionFeeEthersV5({
     ...transaction.transaction,
     from: sender,
   });
-  return estimateTransactionFeeEthersV5ForGasUnits({
+  return estimateTransactionFeeEthersV6ForGasUnits({
     provider: ethersProvider,
     gasUnits: BigInt(gasUnits.toString()),
   });
 }
 
 // Separating out inner function to allow WarpCore to reuse logic
-export async function estimateTransactionFeeEthersV5ForGasUnits({
+export async function estimateTransactionFeeEthersV6ForGasUnits({
   provider,
   gasUnits,
 }: {
-  provider: EthersV5Provider['provider'];
+  provider: EthersV6Provider['provider'];
   gasUnits: bigint;
 }): Promise<TransactionFeeEstimate> {
   const feeData = await provider.getFeeData();
@@ -305,10 +305,10 @@ export function estimateTransactionFee({
   senderPubKey?: HexString;
 }): Promise<TransactionFeeEstimate> {
   if (
-    transaction.type === ProviderType.EthersV5 &&
-    provider.type === ProviderType.EthersV5
+    transaction.type === ProviderType.EthersV6 &&
+    provider.type === ProviderType.EthersV6
   ) {
-    return estimateTransactionFeeEthersV5({ transaction, provider, sender });
+    return estimateTransactionFeeEthersV6({ transaction, provider, sender });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem

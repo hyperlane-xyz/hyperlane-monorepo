@@ -43,12 +43,8 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@ethereum-waffle/chai": "^4.0.10",
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
-    "@nomiclabs/hardhat-ethers": "catalog:",
-    "@nomiclabs/hardhat-waffle": "catalog:",
-    "@typechain/ethers-v5": "catalog:",
+    "@nomicfoundation/hardhat-chai-matchers": "catalog:",
+    "@nomicfoundation/hardhat-ethers": "catalog:",
     "@typechain/ethers-v6": "catalog:",
     "@typechain/hardhat": "catalog:",
     "@types/chai": "catalog:",
@@ -62,7 +58,6 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",
     "prettier": "catalog:",
@@ -76,9 +71,8 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
     "@types/node": "*",
-    "@types/sinon-chai": "*"
+    "@types/sinon-chai": "*",
+    "ethers": "*"
   }
 }

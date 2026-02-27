@@ -24,14 +24,14 @@ export const getEclipseEthereumSolanaUSDTWarpConfig = async (
     type: TokenType.synthetic,
     foreignDeployment: '5g5ujyYUNvdydwyDVCpZwPpgYRqH5RYJRi156cxyE3me',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
   };
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
     proxyAdmin: {
       owner: regularSafes.ethereum,
     },

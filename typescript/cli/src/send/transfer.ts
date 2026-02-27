@@ -54,7 +54,7 @@ export async function sendTestTransfer({
   const { multiProvider } = context;
 
   // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
-  // but CLI transaction handling currently only processes EthersV5 transactions.
+  // but CLI transaction handling currently only processes EthersV6 transactions.
   const nonEvmChains = chains.filter(
     (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
@@ -174,7 +174,7 @@ async function executeDelivery({
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
+    if (tx.type === ProviderType.EthersV6) {
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);

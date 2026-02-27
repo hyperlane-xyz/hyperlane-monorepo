@@ -41,15 +41,13 @@ export const DEFAULT_TIMING: SimulationTiming = {
  * with rebalancer monitoring and KPI collection.
  */
 export class SimulationEngine {
-  private provider: ethers.providers.JsonRpcProvider;
+  private provider: ethers.JsonRpcProvider;
   private isRunning = false;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
-    this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
+    this.provider = new ethers.JsonRpcProvider(deployment.anvilRpc);
     // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
     this.provider.pollingInterval = 100;
-    // Disable automatic polling (event subscriptions) but keep pollingInterval for tx.wait()
-    this.provider.polling = false;
   }
 
   /**
@@ -107,7 +105,12 @@ export class SimulationEngine {
       await rebalancer.start();
 
       // Execute transfers according to scenario
-      await this.executeTransfers(scenario, timing, kpiCollector);
+      await this.executeTransfers(
+        scenario,
+        timing,
+        kpiCollector,
+        actionTracker,
+      );
 
       // Wait for ethers event polling to catch up
       await new Promise((r) => setTimeout(r, 200));
@@ -150,8 +153,7 @@ export class SimulationEngine {
       }
 
       // Clean up provider to release connections
-      this.provider.removeAllListeners();
-      this.provider.polling = false;
+      void this.provider.removeAllListeners();
     }
   }
 
@@ -162,10 +164,17 @@ export class SimulationEngine {
     scenario: TransferScenario,
     timing: SimulationTiming,
     kpiCollector: KPICollector,
+    actionTracker?: {
+      addTransfer: (
+        messageId: string,
+        origin: number,
+        destination: number,
+        amount: bigint,
+      ) => void;
+    },
   ): Promise<void> {
-    const deployer = new ethers.Wallet(
-      this.deployment.deployerKey,
-      this.provider,
+    const deployer = new ethers.NonceManager(
+      new ethers.Wallet(this.deployment.deployerKey, this.provider),
     );
     const startTime = Date.now();
 
@@ -208,14 +217,40 @@ export class SimulationEngine {
         const gasPayment = await warpToken.quoteGasPayment(destDomain.domainId);
 
         // Transfer remote
-        const recipientBytes32 = ethers.utils.hexZeroPad(transfer.user, 32);
+        const recipientBytes32 = ethers.zeroPadValue(transfer.user, 32);
         const transferTx = await warpToken.transferRemote(
           destDomain.domainId,
           recipientBytes32,
           transfer.amount,
           { value: gasPayment },
         );
-        await transferTx.wait();
+        const transferReceipt = await transferTx.wait();
+
+        // Fallback transfer tracking from tx receipt logs in case event polling
+        // misses very fast Dispatch events.
+        const dispatchIdTopic = ethers.id('DispatchId(bytes32)');
+        const mailboxAddress = originDomain.mailbox.toLowerCase();
+        const dispatchIdLog = transferReceipt?.logs.find(
+          (log) =>
+            log.address.toLowerCase() === mailboxAddress &&
+            log.topics?.[0] === dispatchIdTopic &&
+            log.topics.length > 1,
+        );
+        if (dispatchIdLog?.topics[1]) {
+          const messageId = dispatchIdLog.topics[1];
+          kpiCollector.recordTransferStart(
+            messageId,
+            transfer.origin,
+            transfer.destination,
+            transfer.amount,
+          );
+          actionTracker?.addTransfer(
+            messageId,
+            originDomain.domainId,
+            destDomain.domainId,
+            transfer.amount,
+          );
+        }
 
         const totalTxTime = Date.now() - txStartTime;
 
@@ -227,7 +262,7 @@ export class SimulationEngine {
           );
         }
 
-        // Controller auto-tracks from Dispatch events — no registration needed
+        // Controller tracks transfer completion via mailbox processing events.
       } catch (error) {
         logger.error(
           {
@@ -292,19 +327,15 @@ export class SimulationEngine {
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const processorWallet = new ethers.Wallet(
-      this.deployment.mailboxProcessorKey,
-      this.provider,
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      // Reuse the simulation provider for all chains so polling and nonce
+      // behavior remain deterministic in tests.
+      multiProvider.setProvider(chainName, this.provider);
+    }
+    const processorWallet = new ethers.NonceManager(
+      new ethers.Wallet(this.deployment.mailboxProcessorKey, this.provider),
     );
     multiProvider.setSharedSigner(processorWallet);
-
-    // Set fast polling on internal providers
-    for (const chainName of multiProvider.getKnownChainNames()) {
-      const p = multiProvider.tryGetProvider(chainName);
-      if (p && 'pollingInterval' in p) {
-        (p as ethers.providers.JsonRpcProvider).pollingInterval = 100;
-      }
-    }
 
     return HyperlaneCore.fromAddressesMap(addressesMap, multiProvider);
   }

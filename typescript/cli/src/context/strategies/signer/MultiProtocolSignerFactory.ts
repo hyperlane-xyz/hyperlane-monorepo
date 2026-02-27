@@ -36,14 +36,14 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
       this.multiProtocolProvider.getChainMetadata(config.chain);
 
     if (technicalStack === ChainTechnicalStack.ZkSync) {
-      return new ZKSyncWallet(privateKey);
+      return new ZKSyncWallet(privateKey) as unknown as Signer;
     }
 
     if (technicalStack === ChainTechnicalStack.Tron) {
       assert(rpcUrls.length > 0, `No RPC URLs for Tron chain ${config.chain}`);
-      return new TronWallet(privateKey, rpcUrls[0].http);
+      return new TronWallet(privateKey, rpcUrls[0].http) as unknown as Signer;
     }
 
-    return new Wallet(privateKey);
+    return new Wallet(privateKey) as unknown as Signer;
   }
 }

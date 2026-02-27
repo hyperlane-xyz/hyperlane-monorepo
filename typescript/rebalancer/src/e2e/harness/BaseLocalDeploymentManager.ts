@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { JsonRpcProvider, NonceManager, Wallet } from 'ethers';
 import { type Logger, pino } from 'pino';
 import {
   GenericContainer,
@@ -29,7 +29,7 @@ export interface LocalDeploymentContext<
     chains: Record<string, { mailbox: string; ism: string }>;
   },
 > {
-  providers: Map<string, providers.JsonRpcProvider>;
+  providers: Map<string, JsonRpcProvider>;
   registry: IRegistry;
   multiProvider: MultiProvider;
   deployedAddresses: TDeployedAddresses;
@@ -57,9 +57,9 @@ export abstract class BaseLocalDeploymentManager<
       throw new Error('LocalDeploymentManager already started');
     }
 
-    const providersByChain = new Map<string, providers.JsonRpcProvider>();
-    const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-    const deployerAddress = deployerWallet.address;
+    const providersByChain = new Map<string, JsonRpcProvider>();
+    const deployerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const deployerAddress = await deployerWallet.getAddress();
     const chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string; endpoint: string }
@@ -89,7 +89,7 @@ export abstract class BaseLocalDeploymentManager<
         );
         this.containers.set(config.name, container);
         const endpoint = `http://${container.getHost()}:${container.getMappedPort(8545)}`;
-        const provider = new providers.JsonRpcProvider(endpoint);
+        const provider = new JsonRpcProvider(endpoint);
         providersByChain.set(config.name, provider);
 
         await provider.send('anvil_setBalance', [
@@ -97,35 +97,40 @@ export abstract class BaseLocalDeploymentManager<
           ANVIL_DEPLOYER_BALANCE_HEX,
         ]);
 
-        const deployer = deployerWallet.connect(provider);
+        const deployer = new NonceManager(deployerWallet.connect(provider));
 
         const mailbox = await new Mailbox__factory(deployer).deploy(
           config.domainId,
         );
-        await mailbox.deployed();
+        await mailbox.waitForDeployment();
 
         const ism = await new TrustedRelayerIsm__factory(deployer).deploy(
-          mailbox.address,
+          await mailbox.getAddress(),
           deployerAddress,
         );
-        await ism.deployed();
+        await ism.waitForDeployment();
 
         const merkleHook = await new MerkleTreeHook__factory(deployer).deploy(
-          mailbox.address,
+          await mailbox.getAddress(),
         );
-        await merkleHook.deployed();
+        await merkleHook.waitForDeployment();
 
-        await mailbox.initialize(
+        const mailboxAddress = await mailbox.getAddress();
+        const ismAddress = await ism.getAddress();
+        const merkleHookAddress = await merkleHook.getAddress();
+
+        const initializeMailboxTx = await mailbox.initialize(
           deployerAddress,
-          ism.address,
-          merkleHook.address,
-          merkleHook.address,
+          ismAddress,
+          merkleHookAddress,
+          merkleHookAddress,
         );
+        await initializeMailboxTx.wait();
 
         chainInfra[config.name] = {
-          mailbox: mailbox.address,
-          ism: ism.address,
-          merkleHook: merkleHook.address,
+          mailbox: mailboxAddress,
+          ism: ismAddress,
+          merkleHook: merkleHookAddress,
           endpoint,
         };
       }
@@ -165,7 +170,7 @@ export abstract class BaseLocalDeploymentManager<
         chainMetadata as Record<ChainName, ChainMetadata>,
       );
 
-      const signerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+      const signerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
       for (const config of TEST_CHAIN_CONFIGS) {
         const provider = providersByChain.get(config.name)!;
         multiProvider.setProvider(config.name, provider);
@@ -204,7 +209,7 @@ export abstract class BaseLocalDeploymentManager<
     return this.context;
   }
 
-  getProvider(chain: string): providers.JsonRpcProvider | undefined {
+  getProvider(chain: string): JsonRpcProvider | undefined {
     return this.getContext().providers.get(chain);
   }
 
@@ -217,8 +222,8 @@ export abstract class BaseLocalDeploymentManager<
   }
 
   protected abstract deployRoutes(
-    deployerWallet: ethers.Wallet,
-    providersByChain: Map<string, providers.JsonRpcProvider>,
+    deployerWallet: Wallet,
+    providersByChain: Map<string, JsonRpcProvider>,
     chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string }

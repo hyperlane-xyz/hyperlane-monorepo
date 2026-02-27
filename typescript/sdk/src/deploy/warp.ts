@@ -40,6 +40,7 @@ import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -51,13 +52,31 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
 type ChainAddresses = Record<string, string>;
+
+function getEvmAddress(contract: { target?: unknown }): Address {
+  assert(typeof contract.target === 'string', 'Missing contract target');
+  return contract.target;
+}
+
+function shouldDeployConcurrently(
+  multiProvider: MultiProvider,
+  chains: ChainName[],
+): boolean {
+  // Tron test chains may share one underlying nonce domain, so parallel deploys
+  // can race on nonce assignment and produce flaky/non-deterministic failures.
+  return !chains.some(
+    (chain) =>
+      multiProvider.getChainMetadata(chain).technicalStack ===
+      ChainTechnicalStack.Tron,
+  );
+}
 
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
@@ -132,16 +151,30 @@ export async function executeWarpDeploy(
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
+        const concurrentDeploy = shouldDeployConcurrently(
+          multiProvider,
+          Object.keys(protocolSpecificConfig),
+        );
         const deployer = warpDeployConfig.isNft
-          ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmWarpModule
+          ? new HypERC721Deployer(
+              multiProvider,
+              undefined,
+              undefined,
+              concurrentDeploy,
+            )
+          : new HypERC20Deployer(
+              multiProvider,
+              undefined,
+              undefined,
+              concurrentDeploy,
+            ); // TODO: replace with EvmWarpModule
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {
           ...deployedContracts,
           ...objMap(
             evmContracts as HyperlaneContractsMap<HypERC20Factories>,
-            (_, contracts) => getRouter(contracts).address,
+            (_, contracts) => getEvmAddress(getRouter(contracts)),
           ),
         };
 
@@ -334,8 +367,13 @@ async function createWarpHook({
       // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
       const proxyAdminAddress: Address =
         warpConfig.proxyAdmin?.address ??
-        (await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), []))
-          .address;
+        getEvmAddress(
+          await multiProvider.handleDeploy(
+            chain,
+            new ProxyAdmin__factory(),
+            [],
+          ),
+        );
 
       const evmHookModule = await EvmHookModule.create({
         chain,

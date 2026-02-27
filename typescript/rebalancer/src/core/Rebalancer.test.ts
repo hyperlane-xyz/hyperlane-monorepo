@@ -382,7 +382,7 @@ describe('Rebalancer', () => {
         if (callCount === 1) {
           return Promise.reject(new Error('Gas estimation failed'));
         }
-        return Promise.resolve(ethers.BigNumber.from(100000));
+        return Promise.resolve(BigInt(100000));
       });
 
       sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
@@ -438,7 +438,7 @@ describe('Rebalancer', () => {
       (ctx.multiProvider.sendTransaction as Sinon.SinonStub).callsFake(() => {
         sendCallCount++;
         return Promise.resolve({
-          transactionHash: `0x${sendCallCount.toString().padStart(64, '0')}`,
+          hash: `0x${sendCallCount.toString().padStart(64, '0')}`,
           blockNumber: 100,
           status: 1,
         });
@@ -514,8 +514,7 @@ describe('Rebalancer', () => {
           return Promise.reject(new Error('First send failed'));
         }
         return Promise.resolve({
-          transactionHash:
-            '0xTxHash2222222222222222222222222222222222222222222222222222222222',
+          hash: '0xTxHash2222222222222222222222222222222222222222222222222222222222',
           blockNumber: 100,
           status: 1,
         });
@@ -538,10 +537,10 @@ describe('Rebalancer', () => {
 
       const routes = [
         buildTestMovableCollateralRoute({
-          amount: ethers.utils.parseEther('100').toBigInt(),
+          amount: ethers.parseEther('100'),
         }),
         buildTestMovableCollateralRoute({
-          amount: ethers.utils.parseEther('200').toBigInt(),
+          amount: ethers.parseEther('200'),
         }),
       ];
 
@@ -565,7 +564,7 @@ describe('Rebalancer', () => {
           callOrder.push(chain);
           await new Promise((resolve) => setTimeout(resolve, 10));
           return {
-            transactionHash: `0x${callOrder.length.toString().padStart(64, '0')}`,
+            hash: `0x${callOrder.length.toString().padStart(64, '0')}`,
             blockNumber: 100,
             status: 1,
           };
@@ -591,12 +590,12 @@ describe('Rebalancer', () => {
         buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
-          amount: ethers.utils.parseEther('100').toBigInt(),
+          amount: ethers.parseEther('100'),
         }),
         buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'optimism',
-          amount: ethers.utils.parseEther('200').toBigInt(),
+          amount: ethers.parseEther('200'),
         }),
       ];
 

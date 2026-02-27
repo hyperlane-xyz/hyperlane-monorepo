@@ -1,17 +1,17 @@
-import { ContractFactory } from 'ethers';
+import { ContractFactory, ContractRunner } from 'ethers';
 import { Types } from 'tronweb';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { TronTransactionResponse, TronWallet } from './TronWallet.js';
+import { TronWallet } from './TronWallet.js';
 
 /**
  * Type guard for CreateSmartContractTransaction
  */
 function isDeployTransaction(
-  tx: TronTransactionResponse['tronTransaction'],
+  tx: Types.Transaction | Types.CreateSmartContractTransaction | undefined,
 ): tx is Types.CreateSmartContractTransaction {
-  return 'contract_address' in tx;
+  return !!tx && 'contract_address' in tx;
 }
 
 /**
@@ -35,7 +35,11 @@ export class TronContractFactory<
     private readonly factory: F,
     signer?: TronWallet,
   ) {
-    super(factory.interface, factory.bytecode, signer);
+    super(
+      factory.interface,
+      factory.bytecode,
+      signer as ContractRunner | undefined,
+    );
   }
 
   /**
@@ -48,30 +52,38 @@ export class TronContractFactory<
     ...args: Parameters<F['deploy']>
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
     const contract = await super.deploy(...args);
-    const { tronTransaction } =
-      contract.deployTransaction as TronTransactionResponse;
+    const deploymentTx = contract.deploymentTransaction();
+    if (!deploymentTx) {
+      throw new Error('Expected deployment transaction for deployed contract');
+    }
+
+    const runner = this.runner as TronWallet | null;
+    if (!runner) {
+      throw new Error('TronContractFactory runner is required');
+    }
+
+    const tronTransaction = runner.getTronTransaction(deploymentTx.hash);
 
     assert(
       isDeployTransaction(tronTransaction),
       'Expected CreateSmartContractTransaction for deployment',
     );
 
-    const tronWallet = this.signer as TronWallet;
-    const evmAddress = tronWallet.toEvmAddress(
-      tronTransaction.contract_address,
-    );
+    const evmAddress = runner.toEvmAddress(tronTransaction.contract_address);
 
-    // Re-attach to correct address, preserving deployTransaction
-    const deployTransaction = contract.deployTransaction;
+    // Re-attach to Tron-derived address, preserving deploymentTransaction.
     const correctedContract = this.attach(evmAddress);
-    (correctedContract as any).deployTransaction = deployTransaction;
+    (correctedContract as any).deploymentTransaction = () => deploymentTx;
     return correctedContract as Awaited<ReturnType<F['deploy']>>;
   }
 
   /**
    * Returns a new TronContractFactory connected to the given signer.
    */
-  override connect(signer: TronWallet): TronContractFactory<F> {
-    return new TronContractFactory(this.factory, signer);
+  override connect(runner: ContractRunner | null): TronContractFactory<F> {
+    return new TronContractFactory(
+      this.factory,
+      (runner as TronWallet | null) ?? undefined,
+    );
   }
 }

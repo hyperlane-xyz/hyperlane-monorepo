@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { formatEther } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -51,7 +51,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       chain,
       'interchainGasPaymaster',
       'interchainGasPaymaster',
-      proxyAdmin.address,
+      proxyAdmin.target as string,
       [],
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
@@ -70,17 +70,20 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
-        !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
-        !currentGasConfig.gasOverhead.eq(newGasOverhead)
+        !eqAddress(
+          currentGasConfig.gasOracle,
+          storageGasOracle.target as string,
+        ) ||
+        currentGasConfig.gasOverhead !== BigInt(newGasOverhead)
       ) {
         this.logger.debug(
-          `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
+          `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.target as string}`,
         );
         gasParamsToSet.push({
           remoteDomain: remoteId,
           config: {
             gasOverhead: newGasOverhead,
-            gasOracle: storageGasOracle.address,
+            gasOracle: storageGasOracle.target as string,
           },
         });
       }
@@ -89,7 +92,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () => {
         const estimatedGas =
-          await igp.estimateGas.setDestinationGasConfigs(gasParamsToSet);
+          await igp.setDestinationGasConfigs.estimateGas(gasParamsToSet);
         return this.multiProvider.handleTx(
           chain,
           igp.setDestinationGasConfigs(gasParamsToSet, {
@@ -134,8 +137,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       const desiredData = oracleConfigToOracleData(desired);
 
       if (
-        !actual.gasPrice.eq(desired.gasPrice) ||
-        !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
+        actual.gasPrice !== desiredData.gasPrice ||
+        actual.tokenExchangeRate !== desiredData.tokenExchangeRate
       ) {
         this.logger.info(
           `${chain} -> ${remote}: ${serializeDifference(
@@ -151,12 +154,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
 
       const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
-      const exampleRemoteGasCost = desiredData.tokenExchangeRate
-        .mul(desiredData.gasPrice)
-        .mul(exampleRemoteGas)
-        .div(TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM);
+      const exampleRemoteGasCost =
+        (desiredData.tokenExchangeRate *
+          desiredData.gasPrice *
+          BigInt(exampleRemoteGas)) /
+        TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM;
       this.logger.info(
-        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${formatEther(
           exampleRemoteGasCost,
         )}`,
       );
@@ -165,7 +169,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     if (configsToSet.length > 0) {
       await this.runIfOwner(chain, gasOracle, async () => {
         const estimatedGas =
-          await gasOracle.estimateGas.setRemoteGasDataConfigs(configsToSet);
+          await gasOracle.setRemoteGasDataConfigs.estimateGas(configsToSet);
         return this.multiProvider.handleTx(
           chain,
           gasOracle.setRemoteGasDataConfigs(configsToSet, {
@@ -211,6 +215,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     await this.transferOwnershipOfContracts(chain, ownerConfig, contracts);
 
-    return contracts;
+    return contracts as any;
   }
 }

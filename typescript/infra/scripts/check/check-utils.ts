@@ -108,7 +108,7 @@ export async function getGovernor(
       const owner = asDeployer ? DEPLOYER : envConfig.core[fork].owner;
       const signer = await impersonateAccount(owner, 1e18);
 
-      multiProvider.setSigner(fork, signer);
+      multiProvider.setSigner(fork, signer as any);
     }
   }
 

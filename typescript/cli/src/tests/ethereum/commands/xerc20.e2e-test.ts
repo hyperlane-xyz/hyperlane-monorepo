@@ -14,7 +14,7 @@ import {
   type WarpRouteDeployConfig,
   XERC20Type,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -103,10 +103,17 @@ describe('xerc20 e2e tests', function () {
   };
 
   async function deployWarpRoutesAndSetupBridges(): Promise<void> {
+    const [xERC20Lockbox2Address, xERC20VS2Address, xERC20VS3Address] =
+      await Promise.all([
+        xERC20Lockbox2.getAddress(),
+        xERC20VS2.getAddress(),
+        xERC20VS3.getAddress(),
+      ]);
+
     const xerc20LockboxConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20Lockbox,
-        token: xERC20Lockbox2.address,
+        token: xERC20Lockbox2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
@@ -117,13 +124,13 @@ describe('xerc20 e2e tests', function () {
     const xerc20VSConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20,
-        token: xERC20VS2.address,
+        token: xERC20VS2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
       [CHAIN_NAME_3]: {
         type: TokenType.XERC20,
-        token: xERC20VS3.address,
+        token: xERC20VS3Address,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
       },
@@ -140,8 +147,20 @@ describe('xerc20 e2e tests', function () {
       (t) => t.chainName === CHAIN_NAME_3,
     )?.addressOrDenom;
 
+    // Use fresh signers to avoid stale NonceManager state after CLI txs.
+    const provider2 = xERC20VS2.runner?.provider;
+    const provider3 = xERC20VS3.runner?.provider;
+    assert(provider2, 'Missing provider for xERC20VS2');
+    assert(provider3, 'Missing provider for xERC20VS3');
+    const xERC20VS2WithFreshSigner = xERC20VS2.connect(
+      new Wallet(ANVIL_KEY, provider2),
+    );
+    const xERC20VS3WithFreshSigner = xERC20VS3.connect(
+      new Wallet(ANVIL_KEY, provider3),
+    );
+
     if (vsWarpRouteAddress2) {
-      const tx = await xERC20VS2.addBridge({
+      const tx = await xERC20VS2WithFreshSigner.addBridge({
         bridge: vsWarpRouteAddress2,
         ...BRIDGE_LIMITS,
       });
@@ -149,7 +168,7 @@ describe('xerc20 e2e tests', function () {
     }
 
     if (vsWarpRouteAddress3) {
-      const tx = await xERC20VS3.addBridge({
+      const tx = await xERC20VS3WithFreshSigner.addBridge({
         bridge: vsWarpRouteAddress3,
         ...BRIDGE_LIMITS,
       });
@@ -159,7 +178,7 @@ describe('xerc20 e2e tests', function () {
     const xerc20VSConfigWithLimits: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20,
-        token: xERC20VS2.address,
+        token: xERC20VS2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
         xERC20: {
@@ -171,7 +190,7 @@ describe('xerc20 e2e tests', function () {
       },
       [CHAIN_NAME_3]: {
         type: TokenType.XERC20,
-        token: xERC20VS3.address,
+        token: xERC20VS3Address,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
         xERC20: {
@@ -203,10 +222,11 @@ describe('xerc20 e2e tests', function () {
     });
 
     it('generates transactions when config specifies different limits', async function () {
+      const xERC20VS2Address = await xERC20VS2.getAddress();
       const configWithLimits: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.XERC20,
-          token: xERC20VS2.address,
+          token: xERC20VS2Address,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
           xERC20: {

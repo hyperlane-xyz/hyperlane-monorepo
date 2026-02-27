@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import {
   ProxyAdmin,
@@ -71,14 +71,10 @@ export abstract class ProxiedRouterDeployer<
    * @param chain Name of chain
    * @param config Router config
    */
-  abstract initializeArgs<RouterKey extends keyof Factories>(
+  abstract initializeArgs<_RouterKey extends keyof Factories>(
     chain: ChainName,
     config: Config,
-  ): Promise<
-    Parameters<
-      Awaited<ReturnType<Factories[RouterKey]['deploy']>>['initialize']
-    >
-  >;
+  ): Promise<any[]>;
 
   async deployContracts(
     chain: ChainName,
@@ -110,10 +106,10 @@ export abstract class ProxiedRouterDeployer<
     let adminOwner: string;
     if (config.timelock) {
       timelockController = await this.deployTimelock(chain, config.timelock);
-      adminOwner = timelockController.address;
+      adminOwner = this.getContractAddress(timelockController);
     } else {
       timelockController = TimelockController__factory.connect(
-        constants.AddressZero,
+        ZeroAddress,
         this.multiProvider.getProvider(chain),
       );
       adminOwner = config.owner;
@@ -141,7 +137,7 @@ export abstract class ProxiedRouterDeployer<
       chain,
       this.routerContractKey(config),
       this.routerContractName(config),
-      proxyAdmin.address,
+      this.getContractAddress(proxyAdmin),
       await this.constructorArgs(chain, config),
       await this.initializeArgs(chain, config),
     );

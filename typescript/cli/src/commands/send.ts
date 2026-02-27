@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { hexlify, toUtf8Bytes } from 'ethers';
 import { type CommandModule, type Options } from 'yargs';
 
 import { type CommandModuleWithWriteContext } from '../context/types.js';
@@ -90,7 +90,7 @@ const messageCommand: CommandModuleWithWriteContext<
       context,
       origin,
       destination,
-      messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body)),
+      messageBody: hexlify(toUtf8Bytes(body)),
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,

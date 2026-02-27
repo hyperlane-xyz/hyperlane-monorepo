@@ -129,8 +129,10 @@ export async function runScenarioWithRebalancers(
     // Apply initial imbalance if specified
     if (file.initialImbalance) {
       const { ERC20Test__factory } = await import('@hyperlane-xyz/core');
-      const provider = new ethers.providers.JsonRpcProvider(options.anvilRpc);
-      const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
+      const provider = new ethers.JsonRpcProvider(options.anvilRpc);
+      const deployer = new ethers.NonceManager(
+        new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider),
+      );
 
       for (const [chainName, extraAmount] of Object.entries(
         file.initialImbalance,
@@ -144,7 +146,7 @@ export async function runScenarioWithRebalancers(
           const mintTx = await token.mintTo(domain.warpToken, extraAmount);
           await mintTx.wait();
           console.log(
-            `  Applied imbalance: +${ethers.utils.formatEther(extraAmount)} tokens to ${chainName}`,
+            `  Applied imbalance: +${ethers.formatEther(extraAmount)} tokens to ${chainName}`,
           );
         }
       }
@@ -181,9 +183,7 @@ export async function runScenarioWithRebalancers(
     results.push(result);
 
     // Collect final balances
-    const balanceProvider = new ethers.providers.JsonRpcProvider(
-      options.anvilRpc,
-    );
+    const balanceProvider = new ethers.JsonRpcProvider(options.anvilRpc);
     const finalBalances: Record<string, string> = {};
     for (const [name, domain] of Object.entries(deployment.domains)) {
       const balance = await getWarpTokenBalance(
@@ -191,7 +191,7 @@ export async function runScenarioWithRebalancers(
         domain.warpToken,
         domain.collateralToken,
       );
-      finalBalances[name] = ethers.utils.formatEther(balance.toString());
+      finalBalances[name] = ethers.formatEther(balance);
     }
     // Clean up provider
     balanceProvider.removeAllListeners();
@@ -227,16 +227,14 @@ export function printResults(
     `    Latency: avg=${result.kpis.averageLatency.toFixed(0)}ms, p50=${result.kpis.p50Latency}ms, p95=${result.kpis.p95Latency}ms`,
   );
   console.log(
-    `    Rebalances: ${result.kpis.totalRebalances} (${ethers.utils.formatEther(result.kpis.rebalanceVolume.toString())} tokens)`,
+    `    Rebalances: ${result.kpis.totalRebalances} (${ethers.formatEther(result.kpis.rebalanceVolume)} tokens)`,
   );
 
   console.log(`    Final Balances:`);
-  const initialCollateral = ethers.utils.formatEther(
-    file.defaultInitialCollateral,
-  );
+  const initialCollateral = ethers.formatEther(file.defaultInitialCollateral);
   for (const [name, balance] of Object.entries(finalBalances)) {
     const extraFromImbalance = file.initialImbalance?.[name]
-      ? parseFloat(ethers.utils.formatEther(file.initialImbalance[name]))
+      ? parseFloat(ethers.formatEther(file.initialImbalance[name]))
       : 0;
     const initialForChain = parseFloat(initialCollateral) + extraFromImbalance;
     const change = parseFloat(balance) - initialForChain;
@@ -277,9 +275,7 @@ export function printComparison(results: SimulationResult[]): {
     ['Rebalances', ...results.map((r) => String(r.kpis.totalRebalances))],
     [
       'Rebal Volume',
-      ...results.map((r) =>
-        ethers.utils.formatEther(r.kpis.rebalanceVolume.toString()),
-      ),
+      ...results.map((r) => ethers.formatEther(r.kpis.rebalanceVolume)),
     ],
   ];
 
@@ -390,11 +386,9 @@ export function saveResults(
 
   vizConfig.initialCollateral = {};
   for (const chain of file.chains) {
-    const base = parseFloat(
-      ethers.utils.formatEther(file.defaultInitialCollateral),
-    );
+    const base = parseFloat(ethers.formatEther(file.defaultInitialCollateral));
     const extra = file.initialImbalance?.[chain]
-      ? parseFloat(ethers.utils.formatEther(file.initialImbalance[chain]))
+      ? parseFloat(ethers.formatEther(file.initialImbalance[chain]))
       : 0;
     vizConfig.initialCollateral[chain] = (base + extra).toString();
   }

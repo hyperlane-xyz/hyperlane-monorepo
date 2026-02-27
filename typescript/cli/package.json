@@ -25,7 +25,7 @@
   "types": "./dist/src/index.d.ts",
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
-    "build": "pnpm version:update && tsc",
+    "build": "pnpm version:update && tsc -p tsconfig.build.json",
     "bundle": "rm -rf ./bundle && ncc build ./dist/cli.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
     "dev": "pnpm version:update && tsc --watch",
     "clean": "rm -rf ./dist && rm -rf ./bundle",
@@ -47,9 +47,6 @@
     "@cosmjs/proto-signing": "catalog:",
     "@cosmjs/stargate": "catalog:",
     "@eslint/js": "catalog:",
-    "@ethersproject/abi": "*",
-    "@ethersproject/constants": "*",
-    "@ethersproject/providers": "*",
     "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",

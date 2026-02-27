@@ -66,13 +66,13 @@ describe('hyperlane ica deploy e2e tests', async function () {
     chain3DomainId = chain3Metadata.domainId!;
     chain4DomainId = chain4Metadata.domainId!;
 
-    const providerChain2 = new ethers.providers.JsonRpcProvider(
+    const providerChain2 = new ethers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,
     );
-    const providerChain3 = new ethers.providers.JsonRpcProvider(
+    const providerChain3 = new ethers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const providerChain4 = new ethers.providers.JsonRpcProvider(
+    const providerChain4 = new ethers.JsonRpcProvider(
       chain4Metadata.rpcUrls[0].http,
     );
 
@@ -81,18 +81,22 @@ describe('hyperlane ica deploy e2e tests', async function () {
     walletChain4 = new Wallet(ANVIL_KEY).connect(providerChain4);
     ownerAddress = walletChain2.address;
 
+    const routerSignerChain2 = new ethers.NonceManager(walletChain2);
+    const routerSignerChain3 = new ethers.NonceManager(walletChain3);
+    const routerSignerChain4 = new ethers.NonceManager(walletChain4);
+
     // Enroll ICA routers with each other so they can communicate
     const icaRouterChain2 = InterchainAccountRouter__factory.connect(
       chain2Addresses.interchainAccountRouter!,
-      walletChain2,
+      routerSignerChain2,
     );
     const icaRouterChain3 = InterchainAccountRouter__factory.connect(
       chain3Addresses.interchainAccountRouter!,
-      walletChain3,
+      routerSignerChain3,
     );
     const icaRouterChain4 = InterchainAccountRouter__factory.connect(
       chain4Addresses.interchainAccountRouter!,
-      walletChain4,
+      routerSignerChain4,
     );
 
     // Check if routers are already enrolled
@@ -106,7 +110,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const tx1 = await icaRouterChain3.enrollRemoteRouterAndIsm(
         chain2DomainId,
         addressToBytes32(chain2Addresses.interchainAccountRouter!),
-        ethers.constants.HashZero, // Use default ISM
+        ethers.ZeroHash, // Use default ISM
       );
       await tx1.wait();
     }
@@ -116,7 +120,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const tx2 = await icaRouterChain2.enrollRemoteRouterAndIsm(
         chain3DomainId,
         addressToBytes32(chain3Addresses.interchainAccountRouter!),
-        ethers.constants.HashZero, // Use default ISM
+        ethers.ZeroHash, // Use default ISM
       );
       await tx2.wait();
     }
@@ -126,7 +130,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const tx3 = await icaRouterChain4.enrollRemoteRouterAndIsm(
         chain2DomainId,
         addressToBytes32(chain2Addresses.interchainAccountRouter!),
-        ethers.constants.HashZero, // Use default ISM
+        ethers.ZeroHash, // Use default ISM
       );
       await tx3.wait();
     }
@@ -136,7 +140,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const tx4 = await icaRouterChain2.enrollRemoteRouterAndIsm(
         chain4DomainId,
         addressToBytes32(chain4Addresses.interchainAccountRouter!),
-        ethers.constants.HashZero, // Use default ISM
+        ethers.ZeroHash, // Use default ISM
       );
       await tx4.wait();
     }
@@ -331,7 +335,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
       // Send some ETH to the ICA so it can make calls
       const fundTx = await walletChain3.sendTransaction({
         to: icaAddress,
-        value: ethers.utils.parseEther('1'),
+        value: ethers.parseEther('1'),
       });
       await fundTx.wait();
 
@@ -350,7 +354,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
         originDomain,
         ownerAddress,
         chain2Addresses.interchainAccountRouter!,
-        ethers.constants.AddressZero, // default ISM
+        ethers.ZeroAddress, // default ISM
       );
 
       expect(icaAddress.toLowerCase()).to.equal(

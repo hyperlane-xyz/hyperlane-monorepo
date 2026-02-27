@@ -1,5 +1,4 @@
-import { Provider } from '@ethersproject/providers';
-import { ethers } from 'ethers';
+import { ethers, type Provider } from 'ethers';
 import path from 'path';
 
 import {
@@ -118,9 +117,12 @@ async function getGasPrice(
   switch (protocolType) {
     case ProtocolType.Ethereum: {
       const provider = mpp.getProvider(chain);
-      const gasPrice = await (provider.provider as Provider).getGasPrice();
+      const feeData = await (
+        provider.provider as unknown as Provider
+      ).getFeeData();
+      const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n;
       return {
-        amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
+        amount: ethers.formatUnits(gasPrice, 'gwei'),
         decimals: 9,
       };
     }

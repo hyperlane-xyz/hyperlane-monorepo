@@ -1,11 +1,11 @@
 import { Logger } from 'pino';
 
-import { Address, deepCopy, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, assert, deepCopy, eqAddress } from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { HypTokenRouterConfig } from '../token/types.js';
 import { ChainName } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
@@ -33,7 +33,7 @@ type UpdateHookParams = {
 export async function getEvmHookUpdateTransactions(
   clientContractAddress: string,
   updateHookParams: Readonly<UpdateHookParams>,
-): Promise<AnnotatedEV5Transaction[]> {
+): Promise<AnnotatedEvmTransaction[]> {
   const {
     actualConfig: actualHookConfig,
     evmChainName,
@@ -47,6 +47,15 @@ export async function getEvmHookUpdateTransactions(
     contractVerifier,
   } = updateHookParams;
 
+  const actualHookAddress =
+    typeof actualHookConfig === 'string'
+      ? actualHookConfig
+      : actualHookConfig.address;
+  assert(
+    typeof actualHookAddress === 'string',
+    `Missing derived hook address for ${evmChainName}`,
+  );
+
   const hookModule = new EvmHookModule(
     multiProvider,
     {
@@ -56,10 +65,7 @@ export async function getEvmHookUpdateTransactions(
         ...hookAndIsmFactories,
         mailbox,
         proxyAdmin: proxyAdminAddress,
-        deployedHook:
-          typeof actualHookConfig === 'string'
-            ? actualHookConfig
-            : actualHookConfig.address,
+        deployedHook: actualHookAddress,
       },
     },
     ccipContractCache,

@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 
 import {
   TronNodeInfo,
@@ -11,6 +10,7 @@ import { TestStorage } from '@hyperlane-xyz/core/tron/typechain/contracts/test/T
 import { TestStorage__factory } from '@hyperlane-xyz/core/tron/typechain/factories/contracts/test/TestStorage__factory.js';
 
 import { TronContractFactory } from './TronContractFactory.js';
+import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
 import { TronWallet } from './TronWallet.js';
 
 const TEST_CHAIN: TronTestChainMetadata = {
@@ -34,6 +34,9 @@ describe('TronWallet Integration Tests', function () {
   });
 
   after(async () => {
+    if (wallet?.provider instanceof TronJsonRpcProvider) {
+      wallet.provider.destroy();
+    }
     if (node) {
       await stopTronNode(node);
     }
@@ -51,14 +54,14 @@ describe('TronWallet Integration Tests', function () {
       const recipientAddress = recipientWallet.address;
 
       // Get initial balances
-      const senderBalanceBefore = await wallet.provider.getBalance(
+      const senderBalanceBefore = await wallet.provider!.getBalance(
         wallet.address,
       );
       const recipientBalanceBefore =
-        await wallet.provider.getBalance(recipientAddress);
+        await wallet.provider!.getBalance(recipientAddress);
 
       // Transfer 1 TRX (1,000,000 SUN)
-      const transferAmount = BigNumber.from(1_000_000);
+      const transferAmount = 1_000_000n;
       const tx = await wallet.sendTransaction({
         to: recipientAddress,
         value: transferAmount,
@@ -66,19 +69,19 @@ describe('TronWallet Integration Tests', function () {
 
       // Wait for confirmation
       const receipt = await tx.wait();
-      expect(receipt.status).to.equal(1);
+      expect(receipt!.status).to.equal(1);
 
       // Verify balances changed
-      const senderBalanceAfter = await wallet.provider.getBalance(
+      const senderBalanceAfter = await wallet.provider!.getBalance(
         wallet.address,
       );
       const recipientBalanceAfter =
-        await wallet.provider.getBalance(recipientAddress);
+        await wallet.provider!.getBalance(recipientAddress);
 
-      expect(recipientBalanceAfter.sub(recipientBalanceBefore)).to.deep.equal(
+      expect(recipientBalanceAfter - recipientBalanceBefore).to.equal(
         transferAmount,
       );
-      expect(senderBalanceBefore.gt(senderBalanceAfter)).to.be.true;
+      expect(senderBalanceBefore > senderBalanceAfter).to.be.true;
     });
   });
 
@@ -94,7 +97,7 @@ describe('TronWallet Integration Tests', function () {
       );
 
       // Get deploy transaction (pure ethers, no network call)
-      const deployTx = factory.getDeployTransaction(
+      const deployTx = await factory.getDeployTransaction(
         INITIAL_VALUE,
         wallet.address,
       );
@@ -103,7 +106,7 @@ describe('TronWallet Integration Tests', function () {
 
       // Estimate gas via Tron JSON-RPC
       const estimatedGas = await wallet.estimateGas(deployTx);
-      expect(estimatedGas.gt(0)).to.be.true;
+      expect(estimatedGas > 0n).to.be.true;
     });
 
     it('should deploy with gas limit override (like handleDeploy)', async () => {
@@ -113,23 +116,23 @@ describe('TronWallet Integration Tests', function () {
       );
 
       // Simulate handleDeploy flow: estimate then deploy with buffered gas limit
-      const deployTx = factory.getDeployTransaction(
+      const deployTx = await factory.getDeployTransaction(
         INITIAL_VALUE,
         wallet.address,
       );
       const estimatedGas = await wallet.estimateGas(deployTx);
-      const bufferedGasLimit = estimatedGas.mul(120).div(100); // 20% buffer
+      const bufferedGasLimit = (estimatedGas * 120n) / 100n; // 20% buffer
 
       const deployed = await factory.deploy(INITIAL_VALUE, wallet.address, {
         gasLimit: bufferedGasLimit,
       });
 
-      expect(deployed.address).to.be.a('string');
-      expect(deployed.address).to.match(/^0x[a-fA-F0-9]{40}$/);
+      expect(deployed.target).to.be.a('string');
+      expect(deployed.target).to.match(/^0x[a-fA-F0-9]{40}$/);
 
       // Verify we can interact with the deployed contract
       const value = await deployed.get();
-      expect(value.toNumber()).to.equal(INITIAL_VALUE);
+      expect(value).to.equal(BigInt(INITIAL_VALUE));
     });
 
     it('should deploy a contract with constructor args', async () => {
@@ -139,13 +142,13 @@ describe('TronWallet Integration Tests', function () {
       );
       contract = await factory.deploy(INITIAL_VALUE, wallet.address);
 
-      expect(contract.address).to.be.a('string');
-      expect(contract.address).to.match(/^0x[a-fA-F0-9]{40}$/);
+      expect(contract.target).to.be.a('string');
+      expect(contract.target).to.match(/^0x[a-fA-F0-9]{40}$/);
     });
 
     it('should have correct initial value from constructor', async () => {
       const value = await contract.get();
-      expect(value.toNumber()).to.equal(INITIAL_VALUE);
+      expect(value).to.equal(BigInt(INITIAL_VALUE));
     });
 
     it('should have correct owner from constructor', async () => {
@@ -158,17 +161,17 @@ describe('TronWallet Integration Tests', function () {
       const tx = await contract.set(newValue);
       const receipt = await tx.wait();
 
-      expect(receipt.status).to.equal(1);
+      expect(receipt!.status).to.equal(1);
     });
 
     it('should get the updated value', async () => {
       const value = await contract.get();
-      expect(value.toNumber()).to.equal(42);
+      expect(value).to.equal(42n);
     });
 
     it('should read value property directly', async () => {
       const value = await contract.value();
-      expect(value.toNumber()).to.equal(42);
+      expect(value).to.equal(42n);
     });
 
     it('should update value and read again', async () => {
@@ -177,7 +180,7 @@ describe('TronWallet Integration Tests', function () {
       await tx.wait();
 
       const value = await contract.get();
-      expect(value.toNumber()).to.equal(newValue);
+      expect(value).to.equal(BigInt(newValue));
     });
   });
 });

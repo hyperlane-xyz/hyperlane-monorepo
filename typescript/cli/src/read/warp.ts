@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { formatUnits } from 'ethers';
 
 import {
   HypXERC20Lockbox__factory,
@@ -203,7 +203,7 @@ export async function logXERC20Limits(
       const burn = await xerc20.burningCurrentLimitOf(router);
 
       const formattedLimits = objMap({ mint, burn }, (_, v) =>
-        ethers.utils.formatUnits(v, t.decimals),
+        formatUnits(v, t.decimals),
       );
 
       return [t.chainName, formattedLimits];

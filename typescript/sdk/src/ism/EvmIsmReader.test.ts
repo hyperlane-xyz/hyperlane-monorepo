@@ -1,9 +1,10 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import {
   AbstractRoutingIsm__factory,
+  AmountRoutingIsm,
+  AmountRoutingIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
@@ -16,9 +17,10 @@ import {
   IncrementalDomainRoutingIsm__factory,
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
+  Ownable,
+  Ownable__factory,
   OPStackIsm,
   OPStackIsm__factory,
-  Ownable__factory,
   PausableIsm,
   PausableIsm__factory,
   TestIsm,
@@ -239,7 +241,7 @@ describe('EvmIsmReader', () => {
     // Mock fallback routing to fail mailbox() call
     const mockFallbackContract = {
       mailbox: sandbox.stub().rejects(new Error('No mailbox')),
-      domains: sandbox.stub().resolves([BigNumber.from(mockDomain)]),
+      domains: sandbox.stub().resolves([BigInt(mockDomain)]),
       module: sandbox.stub().resolves(mockModule),
     };
 
@@ -275,6 +277,64 @@ describe('EvmIsmReader', () => {
 
     const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
     expect(config.type).to.equal(IsmType.INCREMENTAL_ROUTING);
+  });
+
+  it('should preserve non-derivable nested modules for amount routing ISM', async () => {
+    const mockAddress = randomAddress();
+    const lowerIsm = randomAddress();
+    const upperIsm = randomAddress();
+
+    const topLevelIsmContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+    };
+    const nonDerivableNestedIsmContract = {
+      moduleType: sandbox
+        .stub()
+        .rejects(new Error('BlockchainError: require(false)')),
+    };
+    const abstractRoutingContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+    };
+    const icaContract = {
+      CCIP_READ_ISM: sandbox.stub().rejects(new Error('not ICA')),
+    };
+    const nonOwnableContract = {
+      owner: sandbox.stub().rejects(new Error('not ownable')),
+    };
+    const amountRoutingContract = {
+      lower: sandbox.stub().resolves(lowerIsm),
+      upper: sandbox.stub().resolves(upperIsm),
+      threshold: sandbox.stub().resolves(5n),
+    };
+
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .callsFake((address: string) => {
+        return address.toLowerCase() === mockAddress.toLowerCase()
+          ? (topLevelIsmContract as unknown as IInterchainSecurityModule)
+          : (nonDerivableNestedIsmContract as unknown as IInterchainSecurityModule);
+      });
+    sandbox
+      .stub(AbstractRoutingIsm__factory, 'connect')
+      .returns(abstractRoutingContract as unknown as InterchainAccountRouter);
+    sandbox
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .returns(icaContract as unknown as InterchainAccountRouter);
+    sandbox
+      .stub(Ownable__factory, 'connect')
+      .returns(nonOwnableContract as unknown as Ownable);
+    sandbox
+      .stub(AmountRoutingIsm__factory, 'connect')
+      .returns(amountRoutingContract as unknown as AmountRoutingIsm);
+
+    const config = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(config).to.deep.equal({
+      address: mockAddress,
+      type: IsmType.AMOUNT_ROUTING,
+      lowerIsm,
+      upperIsm,
+      threshold: 5,
+    });
   });
 
   /*

@@ -11,22 +11,20 @@ async function main() {
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const chains = multiProvider.getKnownChainNames();
-  const providers: [string, ethers.providers.JsonRpcProvider][] = [];
+  const providers: [string, ethers.JsonRpcProvider, string][] = [];
   for (const chain of chains) {
     rootLogger.debug(`Building providers for ${chain}`);
     const rpcData = await getSecretRpcEndpoints(environment, chain);
     for (const url of rpcData)
-      providers.push([chain, new ethers.providers.StaticJsonRpcProvider(url)]);
+      providers.push([chain, new ethers.JsonRpcProvider(url), url]);
   }
-  for (const [chain, provider] of providers) {
-    rootLogger.debug(
-      `Testing provider for ${chain}: ${provider.connection.url}`,
-    );
+  for (const [chain, provider, url] of providers) {
+    rootLogger.debug(`Testing provider for ${chain}: ${url}`);
     try {
       await provider.getBlockNumber();
     } catch (error) {
       rootLogger.error(
-        `Provider failed for ${chain}: ${provider.connection.url} (${String(error)})`,
+        `Provider failed for ${chain}: ${url} (${String(error)})`,
       );
     }
   }

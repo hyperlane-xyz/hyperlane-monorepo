@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { parseMessage, rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
 import { MockActionTracker } from './runners/MockActionTracker.js';
@@ -83,24 +83,23 @@ export class MockInfrastructureController {
     // Listen for Dispatch events on all mailboxes
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
       const mailbox = this.core.getContracts(chainName).mailbox;
-      mailbox.on(
-        mailbox.filters.Dispatch(),
-        (
-          sender: string,
-          destination: number,
-          _recipient: string,
-          message: string,
-        ) => {
-          this.onDispatch(chainName, sender, destination, message).catch(
-            (error: unknown) => {
-              logger.error(
-                { origin: chainName, error },
-                'Unhandled error in onDispatch',
-              );
-            },
+      await mailbox.on(mailbox.filters.Dispatch(), (...args: unknown[]) => {
+        const { sender, message } = this.extractDispatchArgs(args);
+        if (!sender || !message) {
+          logger.error(
+            { origin: chainName, argsLength: args.length },
+            'Failed to parse Dispatch event args',
           );
-        },
-      );
+          return;
+        }
+
+        this.onDispatch(chainName, sender, message).catch((error: unknown) => {
+          logger.error(
+            { origin: chainName, error },
+            'Unhandled error in onDispatch',
+          );
+        });
+      });
     }
 
     // Start processing loop
@@ -113,9 +112,19 @@ export class MockInfrastructureController {
   private async onDispatch(
     originChain: string,
     sender: string,
-    destinationDomainId: number,
     message: string,
   ): Promise<void> {
+    let destinationDomainId: number;
+    try {
+      destinationDomainId = parseMessage(message).destination;
+    } catch (error) {
+      logger.error(
+        { originChain, sender, error },
+        'Failed to parse dispatched message',
+      );
+      return;
+    }
+
     const destChain =
       this.core.multiProvider.tryGetChainName(destinationDomainId);
     if (!destChain) {
@@ -148,16 +157,16 @@ export class MockInfrastructureController {
     const type = isWarp ? 'user-transfer' : 'bridge-transfer';
 
     // Compute real messageId
-    const messageId = ethers.utils.keccak256(message);
+    const messageId = ethers.keccak256(message);
 
     const body = '0x' + message.slice(2 + MESSAGE_BODY_OFFSET * 2);
     let amount = 0n;
     try {
-      const decoded = ethers.utils.defaultAbiCoder.decode(
+      const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
         ['bytes32', 'uint256'],
         body,
       );
-      const scaledAmount = decoded[1].toBigInt();
+      const scaledAmount = decoded[1] as bigint;
       // Warp tokens use scale = 10^decimals, bridge Router uses scale = 1 (no scaling)
       amount =
         type === 'user-transfer'
@@ -219,6 +228,52 @@ export class MockInfrastructureController {
     this.pendingMessages.push(pending);
   }
 
+  private extractDispatchArgs(args: unknown[]): {
+    sender?: string;
+    message?: string;
+  } {
+    if (
+      typeof args[0] === 'string' &&
+      ethers.isAddress(args[0]) &&
+      typeof args[3] === 'string' &&
+      args[3].startsWith('0x')
+    ) {
+      return { sender: args[0], message: args[3] };
+    }
+
+    for (const arg of args) {
+      if (!arg || typeof arg !== 'object' || !('args' in arg)) continue;
+      const eventArgs = (arg as { args?: unknown }).args as
+        | { sender?: unknown; message?: unknown; [key: number]: unknown }
+        | undefined;
+      if (!eventArgs) continue;
+
+      const senderCandidate = eventArgs.sender ?? eventArgs[0];
+      const messageCandidate = eventArgs.message ?? eventArgs[3];
+      if (
+        typeof senderCandidate === 'string' &&
+        ethers.isAddress(senderCandidate) &&
+        typeof messageCandidate === 'string' &&
+        messageCandidate.startsWith('0x')
+      ) {
+        return { sender: senderCandidate, message: messageCandidate };
+      }
+    }
+
+    // Fallback: scan direct callback args only.
+    let sender: string | undefined;
+    let message: string | undefined;
+    for (const value of args) {
+      if (typeof value !== 'string') continue;
+      if (!sender && ethers.isAddress(value)) sender = value;
+      if (!message && value.startsWith('0x') && value.length > 2 + 160) {
+        message = value;
+      }
+    }
+
+    return { sender, message };
+  }
+
   /**
    * Async processing loop — delivers ready messages, sleeps between iterations.
    * Retries indefinitely; waitForAllDeliveries handles the timeout.
@@ -235,7 +290,7 @@ export class MockInfrastructureController {
 
         // Static call pre-check
         try {
-          await mailbox.callStatic.process('0x', msg.message);
+          await mailbox.process.staticCall('0x', msg.message);
         } catch (error) {
           logger.debug(
             {
@@ -300,7 +355,7 @@ export class MockInfrastructureController {
     }
 
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
-      this.core.getContracts(chainName).mailbox.removeAllListeners();
+      await this.core.getContracts(chainName).mailbox.removeAllListeners();
     }
   }
 
@@ -311,36 +366,54 @@ export class MockInfrastructureController {
   /**
    * Wait for all pending messages to be delivered
    */
-  async waitForAllDeliveries(timeoutMs: number = 30000): Promise<void> {
+  async waitForAllDeliveries(
+    timeoutMs: number = 30000,
+    settleMs: number = 1000,
+  ): Promise<void> {
     const startTime = Date.now();
+    const deadline = startTime + timeoutMs;
+    let lastSeenPendingTime = startTime;
 
-    while (this.hasPendingMessages()) {
-      if (Date.now() - startTime > timeoutMs) {
-        const remaining = this.pendingMessages.length;
-        logger.warn(
-          { remaining },
-          'Timeout waiting for deliveries - marking failures',
-        );
+    while (Date.now() <= deadline) {
+      const pendingCount = this.pendingMessages.length;
+      const now = Date.now();
+      if (pendingCount > 0) {
+        lastSeenPendingTime = now;
+      }
 
-        for (const msg of this.pendingMessages) {
-          if (msg.type === 'user-transfer') {
-            this.kpiCollector.recordTransferFailed(msg.messageId);
-            this.actionTracker?.removeTransfer(msg.messageId);
-          } else if (msg.type === 'bridge-transfer') {
-            this.kpiCollector.recordRebalanceFailed(msg.messageId);
-            if (this.actionTracker && msg.amount > 0n) {
-              this.actionTracker.failRebalanceByRoute(
-                this.core.multiProvider.getDomainId(msg.origin),
-                this.core.multiProvider.getDomainId(msg.destination),
-                msg.amount,
-              );
-            }
-          }
-        }
-        this.pendingMessages = [];
-        break;
+      // Require a short quiet period with no pending messages to avoid races
+      // where async event polling has not yet populated pendingMessages.
+      if (
+        pendingCount === 0 &&
+        now - startTime >= settleMs &&
+        now - lastSeenPendingTime >= settleMs
+      ) {
+        return;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+
+    const remaining = this.pendingMessages.length;
+    logger.warn(
+      { remaining },
+      'Timeout waiting for deliveries - marking failures',
+    );
+
+    for (const msg of this.pendingMessages) {
+      if (msg.type === 'user-transfer') {
+        this.kpiCollector.recordTransferFailed(msg.messageId);
+        this.actionTracker?.removeTransfer(msg.messageId);
+      } else if (msg.type === 'bridge-transfer') {
+        this.kpiCollector.recordRebalanceFailed(msg.messageId);
+        if (this.actionTracker && msg.amount > 0n) {
+          this.actionTracker.failRebalanceByRoute(
+            this.core.multiProvider.getDomainId(msg.origin),
+            this.core.multiProvider.getDomainId(msg.destination),
+            msg.amount,
+          );
+        }
+      }
+    }
+    this.pendingMessages = [];
   }
 }

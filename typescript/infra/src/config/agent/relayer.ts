@@ -1,4 +1,3 @@
-import { BigNumberish } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -15,6 +14,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  Numberish,
   ProtocolType,
   addressToBytes32,
   isValidAddressEvm,
@@ -68,7 +68,7 @@ export interface BaseRelayerConfig {
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   addressBlacklist?: string;
-  transactionGasLimit?: BigNumberish;
+  transactionGasLimit?: Numberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;

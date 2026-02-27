@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Contract } from 'ethers';
 
 import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
 
@@ -86,7 +86,7 @@ export class CCIPContractCache {
       this.cachedAddresses[origin] = {};
     }
     this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}_${destination}`] =
-      ccipHook.address;
+      ccipHook.target as string;
   }
 
   setIsm(origin: ChainName, destination: ChainName, ccipIsm: CCIPIsm): void {
@@ -94,7 +94,7 @@ export class CCIPContractCache {
       this.cachedAddresses[destination] = {};
     }
     this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}_${origin}`] =
-      ccipIsm.address;
+      ccipIsm.target as string;
   }
 
   getHook(origin: ChainName, destination: ChainName): string | undefined {
@@ -126,11 +126,7 @@ export async function isSupportedCCIPLane({
     return false;
   }
   const signer = multiProvider.getSigner(origin);
-  const ccipRouter = new ethers.Contract(
-    originRouter,
-    CCIP_ROUTER_CLIENT_ABI,
-    signer,
-  );
+  const ccipRouter = new Contract(originRouter, CCIP_ROUTER_CLIENT_ABI, signer);
 
   return ccipRouter.isChainSupported(destinationSelector);
 }

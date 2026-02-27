@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
 
@@ -125,7 +125,7 @@ describe('Safe Utils', () => {
       const tx = {
         to: '0x1234567890123456789012345678901234567890',
         data,
-        value: BigNumber.from(0),
+        value: ethers.toBigInt(0),
         chain: 'test',
         timestamp: Date.now(),
       };
@@ -152,7 +152,7 @@ describe('Safe Utils', () => {
       const tx = {
         to: '0x1234567890123456789012345678901234567890',
         data,
-        value: BigNumber.from(0),
+        value: ethers.toBigInt(0),
         chain: 'test',
         timestamp: Date.now(),
       };
@@ -162,7 +162,7 @@ describe('Safe Utils', () => {
       expect(decoded.name).to.equal('addOwnerWithThreshold');
       expect(decoded.args).to.have.lengthOf(2);
       expect(decoded.args[0]).to.equal(newOwner);
-      expect(decoded.args[1].toNumber()).to.equal(threshold);
+      expect(decoded.args[1]).to.equal(BigInt(threshold));
     });
 
     it('should parse changeThreshold transaction using ISafe interface', () => {
@@ -176,7 +176,7 @@ describe('Safe Utils', () => {
       const tx = {
         to: '0x1234567890123456789012345678901234567890',
         data,
-        value: BigNumber.from(0),
+        value: ethers.toBigInt(0),
         chain: 'test',
         timestamp: Date.now(),
       };
@@ -185,7 +185,7 @@ describe('Safe Utils', () => {
 
       expect(decoded.name).to.equal('changeThreshold');
       expect(decoded.args).to.have.lengthOf(1);
-      expect(decoded.args[0].toNumber()).to.equal(newThreshold);
+      expect(decoded.args[0]).to.equal(BigInt(newThreshold));
     });
   });
 

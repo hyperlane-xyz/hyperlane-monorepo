@@ -1,5 +1,5 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -50,15 +50,12 @@ export async function createChainConfig({
   logBlue('Creating a new chain config');
 
   const rpcUrl = await detectAndConfirmOrPrompt(
-    async () => {
-      await new ethers.providers.JsonRpcProvider().getNetwork();
-      return ethers.providers.JsonRpcProvider.defaultUrl();
-    },
+    async () => undefined,
     'Enter http or https',
     'rpc url',
     'JSON RPC provider',
   );
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+  const provider = new JsonRpcProvider(rpcUrl);
 
   const name = await input({
     message: 'Enter chain name (one word, lower case)',

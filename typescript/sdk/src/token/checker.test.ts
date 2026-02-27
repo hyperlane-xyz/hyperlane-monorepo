@@ -20,7 +20,7 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
   }
 
   function dummyToken(address: string): TokenRouter {
-    return { address } as unknown as TokenRouter;
+    return { address, target: address } as unknown as TokenRouter;
   }
 
   const owner = '0x000000000000000000000000000000000000dEaD';

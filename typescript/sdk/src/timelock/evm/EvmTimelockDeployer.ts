@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -45,7 +45,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       [
         config.minimumDelay,
         config.proposers,
-        config.executors ?? [ethers.constants.AddressZero],
+        config.executors ?? [ZeroAddress],
         deployerAddress,
       ],
     );
@@ -60,7 +60,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       this.logger.info(`Revoking CANCELLER_ROLE from ${cancellersToRemove}`);
       for (const proposer of cancellersToRemove) {
         // Estimate gas before calling revokeRole
-        const estimatedGas = await deployedContract.estimateGas.revokeRole(
+        const estimatedGas = await deployedContract.revokeRole.estimateGas(
           CANCELLER_ROLE,
           proposer,
         );
@@ -76,7 +76,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       this.logger.info(`Setting CANCELLER_ROLE to ${config.cancellers}`);
       for (const canceller of config.cancellers) {
         // Estimate gas before calling grantRole
-        const estimatedGas = await deployedContract.estimateGas.grantRole(
+        const estimatedGas = await deployedContract.grantRole.estimateGas(
           CANCELLER_ROLE,
           canceller,
         );
@@ -89,7 +89,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       }
     }
 
-    const expectedFinalAdmin = config.admin ?? ethers.constants.AddressZero;
+    const expectedFinalAdmin = config.admin ?? ZeroAddress;
     const adminRole = await deployedContract.TIMELOCK_ADMIN_ROLE();
     const isAdminSetCorrectly = await deployedContract.hasRole(
       adminRole,
@@ -100,7 +100,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
         `Granting admin role to the expected admin ${expectedFinalAdmin}`,
       );
       // Estimate gas before calling grantRole
-      const estimatedGas = await deployedContract.estimateGas.grantRole(
+      const estimatedGas = await deployedContract.grantRole.estimateGas(
         adminRole,
         expectedFinalAdmin,
       );
@@ -117,7 +117,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
         `Revoking temporary admin role from deployer ${deployerAddress}`,
       );
       // Estimate gas before calling revokeRole
-      const estimatedGas = await deployedContract.estimateGas.revokeRole(
+      const estimatedGas = await deployedContract.revokeRole.estimateGas(
         adminRole,
         deployerAddress,
       );

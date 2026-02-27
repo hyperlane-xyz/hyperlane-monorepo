@@ -340,7 +340,7 @@ describe('EvmXERC20Module', () => {
       const xerc20Stub = sandbox.stub().resolves(XERC20_FROM_LOCKBOX);
       const connectStub = sandbox
         .stub(IXERC20Lockbox__factory, 'connect')
-        .returns({ callStatic: { XERC20: xerc20Stub } } as any);
+        .returns({ XERC20: { staticCall: xerc20Stub } } as any);
 
       const warpRouteConfig = {
         type: TokenType.XERC20Lockbox,

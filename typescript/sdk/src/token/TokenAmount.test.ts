@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { TestChainName, test2 } from '../consts/testChains.js';
 
@@ -10,7 +10,7 @@ import { TokenStandard } from './TokenStandard.js';
 const token1 = new Token({
   chainName: TestChainName.test1,
   standard: TokenStandard.ERC20,
-  addressOrDenom: ethers.constants.AddressZero,
+  addressOrDenom: ZeroAddress,
   decimals: 4,
   symbol: 'FAKE',
   name: 'Fake Token',

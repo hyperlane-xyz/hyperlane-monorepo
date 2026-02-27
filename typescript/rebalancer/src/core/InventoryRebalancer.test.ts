@@ -190,6 +190,7 @@ describe('InventoryRebalancer E2E', () => {
       getProvider: Sinon.stub().returns(mockProvider),
       getSigner: Sinon.stub().returns(TEST_WALLET),
       sendTransaction: Sinon.stub().resolves({
+        hash: '0xTransferRemoteTxHash',
         transactionHash: '0xTransferRemoteTxHash',
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
       }),
@@ -608,7 +609,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('Gas quote failed');
     });
 
-    it('throws when signer is not a Wallet instance', async () => {
+    it('throws when signer has no private key access', async () => {
       multiProvider.getSigner = Sinon.stub().returns({
         getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
       });
@@ -641,7 +642,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Wallet');
+      expect(results[0].error).to.include('private key access');
       expect(bridge.execute.called).to.be.false;
     });
   });

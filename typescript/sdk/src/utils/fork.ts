@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { JsonRpcProvider, JsonRpcSigner } from 'ethers';
 
 import { Address, isValidAddressEvm, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -76,7 +76,7 @@ export const setFork = async (
 export const impersonateAccount = async (
   address: Address,
   anvilEndPoint?: string,
-): Promise<providers.JsonRpcSigner> => {
+): Promise<JsonRpcSigner> => {
   rootLogger.info(`Impersonating account (${address})...`);
 
   const provider = getLocalProvider({ urlOverride: anvilEndPoint });
@@ -125,7 +125,7 @@ export const getLocalProvider = ({
   anvilIPAddr?: string;
   anvilPort?: number;
   urlOverride?: string;
-} = {}): providers.JsonRpcProvider => {
+} = {}): JsonRpcProvider => {
   let envUrl;
   if (anvilIPAddr && anvilPort)
     envUrl = `${ENDPOINT_PREFIX}${anvilIPAddr}:${anvilPort}`;
@@ -141,11 +141,11 @@ export const getLocalProvider = ({
 
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
-  return new providers.JsonRpcProvider(url);
+  return new JsonRpcProvider(url);
 };
 
 export async function setBalance(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   address: Address,
   balanceWei: string,
 ): Promise<void> {
@@ -153,7 +153,7 @@ export async function setBalance(
 }
 
 export async function setStorageAt(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   contractAddress: Address,
   slot: string,
   value: string,
@@ -166,34 +166,32 @@ export async function setStorageAt(
 }
 
 export async function mine(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   blocks = 1,
 ): Promise<void> {
   await provider.send(ANVIL_RPC_METHODS.MINE, [blocks]);
 }
 
 export async function increaseTime(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   seconds: number,
 ): Promise<void> {
   await provider.send(ANVIL_RPC_METHODS.INCREASE_TIME, [seconds]);
 }
 
-export async function snapshot(
-  provider: providers.JsonRpcProvider,
-): Promise<string> {
+export async function snapshot(provider: JsonRpcProvider): Promise<string> {
   return provider.send(ANVIL_RPC_METHODS.SNAPSHOT, []);
 }
 
 export async function revertToSnapshot(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   snapshotId: string,
 ): Promise<boolean> {
   return provider.send(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
 }
 
 export async function impersonateAccounts(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   accounts: string[],
 ): Promise<void> {
   await Promise.all(

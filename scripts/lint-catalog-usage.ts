@@ -16,8 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Dependencies that are intentionally allowed to have different versions across packages.
 // express: v4 in ccip-server, v5 in http-registry-server (different API compatibility needs)
 // @types/express: follows express versions
-// @ethersproject/*: all use "*" wildcard to match ethers version
-const ALLOWED_EXCEPTIONS = ['express', '@types/express', /^@ethersproject\//];
+const ALLOWED_EXCEPTIONS = ['express', '@types/express'];
 
 function isAllowedException(depName: string): boolean {
   return ALLOWED_EXCEPTIONS.some((exception) =>

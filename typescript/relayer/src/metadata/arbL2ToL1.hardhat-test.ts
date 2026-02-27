@@ -1,8 +1,6 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import '@nomiclabs/hardhat-waffle';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -35,12 +33,7 @@ import {
   TestRecipientDeployer,
   testChains,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  WithAddress,
-  bytes32ToAddress,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { WithAddress, bytes32ToAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import {
@@ -78,6 +71,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
 
   before(async () => {
     [relayer] = await hre.ethers.getSigners();
+    const relayerAddress = await relayer.getAddress();
     const multiProvider = MultiProvider.createTestMultiProvider({
       signer: relayer,
     });
@@ -101,16 +95,17 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       new MockArbSys__factory(),
       [],
     );
+    const mockArbSysAddress = await mockArbSys.getAddress();
     hookConfig = {
       test4: {
         type: HookType.ARB_L2_TO_L1,
-        arbSys: mockArbSys.address,
+        arbSys: mockArbSysAddress,
         destinationChain: destination,
         childHook: {
           type: HookType.INTERCHAIN_GAS_PAYMASTER,
-          beneficiary: relayer.address,
-          owner: relayer.address,
-          oracleKey: relayer.address,
+          beneficiary: relayerAddress,
+          owner: relayerAddress,
+          oracleKey: relayerAddress,
           overhead: {
             [destination]: 200000,
           },
@@ -125,20 +120,18 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     };
 
     factoryContracts = contractsMap.test4;
-    proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
-      (acc, key) => {
-        acc[key] =
-          contractsMap[origin][key as keyof ProxyFactoryFactories].address;
-        return acc;
-      },
-      {} as Record<string, Address>,
-    ) as HyperlaneAddresses<ProxyFactoryFactories>;
+    proxyFactoryAddresses = {} as HyperlaneAddresses<ProxyFactoryFactories>;
+    for (const key of Object.keys(factoryContracts) as Array<
+      keyof ProxyFactoryFactories
+    >) {
+      proxyFactoryAddresses[key] = await contractsMap[origin][key].getAddress();
+    }
     arbBridge = await multiProvider.handleDeploy(
       origin,
       new MockArbBridge__factory(),
       [],
     );
-    hookConfig.test4.bridge = arbBridge.address;
+    hookConfig.test4.bridge = await arbBridge.getAddress();
 
     const hookModule = await EvmHookModule.create({
       chain: origin,
@@ -163,23 +156,28 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         bytes32ToAddress(await arbL2ToL1Hook.ism()),
         relayer,
       );
-      await testRecipient.setInterchainSecurityModule(arbL2ToL1Ism.address);
+      await testRecipient.setInterchainSecurityModule(
+        await arbL2ToL1Ism.getAddress(),
+      );
 
       const { dispatchTx, message } = await core.sendMessage(
         origin,
         destination,
-        testRecipient.address,
+        await testRecipient.getAddress(),
         '0xdeadbeef',
-        arbL2ToL1Hook.address,
+        await arbL2ToL1Hook.getAddress(),
       );
 
       const derivedIsm = await new EvmIsmReader(
         core.multiProvider,
         destination,
-      ).deriveIsmConfig(arbL2ToL1Ism.address);
+      ).deriveIsmConfig(await arbL2ToL1Ism.getAddress());
 
       context = {
-        hook: { ...hookConfig[origin], address: arbL2ToL1Hook.address },
+        hook: {
+          ...hookConfig[origin],
+          address: await arbL2ToL1Hook.getAddress(),
+        },
         ism: derivedIsm as WithAddress<ArbL2ToL1IsmConfig>,
         message,
         dispatchTx,
@@ -188,7 +186,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       sinon
         .stub(metadataBuilder, 'getArbitrumOutboxProof')
         .callsFake(async (): Promise<string[]> => {
-          await arbBridge.setL2ToL1Sender(arbL2ToL1Hook.address);
+          await arbBridge.setL2ToL1Sender(await arbL2ToL1Hook.getAddress());
           return [];
         });
     });
@@ -218,8 +216,8 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       // stub waiting period to 10 blocks
       sinon
         .stub(metadataBuilder, 'getWaitingBlocksUntilReady')
-        .callsFake(async (): Promise<BigNumber> => {
-          return BigNumber.from(10); // test waiting period
+        .callsFake(async (): Promise<bigint> => {
+          return 10n; // test waiting period
         });
 
       result = await metadataBuilder.build(context);
@@ -245,7 +243,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         calldata.arbBlockNum,
         calldata.ethBlockNum,
         calldata.timestamp,
-        BigNumber.from(0), // msg.value
+        0n, // msg.value
         calldata.data,
       );
       result = await metadataBuilder.build(context);

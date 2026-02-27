@@ -55,11 +55,10 @@
   },
   "dependencies": {
     "@cosmjs/encoding": "catalog:",
-    "@ethersproject/bytes": "*",
-    "@ethersproject/units": "*",
     "@solana/web3.js": "catalog:",
     "bech32": "^2.0.0",
     "bignumber.js": "catalog:",
+    "bs58": "catalog:",
     "ethers": "catalog:",
     "lodash-es": "catalog:",
     "pino": "catalog:",

@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { BlockTag, EtherscanProvider, Networkish } from 'ethers';
 
 import { objFilter, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
@@ -10,26 +10,26 @@ import {
   excludeProviderMethods,
 } from './ProviderMethods.js';
 
-// Used for crude rate-limiting of explorer queries without API keys
 const hostToLastQueried: Record<string, number> = {};
-const ETHERSCAN_THROTTLE_TIME = 6000; // 6.0 seconds
+const ETHERSCAN_THROTTLE_TIME = 6000;
 
 export class HyperlaneEtherscanProvider
-  extends providers.EtherscanProvider
+  extends EtherscanProvider
   implements IProviderMethods
 {
   protected readonly logger = rootLogger.child({ module: 'EtherscanProvider' });
-  // Seeing problems with these two methods even though etherscan api claims to support them
   public readonly supportedMethods = excludeProviderMethods([
     ProviderMethod.Call,
     ProviderMethod.EstimateGas,
+    ProviderMethod.GetGasPrice,
+    ProviderMethod.GetTransactionCount,
     ProviderMethod.SendTransaction,
     ProviderMethod.MaxPriorityFeePerGas,
   ]);
 
   constructor(
     public readonly explorerConfig: BlockExplorer,
-    network: providers.Networkish,
+    network: Networkish,
     public readonly options?: { debug?: boolean },
   ) {
     super(network, explorerConfig.apiKey);
@@ -41,7 +41,6 @@ export class HyperlaneEtherscanProvider
   }
 
   getBaseUrl(): string {
-    if (!this.explorerConfig) return ''; // Constructor net yet finished
     const apiUrl = this.explorerConfig?.apiUrl;
     if (!apiUrl) throw new Error('Explorer config missing apiUrl');
     if (apiUrl.endsWith('/api')) return apiUrl.slice(0, -4);
@@ -81,10 +80,11 @@ export class HyperlaneEtherscanProvider
     const hostname = this.getHostname();
     let waitTime = this.getQueryWaitTime();
     while (waitTime > 0) {
-      if (this.options?.debug)
+      if (this.options?.debug) {
         this.logger.debug(
           `HyperlaneEtherscanProvider waiting ${waitTime}ms to avoid rate limit`,
         );
+      }
       await sleep(waitTime);
       waitTime = this.getQueryWaitTime();
     }
@@ -94,36 +94,64 @@ export class HyperlaneEtherscanProvider
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
-    if (this.options?.debug)
+    if (this.options?.debug) {
       this.logger.debug(
         `HyperlaneEtherscanProvider performing method ${method} for reqId ${reqId}`,
       );
-    if (!this.supportedMethods.includes(method as ProviderMethod))
+    }
+    if (!this.supportedMethods.includes(method as ProviderMethod)) {
       throw new Error(`Unsupported method ${method}`);
+    }
 
-    if (method === ProviderMethod.GetLogs) {
-      return this.performGetLogs(params);
-    } else {
-      return super.perform(method, params);
+    switch (method as ProviderMethod) {
+      case ProviderMethod.GetLogs:
+        return this.performGetLogs(params);
+      case ProviderMethod.GetBlockNumber:
+        return this.getBlockNumber();
+      case ProviderMethod.GetBlock:
+        return this.getBlock(params?.blockTag ?? params?.block ?? 'latest');
+      case ProviderMethod.GetBalance:
+        return this.getBalance(params?.address, params?.blockTag);
+      case ProviderMethod.GetCode:
+        return this.getCode(params?.address, params?.blockTag);
+      case ProviderMethod.GetStorageAt:
+        return this.getStorage(
+          params?.address,
+          params?.position ?? params?.slot,
+          params?.blockTag,
+        );
+      case ProviderMethod.GetTransaction:
+        return this.getTransaction(params?.hash ?? params?.transactionHash);
+      case ProviderMethod.GetTransactionCount:
+        return this.getTransactionCount(params?.address, params?.blockTag);
+      case ProviderMethod.GetTransactionReceipt:
+        return this.getTransactionReceipt(
+          params?.hash ?? params?.transactionHash,
+        );
+      default:
+        throw new Error(`Unsupported method ${method}`);
     }
   }
 
-  // Overriding to allow more than one topic value
-  async performGetLogs(params: { filter: providers.Filter }): Promise<any> {
+  async performGetLogs(params: { filter: any }): Promise<any> {
     const args: Record<string, any> = { action: 'getLogs' };
-    if (params.filter.fromBlock)
+    if (params.filter.fromBlock) {
       args.fromBlock = checkLogTag(params.filter.fromBlock);
-    if (params.filter.toBlock)
+    }
+    if (params.filter.toBlock) {
       args.toBlock = checkLogTag(params.filter.toBlock);
+    }
     if (params.filter.address) args.address = params.filter.address;
     const topics = params.filter.topics;
     if (topics?.length) {
-      if (topics.length > 2)
+      if (topics.length > 2) {
         throw new Error(`Unsupported topic count ${topics.length} (max 2)`);
+      }
       for (let i = 0; i < topics.length; i++) {
         const topic = topics[i];
-        if (!topic || typeof topic !== 'string' || topic.length !== 66)
+        if (!topic || typeof topic !== 'string' || topic.length !== 66) {
           throw new Error(`Unsupported topic format: ${topic}`);
+        }
         args[`topic${i}`] = topic;
         if (i < topics.length - 1) args[`topic${i}_${i + 1}_opr`] = 'and';
       }
@@ -133,10 +161,13 @@ export class HyperlaneEtherscanProvider
   }
 }
 
-// From ethers/providers/src.ts/providers/etherscan-provider.ts
-function checkLogTag(blockTag: providers.BlockTag): number | 'latest' {
+function checkLogTag(blockTag: BlockTag): number | 'latest' {
   if (typeof blockTag === 'number') return blockTag;
+  if (typeof blockTag === 'bigint') return Number(blockTag);
   if (blockTag === 'pending') throw new Error('pending not supported');
   if (blockTag === 'latest') return blockTag;
-  return parseInt(blockTag.substring(2), 16);
+  if (typeof blockTag === 'string' && blockTag.startsWith('0x')) {
+    return parseInt(blockTag.substring(2), 16);
+  }
+  return Number(blockTag);
 }

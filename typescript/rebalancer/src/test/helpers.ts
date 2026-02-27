@@ -1,4 +1,9 @@
-import { type PopulatedTransaction, ethers, type providers } from 'ethers';
+import {
+  type Block,
+  type PopulatedTransaction,
+  type TransactionReceipt,
+  ethers,
+} from 'ethers';
 import Sinon from 'sinon';
 
 import {
@@ -48,7 +53,7 @@ export function buildTestRoute(
     return {
       origin: 'ethereum',
       destination: 'arbitrum',
-      amount: ethers.utils.parseEther('100').toBigInt(),
+      amount: ethers.parseEther('100'),
       executionType: 'inventory',
       externalBridge: 'lifi',
       ...overrides,
@@ -57,7 +62,7 @@ export function buildTestRoute(
   return {
     origin: 'ethereum',
     destination: 'arbitrum',
-    amount: ethers.utils.parseEther('100').toBigInt(),
+    amount: ethers.parseEther('100'),
     executionType: 'movableCollateral',
     bridge: TEST_ADDRESSES.bridge,
     ...overrides,
@@ -70,7 +75,7 @@ export function buildTestMovableCollateralRoute(
   return {
     origin: 'ethereum',
     destination: 'arbitrum',
-    amount: ethers.utils.parseEther('100').toBigInt(),
+    amount: ethers.parseEther('100'),
     executionType: 'movableCollateral',
     bridge: TEST_ADDRESSES.bridge,
     ...overrides,
@@ -105,7 +110,7 @@ export function buildTestPreparedTransaction(
     populatedTx: {
       to: TEST_ADDRESSES.token,
       data: '0x',
-      value: ethers.BigNumber.from(0),
+      value: 0n,
     } as PopulatedTransaction,
     route,
     originTokenAmount: createMockTokenAmount(route.amount),
@@ -124,7 +129,7 @@ export function createMockTokenAmount(amount: bigint): TokenAmount {
       decimals: 18,
       addressOrDenom: TEST_ADDRESSES.token,
     },
-    getDecimalFormattedAmount: () => ethers.utils.formatEther(amount),
+    getDecimalFormattedAmount: () => ethers.formatEther(amount),
   } as unknown as TokenAmount;
 }
 
@@ -147,7 +152,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
     populatedTx = {
       to: TEST_ADDRESSES.token,
       data: '0x',
-      value: ethers.BigNumber.from(0),
+      value: 0n,
     },
     throwOnQuotes,
     throwOnPopulate,
@@ -198,28 +203,31 @@ export function createMockToken(config: MockTokenConfig = {}) {
 export interface MockMultiProviderConfig {
   chainMetadata?: ChainMap<Partial<ChainMetadata>>;
   signerAddress?: string;
-  sendTransactionReceipt?: providers.TransactionReceipt;
+  sendTransactionReceipt?: TransactionReceipt;
   throwOnSendTransaction?: Error;
   throwOnEstimateGas?: Error;
-  providerWaitForTransaction?: providers.TransactionReceipt;
-  providerGetBlock?: providers.Block | null;
-  providerGetTransactionReceipt?: providers.TransactionReceipt | null;
+  providerWaitForTransaction?: TransactionReceipt;
+  providerGetBlock?: Block | null;
+  providerGetTransactionReceipt?: TransactionReceipt | null;
 }
 
 export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
+  const defaultTxHash =
+    '0x1111111111111111111111111111111111111111111111111111111111111111';
   const {
     chainMetadata = {},
     signerAddress = TEST_ADDRESSES.signer,
     sendTransactionReceipt = {
-      transactionHash:
-        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      hash: defaultTxHash,
+      transactionHash: defaultTxHash,
       blockNumber: 100,
       status: 1,
-    } as providers.TransactionReceipt,
+      logs: [],
+    } as TransactionReceipt,
     throwOnSendTransaction,
     throwOnEstimateGas,
     providerWaitForTransaction = sendTransactionReceipt,
-    providerGetBlock = { number: 150 } as providers.Block,
+    providerGetBlock = { number: 150 } as Block,
     providerGetTransactionReceipt = sendTransactionReceipt,
   } = config;
 
@@ -227,6 +235,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
     waitForTransaction: Sinon.stub().resolves(providerWaitForTransaction),
     getBlock: Sinon.stub().resolves(providerGetBlock),
     getTransactionReceipt: Sinon.stub().resolves(providerGetTransactionReceipt),
+    getTransactionCount: Sinon.stub().resolves(0),
   };
 
   const mockSigner = {
@@ -234,14 +243,17 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
     sendTransaction: throwOnSendTransaction
       ? Sinon.stub().rejects(throwOnSendTransaction)
       : Sinon.stub().resolves({
-          hash: sendTransactionReceipt.transactionHash,
+          hash: sendTransactionReceipt.hash,
           wait: Sinon.stub().resolves(sendTransactionReceipt),
         }),
   };
 
   const defaultChainMetadata: ChainMap<Partial<ChainMetadata>> = {
     ethereum: { domainId: 1, blocks: { confirmations: 32, reorgPeriod: 32 } },
-    arbitrum: { domainId: 42161, blocks: { confirmations: 0, reorgPeriod: 0 } },
+    arbitrum: {
+      domainId: 42161,
+      blocks: { confirmations: 0, reorgPeriod: 0, estimateBlockTime: 1 },
+    },
   };
 
   const mergedMetadata = { ...defaultChainMetadata, ...chainMetadata };
@@ -254,7 +266,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
     getSigner: Sinon.stub().returns(mockSigner),
     estimateGas: throwOnEstimateGas
       ? Sinon.stub().rejects(throwOnEstimateGas)
-      : Sinon.stub().resolves(ethers.BigNumber.from(100000)),
+      : Sinon.stub().resolves(BigInt(100000)),
     sendTransaction: throwOnSendTransaction
       ? Sinon.stub().rejects(throwOnSendTransaction)
       : Sinon.stub().resolves(sendTransactionReceipt),
@@ -422,7 +434,7 @@ export function buildTestConfig(
     (acc, chain) => {
       (acc as any)[chain] = {
         bridgeLockTime: 60 * 1000,
-        bridge: ethers.constants.AddressZero,
+        bridge: ethers.ZeroAddress,
         weighted: {
           weight: BigInt(1),
           tolerance: BigInt(0),

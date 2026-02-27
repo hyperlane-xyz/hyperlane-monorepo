@@ -71,7 +71,7 @@ async function probeUrl(
   url: string,
   expectedChainId: number,
 ): Promise<ProbeResult> {
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const provider = new ethers.JsonRpcProvider(url);
   const start = Date.now();
   try {
     const [block, network] = await timeout(
@@ -79,10 +79,13 @@ async function probeUrl(
       TIMEOUT_MS,
       `Timeout after ${TIMEOUT_MS}ms`,
     );
+    if (!block) {
+      return { url, error: 'latest block unavailable' };
+    }
     const latencyMs = Date.now() - start;
     const chainIdMismatch =
-      network.chainId !== expectedChainId
-        ? `expected ${expectedChainId}, got ${network.chainId}`
+      network.chainId !== BigInt(expectedChainId)
+        ? `expected ${expectedChainId}, got ${network.chainId.toString()}`
         : undefined;
     return {
       url,

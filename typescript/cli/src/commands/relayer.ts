@@ -77,7 +77,7 @@ export const relayerCommand: CommandModuleWithContext<
     }
 
     log('Starting relayer ...');
-    relayer.start();
+    await relayer.start();
 
     process.once('SIGINT', () => {
       log('Stopping relayer ...');

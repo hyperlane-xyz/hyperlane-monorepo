@@ -1,4 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
@@ -87,10 +87,10 @@ describe('EvmTimelockDeployer', async () => {
           TestChainName.test2,
           config,
         );
-        const timelockAddress = TimelockController.address;
+        const timelockAddress = await TimelockController.getAddress();
 
         const timelock = TimelockController__factory.connect(
-          timelockAddress as string,
+          timelockAddress,
           multiProvider.getProvider(TestChainName.test2),
         );
 
@@ -136,12 +136,16 @@ describe('EvmTimelockDeployer', async () => {
     });
 
     it('should deploy different contracts for different chains', async () => {
-      const {
-        TimelockController: { address: address1 },
-      } = await deployer.deployContracts(TestChainName.test1, config);
-      const {
-        TimelockController: { address: address2 },
-      } = await deployer.deployContracts(TestChainName.test2, config);
+      const { TimelockController: timelock1 } = await deployer.deployContracts(
+        TestChainName.test1,
+        config,
+      );
+      const { TimelockController: timelock2 } = await deployer.deployContracts(
+        TestChainName.test2,
+        config,
+      );
+      const address1 = await timelock1.getAddress();
+      const address2 = await timelock2.getAddress();
 
       expect(address1).to.not.equal(address2);
       expect(address1).to.exist;
@@ -160,16 +164,15 @@ describe('EvmTimelockDeployer', async () => {
       TestChainName.test4,
       openExecutorRoleConfig,
     );
-    const timelockAddress = TimelockController.address;
+    const timelockAddress = await TimelockController.getAddress();
     const timelock = TimelockController__factory.connect(
       timelockAddress,
       signer,
     );
 
     // If the 0 address has the executor role anyone can execute
-    expect(
-      await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.constants.AddressZero),
-    ).to.be.true;
+    expect(await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.ZeroAddress)).to.be
+      .true;
 
     // Test that someone who does not have the executor role can execute proposed transactions
     expect(await timelock.hasRole(EXECUTOR_ROLE, otherSignerAddress)).to.be
@@ -311,7 +314,8 @@ describe('EvmTimelockDeployer', async () => {
           await TimelockController.TIMELOCK_ADMIN_ROLE();
 
         // if an admin was set in the config we expect the timelock to be the admin
-        const expectedAdmin = config.admin ?? TimelockController.address;
+        const expectedAdmin =
+          config.admin ?? (await TimelockController.getAddress());
         expect(
           await TimelockController.hasRole(
             timelockAdminRoleHash,

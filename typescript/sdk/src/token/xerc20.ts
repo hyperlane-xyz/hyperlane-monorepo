@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { id } from 'ethers';
 import { Logger } from 'pino';
 import { Log, parseEventLogs } from 'viem';
 
@@ -110,6 +110,10 @@ async function getConfigurationChangedLogsFromExplorerApi({
     provider.getBlockNumber(),
     provider.getTransactionReceipt(contractDeploymentTx.txHash),
   ]);
+  assert(
+    deploymentTransactionReceipt,
+    `Deployment receipt not found for ${xERC20Address} on ${chain}`,
+  );
 
   return getLogsFromEtherscanLikeExplorerAPI(
     { apiUrl: explorerUrl, apiKey },
@@ -134,7 +138,7 @@ type ConfigurationChangedLog = Log<
 
 async function getLockboxesFromLogs(
   logs: Log[],
-  provider: ethers.providers.Provider,
+  provider: ReturnType<MultiProvider['getProvider']>,
   chain: ChainNameOrId,
   logger: Logger,
 ): Promise<XERC20TokenExtraBridgesLimits[]> {
@@ -172,10 +176,10 @@ async function getLockboxesFromLogs(
       try {
         const maybeXERC20Lockbox = IXERC20Lockbox__factory.connect(
           log.args.bridge,
-          provider,
+          provider as any,
         );
 
-        await maybeXERC20Lockbox.callStatic.XERC20();
+        await maybeXERC20Lockbox.XERC20.staticCall();
         return log;
       } catch {
         logger.debug(
@@ -450,12 +454,10 @@ export async function deriveXERC20TokenType(
   const provider = multiProvider.getProvider(chain);
   const code = await provider.getCode(address);
   const normalizedCode = code.toLowerCase();
-  const setBufferCapSelector = ethers.utils
-    .id('setBufferCap(address,uint256)')
+  const setBufferCapSelector = id('setBufferCap(address,uint256)')
     .slice(2, 10)
     .toLowerCase();
-  const setLimitsSelector = ethers.utils
-    .id('setLimits(address,uint256,uint256)')
+  const setLimitsSelector = id('setLimits(address,uint256,uint256)')
     .slice(2, 10)
     .toLowerCase();
 

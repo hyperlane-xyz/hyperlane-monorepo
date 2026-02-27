@@ -1,9 +1,9 @@
-import { BigNumber, providers } from 'ethers';
+import type { Provider } from 'ethers';
 
 import { IMessageRecipient } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-export const DEFAULT_CALL_GAS_FALLBACK = BigNumber.from(50_000);
+export const DEFAULT_CALL_GAS_FALLBACK = 50_000n;
 
 export interface EstimateHandleGasParams {
   origin: number;
@@ -14,11 +14,11 @@ export interface EstimateHandleGasParams {
 }
 
 export interface EstimateCallGasParams {
-  provider: providers.Provider;
+  provider: Provider;
   to: Address;
   data: string;
-  value?: BigNumber;
-  fallback?: BigNumber;
+  value?: bigint;
+  fallback?: bigint;
 }
 
 /**
@@ -27,10 +27,10 @@ export interface EstimateCallGasParams {
  */
 export async function estimateHandleGasForRecipient(
   params: EstimateHandleGasParams,
-): Promise<BigNumber | null> {
+): Promise<bigint | null> {
   try {
     // await required for catch to handle promise rejection
-    return await params.recipient.estimateGas.handle(
+    return await params.recipient.handle.estimateGas(
       params.origin,
       params.sender,
       params.body,
@@ -47,7 +47,7 @@ export async function estimateHandleGasForRecipient(
  */
 export async function estimateCallGas(
   params: EstimateCallGasParams,
-): Promise<BigNumber> {
+): Promise<bigint> {
   const fallback = params.fallback ?? DEFAULT_CALL_GAS_FALLBACK;
   try {
     // await required for catch to handle promise rejection

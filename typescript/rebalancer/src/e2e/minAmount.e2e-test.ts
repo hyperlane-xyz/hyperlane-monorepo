@@ -1,12 +1,7 @@
 import { expect } from 'chai';
-import { BigNumber, providers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import {
   RebalancerMinAmountType,
@@ -22,16 +17,40 @@ import {
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
 import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
 import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
+
+async function waitForActionCompletion(
+  context: {
+    tracker: {
+      syncRebalanceActions: () => Promise<void>;
+      getRebalanceAction: (
+        id: string,
+      ) => Promise<{ status: string } | null | undefined>;
+    };
+  },
+  actionId: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const pollIntervalMs = 250;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    await context.tracker.syncRebalanceActions();
+    const action = await context.tracker.getRebalanceAction(actionId);
+    if (action?.status === 'complete') return;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+}
 
 describe('MinAmountStrategy E2E', function () {
   this.timeout(300_000);
 
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, JsonRpcProvider>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
@@ -96,11 +115,11 @@ describe('MinAmountStrategy E2E', function () {
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {
@@ -196,10 +215,10 @@ describe('MinAmountStrategy E2E', function () {
     );
 
     // Assert: ethereum balance decreased by 70 USDC
-    const expectedDecrease = BigNumber.from(70000000);
-    expect(
-      initialCollateralBalances.anvil1.sub(expectedDecrease).toString(),
-    ).to.equal(balancesAfterRebalance.anvil1.toString());
+    const expectedDecrease = 70000000n;
+    expect(initialCollateralBalances.anvil1 - expectedDecrease).to.equal(
+      balancesAfterRebalance.anvil1,
+    );
 
     // Relay the rebalance message to destination
     const ethProvider = localProviders.get('anvil1')!;
@@ -207,7 +226,7 @@ describe('MinAmountStrategy E2E', function () {
       actionToArbitrum.txHash!,
     );
     const rebalanceRelayResult = await tryRelayMessage(
-      multiProvider,
+      context.multiProvider,
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,
@@ -221,8 +240,8 @@ describe('MinAmountStrategy E2E', function () {
       `Rebalance relay should succeed: ${rebalanceRelayResult.error}`,
     ).to.be.true;
 
-    // Sync actions to detect delivery and mark complete
-    await context.tracker.syncRebalanceActions();
+    // Delivery can lag behind relay tx inclusion by a few blocks in local e2e.
+    await waitForActionCompletion(context, actionToArbitrum.id);
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(
@@ -290,9 +309,7 @@ describe('MinAmountStrategy E2E', function () {
 
     if (newActionsToArb.length > 0) {
       // If route was proposed, should be much smaller than original ~70 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToArb[0].amount,
-      ).toBigInt();
+      const proposedAmount = BigInt(newActionsToArb[0].amount);
       expect(
         proposedAmount < 50000000n,
         `Amount to arb (${proposedAmount}) should be reduced accounting for inflight`,

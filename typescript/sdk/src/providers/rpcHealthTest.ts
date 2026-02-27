@@ -1,5 +1,10 @@
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
@@ -8,7 +13,7 @@ import {
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
-  EthersV5Provider,
+  EthersV6Provider,
   KnownProtocolType,
   ProviderType,
   RadixProvider,
@@ -28,8 +33,8 @@ export async function isRpcHealthy(
   const protocol = metadata.protocol as KnownProtocolType;
   const builder = protocolToDefaultProviderBuilder[protocol];
   const provider = builder([rpc], metadata.chainId);
-  if (provider.type === ProviderType.EthersV5)
-    return isEthersV5ProviderHealthy(provider.provider, metadata);
+  if (provider.type === ProviderType.EthersV6)
+    return isEthersV6ProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.SolanaWeb3)
     return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
   else if (
@@ -50,8 +55,8 @@ export async function isRpcHealthy(
     );
 }
 
-export async function isEthersV5ProviderHealthy(
-  provider: EthersV5Provider['provider'],
+export async function isEthersV6ProviderHealthy(
+  provider: EthersV6Provider['provider'],
   metadata: ChainMetadata,
   mailboxAddress?: Address,
 ): Promise<boolean> {
@@ -62,10 +67,9 @@ export async function isEthersV5ProviderHealthy(
 
   if (mailboxAddress) {
     const mailbox = Mailbox__factory.createInterface();
-    const topics = mailbox.encodeFilterTopics(
-      mailbox.events['DispatchId(bytes32)'],
-      [],
-    );
+    const dispatchIdEvent = mailbox.getEvent('DispatchId');
+    assert(dispatchIdEvent, 'DispatchId(bytes32) event not found on Mailbox');
+    const topics = mailbox.encodeFilterTopics(dispatchIdEvent, []);
     rootLogger.debug(`Checking mailbox logs for ${chainName}`);
     const mailboxLogs = await provider.getLogs({
       address: mailboxAddress,

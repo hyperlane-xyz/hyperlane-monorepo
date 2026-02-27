@@ -1,4 +1,3 @@
-import { Result } from '@ethersproject/abi';
 import {
   MetaTransactionData,
   OperationType,
@@ -9,7 +8,7 @@ import {
 } from '@safe-global/safe-deployments';
 import assert from 'assert';
 import chalk from 'chalk';
-import { BigNumber, ethers } from 'ethers';
+import { ethers, type Result } from 'ethers';
 
 import {
   BaseFee__factory,
@@ -25,7 +24,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   ChainMap,
   ChainName,
   CoreConfig,
@@ -141,17 +140,17 @@ type XERC20Metadata = {
 const ownableFunctionSelectors = [
   'renounceOwnership()',
   'transferOwnership(address)',
-].map((func) => ethers.utils.id(func).substring(0, 10));
+].map((func) => ethers.id(func).substring(0, 10));
 
 // ICA router interface with hookMetadata parameter
 // This overload is used by the SDK when building ICA calls with custom hook metadata
-const icaInterfaceWithHookMetadata = new ethers.utils.Interface([
+const icaInterfaceWithHookMetadata = new ethers.Interface([
   'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
 ]);
 
 // Function selector for callRemoteWithOverrides with hookMetadata (5 params)
 const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
-  icaInterfaceWithHookMetadata.getSighash('callRemoteWithOverrides');
+  icaInterfaceWithHookMetadata.getFunction('callRemoteWithOverrides')!.selector;
 
 async function parseHookMetadataWithInsight(
   chain: ChainName,
@@ -403,7 +402,7 @@ export class GovernTransactionReader {
 
   async read(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     // If it's an Ownable transaction
     if (await this.isOwnableTransaction(tx)) {
@@ -503,7 +502,7 @@ export class GovernTransactionReader {
 
   private async isFeeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<boolean> {
     if (!tx.to || !tx.data) return false;
     const selector = tx.data.slice(0, 10).toLowerCase();
@@ -518,15 +517,17 @@ export class GovernTransactionReader {
 
   private async readFeeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     assert(tx.data, 'No data in fee transaction');
     assert(tx.to, 'No to address in fee transaction');
 
     const provider = this.multiProvider.getProvider(chain);
-    const baseFee = BaseFee__factory.connect(tx.to, provider);
+    const baseFee = BaseFee__factory.connect(tx.to as string, provider);
 
-    const onChainFeeType: OnchainTokenFeeType = await baseFee.feeType();
+    const onChainFeeType = Number(
+      await baseFee.feeType(),
+    ) as OnchainTokenFeeType;
     const feeTypeName = onChainTypeToTokenFeeTypeMap[onChainFeeType];
     assert(feeTypeName, `Unknown Fee Type ${onChainFeeType}`);
 
@@ -553,9 +554,9 @@ export class GovernTransactionReader {
   private async parseFeeTransactionData(
     chain: ChainName,
     feeTypeName: TokenFeeType,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<{
-    decoded: ethers.utils.TransactionDescription;
+    decoded: ethers.TransactionDescription;
     insight?: string;
     feeDetails?: Record<string, any>;
   }> {
@@ -570,10 +571,10 @@ export class GovernTransactionReader {
 
     const decoded = iface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
-    if (decoded.functionFragment.name === 'claim') {
+    if (decoded.fragment.name === 'claim') {
       const [beneficiary] = decoded.args;
       return { decoded, insight: `Claim fees to ${beneficiary}` };
     }
@@ -587,13 +588,13 @@ export class GovernTransactionReader {
 
   private async parseRoutingFeeTransaction(
     chain: ChainName,
-    decoded: ethers.utils.TransactionDescription,
+    decoded: ethers.TransactionDescription,
   ): Promise<{
-    decoded: ethers.utils.TransactionDescription;
+    decoded: ethers.TransactionDescription;
     insight?: string;
     feeDetails?: Record<string, any>;
   }> {
-    if (decoded.functionFragment.name !== 'setFeeContract') {
+    if (decoded.fragment.name !== 'setFeeContract') {
       return { decoded };
     }
 
@@ -633,7 +634,7 @@ export class GovernTransactionReader {
 
   private isErc20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     if (!tx.to || !tx.data) {
       return false;
@@ -649,18 +650,20 @@ export class GovernTransactionReader {
     const chainTokens = tokens[chain as keyof typeof tokens];
     const isKnownToken =
       chainTokens &&
-      Object.values(chainTokens).some((address) => eqAddress(tx.to!, address));
+      Object.values(chainTokens).some((address) =>
+        eqAddress(tx.to as string, address),
+      );
 
     const isWarpRoute =
       this.warpRouteIndex[chain] !== undefined &&
-      this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined;
+      this.warpRouteIndex[chain][(tx.to as string).toLowerCase()] !== undefined;
 
     return isKnownToken || isWarpRoute;
   }
 
   private async readErc20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in ERC20 transaction');
@@ -673,11 +676,11 @@ export class GovernTransactionReader {
     const erc20Interface = ERC20__factory.createInterface();
     const decoded = erc20Interface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
     const erc20 = ERC20__factory.connect(
-      tx.to,
+      tx.to as string,
       this.multiProvider.getProvider(chain),
     );
 
@@ -685,44 +688,38 @@ export class GovernTransactionReader {
     const symbol = await erc20.symbol();
 
     let insight;
-    switch (decoded.functionFragment.name) {
-      case erc20Interface.functions['transfer(address,uint256)'].name: {
+    switch (decoded.fragment.name) {
+      case 'transfer': {
         const [to, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        const numTokens = ethers.formatUnits(amount, decimals);
         insight = `Transfer ${numTokens} ${symbol} to ${to}`;
         break;
       }
-      case erc20Interface.functions['approve(address,uint256)'].name: {
+      case 'approve': {
         const [spender, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        const numTokens = ethers.formatUnits(amount, decimals);
         insight = `Approve ${numTokens} ${symbol} for ${spender}`;
         break;
       }
-      case erc20Interface.functions['transferFrom(address,address,uint256)']
-        .name: {
+      case 'transferFrom': {
         const [from, to, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        const numTokens = ethers.formatUnits(amount, decimals);
         insight = `Transfer ${numTokens} ${symbol} from ${from} to ${to}`;
         break;
       }
-      case erc20Interface.functions['increaseAllowance(address,uint256)']
-        .name: {
+      case 'increaseAllowance': {
         const [spender, addedValue] = decoded.args;
         insight = `Increase allowance for ${spender} by ${addedValue.toString()}`;
         break;
       }
-      case erc20Interface.functions['decreaseAllowance(address,uint256)']
-        .name: {
+      case 'decreaseAllowance': {
         const [spender, subtractedValue] = decoded.args;
         insight = `Decrease allowance for ${spender} by ${subtractedValue.toString()}`;
         break;
       }
     }
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
 
     return {
       chain,
@@ -732,16 +729,16 @@ export class GovernTransactionReader {
     };
   }
 
-  private isNativeTokenTransfer(tx: AnnotatedEV5Transaction): boolean {
+  private isNativeTokenTransfer(tx: AnnotatedEvmTransaction): boolean {
     return !tx.data && !!tx.value && !!tx.to;
   }
 
   private async readNativeTokenTransfer(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const numTokens = ethers.utils.formatEther(tx.value ?? BigNumber.from(0));
+    const numTokens = ethers.formatEther(tx.value ?? 0n);
     return {
       chain,
       insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
@@ -750,21 +747,21 @@ export class GovernTransactionReader {
 
   private isTimelockControllerTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     const isNewTimelock =
       this.timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, this.timelocks[chain]!);
+      eqAddress(tx.to as string, this.timelocks[chain]!);
     const isLegacyTimelock =
       legacyTimelocks[chain] !== undefined &&
-      eqAddress(tx.to!, legacyTimelocks[chain]!);
+      eqAddress(tx.to as string, legacyTimelocks[chain]!);
 
     return tx.to !== undefined && (isNewTimelock || isLegacyTimelock);
   }
 
   private async readTimelockControllerTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in TimelockController transaction');
@@ -774,17 +771,12 @@ export class GovernTransactionReader {
       TimelockController__factory.createInterface();
     const decoded = timelockControllerInterface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
     let insight;
     let calls;
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
-      ].name
-    ) {
+    if (decoded.fragment.name === 'schedule') {
       const [target, value, data, _predecessor, _salt, delay] = decoded.args;
       const inner = await this.read(chain, {
         to: target,
@@ -792,17 +784,12 @@ export class GovernTransactionReader {
         value,
       });
 
-      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+      const eta = new Date(Date.now() + Number(delay) * 1000);
 
       insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
-      ].name
-    ) {
+    if (decoded.fragment.name === 'scheduleBatch') {
       const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
 
       calls = [];
@@ -817,27 +804,17 @@ export class GovernTransactionReader {
         );
       }
 
-      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+      const eta = new Date(Date.now() + Number(delay) * 1000);
 
       insight = `Schedule for ${eta}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'execute(address,uint256,bytes,bytes32,bytes32)'
-      ].name
-    ) {
+    if (decoded.fragment.name === 'execute') {
       const [target, value, data, executor] = decoded.args;
       insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions[
-        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
-      ].name
-    ) {
+    if (decoded.fragment.name === 'executeBatch') {
       const [targets, values, data, _predecessor, _salt] = decoded.args;
 
       calls = [];
@@ -855,18 +832,12 @@ export class GovernTransactionReader {
       insight = `Execute batch on ${targets}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      timelockControllerInterface.functions['cancel(bytes32)'].name
-    ) {
+    if (decoded.fragment.name === 'cancel') {
       const [id] = decoded.args;
       insight = `Cancel scheduled transaction ${id}`;
     }
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
 
     return {
       chain,
@@ -878,7 +849,7 @@ export class GovernTransactionReader {
 
   private isManagedLockboxTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     if (!tx.to) return false;
     const lockboxes = {
@@ -887,19 +858,19 @@ export class GovernTransactionReader {
     };
     return (
       chain in lockboxes &&
-      eqAddress(tx.to, lockboxes[chain as keyof typeof lockboxes])
+      eqAddress(tx.to as string, lockboxes[chain as keyof typeof lockboxes])
     );
   }
 
   private readManagedLockboxTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): GovernTransaction {
     if (!tx.data) {
       throw new Error('No data in Managed Lockbox transaction');
     }
 
-    const managedLockboxInterface = new ethers.utils.Interface([
+    const managedLockboxInterface = new ethers.Interface([
       'function deposit(uint256 _amount) nonpayable',
       'function disableDeposits() nonpayable',
       'function enableDeposits() nonpayable',
@@ -913,8 +884,8 @@ export class GovernTransactionReader {
     try {
       decoded = managedLockboxInterface.parseTransaction({
         data: tx.data,
-        value: tx.value,
-      });
+        value: tx.value ?? undefined,
+      })!;
     } catch (error) {
       throw new Error(`Failed to decode Managed Lockbox transaction: ${error}`);
     }
@@ -927,10 +898,7 @@ export class GovernTransactionReader {
     };
 
     let insight;
-    if (
-      decoded.functionFragment.name ===
-      managedLockboxInterface.functions['grantRole(bytes32,address)'].name
-    ) {
+    if (decoded.fragment.name === 'grantRole') {
       const [role, account] = decoded.args;
       const roleName = roleMap[role] ? ` ${roleMap[role]}` : '';
       insight = `Grant role${roleName} to ${account}`;
@@ -947,16 +915,16 @@ export class GovernTransactionReader {
 
   private async isXERC20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<XERC20Metadata | undefined> {
     if (!tx.to) return undefined;
-    const lowerTo = tx.to.toLowerCase();
+    const lowerTo = (tx.to as string).toLowerCase();
     return this.xerc20Deployments[chain]?.[lowerTo];
   }
 
   private async readXERC20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
     metadata: XERC20Metadata,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
@@ -966,51 +934,45 @@ export class GovernTransactionReader {
     const vsTokenInterface = IXERC20VS__factory.createInterface();
     const xerc20Interface = IXERC20__factory.createInterface();
 
-    let decoded: ethers.utils.TransactionDescription;
+    let decoded: ethers.TransactionDescription;
     if (metadata.type === TokenStandard.EvmHypVSXERC20) {
       decoded = vsTokenInterface.parseTransaction({
         data: tx.data,
-        value: tx.value,
-      });
+        value: tx.value ?? undefined,
+      })!;
     } else {
       decoded = xerc20Interface.parseTransaction({
         data: tx.data,
-        value: tx.value,
-      });
+        value: tx.value ?? undefined,
+      })!;
     }
 
     let insight;
     if (metadata.type === TokenStandard.EvmHypVSXERC20) {
-      switch (decoded.functionFragment.name) {
-        case vsTokenInterface.functions['setBufferCap(address,uint256)'].name: {
+      switch (decoded.fragment.name) {
+        case 'setBufferCap': {
           const [bridge, newBufferCap] = decoded.args;
           insight = `Set buffer cap for bridge ${bridge} to ${newBufferCap}`;
           break;
         }
-        case vsTokenInterface.functions[
-          'setRateLimitPerSecond(address,uint128)'
-        ].name: {
+        case 'setRateLimitPerSecond': {
           const [bridge, newRateLimit] = decoded.args;
           insight = `Set rate limit per second for bridge ${bridge} to ${newRateLimit}`;
           break;
         }
-        case vsTokenInterface.functions['addBridge((uint112,uint128,address))']
-          .name: {
+        case 'addBridge': {
           const [{ bufferCap, rateLimitPerSecond, bridge }] = decoded.args;
           insight = `Add new bridge ${bridge} with buffer cap ${bufferCap} and rate limit ${rateLimitPerSecond}`;
           break;
         }
-        case vsTokenInterface.functions['removeBridge(address)'].name: {
+        case 'removeBridge': {
           const [bridgeToRemove] = decoded.args;
           insight = `Remove bridge ${bridgeToRemove}`;
           break;
         }
       }
     } else {
-      if (
-        decoded.functionFragment.name ===
-        xerc20Interface.functions['setLimits(address,uint256,uint256)'].name
-      ) {
+      if (decoded.fragment.name === 'setLimits') {
         const [bridge, mintingLimit, burningLimit] = decoded.args;
         insight = `Set limits for bridge ${bridge} - minting limit: ${mintingLimit}, burning limit: ${burningLimit}`;
       }
@@ -1018,32 +980,29 @@ export class GovernTransactionReader {
 
     // general xerc20 functions
     if (!insight) {
-      switch (decoded.functionFragment.name) {
-        case xerc20Interface.functions['mint(address,uint256)'].name: {
+      switch (decoded.fragment.name) {
+        case 'mint': {
           const [to, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          const numTokens = ethers.formatUnits(amount, metadata.decimals);
           insight = `Mint ${numTokens} ${metadata.symbol} to ${to}`;
           break;
         }
-        case xerc20Interface.functions['approve(address,uint256)'].name: {
+        case 'approve': {
           const [spender, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          const numTokens = ethers.formatUnits(amount, metadata.decimals);
           insight = `Approve ${numTokens} ${metadata.symbol} for ${spender}`;
           break;
         }
-        case xerc20Interface.functions['burn(address,uint256)'].name: {
+        case 'burn': {
           const [from, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          const numTokens = ethers.formatUnits(amount, metadata.decimals);
           insight = `Burn ${numTokens} ${metadata.symbol} from ${from}`;
           break;
         }
       }
     }
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
 
     let ownableTx = {};
     if (!insight) {
@@ -1061,18 +1020,18 @@ export class GovernTransactionReader {
 
   private isWarpModuleTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     return (
       tx.to !== undefined &&
       this.warpRouteIndex[chain] !== undefined &&
-      this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined
+      this.warpRouteIndex[chain][(tx.to as string).toLowerCase()] !== undefined
     );
   }
 
   private async readWarpModuleTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in Warp Module transaction');
@@ -1084,61 +1043,41 @@ export class GovernTransactionReader {
 
     const decoded = tokenRouterInterface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
     let insight: string | undefined;
     let feeDetails: Record<string, any> | undefined;
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setHook(address)'].name
-    ) {
+    if (decoded.fragment.name === 'setHook') {
       const [hookAddress] = decoded.args;
       insight = `Set hook to ${hookAddress}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['addBridge(uint32,address)'].name
-    ) {
+    if (decoded.fragment.name === 'addBridge') {
       const [domain, bridgeAddress] = decoded.args;
       insight = `Set bridge for origin domain ${domain} to ${bridgeAddress}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['removeBridge(uint32,address)'].name
-    ) {
+    if (decoded.fragment.name === 'removeBridge') {
       const [domain, bridgeAddress] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Remove bridge ${bridgeAddress} from domain ${domain}${chainName ? ` (${chainName})` : ''}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['addRebalancer(address)'].name
-    ) {
+    if (decoded.fragment.name === 'addRebalancer') {
       const [rebalancer] = decoded.args;
       insight = `Add rebalancer ${rebalancer}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setInterchainSecurityModule(address)']
-        .name
-    ) {
+    if (decoded.fragment.name === 'setInterchainSecurityModule') {
       const [ismAddress] = decoded.args;
       insight = `Set ISM to ${ismAddress}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setDestinationGas((uint32,uint256)[])']
-        .name
-    ) {
+    if (decoded.fragment.name === 'setDestinationGas') {
       const [gasConfigs] = decoded.args;
       const insights = gasConfigs.map(
-        (config: { domain: number; gas: BigNumber }) => {
+        (config: { domain: number; gas: bigint }) => {
           const chainName = this.multiProvider.getChainName(config.domain);
           return `domain ${
             config.domain
@@ -1148,11 +1087,7 @@ export class GovernTransactionReader {
       insight = `Set destination gas for ${insights.join(', ')}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['enrollRemoteRouters(uint32[],bytes32[])']
-        .name
-    ) {
+    if (decoded.fragment.name === 'enrollRemoteRouters') {
       const [domains, routers] = decoded.args;
       const insights = domains.map((domain: number, index: number) => {
         const chainName = this.multiProvider.getChainName(domain);
@@ -1161,19 +1096,13 @@ export class GovernTransactionReader {
       insight = `Enroll remote routers for ${insights.join(', ')}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['unenrollRemoteRouter(uint32)'].name
-    ) {
+    if (decoded.fragment.name === 'unenrollRemoteRouter') {
       const [domain] = decoded.args;
       const chainName = this.multiProvider.getChainName(domain);
       insight = `Unenroll remote router for domain ${domain} (${chainName})`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['unenrollRemoteRouters(uint32[])'].name
-    ) {
+    if (decoded.fragment.name === 'unenrollRemoteRouters') {
       const [domains] = decoded.args;
       const insights = domains.map((domain: number) => {
         const chainName = this.multiProvider.getChainName(domain);
@@ -1182,60 +1111,41 @@ export class GovernTransactionReader {
       insight = `Unenroll remote routers for ${insights.join(', ')}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setFeeRecipient(address)'].name
-    ) {
+    if (decoded.fragment.name === 'setFeeRecipient') {
       const [recipient] = decoded.args;
       // Read fee contract details (handles address(0), non-fee contracts gracefully)
       const feeInfo = await this.readFeeContractDetails(
         chain,
-        tx.to!,
+        tx.to as string,
         recipient,
       );
       insight = feeInfo.insight;
       feeDetails = feeInfo.feeDetails;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['removeRebalancer(address)'].name
-    ) {
+    if (decoded.fragment.name === 'removeRebalancer') {
       const [rebalancer] = decoded.args;
       insight = `Remove rebalancer ${rebalancer}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setRecipient(uint32,bytes32)'].name
-    ) {
+    if (decoded.fragment.name === 'setRecipient') {
       const [domain, recipient] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Set rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${recipient}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['removeRecipient(uint32)'].name
-    ) {
+    if (decoded.fragment.name === 'removeRecipient') {
       const [domain] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Remove rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['approveTokenForBridge(address,address)']
-        .name
-    ) {
+    if (decoded.fragment.name === 'approveTokenForBridge') {
       const [token, bridge] = decoded.args;
       insight = `Approve token ${token} for bridge ${bridge}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
-    ) {
+    if (decoded.fragment.name === 'enrollRemoteRouter') {
       const [domain, router] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
@@ -1247,7 +1157,7 @@ export class GovernTransactionReader {
     }
 
     assert(tx.to, 'Warp Module transaction must have a to address');
-    const tokenAddress = tx.to.toLowerCase();
+    const tokenAddress = (tx.to as string).toLowerCase();
     const token = this.warpRouteIndex[chain][tokenAddress];
 
     return {
@@ -1255,7 +1165,7 @@ export class GovernTransactionReader {
       chain,
       to: `${token.symbol} (${token.name}, ${token.standard}, ${tokenAddress})`,
       insight,
-      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
+      value: `${ethers.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       ...(feeDetails && { feeDetails }),
     };
@@ -1297,7 +1207,7 @@ export class GovernTransactionReader {
       const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
       const feeConfig = await feeReader.deriveTokenFeeConfig({
         address: feeRecipientAddress,
-        routingDestinations: domains,
+        routingDestinations: domains.map((domain) => Number(domain)),
       });
 
       return await this.formatFeeConfig(chain, feeConfig);
@@ -1403,7 +1313,7 @@ export class GovernTransactionReader {
 
   private async readIcaTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
@@ -1421,34 +1331,25 @@ export class GovernTransactionReader {
       : icaInterface;
     const decoded = parseInterface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
     let prettyArgs = args;
 
-    if (
-      decoded.functionFragment.name ===
-      icaInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
-    ) {
+    if (decoded.fragment.name === 'enrollRemoteRouter') {
       prettyArgs = await this.formatRouterEnrollments(
         chain,
         'interchainAccountRouter',
         args,
       );
-    } else if (
-      decoded.functionFragment.name ===
-      icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
-    ) {
+    } else if (decoded.fragment.name === 'enrollRemoteRouters') {
       prettyArgs = await this.formatRouterEnrollments(
         chain,
         'interchainAccountRouter',
         args,
       );
-    } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+    } else if (decoded.fragment.name === 'callRemoteWithOverrides') {
       prettyArgs = await this.readIcaRemoteCall(chain, args);
     } else if (decoded.signature === 'transferOwnership(address)') {
       const ownableTx = await this.readOwnableTransaction(chain, tx);
@@ -1466,7 +1367,7 @@ export class GovernTransactionReader {
 
     return {
       to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${routerAddress})`,
-      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
+      value: `${ethers.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
       chain,
@@ -1531,7 +1432,7 @@ export class GovernTransactionReader {
 
   private async readMailboxTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('⚠️ No data in mailbox transaction');
@@ -1539,18 +1440,12 @@ export class GovernTransactionReader {
     const mailboxInterface = coreFactories.mailbox.interface;
     const decoded = mailboxInterface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
     let prettyArgs = args;
-    if (
-      decoded.functionFragment.name ===
-      mailboxInterface.functions['setDefaultIsm(address)'].name
-    ) {
+    if (decoded.fragment.name === 'setDefaultIsm') {
       prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
     } else if (decoded.signature === 'transferOwnership(address)') {
       // Fallback to ownable transaction handling for unknown functions
@@ -1572,7 +1467,7 @@ export class GovernTransactionReader {
 
   private async readProxyAdminTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('⚠️ No data in proxyAdmin transaction');
@@ -1581,41 +1476,34 @@ export class GovernTransactionReader {
     const proxyAdminInterface = ProxyAdmin__factory.createInterface();
     const decoded = proxyAdminInterface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
     let insight: string | undefined;
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
 
-    switch (decoded.functionFragment.name) {
-      case proxyAdminInterface.functions['upgrade(address,address)'].name: {
+    switch (decoded.fragment.name) {
+      case 'upgrade': {
         const [proxy, implementation] = decoded.args;
         insight = `Upgrade proxy ${proxy} to implementation ${implementation}`;
         break;
       }
-      case proxyAdminInterface.functions[
-        'upgradeAndCall(address,address,bytes)'
-      ].name: {
+      case 'upgradeAndCall': {
         const [proxy, implementation, _data] = decoded.args;
         insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
         break;
       }
-      case proxyAdminInterface.functions['changeProxyAdmin(address,address)']
-        .name: {
+      case 'changeProxyAdmin': {
         const [proxy, newAdmin] = decoded.args;
         insight = `Change admin of proxy ${proxy} to ${newAdmin}`;
         break;
       }
-      case proxyAdminInterface.functions['getProxyImplementation(address)']
-        .name: {
+      case 'getProxyImplementation': {
         const [proxy] = decoded.args;
         insight = `Get implementation address for proxy ${proxy}`;
         break;
       }
-      case proxyAdminInterface.functions['getProxyAdmin(address)'].name: {
+      case 'getProxyAdmin': {
         const [proxy] = decoded.args;
         insight = `Get admin address for proxy ${proxy}`;
         break;
@@ -1743,7 +1631,7 @@ export class GovernTransactionReader {
     }
 
     let ismInsight = '✅ matches expected ISM';
-    if (ism !== ethers.constants.HashZero) {
+    if (ism !== ethers.ZeroHash) {
       this.errors.push({
         chain: chain,
         remoteDomain: destination,
@@ -1812,7 +1700,7 @@ export class GovernTransactionReader {
       calls.map(async (call: any) => {
         const icaCallAsTx = {
           to: bytes32ToAddress(call[0]),
-          value: BigNumber.from(call[1]),
+          value: ethers.toBigInt(call[1]),
           data: call[2],
         };
         try {
@@ -1862,7 +1750,7 @@ export class GovernTransactionReader {
 
   private async readMultisendTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<MultiSendGovernTransactions> {
     if (!tx.data) {
       throw new Error('No data in multisend transaction');
@@ -1876,12 +1764,12 @@ export class GovernTransactionReader {
         try {
           const decoded = await this.read(
             chain,
-            metaTransactionDataToEV5Transaction(multisend),
+            metaTransactionDataToEvmTransaction(multisend),
           );
           return {
             chain,
             index,
-            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            value: `${ethers.formatEther(multisend.value)} ${symbol}`,
             operation: formatOperationType(multisend.operation),
             decoded,
           };
@@ -1895,7 +1783,7 @@ export class GovernTransactionReader {
           return {
             chain,
             index,
-            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            value: `${ethers.formatEther(multisend.value)} ${symbol}`,
             operation: formatOperationType(multisend.operation),
             decoded: {
               chain,
@@ -1916,7 +1804,7 @@ export class GovernTransactionReader {
 
   private async readOwnableTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('⚠️ No data in Ownable transaction');
@@ -1925,30 +1813,21 @@ export class GovernTransactionReader {
     const ownableInterface = Ownable__factory.createInterface();
     const decoded = ownableInterface.parseTransaction({
       data: tx.data,
-      value: tx.value,
-    });
+      value: tx.value ?? undefined,
+    })!;
 
     let insight;
-    if (
-      decoded.functionFragment.name ===
-      ownableInterface.functions['renounceOwnership()'].name
-    ) {
+    if (decoded.fragment.name === 'renounceOwnership') {
       insight = `Renounce ownership`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      ownableInterface.functions['transferOwnership(address)'].name
-    ) {
+    if (decoded.fragment.name === 'transferOwnership') {
       const [newOwner] = decoded.args;
       const newOwnerInsight = await getOwnerInsight(chain, newOwner);
       insight = `Transfer ownership to ${newOwnerInsight}`;
     }
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
 
     return {
       chain,
@@ -1958,42 +1837,42 @@ export class GovernTransactionReader {
     };
   }
 
-  isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
+  isIcaTransaction(chain: ChainName, tx: AnnotatedEvmTransaction): boolean {
     if (tx.to === undefined) return false;
 
     const isCurrentRouter = eqAddress(
-      tx.to,
+      tx.to as string,
       this.chainAddresses[chain].interchainAccountRouter,
     );
     // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
     const isLegacyEthRouter = eqAddress(
-      tx.to,
+      tx.to as string,
       this.chainAddresses.ethereum.legacyInterchainAccountRouter,
     );
 
     return isCurrentRouter || isLegacyEthRouter;
   }
 
-  isLegacyEthIcaRouter(tx: AnnotatedEV5Transaction): boolean {
+  isLegacyEthIcaRouter(tx: AnnotatedEvmTransaction): boolean {
     return (
       tx.to !== undefined &&
       eqAddress(
-        tx.to,
+        tx.to as string,
         this.chainAddresses.ethereum.legacyInterchainAccountRouter,
       )
     );
   }
 
-  isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
+  isMailboxTransaction(chain: ChainName, tx: AnnotatedEvmTransaction): boolean {
     return (
       tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].mailbox)
+      eqAddress(tx.to as string, this.chainAddresses[chain].mailbox)
     );
   }
 
   async isProxyAdminTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<boolean> {
     if (tx.to === undefined) {
       return false;
@@ -2006,11 +1885,11 @@ export class GovernTransactionReader {
 
     return await isProxyAdminFromBytecode(
       this.multiProvider.getProvider(chain),
-      tx.to,
+      tx.to as string,
     );
   }
 
-  async isMultisendTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+  async isMultisendTransaction(tx: AnnotatedEvmTransaction): Promise<boolean> {
     if (tx.to === undefined) {
       return false;
     }
@@ -2018,29 +1897,32 @@ export class GovernTransactionReader {
     // Check if the transaction is to a MultiSend or MultiSendCallOnly deployment
     return (
       this.multiSendCallOnlyDeployments.some((addr) =>
-        eqAddress(addr, tx.to!),
-      ) || this.multiSendDeployments.some((addr) => eqAddress(addr, tx.to!))
+        eqAddress(addr, tx.to as string),
+      ) ||
+      this.multiSendDeployments.some((addr) => eqAddress(addr, tx.to as string))
     );
   }
 
-  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+  async isOwnableTransaction(tx: AnnotatedEvmTransaction): Promise<boolean> {
     if (!tx.to || !tx.data) return false;
     return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
   }
 
   private isSafeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     return (
       tx.to !== undefined &&
-      getAllSafesForChain(chain).some((safe) => eqAddress(tx.to!, safe))
+      getAllSafesForChain(chain).some((safe) =>
+        eqAddress(tx.to as string, safe),
+      )
     );
   }
 
   private async readSafeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in Safe transaction');
@@ -2051,17 +1933,18 @@ export class GovernTransactionReader {
     }
 
     const decoded = parseSafeTx(tx);
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
+    assert(decoded, 'Unable to parse safe transaction');
+    const args = formatFunctionFragmentArgs(decoded.args, decoded.fragment);
 
-    const { governanceType } = await determineGovernanceType(chain, tx.to);
+    const { governanceType } = await determineGovernanceType(
+      chain,
+      tx.to as string,
+    );
     const toInsight = `${governanceType.toUpperCase()} Safe (${chain} ${
       tx.to
     })`;
 
-    if (decoded.functionFragment.name === 'approveHash') {
+    if (decoded.fragment.name === 'approveHash') {
       return this.readApproveHashTransaction(
         chain,
         args,
@@ -2110,7 +1993,7 @@ export class GovernTransactionReader {
     const innerTx = await reader.read(chain, {
       to: approvedTx.to,
       data: approvedTx.data,
-      value: BigNumber.from(approvedTx.value),
+      value: ethers.toBigInt(approvedTx.value),
     });
 
     return {
@@ -2122,7 +2005,7 @@ export class GovernTransactionReader {
   private async readGeneralSafeTransaction(
     chain: ChainName,
     decoded: {
-      functionFragment: ethers.utils.FunctionFragment;
+      fragment: ethers.FunctionFragment;
       args: Result;
       signature: string;
     },
@@ -2131,7 +2014,7 @@ export class GovernTransactionReader {
   ): Promise<GovernTransaction> {
     let insight;
     let innerTx;
-    switch (decoded.functionFragment.name) {
+    switch (decoded.fragment.name) {
       case 'execTransaction': {
         innerTx = await this.read(chain, {
           to: args.to,
@@ -2202,19 +2085,19 @@ export class GovernTransactionReader {
   }
 }
 
-function metaTransactionDataToEV5Transaction(
+function metaTransactionDataToEvmTransaction(
   metaTransactionData: MetaTransactionData,
-): AnnotatedEV5Transaction {
+): AnnotatedEvmTransaction {
   return {
     to: metaTransactionData.to,
-    value: BigNumber.from(metaTransactionData.value),
+    value: ethers.toBigInt(metaTransactionData.value),
     data: metaTransactionData.data,
   };
 }
 
 function formatFunctionFragmentArgs(
   args: Result,
-  fragment: ethers.utils.FunctionFragment,
+  fragment: ethers.FunctionFragment,
 ): Record<string, any> {
   const accumulator: Record<string, any> = {};
   return fragment.inputs.reduce((acc, input, index) => {

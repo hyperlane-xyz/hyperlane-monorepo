@@ -1,3 +1,4 @@
+import { JsonRpcApiProvider } from 'ethers';
 import type { Logger } from 'pino';
 
 import {
@@ -29,8 +30,14 @@ export async function getConfirmedBlockTag(
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
-    const provider = multiProvider.getEthersV5Provider(chainName);
-    const latestBlock = await provider.getBlockNumber();
+    const provider = multiProvider.getEthersV6Provider(chainName);
+    let latestBlock: number;
+    if (provider instanceof JsonRpcApiProvider) {
+      const latestBlockHex = await provider.send('eth_blockNumber', []);
+      latestBlock = parseInt(latestBlockHex, 16);
+    } else {
+      latestBlock = await provider.getBlockNumber();
+    }
     return Math.max(0, latestBlock - reorgPeriod);
   } catch (error) {
     logger?.warn(

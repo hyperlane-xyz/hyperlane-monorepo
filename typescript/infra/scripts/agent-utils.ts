@@ -651,7 +651,7 @@ export async function getMultiProviderForRole(
             throw new Error(`Provider not found for chain ${chain}`);
           }
           const signer = await key.getSigner(provider);
-          multiProvider.setSigner(chain, signer);
+          multiProvider.setSigner(chain, signer as any);
         }
       },
     ),

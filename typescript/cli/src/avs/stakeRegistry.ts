@@ -1,5 +1,15 @@
 import { password } from '@inquirer/prompts';
-import { type BigNumberish, Wallet, utils } from 'ethers';
+import {
+  type BytesLike,
+  Signature,
+  Wallet,
+  getBytes,
+  hexlify,
+  randomBytes,
+  toBeHex,
+  type HDNodeWallet,
+  zeroPadValue,
+} from 'ethers';
 
 import {
   ECDSAStakeRegistry__factory,
@@ -15,9 +25,9 @@ import { readFileAtPath, resolvePath } from '../utils/files.js';
 import { avsAddresses } from './config.js';
 
 export type SignatureWithSaltAndExpiryStruct = {
-  signature: utils.BytesLike;
-  salt: utils.BytesLike;
-  expiry: BigNumberish;
+  signature: BytesLike;
+  salt: BytesLike;
+  expiry: string;
 };
 
 export async function registerOperatorWithSignature({
@@ -36,7 +46,7 @@ export async function registerOperatorWithSignature({
   const operatorAsSigner = await readOperatorFromEncryptedJson(operatorKeyPath);
 
   const provider = multiProvider.getProvider(chain);
-  const connectedSigner = operatorAsSigner.connect(provider);
+  const connectedSigner = operatorAsSigner.connect(provider as any);
 
   const stakeRegistryAddress = avsAddresses[chain].ecdsaStakeRegistry;
 
@@ -93,7 +103,7 @@ export async function deregisterOperator({
   const operatorAsSigner = await readOperatorFromEncryptedJson(operatorKeyPath);
 
   const provider = multiProvider.getProvider(chain);
-  const connectedSigner = operatorAsSigner.connect(provider);
+  const connectedSigner = operatorAsSigner.connect(provider as any);
 
   const stakeRegistryAddress = avsAddresses[chain].ecdsaStakeRegistry;
 
@@ -111,7 +121,7 @@ export async function deregisterOperator({
 
 export async function readOperatorFromEncryptedJson(
   operatorKeyPath: string,
-): Promise<Wallet> {
+): Promise<Wallet | HDNodeWallet> {
   const encryptedJson = readFileAtPath(resolvePath(operatorKeyPath));
 
   const keyFilePassword = await password({
@@ -126,8 +136,8 @@ async function getOperatorSignature(
   domain: number,
   serviceManager: Address,
   avsDirectory: Address,
-  operator: Wallet,
-  signer: Wallet,
+  operator: Wallet | HDNodeWallet,
+  signer: Wallet | HDNodeWallet,
 ): Promise<SignatureWithSaltAndExpiryStruct> {
   const avsDirectoryContract = TestAVSDirectory__factory.connect(
     avsDirectory,
@@ -135,10 +145,10 @@ async function getOperatorSignature(
   );
 
   // random salt is ok, because we register the operator right after
-  const salt = utils.hexZeroPad(utils.randomBytes(32), 32);
+  const salt = zeroPadValue(hexlify(randomBytes(32)), 32);
   // give an expiry timestamp 1 hour from now
-  const expiry = utils.hexZeroPad(
-    utils.hexlify(Math.floor(Date.now() / 1000) + 60 * 60),
+  const expiry = zeroPadValue(
+    toBeHex(Math.floor(Date.now() / 1000) + 60 * 60),
     32,
   );
 
@@ -152,12 +162,10 @@ async function getOperatorSignature(
 
   // Eigenlayer's AVSDirectory expects the signature over raw signed hash instead of EIP-191 compatible toEthSignedMessageHash
   // see https://github.com/Layr-Labs/eigenlayer-contracts/blob/ef2ea4a7459884f381057aa9bbcd29c7148cfb63/src/contracts/libraries/EIP1271SignatureUtils.sol#L22
-  const signature = operator
-    ._signingKey()
-    .signDigest(utils.arrayify(signingHash));
+  const signature = operator.signingKey.sign(getBytes(signingHash));
 
   return {
-    signature: utils.joinSignature(signature),
+    signature: Signature.from(signature).serialized,
     salt,
     expiry,
   };

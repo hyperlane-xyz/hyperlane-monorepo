@@ -15,7 +15,7 @@ import type {
 
 // Track the current SimpleRunner instance for cleanup
 let currentSimpleRunner: SimpleRunner | null = null;
-let currentSimpleProvider: ethers.providers.JsonRpcProvider | null = null;
+let currentSimpleProvider: ethers.JsonRpcProvider | null = null;
 
 /**
  * Global cleanup function - call between test runs to ensure clean state
@@ -32,7 +32,7 @@ export async function cleanupSimpleRunner(): Promise<void> {
   }
 
   if (currentSimpleProvider) {
-    currentSimpleProvider.removeAllListeners();
+    void currentSimpleProvider.removeAllListeners();
     currentSimpleProvider = null;
   }
 
@@ -52,7 +52,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
   private running = false;
   private activeOperations = 0;
   private pollingTimer?: NodeJS.Timeout;
-  private provider?: ethers.providers.JsonRpcProvider;
+  private provider?: ethers.JsonRpcProvider;
   private deployer?: ethers.Wallet;
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
@@ -60,13 +60,9 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
     await cleanupSimpleRunner();
 
     this.config = config;
-    this.provider = new ethers.providers.JsonRpcProvider(
-      config.deployment.anvilRpc,
-    );
+    this.provider = new ethers.JsonRpcProvider(config.deployment.anvilRpc);
     // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
     this.provider.pollingInterval = 100;
-    // Disable automatic polling to reduce RPC contention in simulation
-    this.provider.polling = false;
     // Track for cleanup
     currentSimpleProvider = this.provider;
 
@@ -120,7 +116,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
           this.provider,
         );
         const balance = await token.balanceOf(domain.warpToken);
-        balances[chainName] = balance.toBigInt();
+        balances[chainName] = balance;
       }
 
       // Calculate total and target balances per strategy
@@ -351,7 +347,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
 
     // Clean up provider
     if (this.provider) {
-      this.provider.removeAllListeners();
+      void this.provider.removeAllListeners();
       if (currentSimpleProvider === this.provider) {
         currentSimpleProvider = null;
       }

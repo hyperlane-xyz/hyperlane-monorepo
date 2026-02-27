@@ -1,4 +1,4 @@
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'ethers';
 import { format } from 'util';
 
 import {

@@ -1,6 +1,6 @@
 import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { ResolvedRoutingFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
@@ -262,7 +262,7 @@ describe('configUtils', () => {
         nativeConfig,
       );
 
-      expect(result.token).to.equal(constants.AddressZero);
+      expect(result.token).to.equal(ZeroAddress);
     });
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {

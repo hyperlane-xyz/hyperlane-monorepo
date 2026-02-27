@@ -26,7 +26,7 @@ export const checkValidatorSetup = async (
   try {
     const [_, latestCheckpointIndex] = await merkleTreeHook.latestCheckpoint();
 
-    merkleTreeLatestCheckpointIndex = latestCheckpointIndex;
+    merkleTreeLatestCheckpointIndex = Number(latestCheckpointIndex);
     logBlue(
       `\nLatest checkpoint index of incremental merkle tree: ${merkleTreeLatestCheckpointIndex}\n`,
     );

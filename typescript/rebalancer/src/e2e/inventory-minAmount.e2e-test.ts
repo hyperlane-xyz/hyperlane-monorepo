@@ -1,12 +1,7 @@
 import { expect } from 'chai';
-import { ethers, providers } from 'ethers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import { ExternalBridgeType } from '../config/types.js';
 
@@ -20,6 +15,7 @@ import {
 } from './fixtures/routes.js';
 import { MockExternalBridge } from './harness/MockExternalBridge.js';
 import { NativeLocalDeploymentManager } from './harness/NativeLocalDeploymentManager.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import {
   classifyChains,
   getFirstMonitorEvent,
@@ -36,17 +32,16 @@ describe('InventoryMinAmountStrategy E2E', function () {
 
   let deploymentManager: NativeLocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, JsonRpcProvider>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let nativeDeployedAddresses: NativeDeployedAddresses;
   let mockBridge: MockExternalBridge;
 
-  const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
-    .address;
+  const inventorySignerAddress = new Wallet(ANVIL_USER_PRIVATE_KEY).address;
   // Expected deficit when a chain's router balance is 0:
   // target (from strategy config) - 0 = target.
-  const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI.toBigInt();
+  const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI;
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
@@ -89,16 +84,11 @@ describe('InventoryMinAmountStrategy E2E', function () {
 
   afterEach(async function () {
     mockBridge.reset();
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-      // ethers v5 refuses to return block numbers lower than a previous
-      // high-water mark (_maxInternalBlockNumber). After evm_revert the
-      // actual chain block number decreases, so reset the cache.
-      Reflect.set(provider, '_maxInternalBlockNumber', -1);
-      Reflect.set(provider, '_internalBlockNumber', null);
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {
@@ -169,16 +159,16 @@ describe('InventoryMinAmountStrategy E2E', function () {
     );
 
     expect(
-      finalBalances.anvil2.gt(initialBalances.anvil2),
+      finalBalances.anvil2 > initialBalances.anvil2,
       'Destination router balance should increase',
     ).to.be.true;
     expect(
-      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      finalBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        finalBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
@@ -309,16 +299,16 @@ describe('InventoryMinAmountStrategy E2E', function () {
     );
 
     expect(
-      finalBalances.anvil2.gt(initialBalances.anvil2),
+      finalBalances.anvil2 > initialBalances.anvil2,
       'Destination router balance should increase',
     ).to.be.true;
     expect(
-      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      finalBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        finalBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
@@ -552,16 +542,16 @@ describe('InventoryMinAmountStrategy E2E', function () {
     );
 
     expect(
-      finalBalances.anvil2.gt(initialBalances.anvil2),
+      finalBalances.anvil2 > initialBalances.anvil2,
       'Destination router balance should increase',
     ).to.be.true;
     expect(
-      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      finalBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        finalBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
@@ -636,16 +626,16 @@ describe('InventoryMinAmountStrategy E2E', function () {
     );
 
     expect(
-      midBalances.anvil2.gt(initialBalances.anvil2),
+      midBalances.anvil2 > initialBalances.anvil2,
       'Deficit router (anvil2) balance should increase',
     ).to.be.true;
     expect(
-      midBalances[surplusChain].lt(initialBalances[surplusChain]),
+      midBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        midBalances[neutralChain].eq(initialBalances[neutralChain]),
+        midBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }

@@ -95,15 +95,7 @@ export {
 } from './async.js';
 export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './base58.js';
 export { fromBase64, toBase64 } from './base64.js';
-export {
-  BigNumberMax,
-  BigNumberMin,
-  bigToFixed,
-  fixedToBig,
-  isBigNumberish,
-  isZeroish,
-  mulBigAndFixed,
-} from './big-numbers.js';
+export { isNumberish, isZeroish } from './big-numbers.js';
 export { formatCallData } from './calldata.js';
 export {
   isCheckpoint,

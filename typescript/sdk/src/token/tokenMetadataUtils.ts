@@ -94,13 +94,13 @@ export async function deriveTokenMetadata(
           token = await IXERC20Lockbox__factory.connect(
             config.token,
             provider,
-          ).callStatic.ERC20();
+          ).ERC20.staticCall();
           break;
         case TokenType.collateralVault:
           token = await IERC4626__factory.connect(
             config.token,
             provider,
-          ).callStatic.asset();
+          ).asset();
           break;
         default:
           token = config.token;
@@ -108,11 +108,12 @@ export async function deriveTokenMetadata(
       }
 
       const erc20 = ERC20__factory.connect(token, provider);
-      const [name, symbol, decimals] = await Promise.all([
+      const [name, symbol, rawDecimals] = await Promise.all([
         erc20.name(),
         erc20.symbol(),
         erc20.decimals(),
       ]);
+      const decimals = Number(rawDecimals);
 
       metadataMap.update(
         chain,

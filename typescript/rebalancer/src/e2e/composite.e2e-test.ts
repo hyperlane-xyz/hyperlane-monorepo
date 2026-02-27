@@ -1,13 +1,8 @@
 import { expect } from 'chai';
-import { BigNumber, ethers, providers } from 'ethers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import {
   RebalancerMinAmountType,
@@ -24,6 +19,7 @@ import {
 } from './fixtures/routes.js';
 import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
 import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
@@ -36,14 +32,14 @@ describe('CompositeStrategy E2E', function () {
 
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, JsonRpcProvider>;
   let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
 
   before(async function () {
-    const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
+    const wallet = new Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
     deploymentManager = new Erc20LocalDeploymentManager();
@@ -72,11 +68,11 @@ describe('CompositeStrategy E2E', function () {
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {
@@ -86,7 +82,7 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('collateralDeficit + weighted: routes use different bridges', async function () {
-    const transferAmount = BigNumber.from('600000000'); // 600 USDC
+    const transferAmount = 600000000n; // 600 USDC
 
     const context = await TestRebalancer.builder(
       deploymentManager,
@@ -134,12 +130,12 @@ describe('CompositeStrategy E2E', function () {
 
     // Fund user and execute actual warp transfer
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const deployer = new Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
     const token = ERC20__factory.connect(
       deployedAddresses.tokens.anvil1,
       deployer,
     );
-    await token.transfer(userAddress, transferAmount.mul(2));
+    await token.transfer(userAddress, transferAmount * 2n);
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
@@ -274,11 +270,11 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('collateralDeficit + minAmount: routes use different bridges', async function () {
-    const transferAmount = BigNumber.from('600000000'); // 600 USDC
+    const transferAmount = 600000000n; // 600 USDC
     const customBalances = {
-      anvil1: BigNumber.from('8000000000'),
-      anvil2: BigNumber.from('500000000'),
-      anvil3: BigNumber.from('50000000'), // below minAmount threshold (100 USDC)
+      anvil1: 8000000000n,
+      anvil2: 500000000n,
+      anvil3: 50000000n, // below minAmount threshold (100 USDC)
     };
 
     const context = await TestRebalancer.builder(
@@ -338,12 +334,12 @@ describe('CompositeStrategy E2E', function () {
       .build();
 
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer2 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const deployer2 = new Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
     const token2 = ERC20__factory.connect(
       deployedAddresses.tokens.anvil1,
       deployer2,
     );
-    await token2.transfer(userAddress, transferAmount.mul(2));
+    await token2.transfer(userAddress, transferAmount * 2n);
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
@@ -473,7 +469,7 @@ describe('CompositeStrategy E2E', function () {
 
   it('should propose collateralDeficit rebalance even when slow rebalance is inflight', async function () {
     const ethProvider = localProviders.get('anvil1')!;
-    const transferAmount = BigNumber.from('600000000');
+    const transferAmount = 600000000n;
 
     // Build context with Composite strategy from the start
     // COMPOSITE_DEFICIT_IMBALANCE: eth=8000, arb=500, base=1500
@@ -557,12 +553,12 @@ describe('CompositeStrategy E2E', function () {
 
     // ===== CYCLE 2: Add pending transfer to create deficit, then execute =====
     // Fund user and execute a warp transfer eth→arbitrum to create deficit on arbitrum
-    const deployer3 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const deployer3 = new Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
     const token3 = ERC20__factory.connect(
       deployedAddresses.tokens.anvil1,
       deployer3,
     );
-    await token3.transfer(userAddress, transferAmount.mul(2));
+    await token3.transfer(userAddress, transferAmount * 2n);
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
@@ -715,9 +711,9 @@ describe('CompositeStrategy E2E', function () {
         },
       ])
       .withBalances({
-        anvil1: BigNumber.from('7000000000'),
-        anvil2: BigNumber.from('2000000000'),
-        anvil3: BigNumber.from('1000000000'),
+        anvil1: 7000000000n,
+        anvil2: 2000000000n,
+        anvil3: 1000000000n,
       })
       .withExecutionMode('execute')
       .build();
@@ -742,8 +738,8 @@ describe('CompositeStrategy E2E', function () {
     );
     expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
 
-    const inflightAmount = BigNumber.from(inflightToBase!.amount);
-    expect(inflightAmount.gt(0), 'Inflight amount should be positive').to.be
+    const inflightAmount = BigInt(inflightToBase!.amount);
+    expect(inflightAmount > 0n, 'Inflight amount should be positive').to.be
       .true;
 
     // ===== CYCLE 2: Execute again - should account for inflight =====
@@ -767,9 +763,7 @@ describe('CompositeStrategy E2E', function () {
 
     if (newActionsToBase.length > 0) {
       // If route was proposed, should be much smaller than original 1000 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToBase[0].amount,
-      ).toBigInt();
+      const proposedAmount = BigInt(newActionsToBase[0].amount);
       expect(
         proposedAmount < 500000000n,
         `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,
@@ -791,12 +785,16 @@ describe('CompositeStrategy E2E', function () {
       const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
         inflightToBase.txHash,
       );
-      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
-        dispatchTx: rebalanceTxReceipt,
-        messageId: inflightToBase.messageId!,
-        origin: 'anvil1',
-        destination: 'anvil3',
-      });
+      const relayResult = await tryRelayMessage(
+        context.multiProvider,
+        hyperlaneCore,
+        {
+          dispatchTx: rebalanceTxReceipt,
+          messageId: inflightToBase.messageId!,
+          origin: 'anvil1',
+          destination: 'anvil3',
+        },
+      );
 
       if (relayResult.success) {
         const blockTags13 = await context.getConfirmedBlockTags();
@@ -812,7 +810,7 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('should execute collateralDeficit portion; slow bridge intents fail', async function () {
-    const transferAmount = BigNumber.from('600000000'); // 600 USDC
+    const transferAmount = 600000000n; // 600 USDC
 
     // Use balances that trigger both strategies
     // - Weighted: ethereum has too much (needs rebalance to base)
@@ -863,12 +861,12 @@ describe('CompositeStrategy E2E', function () {
 
     // Fund user and execute warp transfer to create deficit
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer4 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const deployer4 = new Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
     const token4 = ERC20__factory.connect(
       deployedAddresses.tokens.anvil1,
       deployer4,
     );
-    await token4.transfer(userAddress, transferAmount.mul(2));
+    await token4.transfer(userAddress, transferAmount * 2n);
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
@@ -956,12 +954,16 @@ describe('CompositeStrategy E2E', function () {
         action.txHash,
       );
 
-      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
-        dispatchTx: rebalanceTxReceipt,
-        messageId: action.messageId!,
-        origin: originChain,
-        destination: destChain,
-      });
+      const relayResult = await tryRelayMessage(
+        context.multiProvider,
+        hyperlaneCore,
+        {
+          dispatchTx: rebalanceTxReceipt,
+          messageId: action.messageId!,
+          origin: originChain,
+          destination: destChain,
+        },
+      );
       expect(
         relayResult.success,
         `SUPERSEED relay should succeed: ${relayResult.error}`,

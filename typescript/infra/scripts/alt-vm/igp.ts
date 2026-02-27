@@ -295,7 +295,7 @@ function exampleCost(
   let exampleRemoteGasCost = new BigNumber(oracleData.tokenExchangeRate)
     .times(oracleData.gasPrice)
     .times(exampleRemoteGas)
-    .div(getProtocolExchangeRateScale(protocol).toBigInt());
+    .div(getProtocolExchangeRateScale(protocol).toString());
 
   return {
     remote,

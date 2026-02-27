@@ -1,8 +1,7 @@
-import { BigNumber } from 'ethers';
 import type { Logger } from 'pino';
 
 import {
-  type AnnotatedEV5Transaction,
+  type AnnotatedEvmTransaction,
   type ChainName,
   type InterchainGasQuote,
   type MultiProvider,
@@ -93,13 +92,13 @@ export async function estimateTransferRemoteGas(
     // Gas cost is independent of transfer size (just a require check in _transferFromSender),
     // and using minimal amount prevents eth_estimateGas from failing when account balance < requested amount
     // Note: getHypAdapter returns IHypTokenAdapter<unknown> for protocol-agnostic support.
-    // For EVM chains (which inventory rebalancing uses), the actual type is AnnotatedEV5Transaction.
+    // For EVM chains (which inventory rebalancing uses), the actual type is AnnotatedEvmTransaction.
     const populatedTx = (await adapter.populateTransferRemoteTx({
       destination: destinationDomain,
       recipient: inventorySigner,
       weiAmountOrId: 1n,
       interchainGas: gasQuote,
-    })) as AnnotatedEV5Transaction;
+    })) as AnnotatedEvmTransaction;
 
     // Estimate gas using the provider
     const provider = multiProvider.getProvider(originChain);
@@ -218,15 +217,13 @@ export async function calculateTransferCosts(
     inventorySigner,
     logger,
   );
-  const bufferedGasLimit = addBufferToGasLimit(
-    BigNumber.from(estimatedGasLimit.toString()),
-  );
+  const bufferedGasLimit = addBufferToGasLimit(estimatedGasLimit);
 
   // Get gas price and calculate cost
   const provider = multiProvider.getProvider(originChain);
   const feeData = await provider.getFeeData();
   const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
-  const gasCost = bufferedGasLimit.toBigInt() * BigInt(gasPrice.toString());
+  const gasCost = bufferedGasLimit * gasPrice;
 
   const totalCost = igpCost + gasCost + tokenFeeCost;
 

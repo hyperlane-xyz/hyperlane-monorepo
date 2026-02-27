@@ -1,5 +1,4 @@
-import type { SignatureLike } from '@ethersproject/bytes';
-import type { BigNumber, ethers } from 'ethers';
+import type { BytesLike, SignatureLike } from 'ethers';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
@@ -43,8 +42,8 @@ export type WithAddress<T> = T & {
 };
 
 export type MerkleProof = {
-  branch: ethers.utils.BytesLike[];
-  leaf: ethers.utils.BytesLike;
+  branch: BytesLike[];
+  leaf: BytesLike;
   index: number;
 };
 
@@ -68,7 +67,7 @@ export type CheckpointWithId = {
   message_id: HexString;
 };
 
-export { SignatureLike };
+export type { SignatureLike };
 
 /**
  * Shape of a checkpoint in S3 as published by the agent.
@@ -91,7 +90,7 @@ export type S3Checkpoint = {
 export type CallData = {
   to: Address;
   data: string;
-  value?: BigNumber;
+  value?: Numberish;
 };
 
 export enum MessageStatus {
@@ -120,9 +119,9 @@ export type ParsedLegacyMultisigIsmMetadata = {
   checkpointRoot: string;
   checkpointIndex: number;
   originMailbox: string;
-  proof: ethers.utils.BytesLike[];
-  signatures: ethers.utils.BytesLike[];
-  validators: ethers.utils.BytesLike[];
+  proof: BytesLike[];
+  signatures: BytesLike[];
+  validators: BytesLike[];
 };
 
 export type Annotated<T> = T & {

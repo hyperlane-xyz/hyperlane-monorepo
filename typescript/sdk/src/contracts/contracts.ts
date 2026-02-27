@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -19,7 +19,7 @@ import {
 import type { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import {
   ChainMap,
   ChainNameOrId,
@@ -46,9 +46,16 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): any {
-  return objMap(contracts, (_, contract) =>
-    contract.address ? contract.address : serializeContracts(contract),
-  );
+  return objMap(contracts, (_, contract) => {
+    if (typeof (contract as any).target === 'string') {
+      return (contract as any).target;
+    }
+    assert(
+      contract && typeof contract === 'object',
+      'Expected nested contract object with v6 `target`',
+    );
+    return serializeContracts(contract as any);
+  });
 }
 
 function getFactory<F extends HyperlaneFactories>(
@@ -81,7 +88,7 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
             `Missing address for contract "${key}" on chain ${chainName}`,
           );
           chainsWithMissingAddresses.add(chainName);
-          return constants.AddressZero;
+          return ZeroAddress;
         }
         return value;
       }),
@@ -238,7 +245,7 @@ export function connectContracts<F extends HyperlaneFactories>(
     if (!contract.connect) {
       return undefined;
     }
-    return contract.connect(connection);
+    return contract.connect(connection as any);
   });
   return Object.fromEntries(
     Object.entries(connectedContracts).filter(([_, contract]) => !!contract),
@@ -260,7 +267,7 @@ export function filterOwnableContracts(contracts: HyperlaneContracts<any>): {
 } {
   return objFilter(
     contracts,
-    (_, contract): contract is Ownable => 'owner' in contract.functions,
+    (_, contract): contract is Ownable => 'owner' in contract,
   );
 }
 
@@ -301,7 +308,7 @@ export function transferOwnershipTransactions(
   actual: OwnableConfig,
   expected: OwnableConfig,
   label?: string,
-): AnnotatedEV5Transaction[] {
+): AnnotatedEvmTransaction[] {
   if (eqAddress(actual.owner, expected.owner)) {
     return [];
   }

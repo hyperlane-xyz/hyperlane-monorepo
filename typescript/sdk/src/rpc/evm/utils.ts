@@ -89,11 +89,14 @@ export async function getLogsFromRpc({
   }
 
   return logs.map((rawLog): GetEventLogsResponse => {
+    const logIndex = Number(
+      'logIndex' in rawLog ? rawLog.logIndex : rawLog.index,
+    );
     return {
       address: rawLog.address,
       blockNumber: rawLog.blockNumber,
       data: rawLog.data,
-      logIndex: rawLog.logIndex,
+      logIndex,
       topics: rawLog.topics,
       transactionHash: rawLog.transactionHash,
       transactionIndex: rawLog.transactionIndex,

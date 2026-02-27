@@ -1,5 +1,4 @@
-import { Provider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
+import { Wallet, type Provider } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
@@ -18,7 +17,7 @@ import {
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, sleep } from '@hyperlane-xyz/utils';
 
 const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -66,7 +65,9 @@ async function setIgpConfig(
     signer.connect(provider),
   );
   const storageGasOracle = await storageGasOracleF.deploy();
-  await storageGasOracle.deployTransaction.wait();
+  const oracleDeployTx = storageGasOracle.deploymentTransaction();
+  assert(oracleDeployTx, 'Missing StorageGasOracle deployment transaction');
+  await oracleDeployTx.wait();
 
   const oracleConfigs: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
   oracleConfigs.push({
@@ -80,7 +81,7 @@ async function setIgpConfig(
   gasParamsToSet.push({
     remoteDomain: remoteId,
     config: {
-      gasOracle: storageGasOracle.address,
+      gasOracle: storageGasOracle.target as string,
       gasOverhead: 1000000,
     },
   });
@@ -189,7 +190,9 @@ async function main() {
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
   // Get the provider for the first chain
-  const provider = multiProvider.getProvider(TestChainName.test1);
+  const provider = multiProvider.getProvider(
+    TestChainName.test1,
+  ) as unknown as Provider;
 
   // Create core from addresses
   const addresses = JSON.parse(
@@ -204,7 +207,9 @@ async function main() {
   // Deploy a recipient
   const recipientF = new TestSendReceiver__factory(signer.connect(provider));
   const recipient = await recipientF.deploy();
-  await recipient.deployTransaction.wait();
+  const recipientDeployTx = recipient.deploymentTransaction();
+  assert(recipientDeployTx, 'Missing recipient deployment transaction');
+  await recipientDeployTx.wait();
 
   //  Generate artificial traffic
   const run_forever = messages === 0;
@@ -249,22 +254,22 @@ async function main() {
 
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
-      addressToBytes32(recipient.address),
+      addressToBytes32(recipient.target as string),
       body,
     );
     await mailbox['dispatch(uint32,bytes32,bytes)'](
       remoteId,
-      addressToBytes32(recipient.address),
+      addressToBytes32(recipient.target as string),
       body,
       {
         value: quote,
       },
     );
     console.log(
-      `send to ${recipient.address} on ${remote} via mailbox ${
-        mailbox.address
+      `send to ${recipient.target as string} on ${remote} via mailbox ${
+        mailbox.target as string
       } on ${local} with nonce ${
-        (await mailbox.nonce()) - 1
+        (await mailbox.nonce()) - 1n
       } and quote ${quote.toString()}`,
     );
     console.log(await chainSummary(core, local));

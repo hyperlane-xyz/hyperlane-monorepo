@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -29,7 +29,7 @@ import {
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -68,6 +68,10 @@ export class EvmIsmModule extends HyperlaneModule<
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
+  protected getContractAddress(contract: { target?: unknown }): Address {
+    return contract.target as Address;
+  }
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
@@ -105,7 +109,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     targetConfig: IsmConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     targetConfig = IsmConfigSchema.parse(targetConfig);
 
     // Nothing to do if its the default ism
@@ -151,7 +155,7 @@ export class EvmIsmModule extends HyperlaneModule<
         config: normalizedTargetConfig,
       });
 
-      this.args.addresses.deployedIsm = contract.address;
+      this.args.addresses.deployedIsm = this.getContractAddress(contract);
       return [];
     }
 
@@ -170,7 +174,7 @@ export class EvmIsmModule extends HyperlaneModule<
         const contract = await this.deploy({
           config: normalizedTargetConfig,
         });
-        this.args.addresses.deployedIsm = contract.address;
+        this.args.addresses.deployedIsm = this.getContractAddress(contract);
         return [];
       }
     }
@@ -188,8 +192,8 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     current: Exclude<IsmConfig, string>;
     target: Exclude<IsmConfig, string>;
-  }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+  }): Promise<AnnotatedEvmTransaction[]> {
+    const updateTxs: AnnotatedEvmTransaction[] = [];
 
     assert(
       MUTABLE_ISM_TYPE.includes(current.type),
@@ -283,7 +287,7 @@ export class EvmIsmModule extends HyperlaneModule<
         addresses: {
           ...proxyFactoryFactories,
           mailbox,
-          deployedIsm: ethers.constants.AddressZero,
+          deployedIsm: ZeroAddress,
         },
         chain,
         config,
@@ -293,7 +297,7 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     const deployedIsm = await module.deploy({ config });
-    module.args.addresses.deployedIsm = deployedIsm.address;
+    module.args.addresses.deployedIsm = module.getContractAddress(deployedIsm);
 
     return module;
   }
@@ -306,13 +310,13 @@ export class EvmIsmModule extends HyperlaneModule<
     current: DomainRoutingIsmConfig;
     target: DomainRoutingIsmConfig;
     logger: Logger;
-  }): Promise<AnnotatedEV5Transaction[]> {
+  }): Promise<AnnotatedEvmTransaction[]> {
     const contract = DomainRoutingIsm__factory.connect(
       this.args.addresses.deployedIsm,
       this.multiProvider.getProvider(this.chain),
     );
 
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+    const updateTxs: AnnotatedEvmTransaction[] = [];
 
     const knownChains = new Set(this.multiProvider.getKnownChainNames());
 
@@ -331,9 +335,10 @@ export class EvmIsmModule extends HyperlaneModule<
       const ism = await this.deploy({
         config: target.domains[origin],
       });
+      const ismAddress = this.getContractAddress(ism);
 
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.set(domainId, ism.address);
+      const tx = await contract.set.populateTransaction(domainId, ismAddress);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Setting new ISM for origin ${origin}...`,
@@ -349,7 +354,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // Unenroll domains
     for (const origin of knownUnenrolls) {
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.remove(domainId);
+      const tx = await contract.remove.populateTransaction(domainId);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
@@ -366,7 +371,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     current: PausableIsmConfig;
     target: PausableIsmConfig;
-  }): AnnotatedEV5Transaction[] {
+  }): AnnotatedEvmTransaction[] {
     if (current.paused === target.paused) {
       return [];
     }
@@ -392,7 +397,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     current: OffchainLookupIsmConfig;
     target: OffchainLookupIsmConfig;
-  }): AnnotatedEV5Transaction[] {
+  }): AnnotatedEvmTransaction[] {
     if (arrayEqual(target.urls, current.urls)) {
       return [];
     }
@@ -404,7 +409,7 @@ export class EvmIsmModule extends HyperlaneModule<
         to: this.args.addresses.deployedIsm,
         // The contract code just replaces the existing array with the new one
         data: AbstractCcipReadIsm__factory.createInterface().encodeFunctionData(
-          'setUrls(string[])',
+          'setUrls',
           [target.urls],
         ),
       },

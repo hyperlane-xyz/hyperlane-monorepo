@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import type { TransactionResponse } from 'ethers';
 
 import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 import { messageId } from '@hyperlane-xyz/utils';
@@ -22,7 +22,7 @@ export class TestCoreApp extends HyperlaneCore {
   }
 
   async processMessages(): Promise<
-    Map<ChainName, Map<ChainName, ethers.providers.TransactionResponse[]>>
+    Map<ChainName, Map<ChainName, TransactionResponse[]>>
   > {
     const responses = new Map();
     for (const origin of this.chains()) {
@@ -39,7 +39,7 @@ export class TestCoreApp extends HyperlaneCore {
 
   async processOutboundMessages(
     origin: ChainName,
-  ): Promise<Map<ChainName, ethers.providers.TransactionResponse[]>> {
+  ): Promise<Map<ChainName, TransactionResponse[]>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
     const outbox = contracts.mailbox as TestMailbox;
@@ -47,7 +47,7 @@ export class TestCoreApp extends HyperlaneCore {
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      const destination = dispatch.args.destination;
+      const destination = Number(dispatch.args.destination);
       if (destination === this.multiProvider.getDomainId(origin)) {
         throw new Error('Dispatched message to local domain');
       }

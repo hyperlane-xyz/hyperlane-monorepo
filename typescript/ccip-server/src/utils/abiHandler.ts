@@ -1,6 +1,5 @@
-import type { Interface } from '@ethersproject/abi';
-import type { BaseContract } from 'ethers';
-import { ethers } from 'ethers';
+import type { BaseContract, Interface } from 'ethers';
+import { getBytes, verifyMessage } from 'ethers';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 
@@ -24,7 +23,7 @@ export function createAbiHandler<
     createInterface(): Interface;
     connect(...args: any[]): BaseContract;
   },
-  F extends keyof ReturnType<Factory['connect']>['functions'] & string,
+  F extends string,
 >(
   contractFactory: Factory,
   functionName: F,
@@ -83,8 +82,8 @@ export function createAbiHandler<
           { sender, data, verifyRelayerSignatureUrl },
           'Verifying relayer signature',
         );
-        relayer = ethers.utils.verifyMessage(
-          ethers.utils.arrayify(
+        relayer = verifyMessage(
+          getBytes(
             offchainLookupRequestMessageHash(
               sender,
               data,
@@ -97,6 +96,9 @@ export function createAbiHandler<
 
       const decoded = iface.decodeFunctionData(functionName, data);
       const fragment = iface.getFunction(functionName);
+      if (!fragment) {
+        throw new Error(`Function ${functionName} not found in interface`);
+      }
       const args = fragment.inputs.map((_, i) => decoded[i]);
       const finalArgs = [...args];
       // For methods that expect (message, relayer, logger), we need to insert relayer before logger

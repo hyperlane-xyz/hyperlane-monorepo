@@ -1,4 +1,10 @@
-import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
+import {
+  AbstractProvider,
+  FeeData,
+  Network,
+  Networkish,
+  resolveProperties,
+} from 'ethers';
 import { Logger, pino } from 'pino';
 
 import {
@@ -25,6 +31,7 @@ import {
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
+  RpcConnectionInfo,
   RpcConfigWithConnectionInfo,
   SmartProviderOptions,
 } from './types.js';
@@ -32,11 +39,11 @@ import { parseCustomRpcHeaders } from '../../utils/provider.js';
 
 function buildRpcConnections(
   rawUrl: string,
-  existingConnection?: utils.ConnectionInfo,
+  existingConnection?: RpcConnectionInfo,
 ): {
   url: string;
-  connection?: utils.ConnectionInfo;
-  redactedConnection?: utils.ConnectionInfo;
+  connection?: RpcConnectionInfo;
+  redactedConnection?: RpcConnectionInfo;
 } {
   const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
   if (isObjEmpty(headers)) {
@@ -72,16 +79,50 @@ function buildRpcConnections(
   };
 }
 
+function stringifyWithBigInt(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_key, v) =>
+      typeof v === 'bigint' ? `${v}n` : v,
+    );
+  } catch {
+    return String(value);
+  }
+}
+
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 }
 
-// This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
+// This is a partial list. If needed, check the full list in ethers docs.
+const EthersError = {
+  SERVER_ERROR: 'SERVER_ERROR',
+  TIMEOUT: 'TIMEOUT',
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
+  CALL_EXCEPTION: 'CALL_EXCEPTION',
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
+  INVALID_ARGUMENT: 'INVALID_ARGUMENT',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  NONCE_EXPIRED: 'NONCE_EXPIRED',
+  NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
+  REPLACEMENT_UNDERPRICED: 'REPLACEMENT_UNDERPRICED',
+  TRANSACTION_REPLACED: 'TRANSACTION_REPLACED',
+  UNPREDICTABLE_GAS_LIMIT: 'UNPREDICTABLE_GAS_LIMIT',
+  UNSUPPORTED_OPERATION: 'UNSUPPORTED_OPERATION',
+} as const;
+
 const RPC_SERVER_ERRORS = [
   EthersError.SERVER_ERROR,
   EthersError.TIMEOUT,
   EthersError.UNKNOWN_ERROR,
 ];
+const RPC_CONNECTION_ERRORS = [
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'EHOSTUNREACH',
+  'ETIMEDOUT',
+  'ERR_INVALID_URL',
+] as const;
 
 const RPC_BLOCKCHAIN_ERRORS = [
   EthersError.CALL_EXCEPTION,
@@ -115,10 +156,11 @@ export class BlockchainError extends Error {
 }
 
 export class HyperlaneSmartProvider
-  extends providers.BaseProvider
+  extends AbstractProvider
   implements IProviderMethods
 {
   protected logger: Logger;
+  public readonly network: Network;
 
   // TODO also support blockscout here
   public readonly explorerProviders: HyperlaneEtherscanProvider[];
@@ -127,12 +169,14 @@ export class HyperlaneSmartProvider
   public requestCount = 0;
 
   constructor(
-    network: providers.Networkish,
+    network: Networkish,
     rpcUrls?: RpcUrl[],
     blockExplorers?: BlockExplorer[],
     public readonly options?: SmartProviderOptions,
   ) {
-    super(network);
+    const parsedNetwork = Network.from(network);
+    super(parsedNetwork);
+    this.network = parsedNetwork;
     const supportedMethods = new Set<ProviderMethod>();
 
     this.logger = rootLogger.child({
@@ -198,38 +242,38 @@ export class HyperlaneSmartProvider
     this.logger.level = level;
   }
 
-  async getPriorityFee(): Promise<BigNumber> {
+  async getPriorityFee(): Promise<bigint> {
     try {
-      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
+      return BigInt(await this.perform('maxPriorityFeePerGas', {}));
     } catch {
-      return BigNumber.from('1500000000');
+      return 1_500_000_000n;
     }
   }
 
-  async getFeeData(): Promise<providers.FeeData> {
+  async getFeeData(): Promise<FeeData> {
     // override hardcoded getFeedata
-    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
-    const { block, gasPrice } = await utils.resolveProperties({
+    // Copied from ethers abstract provider logic that SmartProvider inherits.
+    const { block, gasPrice } = await resolveProperties({
       block: this.getBlock('latest'),
-      gasPrice: this.getGasPrice().catch(() => {
+      gasPrice: (
+        this.perform(ProviderMethod.GetGasPrice, {}) as Promise<bigint>
+      ).catch(() => {
         return null;
       }),
     });
 
-    let lastBaseFeePerGas: BigNumber | null = null,
-      maxFeePerGas: BigNumber | null = null,
-      maxPriorityFeePerGas: BigNumber | null = null;
+    let maxFeePerGas: bigint | null = null,
+      maxPriorityFeePerGas: bigint | null = null;
 
     if (block?.baseFeePerGas) {
       // We may want to compute this more accurately in the future,
       // using the formula "check if the base fee is correct".
       // See: https://eips.ethereum.org/EIPS/eip-1559
-      lastBaseFeePerGas = block.baseFeePerGas;
       maxPriorityFeePerGas = await this.getPriorityFee();
-      maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
+      maxFeePerGas = block.baseFeePerGas * 2n + maxPriorityFeePerGas;
     }
 
-    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
+    return new FeeData(gasPrice, maxFeePerGas, maxPriorityFeePerGas);
   }
 
   static fromChainMetadata(
@@ -246,7 +290,7 @@ export class HyperlaneSmartProvider
   }
 
   static fromRpcUrl(
-    network: providers.Networkish,
+    network: Networkish,
     rpcUrl: string,
     options?: SmartProviderOptions,
   ): HyperlaneSmartProvider {
@@ -258,11 +302,23 @@ export class HyperlaneSmartProvider
     );
   }
 
-  async detectNetwork(): Promise<providers.Network> {
+  async _detectNetwork(): Promise<Network> {
     // For simplicity, efficiency, and better compat with new networks, this assumes
     // the provided RPC urls are correct and returns static data here instead of
     // querying each sub-provider for network info
     return this.network;
+  }
+
+  async _perform(req: any): Promise<any> {
+    const method = this.mapRequestMethod(req.method);
+    return this.perform(method, req);
+  }
+
+  private mapRequestMethod(method: string): ProviderMethod {
+    if (method === 'getStorage') return ProviderMethod.GetStorageAt;
+    if (method === 'broadcastTransaction')
+      return ProviderMethod.SendTransaction;
+    return method as ProviderMethod;
   }
 
   async perform(method: string, params: { [name: string]: any }): Promise<any> {
@@ -277,6 +333,18 @@ export class HyperlaneSmartProvider
 
     this.requestCount += 1;
     const reqId = this.requestCount;
+
+    // Do not wrap tx broadcast in retry logic; retries can re-submit the same
+    // signed tx and trigger nonce errors on providers that don't return
+    // "already known" for duplicate raw transactions.
+    if (method === ProviderMethod.SendTransaction) {
+      return this.performWithFallback(
+        method,
+        params,
+        supportedProviders,
+        reqId,
+      );
+    }
 
     return retryAsync(
       () => this.performWithFallback(method, params, supportedProviders, reqId),
@@ -298,7 +366,7 @@ export class HyperlaneSmartProvider
         let i = 1;
         while (i <= numBlocks) {
           const block = await this.getBlock('latest');
-          if (block.number > previousBlockNumber) {
+          if (block && block.number > previousBlockNumber) {
             i += 1;
             previousBlockNumber = block.number;
           } else {
@@ -357,15 +425,20 @@ export class HyperlaneSmartProvider
         params,
         reqId,
       );
-      const timeoutPromise = timeoutResult(
-        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-      );
-      const result = await Promise.race([resultPromise, timeoutPromise]);
+      const result =
+        method === ProviderMethod.SendTransaction
+          ? await resultPromise
+          : await Promise.race([
+              resultPromise,
+              timeoutResult(
+                this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+              ),
+            ]);
 
       const providerMetadata = {
         providerIndex: pIndex,
         rpcUrl: provider.getBaseUrl(),
-        method: `${method}(${JSON.stringify(params)})`,
+        method: `${method}(${stringifyWithBigInt(params)})`,
         chainId: this.network.chainId,
       };
 
@@ -452,7 +525,7 @@ export class HyperlaneSmartProvider
         providerResultErrors,
         `All providers failed on chain ${
           this.network.name
-        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        } for method ${method} and params ${stringifyWithBigInt(params)}`,
       );
       throw new CombinedError();
     }
@@ -480,7 +553,7 @@ export class HyperlaneSmartProvider
           [result.error, ...providerResultErrors],
           `All providers failed on chain ${
             this.network.name
-          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          } for method ${method} and params ${stringifyWithBigInt(params)}`,
         );
         throw new CombinedError();
       }
@@ -579,8 +652,10 @@ export class HyperlaneSmartProvider
       return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
     });
 
-    const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
+    const rpcServerError = errors.find(
+      (e) =>
+        RPC_SERVER_ERRORS.includes(e.code) ||
+        RPC_CONNECTION_ERRORS.includes(e.code),
     );
 
     const timedOutError = errors.find(
@@ -599,9 +674,12 @@ export class HyperlaneSmartProvider
     } else if (rpcServerError) {
       return class extends Error {
         constructor() {
+          const errorCode = RPC_SERVER_ERRORS.includes(rpcServerError.code)
+            ? rpcServerError.code
+            : EthersError.SERVER_ERROR;
           super(
             rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-              getSmartProviderErrorMessage(rpcServerError.code),
+              getSmartProviderErrorMessage(errorCode),
             { cause: rpcServerError },
           );
         }
@@ -636,13 +714,13 @@ export class HyperlaneSmartProvider
 
 function chainMetadataToProviderNetwork(
   chainMetadata: ChainMetadata | ChainMetadataWithRpcConnectionInfo,
-): providers.Network {
-  return {
+): Network {
+  return Network.from({
     name: chainMetadata.name,
     chainId: chainMetadata.chainId as number,
     // @ts-ignore add ensAddress to ChainMetadata
     ensAddress: chainMetadata.ensAddress,
-  };
+  });
 }
 
 function timeoutResult(staggerDelay: number, multiplier = 1) {

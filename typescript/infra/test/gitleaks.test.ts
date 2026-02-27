@@ -299,7 +299,7 @@ describe('GitLeaks CLI Integration Tests', function () {
       successTestCases: [
         {
           name: 'should detect QuickNode API key',
-          content: `const provider = new ethers.providers.JsonRpcProvider("https://mainnet.ethereum.quiknode.pro/abc123def456");`,
+          content: `const provider = new ethers.JsonRpcProvider("https://mainnet.ethereum.quiknode.pro/abc123def456");`,
           expectedRuleId: 'quicknode-api-key',
         },
         {

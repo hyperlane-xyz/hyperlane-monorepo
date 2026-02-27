@@ -44,10 +44,10 @@ export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
     }
 
     const dispatchEvents = events.filter(
-      (e) => e.name === MESSAGE_DISPATCH_EVENT_TYPE,
+      (e: any) => e.name === MESSAGE_DISPATCH_EVENT_TYPE,
     );
 
-    return dispatchEvents.map((event) => {
+    return dispatchEvents.map((event: any) => {
       const findField = (key: string) =>
         ((event.data as any)?.fields ?? []).find(
           (f: any) => f.field_name === key,

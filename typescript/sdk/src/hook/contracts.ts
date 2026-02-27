@@ -12,8 +12,6 @@ import {
   ProtocolFee__factory,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import { ValueOf } from '@hyperlane-xyz/utils';
-
 import { HookType } from './types.js';
 
 export const hookFactories = {
@@ -33,6 +31,4 @@ export const hookFactories = {
 
 export type HookFactories = typeof hookFactories;
 
-export type DeployedHook = Awaited<
-  ReturnType<ValueOf<HookFactories>['deploy']>
->;
+export type DeployedHook = any;

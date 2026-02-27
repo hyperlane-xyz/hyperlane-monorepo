@@ -14,9 +14,11 @@ catalog:
   # === Production dependencies ===
 
   # Ethereum/EVM
-  ethers: ^5.8.0
+  '@arbitrum/nitro-contracts': ^3.2.0
+  '@chainlink/contracts-ccip': 1.5.1-beta.2
+  ethers: ^6.16.0
   viem: ^2.21.45
-  zksync-ethers: ^5.10.0
+  zksync-ethers: ^6.21.1
 
   # Logging
   pino: ^8.19.0
@@ -144,10 +146,9 @@ catalog:
   '@types/uuid': ^10.0.0
 
   # Hardhat
-  hardhat: ^2.22.2
-  '@nomiclabs/hardhat-ethers': ^2.2.3
-  '@nomiclabs/hardhat-waffle': ^2.0.6
-  ethereum-waffle: ^4.0.10
+  hardhat: ^2.28.6
+  '@nomicfoundation/hardhat-ethers': ^3.1.0
+  '@nomicfoundation/hardhat-chai-matchers': ^2.1.0
   hardhat-gas-reporter: ^1.0.9
   solidity-coverage: ^0.8.3
 
@@ -155,7 +156,6 @@ catalog:
   solhint: ^5.0.5
   solhint-plugin-prettier: ^0.1.0
   typechain: 8.3.2
-  '@typechain/ethers-v5': ^11.1.2
   '@typechain/ethers-v6': ^0.5.1
   '@typechain/hardhat': ^9.1.0
 

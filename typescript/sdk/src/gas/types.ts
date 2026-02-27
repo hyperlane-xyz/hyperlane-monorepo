@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import { z } from 'zod';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
@@ -38,6 +37,6 @@ export interface IgpGasOraclesViolation extends IgpViolation {
 export interface IgpOverheadViolation extends IgpViolation {
   subType: IgpViolationType.Overhead;
   contract: InterchainGasPaymaster;
-  actual: ChainMap<BigNumber>;
-  expected: ChainMap<BigNumber>;
+  actual: ChainMap<bigint>;
+  expected: ChainMap<bigint>;
 }

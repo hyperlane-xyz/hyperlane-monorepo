@@ -1,6 +1,11 @@
 import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
 import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
-import { BytesLike, ethers, providers } from 'ethers';
+import {
+  BytesLike,
+  JsonRpcProvider,
+  TransactionReceipt,
+  keccak256,
+} from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
@@ -71,8 +76,8 @@ export class OPStackService extends BaseService {
       bedrock: true,
       l1ChainId: l1RpcConfig.chainId,
       l2ChainId: l2RpcConfig.chainId,
-      l1SignerOrProvider: new providers.JsonRpcProvider(l1RpcConfig.url),
-      l2SignerOrProvider: new providers.JsonRpcProvider(l2RpcConfig.url),
+      l1SignerOrProvider: new JsonRpcProvider(l1RpcConfig.url) as any,
+      l2SignerOrProvider: new JsonRpcProvider(l2RpcConfig.url) as any,
       // May need to provide these if not already registered into the SDK
       contracts: opContracts,
     });
@@ -125,10 +130,12 @@ export class OPStackService extends BaseService {
   }
 
   async getWithdrawalTransactionFromReceipt(
-    receipt: providers.TransactionReceipt,
+    receipt: TransactionReceipt,
   ): Promise<CoreCrossChainMessage> {
-    const resolved =
-      await this.crossChainMessenger.toCrossChainMessage(receipt);
+    const optimismReceipt = this.toOptimismReceipt(receipt);
+    const resolved = await this.crossChainMessenger.toCrossChainMessage(
+      optimismReceipt as any,
+    );
 
     return this.crossChainMessenger.toLowLevelMessage(resolved);
   }
@@ -137,7 +144,7 @@ export class OPStackService extends BaseService {
     message: BytesLike,
     logger: Logger,
   ): Promise<[CoreCrossChainMessage, BedrockCrossChainMessageProof]> {
-    const messageId: string = ethers.utils.keccak256(message);
+    const messageId: string = keccak256(message);
     logger.info({ messageId }, 'Getting withdrawal and proof for message');
 
     const txHash =
@@ -158,10 +165,13 @@ export class OPStackService extends BaseService {
     if (!receipt) {
       throw new Error('Transaction not yet mined');
     }
+    const optimismReceipt = this.toOptimismReceipt(
+      receipt as TransactionReceipt,
+    );
 
     return Promise.all([
-      this.getWithdrawalTransactionFromReceipt(receipt),
-      this.crossChainMessenger.getBedrockMessageProof(receipt),
+      this.getWithdrawalTransactionFromReceipt(receipt as TransactionReceipt),
+      this.crossChainMessenger.getBedrockMessageProof(optimismReceipt as any),
     ]);
   }
 
@@ -171,7 +181,7 @@ export class OPStackService extends BaseService {
    * @param logger Logger for request context
    * @returns The encoded
    */
-  async getWithdrawalProof([message]: ethers.utils.Result, logger: Logger) {
+  async getWithdrawalProof(message: BytesLike, logger: Logger) {
     const log = this.addLoggerServiceContext(logger);
     log.info('getWithdrawalProof');
     const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
@@ -207,10 +217,7 @@ export class OPStackService extends BaseService {
    * @param logger Logger for request context
    * @returns The encoded
    */
-  async getFinalizeWithdrawalTx(
-    [message]: ethers.utils.Result,
-    logger: Logger,
-  ) {
+  async getFinalizeWithdrawalTx(message: BytesLike, logger: Logger) {
     const log = this.addLoggerServiceContext(logger);
     log.info('getFinalizeWithdrawalTx');
     const [withdrawal] = await this.getWithdrawalAndProofFromMessage(
@@ -234,5 +241,16 @@ export class OPStackService extends BaseService {
 
   forceRelayerRecheck(): void {
     throw new Error('Proof is not ready');
+  }
+
+  // OP SDK still expects this legacy receipt shape in these calls.
+  private toOptimismReceipt(receipt: TransactionReceipt) {
+    return {
+      ...receipt,
+      transactionHash: receipt.hash,
+      transactionIndex: receipt.index,
+      effectiveGasPrice: receipt.gasPrice ?? 0n,
+      byzantium: true,
+    };
   }
 }

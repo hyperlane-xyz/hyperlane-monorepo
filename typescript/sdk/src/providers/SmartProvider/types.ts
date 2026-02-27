@@ -1,9 +1,12 @@
-import type { utils } from 'ethers';
-
 import { ChainMetadata, RpcUrl } from '../../metadata/chainMetadataTypes.js';
 
+export type RpcConnectionInfo = {
+  url: string;
+  headers?: Record<string, string>;
+};
+
 export type RpcConfigWithConnectionInfo = RpcUrl & {
-  connection?: utils.ConnectionInfo;
+  connection?: RpcConnectionInfo;
 };
 
 export interface ChainMetadataWithRpcConnectionInfo extends Omit<

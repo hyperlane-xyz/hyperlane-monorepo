@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { Router } from '@hyperlane-xyz/core';
 
@@ -55,8 +55,8 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
       throw new Error('ISM as object unimplemented');
     }
     return [
-      config.hook ?? ethers.constants.AddressZero,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.hook ?? ZeroAddress,
+      config.interchainSecurityModule ?? ZeroAddress,
       owner,
     ];
   }

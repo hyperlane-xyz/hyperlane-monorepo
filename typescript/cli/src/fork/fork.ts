@@ -1,5 +1,4 @@
-import { JsonRpcProvider, type Log } from '@ethersproject/providers';
-import { ethers } from 'ethers';
+import { Interface, JsonRpcProvider, type Log } from 'ethers';
 import { execa } from 'execa';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
@@ -188,7 +187,7 @@ async function handleTransactions(
   logGray(`Executing transactions on chain ${chainName}`);
   let txCounter = 0;
   for (const transaction of transactions) {
-    const signer = provider.getSigner(transaction.from);
+    const signer = await provider.getSigner(transaction.from);
 
     await provider.send('anvil_setBalance', [
       transaction.from,
@@ -199,13 +198,13 @@ async function handleTransactions(
     if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
       calldata = transaction.data.calldata;
     } else if (transaction.data?.type === TransactionDataType.SIGNATURE) {
-      const functionInterface = new ethers.utils.Interface([
+      const functionInterface = new Interface([transaction.data.signature]);
+      const functionFragment = functionInterface.getFunction(
         transaction.data.signature,
-      ]);
-
-      const [functionName] = Object.keys(functionInterface.functions);
+      );
+      assert(functionFragment, 'No function fragment found in signature');
       calldata = functionInterface.encodeFunctionData(
-        functionName,
+        functionFragment,
         transaction.data.args,
       );
     }
@@ -234,6 +233,11 @@ async function handleTransactions(
     }
 
     const txReceipt = await pendingTx.wait();
+    if (!txReceipt) {
+      throw new Error(
+        `Transaction ${transaction} did not produce a receipt on chain ${chainName}`,
+      );
+    }
     if (txReceipt.status == 0) {
       throw new Error(
         `Transaction ${transaction} reverted on chain ${chainName}`,
@@ -269,7 +273,7 @@ function assertRevert(
   },
 ) {
   // If contract call reverts, then there should be a reason
-  // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
+  // Based on ethers JsonRpcProvider revert formatting behavior.
   if (error.reason !== revertAssertion.reason) {
     throw new Error(
       `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,
@@ -284,7 +288,7 @@ function assertRevert(
 
 function assertEvent(
   eventAssertion: EventAssertion,
-  rawLogs: Log[],
+  rawLogs: readonly Log[],
   meta: {
     chainName: string;
     assertionIdx: number;
@@ -318,7 +322,7 @@ function assertEventByTopic(
     EventAssertion,
     { type: EventAssertionType.RAW_TOPIC }
   >,
-  rawLog: ethers.providers.Log,
+  rawLog: Log,
 ): boolean {
   return rawLog.topics[0] === eventAssertion.topic;
 }
@@ -328,11 +332,11 @@ function assertEventBySignature(
     EventAssertion,
     { type: EventAssertionType.TOPIC_SIGNATURE }
   >,
-  rawLog: ethers.providers.Log,
+  rawLog: Log,
 ): boolean {
-  const eventInterface = new ethers.utils.Interface([eventAssertion.signature]);
+  const eventInterface = new Interface([eventAssertion.signature]);
 
-  let parsedLog: ethers.utils.LogDescription;
+  let parsedLog;
   // parseLog throws if the event cannot be decoded
   try {
     parsedLog = eventInterface.parseLog(rawLog);
@@ -350,7 +354,7 @@ function assertEventBySignature(
 
   const logArgs = parsedLog.args
     .slice(0, eventAssertion.args.length)
-    .map((arg) => String(arg));
+    .map((arg: unknown) => String(arg));
 
   return deepEquals(logArgs, eventAssertion.args);
 }

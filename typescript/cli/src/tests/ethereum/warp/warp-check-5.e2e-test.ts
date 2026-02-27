@@ -41,6 +41,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
+  let tokenAddress: Address;
   let tokenSymbol: string;
   let ownerAddress: Address;
   let combinedWarpCoreConfigPath: string;
@@ -54,13 +55,12 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
-      chainMetadata.rpcUrls[0].http,
-    );
+    const provider = new ethers.JsonRpcProvider(chainMetadata.rpcUrls[0].http);
 
     signer = new Wallet(ANVIL_KEY).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    tokenAddress = await token.getAddress();
     tokenSymbol = await token.symbol();
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
@@ -93,7 +93,7 @@ describe('hyperlane warp check e2e tests', async function () {
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
@@ -115,7 +115,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
-      const hookAddress = await mailboxInstance.callStatic.defaultHook();
+      const hookAddress = await mailboxInstance.defaultHook();
 
       const warpDeployPath = combinedWarpCoreConfigPath.replace(
         '-config.yaml',
@@ -169,9 +169,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
-      const hookAddress = (
-        await mailboxInstance.callStatic.defaultHook()
-      ).toLowerCase();
+      const hookAddress = (await mailboxInstance.defaultHook()).toLowerCase();
 
       const warpDeployConfig = await deployAndExportWarpRoute();
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);

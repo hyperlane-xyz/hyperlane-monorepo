@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { isHexString } from 'ethers';
 
 import {
   Checkpoint,
@@ -9,9 +9,9 @@ import {
 
 export function isValidSignature(signature: any): signature is SignatureLike {
   return typeof signature === 'string'
-    ? utils.isHexString(signature)
-    : utils.isHexString(signature.r) &&
-        utils.isHexString(signature.s) &&
+    ? isHexString(signature)
+    : isHexString(signature.r) &&
+        isHexString(signature.s) &&
         Number.isSafeInteger(signature.v);
 }
 
@@ -23,14 +23,14 @@ export function isS3CheckpointWithId(obj: any): obj is S3CheckpointWithId {
   return (
     isValidSignature(obj.signature) &&
     isCheckpoint(obj.value.checkpoint) &&
-    utils.isHexString(obj.value.message_id)
+    isHexString(obj.value.message_id)
   );
 }
 
 export function isCheckpoint(obj: any): obj is Checkpoint {
-  const isValidRoot = utils.isHexString(obj.root);
+  const isValidRoot = isHexString(obj.root);
   const isValidIndex = Number.isSafeInteger(obj.index);
-  const isValidMailbox = utils.isHexString(obj.merkle_tree_hook_address);
+  const isValidMailbox = isHexString(obj.merkle_tree_hook_address);
   const isValidDomain = Number.isSafeInteger(obj.mailbox_domain);
   return isValidIndex && isValidRoot && isValidMailbox && isValidDomain;
 }

@@ -25,7 +25,7 @@ async function main() {
     console.error(`Failed to load cache from ${CACHE_PATH}`);
   }
 
-  relayer.start();
+  await relayer.start();
 
   process.once('SIGINT', async () => {
     relayer.stop();

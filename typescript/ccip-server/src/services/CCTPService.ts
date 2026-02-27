@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { TransactionReceipt, keccak256 } from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
@@ -85,39 +85,33 @@ class CCTPService extends BaseService {
   }
 
   async getCCTPMessageFromReceipt(
-    receipt: ethers.providers.TransactionReceipt,
+    receipt: TransactionReceipt,
     messageId: string,
     logger: Logger,
   ) {
     logger.info(
       {
-        transactionHash: receipt.transactionHash,
+        transactionHash: receipt.hash,
       },
       'Extracting CCTP message from receipt',
     );
 
     const iface = IMessageTransmitter__factory.createInterface();
-    const event = iface.events['MessageSent(bytes)'];
+    const event = iface.getEvent('MessageSent');
+    if (!event) throw new Error('MessageSent event not found in interface');
 
     for (const receiptLog of receipt.logs) {
-      try {
-        const parsedLog = iface.parseLog(receiptLog);
-        if (parsedLog.name === event.name) {
-          logger.info(
-            { cctpMessage: parsedLog.args.message },
-            'Found CCTP MessageSent event',
-          );
-          return parsedLog.args.message;
-        }
-      } catch (_err) {
-        // This log is not from the events in our ABI
-        continue;
+      const parsedLog = iface.parseLog(receiptLog);
+      if (parsedLog?.name === event.name) {
+        const cctpMessage = parsedLog.args.message;
+        logger.info({ cctpMessage }, 'Found CCTP MessageSent event');
+        return cctpMessage;
       }
     }
 
     logger.error(
       {
-        transactionHash: receipt.transactionHash,
+        transactionHash: receipt.hash,
         messageId,
         error_reason: UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
       },
@@ -138,7 +132,7 @@ class CCTPService extends BaseService {
       'Processing CCTP attestation request',
     );
 
-    const messageId: string = ethers.utils.keccak256(message);
+    const messageId: string = keccak256(message);
     log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
     const txHash =
@@ -158,8 +152,11 @@ class CCTPService extends BaseService {
     const receipt = await this.multiProvider
       .getProvider(parsedMessage.origin)
       .getTransactionReceipt(txHash);
+    if (!receipt) {
+      throw new Error(`Transaction not yet mined: ${txHash}`);
+    }
     const cctpMessage = await this.getCCTPMessageFromReceipt(
-      receipt,
+      receipt as TransactionReceipt,
       messageId,
       log,
     );

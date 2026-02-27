@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  type AnnotatedEV5Transaction,
+  type AnnotatedEvmTransaction,
   type ChainName,
 } from '@hyperlane-xyz/sdk';
 import { type ProtocolType, errorToString } from '@hyperlane-xyz/utils';
@@ -24,7 +24,7 @@ export async function runSubmit({
 }: {
   context: WriteCommandContext;
   chain: ChainName;
-  transactions: AnnotatedEV5Transaction[];
+  transactions: AnnotatedEvmTransaction[];
   receiptsFilepath: string;
   strategyPath?: string;
 }) {
@@ -57,6 +57,6 @@ export async function runSubmit({
 
 export function getTransactions(
   transactionsFilepath: string,
-): AnnotatedEV5Transaction[] {
-  return readYamlOrJson<AnnotatedEV5Transaction[]>(transactionsFilepath.trim());
+): AnnotatedEvmTransaction[] {
+  return readYamlOrJson<AnnotatedEvmTransaction[]>(transactionsFilepath.trim());
 }

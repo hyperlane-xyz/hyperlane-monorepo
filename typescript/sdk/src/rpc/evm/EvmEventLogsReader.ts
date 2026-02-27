@@ -65,6 +65,11 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
     const deploymentTransactionReceipt = await this.multiProvider
       .getProvider(this.chain)
       .getTransactionReceipt(contractDeploymentTx.txHash);
+    if (!deploymentTransactionReceipt) {
+      throw new Error(
+        `No deployment receipt found for ${address} on ${this.chain}`,
+      );
+    }
 
     return deploymentTransactionReceipt.blockNumber;
   }

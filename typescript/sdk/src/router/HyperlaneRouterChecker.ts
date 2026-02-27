@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { Router } from '@hyperlane-xyz/core';
 import {
@@ -91,13 +91,14 @@ export class HyperlaneRouterChecker<
   ): Promise<void> {
     const mailboxAddr = await router.mailbox();
     const actualIsmAddress = await router.interchainSecurityModule();
+    const routerAddress = await router.getAddress();
 
     // If the router is its own ism (e.g. the ICA router, skip checking configs)
-    if (eqAddress(actualIsmAddress, router.address)) return;
+    if (eqAddress(actualIsmAddress, routerAddress)) return;
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule ?? ZeroAddress,
       this.multiProvider,
       this.ismFactory?.chainMap[chain] ?? ({} as any),
       mailboxAddr,
@@ -105,8 +106,7 @@ export class HyperlaneRouterChecker<
 
     if (!matches) {
       const ismReader = new EvmIsmReader(this.multiProvider, chain);
-      let actualConfig: string | DerivedIsmConfig =
-        ethers.constants.AddressZero;
+      let actualConfig: string | DerivedIsmConfig = ZeroAddress;
       if (!isZeroishAddress(actualIsmAddress)) {
         actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
@@ -121,7 +121,7 @@ export class HyperlaneRouterChecker<
       }
 
       if (expectedConfig === undefined) {
-        expectedConfig = ethers.constants.AddressZero;
+        expectedConfig = ZeroAddress;
       }
 
       const violation: ClientViolation = {

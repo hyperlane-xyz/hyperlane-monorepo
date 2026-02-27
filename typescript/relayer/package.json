@@ -40,7 +40,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "bundle": "rm -rf ./bundle && ncc build ./dist/fs/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
@@ -70,11 +70,10 @@
     "zod-validation-error": "catalog:"
   },
   "devDependencies": {
-    "@ethersproject/providers": "*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@nomiclabs/hardhat-ethers": "catalog:",
-    "@nomiclabs/hardhat-waffle": "catalog:",
+    "@nomicfoundation/hardhat-chai-matchers": "catalog:",
+    "@nomicfoundation/hardhat-ethers": "catalog:",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
@@ -84,7 +83,6 @@
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
-    "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "mocha": "catalog:",
     "oxfmt": "catalog:",

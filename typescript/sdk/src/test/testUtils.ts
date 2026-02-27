@@ -1,9 +1,15 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { Keypair } from '@solana/web3.js';
-import { BigNumber, ethers } from 'ethers';
+import { ZeroAddress, hexlify, parseUnits, randomBytes } from 'ethers';
 import { bytesToHex } from 'viem';
 
-import { Address, exclude, objMap, randomElement } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  exclude,
+  objMap,
+  randomElement,
+} from '@hyperlane-xyz/utils';
 
 import { testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -31,7 +37,7 @@ export function randomInt(max: number, min = 0): number {
 }
 
 export function randomAddress(): Address {
-  return ethers.utils.hexlify(ethers.utils.randomBytes(20)).toLowerCase();
+  return hexlify(randomBytes(20)).toLowerCase();
 }
 
 export function randomSvmAddress(): Address {
@@ -39,16 +45,33 @@ export function randomSvmAddress(): Address {
 }
 
 export function randomStarknetAddress(): Address {
-  return bytesToHex(ethers.utils.randomBytes(32));
+  return bytesToHex(randomBytes(32));
 }
 
 export async function randomCosmosAddress(prefix: string): Promise<Address> {
-  const wallet = await DirectSecp256k1Wallet.fromKey(
-    ethers.utils.randomBytes(32),
-    prefix,
-  );
+  const wallet = await DirectSecp256k1Wallet.fromKey(randomBytes(32), prefix);
   const accounts = await wallet.getAccounts();
   return accounts[0].address;
+}
+
+function getContractTargetAddress(contract: { target: unknown }): Address {
+  assert(typeof contract.target === 'string', 'Missing contract target');
+  return contract.target;
+}
+
+export async function getContractAddress(contract: {
+  target?: unknown;
+  address?: unknown;
+  getAddress?: () => Promise<string>;
+}): Promise<Address> {
+  if (typeof contract.target === 'string') return contract.target;
+  if (typeof contract.address === 'string') return contract.address;
+  if (typeof contract.getAddress === 'function') {
+    const address = await contract.getAddress();
+    assert(typeof address === 'string', 'Missing contract address');
+    return address;
+  }
+  throw new Error('Missing contract address');
 }
 
 export function createRouterConfigMap(
@@ -59,14 +82,15 @@ export function createRouterConfigMap(
   return objMap(coreContracts, (chain, contracts) => {
     return {
       owner,
-      mailbox: contracts.mailbox.address,
-      interchainGasPaymaster:
-        igpContracts[chain].interchainGasPaymaster.address,
+      mailbox: getContractTargetAddress(contracts.mailbox),
+      interchainGasPaymaster: getContractTargetAddress(
+        igpContracts[chain].interchainGasPaymaster,
+      ),
     };
   });
 }
 
-const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
+const nonZeroAddress = ZeroAddress.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
 export function testCoreConfig(
@@ -83,8 +107,8 @@ export function testCoreConfig(
     },
     requiredHook: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
-      protocolFee: BigNumber.from(1).toString(), // 1 wei
+      maxProtocolFee: parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+      protocolFee: 1n.toString(), // 1 wei
       beneficiary: nonZeroAddress,
       owner,
     },
@@ -94,8 +118,8 @@ export function testCoreConfig(
 }
 
 const TEST_ORACLE_CONFIG = {
-  gasPrice: ethers.utils.parseUnits('1', 'gwei').toString(),
-  tokenExchangeRate: ethers.utils.parseUnits('1', 10).toString(),
+  gasPrice: parseUnits('1', 'gwei').toString(),
+  tokenExchangeRate: parseUnits('1', 10).toString(),
   tokenDecimals: 18,
 };
 

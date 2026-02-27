@@ -1,12 +1,12 @@
-import type { providers } from 'ethers';
+import type { TransactionReceipt } from 'ethers';
 
 import type {
   ChainName,
   DerivedHookConfig,
   DerivedIsmConfig,
   DispatchedMessage,
-  IsmType,
 } from '@hyperlane-xyz/sdk';
+import { IsmType } from '@hyperlane-xyz/sdk';
 import type { Address, SignatureLike } from '@hyperlane-xyz/utils';
 
 import type { AggregationMetadata } from './aggregation.js';
@@ -27,7 +27,7 @@ export interface MetadataContext<
   HookContext = DerivedHookConfig,
 > {
   message: DispatchedMessage;
-  dispatchTx: providers.TransactionReceipt;
+  dispatchTx: TransactionReceipt;
   ism: IsmContext;
   hook: HookContext;
 }
@@ -101,11 +101,11 @@ export interface AggregationMetadataBuildResult extends BaseMetadataBuildResult 
 /** Result for routing ISM types */
 export interface RoutingMetadataBuildResult extends BaseMetadataBuildResult {
   type:
-    | typeof IsmType.ROUTING
-    | typeof IsmType.FALLBACK_ROUTING
-    | typeof IsmType.INCREMENTAL_ROUTING
-    | typeof IsmType.AMOUNT_ROUTING
-    | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING;
+    | 'domainRoutingIsm'
+    | 'defaultFallbackRoutingIsm'
+    | 'incrementalDomainRoutingIsm'
+    | 'amountRoutingIsm'
+    | 'interchainAccountRouting';
   /** Origin chain that determined routing */
   originChain: ChainName;
   /** Result from the selected sub-ISM (recursive) */

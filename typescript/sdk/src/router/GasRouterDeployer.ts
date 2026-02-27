@@ -30,7 +30,7 @@ export abstract class GasRouterDeployer<
     for (const [chain, contracts] of Object.entries(contractsMap)) {
       const remoteDomains = await this.router(contracts).domains();
       const remoteChains = remoteDomains.map((domain) =>
-        this.multiProvider.getChainName(domain),
+        this.multiProvider.getChainName(Number(domain)),
       );
       const currentConfigs = await Promise.all(
         remoteDomains.map((domain) =>
@@ -40,9 +40,9 @@ export abstract class GasRouterDeployer<
       const remoteConfigs = remoteDomains
         .map((domain, i) => ({
           domain,
-          gas: configMap[remoteChains[i]]?.gas ?? DEFAULT_GAS_OVERHEAD,
+          gas: BigInt(configMap[remoteChains[i]]?.gas ?? DEFAULT_GAS_OVERHEAD),
         }))
-        .filter(({ gas }, index) => !currentConfigs[index].eq(gas));
+        .filter(({ gas }, index) => currentConfigs[index] !== gas);
       if (remoteConfigs.length == 0) {
         continue;
       }

@@ -1,4 +1,4 @@
-import { ethers, utils } from 'ethers';
+import { Contract, Fragment, Interface } from 'ethers';
 import { Hex, decodeFunctionData, parseAbi } from 'viem';
 
 import {
@@ -16,22 +16,22 @@ import { proxyAdmin, proxyImplementation } from '../proxy.js';
 
 import { ContractVerificationInput } from './types.js';
 
-export function formatFunctionArguments(
-  fragment: utils.Fragment,
-  args: any[],
-): any {
+export function formatFunctionArguments(fragment: Fragment, args: any[]): any {
   const params = Object.fromEntries(
-    fragment.inputs.map((input, index) => [input.name, args[index]]),
+    fragment.inputs.map((input: any, index: number) => [
+      input.name,
+      args[index],
+    ]),
   );
   return JSON.stringify(params, null, 2);
 }
 
 export function getConstructorArguments(
-  contract: ethers.Contract,
+  contract: Contract,
   bytecode: string,
 ): any {
-  const tx = contract.deployTransaction;
-  if (tx === undefined) throw new Error('deploy transaction not found');
+  const tx = contract.deploymentTransaction?.() as any;
+  if (!tx) throw new Error('deploy transaction not found');
   return tx.data.replace(bytecode, '');
 }
 
@@ -59,7 +59,7 @@ export function getContractVerificationInput({
   expectedimplementation,
 }: {
   name: string;
-  contract: ethers.Contract;
+  contract: Contract;
   bytecode: string;
   isProxy?: boolean;
   expectedimplementation?: Address;
@@ -67,7 +67,7 @@ export function getContractVerificationInput({
   const args = getConstructorArguments(contract, bytecode);
   return buildVerificationInput(
     name,
-    contract.address,
+    contract.target as string,
     args,
     isProxy,
     expectedimplementation,
@@ -83,7 +83,7 @@ export async function getContractVerificationInputForZKSync({
   expectedimplementation,
 }: {
   name: string;
-  contract: ethers.Contract;
+  contract: Contract;
   constructorArgs: any[];
   artifact: ZKSyncArtifact;
   isProxy?: boolean;
@@ -92,7 +92,7 @@ export async function getContractVerificationInputForZKSync({
   const args = encodeArguments(artifact.abi, constructorArgs);
   return buildVerificationInput(
     name,
-    contract.address,
+    contract.target as string,
     args,
     isProxy,
     expectedimplementation,
@@ -100,7 +100,7 @@ export async function getContractVerificationInputForZKSync({
 }
 
 export function encodeArguments(abi: any, constructorArgs: any[]): string {
-  const contractInterface = new utils.Interface(abi);
+  const contractInterface = new Interface(abi);
   return contractInterface.encodeDeploy(constructorArgs).replace('0x', '');
 }
 

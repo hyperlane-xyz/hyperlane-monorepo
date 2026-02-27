@@ -15,8 +15,8 @@ describe('LightClientService', () => {
       rpcService.provider,
     );
     lightClientService = new LightClientService(lightClientContract, {
-      lightClientAddress: ethers.constants.AddressZero,
-      stepFunctionId: ethers.constants.HashZero,
+      lightClientAddress: ethers.ZeroAddress,
+      stepFunctionId: ethers.ZeroHash,
       platformUrl: 'http://localhost:8080',
       apiKey: 'apiKey',
     });

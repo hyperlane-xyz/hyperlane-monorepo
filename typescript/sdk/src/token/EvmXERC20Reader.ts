@@ -125,7 +125,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
 
     const rawLogs = await this.provider.getLogs(filter);
 
-    const logs = rawLogs.map((log) => ({
+    const logs = rawLogs.map((log: any) => ({
       address: log.address as `0x${string}`,
       blockHash: log.blockHash as `0x${string}`,
       blockNumber: BigInt(log.blockNumber),

@@ -167,10 +167,10 @@ async function getCanonicalCheckpointBinarySearch(
     midIndex,
     midRoot,
   });
-  if (midIndex === checkpointIndex) {
+  if (midIndex === BigInt(checkpointIndex)) {
     return {
       root: midRoot,
-      index: midIndex,
+      index: Number(midIndex),
       block: midBlock,
     };
   }

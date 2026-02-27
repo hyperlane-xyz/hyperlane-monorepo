@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 import prompts from 'prompts';
 
 import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
@@ -19,6 +19,7 @@ import {
 import {
   Address,
   CallData,
+  Numberish,
   assert,
   bytes32ToAddress,
   eqAddress,
@@ -277,7 +278,8 @@ export abstract class HyperlaneAppGovernor<
       (existingCall) =>
         existingCall.to === call.to &&
         existingCall.data === call.data &&
-        existingCall.value?.eq(call.value || 0),
+        ethers.toBigInt(existingCall.value ?? 0n) ===
+          ethers.toBigInt(call.value ?? 0n),
     );
     if (!isDuplicate) {
       this.calls[chain].push(call);
@@ -390,22 +392,25 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    let accountConfig = this.interchainAccount.knownAccounts[account.address];
+    let accountConfig =
+      this.interchainAccount.knownAccounts[account.target as string];
 
     if (!accountConfig) {
       let ownerType: Owner | null;
       let icaGovernanceType: GovernanceType;
 
       // Backstop to still be able to parse legacy Abacus Works ICAs
-      if (eqAddress(account.address, awIcasLegacy[chain])) {
+      if (eqAddress(account.target as string, awIcasLegacy[chain])) {
         ownerType = Owner.ICA;
         icaGovernanceType = GovernanceType.AbacusWorks;
-      } else if (eqAddress(account.address, regularIcasLegacy[chain])) {
+      } else if (
+        eqAddress(account.target as string, regularIcasLegacy[chain])
+      ) {
         ownerType = Owner.ICA;
         icaGovernanceType = GovernanceType.Regular;
       } else {
         ({ ownerType, governanceType: icaGovernanceType } =
-          await determineGovernanceType(chain, account.address));
+          await determineGovernanceType(chain, account.target as string));
       }
 
       // verify that we expect it to be an ICA
@@ -436,10 +441,10 @@ export abstract class HyperlaneAppGovernor<
       accountConfig,
     );
 
-    if (!eqAddress(derivedIca, account.address)) {
+    if (!eqAddress(derivedIca, account.target as string)) {
       console.info(
         chalk.gray(
-          `Account ${account.address} is not the expected ICA ${derivedIca}. Defaulting to manual submission.`,
+          `Account ${account.target as string} is not the expected ICA ${derivedIca}. Defaulting to manual submission.`,
         ),
       );
       return {
@@ -472,7 +477,7 @@ export abstract class HyperlaneAppGovernor<
     });
 
     const hookMetadata = formatStandardHookMetadata({
-      gasLimit: gasLimit.toBigInt(),
+      gasLimit,
       refundAddress,
     });
 
@@ -503,9 +508,9 @@ export abstract class HyperlaneAppGovernor<
     // If the call to the remote ICA is valid, infer the submission type
     const { description, expandedDescription } = call;
     const encodedCall: AnnotatedCallData = {
-      to: callRemote.to,
+      to: callRemote.to as string,
       data: callRemote.data,
-      value: callRemote.value,
+      value: callRemote.value ?? undefined,
       description,
       expandedDescription,
       governanceType,
@@ -663,12 +668,12 @@ export abstract class HyperlaneAppGovernor<
   private async checkSubmitterBalance(
     chain: ChainName,
     submitterAddress: Address,
-    requiredValue: BigNumber,
+    requiredValue: Numberish,
   ): Promise<void> {
     const submitterBalance = await this.checker.multiProvider
       .getProvider(chain)
       .getBalance(submitterAddress);
-    if (submitterBalance.lt(requiredValue)) {
+    if (submitterBalance < ethers.toBigInt(requiredValue)) {
       rootLogger.warn(
         chalk.yellow(
           `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance: ${submitterBalance}, Balance required: ${requiredValue}`,
@@ -681,13 +686,13 @@ export abstract class HyperlaneAppGovernor<
     return {
       chain: violation.chain,
       call: {
-        to: violation.contract.address,
+        to: violation.contract.target as string,
         data: violation.contract.interface.encodeFunctionData(
           'transferOwnership',
           [violation.expected],
         ),
-        value: BigNumber.from(0),
-        description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
+        value: ethers.toBigInt(0),
+        description: `Transfer ownership of ${violation.name} at ${violation.contract.target as string} to ${violation.expected}`,
       },
     };
   }
@@ -708,7 +713,7 @@ export abstract class HyperlaneAppGovernor<
             violation.proxyAddress,
             violation.expected,
           ]),
-          value: BigNumber.from(0),
+          value: ethers.toBigInt(0),
           description: `Change proxyAdmin of transparent proxy ${violation.proxyAddress} from ${violation.actual} to ${violation.expected}`,
         },
       };

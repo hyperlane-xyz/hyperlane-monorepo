@@ -1,4 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
@@ -67,7 +67,9 @@ describe('TokenDeployer', async () => {
   let config: WarpRouteDeployConfigMailboxRequired;
   let token: Address;
   let xerc20: XERC20Test;
+  let xerc20Address: Address;
   let erc20: ERC20Test;
+  let erc20Address: Address;
   let admin: ProxyAdmin;
   const totalSupply = '100000';
 
@@ -103,18 +105,20 @@ describe('TokenDeployer', async () => {
     );
     admin = await new ProxyAdmin__factory(signer).deploy();
     const proxy = await new TransparentUpgradeableProxy__factory(signer).deploy(
-      implementation.address,
-      admin.address,
+      await implementation.getAddress(),
+      await admin.getAddress(),
       XERC20Test__factory.createInterface().encodeFunctionData('initialize'),
     );
-    token = proxy.address;
+    token = await proxy.getAddress();
     xerc20 = XERC20Test__factory.connect(token, signer);
+    xerc20Address = await xerc20.getAddress();
     erc20 = await new ERC20Test__factory(signer).deploy(
       name!,
       symbol!,
       totalSupply!,
       decimals!,
     );
+    erc20Address = await erc20.getAddress();
 
     deployer = new HypERC20Deployer(multiProvider);
   });
@@ -131,9 +135,9 @@ describe('TokenDeployer', async () => {
     const token = () => {
       switch (type) {
         case TokenType.XERC20:
-          return xerc20.address;
+          return xerc20Address;
         case TokenType.collateral:
-          return erc20.address;
+          return erc20Address;
         default:
           return undefined;
       }
@@ -244,7 +248,7 @@ describe('TokenDeployer', async () => {
           token: token(),
         };
         const warpRoute = await deployer.deploy(config);
-        routerAddress = warpRoute[chain][type].address;
+        routerAddress = await warpRoute[chain][type].getAddress();
       });
 
       it(`should derive HypTokenRouterConfig correctly`, async () => {
@@ -271,7 +275,7 @@ describe('TokenDeployer', async () => {
       };
 
       const warpRoute = await deployer.deploy(syntheticConfig);
-      const routerAddress = warpRoute[chain].synthetic.address;
+      const routerAddress = await warpRoute[chain].synthetic.getAddress();
 
       const router = TokenRouter__factory.connect(
         routerAddress,
@@ -310,7 +314,7 @@ describe('TokenDeployer', async () => {
       };
 
       const warpRoute = await deployer.deploy(syntheticConfig);
-      const routerAddress = warpRoute[chain].synthetic.address;
+      const routerAddress = await warpRoute[chain].synthetic.getAddress();
 
       const router = TokenRouter__factory.connect(
         routerAddress,

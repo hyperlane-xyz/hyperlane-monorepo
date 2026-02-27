@@ -540,7 +540,7 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
     return true;
   }
 
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const provider = new ethers.JsonRpcProvider(url);
   const expectedChainId = chainMetadata.chainId;
 
   try {
@@ -548,9 +548,9 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
       Promise.all([provider.getBlockNumber(), provider.getNetwork()]),
       5000,
     );
-    if (providerNetwork.chainId !== expectedChainId) {
+    if (providerNetwork.chainId !== BigInt(expectedChainId)) {
       throw new Error(
-        `Expected chainId ${expectedChainId}, got ${providerNetwork.chainId}`,
+        `Expected chainId ${expectedChainId}, got ${providerNetwork.chainId.toString()}`,
       );
     }
     console.log(

@@ -1,4 +1,4 @@
-import type { providers } from 'ethers';
+import type { TransactionReceipt } from 'ethers';
 
 import type { DispatchedMessage } from '@hyperlane-xyz/sdk';
 
@@ -13,7 +13,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       durationMs: number;
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: TransactionReceipt;
     }
   | {
       type: 'messageFailed';
@@ -22,7 +22,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       error: Error;
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: TransactionReceipt;
     }
   | {
       type: 'messageSkipped';
@@ -31,7 +31,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       reason: 'whitelist' | 'already_delivered';
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: TransactionReceipt;
     }
   | {
       type: 'retry';

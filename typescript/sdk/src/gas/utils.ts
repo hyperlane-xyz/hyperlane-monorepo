@@ -1,6 +1,5 @@
-import { Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { BigNumber, ethers } from 'ethers';
+import { formatUnits } from 'ethers';
 
 import {
   ProtocolType,
@@ -45,9 +44,10 @@ export async function getGasPrice(
   switch (protocolType) {
     case ProtocolType.Ethereum: {
       const provider = mpp.getProvider(chain);
-      const gasPrice = await (provider.provider as Provider).getGasPrice();
+      const feeData = await (provider.provider as any).getFeeData();
+      const gasPrice = feeData.gasPrice ?? 0n;
       return {
-        amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
+        amount: formatUnits(gasPrice, 'gwei'),
         decimals: 9,
       };
     }
@@ -162,17 +162,17 @@ function getTokenExchangeRate({
 function getProtocolExchangeRate(
   localProtocolType: ProtocolType,
   exchangeRate: InstanceType<typeof BigNumberJs>,
-): BigNumber {
+): bigint {
   const multiplierDecimals = getProtocolExchangeRateDecimals(localProtocolType);
   const multiplier = new BigNumberJs(10).pow(multiplierDecimals);
   const integer = exchangeRate
     .times(multiplier)
     .integerValue(BigNumberJs.ROUND_FLOOR)
     .toString(10);
-  const result = BigNumber.from(integer);
+  const result = BigInt(integer);
 
   // Ensure exchange rate is at least 1
-  return result.lt(1) ? BigNumber.from(1) : result;
+  return result < 1n ? 1n : result;
 }
 
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
@@ -263,7 +263,7 @@ export function getLocalStorageGasOracleConfig({
       // Once again adjust for precision loss after applying the modifier.
       gasOracleConfig = adjustForPrecisionLoss(
         gasPriceModifier(local, remote, gasOracleConfig),
-        BigNumber.from(gasOracleConfig.tokenExchangeRate),
+        BigInt(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
       );
     }
@@ -284,7 +284,7 @@ export function getLocalStorageGasOracleConfig({
 
 function adjustForPrecisionLoss(
   gasPrice: Parameters<typeof BigNumberJs>[0],
-  exchangeRate: BigNumber,
+  exchangeRate: bigint,
   remoteDecimals: number,
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
@@ -296,15 +296,15 @@ function adjustForPrecisionLoss(
   if (newGasPrice.lt(10) && newGasPrice.mod(1) !== new BigNumberJs(0)) {
     // Scale up the gas price by 1e4 (arbitrary choice)
     const gasPriceScalingFactor = 1e4;
+    const gasPriceScalingFactorBigInt = BigInt(gasPriceScalingFactor);
 
     // Check that there's no significant underflow when applying
     // this to the exchange rate:
-    const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
-    const recoveredExchangeRate = adjustedExchangeRate.mul(
-      gasPriceScalingFactor,
-    );
+    const adjustedExchangeRate = newExchangeRate / gasPriceScalingFactorBigInt;
+    const recoveredExchangeRate =
+      adjustedExchangeRate * gasPriceScalingFactorBigInt;
     // Ensure we recover at least 99% of the original exchange rate
-    if (recoveredExchangeRate.mul(100).div(newExchangeRate).gte(99)) {
+    if ((recoveredExchangeRate * 100n) / newExchangeRate >= 99n) {
       newGasPrice = newGasPrice.times(gasPriceScalingFactor);
       newExchangeRate = adjustedExchangeRate;
     }
@@ -317,7 +317,7 @@ function adjustForPrecisionLoss(
   );
 
   assert(
-    newExchangeRate.gt(0),
+    newExchangeRate > 0n,
     `Token exchange rate must be greater than 0, possible loss of precision. Original exchange rate: ${exchangeRate.toString()}`,
   );
 

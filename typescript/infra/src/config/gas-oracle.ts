@@ -1,5 +1,5 @@
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -10,7 +10,7 @@ import {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfigWithTypicalCost,
-  ZBigNumberish,
+  ZBigIntish,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
   getProtocolExchangeRateScale,
@@ -42,8 +42,8 @@ export type AllStorageGasOracleConfigs = ChainMap<
 export type OracleConfig = z.infer<typeof OracleConfigSchema>;
 export const OracleConfigSchema = ProtocolAgnositicGasOracleConfigSchema.extend(
   {
-    tokenExchangeRate: ZBigNumberish, // override to coerce/canonicalize
-    gasPrice: ZBigNumberish, // override to coerce/canonicalize
+    tokenExchangeRate: ZBigIntish, // override to coerce/canonicalize
+    gasPrice: ZBigIntish, // override to coerce/canonicalize
     // we expect infra-generated configs to always have token decimals
     tokenDecimals: z.number().int().nonnegative(),
   },
@@ -305,17 +305,18 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 
 function getUsdQuote(
   localTokenUsdPrice: number,
-  localExchangeRateScale: BigNumber,
+  localExchangeRateScale: bigint,
   localNativeTokenDecimals: number,
   localProtocolType: ProtocolType,
   gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   remoteGasAmount: number,
 ): number {
-  let quote = BigNumber.from(gasOracleConfig.gasPrice)
-    .mul(gasOracleConfig.tokenExchangeRate)
-    .mul(remoteGasAmount)
-    .div(localExchangeRateScale)
-    .toString();
+  let quote = (
+    (ethers.toBigInt(gasOracleConfig.gasPrice) *
+      ethers.toBigInt(gasOracleConfig.tokenExchangeRate) *
+      BigInt(remoteGasAmount)) /
+    localExchangeRateScale
+  ).toString();
   if (localProtocolType === ProtocolType.Sealevel) {
     assert(
       gasOracleConfig.tokenDecimals,

@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
@@ -19,7 +19,7 @@ export class ForkIndexer {
   private rebalanceActions: ExplorerMessage[] = [];
 
   constructor(
-    private readonly providers: Map<string, providers.JsonRpcProvider>,
+    private readonly providers: Map<string, JsonRpcProvider>,
     private readonly core: HyperlaneCore,
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,

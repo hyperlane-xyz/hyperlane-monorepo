@@ -170,7 +170,7 @@ export function useEthereumTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      if (tx.type !== ProviderType.EthersV5)
+      if (tx.type !== ProviderType.EthersV6)
         throw new Error(`Unsupported tx type: ${tx.type}`);
 
       // If the active chain is different from tx origin chain, try to switch network first

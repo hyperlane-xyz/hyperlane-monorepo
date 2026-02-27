@@ -2,7 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -379,13 +379,25 @@ export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
 export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
 
 export function derivedHookAddress(config: DerivedTokenRouterConfig) {
-  return typeof config.hook === 'string' ? config.hook : config.hook.address;
+  const hookAddress =
+    typeof config.hook === 'string' ? config.hook : config.hook.address;
+  assert(
+    typeof hookAddress === 'string',
+    'Derived hook config is missing address',
+  );
+  return hookAddress;
 }
 
 export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
-  return typeof config.interchainSecurityModule === 'string'
-    ? config.interchainSecurityModule
-    : config.interchainSecurityModule.address;
+  const ismAddress =
+    typeof config.interchainSecurityModule === 'string'
+      ? config.interchainSecurityModule
+      : config.interchainSecurityModule.address;
+  assert(
+    typeof ismAddress === 'string',
+    'Derived ISM config is missing address',
+  );
+  return ismAddress;
 }
 
 export const HypTokenRouterConfigMailboxOptionalBaseSchema =

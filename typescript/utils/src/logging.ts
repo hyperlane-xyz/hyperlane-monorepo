@@ -1,5 +1,6 @@
-import { BigNumber } from 'ethers';
+import { toBigInt } from 'ethers';
 import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
+import { inspect } from 'util';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 
@@ -47,6 +48,18 @@ if (envLogFormat && Object.values(LogFormat).includes(envLogFormat))
 
 export function getLogFormat() {
   return logFormat;
+}
+
+let hasStdoutErrorHandler = false;
+
+function ensureStdoutErrorHandler() {
+  if (hasStdoutErrorHandler) return;
+  process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+    // Ignore EPIPE when parent processes close stdout pipes.
+    if (err.code === 'EPIPE') return;
+    throw err;
+  });
+  hasStdoutErrorHandler = true;
 }
 
 // Note, for brevity and convenience, the rootLogger is exported directly
@@ -112,8 +125,28 @@ export function createHyperlanePinoLogger(
           logFormat === LogFormat.Pretty &&
           level >= pino.levels.values[logLevel]
         ) {
-          // eslint-disable-next-line no-console
-          console.log(...inputArgs);
+          ensureStdoutErrorHandler();
+          const prettyArgs = inputArgs.map((arg) => {
+            if (typeof arg === 'string') return arg;
+            if (arg instanceof Error) return arg.stack ?? arg.message;
+            try {
+              return inspect(arg, {
+                colors: process.stdout.isTTY,
+                depth: null,
+                compact: true,
+              });
+            } catch {
+              try {
+                return JSON.stringify(arg, ethersBigNumberSerializer);
+              } catch {
+                return String(arg);
+              }
+            }
+          });
+          if (process.stdout.destroyed || !process.stdout.writable) {
+            return null;
+          }
+          process.stdout.write(`${prettyArgs.join(' ')}\n`);
           // Then return null to prevent pino from logging
           return null;
         }
@@ -131,7 +164,7 @@ export function ethersBigNumberSerializer(key: string, value: any): any {
     value.type === 'BigNumber' &&
     value.hex
   ) {
-    return BigNumber.from(value.hex).toString();
+    return toBigInt(value.hex).toString();
   }
   if (typeof value === 'bigint') {
     return value.toString();
