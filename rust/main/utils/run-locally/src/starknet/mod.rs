@@ -239,6 +239,31 @@ fn launch_starknet_scraper(
     scraper
 }
 
+/// Poll the Starknet devnet JSON-RPC endpoint until it responds successfully.
+fn wait_for_starknet_node(rpc_addr: &str) {
+    const MAX_ATTEMPTS: u32 = 60;
+    for attempt in 0..MAX_ATTEMPTS {
+        let resp = ureq::post(rpc_addr)
+            .set("Content-Type", "application/json")
+            .send_string(r#"{"jsonrpc":"2.0","id":1,"method":"starknet_chainId","params":[]}"#);
+        if let Ok(resp) = resp {
+            if resp.status() == 200 {
+                log!(
+                    "Starknet devnet at {} is ready (attempt {})",
+                    rpc_addr,
+                    attempt + 1
+                );
+                return;
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+    panic!(
+        "Starknet devnet at {} failed to start after {MAX_ATTEMPTS}s",
+        rpc_addr
+    );
+}
+
 const ENV_STARKNET_CLI_PATH_KEY: &str = "E2E_STARKLI_CLI_PATH";
 const ENV_HYPERLANE_STARKNET_PATH_KEY: &str = "E2E_HYPERLANE_STARKNET_PATH";
 
@@ -312,15 +337,12 @@ fn run_locally() {
     };
     let _relayer = "hpl-relayer";
 
-    // Wait for devnet nodes to be ready
-    for (i, _) in nodes.iter().enumerate() {
-        wait_for_starknet_node(port_start + (i as u32 * 20));
-    }
-
+    // Wait for devnet nodes to be ready before proceeding.
     let nodes = nodes
         .into_iter()
         .map(|v| (v.0.join(), v.1, v.2, v.3))
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
+            wait_for_starknet_node(&launch_resp.endpoint.rpc_addr);
             let mut starknet_cli = launch_resp.cli(&starklid);
             starknet_cli.init(
                 STARKNET_KEY.into(),
@@ -543,27 +565,6 @@ fn run_locally() {
     } else {
         log!("E2E tests passed");
     }
-}
-
-fn wait_for_starknet_node(port: u32) {
-    use ureq::get;
-
-    const MAX_ATTEMPTS: u32 = 30;
-    let url = format!("http://0.0.0.0:{port}/is_alive");
-    for attempt in 1..=MAX_ATTEMPTS {
-        if let Ok(resp) = get(&url).call() {
-            if resp.status() == 200 {
-                log!(
-                    "Starknet devnet on port {} ready after {} attempts",
-                    port,
-                    attempt
-                );
-                return;
-            }
-        }
-        sleep(Duration::from_secs(1));
-    }
-    panic!("Starknet devnet on port {port} not ready after {MAX_ATTEMPTS} attempts");
 }
 
 fn termination_invariants_met(
