@@ -137,9 +137,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
-    expect(activeIntents[0].amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_1ETH.toBigInt(),
-    );
+    expect(activeIntents[0].amount).to.equal(WEIGHTED_EXPECTED_DEFICIT_1ETH);
     const inProgressActions = await context.tracker.getInProgressActions();
     expect(inProgressActions.length).to.equal(1);
     const depositAction = inProgressActions.find(
@@ -217,13 +215,13 @@ describe('Inventory WeightedStrategy E2E', function () {
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].intent.amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_1ETH.toBigInt(),
+      WEIGHTED_EXPECTED_DEFICIT_1ETH,
     );
     expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil3);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_1ETH.toBigInt());
+    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_1ETH);
 
     const firstCycleActions = await context.tracker.getActionsForIntent(
       partialIntents[0].intent.id,
@@ -316,9 +314,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     let activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(activeIntents[0].amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt(),
-    );
+    expect(activeIntents[0].amount).to.equal(WEIGHTED_EXPECTED_DEFICIT_2ETH);
     const trackedIntentId = activeIntents[0].id;
 
     let partialIntents =
@@ -327,7 +323,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt());
+    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_2ETH);
 
     let actions = await context.tracker.getActionsForIntent(trackedIntentId);
     let movementActions = actions.filter(
@@ -357,7 +353,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt());
+    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_2ETH);
 
     actions = await context.tracker.getActionsForIntent(trackedIntentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
@@ -433,7 +429,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(partialIntents[0].intent.status).to.equal('not_started');
     expect(partialIntents[0].completedAmount).to.equal(0n);
     expect(partialIntents[0].remaining).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_1ETH.toBigInt(),
+      WEIGHTED_EXPECTED_DEFICIT_1ETH,
     );
 
     const intentId = partialIntents[0].intent.id;
@@ -547,7 +543,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(firstCycleIntents.length).to.equal(1);
     expect(firstCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(firstCycleIntents[0].amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt(),
+      WEIGHTED_EXPECTED_DEFICIT_2ETH,
     );
 
     const firstIntentId = firstCycleIntents[0].id;
@@ -617,7 +613,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(secondCycleIntents.length).to.equal(1);
     expect(secondCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(secondCycleIntents[0].amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt(),
+      WEIGHTED_EXPECTED_DEFICIT_2ETH,
     );
   });
 
@@ -653,7 +649,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(cycle1ActiveIntents.length).to.equal(1);
     expect(cycle1ActiveIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(cycle1ActiveIntents[0].amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_1_2ETH.toBigInt(),
+      WEIGHTED_EXPECTED_DEFICIT_1_2ETH,
     );
     const intentId = cycle1ActiveIntents[0].id;
 
@@ -665,7 +661,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(
       cycle1PartialIntents[0].completedAmount +
         cycle1PartialIntents[0].remaining,
-    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_1_2ETH.toBigInt());
+    ).to.equal(WEIGHTED_EXPECTED_DEFICIT_1_2ETH);
 
     let actions = await context.tracker.getActionsForIntent(intentId);
     expect(actions.length).to.equal(1);
