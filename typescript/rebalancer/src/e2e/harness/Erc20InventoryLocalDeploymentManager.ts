@@ -1,4 +1,10 @@
-import { ethers, providers } from 'ethers';
+import {
+  JsonRpcProvider,
+  ZeroAddress,
+  Wallet,
+  toBeHex,
+  zeroPadValue,
+} from 'ethers';
 
 import {
   ERC20Test__factory,
@@ -14,7 +20,10 @@ import {
 
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 
-const TOKEN_SCALE = ethers.BigNumber.from(1);
+type Erc20Contract = ReturnType<typeof ERC20Test__factory.connect>;
+type HypRouterContract = ReturnType<typeof HypERC20Collateral__factory.connect>;
+
+const TOKEN_SCALE = 1n;
 const USDC_INITIAL_SUPPLY = '100000000000000';
 const USDC_DECIMALS = 6;
 const INVENTORY_INITIAL_ETH_BALANCE = '20000000000000000000'; // 20 ETH for gas/IGP
@@ -27,8 +36,8 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
   }
 
   protected async deployRoutes(
-    deployerWallet: ethers.Wallet,
-    providersByChain: Map<string, providers.JsonRpcProvider>,
+    deployerWallet: Wallet,
+    providersByChain: Map<string, JsonRpcProvider>,
     chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string }
@@ -39,17 +48,15 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
       TestChain,
       Erc20InventoryChainDeployment
     >;
-    const monitoredRouters = {} as Record<TestChain, ethers.Contract>;
-    const bridgeRouters = {} as Record<TestChain, ethers.Contract>;
-    const tokens = {} as Record<TestChain, ethers.Contract>;
+    const monitoredRouters = {} as Record<TestChain, HypRouterContract>;
+    const bridgeRouters = {} as Record<TestChain, HypRouterContract>;
+    const tokens = {} as Record<TestChain, Erc20Contract>;
 
     for (const config of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(config.name)!;
       await provider.send('anvil_setBalance', [
         this.inventorySignerAddress,
-        ethers.utils.hexValue(
-          ethers.BigNumber.from(INVENTORY_INITIAL_ETH_BALANCE),
-        ),
+        toBeHex(BigInt(INVENTORY_INITIAL_ETH_BALANCE)),
       ]);
 
       const deployer = deployerWallet.connect(provider);
@@ -60,44 +67,47 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
         USDC_INITIAL_SUPPLY,
         USDC_DECIMALS,
       );
-      await token.deployed();
+      await token.waitForDeployment();
+      const tokenAddress = await token.getAddress();
 
       const monitoredRoute = await new HypERC20Collateral__factory(
         deployer,
       ).deploy(
-        token.address,
+        tokenAddress,
         TOKEN_SCALE,
         TOKEN_SCALE,
         chainInfra[config.name].mailbox,
       );
-      await monitoredRoute.deployed();
+      await monitoredRoute.waitForDeployment();
       await monitoredRoute.initialize(
-        ethers.constants.AddressZero,
+        ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      const monitoredRouterAddress = await monitoredRoute.getAddress();
 
       const bridgeRoute = await new HypERC20Collateral__factory(
         deployer,
       ).deploy(
-        token.address,
+        tokenAddress,
         TOKEN_SCALE,
         TOKEN_SCALE,
         chainInfra[config.name].mailbox,
       );
-      await bridgeRoute.deployed();
+      await bridgeRoute.waitForDeployment();
       await bridgeRoute.initialize(
-        ethers.constants.AddressZero,
+        ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      const bridgeRouterAddress = await bridgeRoute.getAddress();
 
       chainDeployments[config.name] = {
         mailbox: chainInfra[config.name].mailbox,
         ism: chainInfra[config.name].ism,
-        monitoredRouter: monitoredRoute.address,
-        bridgeRouter: bridgeRoute.address,
-        token: token.address,
+        monitoredRouter: monitoredRouterAddress,
+        bridgeRouter: bridgeRouterAddress,
+        token: tokenAddress,
       };
 
       tokens[config.name] = token;
@@ -116,7 +126,7 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
           if (remote.name === chain.name) continue;
           remoteDomains.push(remote.domainId);
           remoteRouters.push(
-            ethers.utils.hexZeroPad(routeMap[remote.name].address, 32),
+            zeroPadValue(await routeMap[remote.name].getAddress(), 32),
           );
         }
 
@@ -133,42 +143,43 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
         if (destination.name === chain.name) continue;
         await monitoredRoute.addBridge(
           destination.domainId,
-          bridgeRouters[chain.name].address,
+          await bridgeRouters[chain.name].getAddress(),
         );
       }
     }
 
-    const bridgeSeedAmount = ethers.BigNumber.from(INVENTORY_ERC20_BRIDGE_SEED);
-    const signerErc20Amount = ethers.BigNumber.from(
-      INVENTORY_INITIAL_ERC20_BALANCE,
-    );
+    const bridgeSeedAmount = BigInt(INVENTORY_ERC20_BRIDGE_SEED);
+    const signerErc20Amount = BigInt(INVENTORY_INITIAL_ERC20_BALANCE);
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
       const deployer = deployerWallet.connect(provider);
       const token = ERC20Test__factory.connect(
-        tokens[chain.name].address,
+        await tokens[chain.name].getAddress(),
         deployer,
       );
-      await token.transfer(bridgeRouters[chain.name].address, bridgeSeedAmount);
+      await token.transfer(
+        await bridgeRouters[chain.name].getAddress(),
+        bridgeSeedAmount,
+      );
       await token.transfer(this.inventorySignerAddress, signerErc20Amount);
     }
 
     return {
       chains: chainDeployments,
       monitoredRoute: {
-        anvil1: monitoredRouters.anvil1.address,
-        anvil2: monitoredRouters.anvil2.address,
-        anvil3: monitoredRouters.anvil3.address,
+        anvil1: await monitoredRouters.anvil1.getAddress(),
+        anvil2: await monitoredRouters.anvil2.getAddress(),
+        anvil3: await monitoredRouters.anvil3.getAddress(),
       },
       bridgeRoute: {
-        anvil1: bridgeRouters.anvil1.address,
-        anvil2: bridgeRouters.anvil2.address,
-        anvil3: bridgeRouters.anvil3.address,
+        anvil1: await bridgeRouters.anvil1.getAddress(),
+        anvil2: await bridgeRouters.anvil2.getAddress(),
+        anvil3: await bridgeRouters.anvil3.getAddress(),
       },
       tokens: {
-        anvil1: tokens.anvil1.address,
-        anvil2: tokens.anvil2.address,
-        anvil3: tokens.anvil3.address,
+        anvil1: await tokens.anvil1.getAddress(),
+        anvil2: await tokens.anvil2.getAddress(),
+        anvil3: await tokens.anvil3.getAddress(),
       },
     };
   }

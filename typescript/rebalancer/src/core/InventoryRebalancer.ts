@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import { type ContractReceipt } from 'ethers';
+import { type TransactionReceipt } from 'ethers';
 
 import {
   type AnnotatedEvmTransaction,
@@ -916,7 +916,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Sending transferRemote transaction',
     );
 
-    let receipt: ContractReceipt | undefined;
+    let receipt: TransactionReceipt | undefined;
     for (const tx of transactions) {
       this.logger.debug(
         { origin, destination, category: tx.category },
