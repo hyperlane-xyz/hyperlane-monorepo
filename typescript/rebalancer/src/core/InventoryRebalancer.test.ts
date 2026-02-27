@@ -51,7 +51,8 @@ describe('InventoryRebalancer E2E', () => {
     config = {
       inventorySigner: INVENTORY_SIGNER,
       inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
-    };
+      // inventoryMultiProvider set below after multiProvider is initialized
+    } as unknown as InventoryRebalancerConfig;
 
     // Mock IActionTracker
     actionTracker = {
@@ -174,6 +175,9 @@ describe('InventoryRebalancer E2E', () => {
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
       }),
     };
+
+    // Assign inventoryMultiProvider AFTER multiProvider is initialized
+    config.inventoryMultiProvider = multiProvider;
 
     // Create InventoryRebalancer
     inventoryRebalancer = new InventoryRebalancer(

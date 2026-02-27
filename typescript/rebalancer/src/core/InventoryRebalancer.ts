@@ -65,7 +65,7 @@ export interface InventoryRebalancerConfig {
   /** EOA address of the inventory signer */
   inventorySigner: string;
   /** Optional MultiProvider with inventory signer for signing transactions */
-  inventoryMultiProvider?: MultiProvider;
+  inventoryMultiProvider: MultiProvider;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
 }
@@ -822,9 +822,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Get the hyperlane adapter for the token
     const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
 
-    // Use inventoryMultiProvider if available, otherwise fall back to multiProvider
-    const signingProvider =
-      this.config.inventoryMultiProvider ?? this.multiProvider;
+    const signingProvider = this.config.inventoryMultiProvider;
 
     // Get reorgPeriod for confirmation waiting
     const reorgPeriod =
@@ -1292,8 +1290,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Received LiFi quote for inventory movement',
       );
 
-      const signingProvider =
-        this.config.inventoryMultiProvider ?? this.multiProvider;
+      const signingProvider = this.config.inventoryMultiProvider;
       const signer = signingProvider.getSigner(sourceChain);
       assert(
         signer instanceof Wallet,
