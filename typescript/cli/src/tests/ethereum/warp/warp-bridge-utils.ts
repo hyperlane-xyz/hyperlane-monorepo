@@ -1,6 +1,4 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
-import { parseUnits } from 'ethers/lib/utils.js';
+import { parseUnits } from 'viem';
 
 import {
   type ERC20Test,
@@ -15,12 +13,14 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
   type ChainMetadata,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   type Token,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -59,8 +59,8 @@ export type WarpBridgeTestConfig = {
   tokenChain2Symbol: string;
   tokenVaultChain3Symbol: string;
   tokenChain3Symbol: string;
-  walletChain2: Wallet;
-  walletChain3: Wallet;
+  walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
+  walletChain3: ReturnType<LocalAccountViemSigner['connect']>;
   tokenChain2: ERC20Test;
   fiatToken2: FiatTokenTest;
   xERC202: XERC20VSTest;
@@ -161,11 +161,21 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
   const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-  const providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-  const providerChain3 = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);
+  const providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+    chain2Metadata.chainId,
+    chain2Metadata.rpcUrls[0].http,
+  );
+  const providerChain3 = HyperlaneSmartProvider.fromRpcUrl(
+    chain3Metadata.chainId,
+    chain3Metadata.rpcUrls[0].http,
+  );
 
-  const walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
-  const walletChain3 = new Wallet(ANVIL_KEY).connect(providerChain3);
+  const walletChain2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+    providerChain2,
+  );
+  const walletChain3 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+    providerChain3,
+  );
 
   const ownerAddress = walletChain2.address;
 
@@ -314,7 +324,7 @@ export async function collateralizeWarpTokens(
   routeConfigPath: string,
   warpDeployConfig: WarpRouteDeployConfig,
   walletAndCollateralByChain: ChainMap<{
-    wallet: Wallet;
+    wallet: ReturnType<LocalAccountViemSigner['connect']>;
     collateral: ERC20Test;
     xerc20Lockbox: XERC20LockboxTest;
   }>,

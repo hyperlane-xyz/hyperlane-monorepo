@@ -1,5 +1,4 @@
 import { confirm } from '@inquirer/prompts';
-import { type ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
@@ -230,11 +229,9 @@ async function getSignerKeyMap(
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
+async function getMultiProvider(registry: IRegistry) {
   const chainMetadata = await registry.getMetadata();
-  const multiProvider = new MultiProvider(chainMetadata);
-  if (signer) multiProvider.setSharedSigner(signer);
-  return multiProvider;
+  return new MultiProvider(chainMetadata);
 }
 
 async function getMultiProtocolProvider(registry: IRegistry) {

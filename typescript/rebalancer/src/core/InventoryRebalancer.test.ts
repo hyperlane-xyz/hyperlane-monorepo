@@ -1,16 +1,16 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 import { pino } from 'pino';
 import Sinon, { type SinonStubbedInstance } from 'sinon';
 
 import {
   type ChainName,
+  LocalAccountViemSigner,
   type MultiProvider,
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ensure0x, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -44,7 +44,7 @@ describe('InventoryRebalancer E2E', () => {
   const SOLANA_DOMAIN = 1399811149;
   const TEST_PRIVATE_KEY =
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-  const TEST_WALLET = new Wallet(TEST_PRIVATE_KEY);
+  const TEST_WALLET = new LocalAccountViemSigner(ensure0x(TEST_PRIVATE_KEY));
   const INVENTORY_SIGNER = TEST_WALLET.address;
 
   beforeEach(() => {
@@ -641,7 +641,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Wallet');
+      expect(results[0].error).to.include('private key access');
       expect(bridge.execute.called).to.be.false;
     });
   });

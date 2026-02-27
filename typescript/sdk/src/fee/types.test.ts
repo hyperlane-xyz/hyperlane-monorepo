@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
 import { LinearFeeInputConfigSchema, TokenFeeType } from './types.js';
 
-const SOME_ADDRESS = ethers.Wallet.createRandom().address;
+const SOME_ADDRESS = privateKeyToAccount(generatePrivateKey()).address;
 
 describe('LinearFeeInputConfigSchema', () => {
   it('should accept config with only bps', () => {

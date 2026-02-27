@@ -55,14 +55,14 @@
           "weight": "0.5",
           "tolerance": "0.05"
         },
-        "bridgeLockTime": 500
+        "bridgeLockTime": 5000
       },
       "chain2": {
         "weighted": {
           "weight": "0.5",
           "tolerance": "0.05"
         },
-        "bridgeLockTime": 500
+        "bridgeLockTime": 5000
       }
     }
   },

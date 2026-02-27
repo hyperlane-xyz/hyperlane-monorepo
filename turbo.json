@@ -1,5 +1,10 @@
 {
   "ui": "stream",
+  "globalPassThroughEnv": [
+    "RPC_URL_MAINNET",
+    "RPC_URL_OPTIMISM",
+    "RPC_URL_BASE"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -11,11 +16,7 @@
     },
     "build:tron": {
       "dependsOn": ["build"],
-      "outputs": [
-        "cache-tron/**",
-        "artifacts-tron/**",
-        "dist/tron/typechain/**"
-      ]
+      "outputs": ["cache-tron/**", "artifacts-tron/**"]
     },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]

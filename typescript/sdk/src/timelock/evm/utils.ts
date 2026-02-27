@@ -20,7 +20,7 @@ export function getTimelockExecutableTransactionFromBatch(
   );
 
   return TimelockController__factory.createInterface().encodeFunctionData(
-    'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)',
+    'executeBatch',
     [to, value, data, transactionData.predecessor, transactionData.salt],
   );
 }

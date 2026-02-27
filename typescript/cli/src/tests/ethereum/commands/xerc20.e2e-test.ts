@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
 import { $ } from 'zx';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   type ERC20Test,
@@ -14,7 +14,7 @@ import {
   type WarpRouteDeployConfig,
   XERC20Type,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -74,7 +74,7 @@ describe('xerc20 e2e tests', function () {
       ),
     ]);
 
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
 
     tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2, 18, 'XERC20');
     xERC20Lockbox2 = await deployXERC20LockboxToken(

@@ -1,5 +1,15 @@
-import type { DispatchEvent, ProcessEvent } from '@hyperlane-xyz/core/mailbox';
+export type DispatchEvent = {
+  transactionHash?: string;
+  blockNumber?: number;
+  args?: {
+    message?: string;
+  };
+};
 
-export { DispatchEvent, ProcessEvent };
+export type ProcessEvent = {
+  transactionHash?: string;
+  blockNumber?: number;
+  args?: Record<string, unknown>;
+};
 
 export type HyperlaneLifecyleEvent = ProcessEvent | DispatchEvent;

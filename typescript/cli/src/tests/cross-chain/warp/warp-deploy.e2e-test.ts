@@ -1,7 +1,7 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 import { type StartedTestContainer } from 'testcontainers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   createSignerWithPrivateKey,
@@ -22,6 +22,7 @@ import {
   type Address,
   ProtocolType,
   addressToBytes32,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -108,7 +109,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
     cosmosNativeDeployerAddress = cosmosWallet.getSignerAddress();
 
-    evmDeployerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
+    evmDeployerAddress = privateKeyToAccount(
+      ensure0x(HYP_KEY_BY_PROTOCOL.ethereum),
+    ).address;
 
     [cosmosNativeChain1CoreAddress, evmChain1CoreCoreAddress] =
       await Promise.all([

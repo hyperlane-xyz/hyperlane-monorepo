@@ -5,7 +5,12 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  bytes32ToAddress,
+  ensure0x,
+  messageId,
+} from '@hyperlane-xyz/utils';
 
 import { getChainMetadata } from '../config/registry.js';
 import { assertChain } from '../src/utils/utils.js';
@@ -45,6 +50,7 @@ async function main() {
   const dispatchReceipt = await originProvider.getTransactionReceipt(
     argv.txHash,
   );
+  assert(dispatchReceipt, `No transaction receipt found for ${argv.txHash}`);
   const dispatchedMessages = core.getDispatchedMessages(dispatchReceipt);
 
   // 1 indexed for human friendly logs
@@ -131,13 +137,11 @@ async function checkMessage(
       'Calling recipient `handle` function from the inbox does not revert',
     );
   } catch (err: any) {
-    const data = (
-      await recipient.populateTransaction.handle(
-        message.parsed.origin,
-        message.parsed.sender,
-        message.parsed.body,
-      )
-    ).data;
+    const data = recipient.interface.encodeFunctionData('handle', [
+      message.parsed.origin,
+      message.parsed.sender,
+      message.parsed.body,
+    ]);
     console.log('Simulated call', {
       from: destinationMailbox.address,
       to: recipient.address,

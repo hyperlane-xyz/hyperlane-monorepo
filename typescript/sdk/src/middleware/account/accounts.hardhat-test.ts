@@ -10,7 +10,7 @@ import {
   InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objMap, toBigInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
@@ -21,6 +21,8 @@ import { FeeTokenApproval, IcaRouterConfig } from '../../ica/types.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { ChainMap } from '../../types.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
@@ -33,7 +35,7 @@ describe('InterchainAccounts', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
 
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
@@ -43,7 +45,7 @@ describe('InterchainAccounts', async () => {
   let config: ChainMap<IcaRouterConfig>;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
@@ -118,7 +120,9 @@ describe('InterchainAccounts', async () => {
     });
     const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
-    expect(balanceAfter).to.lte(balanceBefore.sub(quote));
+    const quoteValue =
+      typeof quote === 'bigint' ? quote : BigInt(quote.toString());
+    expect(balanceAfter <= balanceBefore - quoteValue).to.equal(true);
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });
@@ -168,8 +172,8 @@ describe('InterchainAccounts', async () => {
         mockHookAddress,
       );
 
-      expect(allowance.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
+      expect(toBigInt(allowance)).to.equal(
+        toBigInt(ethers.constants.MaxUint256),
       );
     });
 
@@ -212,11 +216,11 @@ describe('InterchainAccounts', async () => {
         mockHookAddress2,
       );
 
-      expect(allowance1.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
+      expect(toBigInt(allowance1)).to.equal(
+        toBigInt(ethers.constants.MaxUint256),
       );
-      expect(allowance2.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
+      expect(toBigInt(allowance2)).to.equal(
+        toBigInt(ethers.constants.MaxUint256),
       );
     });
 

@@ -8,20 +8,60 @@
     "dist"
   ],
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./altvm": "./dist/altvm.js",
-    "./module": "./dist/module.js",
-    "./protocol": "./dist/protocol.js",
-    "./chain": "./dist/chain.js",
-    "./hook": "./dist/hook.js",
-    "./ism": "./dist/ism.js",
-    "./core": "./dist/core.js",
-    "./warp": "./dist/warp.js",
-    "./factory": "./dist/factory.js",
-    "./submitter": "./dist/submitter.js",
-    "./registry": "./dist/registry.js",
-    "./artifact": "./dist/artifact.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./altvm": {
+      "types": "./dist/altvm.d.ts",
+      "default": "./dist/altvm.js"
+    },
+    "./module": {
+      "types": "./dist/module.d.ts",
+      "default": "./dist/module.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "default": "./dist/protocol.js"
+    },
+    "./chain": {
+      "types": "./dist/chain.d.ts",
+      "default": "./dist/chain.js"
+    },
+    "./hook": {
+      "types": "./dist/hook.d.ts",
+      "default": "./dist/hook.js"
+    },
+    "./ism": {
+      "types": "./dist/ism.d.ts",
+      "default": "./dist/ism.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    },
+    "./warp": {
+      "types": "./dist/warp.d.ts",
+      "default": "./dist/warp.js"
+    },
+    "./factory": {
+      "types": "./dist/factory.d.ts",
+      "default": "./dist/factory.js"
+    },
+    "./submitter": {
+      "types": "./dist/submitter.d.ts",
+      "default": "./dist/submitter.js"
+    },
+    "./registry": {
+      "types": "./dist/registry.d.ts",
+      "default": "./dist/registry.js"
+    },
+    "./artifact": {
+      "types": "./dist/artifact.d.ts",
+      "default": "./dist/artifact.js"
+    }
   },
   "scripts": {
     "build": "tsc",

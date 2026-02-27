@@ -8,6 +8,8 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { randomAddress } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -27,12 +29,12 @@ import { convertToBps } from './utils.js';
 describe('EvmTokenFeeModule', () => {
   const test4Chain = TestChainName.test4;
   let multiProvider: MultiProvider;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let token: ERC20Test;
   let config: TokenFeeConfig;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);

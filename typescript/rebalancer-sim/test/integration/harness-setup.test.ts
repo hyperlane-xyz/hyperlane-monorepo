@@ -22,8 +22,8 @@
  * - Bridge: MockValueTransferBridge for delayed delivery (rebalancer transfers)
  */
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 
+import { HyperlaneSmartProvider } from '@hyperlane-xyz/sdk';
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
@@ -38,11 +38,11 @@ import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 describe('Multi-Domain Deployment', function () {
   const anvil = setupAnvilTestSuite(this);
-  let provider: ethers.providers.JsonRpcProvider;
+  let provider: HyperlaneSmartProvider;
 
   beforeEach(async () => {
     // Create provider after anvil starts (rpc is set in beforeEach)
-    provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
+    provider = HyperlaneSmartProvider.fromRpcUrl(31337, anvil.rpc);
   });
 
   /**

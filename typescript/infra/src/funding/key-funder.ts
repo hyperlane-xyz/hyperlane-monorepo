@@ -1,9 +1,9 @@
-import { BigNumber, ethers } from 'ethers';
 import { join } from 'path';
+import { formatEther, parseEther } from 'viem';
 import YAML from 'yaml';
 import { fromZodError } from 'zod-validation-error';
 
-import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
+import { ContextFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 
 import { Contexts } from '../../config/contexts.js';
@@ -20,8 +20,8 @@ import { FundableRole, Role } from '../roles.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
 
-const RC_FUNDING_DISCOUNT_NUMERATOR = BigNumber.from(2);
-const RC_FUNDING_DISCOUNT_DENOMINATOR = BigNumber.from(10);
+const RC_FUNDING_DISCOUNT_NUMERATOR = 2n;
+const RC_FUNDING_DISCOUNT_DENOMINATOR = 10n;
 
 // Chains to sweep excess funds from (must match fund-keys-from-deployer.ts)
 const CHAINS_TO_SWEEP = new Set([
@@ -174,7 +174,7 @@ export class KeyFunderHelmManager extends HelmManager {
       chainsToSkip: this.config.chainsToSkip,
     };
 
-    const validationResult = KeyFunderConfigSchema.safeParse(config);
+    const validationResult = ContextFunderConfigSchema.safeParse(config);
     if (!validationResult.success) {
       throw new Error(
         `Invalid keyfunder config: ${fromZodError(validationResult.error).message}`,
@@ -297,17 +297,14 @@ export class KeyFunderHelmManager extends HelmManager {
     }
 
     // Default threshold is 20% of relayer desired balance.
-    return ethers.utils.formatEther(
-      ethers.utils.parseEther(desiredRelayerBalance).div(5),
-    );
+    return formatEther(parseEther(desiredRelayerBalance) / 5n);
   }
 
   private applyRcDiscount(balance: string): string {
-    const discountedBalance = ethers.utils
-      .parseEther(balance)
-      .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
-      .div(RC_FUNDING_DISCOUNT_DENOMINATOR);
-    return ethers.utils.formatEther(discountedBalance);
+    const discountedBalance =
+      (parseEther(balance) * RC_FUNDING_DISCOUNT_NUMERATOR) /
+      RC_FUNDING_DISCOUNT_DENOMINATOR;
+    return formatEther(discountedBalance);
   }
 }
 

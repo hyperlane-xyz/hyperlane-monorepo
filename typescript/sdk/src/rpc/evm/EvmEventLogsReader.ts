@@ -11,7 +11,7 @@ import { assertIsContractAddress } from '../../contracts/contracts.js';
 import type { ChainMetadataManager } from '../../metadata/ChainMetadataManager.js';
 import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import type { ChainNameOrId } from '../../types.js';
+import type { ChainNameOrId, EvmProvider } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
@@ -65,8 +65,13 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
     const deploymentTransactionReceipt = await this.multiProvider
       .getProvider(this.chain)
       .getTransactionReceipt(contractDeploymentTx.txHash);
+    if (!deploymentTransactionReceipt?.blockNumber) {
+      throw new Error(
+        `No deployment receipt block number for contract ${address} on ${this.chain}`,
+      );
+    }
 
-    return deploymentTransactionReceipt.blockNumber;
+    return Number(deploymentTransactionReceipt.blockNumber);
   }
 
   async getContractLogs(
@@ -224,7 +229,7 @@ export class EvmEventLogsReader {
 
   private async getLogsByTopicWithStrategy(
     options: GetLogByTopicOptions,
-    provider: ReturnType<MultiProvider['getProvider']>,
+    provider: EvmProvider,
     logReaderStrategy: IEvmEventLogsReaderStrategy,
   ): Promise<GetEventLogsResponse[]> {
     const parsedOptions = GetLogByTopicOptionsSchema.parse(options);

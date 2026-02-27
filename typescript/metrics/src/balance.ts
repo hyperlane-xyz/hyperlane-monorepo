@@ -1,7 +1,6 @@
-import { Contract, type PopulatedTransaction } from 'ethers';
 import type { Logger } from 'pino';
+import type { PublicClient } from 'viem';
 
-import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import {
   type EvmHypXERC20Adapter,
   type EvmHypXERC20LockboxAdapter,
@@ -29,6 +28,13 @@ import { formatBigInt } from './utils.js';
 export const MANAGED_LOCKBOX_MINIMAL_ABI = [
   'function XERC20() view returns (address)',
   'function ERC20() view returns (address)',
+] as const;
+
+const XERC20_VS_MINIMAL_ABI = [
+  'function mintingMaxLimitOf(address) view returns (uint256)',
+  'function burningMaxLimitOf(address) view returns (uint256)',
+  'function mintingCurrentLimitOf(address) view returns (uint256)',
+  'function burningCurrentLimitOf(address) view returns (uint256)',
 ] as const;
 
 /**
@@ -193,7 +199,7 @@ export async function getXERC20Info(
  */
 export async function getXERC20Limit(
   token: Token,
-  xerc20: IHypXERC20Adapter<PopulatedTransaction>,
+  xerc20: IHypXERC20Adapter<unknown>,
 ): Promise<XERC20Limit> {
   const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
     xerc20.getMintLimit(),
@@ -203,28 +209,44 @@ export async function getXERC20Limit(
   ]);
 
   return {
-    mint: formatBigInt(token, mintCurrent),
-    mintMax: formatBigInt(token, mintMax),
-    burn: formatBigInt(token, burnCurrent),
-    burnMax: formatBigInt(token, burnMax),
+    mint: formatBigInt(token, mintCurrent ?? 0n),
+    mintMax: formatBigInt(token, mintMax ?? 0n),
+    burn: formatBigInt(token, burnCurrent ?? 0n),
+    burnMax: formatBigInt(token, burnMax ?? 0n),
   };
 }
 
-/**
- * Gets a managed lockbox contract instance.
- *
- * @param multiProvider - The multi-protocol provider
- * @param chainName - The chain name
- * @param lockboxAddress - The lockbox contract address
- * @returns The Contract instance
- */
-export function getManagedLockBox(
+function getManagedLockboxProvider(
+  multiProvider: MultiProtocolProvider,
+  chainName: string,
+): PublicClient {
+  return multiProvider.getViemProvider(chainName);
+}
+
+async function readManagedLockBoxXERC20(
   multiProvider: MultiProtocolProvider,
   chainName: string,
   lockboxAddress: Address,
-): Contract {
-  const provider = multiProvider.getEthersV5Provider(chainName);
-  return new Contract(lockboxAddress, MANAGED_LOCKBOX_MINIMAL_ABI, provider);
+): Promise<Address> {
+  const provider = getManagedLockboxProvider(multiProvider, chainName);
+  return (await provider.readContract({
+    address: lockboxAddress as `0x${string}`,
+    abi: MANAGED_LOCKBOX_MINIMAL_ABI,
+    functionName: 'XERC20',
+  })) as Address;
+}
+
+async function readManagedLockBoxERC20(
+  multiProvider: MultiProtocolProvider,
+  chainName: string,
+  lockboxAddress: Address,
+): Promise<Address> {
+  const provider = getManagedLockboxProvider(multiProvider, chainName);
+  return (await provider.readContract({
+    address: lockboxAddress as `0x${string}`,
+    abi: MANAGED_LOCKBOX_MINIMAL_ABI,
+    functionName: 'ERC20',
+  })) as Address;
 }
 
 /**
@@ -240,34 +262,48 @@ export async function getExtraLockboxInfo(
   warpToken: Token,
   lockboxAddress: Address,
 ): Promise<XERC20Info> {
-  const currentChainProvider = multiProvider.getEthersV5Provider(
+  const currentChainProvider = multiProvider.getViemProvider(
     warpToken.chainName,
   );
-  const lockboxInstance = getManagedLockBox(
+  const xERC20Address = await readManagedLockBoxXERC20(
     multiProvider,
     warpToken.chainName,
     lockboxAddress,
   );
 
-  const xERC20Address = await lockboxInstance['XERC20']();
-  const vsXERC20Instance = IXERC20VS__factory.connect(
-    xERC20Address,
-    currentChainProvider,
-  );
-
-  const [mintMax, burnMax, mint, burn] = await Promise.all([
-    vsXERC20Instance.mintingMaxLimitOf(lockboxAddress),
-    vsXERC20Instance.burningMaxLimitOf(lockboxAddress),
-    vsXERC20Instance.mintingCurrentLimitOf(lockboxAddress),
-    vsXERC20Instance.burningCurrentLimitOf(lockboxAddress),
-  ]);
+  const [mintMax, burnMax, mint, burn] = (await Promise.all([
+    currentChainProvider.readContract({
+      address: xERC20Address as `0x${string}`,
+      abi: XERC20_VS_MINIMAL_ABI,
+      functionName: 'mintingMaxLimitOf',
+      args: [lockboxAddress as `0x${string}`],
+    }),
+    currentChainProvider.readContract({
+      address: xERC20Address as `0x${string}`,
+      abi: XERC20_VS_MINIMAL_ABI,
+      functionName: 'burningMaxLimitOf',
+      args: [lockboxAddress as `0x${string}`],
+    }),
+    currentChainProvider.readContract({
+      address: xERC20Address as `0x${string}`,
+      abi: XERC20_VS_MINIMAL_ABI,
+      functionName: 'mintingCurrentLimitOf',
+      args: [lockboxAddress as `0x${string}`],
+    }),
+    currentChainProvider.readContract({
+      address: xERC20Address as `0x${string}`,
+      abi: XERC20_VS_MINIMAL_ABI,
+      functionName: 'burningCurrentLimitOf',
+      args: [lockboxAddress as `0x${string}`],
+    }),
+  ])) as bigint[];
 
   return {
     limits: {
-      burn: formatBigInt(warpToken, burn.toBigInt()),
-      burnMax: formatBigInt(warpToken, burnMax.toBigInt()),
-      mint: formatBigInt(warpToken, mint.toBigInt()),
-      mintMax: formatBigInt(warpToken, mintMax.toBigInt()),
+      burn: formatBigInt(warpToken, burn ?? 0n),
+      burnMax: formatBigInt(warpToken, burnMax ?? 0n),
+      mint: formatBigInt(warpToken, mint ?? 0n),
+      mintMax: formatBigInt(warpToken, mintMax ?? 0n),
     },
     xERC20Address,
   };
@@ -293,14 +329,11 @@ export async function getExtraLockboxBalance(
   if (!warpToken.isXerc20()) {
     return undefined;
   }
-
-  const lockboxInstance = getManagedLockBox(
+  const erc20TokenAddress = await readManagedLockBoxERC20(
     multiProvider,
     warpToken.chainName,
     lockboxAddress,
   );
-
-  const erc20TokenAddress = await lockboxInstance['ERC20']();
   const erc20tokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,
@@ -349,13 +382,11 @@ export async function getManagedLockBoxCollateralInfo(
   warpToken: Token,
   lockBoxAddress: Address,
 ): Promise<{ tokenName: string; tokenAddress: Address }> {
-  const lockBoxInstance = getManagedLockBox(
+  const collateralTokenAddress = await readManagedLockBoxERC20(
     multiProvider,
     warpToken.chainName,
     lockBoxAddress,
   );
-
-  const collateralTokenAddress = await lockBoxInstance['ERC20']();
   const collateralTokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,

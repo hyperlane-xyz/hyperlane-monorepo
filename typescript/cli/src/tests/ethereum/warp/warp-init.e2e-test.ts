@@ -1,12 +1,12 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   type ChainName,
   TokenType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import {
@@ -41,8 +41,7 @@ describe('hyperlane warp init e2e tests', async function () {
   let initialOwnerAddress: Address;
 
   before(async function () {
-    const wallet = new Wallet(ANVIL_KEY);
-    initialOwnerAddress = wallet.address;
+    initialOwnerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
   });
 
   describe('hyperlane warp init --yes', () => {

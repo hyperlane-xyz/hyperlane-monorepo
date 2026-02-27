@@ -1,4 +1,4 @@
-import { BigNumber, ethers, type providers } from 'ethers';
+import { pad } from 'viem';
 import { pino, type Logger } from 'pino';
 
 import {
@@ -7,8 +7,12 @@ import {
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
-import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  HyperlaneCore,
+  LocalAccountViemSigner,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -31,6 +35,8 @@ type MockBridgeRoute = {
   tokenType: 'native' | 'erc20';
 };
 
+type EvmProvider = ReturnType<MultiProvider['getProvider']>;
+
 export class MockExternalBridge implements IExternalBridge {
   readonly externalBridgeId = 'mock-bridge';
   readonly logger: Logger;
@@ -40,22 +46,16 @@ export class MockExternalBridge implements IExternalBridge {
     BridgeTransferStatus
   >();
   private _failNextExecute = false;
-  private readonly deployedAddresses:
-    | NativeDeployedAddresses
-    | Erc20InventoryDeployedAddresses;
-  private readonly tokenType: 'native' | 'erc20';
 
   constructor(
-    deployedAddresses:
+    private readonly deployedAddresses:
       | NativeDeployedAddresses
       | Erc20InventoryDeployedAddresses,
     private readonly multiProvider: MultiProvider,
     private readonly core: HyperlaneCore,
-    tokenType: 'native' | 'erc20' = 'native',
+    private readonly tokenType: 'native' | 'erc20' = 'native',
     logger?: Logger,
   ) {
-    this.deployedAddresses = deployedAddresses;
-    this.tokenType = tokenType;
     this.logger =
       logger ??
       pino({ level: 'silent' }).child({
@@ -129,22 +129,21 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
-    const signer = new ethers.Wallet(privateKey, provider);
-
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(route.toAddress),
-      32,
+    const signer = new LocalAccountViemSigner(ensure0x(privateKey)).connect(
+      provider,
     );
 
+    const recipientBytes32 = pad(route.toAddress as `0x${string}`, {
+      size: 32,
+    });
+
     let tx;
-    if (this.tokenType === 'erc20') {
-      assert(
-        'tokens' in this.deployedAddresses,
-        'Expected ERC20 deployed addresses',
-      );
-      const tokenAddress = (
-        this.deployedAddresses as Erc20InventoryDeployedAddresses
-      ).tokens[fromChainName];
+    if (route.tokenType === 'erc20') {
+      if (!('tokens' in this.deployedAddresses)) {
+        throw new Error('Expected ERC20 deployed addresses');
+      }
+
+      const tokenAddress = this.deployedAddresses.tokens[fromChainName];
       const token = ERC20Test__factory.connect(tokenAddress, signer);
       await token.approve(bridgeRouteAddress, quote.fromAmount);
 
@@ -260,31 +259,28 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
     const provider = this.multiProvider.getProvider(fromChainName);
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(toAddress),
-      32,
-    );
+    const recipientBytes32 = pad(toAddress as `0x${string}`, { size: 32 });
 
     // Use 1 wei for estimation — gas usage doesn't depend on transfer amount
     const estimateAmount = 1n;
     if (this.tokenType === 'erc20') {
-      // ERC20 transferRemote requires token approval which isn't set up during estimation.
-      // Return 0n as a mock — gas costs don't affect test logic.
+      // ERC20 path requires setup/allowance; mock out gas for test invariants.
       return 0n;
-    } else {
-      const bridgeRoute = HypNative__factory.connect(
-        bridgeRouteAddress,
-        provider,
-      );
-      const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
-        destinationDomain,
-        recipientBytes32,
-        estimateAmount,
-        { value: estimateAmount, from: fromAddress },
-      );
-      const gasPrice = await provider.getGasPrice();
-      return gasEstimate.mul(gasPrice).toBigInt();
     }
+
+    const bridgeRoute = HypNative__factory.connect(
+      bridgeRouteAddress,
+      provider,
+    );
+    const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
+      destinationDomain,
+      recipientBytes32,
+      estimateAmount,
+      { value: estimateAmount, from: fromAddress },
+    );
+
+    const gasPrice = await provider.getGasPrice();
+    return toBigIntLike(gasEstimate) * toBigIntLike(gasPrice);
   }
 
   private parseRoute(route: unknown): MockBridgeRoute {
@@ -298,8 +294,7 @@ export class MockExternalBridge implements IExternalBridge {
       typeof parsed.fromChain !== 'number' ||
       typeof parsed.toChain !== 'number' ||
       typeof parsed.fromAddress !== 'string' ||
-      typeof parsed.toAddress !== 'string' ||
-      (parsed.tokenType !== 'native' && parsed.tokenType !== 'erc20')
+      typeof parsed.toAddress !== 'string'
     ) {
       throw new Error('Mock quote route is invalid');
     }
@@ -309,7 +304,10 @@ export class MockExternalBridge implements IExternalBridge {
       toChain: parsed.toChain,
       fromAddress: parsed.fromAddress,
       toAddress: parsed.toAddress,
-      tokenType: parsed.tokenType,
+      tokenType:
+        parsed.tokenType === 'erc20' || parsed.tokenType === 'native'
+          ? parsed.tokenType
+          : 'native',
     };
   }
 
@@ -330,8 +328,8 @@ export class MockExternalBridge implements IExternalBridge {
   }
 
   private async getTransferredAmount(
-    provider: providers.Provider,
-    receipt: providers.TransactionReceipt,
+    provider: EvmProvider,
+    receipt: { transactionHash: string },
   ): Promise<bigint> {
     const tx = await provider.getTransaction(receipt.transactionHash);
     if (!tx) {
@@ -341,9 +339,15 @@ export class MockExternalBridge implements IExternalBridge {
     }
 
     try {
+      const txData = getTxData(tx);
+      if (!txData) {
+        throw new Error(
+          `Missing transaction calldata for ${receipt.transactionHash}`,
+        );
+      }
       const parsed = HypNative__factory.createInterface().parseTransaction({
-        data: tx.data,
-        value: tx.value,
+        data: txData,
+        value: getTxValue(tx),
       });
 
       if (!parsed || parsed.name !== 'transferRemote') {
@@ -353,13 +357,7 @@ export class MockExternalBridge implements IExternalBridge {
       }
 
       const amount = parsed.args[2];
-      if (BigNumber.isBigNumber(amount)) {
-        return amount.toBigInt();
-      }
-      if (typeof amount === 'bigint') {
-        return amount;
-      }
-      return BigInt(String(amount));
+      return toBigIntLike(amount);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
@@ -369,4 +367,61 @@ export class MockExternalBridge implements IExternalBridge {
       throw new Error(`Failed to parse transferred amount: ${message}`);
     }
   }
+}
+
+function toBigIntLike(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toBigInt' in value &&
+    typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
+  ) {
+    return (value as { toBigInt: () => bigint }).toBigInt();
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
+    return BigInt((value as { toString: () => string }).toString());
+  }
+  throw new Error(`Unable to convert value to bigint: ${String(value)}`);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function getTxData(tx: unknown): string | undefined {
+  const record = asRecord(tx);
+  if (!record) return undefined;
+
+  const data = record.data;
+  if (typeof data === 'string' && data.startsWith('0x')) return data;
+
+  const input = record.input;
+  if (typeof input === 'string' && input.startsWith('0x')) return input;
+
+  const nestedTx = record.transaction;
+  if (nestedTx !== undefined) return getTxData(nestedTx);
+
+  return undefined;
+}
+
+function getTxValue(tx: unknown): unknown {
+  const record = asRecord(tx);
+  if (!record) return undefined;
+
+  if ('value' in record) return record.value;
+
+  const nestedTx = record.transaction;
+  if (nestedTx !== undefined) return getTxValue(nestedTx);
+
+  return undefined;
 }

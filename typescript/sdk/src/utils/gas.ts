@@ -1,24 +1,39 @@
-import { BigNumber, providers } from 'ethers';
-
-import { IMessageRecipient } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-export const DEFAULT_CALL_GAS_FALLBACK = BigNumber.from(50_000);
+export const DEFAULT_CALL_GAS_FALLBACK = 50_000n;
+
+type GasValue = bigint | { toString(): string };
+type GasEstimatingProvider = {
+  estimateGas(tx: {
+    to: Address;
+    data: string;
+    value?: bigint;
+  }): Promise<GasValue>;
+};
 
 export interface EstimateHandleGasParams {
   origin: number;
   sender: string;
   body: string;
   mailbox: Address;
-  recipient: IMessageRecipient;
+  recipient: {
+    estimateGas: {
+      handle: (
+        origin: number,
+        sender: string,
+        body: string,
+        overrides?: { from?: Address },
+      ) => Promise<GasValue>;
+    };
+  };
 }
 
 export interface EstimateCallGasParams {
-  provider: providers.Provider;
+  provider: GasEstimatingProvider;
   to: Address;
   data: string;
-  value?: BigNumber;
-  fallback?: BigNumber;
+  value?: bigint;
+  fallback?: bigint;
 }
 
 /**
@@ -27,15 +42,16 @@ export interface EstimateCallGasParams {
  */
 export async function estimateHandleGasForRecipient(
   params: EstimateHandleGasParams,
-): Promise<BigNumber | null> {
+): Promise<bigint | null> {
   try {
     // await required for catch to handle promise rejection
-    return await params.recipient.estimateGas.handle(
+    const gasEstimate = await params.recipient.estimateGas.handle(
       params.origin,
       params.sender,
       params.body,
       { from: params.mailbox },
     );
+    return BigInt(gasEstimate.toString());
   } catch {
     return null;
   }
@@ -47,15 +63,16 @@ export async function estimateHandleGasForRecipient(
  */
 export async function estimateCallGas(
   params: EstimateCallGasParams,
-): Promise<BigNumber> {
+): Promise<bigint> {
   const fallback = params.fallback ?? DEFAULT_CALL_GAS_FALLBACK;
   try {
     // await required for catch to handle promise rejection
-    return await params.provider.estimateGas({
+    const gasEstimate = await params.provider.estimateGas({
       to: params.to,
       data: params.data,
       value: params.value,
     });
+    return BigInt(gasEstimate.toString());
   } catch {
     return fallback;
   }

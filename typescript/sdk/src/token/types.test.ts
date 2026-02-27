@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -13,7 +13,7 @@ import {
   isCollateralTokenConfig,
 } from './types.js';
 
-const SOME_ADDRESS = ethers.Wallet.createRandom().address;
+const SOME_ADDRESS = privateKeyToAccount(generatePrivateKey()).address;
 const COLLATERAL_TYPES = [
   TokenType.collateral,
   TokenType.collateralUri,

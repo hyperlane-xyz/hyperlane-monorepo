@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { type Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   type ERC20Test,
@@ -12,13 +12,15 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert } from '@hyperlane-xyz/utils';
+import { type Address, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -43,7 +45,7 @@ import {
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let chain3DomainId: number;
@@ -63,11 +65,12 @@ describe('hyperlane warp check e2e tests', async function () {
     chain3DomainId = (readYamlOrJson(CHAIN_3_METADATA_PATH) as ChainMetadata)
       .domainId;
 
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
       chainMetadata.rpcUrls[0].http,
     );
 
-    signer = new Wallet(ANVIL_KEY).connect(provider);
+    signer = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();
@@ -98,7 +101,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   // Reset config before each test to avoid test changes intertwining
   beforeEach(async function () {
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,

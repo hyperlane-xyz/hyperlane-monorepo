@@ -1,11 +1,12 @@
 import { expect } from 'chai';
-import { type Signer, Wallet, ethers } from 'ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
   type CoreConfig,
   type DerivedCoreConfig,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   type ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
@@ -14,6 +15,7 @@ import {
   type Domain,
   ProtocolType,
   addressToBytes32,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -52,7 +54,7 @@ describe('hyperlane core apply e2e tests', async function () {
     CORE_READ_CHAIN_3_CONFIG_PATH,
   );
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let initialOwnerAddress: Address;
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
@@ -61,13 +63,14 @@ describe('hyperlane core apply e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
       chain2Metadata.rpcUrls[0].http,
     );
 
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_KEY));
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
@@ -107,7 +110,9 @@ describe('hyperlane core apply e2e tests', async function () {
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(updatedConfig.owner).to.equal(initialOwnerAddress);
-    expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdmin.address);
+    expect(updatedConfig.proxyAdmin?.address?.toLowerCase()).to.equal(
+      newProxyAdmin.address.toLowerCase(),
+    );
     // Assuming that the ProtocolFeeHook is used for deployment
     expect(
       (updatedConfig.requiredHook as ProtocolFeeHookConfig).owner,

@@ -46,9 +46,8 @@ export class AltVMDeployer {
       } else {
         // This should never happen with proper type guards above
         const exhaustiveCheck: never = config;
-        throw new Error(
-          `Token type ${(exhaustiveCheck as any).type} not supported on chain ${chain}`,
-        );
+        void exhaustiveCheck;
+        throw new Error(`Token type not supported on chain ${chain}`);
       }
 
       if (

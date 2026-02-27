@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -16,9 +15,6 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
-  IStaticWeightedMultisigIsm,
-  IncrementalDomainRoutingIsm,
-  IncrementalDomainRoutingIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -56,6 +52,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import type { EvmTransactionResponseLike } from '../providers/evmTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
@@ -82,6 +79,12 @@ const ismFactories = {
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
+};
+
+type TxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
+type ParsedLogDescription = {
+  name: string;
+  args: Record<string, unknown>;
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -191,7 +194,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
-      case IsmType.INCREMENTAL_ROUTING:
       case IsmType.AMOUNT_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
@@ -451,15 +453,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IRoutingIsm> {
     const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
-    const contracts = this.getContracts(destination);
     const domainRoutingIsmFactory =
-      config.type === IsmType.INCREMENTAL_ROUTING
-        ? contracts.incrementalDomainRoutingIsmFactory
-        : contracts.domainRoutingIsmFactory;
-    let routingIsm:
-      | DomainRoutingIsm
-      | IncrementalDomainRoutingIsm
-      | DefaultFallbackRoutingIsm;
+      this.getContracts(destination).domainRoutingIsmFactory;
+    let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
       const domainId = this.multiProvider.tryGetDomainId(domain);
@@ -551,7 +547,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         isms[origin] = ism.address;
       }
       const submoduleAddresses = Object.values(isms);
-      let receipt: ethers.providers.TransactionReceipt;
+      let receipt: TxReceipt;
       if (config.type === IsmType.FALLBACK_ROUTING) {
         // deploying new fallback routing ISM
         if (!mailbox) {
@@ -575,7 +571,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             safeConfigDomains,
             submoduleAddresses,
             overrides,
-          ),
+          ) as Promise<EvmTransactionResponseLike>,
         );
       } else {
         // deploying new domain routing ISM
@@ -590,14 +586,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
-          const factory =
-            config.type === IsmType.INCREMENTAL_ROUTING
-              ? new IncrementalDomainRoutingIsm__factory()
-              : new DomainRoutingIsm__factory();
           const routingIsm = await this.deployer?.deployContractFromFactory(
             destination,
-            factory,
-            config.type,
+            new DomainRoutingIsm__factory(),
+            IsmType.ROUTING,
             [],
           );
           await routingIsm['initialize(address,uint32[],address[])'](
@@ -630,8 +622,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(destination, tx);
 
         // TODO: Break this out into a generalized function
-        const dispatchLogs = receipt.logs
-          .map((log) => {
+        const dispatchLogs = (receipt.logs ?? [])
+          .map((log: any) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
             } catch {
@@ -639,18 +631,23 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             }
           })
           .filter(
-            (log): log is ethers.utils.LogDescription =>
+            (log: any): log is ParsedLogDescription =>
               !!log && log.name === 'ModuleDeployed',
           );
         if (dispatchLogs.length === 0) {
           throw new Error('No ModuleDeployed event found');
         }
-        const moduleAddress = dispatchLogs[0].args['module'];
-        const factory =
-          config.type === IsmType.INCREMENTAL_ROUTING
-            ? IncrementalDomainRoutingIsm__factory
-            : DomainRoutingIsm__factory;
-        routingIsm = factory.connect(
+        const moduleLog = dispatchLogs[0];
+        const moduleArgs = moduleLog?.args as
+          | Record<string, unknown>
+          | undefined;
+        const moduleValue = moduleArgs?.module;
+        assert(
+          typeof moduleValue === 'string',
+          'ModuleDeployed event is missing module address',
+        );
+        const moduleAddress = moduleValue;
+        routingIsm = DomainRoutingIsm__factory.connect(
           moduleAddress,
           this.multiProvider.getSigner(destination),
         );
@@ -714,10 +711,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress(address[],uint8)'](
+    const getAddressResult = (await factory['getAddress(address[],uint8)'](
       sorted,
       threshold,
-    );
+    )) as Address;
+    const address =
+      (await this.previewFactoryDeployAddress(
+        chain,
+        factory,
+        'deploy(address[],uint8)',
+        [sorted, threshold],
+      )) ?? getAddressResult;
+    if (!eqAddress(address, getAddressResult)) {
+      logger.debug(
+        `Factory getAddress mismatch on ${chain}, using deploy simulation address ${address}`,
+      );
+    }
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -732,10 +741,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         overrides,
       );
       // add gas buffer
-      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
-        ...overrides,
-      });
+      const hash = (await factory['deploy(address[],uint8)'](
+        sorted,
+        threshold,
+        {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        },
+      )) as EvmTransactionResponseLike;
 
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
@@ -750,16 +763,27 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   async deployStaticWeightedValidatorSet(
     chain: ChainName,
     factory: StaticWeightedValidatorSetFactory,
-    values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
+    values: any[],
     thresholdWeight = 66e8,
     logger: Logger,
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress((address,uint96)[],uint96)'](
-      sorted,
-      thresholdWeight,
-    );
+    const getAddressResult = (await factory[
+      'getAddress((address,uint96)[],uint96)'
+    ](sorted, thresholdWeight)) as Address;
+    const address =
+      (await this.previewFactoryDeployAddress(
+        chain,
+        factory,
+        'deploy((address,uint96)[],uint96)',
+        [sorted, thresholdWeight],
+      )) ?? getAddressResult;
+    if (!eqAddress(address, getAddressResult)) {
+      logger.debug(
+        `Weighted factory getAddress mismatch on ${chain}, using deploy simulation address ${address}`,
+      );
+    }
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -772,14 +796,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         'deploy((address,uint96)[],uint96)'
       ](sorted, thresholdWeight, overrides);
       // add gas buffer
-      const hash = await factory['deploy((address,uint96)[],uint96)'](
+      const hash = (await factory['deploy((address,uint96)[],uint96)'](
         sorted,
         thresholdWeight,
         {
           gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
         },
-      );
+      )) as EvmTransactionResponseLike;
 
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
@@ -789,5 +813,39 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       );
     }
     return address;
+  }
+
+  private async previewFactoryDeployAddress(
+    chain: ChainName,
+    factory: {
+      address: string;
+      interface: {
+        encodeFunctionData(
+          functionName: string,
+          args?: readonly unknown[],
+        ): string;
+        decodeFunctionResult(functionName: string, data: string): unknown;
+      };
+    },
+    signature: string,
+    args: readonly unknown[],
+  ): Promise<Address | undefined> {
+    try {
+      const data = factory.interface.encodeFunctionData(signature, args);
+      const result = await this.multiProvider.getProvider(chain).call({
+        to: factory.address,
+        data,
+      });
+      const decoded = factory.interface.decodeFunctionResult(signature, result);
+      if (Array.isArray(decoded) && typeof decoded[0] === 'string') {
+        return decoded[0] as Address;
+      }
+      if (typeof decoded === 'string') {
+        return decoded as Address;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
   }
 }

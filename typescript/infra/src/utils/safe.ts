@@ -1,4 +1,3 @@
-import { JsonRpcSigner } from '@ethersproject/providers';
 import SafeApiKit, {
   SafeMultisigTransactionListResponse,
 } from '@safe-global/api-kit';
@@ -9,9 +8,14 @@ import {
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
-import { BigNumber, ethers } from 'ethers';
-import { formatUnits } from 'ethers/lib/utils.js';
-import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
+import {
+  Hex,
+  decodeFunctionData,
+  formatUnits,
+  getAddress,
+  isHex,
+  parseAbi,
+} from 'viem';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
 import {
@@ -44,6 +48,8 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+
+type EvmSigner = ReturnType<MultiProvider['getSigner']>;
 
 /**
  * Retry helper for Safe API calls with random delay between 1-3 seconds.
@@ -197,7 +203,9 @@ export async function executeTx(
   const balance = await multiProvider
     .getProvider(chain)
     .getBalance(safeAddress);
-  if (balance.lt(estimate.safeTxGas)) {
+  const safeBalance = BigInt(balance.toString());
+  const estimatedGas = BigInt(estimate.safeTxGas.toString());
+  if (safeBalance < estimatedGas) {
     throw new Error(
       `Safe ${safeAddress} on ${chain} has insufficient balance (${balance.toString()}) for estimated gas (${
         estimate.safeTxGas
@@ -231,7 +239,7 @@ export async function proposeSafeTransaction(
   safeService: SafeApiKit.default,
   safeTransaction: SafeTransaction,
   safeAddress: Address,
-  signer: ethers.Signer,
+  signer: EvmSigner,
 ): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
   const senderSignature = await safeSdk.signTypedData(safeTransaction);
@@ -387,11 +395,38 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await (signer as JsonRpcSigner)._signTypedData(
-      typedData.domain,
-      { DeleteRequest: typedData.types.DeleteRequest },
-      typedData.message,
-    );
+    const signerWithTypedData = signer as EvmSigner & {
+      _signTypedData?: (
+        domain: typeof typedData.domain,
+        types: { DeleteRequest: typeof typedData.types.DeleteRequest },
+        value: typeof typedData.message,
+      ) => Promise<string>;
+      signTypedData?: (args: {
+        domain: typeof typedData.domain;
+        types: { DeleteRequest: typeof typedData.types.DeleteRequest };
+        primaryType: 'DeleteRequest';
+        message: typeof typedData.message;
+      }) => Promise<string>;
+    };
+    let signature: string;
+    if (signerWithTypedData._signTypedData) {
+      signature = await signerWithTypedData._signTypedData(
+        typedData.domain,
+        { DeleteRequest: typedData.types.DeleteRequest },
+        typedData.message,
+      );
+    } else if (signerWithTypedData.signTypedData) {
+      signature = await signerWithTypedData.signTypedData({
+        domain: typedData.domain,
+        types: { DeleteRequest: typedData.types.DeleteRequest },
+        primaryType: 'DeleteRequest',
+        message: typedData.message,
+      });
+    } else {
+      throw new Error(
+        `Signer for chain ${chain} does not support typed-data signing`,
+      );
+    }
 
     // Make the API call to delete the transaction
     const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
@@ -403,7 +438,10 @@ export async function deleteSafeTx(
           'User-Agent': 'node-fetch',
           Authorization: `Bearer ${safeApiKey}`,
         },
-        body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
+        body: JSON.stringify({
+          safeTxHash: safeTxHash,
+          signature: signature,
+        }),
       });
 
       if (res.status === 204) {
@@ -566,7 +604,7 @@ async function createSwapOwnerTransactions(
     transactions.push({
       to: safeAddress,
       data,
-      value: BigNumber.from(0),
+      value: 0n,
       description: `Swap safe owner ${oldOwner} with ${newOwner} (prevOwner: ${prevOwner})`,
     });
   }
@@ -592,7 +630,7 @@ async function createThresholdTransaction(
   return {
     to: thresholdTxData.to,
     data: thresholdTxData.data,
-    value: BigNumber.from(thresholdTxData.value),
+    value: BigInt(thresholdTxData.value.toString()),
     description: `Change safe threshold to ${newThreshold}`,
   };
 }
@@ -743,7 +781,10 @@ export async function getPendingTxsForChains(
 
       const balance = await safeSdk.getBalance();
       const nativeToken = await multiProvider.getNativeToken(chain);
-      const formattedBalance = formatUnits(balance, nativeToken.decimals);
+      const formattedBalance = formatUnits(
+        BigInt(balance.toString()),
+        nativeToken.decimals,
+      );
 
       pendingTxs.results.forEach(
         ({ nonce, submissionDate, safeTxHash, confirmations }) => {

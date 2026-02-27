@@ -1,5 +1,4 @@
-import { ethers } from 'ethers';
-import { Provider as ZKSyncProvider } from 'zksync-ethers';
+import { getAddress, keccak256, stringToHex, zeroAddress } from 'viem';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
@@ -8,7 +7,10 @@ import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
-export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
+export type EthersLikeProvider = {
+  getCode(address: Address): Promise<string>;
+  getStorageAt(address: Address, position: string): Promise<string>;
+};
 
 export type UpgradeConfig = {
   timelock: {
@@ -53,9 +55,9 @@ export async function proxyImplementation(
     '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
   );
   if (isStorageEmpty(storageValue)) {
-    return ethers.constants.AddressZero;
+    return zeroAddress;
   }
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return getAddress(`0x${storageValue.slice(26)}`);
 }
 
 export async function isInitialized(
@@ -68,8 +70,8 @@ export async function isInitialized(
   if (isStorageEmpty(storageValue)) {
     return false;
   }
-  const value = ethers.BigNumber.from(storageValue);
-  return value.eq(1) || value.eq(255);
+  const value = BigInt(storageValue);
+  return value === 1n || value === 255n;
 }
 
 export async function proxyAdmin(
@@ -83,15 +85,25 @@ export async function proxyAdmin(
     '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',
   );
   if (isStorageEmpty(storageValue)) {
-    return ethers.constants.AddressZero;
+    return zeroAddress;
   }
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return getAddress(`0x${storageValue.slice(26)}`);
 }
 
-export function proxyConstructorArgs<C extends ethers.Contract>(
+export function proxyConstructorArgs<
+  C extends {
+    address: string;
+    interface: {
+      encodeFunctionData(
+        functionName: string,
+        values?: readonly unknown[],
+      ): string;
+    };
+  },
+>(
   implementation: C,
   proxyAdmin: string,
-  initializeArgs?: Parameters<C['initialize']>,
+  initializeArgs?: readonly unknown[],
   initializeFnSignature = 'initialize',
 ): [string, string, string] {
   const initData = initializeArgs
@@ -108,7 +120,7 @@ export async function isProxy(
   proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
-  return !eqAddress(admin, ethers.constants.AddressZero);
+  return !eqAddress(admin, zeroAddress);
 }
 
 export function proxyAdminUpdateTxs(
@@ -182,7 +194,7 @@ const requiredProxyAdminFunctionSelectors = [
   'upgrade(address,address)',
   'upgradeAndCall(address,address,bytes)',
   'changeProxyAdmin(address,address)',
-].map((func) => ethers.utils.id(func).substring(2, 10));
+].map((func) => keccak256(stringToHex(func)).substring(2, 10));
 
 /**
  * Check if contract bytecode matches ProxyAdmin patterns

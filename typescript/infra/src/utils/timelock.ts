@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BigNumber, ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import {
@@ -21,6 +21,7 @@ import {
   isObjEmpty,
   retryAsync,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
@@ -50,9 +51,14 @@ export async function timelockConfigMatches({
 
     // Ensure the min delay is set to the expected value
     const minDelay = await timelock.getMinDelay();
-    if (!minDelay.eq(expectedConfig.minimumDelay)) {
+    const minDelayValue = toBigInt(
+      minDelay,
+      `Cannot convert timelock delay to bigint for ${chain}`,
+    );
+    const expectedMinDelayValue = BigInt(expectedConfig.minimumDelay);
+    if (minDelayValue !== expectedMinDelayValue) {
       issues.push(
-        `Min delay mismatch for ${chain} at ${address}: actual delay ${minDelay.toNumber()} !== expected delay ${expectedConfig.minimumDelay}`,
+        `Min delay mismatch for ${chain} at ${address}: actual delay ${minDelayValue.toString()} !== expected delay ${expectedMinDelayValue.toString()}`,
       );
     }
 
@@ -60,7 +66,7 @@ export async function timelockConfigMatches({
     const expectedExecutors =
       expectedConfig.executors && expectedConfig.executors.length !== 0
         ? expectedConfig.executors
-        : [ethers.constants.AddressZero];
+        : [zeroAddress];
     const executorRoles = await Promise.all(
       expectedExecutors.map(async (executor) => {
         return timelock.hasRole(EXECUTOR_ROLE, executor);
@@ -183,7 +189,7 @@ export enum TimelockOperationStatus {
 type TimelockTransactionStatus = {
   chain: ChainName;
   id: string;
-  earliestExecution: BigNumber;
+  earliestExecution: bigint;
   executeTransactionData: HexString;
   predecessorId: HexString;
   salt: HexString;
@@ -244,7 +250,9 @@ async function getPendingTimelockTxsOnChain(
           timelockAddress,
           multiProvider.getProvider(chain),
         );
-        const earliestExecution = await timelockController.getTimestamp(tx.id);
+        const earliestExecution = BigInt(
+          (await timelockController.getTimestamp(tx.id)).toString(),
+        );
         return {
           chain,
           earliestExecution,

@@ -9,7 +9,7 @@ import {
   OwnableConfig,
   RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { mustGet, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
@@ -73,10 +73,10 @@ export type EnvironmentConfig = {
 };
 
 export function assertEnvironment(env: string): DeployEnvironment {
-  const envNames = objKeys(environments);
-  if (envNames.includes(env as any)) {
+  if (Object.prototype.hasOwnProperty.call(environments, env)) {
     return env as DeployEnvironment;
   }
+  const envNames = Object.keys(environments);
   throw new Error(`Invalid environment ${env}, must be one of ${envNames}`);
 }
 

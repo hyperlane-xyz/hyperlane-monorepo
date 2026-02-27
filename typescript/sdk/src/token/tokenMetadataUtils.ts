@@ -21,6 +21,7 @@ import {
   isTokenMetadata,
   isXERC20TokenConfig,
 } from './types.js';
+import { readAddressWithCall } from './ethCall.js';
 
 export async function deriveTokenMetadata(
   multiProvider: MultiProvider,
@@ -91,16 +92,18 @@ export async function deriveTokenMetadata(
       let token: string;
       switch (config.type) {
         case TokenType.XERC20Lockbox:
-          token = await IXERC20Lockbox__factory.connect(
-            config.token,
+          token = await readAddressWithCall(
             provider,
-          ).callStatic.ERC20();
+            IXERC20Lockbox__factory.connect(config.token, provider),
+            'ERC20',
+          );
           break;
         case TokenType.collateralVault:
-          token = await IERC4626__factory.connect(
-            config.token,
+          token = await readAddressWithCall(
             provider,
-          ).callStatic.asset();
+            IERC4626__factory.connect(config.token, provider),
+            'asset',
+          );
           break;
         default:
           token = config.token;

@@ -83,7 +83,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
     );
 
-    let defaultIsm = await mailbox.defaultIsm();
+    let defaultIsm: Address = await mailbox.defaultIsm();
     const matches = await moduleMatchesConfig(
       chain,
       defaultIsm,
@@ -159,8 +159,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       defaultHook.address,
       (_mailbox) => _mailbox.defaultHook(),
-      (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setDefaultHook(_hook, { ...txOverrides }),
+      async (_mailbox, _hook) => ({
+        to: _mailbox.address,
+        data: _mailbox.interface.encodeFunctionData('setDefaultHook', [_hook]),
+        ...txOverrides,
+      }),
     );
 
     await this.configureHook(
@@ -168,8 +171,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       requiredHook.address,
       (_mailbox) => _mailbox.requiredHook(),
-      (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setRequiredHook(_hook, { ...txOverrides }),
+      async (_mailbox, _hook) => ({
+        to: _mailbox.address,
+        data: _mailbox.interface.encodeFunctionData('setRequiredHook', [_hook]),
+        ...txOverrides,
+      }),
     );
 
     await this.configureIsm(
@@ -177,8 +183,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       defaultIsm,
       (_mailbox) => _mailbox.defaultIsm(),
-      (_mailbox, _module) =>
-        _mailbox.populateTransaction.setDefaultIsm(_module),
+      async (_mailbox, _module) => ({
+        to: _mailbox.address,
+        data: _mailbox.interface.encodeFunctionData('setDefaultIsm', [_module]),
+      }),
     );
 
     return mailbox;
@@ -262,7 +270,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   ): Promise<HyperlaneContracts<CoreFactories>> {
     if (config.remove) {
       // skip deploying to chains configured to be removed
-      return undefined as any;
+      return {} as HyperlaneContracts<CoreFactories>;
     }
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);

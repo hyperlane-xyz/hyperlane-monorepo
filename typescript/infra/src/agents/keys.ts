@@ -1,7 +1,8 @@
-import { ethers } from 'ethers';
-import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
-
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  LocalAccountViemSigner,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -10,6 +11,11 @@ import { Role } from '../roles.js';
 import { assertChain, assertContext, assertRole } from '../utils/utils.js';
 
 import { parseKeyIdentifier } from './agent.js';
+
+export type EvmProvider = ReturnType<MultiProvider['getProvider']>;
+export type EvmSigner =
+  | ReturnType<MultiProvider['getSigner']>
+  | LocalAccountViemSigner;
 
 // Base class to represent keys used to run Hyperlane agents.
 export abstract class BaseAgentKey {
@@ -65,9 +71,7 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   // Returns new address
   abstract update(): Promise<string>;
 
-  abstract getSigner(
-    provider: ethers.providers.Provider | ZkProvider,
-  ): Promise<ethers.Signer | ZkWallet>;
+  abstract getSigner(provider: EvmProvider): Promise<EvmSigner>;
 
   abstract privateKey: string;
 

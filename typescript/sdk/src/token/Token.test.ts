@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { SystemProgram } from '@solana/web3.js';
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -250,7 +250,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
   Record<ProtocolType, Address>
 > = {
-  [ProtocolType.Ethereum]: ethers.constants.AddressZero,
+  [ProtocolType.Ethereum]: zeroAddress,
   [ProtocolType.Cosmos]:
     'neutron13we0myxwzlpx8l5ark8elw5gj5d59dl6cjkzmt80c5q5cv5rt54qvzkv2a',
   [ProtocolType.Sealevel]: 'EK6cs8jNnu2d9pmKTGf1Bvre9oW2xNhcCKNdLKx6t74w',

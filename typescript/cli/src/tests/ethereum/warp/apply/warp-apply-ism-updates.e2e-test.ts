@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
@@ -68,7 +68,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
     {
       description:
         'should allow updating the ism configuration to the default ism (0 address)',
-      targetIsmConfig: ethers.constants.AddressZero,
+      targetIsmConfig: zeroAddress,
       initialIsmConfig: {
         type: IsmType.PAUSABLE,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,

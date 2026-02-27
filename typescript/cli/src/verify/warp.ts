@@ -1,5 +1,3 @@
-import { type ContractFactory } from 'ethers';
-
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   type ChainMap,
@@ -118,13 +116,14 @@ type VerifiableTokenType = Exclude<
   DeployableTokenType,
   typeof TokenType.syntheticUri | typeof TokenType.collateralUri
 >;
+type VerifiableFactory = { bytecode: string };
 
 async function getWarpRouteFactory(
   multiProvider: MultiProvider,
   chainName: string,
   warpRouteAddress: Address,
 ): Promise<{
-  factory: ContractFactory;
+  factory: VerifiableFactory;
   tokenType: VerifiableTokenType;
 }> {
   const warpRouteReader = new EvmWarpRouteReader(multiProvider, chainName);

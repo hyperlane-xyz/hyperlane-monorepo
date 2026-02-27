@@ -1,12 +1,18 @@
-import { providers } from 'ethers';
-
 import { Address, isValidAddressEvm, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
+import type { ChainName, EvmProvider, EvmSigner } from '../types.js';
 
 const ENDPOINT_PREFIX = 'http';
 const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
+const LOCAL_FORK_SMART_PROVIDER_OPTIONS = {
+  // Local anvil fork can block on upstream state fetches for first-touch calls.
+  // Use a larger fallback window to avoid false timeout failures in CI.
+  fallbackStaggerMs: 7_000,
+  maxRetries: 1,
+  baseRetryDelayMs: 250,
+} as const;
 
 export enum ANVIL_RPC_METHODS {
   RESET = 'anvil_reset',
@@ -76,7 +82,7 @@ export const setFork = async (
 export const impersonateAccount = async (
   address: Address,
   anvilEndPoint?: string,
-): Promise<providers.JsonRpcSigner> => {
+): Promise<EvmSigner> => {
   rootLogger.info(`Impersonating account (${address})...`);
 
   const provider = getLocalProvider({ urlOverride: anvilEndPoint });
@@ -125,7 +131,7 @@ export const getLocalProvider = ({
   anvilIPAddr?: string;
   anvilPort?: number;
   urlOverride?: string;
-} = {}): providers.JsonRpcProvider => {
+} = {}): EvmProvider => {
   let envUrl;
   if (anvilIPAddr && anvilPort)
     envUrl = `${ENDPOINT_PREFIX}${anvilIPAddr}:${anvilPort}`;
@@ -141,11 +147,15 @@ export const getLocalProvider = ({
 
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
-  return new providers.JsonRpcProvider(url);
+  return HyperlaneSmartProvider.fromRpcUrl(
+    31337,
+    url,
+    LOCAL_FORK_SMART_PROVIDER_OPTIONS,
+  );
 };
 
 export async function setBalance(
-  provider: providers.JsonRpcProvider,
+  provider: EvmProvider,
   address: Address,
   balanceWei: string,
 ): Promise<void> {
@@ -153,7 +163,7 @@ export async function setBalance(
 }
 
 export async function setStorageAt(
-  provider: providers.JsonRpcProvider,
+  provider: EvmProvider,
   contractAddress: Address,
   slot: string,
   value: string,
@@ -165,35 +175,30 @@ export async function setStorageAt(
   ]);
 }
 
-export async function mine(
-  provider: providers.JsonRpcProvider,
-  blocks = 1,
-): Promise<void> {
+export async function mine(provider: EvmProvider, blocks = 1): Promise<void> {
   await provider.send(ANVIL_RPC_METHODS.MINE, [blocks]);
 }
 
 export async function increaseTime(
-  provider: providers.JsonRpcProvider,
+  provider: EvmProvider,
   seconds: number,
 ): Promise<void> {
   await provider.send(ANVIL_RPC_METHODS.INCREASE_TIME, [seconds]);
 }
 
-export async function snapshot(
-  provider: providers.JsonRpcProvider,
-): Promise<string> {
-  return provider.send(ANVIL_RPC_METHODS.SNAPSHOT, []);
+export async function snapshot(provider: EvmProvider): Promise<string> {
+  return provider.send<string>(ANVIL_RPC_METHODS.SNAPSHOT, []);
 }
 
 export async function revertToSnapshot(
-  provider: providers.JsonRpcProvider,
+  provider: EvmProvider,
   snapshotId: string,
 ): Promise<boolean> {
-  return provider.send(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
+  return provider.send<boolean>(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
 }
 
 export async function impersonateAccounts(
-  provider: providers.JsonRpcProvider,
+  provider: EvmProvider,
   accounts: string[],
 ): Promise<void> {
   await Promise.all(

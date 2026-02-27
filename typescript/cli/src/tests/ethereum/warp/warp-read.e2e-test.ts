@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, type WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -68,7 +68,7 @@ describe('hyperlane warp read e2e tests', async function () {
       hyperlaneCore3.deployOrUseExistingCore(ANVIL_KEY),
     ]);
 
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
   });
 
   before(async function () {

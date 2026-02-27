@@ -107,6 +107,61 @@ interface AleoIgpData {
   hook_owner: string;
 }
 
+interface AleoDestinationGasConfigData {
+  exchange_rate: string;
+  gas_price: string;
+  gas_overhead: string;
+}
+
+function normalizeDestinationGasValue(
+  value: unknown,
+  fieldName: string,
+): string {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint'
+  ) {
+    return value.toString();
+  }
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
+    const normalized = (value as { toString(): string }).toString();
+    assert(
+      normalized.length > 0 && normalized !== '[object Object]',
+      `Invalid ${fieldName} value`,
+    );
+    return normalized;
+  }
+
+  assert(false, `Invalid ${fieldName} value type: ${typeof value}`);
+}
+
+function parseDestinationGasConfig(raw: unknown): AleoDestinationGasConfigData {
+  assert(
+    typeof raw === 'object' && raw !== null,
+    `Expected destination gas config to be an object but got ${typeof raw}`,
+  );
+
+  const config = raw as Record<string, unknown>;
+  return {
+    exchange_rate: normalizeDestinationGasValue(
+      config.exchange_rate,
+      'exchange_rate',
+    ),
+    gas_price: normalizeDestinationGasValue(config.gas_price, 'gas_price'),
+    gas_overhead: normalizeDestinationGasValue(
+      config.gas_overhead,
+      'gas_overhead',
+    ),
+  };
+}
+
 /**
  * Query the configuration for an IGP (Interchain Gas Paymaster) hook.
  *
@@ -186,7 +241,7 @@ export async function getIgpHookConfig(
       programId,
       'destination_gas_configs',
       gasConfigKey.toString(),
-      (raw) => raw as any,
+      parseDestinationGasConfig,
     );
 
     // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
@@ -196,10 +251,10 @@ export async function getIgpHookConfig(
 
     destinationGasConfigs[gasConfigKey.toObject().destination] = {
       gasOracle: {
-        tokenExchangeRate: destinationGasConfig.exchange_rate.toString(),
-        gasPrice: destinationGasConfig.gas_price.toString(),
+        tokenExchangeRate: destinationGasConfig.exchange_rate,
+        gasPrice: destinationGasConfig.gas_price,
       },
-      gasOverhead: destinationGasConfig.gas_overhead.toString(),
+      gasOverhead: destinationGasConfig.gas_overhead,
     };
   }
 

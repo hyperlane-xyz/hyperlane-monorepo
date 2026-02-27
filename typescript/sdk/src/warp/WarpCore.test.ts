@@ -399,7 +399,7 @@ describe('WarpCore', () => {
     const testGetTxs = async (
       token: Token,
       destination: ChainName,
-      providerType = ProviderType.EthersV5,
+      providerType = ProviderType.Viem,
     ) => {
       const result = await warpCore.getTransferRemoteTxs({
         originTokenAmount: token.amount(TRANSFER_AMOUNT),

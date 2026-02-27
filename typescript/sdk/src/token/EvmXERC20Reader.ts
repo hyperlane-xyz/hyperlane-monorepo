@@ -125,17 +125,44 @@ export class EvmXERC20Reader extends HyperlaneReader {
 
     const rawLogs = await this.provider.getLogs(filter);
 
-    const logs = rawLogs.map((log) => ({
-      address: log.address as `0x${string}`,
-      blockHash: log.blockHash as `0x${string}`,
-      blockNumber: BigInt(log.blockNumber),
-      data: log.data as `0x${string}`,
-      logIndex: log.logIndex,
-      transactionHash: log.transactionHash as `0x${string}`,
-      transactionIndex: log.transactionIndex,
-      removed: log.removed,
-      topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
-    }));
+    const logs = rawLogs.flatMap((rawLog) => {
+      const log = rawLog as {
+        address?: unknown;
+        blockHash?: unknown;
+        blockNumber?: unknown;
+        data?: unknown;
+        logIndex?: unknown;
+        transactionHash?: unknown;
+        transactionIndex?: unknown;
+        removed?: unknown;
+        topics?: unknown;
+      };
+      if (
+        typeof log.address !== 'string' ||
+        typeof log.blockHash !== 'string' ||
+        typeof log.blockNumber === 'undefined' ||
+        typeof log.data !== 'string' ||
+        typeof log.transactionHash !== 'string' ||
+        !Array.isArray(log.topics) ||
+        !log.topics.length ||
+        !log.topics.every((topic) => typeof topic === 'string')
+      ) {
+        return [];
+      }
+      return [
+        {
+          address: log.address as `0x${string}`,
+          blockHash: log.blockHash as `0x${string}`,
+          blockNumber: BigInt(log.blockNumber as string | number | bigint),
+          data: log.data as `0x${string}`,
+          logIndex: Number(log.logIndex ?? 0),
+          transactionHash: log.transactionHash as `0x${string}`,
+          transactionIndex: Number(log.transactionIndex ?? 0),
+          removed: Boolean(log.removed),
+          topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+        },
+      ];
+    });
 
     const parsedLogs = parseEventLogs({
       abi: XERC20_VS_ABI,

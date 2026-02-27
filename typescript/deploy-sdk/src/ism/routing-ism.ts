@@ -84,9 +84,8 @@ export class RoutingIsmWriter implements ArtifactWriter<
       } else {
         // This should never happen - all artifact states are handled above
         const _exhaustiveCheck: never = nestedArtifact;
-        this.logger.error(
-          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
-        );
+        void _exhaustiveCheck;
+        throw new Error(`Unexpected artifact state for domain ${domainId}`);
       }
     }
 
@@ -179,9 +178,8 @@ export class RoutingIsmWriter implements ArtifactWriter<
       } else {
         // This should never happen - all artifact states are handled above
         const _exhaustiveCheck: never = domainIsmConfig;
-        this.logger.error(
-          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
-        );
+        void _exhaustiveCheck;
+        throw new Error(`Unexpected artifact state for domain ${domainId}`);
       }
     }
 

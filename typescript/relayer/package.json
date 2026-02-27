@@ -44,12 +44,12 @@
     "bundle": "rm -rf ./bundle && ncc build ./dist/fs/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
-    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "lint": "eslint -c ./eslint.config.mjs \"./src/**/*.ts\" --ignore-pattern \"**/*.test.ts\" --ignore-pattern \"**/*.hardhat-test.ts\" --ignore-pattern \"**/*.e2e-test.ts\" --ignore-pattern \"**/*.foundry-test.ts\"",
     "format": "oxfmt --write ./src",
     "test": "pnpm test:unit && pnpm test:hardhat",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:hardhat": "mkdir -p ./artifacts && NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "start": "node dist/fs/service.js",
     "start:dev": "tsx src/fs/service.ts"
   },
@@ -65,6 +65,7 @@
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
+    "viem": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"

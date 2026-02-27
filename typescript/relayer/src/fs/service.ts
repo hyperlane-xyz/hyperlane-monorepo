@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import { Wallet } from 'ethers';
 import { z } from 'zod';
 
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { LocalAccountViemSigner, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  ensure0x,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -61,7 +61,9 @@ async function main(): Promise<void> {
     version: VERSION,
   });
 
-  const signer = new Wallet(privateKey);
+  const signer = new LocalAccountViemSigner(
+    ensure0x(privateKey) as `0x${string}`,
+  );
   const enableMetrics = env.PROMETHEUS_ENABLED !== 'false';
 
   logger.info(

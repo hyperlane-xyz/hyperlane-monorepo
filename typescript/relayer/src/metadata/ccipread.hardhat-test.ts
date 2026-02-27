@@ -1,12 +1,11 @@
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
-import { ethers } from 'ethers';
-import hre from 'hardhat';
 import sinon from 'sinon';
+import { type Hex, hexToBytes, recoverMessageAddress } from 'viem';
 
 import { TestCcipReadIsm, TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
   EvmIsmReader,
+  HardhatSignerWithAddress,
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
@@ -14,6 +13,7 @@ import {
   OffchainLookupIsmConfig,
   TestCoreDeployer,
   TestRecipientDeployer,
+  getHardhatSigners,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress } from '@hyperlane-xyz/utils';
@@ -22,6 +22,7 @@ import { BaseMetadataBuilder } from './builder.js';
 import { MetadataContext, isMetadataBuildable } from './types.js';
 
 const OFFCHAIN_LOOKUP_SERVER_URL = 'http://example.com/namespace';
+
 describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
@@ -30,10 +31,11 @@ describe('Offchain Lookup ISM Integration', () => {
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
+  let signers: HardhatSignerWithAddress[];
 
   beforeEach(async () => {
     // Set up a local test multi-provider and Hyperlane core
-    const signers = await hre.ethers.getSigners();
+    signers = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({
       signer: signers[0],
     });
@@ -104,8 +106,7 @@ describe('Offchain Lookup ISM Integration', () => {
 
     // Finally, call mailbox.process on test2 with the metadata and message
     const mailbox = core.getContracts('test2').mailbox;
-    await expect(mailbox.process(result.metadata, message.message)).to.not.be
-      .reverted;
+    await mailbox.process(result.metadata, message.message);
   });
 
   it('sends signature field in request when calling fetch', async () => {
@@ -145,17 +146,19 @@ describe('Offchain Lookup ISM Integration', () => {
     expect(payload).to.include.keys('sender', 'data', 'signature');
     expect(payload.sender).to.equal(ccipReadIsm.address);
 
-    const recovered = ethers.utils.verifyMessage(
-      ethers.utils.arrayify(
-        offchainLookupRequestMessageHash(
-          payload.sender,
-          payload.data,
-          OFFCHAIN_LOOKUP_SERVER_URL,
+    const recovered = await recoverMessageAddress({
+      message: {
+        raw: hexToBytes(
+          offchainLookupRequestMessageHash(
+            payload.sender,
+            payload.data,
+            OFFCHAIN_LOOKUP_SERVER_URL,
+          ) as Hex,
         ),
-      ),
-      payload.signature,
-    );
-    expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
+      },
+      signature: payload.signature as Hex,
+    });
+    expect(recovered.toLowerCase()).to.equal(signers[0].address.toLowerCase());
   });
 
   afterEach(() => {

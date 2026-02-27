@@ -24,13 +24,13 @@
     "dev": "tsc --watch",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "eslint -c ./eslint.config.mjs \"./src/**/*.ts\" --ignore-pattern \"src/test/**\" --ignore-pattern \"**/*.test.ts\" --ignore-pattern \"**/*.e2e-test.ts\" --ignore-pattern \"**/*.hardhat-test.ts\" --ignore-pattern \"**/*.foundry-test.ts\"",
     "prepublishOnly": "pnpm build",
     "format": "oxfmt --write ./src",
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:hardhat": "mkdir -p ./artifacts && NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "dependencies": {
@@ -64,6 +64,7 @@
     "@turnkey/api-key-stamper": "catalog:",
     "@turnkey/sdk-server": "catalog:",
     "@turnkey/solana": "catalog:",
+    "@turnkey/viem": "catalog:",
     "bignumber.js": "catalog:",
     "borsh": "catalog:",
     "compare-versions": "^6.1.1",
@@ -73,7 +74,6 @@
     "pino": "catalog:",
     "starknet": "catalog:",
     "viem": "catalog:",
-    "zksync-ethers": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

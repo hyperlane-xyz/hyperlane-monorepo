@@ -74,7 +74,9 @@ export function deepFind<I extends object, O extends I>(
     : Array.isArray(obj)
       ? obj
       : [];
-  return entries.map((e) => deepFind(e as any, func, depth - 1)).find((v) => v);
+  return entries
+    .map((e) => deepFind(e as unknown as I, func, depth - 1))
+    .find((v) => v);
 }
 
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}
@@ -273,7 +275,7 @@ export function diffObjMerge(
   }
 
   if (isObject(actual) && isObject(expected)) {
-    const ret: Record<string, ObjectDiff> = {};
+    const ret: { [key: string]: ObjectDiffOutput | ObjectDiff } = {};
 
     const actualKeys = new Set(Object.keys(actual));
     const expectedKeys = new Set(Object.keys(expected));
@@ -287,12 +289,12 @@ export function diffObjMerge(
       } else if (actualKeys.has(key) && !isNullish(actual[key])) {
         ret[key] = {
           actual: actual[key],
-          expected: '' as any,
+          expected: '',
         };
         isDiff = true;
       } else if (!isNullish(expected[key])) {
         ret[key] = {
-          actual: '' as any,
+          actual: '',
           expected: expected[key],
         };
         isDiff = true;

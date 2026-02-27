@@ -1,13 +1,15 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  LocalAccountViemSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -73,7 +75,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
         decimals: 18,
         mailbox: chain3Addresses!.mailbox,
         name: 'Ether',
-        owner: new Wallet(ANVIL_KEY).address,
+        owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
         symbol: 'ETH',
         type: TokenType.native,
       },
@@ -101,7 +103,9 @@ describe('hyperlane warp apply recovery extension tests', async function () {
     const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
     const tokenRouter = TokenRouter__factory.connect(
       deployedTokenRoute,
-      new Wallet(ANVIL_KEY).connect(multiProvider.getProvider(CHAIN_NAME_2)),
+      new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+        multiProvider.getProvider(CHAIN_NAME_2) as any,
+      ),
     );
     await tokenRouter.unenrollRemoteRouters([chain3Id]);
 
@@ -123,7 +127,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
         decimals: 18,
         mailbox: chain3Addresses!.mailbox,
         name: 'Ether',
-        owner: new Wallet(ANVIL_KEY).address,
+        owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
         symbol: 'ETH',
         type: TokenType.native,
       },

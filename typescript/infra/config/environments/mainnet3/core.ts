@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { parseUnits } from 'viem';
 
 import {
   AggregationHookConfig,
@@ -155,8 +155,8 @@ export const core: ChainMap<CoreConfig> = objMap(
           }
         : {
             type: HookType.PROTOCOL_FEE,
-            maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
-            protocolFee: BigNumber.from(0).toString(), // 0 wei
+            maxProtocolFee: parseUnits('1', 9).toString(), // 1 gwei of native token
+            protocolFee: 0n.toString(), // 0 wei
             beneficiary: owner.owner as Address, // Owner can be AccountConfig
             ...owner,
           };

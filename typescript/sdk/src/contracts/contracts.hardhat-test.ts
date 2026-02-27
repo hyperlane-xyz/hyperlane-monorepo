@@ -1,20 +1,24 @@
 import { expect } from 'chai';
-import { Contract, Signer, ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 import hre from 'hardhat';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import {
+  HardhatSignerWithAddress,
+  getHardhatSigners,
+} from '../test/hardhatViem.js';
 
 import { isAddressActive } from './contracts.js';
 
 describe('Contracts', () => {
-  let signer: Signer;
-  let contract: Contract;
+  let signer: HardhatSignerWithAddress;
+  let contract: Awaited<ReturnType<ERC20Test__factory['deploy']>>;
   let multiProvider: MultiProvider;
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const factory = new ERC20Test__factory(signer);
@@ -30,7 +34,7 @@ describe('Contracts', () => {
     it('should return false for AddressZero', async () => {
       const isActive = await isAddressActive(
         multiProvider.getProvider(TestChainName.test1),
-        ethers.constants.AddressZero,
+        zeroAddress,
       );
 
       expect(isActive).to.be.false;

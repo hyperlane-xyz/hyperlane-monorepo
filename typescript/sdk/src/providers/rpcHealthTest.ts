@@ -8,12 +8,13 @@ import {
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
-  EthersV5Provider,
+  EvmProvider,
   KnownProtocolType,
   ProviderType,
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
+  ViemProvider,
 } from './ProviderType.js';
 import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
 
@@ -28,8 +29,10 @@ export async function isRpcHealthy(
   const protocol = metadata.protocol as KnownProtocolType;
   const builder = protocolToDefaultProviderBuilder[protocol];
   const provider = builder([rpc], metadata.chainId);
-  if (provider.type === ProviderType.EthersV5)
-    return isEthersV5ProviderHealthy(provider.provider, metadata);
+  if (provider.type === ProviderType.Viem)
+    return isViemProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Evm)
+    return isEvmProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.SolanaWeb3)
     return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
   else if (
@@ -50,8 +53,8 @@ export async function isRpcHealthy(
     );
 }
 
-export async function isEthersV5ProviderHealthy(
-  provider: EthersV5Provider['provider'],
+export async function isEvmProviderHealthy(
+  provider: EvmProvider['provider'],
   metadata: ChainMetadata,
   mailboxAddress?: Address,
 ): Promise<boolean> {
@@ -78,6 +81,20 @@ export async function isEthersV5ProviderHealthy(
   }
   return true;
 }
+
+export async function isViemProviderHealthy(
+  provider: ViemProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  const blockNumber = await provider.getBlockNumber();
+  if (blockNumber < 0n) return false;
+  rootLogger.debug(`Block number is okay for ${metadata.name}`);
+  return true;
+}
+
+// TODO: Investigate removing this legacy alias once callers no longer use it.
+// Backwards-compatible alias; use isEvmProviderHealthy in new code.
+export const isEthersV5ProviderHealthy = isEvmProviderHealthy;
 
 export async function isSolanaWeb3ProviderHealthy(
   provider: SolanaWeb3Provider['provider'],

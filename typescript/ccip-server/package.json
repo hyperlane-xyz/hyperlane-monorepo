@@ -23,9 +23,6 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "catalog:",
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",
@@ -36,13 +33,13 @@
     "@prisma/client": "^7.3.0",
     "cors": "^2.8.5",
     "dotenv-flow": "^4.1.0",
-    "ethers": "catalog:",
     "express": "^4.17.1",
     "pg": "^8.17.2",
     "pino": "catalog:",
     "pino-http": "^8.6.1",
     "prisma": "^7.3.0",
     "prom-client": "catalog:",
+    "viem": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

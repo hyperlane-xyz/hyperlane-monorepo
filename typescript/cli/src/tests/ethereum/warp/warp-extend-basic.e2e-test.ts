@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -8,6 +8,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -72,7 +73,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
     };
@@ -130,7 +131,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
     };
@@ -187,7 +188,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     warpDeployConfig[CHAIN_NAME_2].owner = E2E_TEST_BURN_ADDRESS;
 
     // Extend with new config
-    const randomOwner = new Wallet(ANVIL_KEY).address;
+    const randomOwner = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
     const extendedConfig: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
@@ -256,7 +257,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
       gas: GAS,
@@ -320,7 +321,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
     };

@@ -152,7 +152,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev Overrides to quote for two messages: prove and finalize..
+     * @dev Overrides to quote for two messages: prove and finalize.
      */
     function _quoteGasPayment(
         uint32 _destination,

@@ -39,7 +39,7 @@ export const checkValidatorSetup = async (
   const errorSet = new Set<string>();
 
   const validatorsArray = Array.from(validators);
-  let validatorStorageLocations: string[][] | undefined;
+  let validatorStorageLocations: readonly (readonly string[])[] | undefined;
 
   try {
     validatorStorageLocations =

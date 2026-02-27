@@ -1,7 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import hre from 'hardhat';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
 import {
   ERC20Test,
@@ -30,6 +29,8 @@ import { ViolationType } from '../deploy/types.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
@@ -60,7 +61,7 @@ function addOverridesToConfig(
   );
 }
 describe('TokenDeployer', async () => {
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
@@ -72,7 +73,7 @@ describe('TokenDeployer', async () => {
   const totalSupply = '100000';
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const factories = await ismFactoryDeployer.deploy(
@@ -165,7 +166,9 @@ describe('TokenDeployer', async () => {
           return;
         }
 
-        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
+        await xerc20.transferOwnership(
+          privateKeyToAccount(generatePrivateKey()).address,
+        );
         await checker.check();
         checker.expectViolations({
           [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
@@ -187,7 +190,9 @@ describe('TokenDeployer', async () => {
           configWithOverrides,
         );
 
-        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
+        await xerc20.transferOwnership(
+          privateKeyToAccount(generatePrivateKey()).address,
+        );
         await checkerWithOwnerOverrides.check();
         checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
@@ -199,7 +204,9 @@ describe('TokenDeployer', async () => {
           return;
         }
 
-        await admin.transferOwnership(ethers.Wallet.createRandom().address);
+        await admin.transferOwnership(
+          privateKeyToAccount(generatePrivateKey()).address,
+        );
         await checker.check();
         checker.expectViolations({
           [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
@@ -220,7 +227,9 @@ describe('TokenDeployer', async () => {
           configWithOverrides,
         );
 
-        await admin.transferOwnership(ethers.Wallet.createRandom().address);
+        await admin.transferOwnership(
+          privateKeyToAccount(generatePrivateKey()).address,
+        );
         await checkerWithOwnerOverrides.check();
         checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,

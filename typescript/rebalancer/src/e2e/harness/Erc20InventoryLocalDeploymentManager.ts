@@ -1,9 +1,11 @@
-import { ethers, providers } from 'ethers';
+import { pad, toHex, zeroAddress } from 'viem';
 
 import {
   ERC20Test__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
+import { LocalAccountViemSigner, type MultiProvider } from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   type Erc20InventoryChainDeployment,
@@ -14,12 +16,28 @@ import {
 
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 
-const TOKEN_SCALE = ethers.BigNumber.from(1);
-const USDC_INITIAL_SUPPLY = '100000000000000';
+const TOKEN_SCALE = 1n;
+const USDC_INITIAL_SUPPLY = 100000000000000n;
 const USDC_DECIMALS = 6;
-const INVENTORY_INITIAL_ETH_BALANCE = '20000000000000000000'; // 20 ETH for gas/IGP
-const INVENTORY_INITIAL_ERC20_BALANCE = '20000000000'; // 20,000 USDC for signer
-const INVENTORY_ERC20_BRIDGE_SEED = '10000000000'; // 10,000 USDC bridge seed
+const INVENTORY_INITIAL_ETH_BALANCE = 20000000000000000000n; // 20 ETH for gas/IGP
+const INVENTORY_INITIAL_ERC20_BALANCE = 20000000000n; // 20,000 USDC for signer
+const INVENTORY_ERC20_BRIDGE_SEED = 10000000000n; // 10,000 USDC bridge seed
+
+type Erc20TokenLike = {
+  address: string;
+  transfer: (to: string, amount: bigint) => Promise<unknown>;
+};
+
+type Erc20RouteLike = {
+  address: string;
+  initialize: (owner: string, ism: string, hook: string) => Promise<unknown>;
+  enrollRemoteRouters: (
+    domains: number[],
+    routers: string[],
+  ) => Promise<unknown>;
+  addRebalancer: (address: string) => Promise<unknown>;
+  addBridge: (domain: number, bridge: string) => Promise<unknown>;
+};
 
 export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentManager<Erc20InventoryDeployedAddresses> {
   constructor(private readonly inventorySignerAddress: string) {
@@ -27,67 +45,66 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
   }
 
   protected async deployRoutes(
-    deployerWallet: ethers.Wallet,
-    providersByChain: Map<string, providers.JsonRpcProvider>,
+    deployerWallet: LocalAccountViemSigner,
+    providersByChain: Map<string, ReturnType<MultiProvider['getProvider']>>,
     chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string }
     >,
   ): Promise<Erc20InventoryDeployedAddresses> {
-    const deployerAddress = deployerWallet.address;
+    const deployerAddress = await deployerWallet.getAddress();
     const chainDeployments = {} as Record<
       TestChain,
       Erc20InventoryChainDeployment
     >;
-    const monitoredRouters = {} as Record<TestChain, ethers.Contract>;
-    const bridgeRouters = {} as Record<TestChain, ethers.Contract>;
-    const tokens = {} as Record<TestChain, ethers.Contract>;
+    const monitoredRouters = {} as Record<TestChain, Erc20RouteLike>;
+    const bridgeRouters = {} as Record<TestChain, Erc20RouteLike>;
+    const tokens = {} as Record<TestChain, Erc20TokenLike>;
 
     for (const config of TEST_CHAIN_CONFIGS) {
-      const provider = providersByChain.get(config.name)!;
+      const provider = providersByChain.get(config.name);
+      if (!provider) {
+        throw new Error(`Missing provider for chain ${config.name}`);
+      }
+
       await provider.send('anvil_setBalance', [
         this.inventorySignerAddress,
-        ethers.utils.hexValue(
-          ethers.BigNumber.from(INVENTORY_INITIAL_ETH_BALANCE),
-        ),
+        toHex(INVENTORY_INITIAL_ETH_BALANCE),
       ]);
 
       const deployer = deployerWallet.connect(provider);
 
-      const token = await new ERC20Test__factory(deployer).deploy(
+      const token = (await new ERC20Test__factory(deployer).deploy(
         'USDC',
         'USDC',
         USDC_INITIAL_SUPPLY,
         USDC_DECIMALS,
-      );
-      await token.deployed();
+      )) as Erc20TokenLike;
 
-      const monitoredRoute = await new HypERC20Collateral__factory(
+      const monitoredRoute = (await new HypERC20Collateral__factory(
         deployer,
       ).deploy(
         token.address,
         TOKEN_SCALE,
         TOKEN_SCALE,
         chainInfra[config.name].mailbox,
-      );
-      await monitoredRoute.deployed();
+      )) as Erc20RouteLike;
       await monitoredRoute.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
 
-      const bridgeRoute = await new HypERC20Collateral__factory(
+      const bridgeRoute = (await new HypERC20Collateral__factory(
         deployer,
       ).deploy(
         token.address,
         TOKEN_SCALE,
         TOKEN_SCALE,
         chainInfra[config.name].mailbox,
-      );
-      await bridgeRoute.deployed();
+      )) as Erc20RouteLike;
       await bridgeRoute.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
@@ -116,7 +133,7 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
           if (remote.name === chain.name) continue;
           remoteDomains.push(remote.domainId);
           remoteRouters.push(
-            ethers.utils.hexZeroPad(routeMap[remote.name].address, 32),
+            pad(routeMap[remote.name].address as `0x${string}`, { size: 32 }),
           );
         }
 
@@ -138,19 +155,25 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
       }
     }
 
-    const bridgeSeedAmount = ethers.BigNumber.from(INVENTORY_ERC20_BRIDGE_SEED);
-    const signerErc20Amount = ethers.BigNumber.from(
-      INVENTORY_INITIAL_ERC20_BALANCE,
-    );
     for (const chain of TEST_CHAIN_CONFIGS) {
-      const provider = providersByChain.get(chain.name)!;
+      const provider = providersByChain.get(chain.name);
+      if (!provider) {
+        throw new Error(`Missing provider for chain ${chain.name}`);
+      }
+
       const deployer = deployerWallet.connect(provider);
       const token = ERC20Test__factory.connect(
         tokens[chain.name].address,
         deployer,
       );
-      await token.transfer(bridgeRouters[chain.name].address, bridgeSeedAmount);
-      await token.transfer(this.inventorySignerAddress, signerErc20Amount);
+      await token.transfer(
+        bridgeRouters[chain.name].address,
+        INVENTORY_ERC20_BRIDGE_SEED,
+      );
+      await token.transfer(
+        this.inventorySignerAddress,
+        INVENTORY_INITIAL_ERC20_BALANCE,
+      );
     }
 
     return {

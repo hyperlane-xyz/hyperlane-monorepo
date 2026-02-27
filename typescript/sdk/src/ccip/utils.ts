@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { decodeFunctionResult, encodeFunctionData } from 'viem';
 
 import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
 
@@ -125,12 +125,19 @@ export async function isSupportedCCIPLane({
   if (!originRouter || !destinationSelector) {
     return false;
   }
-  const signer = multiProvider.getSigner(origin);
-  const ccipRouter = new ethers.Contract(
-    originRouter,
-    CCIP_ROUTER_CLIENT_ABI,
-    signer,
-  );
-
-  return ccipRouter.isChainSupported(destinationSelector);
+  const provider = multiProvider.getProvider(origin);
+  const data = encodeFunctionData({
+    abi: CCIP_ROUTER_CLIENT_ABI,
+    functionName: 'isChainSupported',
+    args: [BigInt(destinationSelector)],
+  });
+  const result = await provider.call({
+    to: originRouter,
+    data,
+  });
+  return decodeFunctionResult({
+    abi: CCIP_ROUTER_CLIENT_ABI,
+    functionName: 'isChainSupported',
+    data: result as `0x${string}`,
+  }) as boolean;
 }

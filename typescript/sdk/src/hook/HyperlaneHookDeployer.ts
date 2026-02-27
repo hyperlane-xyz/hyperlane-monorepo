@@ -125,7 +125,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Unsupported hook config: ${config}`);
     }
 
-    const deployedContracts = { [config.type]: hook } as any; // partial
+    const deployedContracts = {
+      [config.type]: hook,
+    } as unknown as HyperlaneContracts<HookFactories>; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
   }
@@ -357,7 +359,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         throw new Error(`Unexpected hook type: ${config}`);
     }
 
-    const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
+    const routingConfigs: any[] = [];
     let prevHookConfig: HookConfig | undefined;
     let prevHookAddress: Address | undefined;
     for (const [dest, hookConfig] of Object.entries(config.domains)) {

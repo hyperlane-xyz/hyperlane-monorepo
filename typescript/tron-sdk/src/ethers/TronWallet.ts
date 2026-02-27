@@ -20,6 +20,39 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
   tronTransaction: TronTransaction;
 }
 
+const TRON_TX_COUNTER_KEY = '__hyperlane_tron_tx_counter__';
+
+function nextTronTxExtension(): number {
+  const globalState = globalThis as typeof globalThis & {
+    [TRON_TX_COUNTER_KEY]?: number;
+  };
+  const next = (globalState[TRON_TX_COUNTER_KEY] ?? 0) + 1;
+  globalState[TRON_TX_COUNTER_KEY] = next;
+  return next;
+}
+
+function decodeTronErrorMessage(message: unknown): string | undefined {
+  if (typeof message !== 'string' || message.length === 0) return undefined;
+  const raw = message.startsWith('0x') ? message.slice(2) : message;
+  if (!/^[0-9a-fA-F]+$/.test(raw) || raw.length % 2 !== 0) {
+    return message;
+  }
+  try {
+    return Buffer.from(raw, 'hex').toString('utf8');
+  } catch {
+    return message;
+  }
+}
+
+function isContractAddressCollision(message: string | undefined): boolean {
+  return (
+    !!message &&
+    message.includes(
+      'Trying to create a contract with existing contract address',
+    )
+  );
+}
+
 /**
  * TronWallet extends ethers Wallet to handle Tron's transaction format.
  *
@@ -34,14 +67,6 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  * gasLimit to Tron's feeLimit using: feeLimit = gasLimit × gasPrice.
  */
 export class TronWallet extends Wallet {
-  /**
-   * Static counter to ensure unique txIDs across all wallet instances.
-   * Must be static because connect() creates new instances, and Tron txIDs
-   * are derived from transaction content + expiration. Without a shared counter,
-   * two instances could generate identical txIDs in the same block.
-   */
-  private static txCounter = 0;
-
   private readonly tronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
@@ -85,6 +110,43 @@ export class TronWallet extends Wallet {
   /** Tron doesn't use nonces */
   async getTransactionCount(_blockTag?: providers.BlockTag): Promise<number> {
     return 0;
+  }
+
+  private normalizeTransactionRequest(
+    transaction: providers.TransactionRequest,
+  ): providers.TransactionRequest {
+    const request = transaction as providers.TransactionRequest & {
+      gas?: ethers.BigNumberish;
+    };
+
+    return {
+      to: request.to,
+      from: request.from,
+      nonce: request.nonce,
+      gasLimit: request.gasLimit ?? request.gas,
+      gasPrice: request.gasPrice,
+      maxFeePerGas: request.maxFeePerGas,
+      maxPriorityFeePerGas: request.maxPriorityFeePerGas,
+      data: request.data,
+      value: request.value,
+      chainId: request.chainId,
+      type: request.type,
+      accessList: request.accessList,
+    };
+  }
+
+  async populateTransaction(
+    transaction: providers.TransactionRequest,
+  ): Promise<providers.TransactionRequest> {
+    return super.populateTransaction(
+      this.normalizeTransactionRequest(transaction),
+    );
+  }
+
+  async estimateGas(
+    transaction: providers.TransactionRequest,
+  ): Promise<BigNumber> {
+    return super.estimateGas(this.normalizeTransactionRequest(transaction));
   }
 
   async sendTransaction(
@@ -150,13 +212,27 @@ export class TronWallet extends Wallet {
     // Tron has no nonces, so identical txs in the same block produce the same txID.
     tronTx = await this.makeUnique(tronTx);
 
-    // Sign and broadcast
-    const signedTx = await this.tronWeb.trx.sign(tronTx);
-    const broadcastResult = await this.tronWeb.trx.sendRawTransaction(signedTx);
-    assert(
-      broadcastResult.result,
-      `Broadcast failed: ${broadcastResult.message}`,
-    );
+    // Sign and broadcast. Retry contract deployments when another process
+    // races and generates the same contract address on the shared local node.
+    for (let attempt = 0; ; attempt += 1) {
+      // tronWeb.trx.sign mutates the transaction object by appending
+      // signatures, so sign a clone to keep tronTx reusable across retries.
+      const signedTx = await this.tronWeb.trx.sign(
+        structuredClone(tronTx as Types.Transaction),
+      );
+      const broadcastResult =
+        await this.tronWeb.trx.sendRawTransaction(signedTx);
+
+      if (broadcastResult.result) break;
+
+      const decodedMessage = decodeTronErrorMessage(broadcastResult.message);
+      if (attempt < 5 && isContractAddressCollision(decodedMessage)) {
+        tronTx = await this.makeUnique(tronTx);
+        continue;
+      }
+
+      assert(broadcastResult.result, `Broadcast failed: ${decodedMessage}`);
+    }
 
     const txHash = ensure0x(tronTx.txID);
 
@@ -181,7 +257,9 @@ export class TronWallet extends Wallet {
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
-    const extension = ++TronWallet.txCounter;
+    // Use a process-global counter so uniqueness survives duplicated module
+    // instances in bundled test/runtime environments.
+    const extension = nextTronTxExtension();
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
@@ -195,7 +273,11 @@ export class TronWallet extends Wallet {
       const hash = ethersKeccak256(
         Buffer.from(altered.txID + this.tronAddressHex, 'hex'),
       );
-      (altered as any).contract_address = '41' + hash.substring(2).slice(24);
+      const alteredWithContractAddress = altered as TronTransaction & {
+        contract_address?: string;
+      };
+      alteredWithContractAddress.contract_address =
+        '41' + hash.substring(2).slice(24);
     }
 
     return altered as TronTransaction;

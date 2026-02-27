@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -8,6 +8,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -61,7 +62,7 @@ describe('hyperlane warp apply resumable extension tests', async function () {
   });
 
   it('should not redeploy previously successful chain extensions on re-run', async () => {
-    const ownerAddress = new Wallet(ANVIL_KEY).address;
+    const ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
 
     // Step 1: Extend warp route from anvil2 to anvil3 only
     const config3: HypTokenRouterConfig = {
@@ -193,7 +194,7 @@ describe('hyperlane warp apply resumable extension tests', async function () {
   });
 
   it('should persist successful deployments and allow retry after partial failure', async () => {
-    const ownerAddress = new Wallet(ANVIL_KEY).address;
+    const ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
 
     // Save original anvil4 metadata, then break its RPC
     const originalMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH) as Record<

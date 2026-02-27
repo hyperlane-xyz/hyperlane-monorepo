@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
+import { encodeFunctionData } from 'viem';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
@@ -17,6 +17,23 @@ import {
   TEMP_PATH,
 } from '../consts.js';
 
+type EV5Transaction = Parameters<EV5FileSubmitter['submit']>[0];
+
+function toBigIntValue(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
 async function getMintOnlyOwnerTransaction(
   xerc20: XERC20VSTest,
   address: Address,
@@ -24,8 +41,11 @@ async function getMintOnlyOwnerTransaction(
   chainId: number,
 ): Promise<EV5Transaction> {
   const owner = await xerc20.owner();
-  const iface = new ethers.utils.Interface(XERC20VSTest__factory.abi);
-  const calldata = iface.encodeFunctionData('mintOnlyOwner', [address, amount]);
+  const calldata = encodeFunctionData({
+    abi: XERC20VSTest__factory.abi,
+    functionName: 'mintOnlyOwner',
+    args: [address, BigInt(amount)],
+  });
   return {
     data: calldata,
     to: xerc20.address,
@@ -37,14 +57,14 @@ async function getMintOnlyOwnerTransaction(
 async function expectUserBalances(
   users: Address[],
   xerc20Chains: XERC20VSTest[],
-  balances: number[],
+  balances: bigint[],
 ) {
   for (const [i, user] of Object.entries(users)) {
     const idx = Number(i);
     const xerc20 = xerc20Chains[idx];
     const balance = balances[idx];
     const userBalance = await xerc20.balanceOf(user);
-    expect(userBalance).to.eql(ethers.BigNumber.from(balance));
+    expect(toBigIntValue(userBalance)).to.eql(balance);
   }
 }
 
@@ -124,8 +144,8 @@ describe('hyperlane submit', function () {
     );
     await hyperlaneSubmit({ strategyPath, transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      initialBalances[0].add(chain2MintAmount).toNumber(),
-      initialBalances[1].add(chain3MintAmount).toNumber(),
+      toBigIntValue(initialBalances[0]) + BigInt(chain2MintAmount),
+      toBigIntValue(initialBalances[1]) + BigInt(chain3MintAmount),
     ]);
   });
 
@@ -157,8 +177,8 @@ describe('hyperlane submit', function () {
     );
     await hyperlaneSubmit({ transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      initialBalances[0].add(chain2MintAmount).toNumber(),
-      initialBalances[1].add(chain3MintAmount).toNumber(),
+      toBigIntValue(initialBalances[0]) + BigInt(chain2MintAmount),
+      toBigIntValue(initialBalances[1]) + BigInt(chain3MintAmount),
     ]);
   });
 

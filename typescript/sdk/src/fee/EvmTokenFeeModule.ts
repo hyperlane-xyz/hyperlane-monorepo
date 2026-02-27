@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { maxUint256, zeroAddress } from 'viem';
 
 import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
@@ -114,7 +114,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       multiProvider,
       {
         addresses: {
-          deployedFee: constants.AddressZero,
+          deployedFee: zeroAddress,
         },
         chain,
         config,
@@ -224,8 +224,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         type: TokenFeeType.RoutingFee,
         token,
         owner,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
+        maxFee: maxUint256,
+        halfAmount: maxUint256,
         feeContracts,
       };
     } else {
@@ -412,7 +412,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           chainId: this.chainId,
           to: currentRoutingAddress,
           data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
+            'setFeeContract',
             [this.multiProvider.getDomainId(chainName), deployedSubFee],
           ),
         });
@@ -444,7 +444,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             chainId: this.chainId,
             to: currentRoutingAddress,
             data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
+              'setFeeContract',
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });

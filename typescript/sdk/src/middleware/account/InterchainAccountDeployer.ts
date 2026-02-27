@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { Router } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
@@ -51,13 +51,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     const interchainAccountRouter = await this.deployContract(
       chain,
       'interchainAccountRouter',
-      [
-        config.mailbox,
-        ethers.constants.AddressZero,
-        owner,
-        50_000,
-        config.commitmentIsm.urls,
-      ],
+      [config.mailbox, zeroAddress, owner, 50_000, config.commitmentIsm.urls],
     );
 
     // Approve fee tokens for hooks if configured

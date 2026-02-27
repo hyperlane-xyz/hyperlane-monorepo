@@ -19,7 +19,7 @@ export interface GnosisTransactionBuilderPayload {
 
 /**
  * This class is used to create a Safe Transaction Builder compatible object.
- * It is not a true Submitter because it does not submits any transactions.
+ * It is not a true Submitter because it does not submit any transactions.
  */
 export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =

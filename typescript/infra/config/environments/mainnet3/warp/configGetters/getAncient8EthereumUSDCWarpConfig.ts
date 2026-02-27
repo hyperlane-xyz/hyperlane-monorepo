@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -46,7 +46,7 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     ...abacusWorksEnvOwnerConfig.ancient8,
     type: TokenType.synthetic,
     // Uses the default ISM
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: zeroAddress,
     proxyAdmin: {
       owner: regularIcas.ancient8,
     },

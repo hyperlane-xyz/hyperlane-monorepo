@@ -1,4 +1,3 @@
-import type { Log, TransactionReceipt } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
@@ -47,6 +46,34 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
   revealMessageId: z.string(),
   ica: z.string(),
 });
+
+type ReceiptLog = { topics: readonly string[]; address: string; data: string };
+type TransactionReceiptLike = {
+  logs?: readonly unknown[] | unknown[] | null;
+  transactionHash?: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function isReceiptLog(value: unknown): value is ReceiptLog {
+  const record = asRecord(value);
+  if (!record) return false;
+  const topics = record.topics;
+  return (
+    typeof record.address === 'string' &&
+    typeof record.data === 'string' &&
+    Array.isArray(topics) &&
+    topics.every((topic) => typeof topic === 'string')
+  );
+}
+
+function getReceiptLogs(receipt: TransactionReceiptLike): ReceiptLog[] {
+  return (receipt.logs ?? []).filter(isReceiptLog);
+}
 
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
@@ -222,7 +249,7 @@ export class CallCommitmentsService extends BaseService {
    * Finds the second DispatchId event after the CommitRevealDispatched event.
    */
   private extractRevealMessageIdAndValidateDispatchedCommitment(
-    receipt: TransactionReceipt,
+    receipt: TransactionReceiptLike,
     commitment: string,
     logger: Logger,
   ): string {
@@ -230,13 +257,14 @@ export class CallCommitmentsService extends BaseService {
     const dispatchIdTopic =
       Mailbox__factory.createInterface().getEventTopic('DispatchId');
     const revealDispatchedTopic = iface.getEventTopic('CommitRevealDispatched');
+    const logs = getReceiptLogs(receipt);
 
     // Find the index of the CommitRevealDispatched log with the given commitment
-    const revealIndex = receipt.logs.findIndex(
-      (log: Log) =>
-        log.topics[0] === revealDispatchedTopic &&
-        iface.parseLog(log).args.commitment === commitment,
-    );
+    const revealIndex = logs.findIndex((log: ReceiptLog) => {
+      if (log.topics[0] !== revealDispatchedTopic) return false;
+      const parsedArgs = asRecord(iface.parseLog(log).args);
+      return parsedArgs?.commitment === commitment;
+    });
     if (revealIndex === -1) {
       logger.warn(
         { receipt, commitmentDispatchTx: receipt.transactionHash },
@@ -246,9 +274,9 @@ export class CallCommitmentsService extends BaseService {
     }
 
     // Find the next two DispatchId logs after the CommitRevealDispatched
-    const dispatchLogsAfterReveal = receipt.logs
+    const dispatchLogsAfterReveal = logs
       .slice(revealIndex + 1)
-      .filter((log: Log) => log.topics[0] === dispatchIdTopic);
+      .filter((log: ReceiptLog) => log.topics[0] === dispatchIdTopic);
 
     if (dispatchLogsAfterReveal.length < 2) {
       logger.warn(
@@ -260,7 +288,7 @@ export class CallCommitmentsService extends BaseService {
       );
     }
 
-    return dispatchLogsAfterReveal[1].topics[1];
+    return String(dispatchLogsAfterReveal[1].topics[1]);
   }
 
   /**
@@ -426,13 +454,15 @@ export class CallCommitmentsService extends BaseService {
    * Parse the RemoteCallDispatched event from the receipt and derive the ICA address.
    */
   private async deriveIcaFromRemoteCallDispatched(
-    receipt: TransactionReceipt,
+    receipt: TransactionReceiptLike,
     originDomain: number,
     logger: Logger,
   ): Promise<string> {
     const iface = InterchainAccountRouter__factory.createInterface();
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
-    const callLog = receipt.logs.find((l: Log) => l.topics[0] === callTopic);
+    const callLog = getReceiptLogs(receipt).find(
+      (l: ReceiptLog) => l.topics[0] === callTopic,
+    );
     if (!callLog) {
       logger.warn(
         {
@@ -445,21 +475,28 @@ export class CallCommitmentsService extends BaseService {
       throw new Error('RemoteCallDispatched event not found');
     }
     const parsedCall = iface.parseLog(callLog);
-    const owner = addressToBytes32(parsedCall.args.owner);
-    const destinationRouterAddress = bytes32ToAddress(parsedCall.args.router);
-    const ismAddress = bytes32ToAddress(parsedCall.args.ism);
+    const parsedArgs = asRecord(parsedCall.args);
+    if (!parsedArgs) {
+      throw new Error('RemoteCallDispatched args could not be parsed');
+    }
+    const owner = addressToBytes32(String(parsedArgs.owner));
+    const destinationRouterAddress = bytes32ToAddress(
+      String(parsedArgs.router),
+    );
+    const ismAddress = bytes32ToAddress(String(parsedArgs.ism));
     const originRouter = addressToBytes32(callLog.address);
-    const destinationDomain = parsedCall.args.destination as number;
-    const salt = parsedCall.args.salt as string;
+    const destinationDomain = Number(parsedArgs.destination);
+    const salt = String(parsedArgs.salt);
 
     // Derive the ICA by calling the on-chain view
     const destinationRouter = InterchainAccountRouter__factory.connect(
       destinationRouterAddress,
       this.multiProvider.getProvider(destinationDomain),
     );
-    return destinationRouter[
+    const ica = await destinationRouter[
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
     ](originDomain, owner, originRouter, ismAddress, salt);
+    return String(ica);
   }
 
   /**

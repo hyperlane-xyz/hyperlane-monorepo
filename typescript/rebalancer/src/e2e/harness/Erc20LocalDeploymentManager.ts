@@ -1,9 +1,10 @@
-import { ethers, providers } from 'ethers';
+import { pad, zeroAddress } from 'viem';
 
 import {
   ERC20Test__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
+import { LocalAccountViemSigner, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import {
   type ChainDeployment,
@@ -16,24 +17,24 @@ import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 
 const USDC_INITIAL_SUPPLY = '100000000000000';
 const USDC_DECIMALS = 6;
-const TOKEN_SCALE_NUMERATOR = ethers.BigNumber.from(1);
-const TOKEN_SCALE_DENOMINATOR = ethers.BigNumber.from(1);
+const TOKEN_SCALE_NUMERATOR = 1n;
+const TOKEN_SCALE_DENOMINATOR = 1n;
 
 export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<DeployedAddresses> {
   protected async deployRoutes(
-    deployerWallet: ethers.Wallet,
-    providersByChain: Map<string, providers.JsonRpcProvider>,
+    deployerWallet: LocalAccountViemSigner,
+    providersByChain: Map<string, ReturnType<MultiProvider['getProvider']>>,
     chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string }
     >,
   ): Promise<DeployedAddresses> {
-    const deployerAddress = deployerWallet.address;
+    const deployerAddress = await deployerWallet.getAddress();
     const chainDeployments = {} as Record<TestChain, ChainDeployment>;
-    const monitoredRouters = {} as Record<TestChain, ethers.Contract>;
-    const bridgeRouters1 = {} as Record<TestChain, ethers.Contract>;
-    const bridgeRouters2 = {} as Record<TestChain, ethers.Contract>;
-    const tokens = {} as Record<TestChain, ethers.Contract>;
+    const monitoredRouters = {} as Record<TestChain, any>;
+    const bridgeRouters1 = {} as Record<TestChain, any>;
+    const bridgeRouters2 = {} as Record<TestChain, any>;
+    const tokens = {} as Record<TestChain, any>;
 
     for (let i = 0; i < TEST_CHAIN_CONFIGS.length; i++) {
       const config = TEST_CHAIN_CONFIGS[i];
@@ -58,7 +59,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       );
       await monitoredRoute.deployed();
       await monitoredRoute.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
@@ -73,7 +74,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       );
       await bridgeRoute1.deployed();
       await bridgeRoute1.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
@@ -88,7 +89,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       );
       await bridgeRoute2.deployed();
       await bridgeRoute2.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
@@ -119,7 +120,9 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
           if (remote.name === chain.name) continue;
           remoteDomains.push(remote.domainId);
           remoteRouters.push(
-            ethers.utils.hexZeroPad(routeMap[remote.name].address, 32),
+            pad(routeMap[remote.name].address as `0x${string}`, {
+              size: 32,
+            }),
           );
         }
 
@@ -143,7 +146,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       }
     }
 
-    const bridgeSeedAmount = ethers.BigNumber.from(USDC_INITIAL_SUPPLY).div(10);
+    const bridgeSeedAmount = BigInt(USDC_INITIAL_SUPPLY) / 10n;
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
       const deployer = deployerWallet.connect(provider);

@@ -58,6 +58,7 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { EvmTransactionOverrides } from '../providers/evmTypes.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -113,7 +114,7 @@ export class EvmHookModule extends HyperlaneModule<
   public readonly domainId: Domain;
 
   // Transaction overrides for the chain
-  protected readonly txOverrides: Partial<ethers.providers.TransactionRequest>;
+  protected readonly txOverrides: EvmTransactionOverrides;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -250,8 +251,8 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     currentDomains: DomainRoutingHookConfig['domains'];
     targetDomains: DomainRoutingHookConfig['domains'];
-  }): Promise<DomainRoutingHook.HookConfigStruct[]> {
-    const routingHookUpdates: DomainRoutingHook.HookConfigStruct[] = [];
+  }): Promise<any[]> {
+    const routingHookUpdates: any[] = [];
 
     // Iterate over the target domains and compare with the current configuration
     for (const [dest, targetDomainConfig] of Object.entries(targetDomains)) {
@@ -412,10 +413,17 @@ export class EvmHookModule extends HyperlaneModule<
     // We should be reusing the same oracle for all remotes, but if not, the updateIgpRemoteGasParams step will rectify this
     if (domainKeys.length > 0) {
       const domainId = this.multiProvider.getDomainId(domainKeys[0]);
-      ({ gasOracle } = await InterchainGasPaymaster__factory.connect(
-        this.args.addresses.deployedHook,
-        this.multiProvider.getSignerOrProvider(this.chain),
-      )['destinationGasConfigs(uint32)'](domainId));
+      const destinationGasConfig =
+        await InterchainGasPaymaster__factory.connect(
+          this.args.addresses.deployedHook,
+          this.multiProvider.getSignerOrProvider(this.chain),
+        )['destinationGasConfigs(uint32)'](domainId);
+      gasOracle =
+        (destinationGasConfig as { gasOracle?: Address }).gasOracle ??
+        (Array.isArray(destinationGasConfig)
+          ? (destinationGasConfig[0] as Address | undefined)
+          : undefined);
+      assert(gasOracle, 'Expected destination gas config to include gasOracle');
 
       // update storage gas oracle
       // Note: this will only update the gas oracle for remotes that are in the target config
@@ -459,7 +467,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentOverheads?: IgpConfig['overhead'];
     targetOverheads: IgpConfig['overhead'];
   }): Promise<AnnotatedEV5Transaction[]> {
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const gasParamsToSet: any[] = [];
     for (const [remote, gasOverhead] of Object.entries(targetOverheads)) {
       // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
@@ -518,7 +526,7 @@ export class EvmHookModule extends HyperlaneModule<
     targetOverhead: IgpConfig['overhead'];
   }): Promise<AnnotatedEV5Transaction[]> {
     this.logger.info(`Updating gas oracle configuration from ${this.chain}...`);
-    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+    const configsToSet: any[] = [];
 
     for (const [remote, target] of Object.entries(targetOracleConfig)) {
       // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.

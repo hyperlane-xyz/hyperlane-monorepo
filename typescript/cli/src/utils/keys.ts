@@ -1,10 +1,11 @@
 import { input } from '@inquirer/prompts';
-import { ethers, type providers } from 'ethers';
+import { isHex } from 'viem';
 
-import { impersonateAccount } from '@hyperlane-xyz/sdk';
+import { LocalAccountViemSigner, impersonateAccount } from '@hyperlane-xyz/sdk';
 import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 const ETHEREUM_ADDRESS_LENGTH = 42;
+type ImpersonatedSignerLike = { getAddress(): Promise<string> };
 
 /**
  * Retrieves a signer for the current command-context.
@@ -34,7 +35,10 @@ export async function getImpersonatedSigner({
   fromAddress?: Address;
   key?: string;
   skipConfirmation?: boolean;
-}) {
+}): Promise<{
+  impersonatedKey: Address;
+  impersonatedSigner: ImpersonatedSignerLike;
+}> {
   if (!fromAddress) {
     const { signer } = await getSigner({ key, skipConfirmation });
     fromAddress = signer.address;
@@ -49,8 +53,13 @@ export async function getImpersonatedSigner({
  * Verifies the specified signer is valid.
  * @param signer the signer to verify
  */
-export function assertSigner(signer: ethers.Signer) {
-  if (!signer || !ethers.Signer.isSigner(signer))
+export function assertSigner(signer: unknown) {
+  if (
+    typeof signer !== 'object' ||
+    signer === null ||
+    !('getAddress' in signer) ||
+    typeof signer.getAddress !== 'function'
+  )
     throw new Error('Signer is invalid');
 }
 
@@ -61,14 +70,13 @@ export function assertSigner(signer: ethers.Signer) {
  */
 async function addressToImpersonatedSigner(
   address: Address,
-): Promise<providers.JsonRpcSigner> {
+): Promise<ImpersonatedSignerLike> {
   if (!address) throw new Error('No address provided');
 
   const formattedKey = address.trim().toLowerCase();
   if (address.length != ETHEREUM_ADDRESS_LENGTH)
     throw new Error('Invalid address length.');
-  else if (ethers.utils.isHexString(ensure0x(formattedKey)))
-    return impersonateAccount(address);
+  else if (isHex(ensure0x(formattedKey))) return impersonateAccount(address);
   else throw new Error('Invalid address format');
 }
 
@@ -77,15 +85,14 @@ async function addressToImpersonatedSigner(
  * @param key a private key
  * @returns a signer for the private key
  */
-function privateKeyToSigner(key: string): ethers.Wallet {
+function privateKeyToSigner(key: string): LocalAccountViemSigner {
   if (!key) throw new Error('No private key provided');
 
   const formattedKey = key.trim().toLowerCase();
-  if (ethers.utils.isHexString(ensure0x(formattedKey)))
-    return new ethers.Wallet(ensure0x(formattedKey));
-  else if (formattedKey.split(' ').length >= 6)
-    return ethers.Wallet.fromMnemonic(formattedKey);
-  else throw new Error('Invalid private key format');
+  if (isHex(ensure0x(formattedKey))) {
+    return new LocalAccountViemSigner(ensure0x(formattedKey));
+  }
+  throw new Error('Invalid private key format');
 }
 
 async function retrieveKey(

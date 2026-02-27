@@ -1,4 +1,3 @@
-import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
@@ -7,6 +6,7 @@ import {
   type DispatchedMessage,
   HyperlaneCore,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   type CommandContext,
@@ -15,6 +15,10 @@ import {
 import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
+
+type DispatchReceipt = NonNullable<
+  Awaited<ReturnType<HyperlaneCore['getDispatchTx']>>
+>;
 
 export async function checkMessageStatus({
   context,
@@ -42,27 +46,39 @@ export async function checkMessageStatus({
     context.multiProvider,
   );
 
-  let dispatchedReceipt: TransactionReceipt;
+  let dispatchedReceipt: DispatchReceipt;
 
   if (dispatchTx) {
-    dispatchedReceipt = await context.multiProvider
+    const receipt = await context.multiProvider
       .getProvider(origin)
       .getTransactionReceipt(dispatchTx);
+    assert(receipt, `No dispatch receipt found for transaction ${dispatchTx}`);
+    dispatchedReceipt = receipt;
   } else {
     messageId ??= await input({
       message: 'Please specify the message id',
     });
     try {
-      dispatchedReceipt = await core.getDispatchTx(origin, messageId);
+      const receipt = await core.getDispatchTx(origin, messageId);
+      assert(
+        receipt,
+        `No dispatch receipt found for message ${messageId} on ${origin}`,
+      );
+      dispatchedReceipt = receipt;
     } catch {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
 
       dispatchTx = await input({
         message: 'Provide dispatch transaction hash',
       });
-      dispatchedReceipt = await context.multiProvider
+      const receipt = await context.multiProvider
         .getProvider(origin)
         .getTransactionReceipt(dispatchTx);
+      assert(
+        receipt,
+        `No dispatch receipt found for transaction ${dispatchTx}`,
+      );
+      dispatchedReceipt = receipt;
     }
   }
 
@@ -91,6 +107,10 @@ export async function checkMessageStatus({
       try {
         const processedReceipt = await core.getProcessedReceipt(message);
         const hash = processedReceipt.transactionHash;
+        assert(
+          hash,
+          `Processed receipt missing transaction hash for ${message.id}`,
+        );
         const url = context.multiProvider.tryGetExplorerTxUrl(
           message.parsed.destination,
           { hash },

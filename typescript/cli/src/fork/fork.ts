@@ -1,6 +1,12 @@
-import { JsonRpcProvider, type Log } from '@ethersproject/providers';
-import { ethers } from 'ethers';
 import { execa } from 'execa';
+import {
+  type AbiEvent,
+  type AbiFunction,
+  type Hex,
+  decodeEventLog,
+  encodeFunctionData,
+  parseAbiItem,
+} from 'viem';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
@@ -12,6 +18,7 @@ import {
   EventAssertionType,
   type ForkedChainConfig,
   type ForkedChainTransactionConfig,
+  HyperlaneSmartProvider,
   type MultiProvider,
   type RawForkedChainConfigByChain,
   type RevertAssertion,
@@ -33,6 +40,65 @@ import { readYamlOrJson } from '../utils/files.js';
 const LOCAL_HOST = 'http://127.0.0.1';
 
 type EndPoint = string;
+type EvmLog = { topics: Hex[]; data: Hex };
+type EvmTxReceipt = { status?: number; logs: EvmLog[] };
+
+function parseReceiptStatus(status: unknown): number | undefined {
+  if (status === undefined || status === null) return undefined;
+  if (typeof status === 'number') return status;
+  if (typeof status === 'bigint') return Number(status);
+  if (typeof status !== 'string') {
+    throw new Error('Invalid transaction receipt status');
+  }
+
+  if (status === 'success') return 1;
+  if (status === 'reverted') return 0;
+  if (status.startsWith('0x')) return Number(BigInt(status));
+  const parsed = Number(status);
+  if (Number.isFinite(parsed)) return parsed;
+  throw new Error('Invalid transaction receipt status');
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getErrorReason(error: unknown): string | undefined {
+  const reason = asRecord(error)?.reason;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+function asFunctionAbi(signature: string): AbiFunction {
+  const abiItem = parseAbiItem(signature);
+  assert(
+    abiItem.type === 'function',
+    `Invalid function signature: ${signature}`,
+  );
+  return abiItem;
+}
+
+function asEventAbi(signature: string): AbiEvent {
+  const abiItem = parseAbiItem(signature);
+  assert(abiItem.type === 'event', `Invalid event signature: ${signature}`);
+  return abiItem;
+}
+
+function asTxReceipt(value: unknown): EvmTxReceipt {
+  const receipt = asRecord(value);
+  assert(receipt, 'Invalid transaction receipt');
+  const status = parseReceiptStatus(receipt.status);
+  const logs = receipt.logs;
+  assert(
+    logs === undefined || Array.isArray(logs),
+    'Invalid transaction receipt logs',
+  );
+  return {
+    status,
+    logs: (logs as EvmLog[] | undefined) ?? [],
+  };
+}
 
 export async function runForkCommand({
   context,
@@ -117,7 +183,10 @@ async function forkChain(
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
     const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
 
-    const provider = new JsonRpcProvider(endpoint);
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
+      endpoint,
+    );
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(
@@ -158,7 +227,7 @@ async function forkChain(
 }
 
 async function handleImpersonations(
-  provider: JsonRpcProvider,
+  provider: HyperlaneSmartProvider,
   chainName: ChainName,
   accountsToImpersonate: Address[],
 ): Promise<void> {
@@ -177,7 +246,7 @@ async function handleImpersonations(
 }
 
 async function handleTransactions(
-  provider: JsonRpcProvider,
+  provider: HyperlaneSmartProvider,
   chainName: ChainName,
   transactions: ReadonlyArray<ForkedChainTransactionConfig>,
 ): Promise<void> {
@@ -199,15 +268,15 @@ async function handleTransactions(
     if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
       calldata = transaction.data.calldata;
     } else if (transaction.data?.type === TransactionDataType.SIGNATURE) {
-      const functionInterface = new ethers.utils.Interface([
-        transaction.data.signature,
-      ]);
-
-      const [functionName] = Object.keys(functionInterface.functions);
-      calldata = functionInterface.encodeFunctionData(
-        functionName,
-        transaction.data.args,
-      );
+      const signature = transaction.data.signature.startsWith('function ')
+        ? transaction.data.signature
+        : `function ${transaction.data.signature}`;
+      const functionAbi = asFunctionAbi(signature);
+      calldata = encodeFunctionData({
+        abi: [functionAbi],
+        functionName: functionAbi.name,
+        args: transaction.data.args,
+      });
     }
 
     const annotation = transaction.annotation ?? `#${txCounter}`;
@@ -220,8 +289,8 @@ async function handleTransactions(
         data: calldata,
         value: transaction.value,
       });
-    } catch (error: any) {
-      if (error.reason && transaction.revertAssertion) {
+    } catch (error: unknown) {
+      if (getErrorReason(error) && transaction.revertAssertion) {
         assertRevert(transaction.revertAssertion, error, {
           chainName: chainName,
           transactionAnnotation: annotation,
@@ -233,8 +302,8 @@ async function handleTransactions(
       throw error;
     }
 
-    const txReceipt = await pendingTx.wait();
-    if (txReceipt.status == 0) {
+    const txReceipt = asTxReceipt(await pendingTx.wait());
+    if (txReceipt.status === 0) {
       throw new Error(
         `Transaction ${transaction} reverted on chain ${chainName}`,
       );
@@ -262,17 +331,18 @@ async function handleTransactions(
 
 function assertRevert(
   revertAssertion: RevertAssertion,
-  error: any,
+  error: unknown,
   meta: {
     chainName: string;
     transactionAnnotation: string;
   },
 ) {
+  const reason = getErrorReason(error);
   // If contract call reverts, then there should be a reason
   // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
-  if (error.reason !== revertAssertion.reason) {
+  if (reason !== revertAssertion.reason) {
     throw new Error(
-      `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,
+      `Expected revert: ${revertAssertion.reason} does not match ${reason}`,
     );
   }
 
@@ -284,7 +354,7 @@ function assertRevert(
 
 function assertEvent(
   eventAssertion: EventAssertion,
-  rawLogs: Log[],
+  rawLogs: EvmLog[],
   meta: {
     chainName: string;
     assertionIdx: number;
@@ -318,7 +388,7 @@ function assertEventByTopic(
     EventAssertion,
     { type: EventAssertionType.RAW_TOPIC }
   >,
-  rawLog: ethers.providers.Log,
+  rawLog: EvmLog,
 ): boolean {
   return rawLog.topics[0] === eventAssertion.topic;
 }
@@ -328,18 +398,27 @@ function assertEventBySignature(
     EventAssertion,
     { type: EventAssertionType.TOPIC_SIGNATURE }
   >,
-  rawLog: ethers.providers.Log,
+  rawLog: EvmLog,
 ): boolean {
-  const eventInterface = new ethers.utils.Interface([eventAssertion.signature]);
+  const signature = eventAssertion.signature.startsWith('event ')
+    ? eventAssertion.signature
+    : `event ${eventAssertion.signature}`;
+  const eventAbi = asEventAbi(signature);
 
-  let parsedLog: ethers.utils.LogDescription;
-  // parseLog throws if the event cannot be decoded
+  let parsedLogArgs: unknown[] | Record<string, unknown>;
   try {
-    parsedLog = eventInterface.parseLog(rawLog);
-
-    if (!parsedLog) {
-      return false;
-    }
+    if (rawLog.topics.length === 0) return false;
+    const topics = [rawLog.topics[0], ...rawLog.topics.slice(1)] as [
+      Hex,
+      ...Hex[],
+    ];
+    const decodedLog = decodeEventLog({
+      abi: [eventAbi],
+      data: rawLog.data,
+      topics,
+      strict: false,
+    });
+    parsedLogArgs = decodedLog.args;
   } catch {
     return false;
   }
@@ -348,9 +427,12 @@ function assertEventBySignature(
     return true;
   }
 
-  const logArgs = parsedLog.args
+  const parsedArgs = Array.isArray(parsedLogArgs)
+    ? parsedLogArgs
+    : Object.values(parsedLogArgs);
+  const logArgs = parsedArgs
     .slice(0, eventAssertion.args.length)
-    .map((arg) => String(arg));
+    .map((arg: unknown) => String(arg));
 
   return deepEquals(logArgs, eventAssertion.args);
 }

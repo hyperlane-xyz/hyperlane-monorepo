@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -9,7 +9,7 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -64,7 +64,7 @@ describe('hyperlane warp apply config extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
     };
@@ -124,7 +124,7 @@ describe('hyperlane warp apply config extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
     };
@@ -195,7 +195,7 @@ describe('hyperlane warp apply config extension tests', async function () {
       decimals: 18,
       mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
+      owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
       symbol: 'ETH',
       type: TokenType.native,
     };

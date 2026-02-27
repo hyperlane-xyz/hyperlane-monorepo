@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import { existsSync, readFileSync, readdirSync } from 'fs';
+import { zeroAddress } from 'viem';
 
 import { IsmType } from '@hyperlane-xyz/sdk';
 
@@ -41,10 +41,7 @@ describe('AggregationMetadataBuilder', () => {
         AggregationMetadataBuilder.decode(fixture.encoded, {
           ism: {
             type: IsmType.AGGREGATION,
-            modules: Array.from(
-              { length: count },
-              () => ethers.constants.AddressZero,
-            ),
+            modules: Array.from({ length: count }, () => zeroAddress),
             threshold: count,
           },
         } as any),

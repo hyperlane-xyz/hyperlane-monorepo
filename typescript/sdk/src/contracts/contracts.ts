@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -30,6 +30,7 @@ import {
 import {
   HyperlaneAddresses,
   HyperlaneAddressesMap,
+  HyperlaneContractLike,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
@@ -46,9 +47,20 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): any {
-  return objMap(contracts, (_, contract) =>
-    contract.address ? contract.address : serializeContracts(contract),
-  );
+  return objMap(contracts, (_, contract) => {
+    if (isHyperlaneContractLike(contract)) {
+      return contract.address;
+    }
+    return serializeContracts(
+      contract as HyperlaneContracts<HyperlaneFactories>,
+    );
+  });
+}
+
+function isHyperlaneContractLike(
+  value: unknown,
+): value is HyperlaneContractLike {
+  return !!value && typeof value === 'object' && 'address' in value;
 }
 
 function getFactory<F extends HyperlaneFactories>(
@@ -81,7 +93,7 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
             `Missing address for contract "${key}" on chain ${chainName}`,
           );
           chainsWithMissingAddresses.add(chainName);
-          return constants.AddressZero;
+          return zeroAddress;
         }
         return value;
       }),
@@ -325,9 +337,19 @@ export async function isAddressActive(
   provider: EthersLikeProvider,
   address: Address,
 ): Promise<boolean> {
+  const txCountReader =
+    'getTransactionCount' in provider &&
+    typeof (provider as { getTransactionCount?: unknown })
+      .getTransactionCount === 'function'
+      ? (
+          provider as {
+            getTransactionCount(address: Address): Promise<number>;
+          }
+        ).getTransactionCount.bind(provider)
+      : undefined;
   const [code, txnCount] = await Promise.all([
     provider.getCode(address),
-    provider.getTransactionCount(address),
+    typeof txCountReader === 'function' ? txCountReader(address) : 0,
   ]);
 
   return code !== '0x' || txnCount > 0;

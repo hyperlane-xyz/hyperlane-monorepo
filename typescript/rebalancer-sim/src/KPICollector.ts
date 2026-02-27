@@ -1,6 +1,6 @@
-import type { ethers } from 'ethers';
-
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
+import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import { toBigInt } from '@hyperlane-xyz/utils';
 
 import type {
   ChainMetrics,
@@ -21,7 +21,7 @@ export class KPICollector {
   private initialBalances: Record<string, bigint> = {};
 
   constructor(
-    private readonly provider: ethers.providers.JsonRpcProvider,
+    private readonly provider: ReturnType<MultiProvider['getProvider']>,
     private readonly domains: Record<string, DeployedDomain>,
   ) {}
 
@@ -48,7 +48,7 @@ export class KPICollector {
       this.provider,
     );
     const balance = await token.balanceOf(domain.warpToken);
-    return balance.toBigInt();
+    return toBigInt(balance);
   }
 
   /**

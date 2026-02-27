@@ -4,9 +4,12 @@ import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { randomInt } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -24,13 +27,13 @@ export const BPS = convertToBps(MAX_FEE, HALF_AMOUNT);
 
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let token: ERC20Test;
 
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const factory = new ERC20Test__factory(signer);
@@ -216,8 +219,8 @@ describe('EvmTokenFeeReader', () => {
       });
 
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
-      expect(routingFee.owner).to.equal(signer.address);
-      expect(routingFee.token).to.equal(token.address);
+      expect(eqAddress(routingFee.owner, signer.address)).to.equal(true);
+      expect(eqAddress(routingFee.token, token.address)).to.equal(true);
       expect(
         Object.keys((routingFee as any).feeContracts ?? {}),
       ).to.have.length(0);

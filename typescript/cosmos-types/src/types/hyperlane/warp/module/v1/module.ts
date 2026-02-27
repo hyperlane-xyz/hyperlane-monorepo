@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/module/v1/module.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -104,10 +105,10 @@ export const Module = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Module>, I>>(base?: I): Module {
-    return Module.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<Module>): Module {
+    return Module.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<Module>, I>>(object: I): Module {
+  fromPartial(object: DeepPartial<Module>): Module {
     const message = createBaseModule();
     message.enabled_tokens = object.enabled_tokens?.map((e) => e) || [];
     message.authority = object.authority ?? '';
@@ -133,13 +134,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

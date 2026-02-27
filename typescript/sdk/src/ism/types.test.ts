@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
 import { AggregationIsmConfigSchema, IsmType } from './types.js';
 
-const SOME_ADDRESS = ethers.Wallet.createRandom().address;
+const SOME_ADDRESS = privateKeyToAccount(generatePrivateKey()).address;
 describe('AggregationIsmConfigSchema refine', () => {
   it('should require threshold to be below modules length', () => {
     const IsmConfig = {

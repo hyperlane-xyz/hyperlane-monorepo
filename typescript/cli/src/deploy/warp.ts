@@ -111,6 +111,21 @@ interface WarpApplyParams extends DeployParams {
   warpRouteId?: string;
 }
 
+type SubmitterTransaction = Parameters<
+  TxSubmitterBuilder<ProtocolType>['submit']
+>[number];
+
+function toSubmitterTransaction(
+  tx: TypedAnnotatedTransaction,
+): SubmitterTransaction {
+  if (!('input' in tx)) return tx;
+  return {
+    ...tx,
+    to: tx.to ?? undefined,
+    data: tx.input,
+  };
+}
+
 export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
@@ -177,7 +192,7 @@ export async function runWarpRouteDeploy({
   // private key is used across multiple chains, parallel tx submission causes
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
-  const enrollChains = Object.keys(enrollTxs);
+  const enrollChains = Object.keys(enrollTxs) as ChainName[];
   const evmChains = enrollChains.filter(
     (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
   );
@@ -188,13 +203,14 @@ export async function runWarpRouteDeploy({
   const enrollFailures: string[] = [];
 
   // Helper function to submit enrollment for a single chain
-  const submitEnrollment = async (chain: string): Promise<void> => {
+  const submitEnrollment = async (chain: ChainName): Promise<void> => {
     log(`Enrolling routers for chain ${chain}`);
     const { submitter } = await getSubmitterByStrategy({
       chain,
       context: context,
     });
-    await submitter.submit(...(enrollTxs[chain] as any[]));
+    const submitterTxs = enrollTxs[chain].map(toSubmitterTransaction);
+    await submitter.submit(...submitterTxs);
   };
 
   // Submit EVM chains in parallel (they have independent signers)
@@ -1032,9 +1048,8 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(
-        ...(transactions as any[]),
-      );
+      const submitterTxs = transactions.map(toSubmitterTransaction);
+      const transactionReceipts = await submitter.submit(...submitterTxs);
 
       if (protocol !== ProtocolType.Ethereum) {
         return;

@@ -1,5 +1,3 @@
-import { Provider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
@@ -15,10 +13,11 @@ import {
   ChainName,
   HookType,
   HyperlaneCore,
+  LocalAccountViemSigner,
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
+import { addressToBytes32, ensure0x, sleep } from '@hyperlane-xyz/utils';
 
 const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -56,8 +55,8 @@ async function setMailboxHook(
 
 async function setIgpConfig(
   remoteId: number,
-  signer: Wallet,
-  provider: Provider,
+  signer: LocalAccountViemSigner,
+  provider: ReturnType<MultiProvider['getProvider']>,
   mailbox: Mailbox,
   addresses: any,
   local: ChainName,
@@ -66,9 +65,9 @@ async function setIgpConfig(
     signer.connect(provider),
   );
   const storageGasOracle = await storageGasOracleF.deploy();
-  await storageGasOracle.deployTransaction.wait();
+  await storageGasOracle.deployTransaction?.wait?.();
 
-  const oracleConfigs: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+  const oracleConfigs: any[] = [];
   oracleConfigs.push({
     remoteDomain: remoteId,
     tokenExchangeRate: '10000000000',
@@ -76,7 +75,7 @@ async function setIgpConfig(
   });
   await storageGasOracle.setRemoteGasDataConfigs(oracleConfigs);
 
-  const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+  const gasParamsToSet: any[] = [];
   gasParamsToSet.push({
     remoteDomain: remoteId,
     config: {
@@ -98,7 +97,11 @@ const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const dispatched = await mailbox.nonce();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
-  const processFilter = mailbox.filters.Process();
+  const processFilter = {
+    address: mailbox.address,
+    eventName: 'Process',
+    args: [] as const,
+  };
   const processes = await mailbox.queryFilter(processFilter);
   const processed = processes.length;
 
@@ -185,7 +188,9 @@ async function main() {
   ];
 
   // Create a multi-provider with a signer
-  const signer = new Wallet(ANVIL_KEY);
+  const signer = new LocalAccountViemSigner(
+    ensure0x(ANVIL_KEY) as `0x${string}`,
+  );
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
   // Get the provider for the first chain
@@ -204,7 +209,7 @@ async function main() {
   // Deploy a recipient
   const recipientF = new TestSendReceiver__factory(signer.connect(provider));
   const recipient = await recipientF.deploy();
-  await recipient.deployTransaction.wait();
+  await recipient.deployTransaction?.wait?.();
 
   //  Generate artificial traffic
   const run_forever = messages === 0;
@@ -265,7 +270,7 @@ async function main() {
         mailbox.address
       } on ${local} with nonce ${
         (await mailbox.nonce()) - 1
-      } and quote ${quote.toString()}`,
+      } and quote ${String(quote)}`,
     );
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));

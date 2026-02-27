@@ -82,6 +82,7 @@ export async function runTronNode(
 
   // Enable instamine mode for faster tests
   await enableInstamine(chainMetadata.port);
+  await waitForTronRpcReadiness(chainMetadata.port);
 
   return { container, privateKeys };
 }
@@ -147,8 +148,13 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
       const provider = new TronJsonRpcProvider(tronUrl);
       const tronweb = new TronWeb({ fullHost: tronUrl });
 
-      const [blockNumber, block] = await withTimeout(
-        Promise.all([provider.getBlockNumber(), tronweb.trx.getCurrentBlock()]),
+      const [blockNumber, block, latestBlock, gasPrice] = await withTimeout(
+        Promise.all([
+          provider.getBlockNumber(),
+          tronweb.trx.getCurrentBlock(),
+          provider.getBlock('latest'),
+          provider.getGasPrice(),
+        ]),
         5000,
       );
       if (blockNumber === 0) {
@@ -156,6 +162,12 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
       }
       if (!block.blockID) {
         throw new Error('HTTP API returned invalid block data');
+      }
+      if (!latestBlock) {
+        throw new Error('eth_getBlockByNumber returned empty block');
+      }
+      if (gasPrice.lt(0)) {
+        throw new Error('eth_gasPrice returned invalid value');
       }
 
       // Wait for TRE to fund accounts (happens after node starts mining)
@@ -178,4 +190,28 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
   );
 
   return privateKeys;
+}
+
+async function waitForTronRpcReadiness(port: number): Promise<void> {
+  const tronUrl = `http://127.0.0.1:${port}`;
+
+  await pollAsync(
+    async () => {
+      const provider = new TronJsonRpcProvider(tronUrl);
+
+      const [latestBlock, gasPrice] = await withTimeout(
+        Promise.all([provider.getBlock('latest'), provider.getGasPrice()]),
+        5000,
+      );
+
+      if (!latestBlock) {
+        throw new Error('eth_getBlockByNumber returned empty block');
+      }
+      if (gasPrice.lt(0)) {
+        throw new Error('eth_gasPrice returned invalid value');
+      }
+    },
+    1000,
+    30,
+  );
 }

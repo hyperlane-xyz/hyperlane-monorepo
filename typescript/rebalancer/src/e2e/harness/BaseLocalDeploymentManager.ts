@@ -1,4 +1,3 @@
-import { ethers, providers } from 'ethers';
 import { type Logger, pino } from 'pino';
 import {
   GenericContainer,
@@ -15,9 +14,11 @@ import { type IRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
   type ChainName,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, retryAsync } from '@hyperlane-xyz/utils';
+import { ProtocolType, ensure0x, retryAsync } from '@hyperlane-xyz/utils';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -29,7 +30,7 @@ export interface LocalDeploymentContext<
     chains: Record<string, { mailbox: string; ism: string }>;
   },
 > {
-  providers: Map<string, providers.JsonRpcProvider>;
+  providers: Map<string, ReturnType<MultiProvider['getProvider']>>;
   registry: IRegistry;
   multiProvider: MultiProvider;
   deployedAddresses: TDeployedAddresses;
@@ -57,9 +58,14 @@ export abstract class BaseLocalDeploymentManager<
       throw new Error('LocalDeploymentManager already started');
     }
 
-    const providersByChain = new Map<string, providers.JsonRpcProvider>();
-    const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-    const deployerAddress = deployerWallet.address;
+    const providersByChain = new Map<
+      string,
+      ReturnType<MultiProvider['getProvider']>
+    >();
+    const deployerWallet = new LocalAccountViemSigner(
+      ensure0x(ANVIL_TEST_PRIVATE_KEY),
+    );
+    const deployerAddress = await deployerWallet.getAddress();
     const chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string; endpoint: string }
@@ -89,7 +95,10 @@ export abstract class BaseLocalDeploymentManager<
         );
         this.containers.set(config.name, container);
         const endpoint = `http://${container.getHost()}:${container.getMappedPort(8545)}`;
-        const provider = new providers.JsonRpcProvider(endpoint);
+        const provider = HyperlaneSmartProvider.fromRpcUrl(
+          config.chainId,
+          endpoint,
+        );
         providersByChain.set(config.name, provider);
 
         await provider.send('anvil_setBalance', [
@@ -165,7 +174,9 @@ export abstract class BaseLocalDeploymentManager<
         chainMetadata as Record<ChainName, ChainMetadata>,
       );
 
-      const signerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+      const signerWallet = new LocalAccountViemSigner(
+        ensure0x(ANVIL_TEST_PRIVATE_KEY),
+      );
       for (const config of TEST_CHAIN_CONFIGS) {
         const provider = providersByChain.get(config.name)!;
         multiProvider.setProvider(config.name, provider);
@@ -204,7 +215,9 @@ export abstract class BaseLocalDeploymentManager<
     return this.context;
   }
 
-  getProvider(chain: string): providers.JsonRpcProvider | undefined {
+  getProvider(
+    chain: string,
+  ): ReturnType<MultiProvider['getProvider']> | undefined {
     return this.getContext().providers.get(chain);
   }
 
@@ -217,8 +230,8 @@ export abstract class BaseLocalDeploymentManager<
   }
 
   protected abstract deployRoutes(
-    deployerWallet: ethers.Wallet,
-    providersByChain: Map<string, providers.JsonRpcProvider>,
+    deployerWallet: LocalAccountViemSigner,
+    providersByChain: Map<string, ReturnType<MultiProvider['getProvider']>>,
     chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string }

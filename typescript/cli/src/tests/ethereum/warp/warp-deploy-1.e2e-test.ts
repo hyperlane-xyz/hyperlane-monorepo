@@ -1,7 +1,5 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
@@ -13,15 +11,17 @@ import {
 import {
   type ChainMetadata,
   type ChainName,
+  HyperlaneSmartProvider,
   type HookConfig,
   HookType,
   type IsmConfig,
   IsmType,
+  LocalAccountViemSigner,
   TokenType,
   type WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x, eqAddress } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -48,10 +48,8 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  IS_TRON_TEST,
   REGISTRY_PATH,
   TEMP_PATH,
-  TRON_KEY_1,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
 
@@ -72,21 +70,23 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let chain3Addresses: ChainAddresses = {};
 
   let ownerAddress: Address;
-  let walletChain2: Wallet;
-  let providerChain2: JsonRpcProvider;
+  let walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
+  let providerChain2: HyperlaneSmartProvider;
 
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-    walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
+    providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
+    walletChain2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain2,
+    );
     ownerAddress = walletChain2.address;
 
-    // Use different deployer keys on Tron to avoid "Dup transaction" errors
-    // when deploying identical core bytecodes in parallel to the same node.
-    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
     [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
   });
 
@@ -111,14 +111,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(currentWarpDeployConfig[chainName].symbol).to.equal(
       warpDeployConfig[chainName].symbol ?? expectedMetadata.symbol,
     );
-    expect(currentWarpDeployConfig[chainName].mailbox).to.equal(
-      chainName === CHAIN_NAME_2
-        ? chain2Addresses.mailbox
-        : chain3Addresses.mailbox,
-    );
+    expect(
+      eqAddress(
+        currentWarpDeployConfig[chainName].mailbox,
+        chainName === CHAIN_NAME_2
+          ? chain2Addresses.mailbox
+          : chain3Addresses.mailbox,
+      ),
+    ).to.be.true;
   }
 
-  describe('hyperlane warp deploy --config ...', function () {
+  describe('hyperlane warp deploy --config ...', () => {
     it(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -197,6 +200,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         {
           check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
             currentOutput.includes('Is this deployment plan correct?'),
           input: KeyBoardKeys.ENTER,
         },
@@ -256,6 +264,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         {
           check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
             currentOutput.includes('Is this deployment plan correct?'),
           input: KeyBoardKeys.ENTER,
         },
@@ -306,6 +319,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       writeYamlOrJson(warpDeployPath, warpConfig);
 
       const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -391,6 +409,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         {
           check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
             currentOutput.includes('Is this deployment plan correct?'),
           input: KeyBoardKeys.ENTER,
         },
@@ -439,16 +462,22 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(collateralWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
         warpConfig[CHAIN_NAME_3].symbol ?? expectedTokenSymbol,
       );
-      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox).to.equal(
-        chain2Addresses.mailbox,
-      );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].mailbox).to.equal(
-        chain3Addresses.mailbox,
-      );
+      expect(
+        eqAddress(
+          collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox,
+          chain2Addresses.mailbox,
+        ),
+      ).to.be.true;
+      expect(
+        eqAddress(
+          collateralWarpDeployConfig[CHAIN_NAME_3].mailbox,
+          chain3Addresses.mailbox,
+        ),
+      ).to.be.true;
     });
   });
 
-  describe('hyperlane warp deploy --config ... --yes', function () {
+  describe('hyperlane warp deploy --config ... --yes', () => {
     it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -514,6 +543,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
       const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),

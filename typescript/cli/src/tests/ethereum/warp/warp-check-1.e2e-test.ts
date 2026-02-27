@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ERC20Test } from '@hyperlane-xyz/core';
 import {
@@ -15,7 +15,7 @@ import {
   randomAddress,
   randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, deepCopy } from '@hyperlane-xyz/utils';
+import { type Address, assert, deepCopy, ensure0x } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -80,7 +80,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   // Reset config before each test to avoid test changes intertwining
   beforeEach(async function () {
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,

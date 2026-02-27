@@ -1,5 +1,4 @@
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { BigNumber } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -305,17 +304,18 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 
 function getUsdQuote(
   localTokenUsdPrice: number,
-  localExchangeRateScale: BigNumber,
+  localExchangeRateScale: ReturnType<typeof getProtocolExchangeRateScale>,
   localNativeTokenDecimals: number,
   localProtocolType: ProtocolType,
   gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   remoteGasAmount: number,
 ): number {
-  let quote = BigNumber.from(gasOracleConfig.gasPrice)
-    .mul(gasOracleConfig.tokenExchangeRate)
-    .mul(remoteGasAmount)
-    .div(localExchangeRateScale)
-    .toString();
+  const quoteBigInt =
+    (BigInt(gasOracleConfig.gasPrice.toString()) *
+      BigInt(gasOracleConfig.tokenExchangeRate.toString()) *
+      BigInt(remoteGasAmount)) /
+    BigInt(localExchangeRateScale.toString());
+  let quote = quoteBigInt.toString();
   if (localProtocolType === ProtocolType.Sealevel) {
     assert(
       gasOracleConfig.tokenDecimals,

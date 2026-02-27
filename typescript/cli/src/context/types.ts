@@ -1,4 +1,3 @@
-import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
@@ -62,7 +61,7 @@ export interface CommandContext extends Omit<
 
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
-  signer: ethers.Signer;
+  signer: ReturnType<MultiProvider['getSigner']>;
   altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
 }

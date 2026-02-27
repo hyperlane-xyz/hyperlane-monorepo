@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { Router } from '@hyperlane-xyz/core';
 import {
@@ -9,7 +9,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts/types.js';
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
+import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -97,16 +98,16 @@ export class HyperlaneRouterChecker<
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule ?? zeroAddress,
       this.multiProvider,
-      this.ismFactory?.chainMap[chain] ?? ({} as any),
+      this.ismFactory?.chainMap[chain] ??
+        ({} as HyperlaneContracts<ProxyFactoryFactories>),
       mailboxAddr,
     );
 
     if (!matches) {
       const ismReader = new EvmIsmReader(this.multiProvider, chain);
-      let actualConfig: string | DerivedIsmConfig =
-        ethers.constants.AddressZero;
+      let actualConfig: string | DerivedIsmConfig = zeroAddress;
       if (!isZeroishAddress(actualIsmAddress)) {
         actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
@@ -121,7 +122,7 @@ export class HyperlaneRouterChecker<
       }
 
       if (expectedConfig === undefined) {
-        expectedConfig = ethers.constants.AddressZero;
+        expectedConfig = zeroAddress;
       }
 
       const violation: ClientViolation = {

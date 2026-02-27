@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { Router } from '@hyperlane-xyz/core';
 
@@ -46,7 +46,9 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     _: string,
     config: RouterConfig,
   ): Promise<Parameters<InterchainQueryFactories[K]['deploy']>> {
-    return [config.mailbox] as any;
+    return [config.mailbox] as Parameters<
+      InterchainQueryFactories[K]['deploy']
+    >;
   }
 
   async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
@@ -55,8 +57,8 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
       throw new Error('ISM as object unimplemented');
     }
     return [
-      config.hook ?? ethers.constants.AddressZero,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.hook ?? zeroAddress,
+      config.interchainSecurityModule ?? zeroAddress,
       owner,
     ];
   }

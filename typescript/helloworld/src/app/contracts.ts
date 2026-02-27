@@ -1,4 +1,4 @@
-import { HelloWorld__factory } from '../types/index.js';
+import { HelloWorld__factory } from './helloWorldFactory.js';
 
 export const helloWorldFactories = {
   router: new HelloWorld__factory(),

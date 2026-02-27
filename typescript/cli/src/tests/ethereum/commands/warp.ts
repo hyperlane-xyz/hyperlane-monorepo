@@ -1,17 +1,23 @@
-import { Wallet } from 'ethers';
 import { $, type ProcessPromise } from 'zx';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainName,
   type HypTokenRouterConfig,
+  LocalAccountViemSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  ensure0x,
+  randomInt,
+} from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { createAltVMSigners } from '../../../context/altvm.js';
@@ -285,7 +291,7 @@ export function hyperlaneWarpRebalancer(
   explorerUrl?: string,
 ): ProcessPromise {
   const rebalancerAddress = key
-    ? new Wallet(key).address
+    ? privateKeyToAccount(ensure0x(key)).address
     : ANVIL_DEPLOYER_ADDRESS;
   return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
@@ -598,7 +604,7 @@ export async function setupIncompleteWarpRouteExtension(
     decimals: 18,
     mailbox: chain2Addresses!.mailbox,
     name: 'Ether',
-    owner: new Wallet(ANVIL_KEY).address,
+    owner: privateKeyToAccount(ensure0x(ANVIL_KEY)).address,
     symbol: 'ETH',
     type: TokenType.native,
   };
@@ -619,13 +625,11 @@ export async function setupIncompleteWarpRouteExtension(
 
   warpDeployConfig[CHAIN_NAME_3] = configToExtend;
 
-  const signer2 = new Wallet(
-    ANVIL_KEY,
-    context.multiProvider.getProvider(CHAIN_NAME_2),
+  const signer2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+    context.multiProvider.getProvider(CHAIN_NAME_2) as any,
   );
-  const signer3 = new Wallet(
-    ANVIL_KEY,
-    context.multiProvider.getProvider(CHAIN_NAME_3),
+  const signer3 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+    context.multiProvider.getProvider(CHAIN_NAME_3) as any,
   );
   context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
   context.multiProvider.setSigner(CHAIN_NAME_3, signer3);

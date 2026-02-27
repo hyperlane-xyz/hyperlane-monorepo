@@ -1,7 +1,13 @@
-import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { formatEther } from 'viem';
+
+import {
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
+} from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   NoOpRebalancer,
@@ -129,8 +135,13 @@ export async function runScenarioWithRebalancers(
     // Apply initial imbalance if specified
     if (file.initialImbalance) {
       const { ERC20Test__factory } = await import('@hyperlane-xyz/core');
-      const provider = new ethers.providers.JsonRpcProvider(options.anvilRpc);
-      const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
+      const provider = HyperlaneSmartProvider.fromRpcUrl(
+        31337,
+        options.anvilRpc,
+      );
+      const deployer = new LocalAccountViemSigner(
+        ensure0x(ANVIL_DEPLOYER_KEY),
+      ).connect(provider as any);
 
       for (const [chainName, extraAmount] of Object.entries(
         file.initialImbalance,
@@ -144,13 +155,10 @@ export async function runScenarioWithRebalancers(
           const mintTx = await token.mintTo(domain.warpToken, extraAmount);
           await mintTx.wait();
           console.log(
-            `  Applied imbalance: +${ethers.utils.formatEther(extraAmount)} tokens to ${chainName}`,
+            `  Applied imbalance: +${formatEther(BigInt(extraAmount.toString()))} tokens to ${chainName}`,
           );
         }
       }
-      // Cleanup provider after applying imbalance
-      provider.removeAllListeners();
-      provider.polling = false;
     }
 
     const strategyConfig: {
@@ -181,7 +189,8 @@ export async function runScenarioWithRebalancers(
     results.push(result);
 
     // Collect final balances
-    const balanceProvider = new ethers.providers.JsonRpcProvider(
+    const balanceProvider = HyperlaneSmartProvider.fromRpcUrl(
+      31337,
       options.anvilRpc,
     );
     const finalBalances: Record<string, string> = {};
@@ -191,12 +200,8 @@ export async function runScenarioWithRebalancers(
         domain.warpToken,
         domain.collateralToken,
       );
-      finalBalances[name] = ethers.utils.formatEther(balance.toString());
+      finalBalances[name] = formatEther(BigInt(balance.toString()));
     }
-    // Clean up provider
-    balanceProvider.removeAllListeners();
-    balanceProvider.polling = false;
-
     printResults(result, finalBalances, file);
   }
 
@@ -227,16 +232,14 @@ export function printResults(
     `    Latency: avg=${result.kpis.averageLatency.toFixed(0)}ms, p50=${result.kpis.p50Latency}ms, p95=${result.kpis.p95Latency}ms`,
   );
   console.log(
-    `    Rebalances: ${result.kpis.totalRebalances} (${ethers.utils.formatEther(result.kpis.rebalanceVolume.toString())} tokens)`,
+    `    Rebalances: ${result.kpis.totalRebalances} (${formatEther(BigInt(result.kpis.rebalanceVolume.toString()))} tokens)`,
   );
 
   console.log(`    Final Balances:`);
-  const initialCollateral = ethers.utils.formatEther(
-    file.defaultInitialCollateral,
-  );
+  const initialCollateral = formatEther(BigInt(file.defaultInitialCollateral));
   for (const [name, balance] of Object.entries(finalBalances)) {
     const extraFromImbalance = file.initialImbalance?.[name]
-      ? parseFloat(ethers.utils.formatEther(file.initialImbalance[name]))
+      ? parseFloat(formatEther(BigInt(file.initialImbalance[name])))
       : 0;
     const initialForChain = parseFloat(initialCollateral) + extraFromImbalance;
     const change = parseFloat(balance) - initialForChain;
@@ -278,7 +281,7 @@ export function printComparison(results: SimulationResult[]): {
     [
       'Rebal Volume',
       ...results.map((r) =>
-        ethers.utils.formatEther(r.kpis.rebalanceVolume.toString()),
+        formatEther(BigInt(r.kpis.rebalanceVolume.toString())),
       ),
     ],
   ];
@@ -390,11 +393,9 @@ export function saveResults(
 
   vizConfig.initialCollateral = {};
   for (const chain of file.chains) {
-    const base = parseFloat(
-      ethers.utils.formatEther(file.defaultInitialCollateral),
-    );
+    const base = parseFloat(formatEther(BigInt(file.defaultInitialCollateral)));
     const extra = file.initialImbalance?.[chain]
-      ? parseFloat(ethers.utils.formatEther(file.initialImbalance[chain]))
+      ? parseFloat(formatEther(BigInt(file.initialImbalance[chain])))
       : 0;
     vizConfig.initialCollateral[chain] = (base + extra).toString();
   }

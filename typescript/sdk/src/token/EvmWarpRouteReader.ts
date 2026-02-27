@@ -1,5 +1,10 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract, constants } from 'ethers';
+import {
+  decodeFunctionResult,
+  encodeFunctionData,
+  parseAbi,
+  zeroAddress,
+} from 'viem';
 
 import {
   EverclearTokenBridge,
@@ -56,10 +61,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
-import { NormalizedScale } from '../utils/decimals.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
+import { asHexAddress, performEthCall } from './ethCall.js';
 import {
   CctpTokenConfig,
   CollateralTokenConfig,
@@ -83,11 +88,22 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
-const SCALE_FRACTION_VERSION = '11.0.0';
-// Version that first introduced ppm precision for CCTP V2 fee storage (was bps before)
-export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
-// Version that renamed maxFeeBps() to maxFeePpm() on-chain
-export const CCTP_PPM_PRECISION_VERSION = '11.0.0';
+
+function toNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(value);
+  if (typeof value === 'object' && value && 'toString' in value) {
+    return Number(value.toString());
+  }
+  throw new Error(`Unable to convert value to number: ${value}`);
+}
+
+function toBigIntResult(value: unknown, label: string): bigint {
+  if (typeof value === 'bigint') return value;
+  if (Array.isArray(value) && typeof value[0] === 'bigint') return value[0];
+  throw new Error(`Unable to convert value to bigint for ${label}`);
+}
 
 export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -184,7 +200,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ) >= 0;
 
     let allowedRebalancers: Address[] | undefined;
-    let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    let allowedRebalancingBridges:
+      | MovableTokenConfig['allowedRebalancingBridges']
+      | undefined;
     let domains: number[] | undefined;
 
     // Only movable collateral tokens (collateral/native) have rebalancing config
@@ -198,10 +216,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       );
 
       try {
-        allowedRebalancers = await MovableCollateralRouter__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        ).allowedRebalancers();
+        allowedRebalancers = [
+          ...(await MovableCollateralRouter__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).allowedRebalancers()),
+        ];
       } catch (error) {
         // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
         this.logger.error(
@@ -211,17 +231,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        domains = await movableToken.domains();
+        const domainList = ((await movableToken.domains()) ?? []).map(
+          (domain: any) => Number(domain),
+        );
+        domains = domainList;
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
-            arrayToObject(domains.map((domain) => domain.toString())),
-            (domain) => movableToken.allowedBridges(domain),
+            arrayToObject(domainList.map((domain: any) => domain.toString())),
+            (domain: any) => movableToken.allowedBridges(domain),
           ),
         );
 
         allowedRebalancingBridges = objFilter(
           objMap(allowedBridgesByDomain, (_domain, bridges) =>
-            bridges.map((bridge) => ({ bridge })),
+            bridges.map((bridge: any) => ({ bridge })),
           ),
           // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
@@ -236,12 +259,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     }
 
     // Fetch tokenFee for ALL token types that support it, not just movable collateral
-    const tokenFee = await this.fetchTokenFee(warpRouteAddress, domains);
+    const tokenFee = await this.fetchTokenFee(
+      warpRouteAddress,
+      domains ?? undefined,
+    );
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (type === TokenType.collateralCctp) {
-      routerConfig.interchainSecurityModule = constants.AddressZero;
+      routerConfig.interchainSecurityModule = zeroAddress;
     }
 
     return {
@@ -266,7 +292,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
-      TokenRouter.feeRecipient().catch(() => constants.AddressZero),
+      TokenRouter.feeRecipient().catch(() => zeroAddress),
     ]);
 
     const hasTokenFeeInterface =
@@ -298,7 +324,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
-      routingDestinations,
+      routingDestinations:
+        routingDestinations === undefined
+          ? undefined
+          : [...routingDestinations],
     });
   }
 
@@ -412,34 +441,42 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const contractTypes: Partial<
-      Record<TokenType, { factory: any; method: string }>
-    > = {
-      [TokenType.collateralVault]: {
+    const contractTypes: Array<{
+      tokenType: TokenType;
+      factory: any;
+      method: string;
+    }> = [
+      {
+        tokenType: TokenType.collateralVault,
         factory: HypERC4626OwnerCollateral__factory,
         method: 'assetDeposited',
       },
-      [TokenType.collateralVaultRebase]: {
+      {
+        tokenType: TokenType.collateralVaultRebase,
         factory: HypERC4626Collateral__factory,
         method: 'NULL_RECIPIENT',
       },
-      [TokenType.XERC20Lockbox]: {
+      {
+        tokenType: TokenType.XERC20Lockbox,
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
-      [TokenType.collateralCctp]: {
+      {
+        tokenType: TokenType.collateralCctp,
         factory: TokenBridgeCctpBase__factory,
         method: 'messageTransmitter',
       },
-      [TokenType.collateral]: {
+      {
+        tokenType: TokenType.collateral,
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
-      [TokenType.syntheticRebase]: {
+      {
+        tokenType: TokenType.syntheticRebase,
         factory: HypERC4626__factory,
         method: 'collateralDomain',
       },
-    };
+    ];
 
     // Temporarily turn off SmartProvider logging
     // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
@@ -447,9 +484,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     try {
       // First, try checking token specific methods
-      for (const [tokenType, { factory, method }] of Object.entries(
-        contractTypes,
-      )) {
+      for (const { tokenType, factory, method } of contractTypes) {
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
           await warpRoute[method]();
@@ -476,8 +511,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               );
 
               // Simulate minting tokens from the warp route contract
-              await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
+              await performEthCall(this.provider, {
                 from: warpRouteAddress,
+                to: wrappedToken,
+                data: fiatToken.interface.encodeFunctionData('mint', [
+                  NON_ZERO_SENDER_ADDRESS,
+                  1,
+                ]),
               });
 
               return TokenType.collateralFiat;
@@ -495,7 +535,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                   this.provider,
                 );
 
-              await maybeEverclearTokenBridge.callStatic.everclearAdapter();
+              await maybeEverclearTokenBridge.everclearAdapter();
 
               let everclearTokenType: TokenType = TokenType.collateralEverclear;
               try {
@@ -526,7 +566,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             }
           }
 
-          return tokenType as TokenType;
+          return tokenType;
         } catch {
           continue;
         }
@@ -580,7 +620,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           this.chain,
           {
             to: warpRouteAddress,
-            value: BigNumber.from(0),
+            value: 0n,
           },
           NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
         );
@@ -635,11 +675,31 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     warpRouteAddress: Address,
   ): Promise<XERC20TokenMetadata> {
     // fetch the limits if possible
-    const rateLimitsABI = [
+    const rateLimitsABI = parseAbi([
       'function rateLimitPerSecond(address) external view returns (uint128)',
       'function bufferCap(address) external view returns (uint112)',
-    ];
-    const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+    ]);
+
+    const readXerc20Limit = async (
+      functionName: 'rateLimitPerSecond' | 'bufferCap',
+    ): Promise<bigint> => {
+      const result = await performEthCall(this.provider, {
+        to: xERC20Address,
+        data: encodeFunctionData({
+          abi: rateLimitsABI,
+          functionName,
+          args: [asHexAddress(warpRouteAddress, 'warpRouteAddress')],
+        }),
+      });
+      return toBigIntResult(
+        decodeFunctionResult({
+          abi: rateLimitsABI,
+          functionName,
+          data: result,
+        }),
+        functionName,
+      );
+    };
 
     try {
       const extraBridgesLimits = await getExtraLockBoxConfigs({
@@ -655,9 +715,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           warpRouteLimits: {
             type: XERC20Type.Velo,
             rateLimitPerSecond: (
-              await xERC20.rateLimitPerSecond(warpRouteAddress)
+              await readXerc20Limit('rateLimitPerSecond')
             ).toString(),
-            bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
+            bufferCap: (await readXerc20Limit('bufferCap')).toString(),
           },
           extraBridges:
             extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
@@ -693,17 +753,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const config = await deriveFunction(warpRouteAddress);
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
 
-    // Convert ppm to bps for CCTP V2 contracts that store fees in ppm (>= 10.2.0)
-    if (
-      config.type === TokenType.collateralCctp &&
-      config.cctpVersion === 'V2' &&
-      config.maxFeeBps !== undefined &&
-      config.contractVersion &&
-      compareVersions(config.contractVersion, CCTP_PPM_STORAGE_VERSION) >= 0
-    ) {
-      config.maxFeeBps = config.maxFeeBps / 100;
-    }
-
     return HypTokenConfigSchema.parse(config);
   }
 
@@ -716,10 +765,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     );
 
     const collateralTokenAddress = await hypXERC20TokenInstance.wrappedToken();
-    const [erc20TokenMetadata, xERC20Metadata, scale] = await Promise.all([
+    const [erc20TokenMetadata, xERC20Metadata] = await Promise.all([
       this.fetchERC20Metadata(collateralTokenAddress),
       this.fetchXERC20Config(collateralTokenAddress, hypTokenAddress),
-      this.fetchScale(hypTokenAddress),
     ]);
 
     return {
@@ -727,7 +775,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       type: TokenType.XERC20,
       token: collateralTokenAddress,
       xERC20: xERC20Metadata.xERC20,
-      scale,
     };
   }
 
@@ -739,20 +786,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const xerc20TokenAddress =
       await hypXERC20TokenLockboxTokenInstance.xERC20();
-    const [erc20TokenMetadata, xERC20Metadata, lockbox, scale] =
-      await Promise.all([
-        this.fetchERC20Metadata(xerc20TokenAddress),
-        this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
-        hypXERC20TokenLockboxTokenInstance.lockbox(),
-        this.fetchScale(hypTokenAddress),
-      ]);
+    const [erc20TokenMetadata, xERC20Metadata, lockbox] = await Promise.all([
+      this.fetchERC20Metadata(xerc20TokenAddress),
+      this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
+      hypXERC20TokenLockboxTokenInstance.lockbox(),
+    ]);
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.XERC20Lockbox,
       token: lockbox,
       xERC20: xERC20Metadata.xERC20,
-      scale,
     };
   }
 
@@ -785,31 +829,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         cctpVersion: 'V1',
         messageTransmitter,
         tokenMessenger,
-        urls,
+        urls: [...urls],
       };
     } else if (onchainCctpVersion === 1) {
       const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
         hypToken,
         this.provider,
       );
-
-      // Version-gate: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
-      const contractVersion = await this.fetchPackageVersion(hypToken);
-      const usesPpmName =
-        contractVersion !== undefined &&
-        compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
-
       const [minFinalityThreshold, maxFeePpm] = await Promise.all([
         tokenBridgeV2.minFinalityThreshold(),
-        usesPpmName
-          ? tokenBridgeV2.maxFeePpm()
-          : tokenBridgeV2.provider
-              .call({
-                to: hypToken,
-                // maxFeeBps() selector
-                data: '0xbf769a3f',
-              })
-              .then((result) => BigNumber.from(result)),
+        tokenBridgeV2.maxFeePpm(),
       ]);
       return {
         ...collateralConfig,
@@ -817,9 +846,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         cctpVersion: 'V2',
         messageTransmitter,
         tokenMessenger,
-        urls,
-        minFinalityThreshold,
-        maxFeeBps: maxFeePpm.toNumber(),
+        urls: [...urls],
+        minFinalityThreshold: toNumber(minFinalityThreshold),
+        maxFeeBps: toNumber(maxFeePpm) / 100,
       };
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
@@ -836,16 +865,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const collateralTokenAddress =
       await hypCollateralTokenInstance.wrappedToken();
-    const [erc20TokenMetadata, scale] = await Promise.all([
-      this.fetchERC20Metadata(collateralTokenAddress),
-      this.fetchScale(hypToken),
-    ]);
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.collateral,
       token: collateralTokenAddress,
-      scale,
     };
   }
 
@@ -896,20 +923,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   private async deriveHypSyntheticTokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const [erc20TokenMetadata, scale] = await Promise.all([
-      this.fetchERC20Metadata(hypTokenAddress),
-      this.fetchScale(hypTokenAddress),
-    ]);
+    const erc20TokenMetadata = await this.fetchERC20Metadata(hypTokenAddress);
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.synthetic,
-      scale,
     };
   }
 
   private async deriveHypNativeTokenConfig(
-    tokenRouterAddress: Address,
+    _address: Address,
   ): Promise<HypTokenConfig> {
     const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
     if (!chainMetadata.nativeToken) {
@@ -919,15 +942,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     }
 
     const { name, symbol, decimals } = chainMetadata.nativeToken;
-    const scale = await this.fetchScale(tokenRouterAddress);
-
     return {
       type: TokenType.native,
       name,
       symbol,
       decimals,
       isNft: false,
-      scale,
     };
   }
 
@@ -965,7 +985,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return {
       ...config,
       type: TokenType.nativeOpL1,
-      urls,
+      urls: [...urls],
       portal,
       // assume version 1 for now
       version: 1,
@@ -980,10 +1000,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [erc20TokenMetadata, collateralDomainId, scale] = await Promise.all([
+    const [erc20TokenMetadata, collateralDomainId] = await Promise.all([
       this.fetchERC20Metadata(hypTokenAddress),
       hypERC4626.collateralDomain(),
-      this.fetchScale(hypTokenAddress),
     ]);
 
     const collateralChainName =
@@ -993,7 +1012,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ...erc20TokenMetadata,
       type: TokenType.syntheticRebase,
       collateralChainName,
-      scale,
     };
   }
 
@@ -1019,7 +1037,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Remove unset domains from the output
     const filteredOutputAssets = objFilter(
       outputAssets,
-      (_domainId, assetAddress): assetAddress is string =>
+      (_domainId, assetAddress): assetAddress is `0x${string}` =>
         !isZeroish(assetAddress),
     );
 
@@ -1029,8 +1047,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           await everclearTokenbridgeInstance.feeParams(domainId);
 
         return {
-          deadline: deadline.toNumber(),
-          fee: fee.toNumber(),
+          deadline: toNumber(deadline),
+          fee: toNumber(fee),
           signature,
         };
       }),
@@ -1042,7 +1060,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       (
         _domainId,
         feeConfig,
-      ): feeConfig is EverclearEthBridgeTokenConfig['everclearFeeParams'][number] => {
+      ): feeConfig is (typeof feeParamsByDomain)[string] => {
         // if all the fields have their default value then the fee config for the
         // current domain is unset
         return !(
@@ -1094,11 +1112,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const [
       erc20TokenMetadata,
       { everclearBridgeAddress, everclearFeeParams, outputAssets },
-      scale,
     ] = await Promise.all([
       this.fetchERC20Metadata(collateralTokenAddress),
       this.deriveEverclearBaseBridgeConfig(everclearTokenbridgeInstance),
-      this.fetchScale(hypTokenAddress),
     ]);
 
     return {
@@ -1108,7 +1124,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       everclearBridgeAddress,
       everclearFeeParams,
       outputAssets,
-      scale,
     };
   }
 
@@ -1121,61 +1136,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     ]);
 
     return { name, symbol, decimals, isNft: false };
-  }
-
-  /**
-   * Fetches the scale configuration from a TokenRouter contract.
-   * Handles version compatibility based on contract version - reads scaleNumerator/scaleDenominator
-   * for contracts >= 11.0.0, otherwise reads legacy scale value.
-   *
-   * @param tokenRouterAddress - The address of the TokenRouter contract.
-   * @returns The scale as a NormalizedScale, or undefined when the scale is the identity (1/1).
-   */
-  async fetchScale(
-    tokenRouterAddress: Address,
-  ): Promise<NormalizedScale | undefined> {
-    const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
-    const hasScaleFractionInterface =
-      compareVersions(packageVersion, SCALE_FRACTION_VERSION) >= 0;
-
-    const tokenRouter = TokenRouter__factory.connect(
-      tokenRouterAddress,
-      this.provider,
-    );
-
-    let result: NormalizedScale;
-
-    if (hasScaleFractionInterface) {
-      // Read new format (scaleNumerator and scaleDenominator)
-      const [numerator, denominator] = await Promise.all([
-        tokenRouter.scaleNumerator(),
-        tokenRouter.scaleDenominator(),
-      ]);
-
-      result = {
-        numerator: numerator.toBigInt(),
-        denominator: denominator.toBigInt(),
-      };
-    } else {
-      // Read old format (single scale value) using low-level call
-      const legacyScaleABI = [
-        'function scale() external view returns (uint256)',
-      ];
-      const legacyContract = new Contract(
-        tokenRouterAddress,
-        legacyScaleABI,
-        this.provider,
-      );
-      const scale: BigNumber = await legacyContract.scale();
-      result = { numerator: scale.toBigInt(), denominator: 1n };
-    }
-
-    // Omit identity scale so derived config matches deploy configs that
-    // don't specify scale (i.e. uniform-decimal routes).
-    if (result.numerator === 1n && result.denominator === 1n) {
-      return undefined;
-    }
-    return result;
   }
 
   async fetchPackageVersion(address: Address) {
@@ -1236,7 +1196,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     return Object.fromEntries(
       await Promise.all(
-        domains.map(async (domain) => {
+        domains.map(async (domain: any) => {
           return [domain, (await warpRoute.destinationGas(domain)).toString()];
         }),
       ),

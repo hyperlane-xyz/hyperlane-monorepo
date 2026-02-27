@@ -151,7 +151,7 @@ Don't hardcode magic numbers like `2000000000000000000n`. Derive expected values
 ```ts
 // Good — derived from strategy config
 import { INVENTORY_MIN_AMOUNT_TARGET_WEI } from './fixtures/routes.js';
-const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI.toBigInt();
+const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI;
 expect(activeIntent.amount).to.equal(expectedDeficit);
 
 // Bad — hardcoded magic number

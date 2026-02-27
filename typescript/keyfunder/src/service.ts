@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-import { Wallet } from 'ethers';
-
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneIgp,
+  LocalAccountViemSigner,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  ensure0x,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -68,7 +71,9 @@ async function main(): Promise<void> {
     );
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new Wallet(privateKey);
+    const signer = new LocalAccountViemSigner(
+      ensure0x(privateKey) as `0x${string}`,
+    );
     multiProvider.setSharedSigner(signer);
     logger.info('Initialized MultiProvider with signer');
 

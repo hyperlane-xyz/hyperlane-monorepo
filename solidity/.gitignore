@@ -12,6 +12,8 @@ storage/
 # Foundry
 out
 forge-cache
+out-tron
+forge-cache-tron
 docs
 flattened/
 buildArtifact.json
@@ -26,6 +28,7 @@ cache-zk
 artifacts-tron
 cache-tron
 core-utils/zksync/artifacts/output
+core-utils/generated/
 .zksolc-libraries-cache/
 typechain-types/
 typechain/

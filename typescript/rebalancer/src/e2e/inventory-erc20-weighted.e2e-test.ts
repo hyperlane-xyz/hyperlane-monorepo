@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, providers } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   HyperlaneCore,
@@ -38,7 +38,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
 
   let deploymentManager: Erc20InventoryLocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let erc20DeployedAddresses: Erc20InventoryDeployedAddresses;
@@ -47,13 +47,23 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
   >;
   let mockBridge: MockExternalBridge;
 
-  const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
-    .address;
+  const inventorySignerAddress = privateKeyToAccount(
+    ANVIL_USER_PRIVATE_KEY as `0x${string}`,
+  ).address;
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
+    event.confirmedBlockTags = await context.getConfirmedBlockTags();
     await context.orchestrator.executeCycle(event);
+  }
+
+  async function mineConfirmedBlocks(): Promise<void> {
+    for (const provider of localProviders.values()) {
+      for (let i = 0; i < 5; i += 1) {
+        await provider.send('evm_mine', []);
+      }
+    }
   }
 
   before(async function () {
@@ -139,7 +149,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(activeIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC,
     );
     const inProgressActions = await context.tracker.getInProgressActions();
     expect(inProgressActions.length).to.equal(1);
@@ -218,13 +228,13 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].intent.amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC,
     );
     expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil3);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC);
 
     const firstCycleActions = await context.tracker.getActionsForIntent(
       partialIntents[0].intent.id,
@@ -318,7 +328,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(activeIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC,
     );
     const trackedIntentId = activeIntents[0].id;
 
@@ -328,7 +338,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC);
 
     let actions = await context.tracker.getActionsForIntent(trackedIntentId);
     let movementActions = actions.filter(
@@ -358,7 +368,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC);
 
     actions = await context.tracker.getActionsForIntent(trackedIntentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
@@ -434,7 +444,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(partialIntents[0].intent.status).to.equal('not_started');
     expect(partialIntents[0].completedAmount).to.equal(0n);
     expect(partialIntents[0].remaining).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC,
     );
 
     const intentId = partialIntents[0].intent.id;
@@ -548,7 +558,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(firstCycleIntents.length).to.equal(1);
     expect(firstCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(firstCycleIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC,
     );
 
     const firstIntentId = firstCycleIntents[0].id;
@@ -612,13 +622,14 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       ).to.be.true;
     }
 
+    await mineConfirmedBlocks();
     await executeCycle(context);
     const secondCycleIntents =
       await context.tracker.getActiveRebalanceIntents();
     expect(secondCycleIntents.length).to.equal(1);
-    expect(secondCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
+    expect(secondCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(secondCycleIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC,
     );
   });
 
@@ -654,7 +665,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(cycle1ActiveIntents.length).to.equal(1);
     expect(cycle1ActiveIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(cycle1ActiveIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC,
     );
     const intentId = cycle1ActiveIntents[0].id;
 
@@ -666,7 +677,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(
       cycle1PartialIntents[0].completedAmount +
         cycle1PartialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC);
 
     let actions = await context.tracker.getActionsForIntent(intentId);
     expect(actions.length).to.equal(1);

@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 # Ensure deterministic tron outputs for caching and downstream package imports.
-rm -rf ./cache-tron ./artifacts-tron ./dist/tron/typechain
+rm -rf ./cache-tron ./artifacts-tron
 
 # Soldeer dependencies are already installed by the turbo deps:soldeer task
 # (build:tron depends on build, which depends on deps:soldeer).
@@ -47,9 +47,6 @@ node patch-isContract.mjs $ISCONTRACT_FILES
 
 # Compile with tron-solc
 NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
-
-# Compile generated tron typechain TS into JS for package consumers.
-pnpm exec tsc --project tsconfig.tron-typechain.json
 
 # trap will restore files
 trap - EXIT

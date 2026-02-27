@@ -1,8 +1,0 @@
-{
-  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./dist/tron/typechain",
-    "rootDir": "./artifacts-tron/typechain"
-  },
-  "include": ["./artifacts-tron/typechain/**/*.ts"]
-}

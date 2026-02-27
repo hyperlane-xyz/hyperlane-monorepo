@@ -1,4 +1,14 @@
-import { BigNumber, PopulatedTransaction, ethers, utils } from 'ethers';
+import {
+  Hex,
+  concatHex,
+  decodeFunctionResult,
+  encodeAbiParameters,
+  encodeFunctionData,
+  encodePacked,
+  keccak256,
+  parseAbi,
+  zeroHash,
+} from 'viem';
 import { z } from 'zod';
 
 import {
@@ -28,6 +38,10 @@ import {
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import type {
+  EvmTransactionLike,
+  EvmTransactionResponseLike,
+} from '../../providers/evmTypes.js';
 import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
@@ -42,10 +56,13 @@ import {
 } from './contracts.js';
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
-const IGP_DEFAULT_GAS = BigNumber.from(50_000);
-const ICA_OVERHEAD = BigNumber.from(50_000);
-const PER_CALL_OVERHEAD = BigNumber.from(5_000);
-const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
+const IGP_DEFAULT_GAS = 50_000n;
+const ICA_OVERHEAD = 50_000n;
+const PER_CALL_OVERHEAD = 5_000n;
+const ICA_HANDLE_GAS_FALLBACK = 200_000n;
+const interchainAccountRouterCallAbi = parseAbi([
+  'function callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)',
+]);
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -122,9 +139,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         config.ismOverride ?? (await destinationRouter.isms(originDomain)),
       ),
     );
-    const destinationAccount = await destinationRouter[
+    const destinationAccount = (await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+    ](
+      originDomain,
+      config.owner,
+      originRouterAddress,
+      destinationIsmAddress,
+    )) as string;
 
     // If not deploying anything, return the account address.
     if (!deployIfNotExists) {
@@ -162,7 +184,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
             gasLimit: gasWithBuffer,
             ...txOverrides,
           },
-        ),
+        ) as Promise<EvmTransactionResponseLike>,
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
     } else {
@@ -181,21 +203,31 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
    * Mirrors solidity/contracts/middleware/libs/InterchainAccountMessage.sol#encode
    */
   encodeIcaMessageBody(
-    owner: string,
-    ism: string,
-    calls: { to: string; value: BigNumber; data: string }[],
-    salt: string = ethers.constants.HashZero,
+    owner: Hex,
+    ism: Hex,
+    calls: { to: Hex; value: bigint; data: Hex }[],
+    salt: Hex = zeroHash,
   ): string {
     const MESSAGE_TYPE_CALLS = 0;
-    const prefix = ethers.utils.solidityPack(
+    const prefix = encodePacked(
       ['uint8', 'bytes32', 'bytes32', 'bytes32'],
       [MESSAGE_TYPE_CALLS, owner, ism, salt],
     );
-    const suffix = ethers.utils.defaultAbiCoder.encode(
-      ['tuple(bytes32 to, uint256 value, bytes data)[]'],
-      [calls],
+    const suffix = encodeAbiParameters(
+      [
+        {
+          name: 'calls',
+          type: 'tuple[]',
+          components: [
+            { name: 'to', type: 'bytes32' },
+            { name: 'value', type: 'uint256' },
+            { name: 'data', type: 'bytes' },
+          ],
+        },
+      ],
+      [calls as readonly { to: Hex; value: bigint; data: Hex }[]],
     );
-    return ethers.utils.hexConcat([prefix, suffix]);
+    return concatHex([prefix, suffix]);
   }
 
   /**
@@ -211,7 +243,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     destination: string;
     innerCalls: SdkCallData[];
     config: AccountConfig;
-  }): Promise<BigNumber> {
+  }): Promise<bigint> {
     const originDomain = this.multiProvider.getDomainId(origin);
     const destinationRouter = config.routerOverride
       ? InterchainAccountRouter__factory.connect(
@@ -229,14 +261,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     );
 
     const formattedCalls = innerCalls.map((call) => ({
-      to: addressToBytes32(call.to),
-      value: BigNumber.from(call.value ?? '0'),
-      data: call.data,
+      to: addressToBytes32(call.to) as Hex,
+      value: BigInt(call.value ?? '0'),
+      data: (call.data ?? '0x') as Hex,
     }));
 
     const messageBody = this.encodeIcaMessageBody(
-      addressToBytes32(config.owner),
-      remoteIsm,
+      addressToBytes32(config.owner) as Hex,
+      remoteIsm as Hex,
       formattedCalls,
     );
 
@@ -274,14 +306,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           }),
         ),
       );
-      const totalGas = individualEstimates.reduce(
-        (sum, gas) => sum.add(gas),
-        BigNumber.from(0),
-      );
-      const overhead = ICA_OVERHEAD.add(
-        PER_CALL_OVERHEAD.mul(formattedCalls.length),
-      );
-      return addBufferToGasLimit(totalGas.add(overhead));
+      const totalGas = individualEstimates.reduce((sum, gas) => sum + gas, 0n);
+      const overhead =
+        ICA_OVERHEAD + PER_CALL_OVERHEAD * BigInt(formattedCalls.length);
+      return addBufferToGasLimit(totalGas + overhead);
     } catch {
       this.logger.warn(
         { destination },
@@ -298,7 +326,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     innerCalls,
     config,
     hookMetadata,
-  }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
+  }: GetCallRemoteSettings): Promise<EvmTransactionLike> {
     const localRouter = config.localRouter
       ? InterchainAccountRouter__factory.connect(
           config.localRouter,
@@ -341,69 +369,94 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
     const gasLimitForQuote =
       typeof hookMetadata === 'object' && hookMetadata?.gasLimit
-        ? BigNumber.from(hookMetadata.gasLimit)
+        ? BigInt(hookMetadata.gasLimit)
         : resolvedHookMetadata !== '0x'
           ? (this.extractGasLimitFromMetadata(resolvedHookMetadata) ??
             IGP_DEFAULT_GAS)
           : IGP_DEFAULT_GAS;
 
     const formattedCalls = innerCalls.map((call) => ({
-      to: addressToBytes32(call.to),
-      value: BigNumber.from(call.value ?? '0'),
-      data: call.data,
+      to: addressToBytes32(call.to) as Hex,
+      value: BigInt(call.value ?? '0'),
+      data: (call.data ?? '0x') as Hex,
     }));
 
-    let quote: BigNumber;
+    let quote: bigint;
     try {
-      quote = await localRouter['quoteGasPayment(uint32,uint256)'](
+      const quoteResult = (await localRouter['quoteGasPayment(uint32,uint256)'](
         remoteDomain,
         gasLimitForQuote,
-      );
+      )) as bigint | number | string | { toString(): string };
+      quote = BigInt(quoteResult.toString());
     } catch {
       // Legacy ICA routers have broken quoteGasPayment that doesn't use hookMetadata.
       // Query the mailbox directly to get accurate quote with our metadata.
       const mailboxAddress = await localRouter.mailbox();
-      const mailbox = new ethers.Contract(
-        mailboxAddress,
-        [
-          'function quoteDispatch(uint32,bytes32,bytes,bytes,address) view returns (uint256)',
-          'function defaultHook() view returns (address)',
-        ],
-        this.multiProvider.getProvider(chain),
-      );
-      const defaultHook = await mailbox.defaultHook();
+      const provider = this.multiProvider.getProvider(chain);
+      const mailboxAbi = parseAbi([
+        'function quoteDispatch(uint32,bytes32,bytes,bytes,address) view returns (uint256)',
+        'function defaultHook() view returns (address)',
+      ]);
+      const defaultHookCall = await provider.call({
+        to: mailboxAddress,
+        data: encodeFunctionData({
+          abi: mailboxAbi,
+          functionName: 'defaultHook',
+        }),
+      });
+      const defaultHook = decodeFunctionResult({
+        abi: mailboxAbi,
+        functionName: 'defaultHook',
+        data: defaultHookCall as Hex,
+      });
       const messageBody = this.encodeIcaMessageBody(
-        addressToBytes32(config.owner),
-        remoteIsm,
+        addressToBytes32(config.owner) as Hex,
+        remoteIsm as Hex,
         formattedCalls,
       );
-      quote = await mailbox[
-        'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
-      ](
-        remoteDomain,
-        remoteRouter,
-        messageBody,
-        resolvedHookMetadata,
-        defaultHook,
-      );
+      const quoteDispatchCall = await provider.call({
+        to: mailboxAddress as Hex,
+        data: encodeFunctionData({
+          abi: mailboxAbi,
+          functionName: 'quoteDispatch',
+          args: [
+            remoteDomain,
+            remoteRouter as Hex,
+            messageBody as Hex,
+            resolvedHookMetadata as Hex,
+            defaultHook as Hex,
+          ],
+        }),
+      });
+      quote = decodeFunctionResult({
+        abi: mailboxAbi,
+        functionName: 'quoteDispatch',
+        data: quoteDispatchCall as Hex,
+      });
     }
 
-    const callEncoded = await localRouter.populateTransaction[
-      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
-    ](
+    const callArgsForViem = [
       remoteDomain,
-      remoteRouter,
-      remoteIsm,
-      formattedCalls,
-      resolvedHookMetadata,
-      { value: quote },
-    );
-    return callEncoded;
+      remoteRouter as Hex,
+      remoteIsm as Hex,
+      formattedCalls.map((call) => [call.to, call.value, call.data] as const),
+      resolvedHookMetadata as Hex,
+    ] as const;
+
+    return {
+      to: localRouter.address ?? config.localRouter,
+      data: encodeFunctionData({
+        abi: interchainAccountRouterCallAbi,
+        functionName: 'callRemoteWithOverrides',
+        args: callArgsForViem,
+      }),
+      value: quote,
+    };
   }
 
-  private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
+  private extractGasLimitFromMetadata(metadata: string): bigint | null {
     const parsed = parseStandardHookMetadata(metadata);
-    return parsed ? BigNumber.from(parsed.gasLimit) : null;
+    return parsed ? BigInt(parsed.gasLimit) : null;
   }
 
   // general helper for different overloaded callRemote functions
@@ -460,7 +513,9 @@ export async function buildInterchainAccountApp(
       objMap(arrayToObject(knownDomains.map(String)), async (domainId) => {
         const routerAddress = await currentIca.routers(domainId);
 
-        return { interchainAccountRouter: bytes32ToAddress(routerAddress) };
+        return {
+          interchainAccountRouter: bytes32ToAddress(routerAddress),
+        };
       }),
     );
   }
@@ -502,24 +557,32 @@ export async function deployInterchainAccount(
 }
 
 export function encodeIcaCalls(calls: CallData[], salt: string) {
-  return (
-    salt +
-    utils.defaultAbiCoder
-      .encode(
-        ['tuple(bytes32 to,uint256 value,bytes data)[]'],
-        [
-          calls.map((c) => ({
-            to: addressToBytes32(c.to),
-            value: c.value || 0,
-            data: c.data,
-          })),
-        ],
-      )
-      .slice(2)
-  );
+  return concatHex([
+    salt as Hex,
+    encodeAbiParameters(
+      [
+        {
+          name: 'calls',
+          type: 'tuple[]',
+          components: [
+            { name: 'to', type: 'bytes32' },
+            { name: 'value', type: 'uint256' },
+            { name: 'data', type: 'bytes' },
+          ],
+        },
+      ],
+      [
+        calls.map((c) => ({
+          to: addressToBytes32(c.to) as Hex,
+          value: c.value ?? 0n,
+          data: c.data as Hex,
+        })),
+      ],
+    ),
+  ]);
 }
 
-// Convenience function to transform value strings to bignumber
+// Convenience function to transform value strings to bigint
 export type RawCallData = {
   to: string;
   value?: string | number;
@@ -529,7 +592,7 @@ export type RawCallData = {
 export function normalizeCalls(calls: RawCallData[]): CallData[] {
   return calls.map((call) => ({
     to: addressToBytes32(call.to),
-    value: BigNumber.from(call.value || 0),
+    value: BigInt(call.value || 0),
     data: call.data,
   }));
 }
@@ -538,7 +601,7 @@ export function commitmentFromIcaCalls(
   calls: CallData[],
   salt: string,
 ): string {
-  return utils.keccak256(encodeIcaCalls(calls, salt));
+  return keccak256(encodeIcaCalls(calls, salt));
 }
 
 export const PostCallsSchema = z.object({

@@ -1,4 +1,3 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 
 import {
@@ -8,6 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type EverclearCollateralTokenConfig,
+  HyperlaneSmartProvider,
   HypTokenRouterConfigMailboxOptionalSchema,
   TokenType,
   type WarpCoreConfig,
@@ -45,6 +45,21 @@ import {
 } from '../../commands/helpers.js';
 import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
 
+function toBigIntValue(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
@@ -65,7 +80,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   let tokenChain2: ERC20Test;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
 
-  let providerChain2: JsonRpcProvider;
+  let providerChain2: HyperlaneSmartProvider;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -92,7 +107,10 @@ describe('hyperlane warp apply owner update tests', async function () {
   before(async function () {
     const chain2Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
-    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrl);
+    providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrl,
+    );
 
     tokenChain2 = await deployToken(
       HYP_KEY_BY_PROTOCOL.ethereum,
@@ -326,14 +344,16 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     const onChainEverclearBridgeAdapterAddress =
       await movableToken.everclearAdapter();
-    expect(onChainEverclearBridgeAdapterAddress).to.equal(
-      everclearBridgeAdapterMock.address,
+    expect(normalizeAddressEvm(onChainEverclearBridgeAdapterAddress)).to.equal(
+      normalizeAddressEvm(everclearBridgeAdapterMock.address),
     );
 
     const [fee, deadline, signature] =
       await movableToken.feeParams(chain3DomainId);
-    expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
-    expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+    expect(Number(toBigIntValue(deadline))).to.equal(
+      expectedFeeSettings.deadline,
+    );
+    expect(Number(toBigIntValue(fee))).to.equal(expectedFeeSettings.fee);
     expect(signature).to.equal(expectedFeeSettings.signature);
 
     const outputAssetAddress = await movableToken.outputAssets(chain3DomainId);

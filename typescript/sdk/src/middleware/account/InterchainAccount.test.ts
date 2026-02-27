@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
@@ -12,7 +11,7 @@ import { randomAddress } from '../../test/testUtils.js';
 import { InterchainAccount } from './InterchainAccount.js';
 
 describe('InterchainAccount.getCallRemote', () => {
-  const defaultGasLimit = BigNumber.from(50_000);
+  const defaultGasLimit = 50_000n;
   const chain = TestChainName.test1;
   const destination = TestChainName.test2;
 
@@ -28,21 +27,21 @@ describe('InterchainAccount.getCallRemote', () => {
 
     const contractsMap = {
       [chain]: { interchainAccountRouter: { address: randomAddress() } },
-      [destination]: { interchainAccountRouter: { address: randomAddress() } },
+      [destination]: {
+        interchainAccountRouter: { address: randomAddress() },
+      },
     } as any;
     app = new InterchainAccount(contractsMap, multiProvider);
 
     mockLocalRouter = {
-      ['quoteGasPayment(uint32,uint256)']: sandbox
-        .stub()
-        .resolves(BigNumber.from(123)),
-      ['quoteGasPayment(uint32)']: sandbox.stub().resolves(BigNumber.from(456)),
+      ['quoteGasPayment(uint32,uint256)']: sandbox.stub().resolves(123n),
+      ['quoteGasPayment(uint32)']: sandbox.stub().resolves(456n),
       populateTransaction: {
         ['callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)']:
           sandbox.stub().resolves({
             to: randomAddress(),
             data: '0x',
-            value: BigNumber.from(0),
+            value: 0n,
           }),
       },
     };
@@ -77,7 +76,7 @@ describe('InterchainAccount.getCallRemote', () => {
     sinon.assert.calledOnce(mockLocalRouter['quoteGasPayment(uint32,uint256)']);
     const [, gasLimit] =
       mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
-    expect(gasLimit.toNumber()).to.equal(defaultGasLimit.toNumber());
+    expect(BigInt(gasLimit.toString())).to.equal(defaultGasLimit);
   });
 
   it('uses gasLimit from StandardHookMetadata when provided', async () => {
@@ -97,9 +96,7 @@ describe('InterchainAccount.getCallRemote', () => {
 
     const [, gasLimitArg] =
       mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
-    expect(gasLimitArg.toString()).to.equal(
-      BigNumber.from(gasLimit).toString(),
-    );
+    expect(gasLimitArg.toString()).to.equal(gasLimit.toString());
   });
 
   it('falls back to IGP default gas on malformed metadata', async () => {
@@ -113,7 +110,7 @@ describe('InterchainAccount.getCallRemote', () => {
 
     const [, gasLimit] =
       mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
-    expect(gasLimit.toNumber()).to.equal(defaultGasLimit.toNumber());
+    expect(BigInt(gasLimit.toString())).to.equal(defaultGasLimit);
   });
 
   it('falls back to mailbox quoteDispatch when v2 quote fails', async () => {
@@ -198,10 +195,10 @@ describe('InterchainAccount.getCallRemote', () => {
 describe('InterchainAccount.estimateIcaHandleGas', () => {
   const chain = TestChainName.test1;
   const destination = TestChainName.test2;
-  const ICA_OVERHEAD = BigNumber.from(50_000);
-  const PER_CALL_OVERHEAD = BigNumber.from(5_000);
-  const PER_CALL_FALLBACK = BigNumber.from(50_000);
-  const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
+  const ICA_OVERHEAD = 50_000n;
+  const PER_CALL_OVERHEAD = 5_000n;
+  const PER_CALL_FALLBACK = 50_000n;
+  const ICA_HANDLE_GAS_FALLBACK = 200_000n;
 
   let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProvider;
@@ -262,7 +259,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   ];
 
   it('returns buffered handle() estimate when it succeeds', async () => {
-    const handleEstimate = BigNumber.from(100_000);
+    const handleEstimate = 100_000n;
     mockDestRouter.estimateGas.handle.resolves(handleEstimate);
 
     const result = await app.estimateIcaHandleGas({
@@ -273,7 +270,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     });
 
     // addBufferToGasLimit adds 10%
-    const expectedWithBuffer = handleEstimate.mul(110).div(100);
+    const expectedWithBuffer = (handleEstimate * 110n) / 100n;
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });
 
@@ -281,8 +278,8 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
     // Individual call estimates
-    const call1Estimate = BigNumber.from(30_000);
-    const call2Estimate = BigNumber.from(40_000);
+    const call1Estimate = 30_000n;
+    const call2Estimate = 40_000n;
     mockProvider.estimateGas
       .onFirstCall()
       .resolves(call1Estimate)
@@ -297,10 +294,10 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     });
 
     // Total = calls + ICA overhead + per-call overhead
-    const callsTotal = call1Estimate.add(call2Estimate);
-    const overhead = ICA_OVERHEAD.add(PER_CALL_OVERHEAD.mul(2));
-    const expectedBeforeBuffer = callsTotal.add(overhead);
-    const expectedWithBuffer = expectedBeforeBuffer.mul(110).div(100);
+    const callsTotal = call1Estimate + call2Estimate;
+    const overhead = ICA_OVERHEAD + PER_CALL_OVERHEAD * 2n;
+    const expectedBeforeBuffer = callsTotal + overhead;
+    const expectedWithBuffer = (expectedBeforeBuffer * 110n) / 100n;
 
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });
@@ -309,7 +306,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
     // First call succeeds, second fails (uses per-call fallback)
-    const call1Estimate = BigNumber.from(30_000);
+    const call1Estimate = 30_000n;
     mockProvider.estimateGas
       .onFirstCall()
       .resolves(call1Estimate)
@@ -324,10 +321,10 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     });
 
     // Second call uses 50k fallback
-    const callsTotal = call1Estimate.add(PER_CALL_FALLBACK);
-    const overhead = ICA_OVERHEAD.add(PER_CALL_OVERHEAD.mul(2));
-    const expectedBeforeBuffer = callsTotal.add(overhead);
-    const expectedWithBuffer = expectedBeforeBuffer.mul(110).div(100);
+    const callsTotal = call1Estimate + PER_CALL_FALLBACK;
+    const overhead = ICA_OVERHEAD + PER_CALL_OVERHEAD * 2n;
+    const expectedBeforeBuffer = callsTotal + overhead;
+    const expectedWithBuffer = (expectedBeforeBuffer * 110n) / 100n;
 
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });

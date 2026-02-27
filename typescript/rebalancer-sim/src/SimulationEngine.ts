@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Hex, pad } from 'viem';
 
 import {
   ERC20__factory,
@@ -7,11 +7,13 @@ import {
 import {
   type ChainMetadata,
   HyperlaneCore,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   MultiProvider,
   TokenStandard,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
 import { MockInfrastructureController } from './MockInfrastructureController.js';
@@ -41,15 +43,14 @@ export const DEFAULT_TIMING: SimulationTiming = {
  * with rebalancer monitoring and KPI collection.
  */
 export class SimulationEngine {
-  private provider: ethers.providers.JsonRpcProvider;
+  private provider: ReturnType<MultiProvider['getProvider']>;
   private isRunning = false;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
-    this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
-    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-    this.provider.pollingInterval = 100;
-    // Disable automatic polling (event subscriptions) but keep pollingInterval for tx.wait()
-    this.provider.polling = false;
+    this.provider = HyperlaneSmartProvider.fromRpcUrl(
+      31337,
+      deployment.anvilRpc,
+    );
   }
 
   /**
@@ -109,14 +110,24 @@ export class SimulationEngine {
       // Execute transfers according to scenario
       await this.executeTransfers(scenario, timing, kpiCollector);
 
-      // Wait for ethers event polling to catch up
-      await new Promise((r) => setTimeout(r, 200));
+      // Keep rebalancer active only for the configured scenario window.
+      // Without this, daemon mode keeps generating follow-up rebalances while
+      // we're waiting for delayed bridge deliveries, which can make results
+      // highly timing-dependent and flaky in CI.
+      const elapsed = Date.now() - startTime;
+      const remainingScenarioTime = scenario.duration - elapsed;
+      if (remainingScenarioTime > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, remainingScenarioTime),
+        );
+      }
+
+      // Let any in-flight poll cycle settle, then stop creating new actions.
+      await rebalancer.waitForIdle(5000);
+      await rebalancer.stop();
 
       // Wait for all deliveries (user transfers + bridge transfers)
       await controller.waitForAllDeliveries(60000);
-
-      // Wait for rebalancer to become idle
-      await rebalancer.waitForIdle(5000);
 
       // Generate final KPIs
       const kpis = await kpiCollector.generateKPIs();
@@ -149,9 +160,7 @@ export class SimulationEngine {
         }
       }
 
-      // Clean up provider to release connections
-      this.provider.removeAllListeners();
-      this.provider.polling = false;
+      // No additional provider cleanup required for HyperlaneSmartProvider.
     }
   }
 
@@ -163,10 +172,9 @@ export class SimulationEngine {
     timing: SimulationTiming,
     kpiCollector: KPICollector,
   ): Promise<void> {
-    const deployer = new ethers.Wallet(
-      this.deployment.deployerKey,
-      this.provider,
-    );
+    const deployer = new LocalAccountViemSigner(
+      ensure0x(this.deployment.deployerKey) as `0x${string}`,
+    ).connect(this.provider);
     const startTime = Date.now();
 
     for (let i = 0; i < scenario.transfers.length; i++) {
@@ -208,7 +216,7 @@ export class SimulationEngine {
         const gasPayment = await warpToken.quoteGasPayment(destDomain.domainId);
 
         // Transfer remote
-        const recipientBytes32 = ethers.utils.hexZeroPad(transfer.user, 32);
+        const recipientBytes32 = pad(transfer.user as Hex, { size: 32 });
         const transferTx = await warpToken.transferRemote(
           destDomain.domainId,
           recipientBytes32,
@@ -292,17 +300,16 @@ export class SimulationEngine {
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const processorWallet = new ethers.Wallet(
-      this.deployment.mailboxProcessorKey,
-      this.provider,
-    );
+    const processorWallet = new LocalAccountViemSigner(
+      ensure0x(this.deployment.mailboxProcessorKey) as `0x${string}`,
+    ).connect(this.provider);
     multiProvider.setSharedSigner(processorWallet);
 
     // Set fast polling on internal providers
     for (const chainName of multiProvider.getKnownChainNames()) {
       const p = multiProvider.tryGetProvider(chainName);
       if (p && 'pollingInterval' in p) {
-        (p as ethers.providers.JsonRpcProvider).pollingInterval = 100;
+        (p as { pollingInterval: number }).pollingInterval = 100;
       }
     }
 

@@ -1,14 +1,13 @@
-import '@nomiclabs/hardhat-waffle';
-import hre from 'hardhat';
-
 import {
   ChainMap,
+  HardhatSignerWithAddress,
   HyperlaneContractsMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
+  getHardhatSigners,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app.js';
@@ -26,7 +25,7 @@ describe('deploy', () => {
   let app: HelloWorldApp;
 
   before(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer]: HardhatSignerWithAddress[] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

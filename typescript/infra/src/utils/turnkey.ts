@@ -1,17 +1,47 @@
 import {
   MultiProvider,
   TurnkeyConfig,
-  TurnkeyEvmSigner,
+  TurnkeyViemSigner,
   TurnkeySealevelSigner,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
 import { TurnkeyRole } from '../roles.js';
 
 import { fetchLatestGCPSecret } from './gcloud.js';
 
-export type TurnkeySigner = TurnkeySealevelSigner | TurnkeyEvmSigner;
+export type TurnkeySigner = TurnkeySealevelSigner | TurnkeyViemSigner;
+
+function parseTurnkeyConfig(secretData: string): TurnkeyConfig {
+  const parsed = JSON.parse(secretData);
+  assert(
+    typeof parsed === 'object' && parsed !== null,
+    'Turnkey config must be an object',
+  );
+  assert(
+    typeof parsed.organizationId === 'string',
+    'Missing Turnkey organizationId',
+  );
+  assert(
+    typeof parsed.apiPublicKey === 'string',
+    'Missing Turnkey apiPublicKey',
+  );
+  assert(
+    typeof parsed.apiPrivateKey === 'string',
+    'Missing Turnkey apiPrivateKey',
+  );
+  assert(
+    typeof parsed.privateKeyId === 'string',
+    'Missing Turnkey privateKeyId',
+  );
+  assert(typeof parsed.publicKey === 'string', 'Missing Turnkey publicKey');
+  assert(
+    parsed.apiBaseUrl === undefined || typeof parsed.apiBaseUrl === 'string',
+    'Turnkey apiBaseUrl must be a string',
+  );
+  return parsed;
+}
 
 /**
  * Get the GCP secret name for a Turnkey role
@@ -31,7 +61,7 @@ export async function createTurnkeySigner(
   const secretName = turnkeySecret(deployEnvironment, role);
   try {
     const secretData = await fetchLatestGCPSecret(secretName);
-    const turnkeyConfig = JSON.parse(secretData) as TurnkeyConfig;
+    const turnkeyConfig = parseTurnkeyConfig(secretData);
 
     // Create the appropriate signer based on role
     let signer: TurnkeySigner;
@@ -44,7 +74,7 @@ export async function createTurnkeySigner(
       case TurnkeyRole.EvmRebalancer:
       case TurnkeyRole.EvmIgpClaimer:
       case TurnkeyRole.EvmIgpUpdater:
-        signer = new TurnkeyEvmSigner(turnkeyConfig);
+        signer = new TurnkeyViemSigner(turnkeyConfig);
         break;
       default:
         throw new Error(`Unknown Turnkey role: ${role}`);
@@ -73,26 +103,30 @@ export async function createTurnkeySigner(
 export async function getTurnkeySealevelDeployerSigner(
   deployEnvironment: DeployEnvironment,
 ): Promise<TurnkeySealevelSigner> {
-  return createTurnkeySigner(
+  const signer = await createTurnkeySigner(
     deployEnvironment,
     TurnkeyRole.SealevelDeployer,
-  ) as Promise<TurnkeySealevelSigner>;
+  );
+  assert(
+    signer instanceof TurnkeySealevelSigner,
+    'Expected TurnkeySealevelSigner',
+  );
+  return signer;
 }
 
-// TurnkeyEvmSigner is now imported from SDK
+// TurnkeyViemSigner is now imported from SDK
 
 /**
  * Get Turnkey EVM signer for a specific role
  * Fetches the Turnkey config from GCP Secret Manager and creates a signer
  */
-export async function getTurnkeyEvmSigner(
+export async function getTurnkeyViemSigner(
   deployEnvironment: DeployEnvironment,
   role: Exclude<TurnkeyRole, TurnkeyRole.SealevelDeployer>,
-): Promise<TurnkeyEvmSigner> {
-  return createTurnkeySigner(
-    deployEnvironment,
-    role,
-  ) as Promise<TurnkeyEvmSigner>;
+): Promise<TurnkeyViemSigner> {
+  const signer = await createTurnkeySigner(deployEnvironment, role);
+  assert(signer instanceof TurnkeyViemSigner, 'Expected TurnkeyViemSigner');
+  return signer;
 }
 
 export async function setTurnkeySignerForEvmChains(
@@ -100,7 +134,7 @@ export async function setTurnkeySignerForEvmChains(
   deployEnvironment: DeployEnvironment,
   role: Exclude<TurnkeyRole, TurnkeyRole.SealevelDeployer>,
 ): Promise<void> {
-  const turnkeySigner = await getTurnkeyEvmSigner(deployEnvironment, role);
+  const turnkeySigner = await getTurnkeyViemSigner(deployEnvironment, role);
   await Promise.all(
     multiProvider.getKnownChainNames().reduce<Promise<void>[]>((acc, chain) => {
       if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {

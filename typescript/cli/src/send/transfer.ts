@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  assert,
   parseWarpRouteMessage,
   timeout,
 } from '@hyperlane-xyz/utils';
@@ -29,6 +30,19 @@ import { runTokenSelectionStep } from '../utils/tokens.js';
 export const WarpSendLogs = {
   SUCCESS: 'Transfer was self-relayed!',
 };
+
+function toSignerTransactionRequest(
+  transaction: Record<string, unknown>,
+): Record<string, unknown> {
+  const request = { ...transaction };
+  if (request.data === undefined && typeof request.input === 'string') {
+    request.data = request.input;
+  }
+  if (request.gasLimit === undefined && request.gas !== undefined) {
+    request.gasLimit = request.gas;
+  }
+  return request;
+}
 
 export async function sendTestTransfer({
   context,
@@ -54,7 +68,7 @@ export async function sendTestTransfer({
   const { multiProvider } = context;
 
   // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
-  // but CLI transaction handling currently only processes EthersV5 transactions.
+  // but CLI transaction handling currently only processes EVM transactions.
   const nonEvmChains = chains.filter(
     (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
@@ -126,8 +140,13 @@ async function executeDelivery({
 
   const recipientAddress = await recipientSigner.getAddress();
   const signerAddress = await signer.getAddress();
-
-  recipient ||= recipientAddress;
+  assert(
+    recipientAddress,
+    `Missing recipient signer address for ${destination}`,
+  );
+  assert(signerAddress, `Missing signer address for ${origin}`);
+  const normalizedRecipient = (recipient ?? recipientAddress) as string;
+  const normalizedSignerAddress = signerAddress as string;
 
   const chainAddresses = await registry.getAddresses();
 
@@ -155,8 +174,8 @@ async function executeDelivery({
     const errors = await warpCore.validateTransfer({
       originTokenAmount: token.amount(amount),
       destination,
-      recipient,
-      sender: signerAddress,
+      recipient: normalizedRecipient,
+      sender: normalizedSignerAddress,
     });
     if (errors) {
       logRed('Error validating transfer', JSON.stringify(errors));
@@ -168,18 +187,24 @@ async function executeDelivery({
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
-    sender: signerAddress,
-    recipient,
+    sender: normalizedSignerAddress,
+    recipient: normalizedRecipient,
   });
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
-      const txResponse = await signer.sendTransaction(tx.transaction);
+    if (tx.type === ProviderType.Evm || tx.type === ProviderType.Viem) {
+      const txRequest = toSignerTransactionRequest(
+        tx.transaction as Record<string, unknown>,
+      );
+      const txResponse = await signer.sendTransaction(txRequest);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
+    } else {
+      throw new Error(`Unsupported transfer tx type: ${tx.type}`);
     }
   }
+  assert(txReceipts.length > 0, 'No transfer transactions were submitted');
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
   const message: DispatchedMessage =
@@ -188,7 +213,7 @@ async function executeDelivery({
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
-    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+    `Sent transfer from sender (${normalizedSignerAddress}) on ${origin} to recipient (${normalizedRecipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
@@ -196,6 +221,10 @@ async function executeDelivery({
   log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   if (selfRelay) {
+    assert(
+      transferTxReceipt?.transactionHash,
+      'Transfer receipt missing transaction hash for self relay',
+    );
     return runSelfRelay({
       txReceipt: transferTxReceipt,
       multiProvider: multiProvider,

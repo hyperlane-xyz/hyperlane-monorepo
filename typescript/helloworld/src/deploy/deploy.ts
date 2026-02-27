@@ -1,5 +1,6 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
+import type { Router } from '@hyperlane-xyz/core';
 import {
   ChainName,
   ContractVerifier,
@@ -10,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldFactories, helloWorldFactories } from '../app/contracts.js';
-import { HelloWorld } from '../types/index.js';
 
 import { HelloWorldConfig } from './config.js';
 
@@ -31,8 +31,8 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     });
   }
 
-  router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
-    return contracts.router;
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): Router {
+    return contracts.router as unknown as Router;
   }
 
   // Custom contract deployment logic can go here
@@ -40,9 +40,9 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
-      ethers.constants.AddressZero,
+      zeroAddress,
     ]);
-    await super.configureClient(chain, router, config);
+    await super.configureClient(chain, router as Router, config);
     return {
       router,
     };
