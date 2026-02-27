@@ -57,7 +57,7 @@ describe('SVM ISM E2E Tests', function () {
     signer = await createSigner(TEST_PRIVATE_KEY, rpc);
 
     console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, signer.address as any);
+    await airdropSol(rpc, signer.address);
   });
 
   after(async () => {

@@ -1,8 +1,11 @@
 import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import { lamports as brandLamports } from '@solana/kit';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { PreloadedProgram } from './solana-container.js';
 
@@ -45,29 +48,43 @@ export function getPreloadedPrograms(
   programs: Array<keyof typeof PROGRAM_BINARIES>,
   programsPath: string = DEFAULT_PROGRAMS_PATH,
 ): PreloadedProgram[] {
-  return programs.map((program) => ({
-    programId: TEST_PROGRAM_IDS[program as keyof typeof TEST_PROGRAM_IDS],
-    soPath: path.join(programsPath, PROGRAM_BINARIES[program]),
-  }));
+  return programs.map((program) => {
+    const programId =
+      TEST_PROGRAM_IDS[program as keyof typeof TEST_PROGRAM_IDS];
+    assert(programId, `Program '${program}' not found in TEST_PROGRAM_IDS`);
+    return {
+      programId,
+      soPath: path.join(programsPath, PROGRAM_BINARIES[program]),
+    };
+  });
 }
 
 export async function airdropSol(
   rpc: Rpc<SolanaRpcApi>,
   address: Address,
-  lamports: bigint = 10_000_000_000n,
+  amount: bigint = 10_000_000_000n,
 ): Promise<void> {
-  const signature = await rpc.requestAirdrop(address, lamports as any).send();
+  const signature = await rpc
+    .requestAirdrop(address, brandLamports(amount))
+    .send();
 
   let confirmed = false;
   for (let i = 0; i < 30 && !confirmed; i++) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const status = await rpc.getSignatureStatuses([signature]).send();
     const result = status.value[0];
-    if (
-      result?.confirmationStatus === 'confirmed' ||
-      result?.confirmationStatus === 'finalized'
-    ) {
-      confirmed = true;
+    if (result && result.confirmationStatus) {
+      if (result.err) {
+        throw new Error(
+          `Airdrop failed: ${signature}, err: ${JSON.stringify(result.err)}`,
+        );
+      }
+      if (
+        result.confirmationStatus === 'confirmed' ||
+        result.confirmationStatus === 'finalized'
+      ) {
+        confirmed = true;
+      }
     }
   }
 

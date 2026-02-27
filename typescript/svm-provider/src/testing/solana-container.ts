@@ -20,7 +20,9 @@ export function isAppleSilicon(): boolean {
     const arch = execSync('uname -m', { encoding: 'utf-8' }).trim();
     const osName = execSync('uname -s', { encoding: 'utf-8' }).trim();
     return osName === 'Darwin' && arch === 'arm64';
-  } catch {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('Failed to detect platform architecture:', error);
     return false;
   }
 }
@@ -51,7 +53,9 @@ function getValidatorVersion(binaryPath: string): string | null {
     });
     const match = output.match(/solana-test-validator\s+(\d+\.\d+\.\d+)/);
     return match ? match[1] : null;
-  } catch {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn(`Failed to get validator version from ${binaryPath}:`, error);
     return null;
   }
 }
@@ -88,8 +92,9 @@ export function findSolanaTestValidator(): string | null {
         candidates.push({ path: result, version });
       }
     }
-  } catch {
-    // Not in PATH
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('solana-test-validator not found in PATH:', error);
   }
 
   if (candidates.length === 0) return null;
@@ -344,6 +349,7 @@ export async function waitForRpcReady(
   maxAttempts = 30,
   delayMs = 1000,
 ): Promise<void> {
+  let lastError: unknown;
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const response = await fetch(rpcUrl, {
@@ -362,14 +368,16 @@ export async function waitForRpcReady(
           return;
         }
       }
-    } catch {
-      // Ignore errors, keep retrying
+    } catch (error) {
+      lastError = error;
     }
 
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
-  throw new Error(`RPC endpoint not ready after ${maxAttempts} attempts`);
+  throw new Error(
+    `RPC endpoint not ready after ${maxAttempts} attempts. Last error: ${lastError}`,
+  );
 }
 
 export const APPLE_SILICON_SKIP_MESSAGE =
