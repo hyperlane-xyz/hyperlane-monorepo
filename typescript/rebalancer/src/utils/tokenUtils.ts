@@ -64,17 +64,12 @@ export function getExternalBridgeTokenAddress(
     return getNativeTokenAddress(externalBridgeType);
   }
 
-  if (token.collateralAddressOrDenom) {
-    return token.collateralAddressOrDenom;
-  }
+  if (token.collateralAddressOrDenom) return token.collateralAddressOrDenom;
 
-  if (REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS.has(token.standard)) {
-    assert(
-      token.collateralAddressOrDenom,
-      `Missing collateralAddressOrDenom for collateralized token on ${token.chainName} (${token.standard})`,
-    );
-    return token.collateralAddressOrDenom;
-  }
+  assert(
+    !REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS.has(token.standard),
+    `Missing collateralAddressOrDenom for collateralized token on ${token.chainName} (${token.standard})`,
+  );
 
   return token.addressOrDenom;
 }
