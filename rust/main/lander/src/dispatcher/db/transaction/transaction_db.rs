@@ -273,7 +273,9 @@ mod tests {
 
         assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 1);
         assert_eq!(
-            db.retrieve_transaction_index_by_uuid(&tx.uuid).await.unwrap(),
+            db.retrieve_transaction_index_by_uuid(&tx.uuid)
+                .await
+                .unwrap(),
             Some(1)
         );
         assert_eq!(db.retrieve_transaction_by_index(1).await.unwrap(), Some(tx));
