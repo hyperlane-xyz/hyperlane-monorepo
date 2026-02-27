@@ -723,18 +723,67 @@ function normalizeFunctionArgs(
   fn: AbiFunction,
   fnArgs: readonly unknown[],
 ): unknown[] {
-  return fnArgs.map((arg, index) => {
-    const input = fn.inputs?.[index];
-    if (
-      input?.type === 'bytes32' &&
-      typeof arg === 'string' &&
-      isHex(arg) &&
-      arg.length === 42
-    ) {
-      return `0x${arg.slice(2).padStart(64, '0')}`;
+  return fnArgs.map((arg, index) =>
+    normalizeAbiArgument(fn.inputs?.[index], arg),
+  );
+}
+
+function getArrayElementParameter(
+  parameter: AbiParameter,
+): AbiParameter | undefined {
+  const match = parameter.type.match(/^(.*)\[(?:\d*)\]$/);
+  if (!match) return undefined;
+  return {
+    ...parameter,
+    type: match[1],
+  } as AbiParameter;
+}
+
+function normalizeTupleArgument(
+  parameter: AbiParameter,
+  arg: unknown,
+): unknown {
+  const components = parameter.components ?? [];
+  if (Array.isArray(arg)) {
+    return arg.map((value, index) =>
+      normalizeAbiArgument(components[index], value),
+    );
+  }
+  if (isObject(arg)) {
+    const normalized: Record<string, unknown> = { ...arg };
+    for (const component of components) {
+      if (!component.name || !(component.name in normalized)) continue;
+      normalized[component.name] = normalizeAbiArgument(
+        component,
+        normalized[component.name],
+      );
     }
-    return arg;
-  });
+    return normalized;
+  }
+  return arg;
+}
+
+function normalizeAbiArgument(
+  parameter: AbiParameter | undefined,
+  arg: unknown,
+): unknown {
+  if (!parameter) return arg;
+  const arrayElementParameter = getArrayElementParameter(parameter);
+  if (arrayElementParameter && Array.isArray(arg)) {
+    return arg.map((value) => normalizeAbiArgument(arrayElementParameter, value));
+  }
+  if (parameter.type.startsWith('tuple')) {
+    return normalizeTupleArgument(parameter, arg);
+  }
+  if (
+    parameter.type === 'bytes32' &&
+    typeof arg === 'string' &&
+    isHex(arg) &&
+    arg.length === 42
+  ) {
+    return `0x${arg.slice(2).padStart(64, '0')}`;
+  }
+  return arg;
 }
 
 function getSingleFunctionAbi(fn: AbiFunction): Abi {

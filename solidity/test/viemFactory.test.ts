@@ -91,6 +91,44 @@ const GET_IDS_ABI = [
     },
 ] as const satisfies Abi;
 
+const SET_TUPLE_BYTES32_ABI = [
+    {
+        type: "function",
+        name: "setTupleBytes32",
+        stateMutability: "nonpayable",
+        inputs: [
+            {
+                name: "config",
+                type: "tuple",
+                components: [
+                    {
+                        name: "inner",
+                        type: "tuple",
+                        components: [{name: "recipient", type: "bytes32"}],
+                    },
+                ],
+            },
+        ],
+        outputs: [],
+    },
+] as const satisfies Abi;
+
+const SET_TUPLE_ARRAY_BYTES32_ABI = [
+    {
+        type: "function",
+        name: "setTupleArrayBytes32",
+        stateMutability: "nonpayable",
+        inputs: [
+            {
+                name: "configs",
+                type: "tuple[]",
+                components: [{name: "recipient", type: "bytes32"}],
+            },
+        ],
+        outputs: [],
+    },
+] as const satisfies Abi;
+
 describe("viemFactory", () => {
     it("resolves overloaded short-name calls using provided args", async () => {
         const sentPayloads: Record<string, unknown>[] = [];
@@ -323,6 +361,102 @@ describe("viemFactory", () => {
         await contract.setValue(7n, {value: quantityLike});
         expect(seenRequests.length).to.equal(1);
         expect(seenRequests[0].value).to.equal("0x7b");
+    });
+
+    it("normalizes nested tuple bytes32 fields", async () => {
+        const sentPayloads: Record<string, unknown>[] = [];
+        const runner = {
+            request: async ({
+                method,
+                params,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_sendTransaction") {
+                    sentPayloads.push(
+                        (params?.[0] ?? {}) as Record<string, unknown>,
+                    );
+                    return TEST_TX_HASH;
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_TUPLE_BYTES32_ABI,
+            runner,
+        ) as unknown as {
+            setTupleBytes32: (arg: {
+                inner: {recipient: string};
+            }) => Promise<{hash: string}>;
+        };
+
+        await contract.setTupleBytes32({inner: {recipient: TEST_SENDER}});
+        expect(sentPayloads.length).to.equal(1);
+        expect(typeof sentPayloads[0].data).to.equal("string");
+        expect(sentPayloads[0].data).to.equal(
+            encodeFunctionData({
+                abi: [SET_TUPLE_BYTES32_ABI[0]],
+                functionName: "setTupleBytes32",
+                args: [
+                    {
+                        inner: {
+                            recipient: `0x${TEST_SENDER.slice(2).padStart(64, "0")}`,
+                        },
+                    },
+                ],
+            }),
+        );
+    });
+
+    it("normalizes tuple array bytes32 fields", async () => {
+        const sentPayloads: Record<string, unknown>[] = [];
+        const runner = {
+            request: async ({
+                method,
+                params,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_sendTransaction") {
+                    sentPayloads.push(
+                        (params?.[0] ?? {}) as Record<string, unknown>,
+                    );
+                    return TEST_TX_HASH;
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_TUPLE_ARRAY_BYTES32_ABI,
+            runner,
+        ) as unknown as {
+            setTupleArrayBytes32: (
+                arg: readonly {recipient: string}[],
+            ) => Promise<{hash: string}>;
+        };
+
+        await contract.setTupleArrayBytes32([{recipient: TEST_SENDER}]);
+        expect(sentPayloads.length).to.equal(1);
+        expect(typeof sentPayloads[0].data).to.equal("string");
+        expect(sentPayloads[0].data).to.equal(
+            encodeFunctionData({
+                abi: [SET_TUPLE_ARRAY_BYTES32_ABI[0]],
+                functionName: "setTupleArrayBytes32",
+                args: [
+                    [
+                        {
+                            recipient: `0x${TEST_SENDER.slice(2).padStart(64, "0")}`,
+                        },
+                    ],
+                ],
+            }),
+        );
     });
 
     it("preserves ethers-v5 wrapping for contract.functions reads", async () => {
