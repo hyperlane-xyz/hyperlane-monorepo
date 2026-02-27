@@ -80,6 +80,14 @@ impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {
         let plugin_data = T::deserialize_reader(reader)?;
 
         // Backward compatibility: if no more data, fee_config is None.
+        // SAFETY: after a program upgrade that adds fee_config, pre-existing accounts
+        // may have stale non-zero trailing bytes (from prior Option Some→None transitions).
+        // AccountData::store_in_slice calls fill(0) to zero trailing bytes, but accounts
+        // not yet re-stored could still have garbage. The worst case is a phantom
+        // Some(FeeConfig) with garbage pubkeys, which would cause transfers to fail
+        // (account mismatch), not silent corruption. Operationally, SetFeeConfig must be
+        // called after every program upgrade to trigger a store that zeros stale bytes.
+        //
         // Peek to check if there's remaining data.
         let mut peek_buf = [0u8; 1];
         let fee_config = match reader.read(&mut peek_buf) {
@@ -285,6 +293,9 @@ pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Opt
 mod test {
     use super::*;
     use borsh::BorshSerialize;
+    use hyperlane_sealevel_token::plugin::SyntheticPlugin;
+    use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
+    use hyperlane_sealevel_token_native::plugin::NativePlugin;
 
     #[test]
     fn test_convert_decimals() {
@@ -492,5 +503,153 @@ mod test {
         assert_eq!(deserialized.fee_config, None);
         assert_eq!(deserialized.bump, 1);
         assert_eq!(deserialized.decimals, 9);
+    }
+
+    /// Helper: load a binary fixture from test-data/ relative to the crate root.
+    fn load_fixture(name: &str) -> Vec<u8> {
+        let path = format!("{}/test-data/{name}", env!("CARGO_MANIFEST_DIR"));
+        std::fs::read(&path).unwrap_or_else(|e| panic!("Failed to read {path}: {e}"))
+    }
+
+    // ── Mainnet fixture tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_mainnet_native_token_account() {
+        let data = load_fixture("native_token_account.bin");
+        let token = HyperlaneTokenAccount::<NativePlugin>::fetch(&mut &data[..])
+            .expect("failed to deserialize native token account")
+            .into_inner();
+
+        assert_eq!(
+            token.fee_config, None,
+            "legacy account must have no fee_config"
+        );
+        assert_eq!(token.bump, 252);
+        assert_eq!(token.decimals, 9);
+        assert_eq!(token.remote_decimals, 9);
+        assert_eq!(token.plugin_data.native_collateral_bump, 255);
+    }
+
+    #[test]
+    fn test_mainnet_synthetic_token_account() {
+        let data = load_fixture("synthetic_token_account.bin");
+        let token = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &data[..])
+            .expect("failed to deserialize synthetic token account")
+            .into_inner();
+
+        assert_eq!(
+            token.fee_config, None,
+            "legacy account must have no fee_config"
+        );
+        assert_eq!(token.bump, 253);
+        assert_eq!(token.decimals, 9);
+        assert_eq!(token.remote_decimals, 18);
+        // Verify plugin fields are non-default (mint is a real pubkey)
+        assert_ne!(token.plugin_data.mint, Pubkey::default());
+        assert_ne!(token.plugin_data.mint_bump, 0);
+        assert_ne!(token.plugin_data.ata_payer_bump, 0);
+    }
+
+    #[test]
+    fn test_mainnet_collateral_token_account() {
+        let data = load_fixture("collateral_token_account.bin");
+        let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &data[..])
+            .expect("failed to deserialize collateral token account")
+            .into_inner();
+
+        assert_eq!(
+            token.fee_config, None,
+            "legacy account must have no fee_config"
+        );
+        assert_eq!(token.bump, 253);
+        assert_eq!(token.decimals, 6);
+        assert_eq!(token.remote_decimals, 6);
+        // Verify plugin fields are non-default
+        assert_ne!(token.plugin_data.spl_token_program, Pubkey::default());
+        assert_ne!(token.plugin_data.mint, Pubkey::default());
+        assert_ne!(token.plugin_data.escrow, Pubkey::default());
+        assert_ne!(token.plugin_data.escrow_bump, 0);
+        assert_ne!(token.plugin_data.ata_payer_bump, 0);
+    }
+
+    // ── Stale trailing bytes test ──────────────────────────────────────
+
+    #[test]
+    fn test_stale_trailing_bytes_misinterpreted_as_fee_config() {
+        // Construct a legacy HyperlaneToken<()> without fee_config,
+        // then append 0xFF bytes to simulate stale non-zero trailing data
+        // left over from a prior Option Some→None transition on an account
+        // that was never re-stored with fill(0).
+        let legacy_token = HyperlaneToken::<()> {
+            bump: 1,
+            mailbox: Pubkey::new_unique(),
+            mailbox_process_authority: Pubkey::new_unique(),
+            dispatch_authority_bump: 2,
+            decimals: 9,
+            remote_decimals: 18,
+            owner: None,
+            interchain_security_module: None,
+            interchain_gas_paymaster: None,
+            destination_gas: HashMap::new(),
+            remote_routers: HashMap::new(),
+            plugin_data: (),
+            fee_config: None,
+        };
+
+        // Serialize all fields except fee_config (legacy format)
+        let mut legacy_bytes = Vec::new();
+        legacy_token.bump.serialize(&mut legacy_bytes).unwrap();
+        legacy_token.mailbox.serialize(&mut legacy_bytes).unwrap();
+        legacy_token
+            .mailbox_process_authority
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .dispatch_authority_bump
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token.decimals.serialize(&mut legacy_bytes).unwrap();
+        legacy_token
+            .remote_decimals
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token.owner.serialize(&mut legacy_bytes).unwrap();
+        legacy_token
+            .interchain_security_module
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .interchain_gas_paymaster
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .destination_gas
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .remote_routers
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        BorshSerialize::serialize(&legacy_token.plugin_data, &mut legacy_bytes).unwrap();
+
+        // Append stale 0xFF bytes (>= 1 + 32 + 32 = 65 for Option<FeeConfig>).
+        // Byte 0xFF != 0 so the deserializer interprets it as Some(...).
+        legacy_bytes.extend_from_slice(&[0xFF; 65]);
+
+        // Wrap with AccountData initialized prefix (bool = true)
+        let mut account_bytes = vec![1u8]; // initialized = true
+        account_bytes.extend_from_slice(&legacy_bytes);
+
+        let token = HyperlaneTokenAccount::<()>::fetch(&mut &account_bytes[..])
+            .expect("deserialization should succeed")
+            .into_inner();
+
+        // The stale non-zero trailing bytes are misinterpreted as Some(FeeConfig).
+        // This documents the risk: without fill(0), stale data becomes a phantom fee_config.
+        assert!(
+            token.fee_config.is_some(),
+            "stale 0xFF trailing bytes must be misinterpreted as Some(FeeConfig) — \
+             this is why SetFeeConfig must be called after every program upgrade"
+        );
     }
 }

@@ -35,6 +35,9 @@ hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-
 serializable-account-meta = { path = "../serializable-account-meta" }
 
 [dev-dependencies]
+hyperlane-sealevel-token = { path = "../../programs/hyperlane-sealevel-token", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-collateral = { path = "../../programs/hyperlane-sealevel-token-collateral", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-native = { path = "../../programs/hyperlane-sealevel-token-native", features = ["no-entrypoint"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]
