@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  ExecutionType,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
@@ -99,14 +100,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -116,14 +120,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -292,14 +299,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -313,6 +323,7 @@ describe('CompositeStrategy E2E', function () {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: deployedAddresses.bridgeRoute2.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               minAmount: {
@@ -321,6 +332,7 @@ describe('CompositeStrategy E2E', function () {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: deployedAddresses.bridgeRoute2.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               minAmount: {
@@ -329,6 +341,7 @@ describe('CompositeStrategy E2E', function () {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: deployedAddresses.bridgeRoute2.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -490,14 +503,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -507,14 +523,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -702,14 +721,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -828,14 +850,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               buffer: '0',
               bridge: deployedAddresses.bridgeRoute1.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -845,14 +870,17 @@ describe('CompositeStrategy E2E', function () {
             anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil1,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil2,
+              executionType: ExecutionType.MovableCollateral,
             },
             anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
               bridge: deployedAddresses.bridgeRoute2.anvil3,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },

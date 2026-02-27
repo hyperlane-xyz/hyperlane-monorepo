@@ -23,6 +23,16 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/types.d.ts",
+      "import": "./dist/config/types.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "build:dist": "tsc -p tsconfig.build.json",

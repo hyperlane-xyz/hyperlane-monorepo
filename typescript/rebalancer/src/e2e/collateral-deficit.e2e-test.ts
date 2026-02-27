@@ -10,6 +10,7 @@ import {
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
+  ExecutionType,
   RebalancerStrategyOptions,
   type StrategyConfig,
 } from '../config/types.js';
@@ -75,14 +76,17 @@ describe('Collateral Deficit E2E', function () {
           anvil1: {
             buffer: '0',
             bridge: deployedAddresses.bridgeRoute1.anvil1,
+            executionType: ExecutionType.MovableCollateral,
           },
           anvil2: {
             buffer: '0',
             bridge: deployedAddresses.bridgeRoute1.anvil2,
+            executionType: ExecutionType.MovableCollateral,
           },
           anvil3: {
             buffer: '0',
             bridge: deployedAddresses.bridgeRoute1.anvil3,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },

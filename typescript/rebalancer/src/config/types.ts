@@ -48,7 +48,7 @@ const RebalancerBridgeConfigSchema = z.object({
     .string()
     .regex(/0x[a-fA-F0-9]{40}/)
     .optional(),
-  executionType: z.nativeEnum(ExecutionType).optional(),
+  executionType: z.nativeEnum(ExecutionType),
   externalBridge: z.nativeEnum(ExternalBridgeType).optional(),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z

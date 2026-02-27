@@ -8,6 +8,7 @@ import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   DEFAULT_INTENT_TTL_MS,
+  ExecutionType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
@@ -39,11 +40,13 @@ function createMockRebalancerConfig(): RebalancerConfig {
         chains: {
           ethereum: {
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
             bridgeMinAcceptedAmount: 0,
             weighted: { weight: 50n, tolerance: 10n },
           },
           arbitrum: {
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
             bridgeMinAcceptedAmount: 0,
             weighted: { weight: 50n, tolerance: 10n },
           },
@@ -241,6 +244,7 @@ async function setupDaemonTest(
         destination: string;
         amount: bigint;
         bridge: string;
+        executionType: ExecutionType.MovableCollateral;
       };
       success: boolean;
       messageId?: string;
@@ -252,6 +256,7 @@ async function setupDaemonTest(
       destination: string;
       amount: bigint;
       bridge: string;
+      executionType: ExecutionType.MovableCollateral;
     }>;
   },
 ): Promise<DaemonTestSetup> {
@@ -474,6 +479,7 @@ describe('RebalancerService', () => {
             chains: {
               arbitrum: {
                 bridge: TEST_ADDRESSES.bridge,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeMinAcceptedAmount: 0,
                 weighted: { weight: 100n, tolerance: 10n },
               },
@@ -662,6 +668,7 @@ describe('RebalancerService', () => {
             amount: 1000n,
             intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: false,
           error: 'Gas estimation failed',
@@ -675,6 +682,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: ExecutionType.MovableCollateral,
         },
       ]);
 
@@ -752,6 +760,7 @@ describe('RebalancerService', () => {
             amount: 1000n,
             intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: true,
           messageId:
@@ -768,6 +777,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: ExecutionType.MovableCollateral,
         },
       ]);
 
@@ -845,6 +855,7 @@ describe('RebalancerService', () => {
             amount: 1000n,
             intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: true,
           messageId:
@@ -859,6 +870,7 @@ describe('RebalancerService', () => {
             amount: 500n,
             intentId: 'intent-2',
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: false,
           error: 'Insufficient balance',
@@ -872,12 +884,14 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: ExecutionType.MovableCollateral,
         },
         {
           origin: 'arbitrum',
           destination: 'ethereum',
           amount: 500n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: ExecutionType.MovableCollateral,
         },
       ]);
 
@@ -956,6 +970,7 @@ describe('RebalancerService', () => {
               destination: 'arbitrum',
               amount: 1000n,
               bridge: TEST_ADDRESSES.bridge,
+              executionType: ExecutionType.MovableCollateral,
             },
             success: true,
             messageId:
@@ -968,6 +983,7 @@ describe('RebalancerService', () => {
             destination: 'arbitrum',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
         ],
       });
@@ -990,6 +1006,7 @@ describe('RebalancerService', () => {
               destination: 'arbitrum',
               amount: 1000n,
               bridge: TEST_ADDRESSES.bridge,
+              executionType: ExecutionType.MovableCollateral,
             },
             success: true,
           },
@@ -999,6 +1016,7 @@ describe('RebalancerService', () => {
               destination: 'ethereum',
               amount: 500n,
               bridge: TEST_ADDRESSES.bridge,
+              executionType: ExecutionType.MovableCollateral,
             },
             success: true,
           },
@@ -1009,12 +1027,14 @@ describe('RebalancerService', () => {
             destination: 'arbitrum',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           {
             origin: 'arbitrum',
             destination: 'ethereum',
             amount: 500n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
         ],
       });
