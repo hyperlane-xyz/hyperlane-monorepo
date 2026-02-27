@@ -118,12 +118,14 @@ describe('InventoryRebalancer E2E', () => {
       standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation needed
       addressOrDenom: '0xArbitrumToken',
       getHypAdapter: Sinon.stub().returns(adapterStub),
+      amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
     };
     const solanaToken = {
       chainName: SOLANA_CHAIN,
       standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation needed
       addressOrDenom: '0xSolanaToken',
       getHypAdapter: Sinon.stub().returns(adapterStub),
+      amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
     };
 
     warpCore = {
@@ -132,6 +134,17 @@ describe('InventoryRebalancer E2E', () => {
         getProvider: Sinon.stub(),
         getSigner: Sinon.stub(),
       },
+      getTransferRemoteTxs: Sinon.stub().resolves([
+        {
+          category: 'transfer',
+          type: 'ethersV5',
+          transaction: {
+            to: '0xRouterAddress',
+            data: '0xTransferRemoteData',
+            value: 1000000n,
+          },
+        },
+      ]),
     };
 
     // Mock provider with getFeeData for gas estimation, estimateGas for actual gas estimation,
@@ -263,7 +276,7 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: transferRemote was called via adapter
       expect(adapterStub.quoteTransferRemoteGas.calledOnce).to.be.true;
-      expect(adapterStub.populateTransferRemoteTx.calledOnce).to.be.true;
+      expect(warpCore.getTransferRemoteTxs.calledOnce).to.be.true;
 
       // Verify: Transaction was sent FROM SOLANA (destination chain, swapped)
       expect(multiProvider.sendTransaction.calledOnce).to.be.true;
@@ -293,13 +306,12 @@ describe('InventoryRebalancer E2E', () => {
 
       await inventoryRebalancer.rebalance([route]);
 
-      // Verify populateTransferRemoteTx params
       // Direction is SWAPPED: transferRemote from solana TO arbitrum
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.firstCall.args[0];
-      expect(populateParams.destination).to.equal(ARBITRUM_DOMAIN); // Goes TO arbitrum (swapped)
-      expect(populateParams.recipient).to.equal(INVENTORY_SIGNER);
-      expect(populateParams.weiAmountOrId).to.equal(5000000000n);
+      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      expect(txParams.destination).to.equal(ARBITRUM_CHAIN); // Goes TO arbitrum (swapped)
+      expect(txParams.sender).to.equal(INVENTORY_SIGNER);
+      expect(txParams.recipient).to.equal(INVENTORY_SIGNER);
+      expect(txParams.originTokenAmount.amount).to.equal(5000000000n);
     });
   });
 
@@ -329,9 +341,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
 
       // Verify: transferRemote was called with available amount (0.005 ETH), not full amount (0.01 ETH)
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.firstCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(PARTIAL_AMOUNT);
+      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(PARTIAL_AMOUNT);
 
       // Verify: Action created for partial amount
       const actionParams =
@@ -376,7 +387,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('No inventory available');
 
       // Verify: No transferRemote attempted
-      expect(adapterStub.populateTransferRemoteTx.called).to.be.false;
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
       expect(multiProvider.sendTransaction.called).to.be.false;
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
@@ -652,11 +663,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative, // Native token: reservation needed
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -679,13 +696,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
 
-      // Verify: transferRemote was called with full amount (costs are separate)
-      // Note: populateTransferRemoteTx is called multiple times:
-      // - First calls: gas estimation with minimal amount (1n)
-      // - Last call: actual transfer with requested amount
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
     });
 
     it('reduces transfer amount when inventory is limited', async () => {
@@ -694,11 +706,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -727,15 +745,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
 
-      // Verify: transferRemote was called with reduced amount (inventory - costs)
-      // Note: populateTransferRemoteTx is called multiple times:
-      // - First in estimateTransferRemoteGas (for calculateMaxTransferable)
-      // - Second in estimateTransferRemoteGas (for calculateMinViableTransfer)
-      // - Third in executeTransferRemote (the actual transfer)
-      // We check the last call which is the actual execution
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(partialAmount);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(partialAmount);
     });
 
     it('returns failure when inventory cannot cover costs', async () => {
@@ -744,11 +755,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -770,9 +787,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('No inventory available');
 
-      // Verify: No actual transferRemote executed (only gas estimation calls allowed)
-      // Note: With gas estimation, populateTransferRemoteTx IS called for estimation,
-      // so we can't check that it wasn't called at all. Instead, verify no action was created.
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
@@ -782,11 +797,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -806,9 +827,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
 
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.firstCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(10000000000n); // Full amount
+      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(10000000000n); // Full amount
     });
   });
 
@@ -835,11 +855,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -860,10 +886,8 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      // Verify tokenFee was deducted from maxTransferable
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
     });
 
     it('deducts tokenFeeQuote when addressOrDenom is zero address', async () => {
@@ -887,11 +911,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(zeroAddressAdapter),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(zeroAddressAdapter),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -911,10 +941,8 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      // Verify tokenFee was deducted (zero address is treated as native)
-      const populateParams =
-        zeroAddressAdapter.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
     });
 
     it('does NOT deduct tokenFeeQuote when addressOrDenom is ERC20 address', async () => {
@@ -939,11 +967,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(erc20Adapter),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(erc20Adapter),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -963,10 +997,8 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      // Verify tokenFee was NOT deducted (ERC20 denom, not native)
-      const populateParams =
-        erc20Adapter.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
     });
 
     it('handles undefined tokenFeeQuote (backward compatibility with v<10)', async () => {
@@ -987,11 +1019,17 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(oldAdapter),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         getHypAdapter: Sinon.stub().returns(oldAdapter),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({
+          amount: amt,
+        })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -1011,10 +1049,8 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      // Verify transfer succeeded without tokenFee deduction
-      const populateParams =
-        oldAdapter.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
     });
 
     it('reduces maxTransferable when large tokenFeeQuote is present', async () => {
@@ -1122,10 +1158,10 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
 
-      // Verify: transferRemote WAS called (partial transfer happened)
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(availableOnDestination);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(
+        availableOnDestination,
+      );
 
       // Verify: Bridge was NOT called (no need to bridge when partial transfer is viable)
       expect(bridge.execute.called).to.be.false;
@@ -1151,10 +1187,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
 
-      // Verify: transferRemote WAS called with partial amount
-      const populateParams =
-        adapterStub.populateTransferRemoteTx.lastCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(maxTransferable);
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(maxTransferable);
     });
 
     it('does NOT do partial transfer when maxTransferable < minViableTransfer (native tokens)', async () => {

@@ -10,6 +10,7 @@ import {
   type MultiProvider,
   TOKEN_COLLATERALIZED_STANDARDS,
   type WarpCore,
+  WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -819,9 +820,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    // Get the hyperlane adapter for the token
-    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
     const signingProvider = this.config.inventoryMultiProvider;
 
     // Get reorgPeriod for confirmation waiting
@@ -841,93 +839,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Using pre-calculated gas quote for transferRemote',
     );
 
-    if (!isNativeTokenStandard(originToken.standard)) {
-      const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
-        adapter.isApproveRequired(
-          this.config.inventorySigner,
-          originToken.addressOrDenom,
-          amount,
-        ),
-        adapter.isRevokeApprovalRequired(
-          this.config.inventorySigner,
-          originToken.addressOrDenom,
-        ),
-      ]);
-
-      this.logger.debug(
-        {
-          origin,
-          destination,
-          amount: amount.toString(),
-          isApproveRequired,
-          isRevokeApprovalRequired,
-          spender: originToken.addressOrDenom,
-        },
-        'Checked transferRemote approval requirements',
-      );
-
-      if (isApproveRequired && isRevokeApprovalRequired) {
-        this.logger.debug(
-          {
-            origin,
-            destination,
-            amount: '0',
-            spender: originToken.addressOrDenom,
-          },
-          'Sending revoke approval transaction before transferRemote',
-        );
-
-        const revokeTx = await adapter.populateApproveTx({
-          weiAmountOrId: 0,
-          recipient: originToken.addressOrDenom,
-        });
-
-        await signingProvider.sendTransaction(
-          origin,
-          revokeTx as AnnotatedEV5Transaction,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
-      }
-
-      if (isApproveRequired) {
-        this.logger.debug(
-          {
-            origin,
-            destination,
-            amount: amount.toString(),
-            spender: originToken.addressOrDenom,
-          },
-          'Sending approval transaction before transferRemote',
-        );
-
-        const approveTx = await adapter.populateApproveTx({
-          weiAmountOrId: amount,
-          recipient: originToken.addressOrDenom,
-        });
-
-        await signingProvider.sendTransaction(
-          origin,
-          approveTx as AnnotatedEV5Transaction,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
-      }
-    }
-
-    // Populate the transferRemote transaction
-    const populatedTx = await adapter.populateTransferRemoteTx({
-      destination: destinationDomain,
+    const originTokenAmount = originToken.amount(amount);
+    const transactions = await this.warpCore.getTransferRemoteTxs({
+      originTokenAmount,
+      destination,
+      sender: this.config.inventorySigner,
       recipient: this.config.inventorySigner,
-      weiAmountOrId: amount,
-      interchainGas: gasQuote,
     });
+    assert(
+      transactions.length > 0,
+      'Expected at least one transaction from WarpCore',
+    );
 
     // Send the transaction using inventory MultiProvider if available
     this.logger.info(
@@ -940,14 +862,25 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Sending transferRemote transaction',
     );
 
-    // Wait for reorgPeriod confirmations via SDK to ensure Monitor sees balance changes
-    const receipt = await signingProvider.sendTransaction(
-      origin,
-      populatedTx as AnnotatedEV5Transaction,
-      {
-        waitConfirmations: reorgPeriod as number | EthJsonRpcBlockParameterTag,
-      },
-    );
+    let receipt: any;
+    for (const tx of transactions) {
+      this.logger.debug(
+        { origin, destination, category: tx.category },
+        `Sending ${tx.category} transaction`,
+      );
+      const isTransfer = tx.category === WarpTxCategory.Transfer;
+      receipt = await signingProvider.sendTransaction(
+        origin,
+        tx.transaction as AnnotatedEV5Transaction,
+        isTransfer
+          ? {
+              waitConfirmations: reorgPeriod as
+                | number
+                | EthJsonRpcBlockParameterTag,
+            }
+          : undefined,
+      );
+    }
 
     // Extract messageId from the transaction receipt logs
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
