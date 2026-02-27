@@ -635,6 +635,162 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================================================
+-- KECCAK-256 (Ethereum variant, padding byte 0x01)
+-- =============================================================================
+-- Pure PL/pgSQL implementation using bit(64) for 64-bit lane operations.
+-- Used to compute message IDs from raw Dispatch event message bytes,
+-- eliminating the need for a separate DispatchId integration.
+
+CREATE OR REPLACE FUNCTION keccak256(msg bytea)
+RETURNS bytea AS $$
+DECLARE
+    -- State: 5x5 array of 64-bit lanes, 1-indexed, idx = x + 5*y + 1
+    st bit(64)[];
+    -- Temporaries
+    c bit(64)[];  -- column parities (theta)
+    d bit(64)[];  -- theta diffusion
+    b bit(64)[];  -- after rho+pi
+    t bit(64)[];  -- chi row temp
+    -- Constants
+    rc bit(64)[];
+    rho int[];
+    pi int[];
+    -- Padding / absorb
+    padded bytea;
+    pad_len int;
+    blk_count int;
+    lane bit(64);
+    -- Output
+    result bytea;
+    v bigint;
+    round_idx int;
+    i int;
+    x int;
+    y int;
+    blk int;
+BEGIN
+    -- Round constants
+    rc := ARRAY[
+        x'0000000000000001'::bit(64), x'0000000000008082'::bit(64),
+        x'800000000000808A'::bit(64), x'8000000080008000'::bit(64),
+        x'000000000000808B'::bit(64), x'0000000080000001'::bit(64),
+        x'8000000080008081'::bit(64), x'8000000000008009'::bit(64),
+        x'000000000000008A'::bit(64), x'0000000000000088'::bit(64),
+        x'0000000080008009'::bit(64), x'000000008000000A'::bit(64),
+        x'000000008000808B'::bit(64), x'800000000000008B'::bit(64),
+        x'8000000000008089'::bit(64), x'8000000000008003'::bit(64),
+        x'8000000000008002'::bit(64), x'8000000000000080'::bit(64),
+        x'000000000000800A'::bit(64), x'800000008000000A'::bit(64),
+        x'8000000080008081'::bit(64), x'8000000000008080'::bit(64),
+        x'0000000080000001'::bit(64), x'8000000080008008'::bit(64)
+    ];
+
+    -- Rho rotation offsets, indexed [x + 5*y + 1]
+    rho := ARRAY[
+         0,  1, 62, 28, 27,
+        36, 44,  6, 55, 20,
+         3, 10, 43, 25, 39,
+        41, 45, 15, 21,  8,
+        18,  2, 61, 56, 14
+    ];
+
+    -- Pi permutation: source index i -> destination pi[i] (1-indexed)
+    pi := ARRAY[
+         1, 11, 21,  6, 16,
+        17,  2, 12, 22,  7,
+         8, 18,  3, 13, 23,
+        24,  9, 19,  4, 14,
+        15, 25, 10, 20,  5
+    ];
+
+    -- Pad message (Keccak padding: append 0x01, zeros, then XOR 0x80 on last byte)
+    -- rate = 136 bytes
+    pad_len := 136 - (octet_length(msg) % 136);
+    IF pad_len = 0 THEN
+        pad_len := 136;
+    END IF;
+    padded := msg || decode(rpad('01', pad_len * 2, '00'), 'hex');
+    -- XOR 0x80 into last byte
+    padded := set_byte(padded, octet_length(padded) - 1,
+        get_byte(padded, octet_length(padded) - 1) | 128);
+
+    blk_count := octet_length(padded) / 136;
+
+    -- Initialize state to zero
+    st := array_fill(0::bit(64), ARRAY[25]);
+
+    -- Absorb phase
+    FOR blk IN 0..blk_count-1 LOOP
+        -- XOR 17 lanes (136 bytes = 17 * 8) into state
+        FOR i IN 0..16 LOOP
+            -- Read 8 bytes little-endian into a lane
+            v := 0;
+            FOR x IN 0..7 LOOP
+                v := v | (get_byte(padded, blk * 136 + i * 8 + x)::bigint << (x * 8));
+            END LOOP;
+            st[i + 1] := st[i + 1] # v::bit(64);
+        END LOOP;
+
+        -- Keccak-f[1600]: 24 rounds
+        FOR round_idx IN 1..24 LOOP
+            -- THETA
+            c := ARRAY[
+                st[1] # st[6]  # st[11] # st[16] # st[21],
+                st[2] # st[7]  # st[12] # st[17] # st[22],
+                st[3] # st[8]  # st[13] # st[18] # st[23],
+                st[4] # st[9]  # st[14] # st[19] # st[24],
+                st[5] # st[10] # st[15] # st[20] # st[25]
+            ];
+            d := ARRAY[
+                c[5] # ((c[2] << 1) | (c[2] >> 63)),
+                c[1] # ((c[3] << 1) | (c[3] >> 63)),
+                c[2] # ((c[4] << 1) | (c[4] >> 63)),
+                c[3] # ((c[5] << 1) | (c[5] >> 63)),
+                c[4] # ((c[1] << 1) | (c[1] >> 63))
+            ];
+            FOR i IN 1..25 LOOP
+                st[i] := st[i] # d[((i - 1) % 5) + 1];
+            END LOOP;
+
+            -- RHO + PI (combined)
+            b := array_fill(0::bit(64), ARRAY[25]);
+            FOR i IN 1..25 LOOP
+                IF rho[i] = 0 THEN
+                    b[pi[i]] := st[i];
+                ELSE
+                    b[pi[i]] := (st[i] << rho[i]) | (st[i] >> (64 - rho[i]));
+                END IF;
+            END LOOP;
+
+            -- CHI
+            FOR y IN 0..4 LOOP
+                t := ARRAY[
+                    b[5*y + 1], b[5*y + 2], b[5*y + 3], b[5*y + 4], b[5*y + 5]
+                ];
+                FOR x IN 0..4 LOOP
+                    st[5*y + x + 1] := t[x + 1] # ((~t[((x+1) % 5) + 1]) & t[((x+2) % 5) + 1]);
+                END LOOP;
+            END LOOP;
+
+            -- IOTA
+            st[1] := st[1] # rc[round_idx];
+        END LOOP;
+    END LOOP;
+
+    -- Squeeze: extract first 32 bytes (4 lanes, little-endian)
+    result := ''::bytea;
+    FOR i IN 0..3 LOOP
+        v := st[i + 1]::bigint;
+        FOR x IN 0..7 LOOP
+            result := result || set_byte('\x00'::bytea, 0, ((v >> (x * 8)) & 255)::int);
+        END LOOP;
+    END LOOP;
+
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- =============================================================================
 -- PROJECTIONS (INSERT PATH)
 -- =============================================================================
 
@@ -799,18 +955,8 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT di.message_id
-    INTO v_message_id
-    FROM hl_mailbox_dispatch_id di
-    WHERE di.src_name = v_dispatch.src_name
-      AND di.tx_hash = v_dispatch.tx_hash
-      AND di.log_idx = v_dispatch.log_idx + 1
-    ORDER BY di.block_num DESC
-    LIMIT 1;
-
-    IF v_message_id IS NULL THEN
-        RETURN;
-    END IF;
+    -- Compute message_id = keccak256(message) directly, no DispatchId needed
+    v_message_id := keccak256(v_dispatch.message);
 
     PERFORM hyperlane_shovel_project_dispatch_row(v_dispatch, v_message_id);
 END;
@@ -820,18 +966,6 @@ CREATE OR REPLACE FUNCTION hyperlane_shovel_on_dispatch_insert()
 RETURNS TRIGGER AS $$
 BEGIN
     PERFORM hyperlane_shovel_try_project_dispatch(NEW.src_name, NEW.tx_hash, NEW.log_idx);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION hyperlane_shovel_on_dispatch_id_insert()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM hyperlane_shovel_try_project_dispatch(
-        NEW.src_name,
-        NEW.tx_hash,
-        NEW.log_idx - 1
-    );
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -1024,15 +1158,9 @@ DECLARE
 BEGIN
     PERFORM hyperlane_shovel_capture_orphan('hl_mailbox_dispatch', to_jsonb(OLD));
 
-    SELECT di.message_id INTO v_message_id
-    FROM hl_mailbox_dispatch_id di
-    WHERE di.src_name = OLD.src_name
-      AND di.tx_hash = OLD.tx_hash
-      AND di.log_idx = OLD.log_idx + 1
-    ORDER BY di.block_num DESC
-    LIMIT 1;
-
-    IF v_message_id IS NOT NULL THEN
+    -- Compute message_id from message bytes directly
+    IF OLD.message IS NOT NULL AND octet_length(OLD.message) >= 77 THEN
+        v_message_id := keccak256(OLD.message);
         DELETE FROM shovel_message WHERE msg_id = v_message_id;
         DELETE FROM shovel_raw_message_dispatch WHERE msg_id = v_message_id;
     END IF;
@@ -1126,9 +1254,8 @@ AFTER DELETE ON hl_mailbox_dispatch
 FOR EACH ROW EXECUTE FUNCTION hyperlane_shovel_on_dispatch_delete();
 
 DROP TRIGGER IF EXISTS tr_hl_mailbox_dispatch_id_insert ON hl_mailbox_dispatch_id;
-CREATE TRIGGER tr_hl_mailbox_dispatch_id_insert
-AFTER INSERT ON hl_mailbox_dispatch_id
-FOR EACH ROW EXECUTE FUNCTION hyperlane_shovel_on_dispatch_id_insert();
+-- No insert trigger needed: message_id is computed via keccak256(message)
+-- in the dispatch insert trigger, eliminating the cross-integration race condition.
 
 DROP TRIGGER IF EXISTS tr_hl_mailbox_dispatch_id_delete ON hl_mailbox_dispatch_id;
 CREATE TRIGGER tr_hl_mailbox_dispatch_id_delete
