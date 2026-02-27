@@ -1252,10 +1252,7 @@ function asTxResponse(runner: RunnerLike, tx: unknown): SentTxLike {
       try {
         return await wait(confirmations);
       } catch (error) {
-        if (
-          !shouldRetryReceiptWithPositionalArgs(error) &&
-          !shouldFallbackSend(error)
-        ) {
+        if (!shouldRetryReceiptWithPositionalArgs(error)) {
           throw error;
         }
         return waitForReceipt(runner, hash, confirmations);
