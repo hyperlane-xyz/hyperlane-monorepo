@@ -201,6 +201,107 @@ describe("viemFactory", () => {
         expect(seenRequests[1].account).to.equal(TEST_SENDER);
     });
 
+    it("does not treat trailing arrays as tx overrides", async () => {
+        let sendTxCalls = 0;
+        const runner = {
+            request: async ({
+                method,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_sendTransaction") {
+                    sendTxCalls += 1;
+                    return TEST_TX_HASH;
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            setValue: (...args: readonly unknown[]) => Promise<{hash: string}>;
+        };
+
+        let didThrow = false;
+        try {
+            await contract.setValue(7n, []);
+        } catch {
+            didThrow = true;
+        }
+        expect(didThrow).to.equal(true);
+        expect(sendTxCalls).to.equal(0);
+    });
+
+    it("preserves unrecognized quantity objects instead of dropping them", async () => {
+        const weirdValue = {foo: "bar"};
+        const seenRequests: Record<string, unknown>[] = [];
+        const runner = {
+            getAddress: async () => TEST_SENDER,
+            sendTransaction: async (request: unknown) => {
+                seenRequests.push(request as Record<string, unknown>);
+                return {
+                    hash: TEST_TX_HASH,
+                    wait: async () => ({blockNumber: 1n, status: "0x1"}),
+                };
+            },
+            provider: {
+                send: async () => {
+                    throw new Error("unexpected rpc fallback");
+                },
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            setValue: (...args: readonly unknown[]) => Promise<{hash: string}>;
+        };
+
+        await contract.setValue(7n, {value: weirdValue});
+        expect(seenRequests.length).to.equal(1);
+        expect(seenRequests[0].value).to.equal(weirdValue);
+    });
+
+    it("normalizes toString quantity wrappers for tx values", async () => {
+        const quantityLike = {
+            toString: () => "123",
+        };
+        const seenRequests: Record<string, unknown>[] = [];
+        const runner = {
+            getAddress: async () => TEST_SENDER,
+            sendTransaction: async (request: unknown) => {
+                seenRequests.push(request as Record<string, unknown>);
+                return {
+                    hash: TEST_TX_HASH,
+                    wait: async () => ({blockNumber: 1n, status: "0x1"}),
+                };
+            },
+            provider: {
+                send: async () => {
+                    throw new Error("unexpected rpc fallback");
+                },
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            setValue: (...args: readonly unknown[]) => Promise<{hash: string}>;
+        };
+
+        await contract.setValue(7n, {value: quantityLike});
+        expect(seenRequests.length).to.equal(1);
+        expect(seenRequests[0].value).to.equal("0x7b");
+    });
+
     it("preserves ethers-v5 wrapping for contract.functions reads", async () => {
         const runner = {
             request: async ({
