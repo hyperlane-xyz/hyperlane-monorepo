@@ -1,7 +1,10 @@
 import { compareVersions } from 'compare-versions';
-import { providers } from 'ethers';
 
 import { Address, chunk, strip0x } from '@hyperlane-xyz/utils';
+
+type CodeProviderLike = {
+  getCode(address: Address): Promise<string>;
+};
 
 export function isValidContractVersion(
   currentVersion: string,
@@ -11,7 +14,7 @@ export function isValidContractVersion(
 }
 
 export async function contractHasString(
-  provider: providers.Provider,
+  provider: CodeProviderLike,
   address: Address,
   searchFor: string,
 ): Promise<boolean> {

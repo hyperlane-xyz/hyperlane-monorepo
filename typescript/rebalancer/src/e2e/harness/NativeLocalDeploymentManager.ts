@@ -1,6 +1,7 @@
-import { ethers, providers } from 'ethers';
+import { pad, toHex, zeroAddress } from 'viem';
 
 import { HypNative__factory } from '@hyperlane-xyz/core';
+import { LocalAccountViemSigner, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import {
   type NativeChainDeployment,
@@ -11,8 +12,8 @@ import {
 
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 
-const TOKEN_SCALE_NUMERATOR = ethers.BigNumber.from(1);
-const TOKEN_SCALE_DENOMINATOR = ethers.BigNumber.from(1);
+const TOKEN_SCALE_NUMERATOR = 1n;
+const TOKEN_SCALE_DENOMINATOR = 1n;
 const INVENTORY_INITIAL_BALANCE = '20000000000000000000';
 const INVENTORY_BRIDGE_SEED = '10000000000000000000';
 
@@ -22,23 +23,23 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
   }
 
   protected async deployRoutes(
-    deployerWallet: ethers.Wallet,
-    providersByChain: Map<string, providers.JsonRpcProvider>,
+    deployerWallet: LocalAccountViemSigner,
+    providersByChain: Map<string, ReturnType<MultiProvider['getProvider']>>,
     chainInfra: Record<
       string,
       { mailbox: string; ism: string; merkleHook: string }
     >,
   ): Promise<NativeDeployedAddresses> {
-    const deployerAddress = deployerWallet.address;
+    const deployerAddress = await deployerWallet.getAddress();
     const chainDeployments = {} as Record<TestChain, NativeChainDeployment>;
-    const monitoredRouters = {} as Record<TestChain, ethers.Contract>;
-    const bridgeRouters = {} as Record<TestChain, ethers.Contract>;
+    const monitoredRouters = {} as Record<TestChain, any>;
+    const bridgeRouters = {} as Record<TestChain, any>;
 
     for (const config of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(config.name)!;
       await provider.send('anvil_setBalance', [
         this.inventorySignerAddress,
-        ethers.utils.hexValue(ethers.BigNumber.from(INVENTORY_INITIAL_BALANCE)),
+        toHex(BigInt(INVENTORY_INITIAL_BALANCE)),
       ]);
 
       const deployer = deployerWallet.connect(provider);
@@ -50,7 +51,7 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
       );
       await monitoredRoute.deployed();
       await monitoredRoute.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
@@ -62,7 +63,7 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
       );
       await bridgeRoute.deployed();
       await bridgeRoute.initialize(
-        ethers.constants.AddressZero,
+        zeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
@@ -89,7 +90,9 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
           if (remote.name === chain.name) continue;
           remoteDomains.push(remote.domainId);
           remoteRouters.push(
-            ethers.utils.hexZeroPad(routeMap[remote.name].address, 32),
+            pad(routeMap[remote.name].address as `0x${string}`, {
+              size: 32,
+            }),
           );
         }
 
@@ -111,7 +114,7 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
       }
     }
 
-    const bridgeSeedAmount = ethers.BigNumber.from(INVENTORY_BRIDGE_SEED);
+    const bridgeSeedAmount = BigInt(INVENTORY_BRIDGE_SEED);
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
       const deployer = deployerWallet.connect(provider);

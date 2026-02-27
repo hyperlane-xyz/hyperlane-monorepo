@@ -34,6 +34,7 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { contractHasString } from '../utils/contract.js';
 
 import {
   AggregationIsmConfig,
@@ -48,6 +49,9 @@ import {
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
+
+const INCREMENTAL_REVERT_STRING =
+  'IncrementalDomainRoutingIsm: removal not supported';
 
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
@@ -315,6 +319,20 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         'Error accessing mailbox property, implying this is not a fallback routing ISM.',
         address,
       );
+    }
+
+    // Incremental routing extends routing, so detect via unique revert string in bytecode.
+    if (ismType === IsmType.ROUTING) {
+      if (
+        await contractHasString(
+          this.provider,
+          address,
+          INCREMENTAL_REVERT_STRING,
+        )
+      ) {
+        ismType = IsmType.INCREMENTAL_ROUTING;
+        this.logger.debug({ address }, 'Detected incremental routing ISM');
+      }
     }
 
     return {
