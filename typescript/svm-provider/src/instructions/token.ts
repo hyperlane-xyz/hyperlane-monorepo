@@ -240,6 +240,11 @@ export function decodeTokenProgramInstruction(
     case TokenProgramInstructionKind.TransferOwnership:
       return { kind: 'transferOwnership', value: decodeOptionAddress(cursor) };
     default:
+      if (kind <= TokenProgramInstructionKind.TransferOwnership) {
+        throw new Error(
+          `Token instruction kind ${kind} is recognized but decoding is not yet implemented`,
+        );
+      }
       return null;
   }
 }
@@ -366,6 +371,16 @@ function encodeTokenInit(value: TokenInitInstructionData): Uint8Array {
   return Uint8Array.from(TOKEN_INIT_ENCODER.encode(normalized));
 }
 
+function validateIgpKind(value: number): InterchainGasPaymasterTypeKind {
+  if (
+    value !== InterchainGasPaymasterTypeKind.Igp &&
+    value !== InterchainGasPaymasterTypeKind.OverheadIgp
+  ) {
+    throw new Error(`Unknown InterchainGasPaymasterTypeKind: ${value}`);
+  }
+  return value;
+}
+
 function decodeTokenInit(data: Uint8Array): TokenInitInstructionData {
   const decoded = TOKEN_INIT_DECODER.decode(data);
   const igp = decoded.interchainGasPaymaster;
@@ -377,7 +392,7 @@ function decodeTokenInit(data: Uint8Array): TokenInitInstructionData {
       ? {
           programId: igp.programId,
           igp: {
-            kind: igp.igpKind as InterchainGasPaymasterTypeKind,
+            kind: validateIgpKind(igp.igpKind),
             account: igp.igpAccount,
           },
         }

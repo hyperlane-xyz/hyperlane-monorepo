@@ -15,7 +15,6 @@ import {
 import { ByteCursor, concatBytes, option, u8 } from '../codecs/binary.js';
 import {
   decodeDomainedValidatorsAndThreshold,
-  decodeValidatorsAndThreshold,
   encodeDomainedValidatorsAndThreshold,
   type Domained,
   type H160,
@@ -106,6 +105,13 @@ export function decodeMultisigIsmMessageIdProgramInstruction(
       };
     }
     default:
+      if (
+        kind <= MultisigIsmMessageIdProgramInstructionKind.TransferOwnership
+      ) {
+        throw new Error(
+          `MultisigIsmMessageId instruction kind ${kind} is recognized but decoding is not yet implemented`,
+        );
+      }
       return null;
   }
 }
@@ -196,10 +202,4 @@ function hexToBytes20(value: string): Uint8Array {
     out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
   return out;
-}
-
-export function _decodeValidatorsOnlyForTests(
-  data: Uint8Array,
-): ValidatorsAndThreshold {
-  return decodeValidatorsAndThreshold(new ByteCursor(data));
 }

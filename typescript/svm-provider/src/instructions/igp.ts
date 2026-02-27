@@ -18,7 +18,6 @@ import {
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { concatBytes, option, u8, vec } from '../codecs/binary.js';
 import {
-  encodeGasOracle,
   encodeGasOracleConfig,
   encodeGasOverheadConfig,
   type GasOracleConfig,
@@ -190,6 +189,11 @@ export function decodeIgpProgramInstruction(
       };
     }
     default:
+      if (kind <= IgpInstructionKind.Claim) {
+        throw new Error(
+          `IGP instruction kind ${kind} is recognized but decoding is not yet implemented`,
+        );
+      }
       return null;
   }
 }
@@ -312,19 +316,4 @@ export async function getSetDestinationGasOverheadsInstruction(
       configs,
     }),
   );
-}
-
-export function _encodeGasOracleForTests(config: GasOracleConfig): Uint8Array {
-  return encodeGasOracleConfig(config);
-}
-
-export function _encodeGasOracleRawForTests(
-  tokenExchangeRate: bigint,
-  gasPrice: bigint,
-  tokenDecimals: number,
-): Uint8Array {
-  return encodeGasOracle({
-    kind: 0,
-    value: { tokenExchangeRate, gasPrice, tokenDecimals },
-  });
 }

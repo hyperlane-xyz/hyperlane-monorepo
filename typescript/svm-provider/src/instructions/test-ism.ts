@@ -50,6 +50,11 @@ export function decodeTestIsmProgramInstruction(
     case TestIsmInstructionKind.SetAccept:
       return { kind: 'setAccept', accept: cursor.readBool() };
     default:
+      if (kind <= TestIsmInstructionKind.SetAccept) {
+        throw new Error(
+          `TestIsm instruction kind ${kind} is recognized but decoding is not yet implemented`,
+        );
+      }
       return null;
   }
 }
