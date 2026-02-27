@@ -119,12 +119,13 @@ export abstract class BaseLocalDeploymentManager<
         const ismAddress = await ism.getAddress();
         const merkleHookAddress = await merkleHook.getAddress();
 
-        await mailbox.initialize(
+        const initializeMailboxTx = await mailbox.initialize(
           deployerAddress,
           ismAddress,
           merkleHookAddress,
           merkleHookAddress,
         );
+        await initializeMailboxTx.wait();
 
         chainInfra[config.name] = {
           mailbox: mailboxAddress,

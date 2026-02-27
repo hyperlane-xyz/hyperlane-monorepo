@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, providers } from 'ethers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 
 import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
@@ -34,7 +34,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
 
   let deploymentManager: Erc20InventoryLocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, JsonRpcProvider>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let erc20DeployedAddresses: Erc20InventoryDeployedAddresses;
@@ -43,8 +43,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
   >;
   let mockBridge: MockExternalBridge;
 
-  const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
-    .address;
+  const inventorySignerAddress = new Wallet(ANVIL_USER_PRIVATE_KEY).address;
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
@@ -130,7 +129,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(activeIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC,
     );
     const inProgressActions = await context.tracker.getInProgressActions();
     expect(inProgressActions.length).to.equal(1);
@@ -166,16 +165,16 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     );
 
     expect(
-      finalBalances.anvil3.gt(initialBalances.anvil3),
+      finalBalances.anvil3 > initialBalances.anvil3,
       'Deficit router (anvil3) balance should increase',
     ).to.be.true;
     expect(
-      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      finalBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        finalBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
@@ -209,13 +208,13 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].intent.amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC,
     );
     expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil3);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC);
 
     const firstCycleActions = await context.tracker.getActionsForIntent(
       partialIntents[0].intent.id,
@@ -309,7 +308,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(activeIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC,
     );
     const trackedIntentId = activeIntents[0].id;
 
@@ -319,7 +318,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC);
 
     let actions = await context.tracker.getActionsForIntent(trackedIntentId);
     let movementActions = actions.filter(
@@ -349,7 +348,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC);
 
     actions = await context.tracker.getActionsForIntent(trackedIntentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
@@ -425,7 +424,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(partialIntents[0].intent.status).to.equal('not_started');
     expect(partialIntents[0].completedAmount).to.equal(0n);
     expect(partialIntents[0].remaining).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC,
     );
 
     const intentId = partialIntents[0].intent.id;
@@ -498,16 +497,16 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     );
 
     expect(
-      finalBalances.anvil3.gt(initialBalances.anvil3),
+      finalBalances.anvil3 > initialBalances.anvil3,
       'Deficit router (anvil3) balance should increase',
     ).to.be.true;
     expect(
-      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      finalBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        finalBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
@@ -539,7 +538,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(firstCycleIntents.length).to.equal(1);
     expect(firstCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(firstCycleIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC,
     );
 
     const firstIntentId = firstCycleIntents[0].id;
@@ -589,16 +588,16 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     );
 
     expect(
-      finalBalances.anvil2.gt(initialBalances.anvil2),
+      finalBalances.anvil2 > initialBalances.anvil2,
       'Deficit router (anvil2) balance should increase',
     ).to.be.true;
     expect(
-      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      finalBalances[surplusChain] < initialBalances[surplusChain],
       `Surplus router (${surplusChain}) balance should decrease`,
     ).to.be.true;
     if (neutralChain) {
       expect(
-        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        finalBalances[neutralChain] === initialBalances[neutralChain],
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
@@ -609,7 +608,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(secondCycleIntents.length).to.equal(1);
     expect(secondCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(secondCycleIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC,
     );
   });
 
@@ -645,7 +644,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(cycle1ActiveIntents.length).to.equal(1);
     expect(cycle1ActiveIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(cycle1ActiveIntents[0].amount).to.equal(
-      ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC.toBigInt(),
+      ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC,
     );
     const intentId = cycle1ActiveIntents[0].id;
 
@@ -657,7 +656,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     expect(
       cycle1PartialIntents[0].completedAmount +
         cycle1PartialIntents[0].remaining,
-    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC.toBigInt());
+    ).to.equal(ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC);
 
     let actions = await context.tracker.getActionsForIntent(intentId);
     expect(actions.length).to.equal(1);

@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Wallet, toBeHex } from 'ethers';
+import { JsonRpcProvider, NonceManager, Wallet, toBeHex } from 'ethers';
 import { type Logger, pino } from 'pino';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -462,6 +462,7 @@ export class TestRebalancerBuilder {
     }
 
     if (this.erc20InventoryConfig) {
+      const deployerSigners = new Map<string, NonceManager>();
       for (const [chain, balance] of Object.entries(balances)) {
         const provider = localProviders.get(chain);
         const tokenAddress: string | undefined =
@@ -482,9 +483,19 @@ export class TestRebalancerBuilder {
           `setupBalances: missing monitored route address for chain ${chain}`,
         );
 
-        const deployerSigner = new Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
+        let deployerSigner = deployerSigners.get(chain);
+        if (!deployerSigner) {
+          deployerSigner = new NonceManager(
+            new Wallet(ANVIL_TEST_PRIVATE_KEY, provider),
+          );
+          deployerSigners.set(chain, deployerSigner);
+        }
         const token = ERC20Test__factory.connect(tokenAddress, deployerSigner);
-        await token.transfer(monitoredRouteAddress, balance);
+        const seedRouteTx = await token.transfer(
+          monitoredRouteAddress,
+          balance,
+        );
+        await seedRouteTx.wait();
       }
 
       this.logger.info(
@@ -498,7 +509,7 @@ export class TestRebalancerBuilder {
         },
         'ERC20 inventory balances configured on monitored routes',
       );
-      await this.setupInventorySignerBalances(localProviders);
+      await this.setupInventorySignerBalances(localProviders, deployerSigners);
       return;
     }
 
@@ -536,6 +547,7 @@ export class TestRebalancerBuilder {
 
   private async setupInventorySignerBalances(
     localProviders: Map<string, JsonRpcProvider>,
+    deployerSigners: Map<string, NonceManager> = new Map(),
   ): Promise<void> {
     if (
       !this.inventorySignerBalanceConfig ||
@@ -581,8 +593,14 @@ export class TestRebalancerBuilder {
           `setupInventorySignerBalances: missing token address for chain ${chain}`,
         );
 
-        const connectedSigner = signerWallet.connect(provider);
-        const deployerSigner = new Wallet(deployerKey, provider);
+        const connectedSigner = new NonceManager(
+          signerWallet.connect(provider),
+        );
+        let deployerSigner = deployerSigners.get(chain);
+        if (!deployerSigner) {
+          deployerSigner = new NonceManager(new Wallet(deployerKey, provider));
+          deployerSigners.set(chain, deployerSigner);
+        }
         const tokenAsSigner = ERC20Test__factory.connect(
           tokenAddress,
           connectedSigner,
@@ -594,12 +612,20 @@ export class TestRebalancerBuilder {
 
         const current = await tokenAsSigner.balanceOf(signerAddress);
         if (current > 0n) {
-          await tokenAsSigner.transfer(deployerSigner.address, current);
+          const clearSignerBalanceTx = await tokenAsSigner.transfer(
+            await deployerSigner.getAddress(),
+            current,
+          );
+          await clearSignerBalanceTx.wait();
         }
 
         const targetBalance = BigInt(balance);
         if (targetBalance > 0n) {
-          await tokenAsDeployer.transfer(signerAddress, targetBalance);
+          const seedSignerTx = await tokenAsDeployer.transfer(
+            signerAddress,
+            targetBalance,
+          );
+          await seedSignerTx.wait();
         }
       }
 
@@ -714,7 +740,7 @@ export class TestRebalancerBuilder {
       }
       inventoryMultiProvider.setSigner(
         chain,
-        inventoryWallet.connect(provider),
+        new NonceManager(inventoryWallet.connect(provider)),
       );
     }
 
@@ -737,7 +763,10 @@ export class TestRebalancerBuilder {
     for (const chain of TEST_CHAINS) {
       const provider = ctx.providers.get(chain);
       if (provider) {
-        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider));
+        rebalancerMultiProvider.setSigner(
+          chain,
+          new NonceManager(wallet.connect(provider)),
+        );
       }
     }
 
