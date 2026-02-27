@@ -436,6 +436,90 @@ describe("viemFactory", () => {
         expect(wrappedRead).to.deep.equal([[1n, 2n]]);
     });
 
+    it("exposes only ABI methods on contract.functions", async () => {
+        const runner = {
+            request: async ({
+                method,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_call") {
+                    return encodeFunctionResult({
+                        abi: [GET_VALUE_ABI[0]],
+                        functionName: "getValue",
+                        result: 42n,
+                    });
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            GET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            functions: {
+                getValue: () => Promise<readonly [bigint]>;
+            } & Record<string, unknown>;
+        };
+
+        expect(typeof contract.functions.getValue).to.equal("function");
+        expect(contract.functions.then).to.equal(undefined);
+        expect(contract.functions.missing).to.equal(undefined);
+        expect("getValue" in contract.functions).to.equal(true);
+        expect("then" in contract.functions).to.equal(false);
+        expect("missing" in contract.functions).to.equal(false);
+
+        const resolved = await Promise.resolve(contract.functions);
+        expect(resolved).to.equal(contract.functions);
+    });
+
+    it("exposes only ABI methods on contract.estimateGas", async () => {
+        const seenEstimateRequests: Record<string, unknown>[] = [];
+        const runner = {
+            request: async ({
+                method,
+                params,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_estimateGas") {
+                    seenEstimateRequests.push(
+                        (params?.[0] ?? {}) as Record<string, unknown>,
+                    );
+                    return "0x5208";
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            estimateGas: {
+                setValue: (...args: readonly unknown[]) => Promise<bigint>;
+            } & Record<string, unknown>;
+        };
+
+        const estimated = await contract.estimateGas.setValue(7n);
+        expect(estimated).to.equal(21000n);
+        expect(seenEstimateRequests.length).to.equal(1);
+
+        expect(contract.estimateGas.then).to.equal(undefined);
+        expect(contract.estimateGas.missing).to.equal(undefined);
+        expect("setValue" in contract.estimateGas).to.equal(true);
+        expect("then" in contract.estimateGas).to.equal(false);
+        expect("missing" in contract.estimateGas).to.equal(false);
+
+        const resolved = await Promise.resolve(contract.estimateGas);
+        expect(resolved).to.equal(contract.estimateGas);
+    });
+
     it("times out receipt polling fallback when no receipt appears", async () => {
         const runner = {
             receiptTimeoutMs: 1,

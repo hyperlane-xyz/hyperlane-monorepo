@@ -1384,8 +1384,11 @@ export function createContractProxy<TAbi extends Abi>(
   const estimateGas = new Proxy(
     {},
     {
-      get(_target, prop) {
-        if (typeof prop !== 'string') return undefined;
+      get(target, prop, receiver) {
+        if (typeof prop !== 'string') return Reflect.get(target, prop, receiver);
+        if (!getFunctionAbi(abi, prop)) {
+          return Reflect.get(target, prop, receiver);
+        }
         return async (...rawArgs: unknown[]) => {
           const { fn, fnArgs, overrides } = resolveFunctionCall(
             abi,
@@ -1401,14 +1404,21 @@ export function createContractProxy<TAbi extends Abi>(
           return performEstimateGas(runner, request);
         };
       },
+      has(_target, prop) {
+        if (typeof prop !== 'string') return false;
+        return !!getFunctionAbi(abi, prop);
+      },
     },
   ) as ContractEstimateGasMap<TAbi>;
 
   const functions = new Proxy(
     {},
     {
-      get(_target, prop) {
-        if (typeof prop !== 'string') return undefined;
+      get(target, prop, receiver) {
+        if (typeof prop !== 'string') return Reflect.get(target, prop, receiver);
+        if (!getFunctionAbi(abi, prop)) {
+          return Reflect.get(target, prop, receiver);
+        }
         return (...args: unknown[]) =>
           callContractFunction(prop, args, { wrapReadResultInArray: true });
       },
