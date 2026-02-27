@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import { Wallet, type ContractReceipt } from 'ethers';
+import { type ContractReceipt } from 'ethers';
 
 import {
   type AnnotatedEvmTransaction,
@@ -161,6 +161,36 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       );
     }
     return addr;
+  }
+
+  /**
+   * Extract a private key from a signer, unwrapping wrappers like NonceManager.
+   */
+  private getSignerPrivateKey(signer: unknown): string | undefined {
+    let current: unknown = signer;
+    const visited = new Set<unknown>();
+
+    while (current && !visited.has(current)) {
+      visited.add(current);
+
+      const signerWithKey = current as { privateKey?: unknown };
+      if (
+        typeof signerWithKey.privateKey === 'string' &&
+        signerWithKey.privateKey.length > 0
+      ) {
+        return signerWithKey.privateKey;
+      }
+
+      const wrappedSigner = current as { signer?: unknown };
+      if (wrappedSigner.signer) {
+        current = wrappedSigner.signer;
+        continue;
+      }
+
+      break;
+    }
+
+    return undefined;
   }
 
   /**
@@ -1247,12 +1277,18 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       const signingProvider = this.config.inventoryMultiProvider;
       const signer = signingProvider.getSigner(sourceChain);
+      const signerPrivateKey = this.getSignerPrivateKey(signer);
+      const signerType =
+        typeof signer === 'object' && signer !== null
+          ? ((signer as { constructor?: { name?: string } }).constructor
+              ?.name ?? 'Object')
+          : typeof signer;
       assert(
-        signer instanceof Wallet,
-        `External bridge execution requires a Wallet signer with private key access, got ${signer.constructor.name}`,
+        signerPrivateKey,
+        `External bridge execution requires a signer with private key access, got ${signerType}`,
       );
 
-      const result = await externalBridge.execute(quote, signer.privateKey);
+      const result = await externalBridge.execute(quote, signerPrivateKey);
 
       this.logger.info(
         {
