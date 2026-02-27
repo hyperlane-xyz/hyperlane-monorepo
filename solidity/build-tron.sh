@@ -54,7 +54,7 @@ pnpm exec tsc --project tsconfig.tron-typechain.json
 # Fix ethers v5/v6 compat: replace `import { utils } from "ethers"` with
 # direct `Interface` import from `@ethersproject/abi` to avoid webpack
 # resolution failures in downstream apps using barrel optimization.
-node fix-tron-typechain-ethers.mjs
+node fix-typechain-ethers.mjs ./dist/tron/typechain/factories
 
 # trap will restore files
 trap - EXIT
