@@ -981,6 +981,7 @@ async function performRead(
   overrides: Record<string, unknown> = {},
 ): Promise<unknown> {
   const readAbi = getSingleFunctionAbi(fn);
+  const normalizedArgs = normalizeFunctionArgs(fn, args);
   const from = typeof overrides.from === 'string' ? overrides.from : undefined;
   const blockRef = toLogBlockRef(overrides.blockTag) ?? 'latest';
   const blockTag =
@@ -999,7 +1000,7 @@ async function performRead(
         address,
         abi: readAbi,
         functionName: fn.name,
-        args: [...args],
+        args: normalizedArgs,
       };
       if (from) readRequest.account = from;
       if (blockTag) readRequest.blockTag = blockTag;
@@ -1357,14 +1358,13 @@ export function createContractProxy<TAbi extends Abi>(
       functionName,
       rawArgs,
     );
-    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
     const stateMutability = fn.stateMutability ?? 'nonpayable';
     if (stateMutability === 'view' || stateMutability === 'pure') {
       const readResult = await performRead(
         runner,
         address,
         fn,
-        normalizedArgs,
+        fnArgs,
         overrides,
       );
       return options.wrapReadResultInArray
@@ -1375,7 +1375,7 @@ export function createContractProxy<TAbi extends Abi>(
     const request = await withRunnerFrom(runner, {
       ...overrides,
       to: address,
-      data: encodeFunctionCallData(fn, normalizedArgs),
+      data: encodeFunctionCallData(fn, fnArgs),
     });
     const response = await performSend(runner, request);
     return normalizeWriteResult(response);
@@ -1395,11 +1395,10 @@ export function createContractProxy<TAbi extends Abi>(
             prop,
             rawArgs,
           );
-          const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
           const request = await withRunnerFrom(runner, {
             ...overrides,
             to: address,
-            data: encodeFunctionCallData(fn, normalizedArgs),
+            data: encodeFunctionCallData(fn, fnArgs),
           });
           return performEstimateGas(runner, request);
         };
