@@ -179,6 +179,7 @@ type SendLike = {
 export type RunnerLike =
   | {
       provider?: unknown;
+      receiptTimeoutMs?: number;
       request?: JsonRpcLike['request'];
       send?: (method: string, params: unknown[]) => Promise<unknown>;
       readContract?: (args: Record<string, unknown>) => Promise<unknown>;
@@ -232,6 +233,7 @@ const TX_OVERRIDE_KEYS = new Set([
 ]);
 
 const RECEIPT_POLL_INTERVAL_MS = 1_000;
+const DEFAULT_RECEIPT_TIMEOUT_MS = 30 * 60 * 1_000;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -1139,6 +1141,8 @@ async function waitForReceipt(
   }
 
   const requiredConfirmations = toRequiredConfirmations(confirmations);
+  const startedAt = Date.now();
+  const timeoutMs = getReceiptTimeoutMs(runner);
   while (true) {
     const receipt = await rpcRequest(runner, 'eth_getTransactionReceipt', [hash]);
     if (receipt) {
@@ -1160,8 +1164,33 @@ async function waitForReceipt(
         return toReceiptLike(receipt, hash);
       }
     }
+    if (Date.now() - startedAt >= timeoutMs) {
+      throw new Error(
+        `Timeout (${timeoutMs}ms) waiting for ${requiredConfirmations.toString()} block confirmations for tx ${hash}`,
+      );
+    }
     await sleep(RECEIPT_POLL_INTERVAL_MS);
   }
+}
+
+function asPositiveNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return value;
+}
+
+function getReceiptTimeoutMs(runner: RunnerLike): number {
+  const runnerTimeout = asPositiveNumber(runner?.receiptTimeoutMs);
+  if (runnerTimeout !== undefined) return runnerTimeout;
+
+  const provider = getRunnerProvider(runner);
+  if (provider && isObject(provider)) {
+    const providerTimeout = asPositiveNumber(provider.receiptTimeoutMs);
+    if (providerTimeout !== undefined) return providerTimeout;
+  }
+
+  return DEFAULT_RECEIPT_TIMEOUT_MS;
 }
 
 function asTxResponse(runner: RunnerLike, tx: unknown): SentTxLike {
@@ -1285,6 +1314,7 @@ export function createContractProxy<TAbi extends Abi>(
   const callContractFunction = async (
     functionName: string,
     rawArgs: readonly unknown[],
+    options: { wrapReadResultInArray?: boolean } = {},
   ) => {
     const { fn, fnArgs, overrides } = resolveFunctionCall(
       abi,
@@ -1294,7 +1324,14 @@ export function createContractProxy<TAbi extends Abi>(
     const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
     const stateMutability = fn.stateMutability ?? 'nonpayable';
     if (stateMutability === 'view' || stateMutability === 'pure') {
-      return performRead(runner, address, fn, normalizedArgs, overrides);
+      const readResult = await performRead(
+        runner,
+        address,
+        fn,
+        normalizedArgs,
+        overrides,
+      );
+      return options.wrapReadResultInArray ? [readResult] : readResult;
     }
 
     const request = await withRunnerFrom(runner, {
@@ -1334,7 +1371,8 @@ export function createContractProxy<TAbi extends Abi>(
     {
       get(_target, prop) {
         if (typeof prop !== 'string') return undefined;
-        return (...args: unknown[]) => callContractFunction(prop, args);
+        return (...args: unknown[]) =>
+          callContractFunction(prop, args, { wrapReadResultInArray: true });
       },
       has(_target, prop) {
         if (typeof prop !== 'string') return false;
