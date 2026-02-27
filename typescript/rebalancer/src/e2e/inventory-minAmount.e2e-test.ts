@@ -496,10 +496,15 @@ describe('InventoryMinAmountStrategy E2E', function () {
     );
 
     const cycle2Active = await context.tracker.getActiveRebalanceIntents();
-    expect(cycle2Active.length).to.equal(1);
+    const cycle2ActiveIntent = cycle2Active.find((i) => i.id === intentId);
+    expect(cycle2ActiveIntent).to.exist;
+    expect(cycle2ActiveIntent!.status).to.equal('in_progress');
     const cycle2Partial =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
-    expect(cycle2Partial.length).to.equal(1);
+    const cycle2PartialIntent = cycle2Partial.find(
+      (partial) => partial.intent.id === intentId,
+    );
+    expect(cycle2PartialIntent).to.exist;
 
     const cycle2Actions = await context.tracker.getActionsForIntent(intentId);
     expect(cycle2Actions.length).to.equal(1);
