@@ -2,12 +2,7 @@ import { expect } from 'chai';
 import { JsonRpcProvider, Wallet } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import {
   RebalancerMinAmountType,
@@ -24,6 +19,7 @@ import {
 } from './fixtures/routes.js';
 import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
 import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
@@ -72,11 +68,11 @@ describe('CompositeStrategy E2E', function () {
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {
