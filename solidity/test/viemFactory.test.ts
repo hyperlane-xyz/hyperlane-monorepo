@@ -68,6 +68,19 @@ const GET_VALUE_ABI = [
     },
 ] as const satisfies Abi;
 
+const GET_PAIR_ABI = [
+    {
+        type: "function",
+        name: "getPair",
+        stateMutability: "view",
+        inputs: [],
+        outputs: [
+            {name: "left", type: "uint256"},
+            {name: "right", type: "uint256"},
+        ],
+    },
+] as const satisfies Abi;
+
 describe("viemFactory", () => {
     it("resolves overloaded short-name calls using provided args", async () => {
         const sentPayloads: Record<string, unknown>[] = [];
@@ -337,6 +350,43 @@ describe("viemFactory", () => {
 
         expect(directRead).to.equal(42n);
         expect(wrappedRead).to.deep.equal([42n]);
+    });
+
+    it("does not double-wrap multi-value contract.functions reads", async () => {
+        const runner = {
+            request: async ({
+                method,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_call") {
+                    return encodeFunctionResult({
+                        abi: [GET_PAIR_ABI[0]],
+                        functionName: "getPair",
+                        result: [1n, 2n],
+                    });
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            GET_PAIR_ABI,
+            runner,
+        ) as unknown as {
+            getPair: () => Promise<readonly [bigint, bigint]>;
+            functions: {
+                getPair: () => Promise<readonly [bigint, bigint]>;
+            };
+        };
+
+        const directRead = await contract.getPair();
+        const wrappedRead = await contract.functions.getPair();
+
+        expect(directRead).to.deep.equal([1n, 2n]);
+        expect(wrappedRead).to.deep.equal([1n, 2n]);
     });
 
     it("times out receipt polling fallback when no receipt appears", async () => {
