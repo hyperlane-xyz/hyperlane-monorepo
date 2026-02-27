@@ -254,13 +254,14 @@ export class WarpTokenWriter
     // Resolve Hook updates
     const expectedHook = config.hook;
     const currentHook = currentArtifact.config.hook;
-    const hookWriter = this.getHookWriter(config.mailbox);
 
     let onChainHookArtifact:
       | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
 
     if (expectedHook && !isArtifactUnderived(expectedHook)) {
+      const hookWriter = this.getHookWriter(config.mailbox);
+
       // NEW or DEPLOYED: Merge with current and decide deploy vs update
       const mergedHookConfig = mergeHookArtifacts(currentHook, expectedHook);
 
