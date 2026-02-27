@@ -1151,4 +1151,29 @@ export class WarpCore {
       (t) => t.chainName === origin && t.getConnectionForChain(destination),
     );
   }
+
+  /**
+   * Check if a token supports Predicate attestations
+   * @param token The token to check
+   * @param destination Optional destination chain for the route
+   * @returns True if the token's warp route has a PredicateRouterWrapper configured
+   */
+  async isPredicateSupported(
+    token: IToken,
+    destination?: ChainName,
+  ): Promise<boolean> {
+    try {
+      const adapter = token.getHypAdapter(this.multiProvider, destination);
+
+      // Only EVM adapters support predicate currently
+      if (!('supportsAttestation' in adapter)) {
+        return false;
+      }
+
+      return await (adapter as any).supportsAttestation();
+    } catch (error) {
+      this.logger.debug('Error checking predicate support', { error });
+      return false;
+    }
+  }
 }

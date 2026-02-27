@@ -39,35 +39,41 @@ export class PredicateApiClient {
     request: PredicateAttestationRequest,
   ): Promise<PredicateAttestationResponse> {
     this.logger.debug('Fetching attestation', {
-      to: request.to,
-      chain: request.chain,
+      url: this.baseUrl,
+      request,
     });
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-      },
-      body: JSON.stringify(request),
-    });
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+        },
+        body: JSON.stringify(request),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Predicate API error (${response.status}): ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Predicate API error (${response.status}): ${errorText}`,
+        );
+      }
+
+      const result: PredicateAttestationResponse = await response.json();
+
+      if (!result.is_compliant) {
+        throw new Error(
+          `Transaction not compliant: policy=${result.policy_id}, hash=${result.verification_hash}`,
+        );
+      }
+
+      this.logger.debug('Attestation received', {
+        uuid: result.attestation.uuid,
+      });
+      return result;
+    } catch (error) {
+      throw error;
     }
-
-    const result: PredicateAttestationResponse = await response.json();
-
-    if (!result.is_compliant) {
-      throw new Error(
-        `Transaction not compliant: policy=${result.policy_id}, hash=${result.verification_hash}`,
-      );
-    }
-
-    this.logger.debug('Attestation received', {
-      uuid: result.attestation.uuid,
-    });
-    return result;
   }
 }

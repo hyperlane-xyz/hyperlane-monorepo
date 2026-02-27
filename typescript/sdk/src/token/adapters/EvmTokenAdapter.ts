@@ -288,6 +288,7 @@ export class EvmHypSyntheticAdapter
 
     try {
       const hookAddress = await this.contract.hook();
+
       if (hookAddress === ethersConstants.AddressZero) {
         this.predicateWrapperAddress = null;
         return null;
@@ -301,8 +302,9 @@ export class EvmHypSyntheticAdapter
         warpRouteAddress,
         provider,
       );
+
       this.predicateWrapperAddress = foundWrapper;
-    } catch {
+    } catch (error) {
       this.predicateWrapperAddress = null;
     }
     return this.predicateWrapperAddress;
@@ -322,7 +324,8 @@ export class EvmHypSyntheticAdapter
         provider,
       );
       const warpRouteFromWrapper = await wrapper.warpRoute();
-      if (warpRouteFromWrapper.toLowerCase() === warpRouteAddress) {
+      const matches = warpRouteFromWrapper.toLowerCase() === warpRouteAddress;
+      if (matches) {
         return hookAddress;
       }
     }
@@ -339,7 +342,9 @@ export class EvmHypSyntheticAdapter
           warpRouteAddress,
           provider,
         );
-        if (found) return found;
+        if (found) {
+          return found;
+        }
       }
     }
 
@@ -441,6 +446,15 @@ export class EvmHypSyntheticAdapter
       },
       tokenFeeQuote,
     };
+  }
+
+  /**
+   * Check if this warp route supports Predicate attestations
+   * @returns True if a PredicateRouterWrapper is configured on the hook
+   */
+  async supportsAttestation(): Promise<boolean> {
+    const wrapperAddress = await this.getPredicateWrapperAddress();
+    return wrapperAddress !== null;
   }
 
   async populateTransferRemoteTx(
@@ -624,6 +638,15 @@ class BaseEvmHypCollateralAdapter
       ...params,
       recipient: effectiveRecipient,
     });
+  }
+
+  /**
+   * Check if this warp route supports Predicate attestations
+   * @returns True if a PredicateRouterWrapper is configured on the hook
+   */
+  async supportsAttestation(): Promise<boolean> {
+    const wrapperAddress = await this.getPredicateWrapperAddress();
+    return wrapperAddress !== null;
   }
 
   override async populateTransferRemoteTx(
