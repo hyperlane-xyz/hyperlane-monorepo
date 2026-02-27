@@ -7,6 +7,7 @@ import {
   revertToSnapshot,
   snapshot,
 } from '@hyperlane-xyz/sdk';
+import { pollAsync } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 
@@ -243,14 +244,20 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(movementAction!.destination).to.equal(DOMAIN_IDS.anvil3);
     expect(movementAction!.status).to.equal('in_progress');
 
-    await context.tracker.syncInventoryMovementActions({
-      [ExternalBridgeType.LiFi]: mockBridge,
-    });
+    await pollAsync(
+      async () => {
+        await context.tracker.syncInventoryMovementActions({
+          [ExternalBridgeType.LiFi]: mockBridge,
+        });
 
-    const movementState = await context.tracker.getRebalanceAction(
-      movementAction!.id,
+        const movementState = await context.tracker.getRebalanceAction(
+          movementAction!.id,
+        );
+        expect(movementState?.status).to.equal('complete');
+      },
+      500,
+      20,
     );
-    expect(movementState?.status).to.equal('complete');
 
     await executeCycle(context);
     await context.tracker.syncInventoryMovementActions({
