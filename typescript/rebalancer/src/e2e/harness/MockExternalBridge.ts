@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -137,6 +138,10 @@ export class MockExternalBridge implements IExternalBridge {
 
     let tx;
     if (this.tokenType === 'erc20') {
+      assert(
+        'tokens' in this.deployedAddresses,
+        'Expected ERC20 deployed addresses',
+      );
       const tokenAddress = (
         this.deployedAddresses as Erc20InventoryDeployedAddresses
       ).tokens[fromChainName];
