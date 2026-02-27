@@ -77,8 +77,8 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             if (!enrolledRouters[_domains[i]][_routers[i]]) {
                 enrolledRouters[_domains[i]][_routers[i]] = true;
                 _enrolledRouterList[_domains[i]].push(_routers[i]);
+                emit RouterEnrolled(_domains[i], _routers[i]);
             }
-            emit RouterEnrolled(_domains[i], _routers[i]);
         }
     }
 
@@ -91,8 +91,8 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             if (enrolledRouters[_domains[i]][_routers[i]]) {
                 enrolledRouters[_domains[i]][_routers[i]] = false;
                 _removeFromList(_domains[i], _routers[i]);
+                emit RouterUnenrolled(_domains[i], _routers[i]);
             }
-            emit RouterUnenrolled(_domains[i], _routers[i]);
         }
     }
 
