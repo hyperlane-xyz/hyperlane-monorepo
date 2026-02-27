@@ -1,9 +1,4 @@
-import {
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-  fetchEncodedAccount,
-} from '@solana/kit';
+import { type Address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 
@@ -27,6 +22,7 @@ import {
   deriveMultisigIsmDomainDataPda,
   deriveTestIsmStoragePda,
 } from '../pda.js';
+import { fetchAccountDataRaw } from '../rpc.js';
 
 export const decodeIsmInstruction = {
   interchainSecurityModule: decodeInterchainSecurityModuleInterfaceInstruction,
@@ -39,17 +35,6 @@ export const decodeIsmAccount = {
   multisigDomainData: decodeMultisigIsmDomainDataAccount,
   testIsmStorage: decodeTestIsmStorageAccount,
 };
-
-async function fetchAccountDataRaw(
-  rpc: Rpc<SolanaRpcApi>,
-  address: Address,
-): Promise<Uint8Array | null> {
-  const maybeAccount = await fetchEncodedAccount(rpc, address, {
-    commitment: 'confirmed',
-  });
-  if (!maybeAccount.exists) return null;
-  return maybeAccount.data;
-}
 
 export async function fetchTestIsmStorageAccount(
   rpc: Rpc<SolanaRpcApi>,

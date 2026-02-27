@@ -1,5 +1,7 @@
 import { type Address, getAddressDecoder } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   decodeAccountData,
   decodeDiscriminatorPrefixed,
@@ -168,10 +170,17 @@ function readOptionIgpConfig(cursor: ByteCursor): {
 } | null {
   const hasValue = cursor.readU8() === 1;
   if (!hasValue) return null;
+  const programId = readAddress(cursor);
+  const igpKindByte = cursor.readU8();
+  assert(
+    igpKindByte === InterchainGasPaymasterTypeKind.Igp ||
+      igpKindByte === InterchainGasPaymasterTypeKind.OverheadIgp,
+    `Unknown InterchainGasPaymasterType kind: ${igpKindByte}`,
+  );
   return {
-    programId: readAddress(cursor),
+    programId,
     igpType: {
-      kind: cursor.readU8() as InterchainGasPaymasterTypeKind,
+      kind: igpKindByte,
       account: readAddress(cursor),
     },
   };

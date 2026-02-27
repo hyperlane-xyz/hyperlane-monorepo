@@ -20,4 +20,18 @@ export async function fetchAccount(
   return fetchEncodedAccount(rpc, address);
 }
 
+/**
+ * Fetches raw account data bytes, returning null when the account does not exist.
+ */
+export async function fetchAccountDataRaw(
+  rpc: Rpc<SolanaRpcApi>,
+  address: Address,
+): Promise<Uint8Array | null> {
+  const maybeAccount = await fetchEncodedAccount(rpc, address, {
+    commitment: 'confirmed',
+  });
+  if (!maybeAccount.exists) return null;
+  return maybeAccount.data;
+}
+
 export type SolanaRpcClient = Rpc<SolanaRpcApi>;

@@ -1,9 +1,4 @@
-import {
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-  fetchEncodedAccount,
-} from '@solana/kit';
+import { type Address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 
@@ -20,23 +15,13 @@ import {
   deriveIgpProgramDataPda,
   deriveOverheadIgpAccountPda,
 } from '../pda.js';
+import { fetchAccountDataRaw } from '../rpc.js';
 
 export const decodeHookAccount = {
   igpProgramData: decodeIgpProgramDataAccount,
   igp: decodeIgpAccount,
   overheadIgp: decodeOverheadIgpAccount,
 };
-
-async function fetchAccountDataRaw(
-  rpc: Rpc<SolanaRpcApi>,
-  address: Address,
-): Promise<Uint8Array | null> {
-  const maybeAccount = await fetchEncodedAccount(rpc, address, {
-    commitment: 'confirmed',
-  });
-  if (!maybeAccount.exists) return null;
-  return maybeAccount.data;
-}
 
 export async function fetchIgpProgramData(
   rpc: Rpc<SolanaRpcApi>,

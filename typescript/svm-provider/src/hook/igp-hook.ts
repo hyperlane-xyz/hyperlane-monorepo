@@ -15,6 +15,7 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { GasOracleConfig, GasOverheadConfig } from '../codecs/shared.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -91,7 +92,7 @@ export class SvmIgpHookReader implements ArtifactReader<
       }
     }
 
-    const owner = igp.owner ?? '';
+    const owner = igp.owner;
     const beneficiary = igp.beneficiary;
 
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
@@ -208,17 +209,21 @@ export class SvmIgpHookWriter
 
     const oracleConfigs: GasOracleConfig[] = Object.entries(
       config.oracleConfig,
-    ).map(([domainStr, oracleData]) => ({
-      domain: parseInt(domainStr),
-      gasOracle: {
-        kind: 0 as const,
-        value: {
-          gasPrice: BigInt(oracleData.gasPrice),
-          tokenExchangeRate: BigInt(oracleData.tokenExchangeRate),
-          tokenDecimals: oracleData.tokenDecimals ?? 9,
+    ).map(([domainStr, oracleData]) => {
+      const domain = parseInt(domainStr, 10);
+      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+      return {
+        domain,
+        gasOracle: {
+          kind: 0 as const,
+          value: {
+            gasPrice: BigInt(oracleData.gasPrice),
+            tokenExchangeRate: BigInt(oracleData.tokenExchangeRate),
+            tokenDecimals: oracleData.tokenDecimals ?? 9,
+          },
         },
-      },
-    }));
+      };
+    });
 
     if (oracleConfigs.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
@@ -236,10 +241,14 @@ export class SvmIgpHookWriter
 
     const overheadConfigs: GasOverheadConfig[] = Object.entries(
       config.overhead,
-    ).map(([domainStr, gas]) => ({
-      destinationDomain: parseInt(domainStr),
-      gasOverhead: BigInt(gas),
-    }));
+    ).map(([domainStr, gas]) => {
+      const domain = parseInt(domainStr, 10);
+      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+      return {
+        destinationDomain: domain,
+        gasOverhead: BigInt(gas),
+      };
+    });
 
     if (overheadConfigs.length > 0) {
       const derivedOverheadPda = await deriveOverheadIgpAccountPda(
@@ -292,7 +301,8 @@ export class SvmIgpHookWriter
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
     for (const [domainStr, oracleData] of Object.entries(config.oracleConfig)) {
-      const domain = parseInt(domainStr);
+      const domain = parseInt(domainStr, 10);
+      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
       const existingOracle = currentIgp.gasOracles.get(domain);
 
       const newGasPrice = BigInt(oracleData.gasPrice);
@@ -350,7 +360,8 @@ export class SvmIgpHookWriter
 
     const overheadConfigsToUpdate: GasOverheadConfig[] = [];
     for (const [domainStr, gas] of Object.entries(config.overhead)) {
-      const domain = parseInt(domainStr);
+      const domain = parseInt(domainStr, 10);
+      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
       const existingOverhead = currentOverheadIgp?.gasOverheads.get(domain);
       const newOverhead = BigInt(gas);
 

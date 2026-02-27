@@ -14,6 +14,7 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
@@ -133,7 +134,8 @@ export class SvmMessageIdMultisigIsmWriter
       const domainInstructions = await Promise.all(
         Object.entries(config.domains).map(
           async ([domainStr, domainConfig]) => {
-            const domain = parseInt(domainStr);
+            const domain = parseInt(domainStr, 10);
+            assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
             return getSetValidatorsAndThresholdInstruction({
               programAddress,
               owner: this.svmSigner.signer,
