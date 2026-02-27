@@ -36,9 +36,10 @@ import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
  * Generic Warp Token Reader that can read any warp token type by detecting its type
  * and expanding nested ISM artifacts if present.
  */
-export class WarpTokenReader
-  implements ArtifactReader<WarpArtifactConfig, DeployedWarpAddress>
-{
+export class WarpTokenReader implements ArtifactReader<
+  WarpArtifactConfig,
+  DeployedWarpAddress
+> {
   protected readonly logger: Logger = rootLogger.child({
     module: WarpTokenReader.name,
   });
