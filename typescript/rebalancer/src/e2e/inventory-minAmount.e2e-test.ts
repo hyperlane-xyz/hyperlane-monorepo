@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, providers } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   HyperlaneCore,
@@ -36,14 +36,15 @@ describe('InventoryMinAmountStrategy E2E', function () {
 
   let deploymentManager: NativeLocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let nativeDeployedAddresses: NativeDeployedAddresses;
   let mockBridge: MockExternalBridge;
 
-  const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
-    .address;
+  const inventorySignerAddress = privateKeyToAccount(
+    ANVIL_USER_PRIVATE_KEY as `0x${string}`,
+  ).address;
   // Expected deficit when a chain's router balance is 0:
   // target (from strategy config) - 0 = target.
   const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI;
@@ -93,11 +94,6 @@ describe('InventoryMinAmountStrategy E2E', function () {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
       snapshotIds.set(chain, await snapshot(provider));
-      // ethers v5 refuses to return block numbers lower than a previous
-      // high-water mark (_maxInternalBlockNumber). After evm_revert the
-      // actual chain block number decreases, so reset the cache.
-      Reflect.set(provider, '_maxInternalBlockNumber', -1);
-      Reflect.set(provider, '_internalBlockNumber', null);
     }
   });
 

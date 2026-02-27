@@ -1,4 +1,4 @@
-import { BigNumber, providers } from 'ethers';
+import BigNumber from 'bignumber.js';
 
 import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -52,15 +52,15 @@ export function chainFromDomain(domain: number): string {
 }
 
 export async function getRouterBalances(
-  localProviders: Map<string, providers.JsonRpcProvider>,
+  localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   addresses: NativeDeployedAddresses,
 ): Promise<Record<string, BigNumber>> {
   const balances: Record<string, BigNumber> = {};
   for (const chain of TEST_CHAINS) {
     const provider = localProviders.get(chain);
     assert(provider, `Missing provider for chain ${chain}`);
-    balances[chain] = await provider.getBalance(
-      addresses.monitoredRoute[chain],
+    balances[chain] = new BigNumber(
+      (await provider.getBalance(addresses.monitoredRoute[chain])).toString(),
     );
   }
   return balances;
@@ -105,7 +105,7 @@ export function classifyChains(
 
 export async function relayInProgressInventoryDeposits(
   context: TestRebalancerContext,
-  localProviders: Map<string, providers.JsonRpcProvider>,
+  localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   multiProvider: MultiProvider,
   hyperlaneCore: HyperlaneCore,
 ): Promise<void> {
@@ -124,6 +124,7 @@ export async function relayInProgressInventoryDeposits(
       `Missing txHash for action ${action.origin}->${action.destination}`,
     );
     const dispatchTx = await provider.getTransactionReceipt(action.txHash);
+    assert(dispatchTx, `Dispatch receipt not found for tx ${action.txHash}`);
 
     assert(
       action.messageId,
@@ -148,8 +149,11 @@ export async function relayInProgressInventoryDeposits(
   for (const chain of TEST_CHAINS) {
     const p = localProviders.get(chain);
     assert(p, `Missing provider for chain ${chain}`);
-    const hex = await p.send('eth_blockNumber', []);
-    tags[chain] = parseInt(hex, 16);
+    const blockValue = await p.send('eth_blockNumber', []);
+    tags[chain] =
+      typeof blockValue === 'string'
+        ? parseInt(blockValue, 16)
+        : Number(blockValue);
   }
   await context.tracker.syncRebalanceActions(tags);
 }
