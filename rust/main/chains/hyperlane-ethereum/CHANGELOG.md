@@ -1,3 +1,9 @@
+## [2.1.0] - 2026-02-27
+
+* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* fix(agents): skip block gas limit cap when RPC returns zero (#8152)
+* fix: use Plume mainnet in test instead of removed PlumeTestnet
+
 ## [2.0.0] - 2026-01-06
 
 * feat: always log metadata bytes as hex (#7566)

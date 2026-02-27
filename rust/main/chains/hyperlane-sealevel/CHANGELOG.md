@@ -1,3 +1,9 @@
+## [2.1.0] - 2026-02-27
+
+* feat(sealevel): Address Lookup Table support for reduced transaction size (#7985)
+* feat(sealevel): log base58 transaction on simulation failure (#7900)
+* feat(sealevel): migrate to Solana SDK v3.x and Agave CLI v3.0.14 (#7999)
+
 ## [2.0.0] - 2026-01-06
 
 * feat: always log metadata bytes as hex (#7566)
