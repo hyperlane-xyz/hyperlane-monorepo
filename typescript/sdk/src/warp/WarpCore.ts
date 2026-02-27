@@ -17,7 +17,7 @@ import {
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   TransactionFeeEstimate,
-  estimateTransactionFeeEthersV5ForGasUnits,
+  estimateTransactionFeeEvmForGasUnits,
 } from '../providers/transactionFeeEstimators.js';
 import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
@@ -293,12 +293,10 @@ export class WarpCore {
       txs.length === 2 &&
       originToken.protocol === ProtocolType.Ethereum
     ) {
-      const provider = this.multiProvider.getEthersV5Provider(
-        originMetadata.name,
-      );
+      const provider = this.multiProvider.getEvmProvider(originMetadata.name);
       // We use a hard-coded const as an estimate for the transferRemote because we
       // cannot reliably simulate the tx when an approval tx is required first
-      return estimateTransactionFeeEthersV5ForGasUnits({
+      return estimateTransactionFeeEvmForGasUnits({
         provider,
         gasUnits: EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
       });

@@ -22,7 +22,6 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EvmProvider,
-  EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
   ProviderType,
@@ -90,7 +89,7 @@ export class MultiProtocolProvider<
     const newMp = new MultiProtocolProvider<MetaExt>(mp.metadata, options);
 
     const typedProviders = objMap(mp.providers, (_, provider) => ({
-      type: ProviderType.EthersV5,
+      type: ProviderType.Evm,
       provider,
     })) as ChainMap<TypedProvider>;
 
@@ -103,15 +102,13 @@ export class MultiProtocolProvider<
 
     const providers = objMap(
       this.providers,
-      (_, typeToProviders) =>
-        typeToProviders[ProviderType.EthersV5]?.provider ||
-        typeToProviders[ProviderType.Evm]?.provider,
-    ) as ChainMap<EthersV5Provider['provider'] | undefined>;
+      (_, typeToProviders) => typeToProviders[ProviderType.Evm]?.provider,
+    ) as ChainMap<EvmProvider['provider'] | undefined>;
 
     const filteredProviders = objFilter(
       providers,
-      (_, p): p is EthersV5Provider['provider'] => !!p,
-    ) as ChainMap<EthersV5Provider['provider']>;
+      (_, p): p is EvmProvider['provider'] => !!p,
+    ) as ChainMap<EvmProvider['provider']>;
 
     newMp.setProviders(filteredProviders);
     return newMp;
@@ -173,21 +170,17 @@ export class MultiProtocolProvider<
     return provider.provider as T;
   }
 
-  getEthersV5Provider(
-    chainNameOrId: ChainNameOrId,
-  ): EthersV5Provider['provider'] {
-    const legacyProvider = this.tryGetProvider(
-      chainNameOrId,
-      ProviderType.EthersV5,
-    );
-    if (legacyProvider?.type === ProviderType.EthersV5) {
-      return legacyProvider.provider;
-    }
-
+  getEvmProvider(chainNameOrId: ChainNameOrId): EvmProvider['provider'] {
     return this.getSpecificProvider<EvmProvider['provider']>(
       chainNameOrId,
       ProviderType.Evm,
     );
+  }
+
+  // TODO: Investigate removing this legacy alias once callers no longer use it.
+  // Backwards-compatible alias; use getEvmProvider in new code.
+  getEthersV5Provider(chainNameOrId: ChainNameOrId): EvmProvider['provider'] {
+    return this.getEvmProvider(chainNameOrId);
   }
 
   getViemProvider(chainNameOrId: ChainNameOrId): ViemProvider['provider'] {

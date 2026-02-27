@@ -31,6 +31,19 @@ export const WarpSendLogs = {
   SUCCESS: 'Transfer was self-relayed!',
 };
 
+function toSignerTransactionRequest(
+  transaction: Record<string, unknown>,
+): Record<string, unknown> {
+  const request = { ...transaction };
+  if (request.data === undefined && typeof request.input === 'string') {
+    request.data = request.input;
+  }
+  if (request.gasLimit === undefined && request.gas !== undefined) {
+    request.gasLimit = request.gas;
+  }
+  return request;
+}
+
 export async function sendTestTransfer({
   context,
   warpCoreConfig,
@@ -55,7 +68,7 @@ export async function sendTestTransfer({
   const { multiProvider } = context;
 
   // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
-  // but CLI transaction handling currently only processes EthersV5 transactions.
+  // but CLI transaction handling currently only processes EVM transactions.
   const nonEvmChains = chains.filter(
     (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
@@ -180,8 +193,11 @@ async function executeDelivery({
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5 || tx.type === ProviderType.Evm) {
-      const txResponse = await signer.sendTransaction(tx.transaction);
+    if (tx.type === ProviderType.Evm || tx.type === ProviderType.Viem) {
+      const txRequest = toSignerTransactionRequest(
+        tx.transaction as Record<string, unknown>,
+      );
+      const txResponse = await signer.sendTransaction(txRequest);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
     } else {

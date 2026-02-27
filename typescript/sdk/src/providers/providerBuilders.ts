@@ -56,9 +56,6 @@ export function defaultEvmProviderBuilder(
   return { type: ProviderType.Evm, provider };
 }
 
-// Kept for backwards compatibility
-export const defaultEthersV5ProviderBuilder = defaultEvmProviderBuilder;
-
 export function defaultViemProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
@@ -222,7 +219,6 @@ export type ProviderBuilderMap = Record<
   ProviderBuilderFn<TypedProvider>
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
-  [ProviderType.EthersV5]: defaultEvmProviderBuilder,
   [ProviderType.Evm]: defaultEvmProviderBuilder,
   [ProviderType.GnosisTxBuilder]: defaultEvmProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
@@ -240,7 +236,7 @@ export const protocolToDefaultProviderBuilder: Record<
   KnownProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
-  [ProtocolType.Ethereum]: defaultEvmProviderBuilder,
+  [ProtocolType.Ethereum]: defaultViemProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,

@@ -398,7 +398,6 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
-  defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
   defaultProviderBuilderMap,
