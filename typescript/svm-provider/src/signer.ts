@@ -26,10 +26,39 @@ export interface SvmSigner {
 
 const base58Encoder = getBase58Encoder();
 
+function parseKeyBytes(privateKey: string): Uint8Array {
+  // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
+  const stripped = strip0x(privateKey);
+  if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
+    return new Uint8Array(Buffer.from(stripped, 'hex'));
+  }
+  if (/^[0-9a-fA-F]{128}$/.test(stripped)) {
+    return new Uint8Array(Buffer.from(stripped, 'hex'));
+  }
+
+  // Try base58
+  let keyBytes: Uint8Array;
+  try {
+    keyBytes = new Uint8Array(base58Encoder.encode(privateKey));
+  } catch (err) {
+    throw new Error(
+      `Failed to parse private key. Expected hex (64 or 128 chars) or base58. ` +
+        `Base58 error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (keyBytes.length !== 32 && keyBytes.length !== 64) {
+    throw new Error(
+      `Base58-decoded key has invalid length: ${keyBytes.length}. Expected 32 (private key) or 64 (keypair).`,
+    );
+  }
+  return keyBytes;
+}
+
 /**
  * Creates an SvmSigner from a private key and RPC client.
  *
- * @param privateKey - Hex (32/64 bytes), base58, or base64 private key
+ * @param privateKey - Hex (32/64 bytes) or base58 encoded private key or keypair
  * @param rpc - Solana RPC client for sending transactions
  * @param rpcSubscriptions - Optional subscriptions client; enables Kit-recommended
  *   sendAndConfirmTransaction confirmation. When omitted, falls back to polling.
@@ -40,20 +69,7 @@ export async function createSigner(
   rpc: SvmRpc,
   rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
 ): Promise<SvmSigner & { address: Address }> {
-  let keyBytes: Uint8Array;
-
-  const stripped = strip0x(privateKey);
-  if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
-    keyBytes = new Uint8Array(Buffer.from(stripped, 'hex'));
-  } else if (/^[0-9a-fA-F]{128}$/.test(stripped)) {
-    keyBytes = new Uint8Array(Buffer.from(stripped, 'hex'));
-  } else {
-    try {
-      keyBytes = new Uint8Array(base58Encoder.encode(privateKey));
-    } catch {
-      keyBytes = new Uint8Array(Buffer.from(privateKey, 'base64'));
-    }
-  }
+  const keyBytes = parseKeyBytes(privateKey);
 
   let keypair: KeyPairSigner;
   if (keyBytes.length === 32) {
