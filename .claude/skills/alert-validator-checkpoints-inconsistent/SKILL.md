@@ -71,6 +71,31 @@ The metric shows the latest highest signed index by a validator as it's observed
 
 ## Debugging Workflow
 
+## Known Issue Handling
+
+Before proposing remediation, check whether this alert pattern matches an active known issue.
+
+Treat this as likely known when all of the following are true:
+
+1. The route/chain context matches an existing known issue fingerprint.
+2. The symptom pattern is the same (e.g. recurring validator inconsistency from an intentionally stale enrollment).
+3. There is no new evidence of wider blast radius or newly lost quorum.
+
+When it matches, explicitly say this appears to be a known issue and summarize:
+
+- why it is known,
+- quick checks performed to confirm nothing changed,
+- why no immediate remediation is expected.
+
+Canonical example:
+
+- Warp route `MILK/bsc-milkyway`
+- Old validator set enrolled on milkyway for messages from BSC
+- Updating ISM enrollment on milkyway is intentionally deferred because the chain is cumbersome to maintain and expected to sunset
+- Recurring validator-down alerts in this context should usually be treated as known unless new impact is detected
+
+If the issue is not yet tracked as known but appears recurring + currently unactionable, recommend saving it as a known issue candidate.
+
 ### Step 0: Pick the app context
 
 Skip this step if an `app_context` was explicitly specified. Continue this step if no `app_context` was specified, even if it has a default value.

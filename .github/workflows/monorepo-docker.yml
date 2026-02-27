@@ -33,6 +33,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.registryrc'
       - 'solidity/.foundryrc'
+      - 'typescript/infra/**'
   workflow_dispatch:
     inputs:
       include_arm64:
