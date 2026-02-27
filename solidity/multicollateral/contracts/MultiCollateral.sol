@@ -147,6 +147,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     }
 
     // ============ Per-Router Fee Lookup ============
+    // Mirrors TokenRouter._feeRecipientAndAmount but routes through
+    // IMultiCollateralFee.quoteTransferRemoteTo (which includes _targetRouter)
+    // instead of ITokenFee.quoteTransferRemote (destination-only).
 
     function _feeRecipientAndAmountForRouter(
         uint32 _destination,
@@ -157,6 +160,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         _feeRecipient = feeRecipient();
         if (_feeRecipient == address(0)) return (_feeRecipient, 0);
 
+        // Only difference from base: quoteTransferRemoteTo with _targetRouter
         Quote[] memory quotes = IMultiCollateralFee(_feeRecipient)
             .quoteTransferRemoteTo(
                 _destination,
@@ -173,6 +177,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         feeAmount = quotes[0].amount;
     }
 
+    // Mirrors TokenRouter._calculateFeesAndCharge. Identical charge/hook/transfer
+    // logic — only the fee lookup differs (router-aware via _feeRecipientAndAmountForRouter).
+    // Duplicated here because the base hardcodes _feeRecipientAndAmount.
     function _calculateFeesAndChargeForRouter(
         uint32 _destination,
         bytes32 _recipient,
@@ -180,6 +187,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _msgValue,
         bytes32 _targetRouter
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
+        // Only difference from base: router-aware fee lookup
         (
             address _feeRecipient,
             uint256 feeAmount
@@ -189,13 +197,13 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 _amount,
                 _targetRouter
             );
+        // --- remainder identical to TokenRouter._calculateFeesAndCharge ---
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
         uint256 charge = _amount + feeAmount + externalFee;
 
         address _feeHook = feeHook();
         address _token = token();
 
-        // ERC20 fee hook: use token() for gas payments
         if (_feeHook != address(0)) {
             uint256 hookFee = _quoteGasPayment(
                 _destination,
@@ -280,16 +288,17 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
 
     // ============ Quoting ============
 
-    /**
-     * @notice Quote fees for transferRemoteTo.
-     * @return quotes [0] native/feeToken gas, [1] token amount + fee, [2] external fee.
-     */
+    // Mirrors TokenRouter.quoteTransferRemote. Same 3-element quote structure.
+    // Differences: (1) router-aware fee lookup, (2) same-domain returns 0 gas
+    // since handle() is called directly without mailbox dispatch.
+
+    /// @inheritdoc IMultiCollateralFee
     function quoteTransferRemoteTo(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         bytes32 _targetRouter
-    ) external view returns (Quote[] memory quotes) {
+    ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](3);
 
         // Same-domain: handle() called directly, no interchain gas
@@ -305,6 +314,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         }
         quotes[0] = Quote({token: _feeToken, amount: gasQuote});
 
+        // Only difference from base: router-aware fee lookup
         (, uint256 feeAmount) = _feeRecipientAndAmountForRouter(
             _destination,
             _recipient,
