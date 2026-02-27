@@ -258,6 +258,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_transaction_indexing_is_one_based() {
+        let db = tmp_db();
+
+        assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 0);
+        assert_eq!(db.retrieve_transaction_by_index(0).await.unwrap(), None);
+
+        let payload = FullPayload::random();
+        let tx = dummy_tx(vec![payload], TransactionStatus::PendingInclusion);
+        db.store_transaction_by_uuid(&tx).await.unwrap();
+
+        assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 1);
+        assert_eq!(
+            db.retrieve_transaction_index_by_uuid(&tx.uuid).await.unwrap(),
+            Some(1)
+        );
+        assert_eq!(db.retrieve_transaction_by_index(1).await.unwrap(), Some(tx));
+        assert_eq!(db.retrieve_transaction_by_index(0).await.unwrap(), None);
+    }
+
+    #[tokio::test]
     async fn test_index_is_set_correctly() {
         let num_txs = 10;
         let db = tmp_db();
