@@ -7,7 +7,7 @@ use hyperlane_core::U256;
 use prometheus::{
     core::{AtomicU64, GenericGauge},
     labels, opts, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
-    Encoder, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    Encoder, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
 use tracing::{debug, info, warn};
 
@@ -59,6 +59,10 @@ pub struct DispatcherMetrics {
     /// Counts how many times we've noticed the nonce in tx is different from nonce
     /// stored in db
     mismatched_nonce: IntGaugeVec,
+    /// Number of transactions identified in oversized reorg windows.
+    reorged_transactions: IntCounterVec,
+    /// Whether manual intervention is required for oversized reorg reprocessing.
+    reorg_manual_intervention_required: IntGaugeVec,
     /// Gas limit set for the transaction, if applicable
     pub gas_limit: IntGaugeVec,
 }
@@ -208,6 +212,22 @@ impl DispatcherMetrics {
             &["destination", "signer",],
             registry.clone()
         )?;
+        let reorged_transactions = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced("reorged_transactions"),
+                "Number of transactions observed in oversized reorg windows",
+            ),
+            &["destination", "signer",],
+            registry.clone()
+        )?;
+        let reorg_manual_intervention_required = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("reorg_manual_intervention_required"),
+                "Whether oversized reorg manual intervention is required (1=true, 0=false)",
+            ),
+            &["destination", "signer",],
+            registry.clone()
+        )?;
         Ok(Self {
             registry: registry.clone(),
             task_liveness,
@@ -226,6 +246,8 @@ impl DispatcherMetrics {
             finalized_nonce,
             upper_nonce,
             mismatched_nonce,
+            reorged_transactions,
+            reorg_manual_intervention_required,
             gas_limit,
             inclusion_stage_error,
         })
@@ -335,6 +357,22 @@ impl DispatcherMetrics {
 
     pub fn get_mismatched_nonce(&self, destination: &str, signer: &str) -> IntGauge {
         self.mismatched_nonce
+            .with_label_values(&[destination, signer])
+            .clone()
+    }
+
+    pub fn get_reorged_transactions(&self, destination: &str, signer: &str) -> IntCounter {
+        self.reorged_transactions
+            .with_label_values(&[destination, signer])
+            .clone()
+    }
+
+    pub fn get_reorg_manual_intervention_required(
+        &self,
+        destination: &str,
+        signer: &str,
+    ) -> IntGauge {
+        self.reorg_manual_intervention_required
             .with_label_values(&[destination, signer])
             .clone()
     }

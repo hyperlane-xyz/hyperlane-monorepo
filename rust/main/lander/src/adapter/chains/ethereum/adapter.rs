@@ -39,7 +39,7 @@ use crate::adapter::chains::ethereum::metrics::{
 };
 use crate::AdaptsChainAction;
 use crate::{
-    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit, ReorgedTransactionsInspection},
     dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData},
@@ -57,6 +57,21 @@ mod tx_status_checker;
 
 const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
 const DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS: Duration = Duration::from_secs(1);
+const MAX_AUTOMATIC_REORG_REPROCESS_NONCES: u64 = 25;
+
+#[derive(Clone, Debug)]
+pub(crate) struct PendingManualReorgRange {
+    start_nonce: U256,
+    end_nonce: U256,
+    old_finalized_nonce: U256,
+    new_finalized_nonce: U256,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ReorgReprocessState {
+    pending_manual_reorg: Option<PendingManualReorgRange>,
+    manual_reprocess_requested: bool,
+}
 
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
@@ -72,6 +87,7 @@ pub struct EthereumAdapter {
     pub signer: H160,
     pub minimum_time_between_resubmissions: Duration,
     pub metrics: EthereumAdapterMetrics,
+    pub(crate) reorg_reprocess_state: Arc<Mutex<ReorgReprocessState>>,
 }
 
 impl EthereumAdapter {
@@ -108,6 +124,8 @@ impl EthereumAdapter {
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.get_reorged_transactions(domain, &signer.to_string()),
+            dispatcher_metrics.get_reorg_manual_intervention_required(domain, &signer.to_string()),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
@@ -129,6 +147,7 @@ impl EthereumAdapter {
             signer,
             minimum_time_between_resubmissions: DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
             metrics,
+            reorg_reprocess_state: Default::default(),
         };
 
         Ok(adapter)
@@ -377,6 +396,63 @@ impl EthereumAdapter {
 
     pub fn metrics(&self) -> &EthereumAdapterMetrics {
         &self.metrics
+    }
+
+    async fn collect_reorg_txs_in_range(
+        &self,
+        start_nonce: U256,
+        end_nonce: U256,
+    ) -> Result<Vec<Transaction>, LanderError> {
+        let mut txs = Vec::new();
+        let mut nonce = start_nonce;
+        while nonce <= end_nonce {
+            let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
+            if tx_uuid == TransactionUuid::default() {
+                debug!(
+                    ?nonce,
+                    "No tracked transaction UUID for nonce in reorg range"
+                );
+            } else if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
+                txs.push(tx);
+            } else {
+                debug!(
+                    ?nonce,
+                    ?tx_uuid,
+                    "No transaction found for nonce in reorg range"
+                );
+            }
+            nonce = nonce.saturating_add(U256::one());
+        }
+        Ok(txs)
+    }
+
+    async fn store_pending_manual_reorg_range(
+        &self,
+        old_finalized_nonce: U256,
+        new_finalized_nonce: U256,
+    ) {
+        let mut state = self.reorg_reprocess_state.lock().await;
+        state.pending_manual_reorg = Some(PendingManualReorgRange {
+            start_nonce: new_finalized_nonce.saturating_add(U256::one()),
+            end_nonce: old_finalized_nonce,
+            old_finalized_nonce,
+            new_finalized_nonce,
+        });
+        state.manual_reprocess_requested = false;
+        self.metrics.set_reorg_manual_intervention_required(true);
+    }
+
+    async fn take_requested_manual_reorg_range(&self) -> Option<PendingManualReorgRange> {
+        let mut state = self.reorg_reprocess_state.lock().await;
+        if !state.manual_reprocess_requested {
+            return None;
+        }
+        state.manual_reprocess_requested = false;
+        let range = state.pending_manual_reorg.take();
+        if range.is_some() {
+            self.metrics.set_reorg_manual_intervention_required(false);
+        }
+        range
     }
 }
 
@@ -730,6 +806,19 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        if let Some(range) = self.take_requested_manual_reorg_range().await {
+            warn!(
+                ?range.old_finalized_nonce,
+                ?range.new_finalized_nonce,
+                ?range.start_nonce,
+                ?range.end_nonce,
+                "Manually triggering reprocessing for transactions captured from oversized reorg"
+            );
+            return self
+                .collect_reorg_txs_in_range(range.start_nonce, range.end_nonce)
+                .await;
+        }
+
         let old_finalized_nonce = self
             .nonce_manager
             .state
@@ -754,27 +843,72 @@ impl AdaptsChain for EthereumAdapter {
             "New finalized nonce is lower than old finalized nonce"
         );
 
-        let mut txs = Vec::new();
-        let mut nonce = new_finalized_nonce.saturating_add(U256::one());
-        while nonce <= old_finalized_nonce {
-            let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
-            if tx_uuid == TransactionUuid::default() {
-                debug!(
-                    ?nonce,
-                    "No tracked transaction UUID for nonce in reorg range"
-                );
-            } else if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
-                txs.push(tx);
-            } else {
-                debug!(
-                    ?nonce,
-                    ?tx_uuid,
-                    "No transaction found for nonce in reorg range"
-                );
-            }
-            nonce = nonce.saturating_add(U256::one());
+        let reorg_depth = old_finalized_nonce.saturating_sub(new_finalized_nonce);
+        let max_automatic_reorg_range = U256::from(MAX_AUTOMATIC_REORG_REPROCESS_NONCES);
+        if reorg_depth > max_automatic_reorg_range {
+            self.store_pending_manual_reorg_range(old_finalized_nonce, new_finalized_nonce)
+                .await;
+            self.metrics
+                .increment_reorged_transactions(reorg_depth.as_u64());
+            warn!(
+                ?old_finalized_nonce,
+                ?new_finalized_nonce,
+                ?reorg_depth,
+                max_automatic_reorg_range = MAX_AUTOMATIC_REORG_REPROCESS_NONCES,
+                "Oversized reorg detected; skipping automatic reprocessing and requiring manual intervention"
+            );
+            return Ok(Vec::new());
         }
-        Ok(txs)
+
+        self.collect_reorg_txs_in_range(
+            new_finalized_nonce.saturating_add(U256::one()),
+            old_finalized_nonce,
+        )
+        .await
+    }
+
+    async fn inspect_reorged_transactions(
+        &self,
+    ) -> Result<ReorgedTransactionsInspection, LanderError> {
+        let pending = {
+            self.reorg_reprocess_state
+                .lock()
+                .await
+                .pending_manual_reorg
+                .clone()
+        };
+        let Some(pending) = pending else {
+            return Ok(ReorgedTransactionsInspection::default());
+        };
+
+        let txs = self
+            .collect_reorg_txs_in_range(pending.start_nonce, pending.end_nonce)
+            .await?;
+        Ok(ReorgedTransactionsInspection {
+            manual_intervention_required: true,
+            old_finalized_nonce: Some(pending.old_finalized_nonce.to_string()),
+            new_finalized_nonce: Some(pending.new_finalized_nonce.to_string()),
+            reorg_start_nonce: Some(pending.start_nonce.to_string()),
+            reorg_end_nonce: Some(pending.end_nonce.to_string()),
+            transactions: txs,
+        })
+    }
+
+    async fn trigger_reprocess_reorged_transactions(&self) -> Result<usize, LanderError> {
+        let tx_count = self
+            .inspect_reorged_transactions()
+            .await?
+            .transactions
+            .len();
+        if tx_count == 0 {
+            return Err(LanderError::NonRetryableError(
+                "No oversized reorg transactions are pending manual reprocessing".to_string(),
+            ));
+        }
+
+        let mut state = self.reorg_reprocess_state.lock().await;
+        state.manual_reprocess_requested = true;
+        Ok(tx_count)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
