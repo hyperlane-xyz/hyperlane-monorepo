@@ -9,6 +9,7 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
+    accounts::FeeConfig,
     instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
@@ -79,6 +80,7 @@ pub fn process_instruction(
         TokenIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
         }
+        TokenIxn::SetFeeConfig(fee_config) => set_fee_config(program_id, accounts, fee_config),
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -261,4 +263,18 @@ fn set_interchain_gas_paymaster(
     HyperlaneSealevelToken::<SyntheticPlugin>::set_interchain_gas_paymaster(
         program_id, accounts, new_igp,
     )
+}
+
+/// Lets the owner set the fee configuration.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The token PDA account.
+/// 2. `[signer]` The access control owner.
+fn set_fee_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    fee_config: Option<FeeConfig>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::set_fee_config(program_id, accounts, fee_config)
 }

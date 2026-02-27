@@ -1,4 +1,3 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
@@ -24,7 +23,7 @@ use hyperlane_sealevel_token::{
     hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token_2022,
 };
 use hyperlane_sealevel_token_lib::{
-    accounts::{HyperlaneToken, HyperlaneTokenAccount},
+    accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
     instruction::{
         enroll_remote_routers_instruction, set_destination_gas_configs, set_igp_instruction,
@@ -39,6 +38,7 @@ use crate::{
     router::{
         deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
+    token_account::fetch_token_core_data,
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
@@ -214,7 +214,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     }
 
     fn get_routers(&self, client: &RpcClient, program_id: &Pubkey) -> HashMap<u32, H256> {
-        let token_data = get_token_data::<()>(client, program_id);
+        let token_data = fetch_token_core_data(client, program_id);
 
         token_data.remote_routers
     }
@@ -290,6 +290,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             interchain_gas_paymaster,
             decimals: app_config.decimal_metadata.decimals,
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
+            fee_config: None,
         };
 
         let home_path = std::env::var("HOME").unwrap();
@@ -600,7 +601,7 @@ impl RouterConfigGetter for TokenConfig {
 impl Ownable for WarpRouteDeployer {
     /// Gets the owner configured on-chain.
     fn get_owner(&self, client: &RpcClient, program_id: &Pubkey) -> Option<Pubkey> {
-        let token = get_token_data::<()>(client, program_id);
+        let token = fetch_token_core_data(client, program_id);
 
         token.owner
     }
@@ -612,7 +613,7 @@ impl Ownable for WarpRouteDeployer {
         program_id: &Pubkey,
         new_owner: Option<Pubkey>,
     ) -> Instruction {
-        let token = get_token_data::<()>(client, program_id);
+        let token = fetch_token_core_data(client, program_id);
 
         transfer_ownership_instruction(*program_id, token.owner.unwrap(), new_owner).unwrap()
     }
@@ -624,7 +625,7 @@ impl ConnectionClient for WarpRouteDeployer {
         client: &RpcClient,
         program_id: &Pubkey,
     ) -> Option<Pubkey> {
-        let token_data = get_token_data::<()>(client, program_id);
+        let token_data = fetch_token_core_data(client, program_id);
 
         token_data.interchain_security_module
     }
@@ -635,7 +636,7 @@ impl ConnectionClient for WarpRouteDeployer {
         program_id: &Pubkey,
         ism: Option<Pubkey>,
     ) -> Instruction {
-        let token_data = get_token_data::<()>(client, program_id);
+        let token_data = fetch_token_core_data(client, program_id);
 
         set_interchain_security_module_instruction(*program_id, token_data.owner.unwrap(), ism)
             .unwrap()
@@ -646,7 +647,7 @@ impl ConnectionClient for WarpRouteDeployer {
         client: &RpcClient,
         program_id: &Pubkey,
     ) -> Option<(Pubkey, InterchainGasPaymasterType)> {
-        let token_data = get_token_data::<()>(client, program_id);
+        let token_data = fetch_token_core_data(client, program_id);
 
         token_data.interchain_gas_paymaster
     }
@@ -657,30 +658,17 @@ impl ConnectionClient for WarpRouteDeployer {
         program_id: &Pubkey,
         igp_config: Option<(Pubkey, InterchainGasPaymasterType)>,
     ) -> Option<Instruction> {
-        let token_data = get_token_data::<()>(client, program_id);
+        let token_data = fetch_token_core_data(client, program_id);
 
         Some(set_igp_instruction(*program_id, token_data.owner.unwrap(), igp_config).unwrap())
     }
-}
-
-fn get_token_data<T>(client: &RpcClient, program_id: &Pubkey) -> HyperlaneToken<T>
-where
-    T: BorshDeserialize + BorshSerialize + Default + account_utils::Data,
-{
-    let (token_pda, _token_bump) =
-        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
-
-    let account = client.get_account(&token_pda).unwrap();
-    *HyperlaneTokenAccount::<T>::fetch(&mut &account.data[..])
-        .unwrap()
-        .into_inner()
 }
 
 fn get_destination_gas(
     client: &RpcClient,
     program_id: &Pubkey,
 ) -> Result<HashMap<u32, u64>, ClientError> {
-    let token_data = get_token_data::<()>(client, program_id);
+    let token_data = fetch_token_core_data(client, program_id);
 
     Ok(token_data.destination_gas)
 }

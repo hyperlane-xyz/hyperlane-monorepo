@@ -16,7 +16,7 @@ use solana_system_interface::program as system_program;
 
 use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
 
-use crate::hyperlane_token_pda_seeds;
+use crate::{accounts::FeeConfig, hyperlane_token_pda_seeds};
 
 /// Instructions shared by all Hyperlane Sealevel Token programs.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -37,6 +37,8 @@ pub enum Instruction {
     SetInterchainGasPaymaster(Option<(Pubkey, InterchainGasPaymasterType)>),
     /// Transfer ownership of the program. Only owner.
     TransferOwnership(Option<Pubkey>),
+    /// Set or clear the fee configuration. Only owner.
+    SetFeeConfig(Option<FeeConfig>),
 }
 
 impl DiscriminatorData for Instruction {
@@ -56,6 +58,8 @@ pub struct Init {
     pub decimals: u8,
     /// The remote decimals.
     pub remote_decimals: u8,
+    /// Optional fee configuration.
+    pub fee_config: Option<FeeConfig>,
 }
 
 /// Instruction data for transferring `amount_or_id` token to `recipient` on `destination` domain.
@@ -249,6 +253,37 @@ pub fn set_igp_instruction(
     let accounts = vec![
         AccountMeta::new(token_key, false),
         AccountMeta::new_readonly(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Sets the fee configuration for a warp route.
+pub fn set_fee_config_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    fee_config: Option<FeeConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::SetFeeConfig(fee_config);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The token PDA account.
+    // 2. `[signer]` The owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(token_key, false),
+        AccountMeta::new(owner_payer, true),
     ];
 
     let instruction = SolanaInstruction {
