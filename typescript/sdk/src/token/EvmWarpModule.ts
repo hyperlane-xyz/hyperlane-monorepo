@@ -9,7 +9,10 @@ import {
   IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
+  PredicateRouterWrapper__factory,
   ProxyAdmin__factory,
+  StaticAggregationHook__factory,
+  StaticAggregationHookFactory__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -55,6 +58,7 @@ import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
@@ -75,6 +79,7 @@ import {
   MovableTokenConfig,
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
+  derivedHookAddress,
   derivedIsmAddress,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
@@ -176,6 +181,7 @@ export class EvmWarpModule extends HyperlaneModule<
      * The order of operations matter
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
      * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * 3. createPredicateWrapperUpdateTxs() must be AFTER createHookUpdateTxs() so it wraps the updated hook
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
@@ -184,6 +190,10 @@ export class EvmWarpModule extends HyperlaneModule<
       )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createPredicateWrapperUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      )),
       ...(await this.createTokenFeeUpdateTxs(
         actualConfig,
         expectedConfig,
@@ -948,6 +958,161 @@ export class EvmWarpModule extends HyperlaneModule<
         proxyAdminAddress,
       },
     );
+  }
+
+  /**
+   * Check if predicate wrapper is already deployed with matching config.
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedPredicateConfig - The expected predicate wrapper configuration.
+   * @returns True if wrapper is deployed, false otherwise.
+   */
+  async isPredicateWrapperDeployed(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+  ): Promise<boolean> {
+    const hookAddress = derivedHookAddress(actualConfig);
+    if (!hookAddress || isZeroishAddress(hookAddress)) {
+      return false;
+    }
+
+    try {
+      const provider = this.multiProvider.getProvider(this.domainId);
+      const hook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        provider,
+      );
+
+      // Check if this is an aggregation hook
+      const hooksAddresses = await hook.hooks(constants.AddressZero);
+      if (!hooksAddresses || hooksAddresses.length === 0) {
+        return false;
+      }
+
+      // Check each hook in the aggregation to find PredicateRouterWrapper
+      for (const hookAddr of hooksAddresses) {
+        try {
+          const predicateWrapper = PredicateRouterWrapper__factory.connect(
+            hookAddr,
+            provider,
+          );
+
+          // Verify it's a PredicateRouterWrapper by checking warpRoute and hookType
+          const [warpRoute, hookType] = await Promise.all([
+            predicateWrapper.warpRoute(),
+            predicateWrapper.hookType(),
+          ]);
+
+          // HookType for PREDICATE_ROUTER_WRAPPER is defined in the contract
+          const PREDICATE_ROUTER_WRAPPER_TYPE = 16; // From IPostDispatchHook.HookTypes
+          if (
+            eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
+            hookType === PREDICATE_ROUTER_WRAPPER_TYPE
+          ) {
+            // Found matching PredicateRouterWrapper
+            // Note: We assume if it exists, the config is correct
+            // TODO: Read and compare predicateRegistry and policyId from PredicateClient
+            return true;
+          }
+        } catch {
+          // Not a PredicateRouterWrapper, continue checking other hooks
+          continue;
+        }
+      }
+    } catch (error) {
+      // Hook is not an aggregation hook or error reading config
+      this.logger.debug(
+        { chain: this.chainName, error },
+        'Error checking predicate wrapper deployment',
+      );
+    }
+
+    return false;
+  }
+
+  /**
+   * Create transactions to deploy predicate wrapper and update hook.
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns Ethereum transactions that need to be executed to deploy predicate wrapper.
+   */
+  async createPredicateWrapperUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    // Only proceed if expectedConfig has predicateWrapper
+    if (!expectedConfig.predicateWrapper) {
+      return [];
+    }
+
+    // Type guard to ensure predicateWrapper has required fields
+    const predicateWrapperConfig = expectedConfig.predicateWrapper as {
+      predicateRegistry: string;
+      policyId: string;
+    };
+    assert(
+      predicateWrapperConfig.predicateRegistry &&
+        predicateWrapperConfig.policyId,
+      'predicateWrapper must have predicateRegistry and policyId',
+    );
+
+    // Check if predicate wrapper is already deployed with matching config
+    const isAlreadyDeployed = await this.isPredicateWrapperDeployed(
+      actualConfig,
+      predicateWrapperConfig,
+    );
+
+    if (isAlreadyDeployed) {
+      this.logger.debug(
+        { chain: this.chainName },
+        'Predicate wrapper already deployed with matching config, skipping',
+      );
+      return [];
+    }
+
+    const staticAggregationHookFactory =
+      this.args.addresses.staticAggregationHookFactory;
+    if (!staticAggregationHookFactory) {
+      throw new Error(
+        `staticAggregationHookFactory not found for ${this.chainName}. Ensure proxy factories are deployed.`,
+      );
+    }
+
+    const signer = this.multiProvider.getSigner(this.chainName);
+    const factory = StaticAggregationHookFactory__factory.connect(
+      staticAggregationHookFactory,
+      signer,
+    );
+
+    const predicateDeployer = new PredicateWrapperDeployer(
+      this.multiProvider,
+      factory,
+      this.logger,
+    );
+
+    // Deploy predicate wrapper and get addresses
+    const result = await predicateDeployer.deployAndConfigure(
+      this.chainName,
+      this.args.addresses.deployedTokenRoute,
+      predicateWrapperConfig,
+    );
+
+    this.logger.info(
+      {
+        chain: this.chainName,
+        wrapper: result.wrapperAddress,
+        aggregationHook: result.aggregationHookAddress,
+      },
+      'Predicate wrapper deployed and configured',
+    );
+
+    // The deployAndConfigure method already sets the hook, but we return empty
+    // transactions since the hook was already set during deployment
+    // In the future, we could refactor to return the setHook transaction instead
+    return updateTransactions;
   }
 
   /**

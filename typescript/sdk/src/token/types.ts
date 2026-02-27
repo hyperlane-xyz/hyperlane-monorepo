@@ -219,6 +219,7 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
     cctpVersion: z.enum(['V1', 'V2']),
     minFinalityThreshold: z.number().optional(),
     maxFeeBps: z.number().optional(),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 
@@ -245,6 +246,7 @@ export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
     collateralChainName: z.string(),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
   typeof SyntheticRebaseTokenConfigSchema
