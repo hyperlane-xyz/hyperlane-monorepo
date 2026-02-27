@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "indexer.fullname" . }}
+  labels:
+    {{- include "indexer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "indexer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "indexer.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "indexer.serviceAccountName" . }}
+      {{- end }}
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        - name: reset-ponder-state
+          image: postgres:15-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              psql "$DATABASE_URL" -c "DROP TABLE IF EXISTS _ponder_meta CASCADE; DROP TABLE IF EXISTS _ponder_reorg CASCADE;"
+              echo "Ponder internal tables dropped"
+          env:
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "indexer.fullname" . }}-env-var-secret
+          {{- end }}
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["pnpm", "db:migrate"]
+          env:
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "indexer.fullname" . }}-env-var-secret
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: indexer
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "/app/typescript/indexer/node_modules/ponder/dist/esm/bin/ponder.js", "start", "--log-level", "error"]
+          env:
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: DEPLOY_ENV
+              value: {{ .Values.hyperlane.runEnv }}
+            {{- if .Values.hyperlane.registryUri }}
+            - name: REGISTRY_URI
+              value: {{ .Values.hyperlane.registryUri }}
+            {{- end }}
+            {{- if .Values.hyperlane.chains }}
+            - name: INDEXED_CHAINS
+              value: {{ .Values.hyperlane.chains }}
+            {{- end }}
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+            {{- if .Values.database.schema }}
+            - name: DATABASE_SCHEMA
+              value: {{ .Values.database.schema }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "indexer.fullname" . }}-env-var-secret
+          {{- end }}
+          ports:
+            {{- if .Values.healthCheck.enabled }}
+            - name: http
+              containerPort: {{ .Values.healthCheck.port }}
+              protocol: TCP
+            {{- end }}
+          {{- if .Values.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.path }}
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.path }}
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

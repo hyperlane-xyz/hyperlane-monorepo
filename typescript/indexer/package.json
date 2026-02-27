@@ -1,0 +1,58 @@
+{
+  "name": "@hyperlane-xyz/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ponder-based indexer for Hyperlane protocol events",
+  "type": "module",
+  "scripts": {
+    "dev": "ponder dev --disable-ui --log-level error",
+    "dev:verbose": "ponder dev --disable-ui",
+    "dev:ui": "ponder dev",
+    "start": "ponder start --log-level error",
+    "serve": "ponder serve",
+    "codegen": "ponder codegen",
+    "build": "tsc",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:compare": "tsx scripts/compare.ts",
+    "db:comparison": "tsx scripts/db-comparison.ts",
+    "shovel:db:migrate": "tsx scripts/migrate-shovel.ts",
+    "shovel:config": "tsx scripts/generate-shovel-config.ts",
+    "shovel:compare": "tsx scripts/compare-shovel.ts",
+    "shovel:download": "bash scripts/download-shovel.sh",
+    "shovel:run": "bash scripts/run-shovel-local.sh"
+  },
+  "dependencies": {
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:^",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "hono": "catalog:",
+    "pg": "^8.13.1",
+    "pino": "catalog:",
+    "ponder": "^0.16.3",
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.11.11",
+    "@types/sinon": "catalog:",
+    "chai": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "prettier": "catalog:",
+    "sinon": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,17 @@
+{{- if .Values.healthCheck.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "indexer.fullname" . }}
+  labels:
+    {{- include "indexer.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.healthCheck.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "indexer.selectorLabels" . | nindent 4 }}
+{{- end }}

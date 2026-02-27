@@ -1,0 +1,88 @@
+# Common configuration for hyperlane-indexer
+# Environment-specific settings should go in values-testnet.yaml or values-mainnet.yaml
+
+# Hyperlane configuration (override in environment-specific values)
+hyperlane:
+  runEnv: ''
+  # Registry defaults to GitHub. Can override with local path or pinned version:
+  # e.g., "https://github.com/hyperlane-xyz/hyperlane-registry/tree/v1.0.0"
+  registryUri: ''
+  chains: ''
+
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-indexer
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Resource limits
+resources:
+  limits:
+    cpu: '2'
+    memory: 4Gi
+  requests:
+    cpu: '1'
+    memory: 2Gi
+
+# Number of replicas (typically 1 for indexer - see docs for scaling limitations)
+replicaCount: 1
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Health checks
+healthCheck:
+  enabled: true
+  port: 42069
+  path: /health
+
+# Prometheus metrics
+metrics:
+  enabled: true
+  port: 42069
+  path: /metrics
+  serviceMonitor:
+    # Requires Prometheus Operator CRDs to be installed
+    enabled: false
+
+# External secrets for sensitive data
+externalSecrets:
+  clusterSecretStore: external-secrets-gcp-cluster-secret-store
+  # Database connection string (stored in secret manager)
+  # Override in environment-specific values file
+  databaseUrlSecretKey: ''
+  # Chain RPC URLs JSON (stored in secret manager)
+  chainRpcUrlsSecretKey: ''
+
+# PostgreSQL database connection
+database:
+  # Direct connection string (if not using external secrets)
+  connectionString: ''
+  # Schema name for Ponder tables (required)
+  schema: 'public'
+  # Pool configuration
+  poolMax: 30
+
+# Database migrations
+migrations:
+  # Run migrations via init container before starting indexer
+  enabled: true
+
+# Service account
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
