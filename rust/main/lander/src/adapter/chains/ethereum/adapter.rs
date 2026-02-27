@@ -124,7 +124,7 @@ impl EthereumAdapter {
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
-            dispatcher_metrics.get_reorged_transactions(domain, &signer.to_string()),
+            dispatcher_metrics.get_reorged_nonces(domain, &signer.to_string()),
             dispatcher_metrics.get_reorg_manual_intervention_required(domain, &signer.to_string()),
         );
 
@@ -432,6 +432,17 @@ impl EthereumAdapter {
         new_finalized_nonce: U256,
     ) {
         let mut state = self.reorg_reprocess_state.lock().await;
+        if let Some(existing) = &state.pending_manual_reorg {
+            warn!(
+                existing_old_finalized_nonce = ?existing.old_finalized_nonce,
+                existing_new_finalized_nonce = ?existing.new_finalized_nonce,
+                existing_start_nonce = ?existing.start_nonce,
+                existing_end_nonce = ?existing.end_nonce,
+                new_old_finalized_nonce = ?old_finalized_nonce,
+                new_new_finalized_nonce = ?new_finalized_nonce,
+                "Overwriting existing pending manual reorg range with new oversized reorg range"
+            );
+        }
         state.pending_manual_reorg = Some(PendingManualReorgRange {
             start_nonce: new_finalized_nonce.saturating_add(U256::one()),
             end_nonce: old_finalized_nonce,
@@ -442,17 +453,20 @@ impl EthereumAdapter {
         self.metrics.set_reorg_manual_intervention_required(true);
     }
 
-    async fn take_requested_manual_reorg_range(&self) -> Option<PendingManualReorgRange> {
-        let mut state = self.reorg_reprocess_state.lock().await;
+    async fn requested_manual_reorg_range(&self) -> Option<PendingManualReorgRange> {
+        let state = self.reorg_reprocess_state.lock().await;
         if !state.manual_reprocess_requested {
             return None;
         }
+        state.pending_manual_reorg.clone()
+    }
+
+    async fn clear_requested_manual_reorg_range(&self) {
+        let mut state = self.reorg_reprocess_state.lock().await;
         state.manual_reprocess_requested = false;
-        let range = state.pending_manual_reorg.take();
-        if range.is_some() {
+        if state.pending_manual_reorg.take().is_some() {
             self.metrics.set_reorg_manual_intervention_required(false);
         }
-        range
     }
 }
 
@@ -806,7 +820,7 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
-        if let Some(range) = self.take_requested_manual_reorg_range().await {
+        if let Some(range) = self.requested_manual_reorg_range().await {
             warn!(
                 ?range.old_finalized_nonce,
                 ?range.new_finalized_nonce,
@@ -814,9 +828,26 @@ impl AdaptsChain for EthereumAdapter {
                 ?range.end_nonce,
                 "Manually triggering reprocessing for transactions captured from oversized reorg"
             );
-            return self
+            let txs = self
                 .collect_reorg_txs_in_range(range.start_nonce, range.end_nonce)
                 .await;
+            match txs {
+                Ok(txs) => {
+                    self.clear_requested_manual_reorg_range().await;
+                    return Ok(txs);
+                }
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        ?range.old_finalized_nonce,
+                        ?range.new_finalized_nonce,
+                        ?range.start_nonce,
+                        ?range.end_nonce,
+                        "Failed to collect manually requested reorg transactions; keeping pending range for retry"
+                    );
+                    return Err(err);
+                }
+            }
         }
 
         let old_finalized_nonce = self
@@ -844,12 +875,11 @@ impl AdaptsChain for EthereumAdapter {
         );
 
         let reorg_depth = old_finalized_nonce.saturating_sub(new_finalized_nonce);
+        self.metrics.increment_reorged_nonces(reorg_depth.as_u64());
         let max_automatic_reorg_range = U256::from(MAX_AUTOMATIC_REORG_REPROCESS_NONCES);
         if reorg_depth > max_automatic_reorg_range {
             self.store_pending_manual_reorg_range(old_finalized_nonce, new_finalized_nonce)
                 .await;
-            self.metrics
-                .increment_reorged_transactions(reorg_depth.as_u64());
             warn!(
                 ?old_finalized_nonce,
                 ?new_finalized_nonce,

@@ -59,8 +59,8 @@ pub struct DispatcherMetrics {
     /// Counts how many times we've noticed the nonce in tx is different from nonce
     /// stored in db
     mismatched_nonce: IntGaugeVec,
-    /// Number of transactions identified in oversized reorg windows.
-    reorged_transactions: IntCounterVec,
+    /// Number of nonces identified in reorg windows.
+    reorged_nonces: IntCounterVec,
     /// Whether manual intervention is required for oversized reorg reprocessing.
     reorg_manual_intervention_required: IntGaugeVec,
     /// Gas limit set for the transaction, if applicable
@@ -212,10 +212,10 @@ impl DispatcherMetrics {
             &["destination", "signer",],
             registry.clone()
         )?;
-        let reorged_transactions = register_int_counter_vec_with_registry!(
+        let reorged_nonces = register_int_counter_vec_with_registry!(
             opts!(
-                namespaced("reorged_transactions"),
-                "Number of transactions observed in oversized reorg windows",
+                namespaced("reorged_nonces"),
+                "Number of nonces observed in reorg windows",
             ),
             &["destination", "signer",],
             registry.clone()
@@ -246,7 +246,7 @@ impl DispatcherMetrics {
             finalized_nonce,
             upper_nonce,
             mismatched_nonce,
-            reorged_transactions,
+            reorged_nonces,
             reorg_manual_intervention_required,
             gas_limit,
             inclusion_stage_error,
@@ -361,8 +361,8 @@ impl DispatcherMetrics {
             .clone()
     }
 
-    pub fn get_reorged_transactions(&self, destination: &str, signer: &str) -> IntCounter {
-        self.reorged_transactions
+    pub fn get_reorged_nonces(&self, destination: &str, signer: &str) -> IntCounter {
+        self.reorged_nonces
             .with_label_values(&[destination, signer])
             .clone()
     }
