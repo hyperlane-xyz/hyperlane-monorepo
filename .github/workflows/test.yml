@@ -472,7 +472,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-tron-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
@@ -732,7 +732,7 @@ jobs:
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
   tron-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 15
@@ -922,7 +922,7 @@ jobs:
       - name: Install OpenSSL 1.1 for Solana toolchain
         if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
-          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          wget --tries=3 --retry-connrefused -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
           sudo dpkg -i libssl1.1.deb
 
       - name: Checkout registry
