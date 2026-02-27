@@ -1,8 +1,12 @@
 import {
   Provider,
   TransactionReceipt,
+  JsonRpcProvider,
+  NonceManager,
   Wallet,
   hexlify,
+  parseEther,
+  toBeHex,
   zeroPadValue,
 } from 'ethers';
 import { pino, type Logger } from 'pino';
@@ -23,10 +27,11 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../../interfaces/IExternalBridge.js';
-import type {
+import {
+  ANVIL_TEST_PRIVATE_KEY,
   Erc20InventoryDeployedAddresses,
-  NativeDeployedAddresses,
-  TestChain,
+  type NativeDeployedAddresses,
+  type TestChain,
 } from '../fixtures/routes.js';
 
 type MockBridgeRoute = {
@@ -111,7 +116,6 @@ export class MockExternalBridge implements IExternalBridge {
       gasCosts,
       feeCosts: 0n,
       route,
-      requestParams: params,
     };
   }
 
@@ -136,7 +140,7 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
-    const signer = new Wallet(privateKey, provider);
+    const signer = new NonceManager(new Wallet(privateKey, provider));
 
     const recipientBytes32 = zeroPadValue(hexlify(route.toAddress), 32);
 
@@ -150,7 +154,11 @@ export class MockExternalBridge implements IExternalBridge {
         this.deployedAddresses as Erc20InventoryDeployedAddresses
       ).tokens[fromChainName];
       const token = ERC20Test__factory.connect(tokenAddress, signer);
-      await token.approve(bridgeRouteAddress, quote.fromAmount);
+      const approveTx = await token.approve(
+        bridgeRouteAddress,
+        quote.fromAmount,
+      );
+      await approveTx.wait();
 
       const bridgeRoute = HypERC20Collateral__factory.connect(
         bridgeRouteAddress,
@@ -201,47 +209,40 @@ export class MockExternalBridge implements IExternalBridge {
         return { status: 'not_found' };
       }
 
-      const dispatchedMessages =
-        HyperlaneCore.getDispatchedMessages(dispatchTxReceipt);
-      assert(
-        dispatchedMessages.length === 1,
-        `Expected exactly 1 dispatched message, got ${dispatchedMessages.length} for tx ${txHash}`,
+      const relayChains = this.core.chains();
+      const coreAddresses = Object.fromEntries(
+        relayChains.map((chain) => [chain, this.core.getAddresses(chain)]),
       );
-      const dispatchedMsgId = dispatchedMessages[0].id;
+      const { result: relayMultiProvider } =
+        this.multiProvider.intersect(relayChains);
+      for (const chain of relayChains) {
+        const relayProvider = relayMultiProvider.getProvider(
+          chain,
+        ) as JsonRpcProvider;
+        const relayWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY, relayProvider);
+        await relayProvider.send('anvil_setBalance', [
+          relayWallet.address,
+          toBeHex(parseEther('100')),
+        ]);
+        const relaySigner = new NonceManager(relayWallet);
+        relayMultiProvider.setSigner(chain, relaySigner);
+      }
 
-      const relayer = new HyperlaneRelayer({ core: this.core });
+      const relayCore = HyperlaneCore.fromAddressesMap(
+        coreAddresses,
+        relayMultiProvider,
+      );
+      const relayer = new HyperlaneRelayer({ core: relayCore });
       const receipts = await relayer.relayAll(dispatchTxReceipt);
 
-      const destinationDomain = this.multiProvider.getDomainId(toChainName);
+      const destinationDomain =
+        relayCore.multiProvider.getDomainId(toChainName);
       const destinationReceipts =
         receipts[toChainName] ??
         receipts[toChain] ??
         receipts[destinationDomain];
 
-      // If relayAll didn't produce receipts (e.g. message already delivered),
-      // fall back to checking on-chain delivery status directly.
       if (!destinationReceipts || destinationReceipts.length === 0) {
-        const destMailbox = this.core.getContracts(toChainName).mailbox;
-        const isDelivered = await destMailbox.delivered(dispatchedMsgId);
-        if (isDelivered) {
-          const receivedAmount = await this.getTransferredAmount(
-            provider,
-            dispatchTxReceipt,
-          );
-          // Find the actual destination chain process tx
-          const processEvents = await destMailbox.queryFilter(
-            destMailbox.filters.ProcessId(dispatchedMsgId),
-          );
-          assert(
-            processEvents.length > 0,
-            `No ProcessId event found for message ${dispatchedMsgId} on ${toChainName}`,
-          );
-          return {
-            status: 'complete',
-            receivingTxHash: processEvents[0].transactionHash,
-            receivedAmount,
-          };
-        }
         return { status: 'not_found' };
       }
 
@@ -249,10 +250,15 @@ export class MockExternalBridge implements IExternalBridge {
         provider,
         dispatchTxReceipt,
       );
+      const receivingTxHash =
+        (destinationReceipts[0] as { hash?: string; transactionHash?: string })
+          .hash ??
+        (destinationReceipts[0] as { transactionHash?: string })
+          .transactionHash;
 
       return {
         status: 'complete',
-        receivingTxHash: destinationReceipts[0].transactionHash,
+        receivingTxHash,
         receivedAmount,
       };
     } catch (error) {
@@ -305,7 +311,10 @@ export class MockExternalBridge implements IExternalBridge {
       return 0n;
     }
 
-    const bridgeRoute = HypNative__factory.connect(bridgeRouteAddress, provider);
+    const bridgeRoute = HypNative__factory.connect(
+      bridgeRouteAddress,
+      provider,
+    );
     const gasEstimate = await bridgeRoute.transferRemote.estimateGas(
       destinationDomain,
       recipientBytes32,
@@ -363,11 +372,16 @@ export class MockExternalBridge implements IExternalBridge {
     provider: Provider,
     receipt: TransactionReceipt,
   ): Promise<bigint> {
-    const tx = await provider.getTransaction(receipt.transactionHash);
+    const txHash =
+      (receipt as { hash?: string; transactionHash?: string }).hash ??
+      (receipt as { transactionHash?: string }).transactionHash;
+    if (!txHash) {
+      throw new Error('Missing transaction hash on receipt');
+    }
+
+    const tx = await provider.getTransaction(txHash);
     if (!tx) {
-      throw new Error(
-        `Transaction ${receipt.transactionHash} not found on provider`,
-      );
+      throw new Error(`Transaction ${txHash} not found on provider`);
     }
 
     try {
@@ -390,7 +404,7 @@ export class MockExternalBridge implements IExternalBridge {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        { txHash: receipt.transactionHash, error: message },
+        { txHash, error: message },
         'Failed to parse transferRemote amount from tx',
       );
       throw new Error(`Failed to parse transferred amount: ${message}`);
