@@ -327,7 +327,7 @@ describe('Token', () => {
       });
 
       const adapter = evmNativeToken.getHypAdapter(multiProvider);
-      expect(adapter).to.not.be.undefined;
+      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
     });
 
     it('throws for EvmNative without connections', () => {

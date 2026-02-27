@@ -262,10 +262,9 @@ export class WarpCore {
     const destToken = originToken.getConnectionForChain(
       destinationMetadata.name,
     )?.token;
-    const decimalDiff = Math.max(
-      0,
-      originToken.decimals - (destToken?.decimals ?? originToken.decimals),
-    );
+    const decimalDiff = destToken
+      ? Math.max(0, originToken.decimals - destToken.decimals)
+      : 0;
     const gasEstimationAmount = BigInt(10) ** BigInt(decimalDiff);
     const txs = await this.getTransferRemoteTxs({
       originTokenAmount: originToken.amount(gasEstimationAmount),
