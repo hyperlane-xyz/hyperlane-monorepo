@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "23.14.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@openzeppelin/contracts": "catalog:",

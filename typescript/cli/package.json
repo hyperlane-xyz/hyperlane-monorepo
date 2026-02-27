@@ -58,7 +58,7 @@
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "23.14.0",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/tron-sdk": "workspace:*",
