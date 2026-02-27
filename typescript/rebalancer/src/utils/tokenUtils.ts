@@ -56,7 +56,7 @@ export function isCollateralizedTokenEligibleForRebalancing(
  * @param logger - Optional logger for warnings
  * @returns The correct token address for the external bridge
  */
-export function getLiFiTokenAddress(
+export function getExternalBridgeTokenAddress(
   token: Token,
   externalBridgeType: ExternalBridgeType,
   getNativeTokenAddress: (type: ExternalBridgeType) => string,

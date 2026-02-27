@@ -34,7 +34,7 @@ import {
   calculateTransferCosts,
 } from '../utils/gasEstimation.js';
 import {
-  getLiFiTokenAddress,
+  getExternalBridgeTokenAddress,
   isNativeTokenStandard,
 } from '../utils/tokenUtils.js';
 
@@ -1059,9 +1059,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return rawInventory; // ERC20s don't compete with gas
     }
 
-    // Convert HypNative token addresses to LiFi's native ETH representation
+    // Convert HypNative token addresses to the external bridge's native token representation
     const fromTokenAddress = this.getNativeTokenAddress(externalBridgeType);
-    const toTokenAddress = getLiFiTokenAddress(
+    const toTokenAddress = getExternalBridgeTokenAddress(
       targetToken,
       externalBridgeType,
       this.getNativeTokenAddress.bind(this),
@@ -1179,16 +1179,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
 
-    // Convert HypNative token addresses to LiFi's native ETH representation
+    // Convert HypNative token addresses to the external bridge's native token representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
-    const fromTokenAddress = getLiFiTokenAddress(
+    const fromTokenAddress = getExternalBridgeTokenAddress(
       sourceToken,
       externalBridgeType,
       this.getNativeTokenAddress.bind(this),
       this.logger,
     );
 
-    const toTokenAddress = getLiFiTokenAddress(
+    const toTokenAddress = getExternalBridgeTokenAddress(
       targetToken,
       externalBridgeType,
       this.getNativeTokenAddress.bind(this),
