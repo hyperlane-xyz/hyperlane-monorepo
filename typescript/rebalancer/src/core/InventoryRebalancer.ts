@@ -996,7 +996,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       targetToken,
       externalBridgeType,
       this.getNativeTokenAddress.bind(this),
-      this.logger,
     );
 
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
@@ -1116,14 +1115,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       sourceToken,
       externalBridgeType,
       this.getNativeTokenAddress.bind(this),
-      this.logger,
     );
 
     const toTokenAddress = getExternalBridgeTokenAddress(
       targetToken,
       externalBridgeType,
       this.getNativeTokenAddress.bind(this),
-      this.logger,
     );
 
     this.logger.debug(

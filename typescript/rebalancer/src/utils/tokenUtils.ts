@@ -1,4 +1,4 @@
-import type { Logger } from 'pino';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 
@@ -53,14 +53,12 @@ export function isCollateralizedTokenEligibleForRebalancing(
  * @param token - The warp route token to resolve
  * @param externalBridgeType - The type of external bridge (e.g. 'lifi')
  * @param getNativeTokenAddress - Function to get the bridge's native token representation
- * @param logger - Optional logger for warnings
  * @returns The correct token address for the external bridge
  */
 export function getExternalBridgeTokenAddress(
   token: Token,
   externalBridgeType: ExternalBridgeType,
   getNativeTokenAddress: (type: ExternalBridgeType) => string,
-  logger?: Logger,
 ): string {
   if (isNativeTokenStandard(token.standard)) {
     return getNativeTokenAddress(externalBridgeType);
@@ -71,14 +69,11 @@ export function getExternalBridgeTokenAddress(
   }
 
   if (REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS.has(token.standard)) {
-    logger?.warn(
-      {
-        chain: token.chainName,
-        standard: token.standard,
-        addressOrDenom: token.addressOrDenom,
-      },
-      'collateralAddressOrDenom is undefined for collateralized token, falling back to addressOrDenom',
+    assert(
+      token.collateralAddressOrDenom,
+      `Missing collateralAddressOrDenom for collateralized token on ${token.chainName} (${token.standard})`,
     );
+    return token.collateralAddressOrDenom;
   }
 
   return token.addressOrDenom;

@@ -117,6 +117,7 @@ describe('InventoryRebalancer E2E', () => {
       chainName: ARBITRUM_CHAIN,
       standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation needed
       addressOrDenom: '0xArbitrumToken',
+      collateralAddressOrDenom: '0xArbitrumCollateralERC20',
       getHypAdapter: Sinon.stub().returns(adapterStub),
       amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
     };
@@ -124,6 +125,7 @@ describe('InventoryRebalancer E2E', () => {
       chainName: SOLANA_CHAIN,
       standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation needed
       addressOrDenom: '0xSolanaToken',
+      collateralAddressOrDenom: '0xSolanaCollateralERC20',
       getHypAdapter: Sinon.stub().returns(adapterStub),
       amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
     };
@@ -796,6 +798,7 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation
+        collateralAddressOrDenom: '0xArbitrumCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
         amount: Sinon.stub().callsFake((amt: bigint) => ({
           amount: amt,
@@ -804,6 +807,7 @@ describe('InventoryRebalancer E2E', () => {
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation
+        collateralAddressOrDenom: '0xSolanaCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
         amount: Sinon.stub().callsFake((amt: bigint) => ({
           amount: amt,
@@ -1324,6 +1328,7 @@ describe('InventoryRebalancer E2E', () => {
         standard: TokenStandard.EvmHypCollateral,
         getHypAdapter: Sinon.stub().returns(adapterStub),
         addressOrDenom: '0xBaseToken',
+        collateralAddressOrDenom: '0xBaseCollateralERC20',
       };
       warpCore.tokens.push(baseToken);
 
@@ -1606,12 +1611,14 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // ERC20, not native
         addressOrDenom: '0xArbitrumToken',
+        collateralAddressOrDenom: '0xArbitrumCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypCollateral,
         addressOrDenom: '0xSolanaToken',
+        collateralAddressOrDenom: '0xSolanaCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
