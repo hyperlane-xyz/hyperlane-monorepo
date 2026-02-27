@@ -46,7 +46,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     .address;
   // Expected deficit when a chain's router balance is 0:
   // target (from strategy config) - 0 = target.
-  const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI.toBigInt();
+  const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI;
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
