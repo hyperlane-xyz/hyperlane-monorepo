@@ -9,6 +9,7 @@ use maplit::hashmap;
 use tempfile::tempdir;
 use utils::to_strk_message_bytes;
 
+use crate::invariants::finalized_transactions_per_destination_invariants_met;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
@@ -416,24 +417,18 @@ fn run_locally() {
             launch_starknet_validator(agent_config, agent_config_path.clone(), debug)
         })
         .collect::<Vec<_>>();
+    let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
+    let chain_refs = chains.iter().map(String::as_str).collect::<Vec<_>>();
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
     let hpl_rly = launch_starknet_relayer(
         agent_config_path.clone(),
-        agent_config_out
-            .chains
-            .clone()
-            .into_keys()
-            .collect::<Vec<_>>(),
+        chains.clone(),
         hpl_rly_metrics_port,
         debug,
     );
 
     let hpl_scr_metrics_port = hpl_rly_metrics_port + 1u32;
-    let hpl_scr = launch_starknet_scraper(
-        agent_config_path,
-        agent_config_out.chains.into_keys().collect::<Vec<_>>(),
-        hpl_scr_metrics_port,
-    );
+    let hpl_scr = launch_starknet_scraper(agent_config_path, chains.clone(), hpl_scr_metrics_port);
 
     // give things a chance to fully start.
     sleep(Duration::from_secs(20));
@@ -523,6 +518,7 @@ fn run_locally() {
             hpl_scr_metrics_port,
             dispatched_messages,
             starting_relayer_balance,
+            &chain_refs,
         )
         .unwrap_or(false)
         {
@@ -571,6 +567,7 @@ fn termination_invariants_met(
     scraper_metrics_port: u32,
     messages_expected: u32,
     starting_relayer_balance: f64,
+    chains: &[&str],
 ) -> eyre::Result<bool> {
     let delivered_messages_count = fetch_metric(
         &relayer_metrics_port.to_string(),
@@ -629,6 +626,13 @@ fn termination_invariants_met(
             starting_relayer_balance,
             ending_relayer_balance
         );
+        return Ok(false);
+    }
+
+    if !finalized_transactions_per_destination_invariants_met(
+        &relayer_metrics_port.to_string(),
+        chains,
+    )? {
         return Ok(false);
     }
 

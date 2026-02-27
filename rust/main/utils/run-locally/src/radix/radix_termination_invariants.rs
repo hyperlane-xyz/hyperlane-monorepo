@@ -4,11 +4,13 @@ use maplit::hashmap;
 use crate::config::Config;
 use crate::fetch_metric;
 use crate::invariants::{
-    relayer_termination_invariants_met, scraper_termination_invariants_met,
-    RelayerTerminationInvariantParams, ScraperTerminationInvariantParams,
+    finalized_transactions_per_destination_invariants_met, relayer_termination_invariants_met,
+    scraper_termination_invariants_met, RelayerTerminationInvariantParams,
+    ScraperTerminationInvariantParams,
 };
 use crate::logging::log;
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
+use crate::RELAYER_METRICS_PORT;
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent for Radix.
@@ -59,6 +61,13 @@ pub fn radix_termination_invariants_met(
     };
 
     if !scraper_termination_invariants_met(scraper_params)? {
+        return Ok(false);
+    }
+
+    if !finalized_transactions_per_destination_invariants_met(
+        RELAYER_METRICS_PORT,
+        &["radixtest0", "radixtest1"],
+    )? {
         return Ok(false);
     }
 
