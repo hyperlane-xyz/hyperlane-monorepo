@@ -47,6 +47,7 @@ export interface BridgeQuote<R = unknown> {
   route: R; // Bridge-specific route data for execution
   requestParams: BridgeQuoteParams; // Original request parameters
 }
+
 /**
  * Result of executing a bridge transfer.
  */

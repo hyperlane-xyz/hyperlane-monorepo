@@ -120,6 +120,7 @@ export function mockLiFiStatus(
 
 /**
  * Create a mock BridgeQuote for testing.
+ * The route structure includes all fields read by validateRouteAgainstRequest.
  */
 export function createMockBridgeQuote(
   overrides?: Partial<BridgeQuote>,
@@ -152,8 +153,17 @@ export function createMockBridgeQuote(
     executionDuration: 300,
     gasCosts: 50000000n,
     feeCosts: 0n,
+    // Route includes all fields read by validateRouteAgainstRequest for validation compatibility
     route: {
       action: { fromChainId, toChainId },
+      fromChainId,
+      toChainId,
+      fromToken: { address: defaultRequestParams.fromToken },
+      toToken: { address: defaultRequestParams.toToken },
+      fromAddress: defaultRequestParams.fromAddress,
+      toAddress:
+        defaultRequestParams.toAddress ?? defaultRequestParams.fromAddress,
+      fromAmount: fromAmount.toString(),
     },
     requestParams: overrides?.requestParams ?? defaultRequestParams,
     ...overrides,

@@ -1,7 +1,5 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'chai';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import type { LiFiStep } from '@lifi/sdk';
 
@@ -11,8 +9,6 @@ import type {
   ExternalBridgeConfig,
 } from '../interfaces/IExternalBridge.js';
 import { LiFiBridge } from './LiFiBridge.js';
-
-chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -171,11 +167,6 @@ describe('LiFiBridge.execute() route validation', function () {
     bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
   });
 
-  afterEach(() => {
-    Sinon.restore();
-  });
-
-  // ── Test 1: Pass — all fields match ────────────────────────────────────
   it('should pass validation when all route fields match requestParams', async () => {
     const quote = createTestQuote();
 
@@ -192,7 +183,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 2: Fail — fromChainId mismatch ────────────────────────────────
   it('should throw when route fromChainId does not match requested', async () => {
     const quote = createTestQuote({ fromChainId: 999 }, { fromChain: 42161 });
 
@@ -207,7 +197,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 3: Fail — toChainId mismatch ──────────────────────────────────
   it('should throw when route toChainId does not match requested', async () => {
     const quote = createTestQuote({ toChainId: 888 }, { toChain: 1399811149 });
 
@@ -222,7 +211,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 4: Fail — fromToken address mismatch ──────────────────────────
   it('should throw when route fromToken does not match requested', async () => {
     const quote = createTestQuote(
       { fromTokenAddress: BAD_ADDR },
@@ -240,7 +228,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 5: Fail — toToken address mismatch ────────────────────────────
   it('should throw when route toToken does not match requested', async () => {
     const quote = createTestQuote(
       { toTokenAddress: BAD_ADDR },
@@ -257,7 +244,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 6: Fail — toAddress mismatch ──────────────────────────────────
   it('should throw when route toAddress does not match requested', async () => {
     const quote = createTestQuote(
       { toAddress: BAD_ADDR },
@@ -273,7 +259,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 7: Pass — fromAmount omitted in requestParams (toAmount quote) ─
   it('should pass validation when fromAmount is omitted in requestParams', async () => {
     // Route has fromAmount='99999' but requestParams has no fromAmount.
     // The fromAmount assertion is skipped when requestParams.fromAmount is undefined.
@@ -294,7 +279,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 8: Fail — fromAmount mismatch ─────────────────────────────────
   it('should throw when route fromAmount does not match requested', async () => {
     const quote = createTestQuote(
       { fromAmount: '9999999999' },
@@ -312,7 +296,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 9: Fail — zero amount sanity check ────────────────────────────
   it('should throw when route fromAmount is zero', async () => {
     // fromAmount=0n is falsy, so the mismatch assertion is skipped.
     // But the positive amount check catches it.
@@ -330,7 +313,6 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  // ── Test 10: Pass — case-insensitive address matching ──────────────────
   it('should match addresses case-insensitively (mixed vs uppercase)', async () => {
     // Route uses lowercase a-f, requestParams uses uppercase A-F
     // Both should match after toLowerCase()
@@ -362,6 +344,80 @@ describe('LiFiBridge.execute() route validation', function () {
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
       ).to.equal(false);
+    }
+  });
+
+  it('should throw when requestParams.fromAmount is 0n and route has positive amount', async () => {
+    // Validates the fix for the fromAmount=0n truthiness bypass:
+    // 0n was falsy so `if (requestParams.fromAmount)` would skip the comparison.
+    // With `!== undefined`, a 0n request is correctly compared against the route amount.
+    const quote = createTestQuote({ fromAmount: '1' }, { fromAmount: 0n });
+    try {
+      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('fromAmount');
+    }
+  });
+
+  it('should pass validation for toAmount quote path (fromAmount undefined, toAmount present)', async () => {
+    // Tests reverse-quote pattern where toAmount is set and fromAmount is undefined.
+    // The fromAmount equality check is skipped; only the positivity check runs.
+    const quote = createTestQuote(
+      { fromAmount: '5000000000' },
+      { fromAmount: undefined, toAmount: 5000000000n },
+    );
+    try {
+      await bridge.execute(quote, TEST_PRIVATE_KEY);
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(
+        isValidationError(msg),
+        `Expected non-validation error but got: ${msg}`,
+      ).to.equal(false);
+    }
+  });
+});
+
+describe('LiFiBridge.quote() input validation', function () {
+  let bridge: LiFiBridge;
+
+  beforeEach(() => {
+    bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+  });
+
+  it('should throw when fromAmount is 0n', async () => {
+    try {
+      await bridge.quote({
+        fromChain: 42161,
+        toChain: 1399811149,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+        fromAmount: 0n,
+      });
+      expect.fail('Expected quote to throw');
+    } catch (error: unknown) {
+      expect((error as Error).message).to.include(
+        'fromAmount must be positive',
+      );
+    }
+  });
+
+  it('should throw when toAmount is 0n', async () => {
+    try {
+      await bridge.quote({
+        fromChain: 42161,
+        toChain: 1399811149,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+        toAmount: 0n,
+      });
+      expect.fail('Expected quote to throw');
+    } catch (error: unknown) {
+      expect((error as Error).message).to.include('toAmount must be positive');
     }
   });
 });

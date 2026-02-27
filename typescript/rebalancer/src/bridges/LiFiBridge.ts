@@ -14,6 +14,7 @@ import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -144,6 +145,13 @@ export class LiFiBridge implements IExternalBridge {
       throw new Error('Must specify either fromAmount or toAmount');
     }
 
+    if (params.fromAmount !== undefined && params.fromAmount <= 0n) {
+      throw new Error('fromAmount must be positive');
+    }
+    if (params.toAmount !== undefined && params.toAmount <= 0n) {
+      throw new Error('toAmount must be positive');
+    }
+
     // Dispatch to appropriate quote method
     if (params.toAmount !== undefined) {
       return this.quoteByReceivingAmount(params);
@@ -200,7 +208,7 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
-      requestParams: params,
+      requestParams: { ...params },
     };
   }
 
@@ -273,7 +281,7 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
-      requestParams: params,
+      requestParams: { ...params },
     };
   }
 
@@ -449,56 +457,54 @@ export class LiFiBridge implements IExternalBridge {
    * Validate that the route returned by LiFi matches the original request parameters.
    * Prevents execution against wrong chains, tokens, or recipients if the bridge API
    * returns a route that diverges from what was originally requested.
+   *
+   * TODO: Layer 2 validation — validate transaction calldata in route.steps[].transactionRequest
+   * and route.steps[0].estimate.approvalAddress against a known whitelist.
    */
   private validateRouteAgainstRequest(
     route: Route,
     requestParams: BridgeQuoteParams,
   ): void {
-    if (route.fromChainId !== requestParams.fromChain) {
-      throw new Error(
-        `Route fromChainId ${route.fromChainId} does not match requested ${requestParams.fromChain}`,
-      );
-    }
-    if (route.toChainId !== requestParams.toChain) {
-      throw new Error(
-        `Route toChainId ${route.toChainId} does not match requested ${requestParams.toChain}`,
-      );
-    }
-    if (
-      route.fromToken.address.toLowerCase() !==
-      requestParams.fromToken.toLowerCase()
-    ) {
-      throw new Error(
-        `Route fromToken ${route.fromToken.address} does not match requested ${requestParams.fromToken}`,
-      );
-    }
-    if (
-      route.toToken.address.toLowerCase() !==
-      requestParams.toToken.toLowerCase()
-    ) {
-      throw new Error(
-        `Route toToken ${route.toToken.address} does not match requested ${requestParams.toToken}`,
-      );
-    }
+    assert(
+      route.fromChainId === requestParams.fromChain,
+      `Route fromChainId ${route.fromChainId} does not match requested ${requestParams.fromChain}`,
+    );
+    assert(
+      route.toChainId === requestParams.toChain,
+      `Route toChainId ${route.toChainId} does not match requested ${requestParams.toChain}`,
+    );
+    assert(
+      route.fromToken.address.toLowerCase() ===
+        requestParams.fromToken.toLowerCase(),
+      `Route fromToken ${route.fromToken.address} does not match requested ${requestParams.fromToken}`,
+    );
+    assert(
+      route.toToken.address.toLowerCase() ===
+        requestParams.toToken.toLowerCase(),
+      `Route toToken ${route.toToken.address} does not match requested ${requestParams.toToken}`,
+    );
     const expectedToAddress = (
       requestParams.toAddress ?? requestParams.fromAddress
     ).toLowerCase();
-    if (route.toAddress?.toLowerCase() !== expectedToAddress) {
-      throw new Error(
-        `Route toAddress ${route.toAddress} does not match requested ${expectedToAddress}`,
+    assert(
+      route.toAddress?.toLowerCase() === expectedToAddress,
+      `Route toAddress ${route.toAddress} does not match requested ${expectedToAddress}`,
+    );
+    assert(
+      route.fromAddress?.toLowerCase() ===
+        requestParams.fromAddress.toLowerCase(),
+      `Route fromAddress ${route.fromAddress} does not match requested ${requestParams.fromAddress}`,
+    );
+    const routeFromAmount = BigInt(route.fromAmount);
+    if (requestParams.fromAmount !== undefined) {
+      assert(
+        routeFromAmount === requestParams.fromAmount,
+        `Route fromAmount ${route.fromAmount} does not match requested ${requestParams.fromAmount}`,
       );
     }
-    if (requestParams.fromAmount) {
-      if (route.fromAmount !== requestParams.fromAmount.toString()) {
-        throw new Error(
-          `Route fromAmount ${route.fromAmount} does not match requested ${requestParams.fromAmount}`,
-        );
-      }
-    }
-    if (BigInt(route.fromAmount) <= 0n) {
-      throw new Error('Route fromAmount must be positive');
-    }
+    assert(routeFromAmount > 0n, 'Route fromAmount must be positive');
   }
+
   /**
    * Get the status of a bridge transfer.
    * Uses SDK's built-in status tracking.
