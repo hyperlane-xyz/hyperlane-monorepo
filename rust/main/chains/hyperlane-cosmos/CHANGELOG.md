@@ -1,3 +1,7 @@
+## [2.1.0] - 2026-02-27
+
+* feat(agents): add chain configuration metrics (#8185)
+
 ## [2.0.0] - 2026-01-06
 
 * chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)

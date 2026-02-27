@@ -1,3 +1,12 @@
+## [2.1.0] - 2026-02-27
+
+* feat(agents): add chain configuration metrics (#8185)
+* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* fix(agents): Fix flaky CI tests in lander and relayer (#7949)
+* fix: Relayer OOM fix (#7782)
+* fix: aleo metadata builder (#7954)
+* refactor(metrics): remove remote label from hyperlane_last_known_message_nonce (#7992)
+
 ## [2.0.0] - 2026-01-06
 
 * chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)

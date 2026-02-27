@@ -1,3 +1,12 @@
+## [2.1.0] - 2026-02-27
+
+* feat(agents): add chain configuration metrics (#8185)
+* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* feat: Store Raw Message Dispatches (#7714)
+* fix(scraper): Optimize message_view query performance
+* fix(scraper): Reorder message unique index to support origin-only queries (#7945)
+* fix(scraper): add retry logic to init-db database connection (#8068)
+
 ## [2.0.0] - 2026-01-06
 
 * chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)
