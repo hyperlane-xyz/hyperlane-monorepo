@@ -1783,7 +1783,7 @@ export class GovernTransactionReader {
           return {
             chain,
             index,
-            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            value: `${ethers.formatEther(multisend.value)} ${symbol}`,
             operation: formatOperationType(multisend.operation),
             decoded: {
               chain,
