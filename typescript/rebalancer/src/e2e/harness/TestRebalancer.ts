@@ -8,7 +8,7 @@ import {
   type MultiProvider,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
@@ -29,7 +29,6 @@ import type { InventoryMonitorConfig, Monitor } from '../../monitor/Monitor.js';
 import type { IActionTracker } from '../../tracking/IActionTracker.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import {
-  ANVIL_USER_PRIVATE_KEY,
   ANVIL_TEST_PRIVATE_KEY,
   BALANCE_PRESETS,
   DOMAIN_IDS,
@@ -220,6 +219,11 @@ export class TestRebalancerBuilder {
           `Strategy chains: ${strategyChains.join(', ')}, Balance chains: ${balanceChains.join(', ')}`,
       );
     }
+
+    assert(
+      !(this.inventoryConfig && this.erc20InventoryConfig),
+      'Cannot set both inventoryConfig and erc20InventoryConfig — use one or the other',
+    );
 
     if (this.inventoryConfig && !this.mockExternalBridge) {
       throw new Error(
@@ -465,17 +469,23 @@ export class TestRebalancerBuilder {
     if (this.erc20InventoryConfig) {
       for (const [chain, balance] of Object.entries(balances)) {
         const provider = localProviders.get(chain);
-        const tokenAddress =
+        const tokenAddress: string | undefined =
           this.erc20InventoryConfig.erc20DeployedAddresses.tokens[
             chain as TestChain
           ];
-        const monitoredRouteAddress =
+        const monitoredRouteAddress: string | undefined =
           this.erc20InventoryConfig.erc20DeployedAddresses.monitoredRoute[
             chain as TestChain
           ];
-        if (!provider || !tokenAddress || !monitoredRouteAddress) {
-          continue;
-        }
+        assert(provider, `setupBalances: missing provider for chain ${chain}`);
+        assert(
+          tokenAddress,
+          `setupBalances: missing token address for chain ${chain}`,
+        );
+        assert(
+          monitoredRouteAddress,
+          `setupBalances: missing monitored route address for chain ${chain}`,
+        );
 
         const deployerSigner = new ethers.Wallet(
           ANVIL_TEST_PRIVATE_KEY,
@@ -526,6 +536,12 @@ export class TestRebalancerBuilder {
     );
   }
 
+  private getInventorySignerAddress(): string {
+    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
+    assert(config, 'Expected inventoryConfig or erc20InventoryConfig');
+    return new ethers.Wallet(config.inventorySignerKey).address;
+  }
+
   private async setupInventorySignerBalances(
     localProviders: Map<string, ethers.providers.JsonRpcProvider>,
   ): Promise<void> {
@@ -536,13 +552,7 @@ export class TestRebalancerBuilder {
       return;
     }
 
-    let signerAddress: string;
-    if (this.inventoryConfig) {
-      signerAddress = new ethers.Wallet(this.inventoryConfig.inventorySignerKey)
-        .address;
-    } else {
-      signerAddress = '';
-    }
+    const signerAddress = this.getInventorySignerAddress();
 
     let balances: Partial<Record<string, string>>;
     if (typeof this.inventorySignerBalanceConfig === 'string') {
@@ -558,18 +568,28 @@ export class TestRebalancerBuilder {
     }
 
     if (this.erc20InventoryConfig) {
-      const signerKey = this.erc20InventoryConfig.inventorySignerKey;
-      const signerWallet = new ethers.Wallet(signerKey);
-      signerAddress = signerWallet.address;
+      const signerWallet = new ethers.Wallet(
+        this.erc20InventoryConfig.inventorySignerKey,
+      );
       const deployerKey = ANVIL_TEST_PRIVATE_KEY;
       const tokens = this.erc20InventoryConfig.erc20DeployedAddresses.tokens;
 
       for (const [chain, balance] of Object.entries(balances)) {
         const provider = localProviders.get(chain);
-        if (balance === undefined || !provider) continue;
+        assert(
+          balance !== undefined,
+          `setupInventorySignerBalances: missing balance for chain ${chain}`,
+        );
+        assert(
+          provider,
+          `setupInventorySignerBalances: missing provider for chain ${chain}`,
+        );
 
         const tokenAddress = tokens[chain as TestChain];
-        if (!tokenAddress) continue;
+        assert(
+          tokenAddress,
+          `setupInventorySignerBalances: missing token address for chain ${chain}`,
+        );
 
         const connectedSigner = signerWallet.connect(provider);
         const deployerSigner = new ethers.Wallet(deployerKey, provider);
@@ -690,7 +710,12 @@ export class TestRebalancerBuilder {
     localProviders: Map<string, ethers.providers.JsonRpcProvider>,
   ): Promise<MultiProvider> {
     const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
-    const inventoryWallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
+    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
+    assert(
+      config,
+      'getInventoryMultiProvider requires inventoryConfig or erc20InventoryConfig',
+    );
+    const inventoryWallet = new ethers.Wallet(config.inventorySignerKey);
 
     for (const chain of TEST_CHAINS) {
       const provider = localProviders.get(chain);
