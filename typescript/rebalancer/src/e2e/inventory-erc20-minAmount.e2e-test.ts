@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, providers } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   HyperlaneCore,
@@ -36,22 +36,32 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
 
   let deploymentManager: Erc20InventoryLocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let erc20DeployedAddresses: Erc20InventoryDeployedAddresses;
   let mockBridge: MockExternalBridge;
 
-  const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
-    .address;
+  const inventorySignerAddress = privateKeyToAccount(
+    ANVIL_USER_PRIVATE_KEY as `0x${string}`,
+  ).address;
   // Expected deficit when a chain's router balance is 0:
   // target (from strategy config) - 0 = target.
-  const expectedDeficit = ERC20_INVENTORY_MIN_AMOUNT_TARGET_RAW.toBigInt();
+  const expectedDeficit = ERC20_INVENTORY_MIN_AMOUNT_TARGET_RAW;
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
+    event.confirmedBlockTags = await context.getConfirmedBlockTags();
     await context.orchestrator.executeCycle(event);
+  }
+
+  async function mineConfirmedBlocks(): Promise<void> {
+    for (const provider of localProviders.values()) {
+      for (let i = 0; i < 5; i += 1) {
+        await provider.send('evm_mine', []);
+      }
+    }
   }
 
   before(async function () {
@@ -651,10 +661,11 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
       ).to.be.true;
     }
 
+    await mineConfirmedBlocks();
     await executeCycle(context);
     activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
-    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(activeIntents[0].amount).to.equal(expectedDeficit);
   });
 

@@ -7,10 +7,13 @@ import {
   HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
+  Token,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TokenAmount,
   type WarpCore,
+  WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -827,9 +830,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    // Get the hyperlane adapter for the token
-    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
     this.logger.debug(
       {
         origin,
@@ -843,13 +843,39 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Using pre-calculated gas quote for transferRemote',
     );
 
-    // Populate the transferRemote transaction
-    const populatedTx = await adapter.populateTransferRemoteTx({
-      destination: destinationDomain,
+    // Convert pre-calculated gas quote to TokenAmount for WarpCore
+    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
+    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
+    const igpToken =
+      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
+        ? Token.FromChainMetadataNativeToken(originChainMetadata)
+        : this.warpCore.findToken(origin, igpAddressOrDenom);
+    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
+    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
+
+    let tokenFeeQuote: TokenAmount | undefined;
+    if (gasQuote.tokenFeeQuote?.amount) {
+      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
+      const feeToken =
+        !feeAddress || isZeroishAddress(feeAddress)
+          ? Token.FromChainMetadataNativeToken(originChainMetadata)
+          : originToken;
+      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
+    }
+
+    const originTokenAmount = originToken.amount(amount);
+    const transactions = await this.warpCore.getTransferRemoteTxs({
+      originTokenAmount,
+      destination,
+      sender: this.config.inventorySigner,
       recipient: this.config.inventorySigner,
-      weiAmountOrId: amount,
-      interchainGas: gasQuote,
+      interchainFee,
+      tokenFeeQuote,
     });
+    assert(
+      transactions.length > 0,
+      'Expected at least one transaction from WarpCore',
+    );
 
     // Send the transaction using inventory MultiProvider if available
     this.logger.info(
@@ -870,14 +896,28 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const reorgPeriod =
       this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
 
-    // Wait for reorgPeriod confirmations via SDK to ensure Monitor sees balance changes
-    const receipt = await signingProvider.sendTransaction(
-      origin,
-      populatedTx as AnnotatedEV5Transaction,
-      {
-        waitConfirmations: reorgPeriod as number | EthJsonRpcBlockParameterTag,
-      },
-    );
+    let receipt:
+      | Awaited<ReturnType<MultiProvider['sendTransaction']>>
+      | undefined;
+    for (const tx of transactions) {
+      this.logger.debug(
+        { origin, destination, category: tx.category },
+        `Sending ${tx.category} transaction`,
+      );
+      const isTransfer = tx.category === WarpTxCategory.Transfer;
+      receipt = await signingProvider.sendTransaction(
+        origin,
+        tx.transaction as AnnotatedEV5Transaction,
+        isTransfer
+          ? {
+              waitConfirmations: reorgPeriod as
+                | number
+                | EthJsonRpcBlockParameterTag,
+            }
+          : undefined,
+      );
+    }
+    assert(receipt, 'Expected receipt from transferRemote transactions');
 
     // Extract messageId from the transaction receipt logs
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
@@ -888,7 +928,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         {
           origin,
           destination,
-          txHash: receipt.transactionHash,
+          txHash: receipt.transactionHash ?? undefined,
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
@@ -899,7 +939,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         origin,
         destination,
-        txHash: receipt.transactionHash,
+        txHash: receipt.transactionHash ?? undefined,
         messageId,
         intentId: intent.id,
       },

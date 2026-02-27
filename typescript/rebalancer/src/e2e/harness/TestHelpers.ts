@@ -67,7 +67,7 @@ export async function getRouterBalances(
 }
 
 export async function getErc20RouterBalances(
-  localProviders: Map<string, providers.JsonRpcProvider>,
+  localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   addresses: Erc20InventoryDeployedAddresses,
 ): Promise<Record<string, BigNumber>> {
   const balances: Record<string, BigNumber> = {};
@@ -75,7 +75,9 @@ export async function getErc20RouterBalances(
     const provider = localProviders.get(chain);
     assert(provider, `Missing provider for chain ${chain}`);
     const token = ERC20Test__factory.connect(addresses.tokens[chain], provider);
-    balances[chain] = await token.balanceOf(addresses.monitoredRoute[chain]);
+    balances[chain] = new BigNumber(
+      (await token.balanceOf(addresses.monitoredRoute[chain])).toString(),
+    );
   }
   return balances;
 }
