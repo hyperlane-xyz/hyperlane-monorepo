@@ -426,7 +426,7 @@ mod tests {
             hex::decode("000000000000000000000000e304de1cb42ac734b97bd6ae767942e00d751f8a")
                 .unwrap();
 
-        let signer_confg = SignerConf::HexKey {
+        let signer_config = SignerConf::HexKey {
             key: H256::from_slice(
                 hex::decode(PRIVATE_KEY)
                     .expect("Failed to decode private key")
@@ -434,7 +434,7 @@ mod tests {
             ),
         };
 
-        let tron_signer = hyperlane_tron::TronSigner::build(&signer_confg)
+        let tron_signer = hyperlane_tron::TronSigner::build(&signer_config)
             .await
             .expect("Failed to build tron signer");
 

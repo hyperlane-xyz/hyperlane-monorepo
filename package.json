@@ -18,8 +18,8 @@
     "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
     "version:check": "pnpm changeset status",
     "release": "pnpm build && pnpm changeset publish",
-    "codespell": "bash .codespell/run.sh",
-    "codespell:diff": "bash .codespell/run-diff.sh",
+    "spellcheck": "typos --config .spellcheck/typos.toml",
+    "spellcheck:diff": "bash .spellcheck/run-diff.sh",
     "postinstall": "husky install"
   },
   "dependencies": {

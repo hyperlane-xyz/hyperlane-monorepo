@@ -29,7 +29,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
 
     address internal constant L1_MESSENGER_ADDRESS =
         0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
-    address internal constant L1_CANNONICAL_CHAIN =
+    address internal constant L1_CANONICAL_CHAIN =
         0x5E4e65926BA27467555EB562121fac00D24E9dD2;
     address internal constant L2_MESSENGER_ADDRESS =
         0x4200000000000000000000000000000000000007;

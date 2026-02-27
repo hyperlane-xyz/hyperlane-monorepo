@@ -81,7 +81,7 @@ pub async fn build_single_owner_account(
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
     })?;
 
-    // fallback to the default signer, as the starknet SDK requires the SignleOwnerAccount
+    // fallback to the default signer, as the starknet SDK requires the SingleOwnerAccount
     // and therefore a signer to perform state queries
     let signer = signer.unwrap_or_default();
 

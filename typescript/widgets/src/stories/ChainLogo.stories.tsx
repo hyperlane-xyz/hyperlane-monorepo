@@ -38,8 +38,8 @@ ChainWithBigSize.args = {
   registry,
 };
 
-export const ChainWithBackgrounAndBig = Template.bind({});
-ChainWithBackgrounAndBig.args = {
+export const ChainWithBackgroundAndBig = Template.bind({});
+ChainWithBackgroundAndBig.args = {
   chainName: 'ethereum',
   size: 100,
   background: true,

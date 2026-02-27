@@ -986,8 +986,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
 
     try {
-      const exteralBridge = this.getExternalBridge(externalBridgeType);
-      const quote = await exteralBridge.quote({
+      const externalBridge = this.getExternalBridge(externalBridgeType);
+      const quote = await externalBridge.quote({
         fromChain: sourceChainId,
         toChain: targetChainId,
         fromToken: fromTokenAddress,

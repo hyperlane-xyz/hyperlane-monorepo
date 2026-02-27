@@ -98,7 +98,7 @@ pub struct Hash(pub [u8; 32]);
 pub struct MerkleTree {
     /// all the branches of the tree
     pub branch: [Hash; 32],
-    /// current amount of ingested leafs
+    /// current amount of ingested leaves
     pub count: usize,
 }
 
