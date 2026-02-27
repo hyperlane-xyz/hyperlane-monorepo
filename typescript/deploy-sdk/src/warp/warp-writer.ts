@@ -85,7 +85,6 @@ export class WarpTokenWriter
   implements ArtifactWriter<WarpArtifactConfig, DeployedWarpAddress>
 {
   protected readonly ismWriter: IsmWriter;
-  protected readonly hookWriter: HookWriter;
 
   constructor(
     protected readonly artifactManager: IRawWarpArtifactManager,
@@ -95,7 +94,12 @@ export class WarpTokenWriter
   ) {
     super(artifactManager, chainMetadata, chainLookup);
     this.ismWriter = createIsmWriter(chainMetadata, chainLookup, signer);
-    this.hookWriter = createHookWriter(chainMetadata, chainLookup, signer);
+  }
+
+  protected getHookWriter(mailbox: string): HookWriter {
+    return createHookWriter(this.chainMetadata, this.chainLookup, this.signer, {
+      mailbox,
+    });
   }
 
   /**
@@ -133,8 +137,9 @@ export class WarpTokenWriter
       | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
     if (config.hook) {
+      const hookWriter = this.getHookWriter(config.mailbox);
       if (isArtifactNew(config.hook)) {
-        const [deployedHook, hookReceipts] = await this.hookWriter.create(
+        const [deployedHook, hookReceipts] = await hookWriter.create(
           config.hook,
         );
         allReceipts.push(...hookReceipts);
@@ -249,6 +254,7 @@ export class WarpTokenWriter
     // Resolve Hook updates
     const expectedHook = config.hook;
     const currentHook = currentArtifact.config.hook;
+    const hookWriter = this.getHookWriter(config.mailbox);
 
     let onChainHookArtifact:
       | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
@@ -260,7 +266,7 @@ export class WarpTokenWriter
 
       if (isArtifactNew(mergedHookConfig)) {
         // Deploy new Hook
-        const [deployed] = await this.hookWriter.create(mergedHookConfig);
+        const [deployed] = await hookWriter.create(mergedHookConfig);
 
         onChainHookArtifact = {
           artifactState: ArtifactState.UNDERIVED,
@@ -268,7 +274,7 @@ export class WarpTokenWriter
         };
       } else if (isArtifactDeployed(mergedHookConfig)) {
         // DEPLOYED: update existing Hook (or reuse if unchanged)
-        const txs = await this.hookWriter.update(mergedHookConfig);
+        const txs = await hookWriter.update(mergedHookConfig);
 
         updateTxs.push(...txs);
         onChainHookArtifact = {
