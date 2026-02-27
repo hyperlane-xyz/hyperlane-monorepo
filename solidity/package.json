@@ -72,7 +72,7 @@
     "scripts": {
         "deps:soldeer": "forge soldeer install --quiet || echo 'Warning: soldeer install failed, assuming dependencies are already present'",
         "build": "pnpm version:update && pnpm hardhat-esm compile && tsc && node fix-typechain-ethers.mjs ./dist/typechain/factories && ./exportBuildArtifact.sh",
-        "build:zk": "pnpm hardhat-zk compile && tsc && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
+        "build:zk": "pnpm hardhat-zk compile && tsc && node fix-typechain-ethers.mjs ./dist/typechain/factories && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
         "build:tron": "./build-tron.sh",
         "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract TronCreate2Test -vvv",
         "prepublishOnly": "pnpm build && pnpm build:zk && pnpm build:tron",
