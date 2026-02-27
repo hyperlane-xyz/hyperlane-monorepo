@@ -33,6 +33,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
+import { normalizeScale } from '../utils/decimals.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
@@ -110,14 +111,16 @@ abstract class TokenDeployer<
     config: HypTokenRouterConfig,
   ): Promise<any> {
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
-    const scale = config.scale ?? 1;
+    const { numerator: scaleNumerator, denominator: scaleDenominator } =
+      normalizeScale(config.scale);
 
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
-      return [config.token, scale, config.mailbox];
+      return [config.token, scaleNumerator, scaleDenominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
       return [
         config.token,
-        scale,
+        scaleNumerator,
+        scaleDenominator,
         config.mailbox,
         config.everclearBridgeAddress,
       ];
@@ -128,19 +131,30 @@ abstract class TokenDeployer<
         config.everclearBridgeAddress,
       ];
     } else if (isNativeTokenConfig(config)) {
-      return [scale, config.mailbox];
+      return [scaleNumerator, scaleDenominator, config.mailbox];
     } else if (isOpL2TokenConfig(config)) {
       return [config.mailbox, config.l2Bridge];
     } else if (isOpL1TokenConfig(config)) {
       return [config.mailbox, config.portal];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, scale, config.mailbox];
+      return [
+        config.decimals,
+        scaleNumerator,
+        scaleDenominator,
+        config.mailbox,
+      ];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, scale, config.mailbox, collateralDomain];
+      return [
+        config.decimals,
+        scaleNumerator,
+        scaleDenominator,
+        config.mailbox,
+        collateralDomain,
+      ];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':

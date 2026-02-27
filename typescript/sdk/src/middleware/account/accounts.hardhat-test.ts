@@ -10,7 +10,7 @@ import {
   InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objMap, toBigInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
@@ -172,8 +172,8 @@ describe('InterchainAccounts', async () => {
         mockHookAddress,
       );
 
-      expect(allowance.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
+      expect(toBigInt(allowance)).to.equal(
+        toBigInt(ethers.constants.MaxUint256),
       );
     });
 
@@ -216,11 +216,11 @@ describe('InterchainAccounts', async () => {
         mockHookAddress2,
       );
 
-      expect(allowance1.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
+      expect(toBigInt(allowance1)).to.equal(
+        toBigInt(ethers.constants.MaxUint256),
       );
-      expect(allowance2.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
+      expect(toBigInt(allowance2)).to.equal(
+        toBigInt(ethers.constants.MaxUint256),
       );
     });
 

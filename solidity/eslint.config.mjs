@@ -15,6 +15,7 @@ export default [
       'core-utils/typechain/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
+      'generate-contract-factories.mjs',
     ],
   },
 ];

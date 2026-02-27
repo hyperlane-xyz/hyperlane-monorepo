@@ -1373,9 +1373,9 @@ export function createContractProxy<TAbi extends Abi>(
     }
 
     const request = await withRunnerFrom(runner, {
+      ...overrides,
       to: address,
       data: encodeFunctionCallData(fn, normalizedArgs),
-      ...overrides,
     });
     const response = await performSend(runner, request);
     return normalizeWriteResult(response);
@@ -1394,9 +1394,9 @@ export function createContractProxy<TAbi extends Abi>(
           );
           const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
           const request = await withRunnerFrom(runner, {
+            ...overrides,
             to: address,
             data: encodeFunctionCallData(fn, normalizedArgs),
-            ...overrides,
           });
           return performEstimateGas(runner, request);
         };
