@@ -1,7 +1,7 @@
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
@@ -122,6 +122,8 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
 }
 
 export class EvmEventLogsReader {
+  private deploymentBlockCache: Map<string, number> = new Map();
+
   protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
     protected readonly multiProvider: MultiProvider,
@@ -181,17 +183,15 @@ export class EvmEventLogsReader {
     );
 
     try {
-      // do NOT remove the await here it is on purpose to catch any error
-      // here to fallback to the rpc if any is set.
-      // Removing the await will cause the caller to handle the error if any
-      // and the fallback logic won't run
-      const res = await this.getLogsByTopicWithStrategy(
-        options,
-        provider,
-        this.logReaderStrategy,
+      // Retry the primary strategy with exponential backoff to handle
+      // transient failures like explorer rate limits
+      return await retryAsync(() =>
+        this.getLogsByTopicWithStrategy(
+          options,
+          provider,
+          this.logReaderStrategy,
+        ),
       );
-
-      return res;
     } catch (err) {
       if (!this.fallbackLogReaderStrategy) {
         throw err;
@@ -209,6 +209,19 @@ export class EvmEventLogsReader {
     }
   }
 
+  private async getDeploymentBlock(
+    contractAddress: string,
+    logReaderStrategy: IEvmEventLogsReaderStrategy,
+  ): Promise<number> {
+    const cached = this.deploymentBlockCache.get(contractAddress);
+    if (cached) return cached;
+
+    const block =
+      await logReaderStrategy.getContractDeploymentBlockNumber(contractAddress);
+    this.deploymentBlockCache.set(contractAddress, block);
+    return block;
+  }
+
   private async getLogsByTopicWithStrategy(
     options: GetLogByTopicOptions,
     provider: ReturnType<MultiProvider['getProvider']>,
@@ -218,8 +231,9 @@ export class EvmEventLogsReader {
 
     const fromBlock =
       parsedOptions.fromBlock ??
-      (await logReaderStrategy.getContractDeploymentBlockNumber(
+      (await this.getDeploymentBlock(
         parsedOptions.contractAddress,
+        logReaderStrategy,
       ));
     const toBlock = parsedOptions.toBlock ?? (await provider.getBlockNumber());
 

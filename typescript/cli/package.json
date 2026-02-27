@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "25.2.0",
+  "version": "25.3.2",
   "description": "A command-line utility for common Hyperlane operations",
   "keywords": [
     "CLI",
@@ -37,6 +37,7 @@
     "test:cosmosnative:e2e": "./src/tests/cosmosnative/run-e2e-test.sh",
     "test:radix:e2e": "./src/tests/radix/run-e2e-test.sh",
     "test:aleo:e2e": "./src/tests/aleo/run-e2e-test.sh",
+    "test:tron:e2e": "./src/tests/ethereum/run-tron-e2e-test.sh",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts",
     "prepack": "pnpm bundle"
   },
@@ -60,6 +61,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/core": "9.0.10",

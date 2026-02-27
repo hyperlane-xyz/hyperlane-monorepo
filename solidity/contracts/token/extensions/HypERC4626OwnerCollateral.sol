@@ -32,9 +32,17 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
 
     constructor(
         ERC4626 _vault,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) HypERC4626Collateral(_vault, _scale, _mailbox) {}
+    )
+        HypERC4626Collateral(
+            _vault,
+            _scaleNumerator,
+            _scaleDenominator,
+            _mailbox
+        )
+    {}
 
     // =========== TokenRouter Overrides ============
 

@@ -71,6 +71,7 @@ contract AmountRoutingTest is Test {
         HypERC20 localWarpRoute = new HypERC20(
             DECIMALS,
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         localWarpRoute.initialize(
@@ -83,6 +84,7 @@ contract AmountRoutingTest is Test {
         );
         HypERC20 remoteWarpRoute = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );

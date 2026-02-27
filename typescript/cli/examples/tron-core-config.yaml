@@ -1,0 +1,18 @@
+# A config to define the core contract deployments for Tron test chains
+# Uses the Tron deployer address (derived from BIP-44 m/44'/195'/0'/0/0)
+# Note: Tron uses 6 decimals (sun) instead of 18 decimals (wei)
+owner: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+defaultIsm:
+  type: 'testIsm'
+defaultHook:
+  type: protocolFee
+  maxProtocolFee: '1000000000' # 1000 TRX in sun (6 decimals)
+  protocolFee: '200000' # 0.2 TRX in sun (6 decimals)
+  beneficiary: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+  owner: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+requiredHook:
+  type: protocolFee
+  maxProtocolFee: '1000000000' # 1000 TRX in sun (6 decimals)
+  protocolFee: '200000' # 0.2 TRX in sun (6 decimals)
+  beneficiary: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+  owner: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'

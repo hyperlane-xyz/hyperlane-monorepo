@@ -26,6 +26,7 @@ export type DeployedCoreAddresses = {
   staticAggregationIsmFactory: string;
   staticAggregationHookFactory: string;
   domainRoutingIsmFactory: string;
+  incrementalDomainRoutingIsmFactory: string;
   staticMerkleRootWeightedMultisigIsmFactory: string;
   staticMessageIdWeightedMultisigIsmFactory: string;
   mailbox: string;

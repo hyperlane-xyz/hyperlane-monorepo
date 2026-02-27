@@ -14,10 +14,12 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { CosmosWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
@@ -79,6 +81,15 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
       mailboxAddress,
       nativeTokenDenom,
     });
+  }
+
+  createWarpArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
+  ): IRawWarpArtifactManager {
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+    return new CosmosWarpArtifactManager(rpcUrls);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

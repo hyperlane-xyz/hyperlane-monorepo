@@ -184,6 +184,71 @@ async function parseHookMetadataWithInsight(
   };
 }
 
+// Ethers.js error codes that are unambiguously transient RPC/transport failures
+const TRANSIENT_RPC_ERROR_CODES = new Set([
+  'SERVER_ERROR',
+  'NETWORK_ERROR',
+  'TIMEOUT',
+]);
+
+/**
+ * Returns true only for transient RPC/transport errors that are safe to swallow.
+ * CALL_EXCEPTION with revert data or JSON-RPC code 3 indicates a real contract
+ * revert (permanent) and is NOT treated as transient — mirroring the distinction
+ * in SmartProvider.
+ */
+function isRpcOrTransportError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const code = (error as any).code;
+    if (typeof code === 'string') {
+      if (TRANSIENT_RPC_ERROR_CODES.has(code)) return true;
+      // CALL_EXCEPTION: only transient when there's no revert data and no
+      // JSON-RPC error code 3 (which definitively indicates a contract revert)
+      if (code === 'CALL_EXCEPTION') {
+        const data = (error as any).data;
+        const hasRevertData = !!data && data !== '0x' && data !== '';
+        const nestedError = (error as any).error;
+        const jsonRpcErrorCode = nestedError?.error?.code ?? nestedError?.code;
+        const isJsonRpcRevert = jsonRpcErrorCode === 3;
+        const isEmptyReturnDecodeFailure = !hasRevertData && !nestedError;
+        // Real reverts (with data, JSON-RPC code 3, or decode failures) are permanent
+        if (hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure)
+          return false;
+        // No revert data and not a JSON-RPC revert → likely transient RPC issue
+        return true;
+      }
+    }
+    // Common transport-layer patterns
+    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(error.message))
+      return true;
+  }
+  return false;
+}
+
+// Patterns that may contain secrets in ethers.js RPC error messages
+const SENSITIVE_PATTERNS = [
+  /https?:\/\/\S+/gi, // RPC URLs (often contain API keys in path/query)
+  /Bearer\s+\S+/gi,
+  /(?:api_key|secret|token|key|password)=\S+/gi,
+];
+
+function sanitizeErrorMessage(msg: string): string {
+  let sanitized = msg;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+  return sanitized.slice(0, 120);
+}
+
+function summarizeError(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as any).code;
+    const prefix = typeof code === 'string' ? `[${code}] ` : '';
+    return `${prefix}${sanitizeErrorMessage(error.message)}`;
+  }
+  return 'unknown error';
+}
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -1689,46 +1754,83 @@ export class GovernTransactionReader {
       ismInsight = `❌ fatal mismatch, expected zero hash`;
     }
 
-    const remoteIcaAddress = await InterchainAccount.fromAddressesMap(
-      this.chainAddresses,
-      this.multiProvider,
-    ).getAccount(remoteChainName, {
-      owner: this.safes[icaOwnerChain],
-      origin: icaOwnerChain,
-      routerOverride: router,
-      ismOverride: ism,
-    });
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
     const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
+    let remoteIcaAddress: string | undefined;
     let remoteIcaInsight = '✅ matches expected ICA';
 
-    const isValidIca =
-      expectedRemoteIcaAddress &&
-      eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
-    const isValidLegacyIca =
-      expectedLegacyRemoteIcaAddress &&
-      eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
-
-    if (!isValidIca && !isValidLegacyIca) {
-      this.errors.push({
-        chain: chain,
-        remoteDomain: destination,
-        remoteChain: remoteChainName,
-        ica: remoteIcaAddress,
-        expected: expectedRemoteIcaAddress,
-        info: 'Incorrect destination ICA in ICA call',
+    try {
+      remoteIcaAddress = await InterchainAccount.fromAddressesMap(
+        this.chainAddresses,
+        this.multiProvider,
+      ).getAccount(remoteChainName, {
+        owner: this.safes[icaOwnerChain],
+        origin: icaOwnerChain,
+        routerOverride: router,
+        ismOverride: ism,
       });
-      remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
+
+      if (!expectedRemoteIcaAddress && !expectedLegacyRemoteIcaAddress) {
+        remoteIcaInsight = `⚠️ no expected ICA configured for ${remoteChainName}, derived: ${remoteIcaAddress}`;
+      } else {
+        const isValidIca =
+          expectedRemoteIcaAddress &&
+          eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
+        const isValidLegacyIca =
+          expectedLegacyRemoteIcaAddress &&
+          eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
+
+        if (!isValidIca && !isValidLegacyIca) {
+          const displayExpected =
+            expectedRemoteIcaAddress ??
+            expectedLegacyRemoteIcaAddress ??
+            '<none>';
+          this.errors.push({
+            chain: chain,
+            remoteDomain: destination,
+            remoteChain: remoteChainName,
+            ica: remoteIcaAddress,
+            expected: displayExpected,
+            info: 'Incorrect destination ICA in ICA call',
+          });
+          remoteIcaInsight = `❌ fatal mismatch, expected ${displayExpected}`;
+        }
+      }
+    } catch (error: unknown) {
+      if (!isRpcOrTransportError(error)) {
+        throw error;
+      }
+      this.logger.warn(
+        `Failed to derive ICA address for ${remoteChainName}, using expected address: ${summarizeError(error)}`,
+      );
+      remoteIcaAddress =
+        expectedRemoteIcaAddress ?? expectedLegacyRemoteIcaAddress;
+      remoteIcaInsight = `⚠️ could not verify ICA (RPC error on ${remoteChainName})`;
     }
 
     const decodedCalls = await Promise.all(
-      calls.map((call: any) => {
+      calls.map(async (call: any) => {
         const icaCallAsTx = {
           to: bytes32ToAddress(call[0]),
           value: BigNumber.from(call[1]),
           data: call[2],
         };
-        return this.read(remoteChainName, icaCallAsTx);
+        try {
+          return await this.read(remoteChainName, icaCallAsTx);
+        } catch (error: unknown) {
+          if (!isRpcOrTransportError(error)) {
+            throw error;
+          }
+          this.logger.warn(
+            `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}: ${summarizeError(error)}`,
+          );
+          return {
+            chain: remoteChainName,
+            insight: `⚠️ could not decode call (RPC error on ${remoteChainName})`,
+            to: icaCallAsTx.to,
+            data: call[2],
+          };
+        }
       }),
     );
 
@@ -1750,7 +1852,7 @@ export class GovernTransactionReader {
         insight: ismInsight,
       },
       destinationIca: {
-        address: remoteIcaAddress,
+        address: remoteIcaAddress ?? 'unknown',
         insight: remoteIcaInsight,
       },
       ...(hookMetadataInsight && { hookMetadata: hookMetadataInsight }),
@@ -1783,13 +1885,25 @@ export class GovernTransactionReader {
             operation: formatOperationType(multisend.operation),
             decoded,
           };
-        } catch (error) {
-          this.logger.error(
-            `Failed to decode multisend at index ${index}:`,
-            error,
-            multisend,
+        } catch (error: unknown) {
+          if (!isRpcOrTransportError(error)) {
+            throw error;
+          }
+          this.logger.warn(
+            `Failed to decode multisend at index ${index}: ${summarizeError(error)}`,
           );
-          throw error;
+          return {
+            chain,
+            index,
+            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            operation: formatOperationType(multisend.operation),
+            decoded: {
+              chain,
+              insight: `⚠️ failed to decode (${summarizeError(error)})`,
+              to: multisend.to,
+              data: multisend.data,
+            },
+          };
         }
       }),
     );

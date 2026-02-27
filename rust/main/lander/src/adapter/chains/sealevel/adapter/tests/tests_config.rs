@@ -39,7 +39,10 @@ fn test_configuration_fields() {
         }),
         metrics_conf: Default::default(),
         index: Default::default(),
+        confirmations: Default::default(),
+        chain_id: Default::default(),
         ignore_reorg_reports: false,
+        native_token: Default::default(),
     };
     let adapter = adapter_config(conf);
 

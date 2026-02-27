@@ -7,7 +7,13 @@ import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "./Quotes.sol";
+import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
+
+// ============ External Imports ============
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
@@ -24,8 +30,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
+    using StandardHookMetadata for bytes;
     using StorageSlot for bytes32;
     using Quotes for Quote[];
+    using Math for uint256;
+    using SafeERC20 for IERC20;
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -51,17 +60,29 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 amountOrId
     );
 
-    uint256 public immutable scale;
+    uint256 public immutable scaleNumerator;
+    uint256 public immutable scaleDenominator;
 
     // cannot use compiler assigned slot without
     // breaking backwards compatibility of storage layout
     bytes32 private constant FEE_RECIPIENT_SLOT =
         keccak256("FungibleTokenRouter.feeRecipient");
+    bytes32 private constant FEE_HOOK_SLOT = keccak256("TokenRouter.feeHook");
 
     event FeeRecipientSet(address feeRecipient);
+    event FeeHookSet(address feeHook);
 
-    constructor(uint256 _scale, address _mailbox) GasRouter(_mailbox) {
-        scale = _scale;
+    constructor(
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
+        address _mailbox
+    ) GasRouter(_mailbox) {
+        require(
+            _scaleNumerator > 0 && _scaleDenominator > 0,
+            "TokenRouter: scale cannot be 0"
+        );
+        scaleNumerator = _scaleNumerator;
+        scaleDenominator = _scaleDenominator;
     }
 
     // ===========================
@@ -100,10 +121,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
+        address _feeToken = feeToken();
         quotes = new Quote[](3);
         quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
+            token: _feeToken, // address(0) for native, token() for ERC20 payments
+            amount: _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _feeToken
+            )
         });
         (, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -142,12 +169,25 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
+        return _transferRemote(_destination, _recipient, _amount);
+    }
+
+    /// @notice Internal transfer implementation.
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual returns (bytes32 messageId) {
+        address _feeHook = feeHook();
+        address _feeToken = feeToken();
+
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            msg.value,
+            _feeHook
         );
 
         uint256 scaledAmount = _outboundAmount(_amount);
@@ -158,25 +198,26 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             scaledAmount
         );
 
-        // 3. Emit the SentTransferRemote event and 4. dispatch the message
-        return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                scaledAmount,
-                remainingNativeValue,
-                _tokenMessage
-            );
+        messageId = _emitAndDispatch(
+            _destination,
+            _recipient,
+            scaledAmount,
+            remainingNativeValue,
+            _tokenMessage,
+            _feeToken
+        );
     }
 
     // ===========================
     // ========== Internal convenience functions for readability ==========
     // ==========================
+
     function _calculateFeesAndCharge(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _msgValue
+        uint256 _msgValue,
+        address _feeHook
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
         (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -185,24 +226,79 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
         uint256 charge = _amount + feeAmount + externalFee;
+
+        address _token = token();
+
+        // ERC20 fee hook: use token() for gas payments
+        if (_feeHook != address(0)) {
+            uint256 hookFee = _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _token
+            );
+
+            // For collateral routers (token() != address(this)), we can add hook fee to charge
+            // because _transferFromSender pulls tokens TO the router.
+            // For synthetic routers (token() == address(this)), we must pull separately
+            // because _transferFromSender burns tokens, so router never receives them.
+            if (_token != address(this)) {
+                // Collateral router: add hook fee to charge
+                charge += hookFee;
+            } else {
+                // Synthetic router: pull hook fee tokens separately
+                IERC20(_token).safeTransferFrom(
+                    msg.sender,
+                    address(this),
+                    hookFee
+                );
+            }
+
+            // Approve fee hook to pull fee tokens
+            IERC20(_token).approve(_feeHook, hookFee);
+        }
+
         _transferFromSender(charge);
+
         if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
             _transferFee(_feeRecipient, feeAmount);
         }
-        remainingNativeValue = token() != address(0)
+
+        // Calculate remaining native value for other hooks
+        // When token() is ERC20 (non-native), all native value is available for other hooks
+        // When token() is native (address(0)), subtract the charge from msg.value
+        remainingNativeValue = _token != address(0)
             ? _msgValue
             : _msgValue - charge;
     }
 
-    // Emits the SentTransferRemote event and dispatches the message.
+    // Convenience overload that computes feeHook() internally.
+    function _calculateFeesAndCharge(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _msgValue
+    ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
+        return
+            _calculateFeesAndCharge(
+                _destination,
+                _recipient,
+                _amount,
+                _msgValue,
+                feeHook()
+            );
+    }
+
+    // Emits the SentTransferRemote event and dispatches the message with explicit feeToken.
     function _emitAndDispatch(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         uint256 _messageDispatchValue,
-        bytes memory _tokenMessage
+        bytes memory _tokenMessage,
+        address _feeToken
     ) internal returns (bytes32 messageId) {
         // effects
         emit SentTransferRemote(_destination, _recipient, _amount);
@@ -212,9 +308,29 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             _destination,
             _messageDispatchValue,
             _tokenMessage,
-            _GasRouter_hookMetadata(_destination),
+            _generateHookMetadata(_destination, _feeToken),
             address(hook)
         );
+    }
+
+    // Convenience overload that computes feeToken from feeHook().
+    function _emitAndDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _messageDispatchValue,
+        bytes memory _tokenMessage
+    ) internal returns (bytes32 messageId) {
+        address _feeToken = feeToken();
+        return
+            _emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _messageDispatchValue,
+                _tokenMessage,
+                _feeToken
+            );
     }
 
     // ===========================
@@ -240,6 +356,47 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function feeRecipient() public view virtual returns (address) {
         return FEE_RECIPIENT_SLOT.getAddressSlot().value;
+    }
+
+    /**
+     * @notice Initializes the TokenRouter with fee hook configuration.
+     * @param _feeHook The fee hook contract address.
+     */
+    function _TokenRouter_initialize(address _feeHook) internal {
+        _setFeeHook(_feeHook);
+    }
+
+    /**
+     * @notice Sets the fee hook contract address.
+     * @param _feeHook The fee hook address.
+     */
+    function setFeeHook(address _feeHook) external onlyOwner {
+        _setFeeHook(_feeHook);
+    }
+
+    /**
+     * @notice Internal function to set the fee hook address.
+     * @param _feeHook The fee hook address.
+     */
+    function _setFeeHook(address _feeHook) internal {
+        FEE_HOOK_SLOT.getAddressSlot().value = _feeHook;
+        emit FeeHookSet(_feeHook);
+    }
+
+    /**
+     * @notice Returns the fee hook contract address.
+     * @return The fee hook address.
+     */
+    function feeHook() public view returns (address) {
+        return FEE_HOOK_SLOT.getAddressSlot().value;
+    }
+
+    /**
+     * @notice Returns the fee token address for gas payments.
+     * @return The token address if a fee hook is configured, otherwise address(0) for native payments.
+     */
+    function feeToken() public view returns (address) {
+        return feeHook() != address(0) ? token() : address(0);
     }
 
     // To be overridden by derived contracts if they have additional fees
@@ -304,7 +461,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
-     * @return payment How much native value to send in transferRemote call.
+     * @return payment How much value to send in transferRemote call (native or feeToken based on config).
      * @dev This function is intended to be overridden by derived contracts that trigger multiple messages.
      * Known overrides:
      * - OPL2ToL1TokenBridgeNative: Quote for two messages (prove and finalize).
@@ -312,14 +469,35 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
+        uint256 _amount,
+        address _feeToken
     ) internal view virtual returns (uint256) {
         return
             _Router_quoteDispatch(
                 _destination,
                 TokenMessage.format(_recipient, _amount),
-                _GasRouter_hookMetadata(_destination),
+                _generateHookMetadata(_destination, _feeToken),
                 address(hook)
+            );
+    }
+
+    /**
+     * @notice Generates hook metadata for dispatch, including feeToken if configured.
+     * @param _destination The destination chain.
+     * @param _feeToken The fee token address (address(0) for native).
+     * @return Hook metadata with the specified feeToken.
+     */
+    function _generateHookMetadata(
+        uint32 _destination,
+        address _feeToken
+    ) internal view returns (bytes memory) {
+        uint256 gasLimit = destinationGas[_destination];
+        return
+            StandardHookMetadata.formatWithFeeToken(
+                0,
+                gasLimit,
+                msg.sender,
+                _feeToken
             );
     }
 
@@ -383,25 +561,41 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @dev Scales local amount to message amount (up by scale factor).
+     * @dev Scales local amount to message amount by the scale fraction.
+     * Applies: messageAmount = (localAmount * scaleNumerator) / scaleDenominator
+     * - If scaleNumerator > scaleDenominator: scales up (e.g., 2/1)
+     * - If scaleNumerator < scaleDenominator: scales down (e.g., 1/2)
+     * - If scaleNumerator == scaleDenominator: no scaling (e.g., 1/1)
      * Known overrides:
      * - HypERC4626: Scales by exchange rate
      */
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual returns (uint256 _messageAmount) {
-        _messageAmount = _localAmount * scale;
+        _messageAmount = _localAmount.mulDiv(
+            scaleNumerator,
+            scaleDenominator,
+            Math.Rounding.Down
+        );
     }
 
     /**
-     * @dev Scales message amount to local amount (down by scale factor).
+     * @dev Scales message amount to local amount by the inverse scale fraction.
+     * Applies: localAmount = (messageAmount * scaleDenominator) / scaleNumerator
+     * - If scaleNumerator > scaleDenominator: scales down (e.g., 1/2 for 2/1 outbound)
+     * - If scaleNumerator < scaleDenominator: scales up (e.g., 2/1 for 1/2 outbound)
+     * - If scaleNumerator == scaleDenominator: no scaling (e.g., 1/1)
      * Known overrides:
      * - HypERC4626: Scales by exchange rate
      */
     function _inboundAmount(
         uint256 _messageAmount
     ) internal view virtual returns (uint256 _localAmount) {
-        _localAmount = _messageAmount / scale;
+        _localAmount = _messageAmount.mulDiv(
+            scaleDenominator,
+            scaleNumerator,
+            Math.Rounding.Down
+        );
     }
 
     /**

@@ -169,6 +169,9 @@ export class CosmosIgpHookWriter
     // Read current state
     const currentState = await this.read(deployed.address);
 
+    // This is the address that has to execute the update transactions
+    const currentOwnerAddress = currentState.config.owner;
+
     // Update destination gas configs
     for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
       const parsedDomainId = parseInt(domainId);
@@ -183,7 +186,7 @@ export class CosmosIgpHookWriter
 
       if (needsUpdate) {
         const setConfigTx = getSetIgpDestinationGasConfigTx(
-          this.signer.getSignerAddress(),
+          currentOwnerAddress,
           {
             igpAddress: deployed.address,
             destinationGasConfig: {
@@ -206,7 +209,7 @@ export class CosmosIgpHookWriter
 
     // Check if owner needs to be updated
     if (!eqAddressCosmos(currentState.config.owner, config.owner)) {
-      const setOwnerTx = getSetIgpOwnerTx(this.signer.getSignerAddress(), {
+      const setOwnerTx = getSetIgpOwnerTx(currentOwnerAddress, {
         igpAddress: deployed.address,
         newOwner: config.owner,
       });

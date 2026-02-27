@@ -35,12 +35,13 @@ export function hyperlaneCoreDeployRaw(
 export async function hyperlaneCoreDeploy(
   chain: string,
   coreInputPath: string,
+  key: string = ANVIL_KEY,
 ) {
   return $`${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        --key ${key} \
         --verbosity debug \
         --yes`;
 }
@@ -134,7 +135,7 @@ export async function deployOrUseExistingCore(
   const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
 
   if (!addresses) {
-    await hyperlaneCoreDeploy(chain, coreInputPath);
+    await hyperlaneCoreDeploy(chain, coreInputPath, key);
     return deployOrUseExistingCore(chain, coreInputPath, key);
   }
 

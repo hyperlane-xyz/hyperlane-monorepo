@@ -149,6 +149,9 @@ export class CosmosRoutingIsmRawWriter
 
     const transactions: AnnotatedEncodeObject[] = [];
 
+    // This is the address that has to execute the update transactions
+    const currentOwnerAddress = currentConfig.config.owner;
+
     // Find domains to add or update
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
@@ -162,13 +165,10 @@ export class CosmosRoutingIsmRawWriter
         isNullish(currentIsmAddress) ||
         !eqAddressCosmos(currentIsmAddress, expectedIsmAddress)
       ) {
-        const transaction = await getSetRoutingIsmRouteTx(
-          this.signer.getSignerAddress(),
-          {
-            ismAddress: deployed.address,
-            domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
-          },
-        );
+        const transaction = await getSetRoutingIsmRouteTx(currentOwnerAddress, {
+          ismAddress: deployed.address,
+          domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
+        });
 
         transactions.push(transaction);
       }
@@ -181,7 +181,7 @@ export class CosmosRoutingIsmRawWriter
 
       if (isNullish(desiredIsmAddress)) {
         const transaction = await getRemoveRoutingIsmRouteTx(
-          this.signer.getSignerAddress(),
+          currentOwnerAddress,
           {
             ismAddress: deployed.address,
             domainId: domain,
@@ -194,13 +194,10 @@ export class CosmosRoutingIsmRawWriter
 
     // Owner transfer must be last transaction as the current owner executes all updates
     if (!eqAddressCosmos(config.owner, currentConfig.config.owner)) {
-      const transaction = await getSetRoutingIsmOwnerTx(
-        this.signer.getSignerAddress(),
-        {
-          ismAddress: deployed.address,
-          newOwner: config.owner,
-        },
-      );
+      const transaction = await getSetRoutingIsmOwnerTx(currentOwnerAddress, {
+        ismAddress: deployed.address,
+        newOwner: config.owner,
+      });
 
       transactions.push(transaction);
     }

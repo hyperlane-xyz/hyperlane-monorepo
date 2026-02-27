@@ -185,6 +185,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const tx = await contract.deploy(
         collateral.address,
         1,
+        1,
         chain2Addresses.mailbox,
       );
 
