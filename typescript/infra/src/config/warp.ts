@@ -78,8 +78,12 @@ export const tokens = {
     USDCe: '0xF1815bd50389c46847f0Bda824eC8da914045D14',
     USDC: '0x2D270e6886d130D724215A266106e6832161EAEd',
   },
+  plasma: {
+    USDT: '0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb',
+  },
   solanamainnet: {
     USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
   },
 };
 
