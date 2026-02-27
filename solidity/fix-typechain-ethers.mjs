@@ -24,11 +24,11 @@ if (!dirs.length) {
 function walk(dir) {
   const files = [];
   for (const entry of readdirSync(dir)) {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) {
-      files.push(...walk(path));
-    } else if (path.endsWith('.js')) {
-      files.push(path);
+    const fullPath = join(dir, entry);
+    if (statSync(fullPath).isDirectory()) {
+      files.push(...walk(fullPath));
+    } else if (fullPath.endsWith('.js')) {
+      files.push(fullPath);
     }
   }
   return files;
@@ -68,3 +68,15 @@ for (const dir of dirs) {
 }
 
 console.log(`Fixed ethers compat in ${fixedCount} typechain factories`);
+
+// Verify no remaining utils imports from ethers — fail loudly if patterns drift.
+const allFiles = dirs.filter(existsSync).flatMap(walk);
+const remaining = allFiles.filter((f) => {
+  const c = readFileSync(f, 'utf8');
+  return /\butils\b/.test(c) && /from "ethers"/.test(c);
+});
+if (remaining.length > 0) {
+  console.error('ERROR: Files still contain utils imports from ethers:');
+  remaining.forEach((f) => console.error(`  ${f}`));
+  process.exit(1);
+}
