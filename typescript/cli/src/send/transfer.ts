@@ -206,10 +206,12 @@ async function executeDelivery({
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
+    if (tx.type === ProviderType.EthersV5 || tx.type === ProviderType.Evm) {
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
+    } else {
+      throw new Error(`Unsupported transfer tx type: ${tx.type}`);
     }
   }
   assert(
