@@ -582,3 +582,4 @@ The VM snapshot has Node.js v24 (via nvm), pnpm 10.30.2 (via corepack), Rust 1.8
 - **Docker**: Must be installed separately in Cloud VMs (not in the snapshot). Use fuse-overlayfs storage driver and iptables-legacy for nested container support.
 - **Rust agents**: `cd rust/main && cargo build` / `cargo test`. The rust-toolchain file auto-selects Rust 1.88.0.
 - **pnpm build scripts warning**: pnpm v10 shows "Ignored build scripts" warnings for native addons (esbuild, keccak, secp256k1, etc.). This is expected and does not block builds or tests.
+- **Rust system deps**: Building Rust agents requires `libssl-dev`, `pkg-config`, and `libstdc++-14-dev` (for RocksDB). These are pre-installed in the snapshot.
