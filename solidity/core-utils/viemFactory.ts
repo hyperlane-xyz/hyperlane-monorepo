@@ -74,6 +74,10 @@ type WidenHexArgs<TArgs extends readonly unknown[]> = {
   [TIndex in keyof TArgs]: WidenCompatLike<TArgs[TIndex]>;
 };
 
+type FunctionsReadResult<TReturn> = TReturn extends readonly unknown[]
+  ? TReturn
+  : readonly [TReturn];
+
 type ContractMethodArgs<
   TAbi extends Abi,
   TMutability extends AnyFunctionMutability,
@@ -91,6 +95,20 @@ export type ContractMethodMap<TAbi extends Abi> = {
   [TName in ReadFunctionNames<TAbi>]: (
     ...args: ContractMethodArgs<TAbi, ReadFunctionMutability, TName>
   ) => Promise<ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>>;
+} & {
+  [TName in WriteFunctionNames<TAbi>]: (
+    ...args: ContractMethodArgs<TAbi, WriteFunctionMutability, TName>
+  ) => Promise<ContractWriteResult>;
+};
+
+export type ContractFunctionsMethodMap<TAbi extends Abi> = {
+  [TName in ReadFunctionNames<TAbi>]: (
+    ...args: ContractMethodArgs<TAbi, ReadFunctionMutability, TName>
+  ) => Promise<
+    FunctionsReadResult<
+      ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>
+    >
+  >;
 } & {
   [TName in WriteFunctionNames<TAbi>]: (
     ...args: ContractMethodArgs<TAbi, WriteFunctionMutability, TName>
@@ -197,7 +215,7 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
   address: string;
   interface: ViemInterface;
   estimateGas: ContractEstimateGasMap<TAbi>;
-  functions: ContractMethodMap<TAbi>;
+  functions: ContractFunctionsMethodMap<TAbi>;
   queryFilter: <T = Record<string, unknown>>(
     filter: Record<string, unknown>,
     fromBlock?: unknown,
@@ -1305,6 +1323,10 @@ function normalizeWriteResult(result: unknown): unknown {
   return result;
 }
 
+function normalizeFunctionsReadResult(result: unknown): unknown {
+  return Array.isArray(result) ? result : [result];
+}
+
 export function createContractProxy<TAbi extends Abi>(
   address: string,
   abi: TAbi,
@@ -1331,7 +1353,9 @@ export function createContractProxy<TAbi extends Abi>(
         normalizedArgs,
         overrides,
       );
-      return options.wrapReadResultInArray ? [readResult] : readResult;
+      return options.wrapReadResultInArray
+        ? normalizeFunctionsReadResult(readResult)
+        : readResult;
     }
 
     const request = await withRunnerFrom(runner, {
@@ -1379,7 +1403,7 @@ export function createContractProxy<TAbi extends Abi>(
         return !!getFunctionAbi(abi, prop);
       },
     },
-  ) as ContractMethodMap<TAbi>;
+  ) as ContractFunctionsMethodMap<TAbi>;
 
   const contract = {
     address,
