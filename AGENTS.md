@@ -566,3 +566,19 @@ If output seems wrong, check:
 2. **Did I search for existing patterns?** The codebase likely has examples
 3. **Am I using stale context?** Re-read files that may have changed
 4. **Did I verify the error message?** Run the command and read actual output
+
+## Cursor Cloud specific instructions
+
+### Environment prerequisites
+
+The VM snapshot has Node.js v24 (via nvm), pnpm 10.30.2 (via corepack), Rust 1.88.0 (via rustup), and Foundry (forge/anvil/cast) pre-installed. The update script runs `pnpm install` on startup.
+
+### Running services
+
+- **TypeScript/Solidity**: All commands per `CLAUDE.md` Quick Reference work. Run `pnpm build` before tests if packages changed.
+- **Lint**: Use `pnpm lint --concurrency=2` to avoid OOM on memory-constrained VMs. The default parallelism can trigger the OOM killer.
+- **Solidity forge tests**: 8 fork tests (`CCIPIsm`, `TokenBridgeCctp`) require `RPC_URL_MAINNET` and `RPC_URL_BASE` env vars; all other tests pass without them.
+- **CLI e2e tests** (`pnpm -C typescript/cli test:ethereum:e2e`): Require Docker. The full suite takes 15-30+ minutes. For quick validation, deploy core contracts on a local anvil chain using the CLI directly (see example config at `typescript/cli/examples/core-config.yaml`).
+- **Docker**: Must be installed separately in Cloud VMs (not in the snapshot). Use fuse-overlayfs storage driver and iptables-legacy for nested container support.
+- **Rust agents**: `cd rust/main && cargo build` / `cargo test`. The rust-toolchain file auto-selects Rust 1.88.0.
+- **pnpm build scripts warning**: pnpm v10 shows "Ignored build scripts" warnings for native addons (esbuild, keccak, secp256k1, etc.). This is expected and does not block builds or tests.
