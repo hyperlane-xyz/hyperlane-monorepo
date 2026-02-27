@@ -74,9 +74,23 @@ type WidenHexArgs<TArgs extends readonly unknown[]> = {
   [TIndex in keyof TArgs]: WidenCompatLike<TArgs[TIndex]>;
 };
 
-type FunctionsReadResult<TReturn> = TReturn extends readonly unknown[]
-  ? TReturn
-  : readonly [TReturn];
+type FunctionOutputLength<
+  TAbi extends Abi,
+  TMutability extends AnyFunctionMutability,
+  TName extends ContractFunctionName<TAbi, TMutability>,
+> = Extract<
+  TAbi[number],
+  { type: 'function'; name: TName; stateMutability: TMutability }
+> extends infer TFunction
+  ? TFunction extends { outputs: readonly unknown[] }
+    ? TFunction['outputs']['length']
+    : never
+  : never;
+
+type FunctionsReadResult<TAbi extends Abi, TName extends ReadFunctionNames<TAbi>> =
+  FunctionOutputLength<TAbi, ReadFunctionMutability, TName> extends 1
+    ? readonly [ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>]
+    : ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>;
 
 type ContractMethodArgs<
   TAbi extends Abi,
@@ -104,11 +118,7 @@ export type ContractMethodMap<TAbi extends Abi> = {
 export type ContractFunctionsMethodMap<TAbi extends Abi> = {
   [TName in ReadFunctionNames<TAbi>]: (
     ...args: ContractMethodArgs<TAbi, ReadFunctionMutability, TName>
-  ) => Promise<
-    FunctionsReadResult<
-      ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>
-    >
-  >;
+  ) => Promise<FunctionsReadResult<TAbi, TName>>;
 } & {
   [TName in WriteFunctionNames<TAbi>]: (
     ...args: ContractMethodArgs<TAbi, WriteFunctionMutability, TName>
@@ -1323,8 +1333,12 @@ function normalizeWriteResult(result: unknown): unknown {
   return result;
 }
 
-function normalizeFunctionsReadResult(result: unknown): unknown {
-  return Array.isArray(result) ? result : [result];
+function normalizeFunctionsReadResult(
+  result: unknown,
+  outputCount: number,
+): unknown {
+  if (outputCount === 1) return [result];
+  return result;
 }
 
 export function createContractProxy<TAbi extends Abi>(
@@ -1354,7 +1368,7 @@ export function createContractProxy<TAbi extends Abi>(
         overrides,
       );
       return options.wrapReadResultInArray
-        ? normalizeFunctionsReadResult(readResult)
+        ? normalizeFunctionsReadResult(readResult, fn.outputs.length)
         : readResult;
     }
 
