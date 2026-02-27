@@ -602,7 +602,10 @@ describe('Inventory WeightedStrategy E2E', function () {
       await context.tracker.getActiveRebalanceIntents();
     expect(secondCycleIntents.length).to.equal(1);
     expect(secondCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
-    expect(secondCycleIntents[0].amount > 0n).to.be.true;
+    expect(
+      secondCycleIntents[0].amount > 0n,
+      'Second cycle intent should have a positive amount',
+    ).to.be.true;
     expect(
       secondCycleIntents[0].amount <= WEIGHTED_EXPECTED_DEFICIT_2ETH,
       'Second cycle intent should not exceed the original deficit',
