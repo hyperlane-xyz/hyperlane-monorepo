@@ -145,12 +145,14 @@ export class LiFiBridge implements IExternalBridge {
       throw new Error('Must specify either fromAmount or toAmount');
     }
 
-    if (params.fromAmount !== undefined && params.fromAmount <= 0n) {
-      throw new Error('fromAmount must be positive');
-    }
-    if (params.toAmount !== undefined && params.toAmount <= 0n) {
-      throw new Error('toAmount must be positive');
-    }
+    assert(
+      params.fromAmount === undefined || params.fromAmount > 0n,
+      'fromAmount must be positive',
+    );
+    assert(
+      params.toAmount === undefined || params.toAmount > 0n,
+      'toAmount must be positive',
+    );
 
     // Dispatch to appropriate quote method
     if (params.toAmount !== undefined) {
