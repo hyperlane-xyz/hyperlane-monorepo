@@ -9,6 +9,7 @@ import {
 } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type {
   BridgeConfigWithOverride,
   InventoryBridgeConfig,
@@ -41,6 +42,7 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     minAmountsByChain?: ChainMap<bigint>,
+    actionTracker?: IActionTracker,
   ): IStrategy {
     if (strategyConfigs.length === 0) {
       throw new Error('At least one strategy must be configured');
@@ -55,6 +57,7 @@ export class StrategyFactory {
         logger,
         metrics,
         minAmountsByChain,
+        actionTracker,
       );
     }
 
@@ -67,6 +70,7 @@ export class StrategyFactory {
         logger,
         metrics,
         minAmountsByChain,
+        actionTracker,
       ),
     );
     return new CompositeStrategy(subStrategies, logger);
@@ -82,6 +86,7 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     _minAmountsByChain?: ChainMap<bigint>,
+    _actionTracker?: IActionTracker,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 
@@ -112,6 +117,15 @@ export class StrategyFactory {
           logger,
           bridgeConfigs,
           metrics,
+        );
+      }
+      case RebalancerStrategyOptions.EMAFlow:
+      case RebalancerStrategyOptions.VelocityFlow:
+      case RebalancerStrategyOptions.ThresholdFlow:
+      case RebalancerStrategyOptions.AccelerationFlow: {
+        // Strategy classes will be implemented in Tasks 6-9
+        throw new Error(
+          `Flow-reactive strategy '${strategyConfig.rebalanceStrategy}' not yet implemented`,
         );
       }
       default: {
