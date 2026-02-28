@@ -16,8 +16,7 @@ import {
   productionOwnersByChain,
 } from './getEclipseUSDCWarpConfig.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { getUSDCRebalancingBridgesConfigFor, REBALANCER } from './utils.js';
-import { WarpRouteIds } from '../warpIds.js';
+import { REBALANCER } from './utils.js';
 
 const awProxyAdminOwners: ChainMap<string> = {
   ethereum: awSafes.ethereum,
@@ -49,13 +48,6 @@ const evmScaleOverrides: Record<
 > = {
   bsc: { numerator: 1, denominator: 1e12 },
 };
-
-const rebalanceableCollateralChains = [
-  'arbitrum',
-  'ethereum',
-  // 'plasma',
-  // 'bsc
-];
 
 export const getEclipseEthereumSolanaUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
