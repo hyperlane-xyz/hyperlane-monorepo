@@ -128,21 +128,27 @@ export function createMockBridgeQuote(
   const route = overrides?.route as
     | { action?: { fromChainId?: number; toChainId?: number } }
     | undefined;
-  const fromChainId = (route?.action?.fromChainId ?? 42161) as number;
-  const toChainId = (route?.action?.toChainId ?? 1399811149) as number;
-  const fromAmount = overrides?.fromAmount ?? 10000000000n;
-  const toAmount = overrides?.toAmount ?? 9950000000n;
-  const toAmountMin = overrides?.toAmountMin ?? 9900000000n;
 
   const defaultRequestParams: BridgeQuoteParams = {
-    fromChain: fromChainId,
-    toChain: toChainId,
+    fromChain: 42161,
+    toChain: 1399811149,
     fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
     toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
     fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-    fromAmount,
+    fromAmount: 10000000000n,
   };
+  const requestParams: BridgeQuoteParams = {
+    ...defaultRequestParams,
+    ...overrides?.requestParams,
+  };
+
+  const fromChainId = route?.action?.fromChainId ?? requestParams.fromChain;
+  const toChainId = route?.action?.toChainId ?? requestParams.toChain;
+  const fromAmount =
+    overrides?.fromAmount ?? requestParams.fromAmount ?? 10000000000n;
+  const toAmount = overrides?.toAmount ?? 9950000000n;
+  const toAmountMin = overrides?.toAmountMin ?? 9900000000n;
 
   return {
     id: 'quote-123',
@@ -158,14 +164,14 @@ export function createMockBridgeQuote(
       action: { fromChainId, toChainId },
       fromChainId,
       toChainId,
-      fromToken: { address: defaultRequestParams.fromToken },
-      toToken: { address: defaultRequestParams.toToken },
-      fromAddress: defaultRequestParams.fromAddress,
-      toAddress:
-        defaultRequestParams.toAddress ?? defaultRequestParams.fromAddress,
+      fromToken: { address: requestParams.fromToken },
+      toToken: { address: requestParams.toToken },
+      fromAddress: requestParams.fromAddress,
+      toAddress: requestParams.toAddress ?? requestParams.fromAddress,
       fromAmount: fromAmount.toString(),
+      toAmount: toAmount.toString(),
     },
-    requestParams: overrides?.requestParams ?? defaultRequestParams,
+    requestParams,
     ...overrides,
   };
 }
