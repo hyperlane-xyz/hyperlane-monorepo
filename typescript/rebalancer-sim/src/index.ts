@@ -36,6 +36,7 @@ export { SimulationRegistry } from './runners/SimulationRegistry.js';
 
 // Visualization
 export { generateTimelineHtml } from './visualizer/HtmlTimelineGenerator.js';
+export { generateFlowReactiveComparisonHtml } from './visualizer/FlowReactiveVisualization.js';
 
 // Types - explicit exports for tree-shaking
 export type {
