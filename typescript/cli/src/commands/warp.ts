@@ -27,7 +27,11 @@ import {
   type CommandModuleWithWarpDeployContext,
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
-import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
+import {
+  runWarpRouteApply,
+  runWarpRouteCombine,
+  runWarpRouteDeploy,
+} from '../deploy/warp.js';
 import { runWarpRouteFees } from '../fees/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
@@ -77,6 +81,7 @@ export const warpCommand: CommandModule = {
     yargs
       .command(apply)
       .command(check)
+      .command(combine)
       .command(deploy)
       .command(fork)
       .command(getFees)
@@ -181,6 +186,40 @@ export const deploy: CommandModuleWithWarpDeployContext<SelectWarpRouteBuilder> 
       process.exit(0);
     },
   };
+
+const combine: CommandModuleWithWriteContext<{
+  routes: string;
+  'output-warp-route-id'?: string;
+}> = {
+  command: 'combine',
+  describe:
+    'Combine multiple MultiCollateral warp routes, updating deploy configs with cross-route enrolledRouters',
+  builder: {
+    routes: {
+      type: 'string',
+      description:
+        'Comma-separated warp route IDs to combine (e.g., "USDC/eth-arb,USDT/eth-arb")',
+      demandOption: true,
+    },
+    'output-warp-route-id': {
+      type: 'string',
+      description:
+        'Warp route ID for the merged WarpCoreConfig (defaults to MULTI/route1+route2)',
+      demandOption: false,
+    },
+  },
+  handler: async ({ context, routes, 'output-warp-route-id': outputId }) => {
+    logCommandHeader('Hyperlane Warp Combine');
+
+    const routeIds = routes.split(',').map((r) => r.trim());
+    await runWarpRouteCombine({
+      context,
+      routeIds,
+      outputWarpRouteId: outputId,
+    });
+    process.exit(0);
+  },
+};
 
 export const init: CommandModuleWithContext<{
   advanced: boolean;

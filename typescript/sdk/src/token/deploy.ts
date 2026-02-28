@@ -7,6 +7,7 @@ import {
   GasRouter,
   IMessageTransmitter__factory,
   MovableCollateralRouter__factory,
+  MultiCollateral__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
@@ -70,6 +71,7 @@ import {
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isMultiCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
@@ -156,7 +158,11 @@ abstract class TokenDeployer<
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const { numerator, denominator } = normalizeScale(config.scale);
 
-    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isMultiCollateralTokenConfig(config)
+    ) {
       return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
       return [
@@ -248,7 +254,8 @@ abstract class TokenDeployer<
     if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isNativeTokenConfig(config)
+      isNativeTokenConfig(config) ||
+      isMultiCollateralTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -637,6 +644,57 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async enrollRouters(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isMultiCollateralTokenConfig(config)) {
+          return;
+        }
+        if (
+          !config.enrolledRouters ||
+          Object.keys(config.enrolledRouters).length === 0
+        ) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const mc = MultiCollateral__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedRouters = resolveRouterMapConfig(
+          this.multiProvider,
+          config.enrolledRouters,
+        );
+
+        const domains: number[] = [];
+        const routers: string[] = [];
+        for (const [domainId, routerAddresses] of Object.entries(
+          resolvedRouters,
+        )) {
+          for (const routerAddr of routerAddresses) {
+            domains.push(Number(domainId));
+            routers.push(addressToBytes32(routerAddr));
+          }
+        }
+
+        if (domains.length > 0) {
+          this.logger.info(
+            `Batch enrolling ${domains.length} routers for ${chain}`,
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            mc.enrollRouters(domains, routers),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -680,6 +738,8 @@ abstract class TokenDeployer<
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.enrollRouters(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

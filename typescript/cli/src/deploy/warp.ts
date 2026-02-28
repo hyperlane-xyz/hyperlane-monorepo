@@ -23,6 +23,7 @@ import {
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
+  type MultiCollateralTokenConfig,
   type MultiProvider,
   type MultisigIsmConfig,
   type OpStackIsmConfig,
@@ -47,12 +48,14 @@ import {
   getSubmitterBuilder,
   getTokenConnectionId,
   isCollateralTokenConfig,
+  isMultiCollateralTokenConfig,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
+  addressToBytes32,
   assert,
   mapAllSettled,
   mustGet,
@@ -385,8 +388,10 @@ function generateTokenConfigs(
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
-      isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
-        ? config.token // gets set in the above deriveTokenMetadata()
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isMultiCollateralTokenConfig(config)
+        ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 
     const protocol = multiProvider.getProtocol(chainName);
@@ -1236,4 +1241,99 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     }),
     config: submissionStrategy,
   };
+}
+
+/**
+ * Combines multiple warp routes into a single merged WarpCoreConfig and updates
+ * each route's deploy config with cross-route enrolledRouters.
+ */
+export async function runWarpRouteCombine({
+  context,
+  routeIds,
+  outputWarpRouteId,
+}: {
+  context: WriteCommandContext;
+  routeIds: string[];
+  outputWarpRouteId?: string;
+}): Promise<void> {
+  assert(routeIds.length >= 2, 'At least 2 route IDs are required to combine');
+
+  // 1. Read each route's WarpCoreConfig and deploy config
+  const routes: Array<{
+    id: string;
+    coreConfig: WarpCoreConfig;
+    deployConfig: WarpRouteDeployConfigMailboxRequired;
+  }> = [];
+
+  for (const id of routeIds) {
+    const coreConfig = await context.registry.getWarpRoute(id);
+    assert(coreConfig, `Warp route "${id}" not found in registry`);
+    const deployConfig = await context.registry.getWarpDeployConfig(id);
+    assert(deployConfig, `Deploy config for "${id}" not found in registry`);
+    routes.push({
+      id,
+      coreConfig,
+      deployConfig: deployConfig as WarpRouteDeployConfigMailboxRequired,
+    });
+  }
+
+  // 2. For each route, update enrolledRouters with routers from other routes
+  for (const route of routes) {
+    for (const [chain, chainConfig] of Object.entries(route.deployConfig)) {
+      if (!isMultiCollateralTokenConfig(chainConfig)) continue;
+
+      const mcConfig = chainConfig as MultiCollateralTokenConfig;
+      const enrolledRouters: Record<string, string[]> =
+        mcConfig.enrolledRouters ?? {};
+
+      // Look at all OTHER routes
+      for (const otherRoute of routes) {
+        if (otherRoute.id === route.id) continue;
+
+        // For each token in the other route, add its router to this route's enrolledRouters
+        for (const otherToken of otherRoute.coreConfig.tokens) {
+          const otherDomain = context.multiProvider
+            .getDomainId(otherToken.chainName)
+            .toString();
+          const otherRouter = addressToBytes32(otherToken.addressOrDenom!);
+
+          enrolledRouters[otherDomain] ??= [];
+          if (!enrolledRouters[otherDomain].includes(otherRouter)) {
+            enrolledRouters[otherDomain].push(otherRouter);
+          }
+        }
+      }
+
+      (route.deployConfig[chain] as any).enrolledRouters = enrolledRouters;
+    }
+
+    // Write updated deploy config back
+    await context.registry.addWarpRouteConfig(route.deployConfig, {
+      warpRouteId: route.id,
+    });
+    log(`Updated deploy config for route "${route.id}"`);
+  }
+
+  // 3. Create merged WarpCoreConfig with all tokens
+  const mergedConfig: WarpCoreConfig = { tokens: [] };
+
+  for (const route of routes) {
+    for (const token of route.coreConfig.tokens) {
+      mergedConfig.tokens.push({ ...token, connections: [] });
+    }
+  }
+
+  // Full mesh connections (every token → every other token)
+  fullyConnectTokens(mergedConfig, context.multiProvider);
+
+  // 4. Write merged WarpCoreConfig
+  const mergedId =
+    outputWarpRouteId ??
+    `MULTI/${routes.map((r) => r.id.replace(/\//g, '-')).join('+')}`;
+  await context.registry.addWarpRoute(mergedConfig, { warpRouteId: mergedId });
+
+  logGreen(`✅ Combined ${routes.length} routes into "${mergedId}"`);
+  log(
+    `Run "warp apply" for each route to apply on-chain enrollment:\n${routes.map((r) => `  hyperlane warp apply --warp-route-id ${r.id}`).join('\n')}`,
+  );
 }
