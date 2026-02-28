@@ -250,6 +250,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
+      case TokenType.multiCollateral:
         result[chain] = {
           type,
           owner,
@@ -326,17 +327,6 @@ export async function createWarpRouteDeployConfig({
           proxyAdmin,
           interchainSecurityModule,
           isNft: false,
-        };
-        break;
-      case TokenType.multiCollateral:
-        result[chain] = {
-          type,
-          owner,
-          proxyAdmin,
-          interchainSecurityModule,
-          token: await input({
-            message: `Enter the existing token address on chain ${chain}`,
-          }),
         };
         break;
       default:
