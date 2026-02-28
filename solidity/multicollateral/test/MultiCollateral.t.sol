@@ -21,6 +21,7 @@ import {MockHyperlaneEnvironment} from "@hyperlane-xyz/core/mock/MockHyperlaneEn
 import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
 import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
 import {ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
+import {IPostDispatchHook} from "@hyperlane-xyz/core/interfaces/hooks/IPostDispatchHook.sol";
 
 import {MultiCollateral} from "../contracts/MultiCollateral.sol";
 import {MultiCollateralRoutingFee} from "../contracts/MultiCollateralRoutingFee.sol";
@@ -56,6 +57,31 @@ contract MockDepositFee is ITokenFee, IMultiCollateralFee {
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote(token, (_amount * feeBps) / 10000);
+    }
+}
+
+contract FixedQuoteHook is IPostDispatchHook {
+    uint256 public immutable quote;
+
+    constructor(uint256 _quote) {
+        quote = _quote;
+    }
+
+    function hookType() external pure returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function supportsMetadata(bytes calldata) external pure returns (bool) {
+        return true;
+    }
+
+    function postDispatch(bytes calldata, bytes calldata) external payable {}
+
+    function quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) external view returns (uint256) {
+        return quote;
     }
 }
 
@@ -308,6 +334,34 @@ contract MultiCollateralTest is Test {
         );
 
         assertEq(originUSDT.balanceOf(ALICE), aliceUSDTBefore + expectedUSDT);
+    }
+
+    function test_sameChain_swap_chargesFeeRecipient_notHookFees() public {
+        uint256 amount = 10000e6;
+        uint256 expectedFee = (amount * DEFAULT_FEE_BPS) / 10000;
+        FixedQuoteHook hook = new FixedQuoteHook(7e6);
+        usdcRouterA.setHook(address(hook));
+
+        uint256 aliceBefore = originUSDC.balanceOf(ALICE);
+        uint256 feeBalBefore = originUSDC.balanceOf(address(originUsdcFee));
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            amount,
+            address(usdtRouterA).addressToBytes32()
+        );
+
+        assertEq(
+            originUSDC.balanceOf(address(originUsdcFee)),
+            feeBalBefore + expectedFee
+        );
+        assertEq(
+            aliceBefore - originUSDC.balanceOf(ALICE),
+            amount + expectedFee
+        );
+        assertEq(originUSDC.balanceOf(address(hook)), 0);
     }
 
     // ============ 4. Fees on remote transfer ============

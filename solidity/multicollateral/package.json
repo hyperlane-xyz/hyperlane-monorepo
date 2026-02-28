@@ -31,6 +31,7 @@
     "build": "pnpm clean && pnpm deps:soldeer && forge build && pnpm build:typechain && tsc -p tsconfig.json",
     "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/MultiCollateral.sol/MultiCollateral.json out/MultiCollateralRoutingFee.sol/MultiCollateralRoutingFee.json out/IMultiCollateralFee.sol/IMultiCollateralFee.json",
     "clean": "rm -rf ./artifacts ./cache ./dist ./typechain ./forge-cache ./out",
+    "lint": "eslint -c ./eslint.config.mjs ./index.ts",
     "test": "pnpm deps:soldeer && forge test -vvv",
     "test:ci": "pnpm test"
   },
