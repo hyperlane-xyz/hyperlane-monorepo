@@ -138,6 +138,15 @@ RUN mkdir -p /home/$USERNAME/.local/bin && \
     rm -f "/tmp/${ARCHIVE}" /tmp/gitleaks /tmp/README.md /tmp/LICENSE
 
 # --------------------------------------------------------------------------
+# Ensure key binaries are visible in non-interactive shells
+# --------------------------------------------------------------------------
+USER root
+RUN ln -sf /home/$USERNAME/.nodenv/shims/node /usr/local/bin/node && \
+    ln -sf /home/$USERNAME/.nodenv/shims/pnpm /usr/local/bin/pnpm && \
+    ln -sf /home/$USERNAME/.nodenv/bin/corepack /usr/local/bin/corepack
+USER $USERNAME
+
+# --------------------------------------------------------------------------
 # Final setup
 # --------------------------------------------------------------------------
 # Keep WORKDIR as the user's home — the agent runner controls where the repo

@@ -1,5 +1,5 @@
 {
-  "install": "pnpm install",
+  "install": "echo $PATH\npnpm install",
   "terminals": [],
   "build": {
     "context": ".",
