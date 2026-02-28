@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -185,6 +186,7 @@ describe('EvmTokenFeeDeployer', () => {
     // Read the actual address of the deployed routing fee contract
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getChainId(TestChainName.test2),
+      constants.HashZero,
     );
 
     expect(actualLinearFeeAddress).to.equal(
@@ -224,6 +226,7 @@ describe('EvmTokenFeeDeployer', () => {
 
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getChainId(TestChainName.test2),
+      constants.HashZero,
     );
     expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
     expect(await linearFeeContract.owner()).to.equal(otherSigner.address);

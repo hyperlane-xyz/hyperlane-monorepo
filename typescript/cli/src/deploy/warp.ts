@@ -23,7 +23,6 @@ import {
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
-  type MultiCollateralTokenConfig,
   type MultiProvider,
   type MultisigIsmConfig,
   type OpStackIsmConfig,
@@ -268,7 +267,12 @@ export async function runWarpRouteDeploy({
     warpRouteIdOptions = addWarpRouteOptions;
   }
 
-  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
+  await writeDeploymentArtifacts(
+    warpCoreConfig,
+    context,
+    warpRouteIdOptions,
+    warpDeployConfig,
+  );
 
   await completeDeploy(
     context,
@@ -327,9 +331,18 @@ async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
   addWarpRouteOptions?: AddWarpRouteConfigOptions,
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired,
 ) {
   log('Writing deployment artifacts...');
   await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
+
+  // Save deploy config so `warp combine` can read it later
+  if (warpDeployConfig && addWarpRouteOptions) {
+    await context.registry.addWarpRouteConfig(
+      warpDeployConfig,
+      addWarpRouteOptions,
+    );
+  }
 
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
@@ -1254,7 +1267,7 @@ export async function runWarpRouteCombine({
 }: {
   context: WriteCommandContext;
   routeIds: string[];
-  outputWarpRouteId?: string;
+  outputWarpRouteId: string;
 }): Promise<void> {
   assert(routeIds.length >= 2, 'At least 2 route IDs are required to combine');
 
@@ -1282,9 +1295,7 @@ export async function runWarpRouteCombine({
     for (const [chain, chainConfig] of Object.entries(route.deployConfig)) {
       if (!isMultiCollateralTokenConfig(chainConfig)) continue;
 
-      const mcConfig = chainConfig as MultiCollateralTokenConfig;
-      const enrolledRouters: Record<string, string[]> =
-        mcConfig.enrolledRouters ?? {};
+      const enrolledRouters: Record<string, Set<string>> = {};
 
       // Look at all OTHER routes
       for (const otherRoute of routes) {
@@ -1297,14 +1308,22 @@ export async function runWarpRouteCombine({
             .toString();
           const otherRouter = addressToBytes32(otherToken.addressOrDenom!);
 
-          enrolledRouters[otherDomain] ??= [];
-          if (!enrolledRouters[otherDomain].includes(otherRouter)) {
-            enrolledRouters[otherDomain].push(otherRouter);
-          }
+          enrolledRouters[otherDomain] ??= new Set();
+          enrolledRouters[otherDomain].add(otherRouter);
         }
       }
 
-      (route.deployConfig[chain] as any).enrolledRouters = enrolledRouters;
+      const reconciledEnrolledRouters = Object.fromEntries(
+        Object.entries(enrolledRouters).map(([domain, routers]) => [
+          domain,
+          [...routers],
+        ]),
+      );
+
+      (route.deployConfig[chain] as any).enrolledRouters =
+        Object.keys(reconciledEnrolledRouters).length > 0
+          ? reconciledEnrolledRouters
+          : undefined;
     }
 
     // Write updated deploy config back
@@ -1327,9 +1346,7 @@ export async function runWarpRouteCombine({
   fullyConnectTokens(mergedConfig, context.multiProvider);
 
   // 4. Write merged WarpCoreConfig
-  const mergedId =
-    outputWarpRouteId ??
-    `MULTI/${routes.map((r) => r.id.replace(/\//g, '-')).join('+')}`;
+  const mergedId = outputWarpRouteId;
   await context.registry.addWarpRoute(mergedConfig, { warpRouteId: mergedId });
 
   logGreen(`✅ Combined ${routes.length} routes into "${mergedId}"`);

@@ -316,17 +316,17 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
-      destination,
-      recipBytes32,
-      amount.toString(),
-    );
+    const [igpQuote, ...feeQuotes] = await this.contract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, amount.toString());
     const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
-      addressOrDenom: quote[0],
-      amount: BigInt(quote[1].toString()),
-    }));
+    const tokenFeeQuotes: Quote[] = feeQuotes.map(
+      (quote: { 0: string; 1: any }) => ({
+        addressOrDenom: quote[0],
+        amount: BigInt(quote[1].toString()),
+      }),
+    );
 
     // Because the amount is added on  the fees, we need to subtract it from the actual fees
     const tokenFeeQuote: Quote | undefined =
@@ -554,13 +554,11 @@ export class EvmMovableCollateralAdapter
       this.getProvider(),
     );
 
-    const quotes = await bridgeContract.quoteTransferRemote(
-      domain,
-      addressToBytes32(recipient),
-      amount,
-    );
+    const quotes = await bridgeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](domain, addressToBytes32(recipient), amount);
 
-    return quotes.map((quote) => ({
+    return quotes.map((quote: { token: string; amount: any }) => ({
       igpQuote: {
         addressOrDenom:
           quote.token === ethersConstants.AddressZero ? undefined : quote.token,

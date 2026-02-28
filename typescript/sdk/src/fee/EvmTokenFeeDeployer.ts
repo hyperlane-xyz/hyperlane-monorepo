@@ -133,7 +133,30 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
             this.multiProvider.getTransactionOverrides(chain),
           ),
         );
-        subFeeContracts[destinationChain] = deployedFeeContract;
+        subFeeContracts[destinationChain] =
+          deployedFeeContract as unknown as BaseFee;
+      }
+    }
+
+    if (config.routerFeeContracts) {
+      for (const [destinationChain, routerMap] of Object.entries(
+        config.routerFeeContracts,
+      )) {
+        for (const [routerBytes32, feeConfig] of Object.entries(routerMap)) {
+          const deployedFeeContract = await this.deployFee(chain, feeConfig);
+
+          await this.multiProvider.handleTx(
+            chain,
+            routingFee.setRouterFeeContract(
+              this.multiProvider.getChainId(destinationChain),
+              routerBytes32,
+              deployedFeeContract.address,
+              this.multiProvider.getTransactionOverrides(chain),
+            ),
+          );
+          subFeeContracts[`router:${destinationChain}:${routerBytes32}`] =
+            deployedFeeContract as unknown as BaseFee;
+        }
       }
     }
 

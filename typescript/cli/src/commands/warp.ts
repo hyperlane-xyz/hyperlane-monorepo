@@ -204,13 +204,14 @@ const combine: CommandModuleWithWriteContext<{
     'output-warp-route-id': {
       type: 'string',
       description:
-        'Warp route ID for the merged WarpCoreConfig (defaults to MULTI/route1+route2)',
-      demandOption: false,
+        'Warp route ID for the merged WarpCoreConfig (e.g., MULTI/stableswap)',
+      demandOption: true,
     },
   },
   handler: async ({ context, routes, 'output-warp-route-id': outputId }) => {
     logCommandHeader('Hyperlane Warp Combine');
 
+    assert(outputId, '--output-warp-route-id is required');
     const routeIds = routes.split(',').map((r) => r.trim());
     await runWarpRouteCombine({
       context,
@@ -335,6 +336,8 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      sourceToken?: string;
+      destinationToken?: string;
     }
 > = {
   command: 'send',
@@ -361,6 +364,15 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'source-token': {
+      type: 'string',
+      description: 'Source token router address (for MultiCollateral routes)',
+    },
+    'destination-token': {
+      type: 'string',
+      description:
+        'Destination token router address (for MultiCollateral cross-stablecoin transfers)',
+    },
   },
   handler: async ({
     context,
@@ -376,6 +388,8 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    sourceToken,
+    destinationToken,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -405,10 +419,17 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
-    chains =
-      chains.length === 0
-        ? [...supportedChains]
-        : [...intersection(new Set(chains), supportedChains)];
+    // When origin & destination are explicitly provided, preserve duplicates
+    // for same-chain transfers (e.g., origin=anvil2, destination=anvil2).
+    // Only deduplicate when using --chains or auto-selecting from config.
+    if (origin && destination) {
+      chains = [origin, destination];
+    } else {
+      chains =
+        chains.length === 0
+          ? [...supportedChains]
+          : [...intersection(new Set(chains), supportedChains)];
+    }
 
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
@@ -427,6 +448,8 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      sourceToken,
+      destinationToken,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,

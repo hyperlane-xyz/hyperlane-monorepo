@@ -178,6 +178,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.RadixHypCollateral,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypNative,
+  TokenStandard.EvmHypMultiCollateral,
 ];
 
 export const XERC20_STANDARDS = [
