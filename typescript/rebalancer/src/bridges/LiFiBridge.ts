@@ -1,5 +1,7 @@
 import {
   EVM,
+  type LiFiStep,
+  type Route,
   type RouteExtended,
   convertQuoteToRoute,
   createConfig,
@@ -12,6 +14,7 @@ import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -27,41 +30,6 @@ import type {
  * The SDK doesn't support toAmount quotes, so we use REST API directly.
  */
 const LIFI_API_BASE = 'https://li.quest/v1';
-
-/**
- * LiFi quote response structure (partial, only fields we need).
- */
-interface LiFiQuoteResponse {
-  id: string;
-  tool: string;
-  action: {
-    fromAmount: string;
-    toAmount?: string;
-  };
-  estimate: {
-    fromAmount: string;
-    toAmount: string;
-    toAmountMin: string;
-    executionDuration: number;
-    gasCosts?: Array<{
-      type: string;
-      amount: string;
-      token: {
-        address: string;
-        symbol: string;
-      };
-    }>;
-    feeCosts?: Array<{
-      name: string;
-      amount: string;
-      included: boolean;
-      token: {
-        address: string;
-        symbol: string;
-      };
-    }>;
-  };
-}
 
 /**
  * Known chains for viem - add more as needed.
@@ -111,7 +79,7 @@ function getViemChain(chainId: number, rpcUrl?: string): Chain {
  */
 export class LiFiBridge implements IExternalBridge {
   private static readonly NATIVE_TOKEN_ADDRESS =
-    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+    '0x0000000000000000000000000000000000000000';
 
   readonly externalBridgeId = 'lifi';
   readonly logger: Logger;
@@ -164,7 +132,7 @@ export class LiFiBridge implements IExternalBridge {
    *
    * Returns route data ready for execution.
    */
-  async quote(params: BridgeQuoteParams): Promise<BridgeQuote> {
+  async quote(params: BridgeQuoteParams): Promise<BridgeQuote<LiFiStep>> {
     this.initialize();
 
     // Validate that exactly one of fromAmount or toAmount is provided
@@ -176,6 +144,15 @@ export class LiFiBridge implements IExternalBridge {
     if (params.fromAmount === undefined && params.toAmount === undefined) {
       throw new Error('Must specify either fromAmount or toAmount');
     }
+
+    assert(
+      params.fromAmount === undefined || params.fromAmount > 0n,
+      'fromAmount must be positive',
+    );
+    assert(
+      params.toAmount === undefined || params.toAmount > 0n,
+      'toAmount must be positive',
+    );
 
     // Dispatch to appropriate quote method
     if (params.toAmount !== undefined) {
@@ -191,7 +168,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteBySpendingAmount(
     params: BridgeQuoteParams,
-  ): Promise<BridgeQuote> {
+  ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
     const quote = await getQuote({
@@ -207,9 +184,7 @@ export class LiFiBridge implements IExternalBridge {
       order: 'RECOMMENDED',
     });
 
-    const { gasCosts, feeCosts } = this.extractCosts(
-      quote as unknown as LiFiQuoteResponse,
-    );
+    const { gasCosts, feeCosts } = this.extractCosts(quote);
 
     this.logger.info(
       {
@@ -235,6 +210,7 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
+      requestParams: { ...params },
     };
   }
 
@@ -244,7 +220,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteByReceivingAmount(
     params: BridgeQuoteParams,
-  ): Promise<BridgeQuote> {
+  ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
 
     const queryParams = new URLSearchParams({
@@ -280,7 +256,7 @@ export class LiFiBridge implements IExternalBridge {
       );
     }
 
-    const quote: LiFiQuoteResponse = await response.json();
+    const quote: LiFiStep = await response.json();
     const { gasCosts, feeCosts } = this.extractCosts(quote);
 
     this.logger.info(
@@ -307,6 +283,7 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
+      requestParams: { ...params },
     };
   }
 
@@ -315,7 +292,7 @@ export class LiFiBridge implements IExternalBridge {
    * - gasCosts: Sum of all gas costs (transaction fees)
    * - feeCosts: Sum of non-included fee costs (protocol fees not deducted from amount)
    */
-  private extractCosts(quote: LiFiQuoteResponse): {
+  private extractCosts(quote: LiFiStep): {
     gasCosts: bigint;
     feeCosts: bigint;
   } {
@@ -350,15 +327,15 @@ export class LiFiBridge implements IExternalBridge {
    * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
    */
   async execute(
-    quote: BridgeQuote,
+    quote: BridgeQuote<LiFiStep>,
     privateKey: string,
   ): Promise<BridgeTransferResult> {
     this.initialize();
 
     // Convert quote to route for execution
-    const route = convertQuoteToRoute(
-      quote.route as Parameters<typeof convertQuoteToRoute>[0],
-    );
+    const route = convertQuoteToRoute(quote.route);
+
+    this.validateRouteAgainstRequest(route, quote.requestParams);
 
     const fromChain = route.fromChainId;
     const toChain = route.toChainId;
@@ -476,6 +453,65 @@ export class LiFiBridge implements IExternalBridge {
       toChain,
       transferId,
     };
+  }
+
+  /**
+   * Validate that the route returned by LiFi matches the original request parameters.
+   * Prevents execution against wrong chains, tokens, or recipients if the bridge API
+   * returns a route that diverges from what was originally requested.
+   *
+   * TODO: Layer 2 validation — validate transaction calldata in route.steps[].transactionRequest
+   * and route.steps[0].estimate.approvalAddress against a known whitelist.
+   */
+  private validateRouteAgainstRequest(
+    route: Route,
+    requestParams: BridgeQuoteParams,
+  ): void {
+    assert(
+      route.fromChainId === requestParams.fromChain,
+      `Route fromChainId ${route.fromChainId} does not match requested ${requestParams.fromChain}`,
+    );
+    assert(
+      route.toChainId === requestParams.toChain,
+      `Route toChainId ${route.toChainId} does not match requested ${requestParams.toChain}`,
+    );
+    assert(
+      route.fromToken.address.toLowerCase() ===
+        requestParams.fromToken.toLowerCase(),
+      `Route fromToken ${route.fromToken.address} does not match requested ${requestParams.fromToken}`,
+    );
+    assert(
+      route.toToken.address.toLowerCase() ===
+        requestParams.toToken.toLowerCase(),
+      `Route toToken ${route.toToken.address} does not match requested ${requestParams.toToken}`,
+    );
+    const expectedToAddress = (
+      requestParams.toAddress ?? requestParams.fromAddress
+    ).toLowerCase();
+    assert(
+      route.toAddress?.toLowerCase() === expectedToAddress,
+      `Route toAddress ${route.toAddress} does not match requested ${expectedToAddress}`,
+    );
+    assert(
+      route.fromAddress?.toLowerCase() ===
+        requestParams.fromAddress.toLowerCase(),
+      `Route fromAddress ${route.fromAddress} does not match requested ${requestParams.fromAddress}`,
+    );
+    const routeFromAmount = BigInt(route.fromAmount);
+    if (requestParams.fromAmount !== undefined) {
+      assert(
+        routeFromAmount === requestParams.fromAmount,
+        `Route fromAmount ${route.fromAmount} does not match requested ${requestParams.fromAmount}`,
+      );
+    }
+    if (requestParams.toAmount !== undefined) {
+      const routeToAmount = BigInt(route.toAmount);
+      assert(
+        routeToAmount === requestParams.toAmount,
+        `Route toAmount ${route.toAmount} does not match requested ${requestParams.toAmount}`,
+      );
+    }
+    assert(routeFromAmount > 0n, 'Route fromAmount must be positive');
   }
 
   /**
