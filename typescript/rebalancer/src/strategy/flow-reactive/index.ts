@@ -1,4 +1,5 @@
 export { FlowReactiveBaseStrategy } from './FlowReactiveBaseStrategy.js';
+export { EMAFlowStrategy } from './EMAFlowStrategy.js';
 export type {
   AccelerationFlowParams,
   EMAFlowParams,

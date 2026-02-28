@@ -1,6 +1,7 @@
 import { type Logger } from 'pino';
 
 import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   ExecutionType,
@@ -18,6 +19,7 @@ import type {
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { CompositeStrategy } from './CompositeStrategy.js';
+import { EMAFlowStrategy } from './flow-reactive/EMAFlowStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -86,7 +88,7 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     _minAmountsByChain?: ChainMap<bigint>,
-    _actionTracker?: IActionTracker,
+    actionTracker?: IActionTracker,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 
@@ -119,7 +121,17 @@ export class StrategyFactory {
           metrics,
         );
       }
-      case RebalancerStrategyOptions.EMAFlow:
+      case RebalancerStrategyOptions.EMAFlow: {
+        assert(actionTracker, 'ActionTracker required for EMAFlow strategy');
+        return new EMAFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
+        );
+      }
       case RebalancerStrategyOptions.VelocityFlow:
       case RebalancerStrategyOptions.ThresholdFlow:
       case RebalancerStrategyOptions.AccelerationFlow: {
