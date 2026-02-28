@@ -1,0 +1,329 @@
+{
+  "name": "flow-sustained-drain",
+  "description": "Steady continuous drain of chain1 over 15 seconds. Tests whether flow-reactive strategies detect and counteract a sustained directional flow.",
+  "expectedBehavior": "30 transfers all TO chain1 over 15s. Chain1 collateral drains steadily.\nFlow-reactive strategies should detect the persistent negative flow signal and trigger rebalancing.\nEMA should smooth the signal; Velocity should detect the constant rate; Threshold should fire once flow exceeds noise.",
+  "duration": 15000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "drain-000000",
+      "timestamp": 0,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6334642615526846383",
+      "user": "0x14b2794105c0183ba9fd3b71af6180f9941fea25"
+    },
+    {
+      "id": "drain-000001",
+      "timestamp": 500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3044072823759688407",
+      "user": "0x1b7e527be37d58ed6c3a27333ce6f2cada90a051"
+    },
+    {
+      "id": "drain-000002",
+      "timestamp": 1000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6074483013070917055",
+      "user": "0x064d59dcd550fd006c4afb63c25763120ee95436"
+    },
+    {
+      "id": "drain-000003",
+      "timestamp": 1500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6033497674820721294",
+      "user": "0x0e3ae76c8b75d4ec45f1050094da312660e2e39c"
+    },
+    {
+      "id": "drain-000004",
+      "timestamp": 2000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4006700788079453270",
+      "user": "0xfbc302a34060e8481e87e10bc0e4fc989e3d7e35"
+    },
+    {
+      "id": "drain-000005",
+      "timestamp": 2500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6169354182435970720",
+      "user": "0x96fbd79b784a618d2a8a197c7a2f8b786705daf0"
+    },
+    {
+      "id": "drain-000006",
+      "timestamp": 3000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4400553182676596307",
+      "user": "0xba6efba498913ddf23888596f1cbaae506c1aa74"
+    },
+    {
+      "id": "drain-000007",
+      "timestamp": 3500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5478229683792549577",
+      "user": "0x819bc78a0bcaa7724b45f7d9111dac7620cbb31a"
+    },
+    {
+      "id": "drain-000008",
+      "timestamp": 4000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5606788057772871940",
+      "user": "0x44b8ee267d7e40f5c7cf9984fc1d5205c6967507"
+    },
+    {
+      "id": "drain-000009",
+      "timestamp": 4500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6612561592002982476",
+      "user": "0x4d66355471ef3d4a05e35eb311df44e9331b8c86"
+    },
+    {
+      "id": "drain-000010",
+      "timestamp": 5000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3336805492584259144",
+      "user": "0xa4f2e43516bea3454197623a177271162a2703e6"
+    },
+    {
+      "id": "drain-000011",
+      "timestamp": 5500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5448353517738954197",
+      "user": "0x81776fee1b6147c80475514a4f7cd38187e0603c"
+    },
+    {
+      "id": "drain-000012",
+      "timestamp": 6000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3950157990995394875",
+      "user": "0xc378c5237e632cd568655f69605977cd29dc4185"
+    },
+    {
+      "id": "drain-000013",
+      "timestamp": 6500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5571580638128170341",
+      "user": "0x17454ce90d96a4b88049311b550986dbfa8c1829"
+    },
+    {
+      "id": "drain-000014",
+      "timestamp": 7000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3938342291091279167",
+      "user": "0x7bff097234f72defc1971f998928b6688a2760e2"
+    },
+    {
+      "id": "drain-000015",
+      "timestamp": 7500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5446058001512785355",
+      "user": "0xbc3d3e08fc80da29fc3272744eca9dd35e2d5fa2"
+    },
+    {
+      "id": "drain-000016",
+      "timestamp": 8000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5236816512193051991",
+      "user": "0x755e57d0c36fb764e2bbd6fd9320e7ca130b1e5e"
+    },
+    {
+      "id": "drain-000017",
+      "timestamp": 8500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5294719006571758531",
+      "user": "0xa1f2ed4152f6e34ebaa6d7e5cea118f375aae707"
+    },
+    {
+      "id": "drain-000018",
+      "timestamp": 9000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6568478666867544990",
+      "user": "0xd2ba967fc604d1fda7a7de307197fad4486addf8"
+    },
+    {
+      "id": "drain-000019",
+      "timestamp": 9500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5273157017530174288",
+      "user": "0xe964c17fbe57daad596cdd0a4a0cf2fa151e7e0d"
+    },
+    {
+      "id": "drain-000020",
+      "timestamp": 10000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5998765806027440462",
+      "user": "0xdaaa34ae77221fa52a55a3b2777067da47950050"
+    },
+    {
+      "id": "drain-000021",
+      "timestamp": 10500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5242637590577156046",
+      "user": "0xf5837bb20ca62c5f8f45aeaca6ed27a407e521c0"
+    },
+    {
+      "id": "drain-000022",
+      "timestamp": 11000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6787337368379714392",
+      "user": "0xb99dd0a7bdf1fd294024b5565101f80ef11a9cab"
+    },
+    {
+      "id": "drain-000023",
+      "timestamp": 11500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4071181962278041167",
+      "user": "0x606e5a98bc4ca1d5eb4070188c480b222d40a62a"
+    },
+    {
+      "id": "drain-000024",
+      "timestamp": 12000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3141214339280652185",
+      "user": "0xaefbf7183e8f771383a54d8679a9df082ee46c5e"
+    },
+    {
+      "id": "drain-000025",
+      "timestamp": 12500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4071928687209436012",
+      "user": "0x7540ba476cad8658ed1f858e4421be520e818eda"
+    },
+    {
+      "id": "drain-000026",
+      "timestamp": 13000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3284724762913012332",
+      "user": "0x374b9e47f6665598b7c175f0010d39c24774c8c6"
+    },
+    {
+      "id": "drain-000027",
+      "timestamp": 13500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5163740672842472020",
+      "user": "0xc0e6eb20c28333282e0b15c5b415e5341bb24958"
+    },
+    {
+      "id": "drain-000028",
+      "timestamp": 14000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3212473896580507015",
+      "user": "0xc7caefe59eda8d55bb9393851db7acbfdbf120ee"
+    },
+    {
+      "id": "drain-000029",
+      "timestamp": 14500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "3566228749606277222",
+      "user": "0xe66eede9e07640b0aade7dd672ff4b6dc8423032"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "emaFlow",
+    "chains": {
+      "chain1": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "shouldTriggerRebalancing": true,
+    "minCompletionRate": 0.8
+  }
+}

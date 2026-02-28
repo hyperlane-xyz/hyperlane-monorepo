@@ -2,13 +2,18 @@ import { randomAddress } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type {
+  BurstSpikeOptions,
+  GradualRampOptions,
+  OscillatingBidirectionalOptions,
   RandomTrafficOptions,
   SerializedScenario,
   SerializedTransferEvent,
   SurgeScenarioOptions,
+  SustainedDrainOptions,
   TransferEvent,
   TransferScenario,
   UnidirectionalFlowOptions,
+  WhalePlusNoiseOptions,
 } from './types.js';
 
 /**
@@ -343,6 +348,261 @@ export class ScenarioGenerator {
 
     return {
       name: `imbalance-${heavyChain}-${imbalanceRatio * 100}pct`,
+      duration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
+   * Generates a sustained drain scenario where all transfers flow
+   * continuously from other chains to a single target chain.
+   */
+  static sustainedDrain(options: SustainedDrainOptions): TransferScenario {
+    const { targetChain, otherChains, transferCount, duration, amountRange } =
+      options;
+
+    const interval = duration / transferCount;
+    const transfers: TransferEvent[] = [];
+
+    for (let i = 0; i < transferCount; i++) {
+      const originIndex = Math.floor(Math.random() * otherChains.length);
+
+      transfers.push({
+        id: generateTransferId(i, 'drain'),
+        timestamp: Math.floor(i * interval),
+        origin: otherChains[originIndex],
+        destination: targetChain,
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: randomAddress() as Address,
+      });
+    }
+
+    return {
+      name: `sustained-drain-${targetChain}-${transferCount}tx`,
+      duration,
+      transfers,
+      chains: [targetChain, ...otherChains],
+    };
+  }
+
+  /**
+   * Generates a burst spike scenario with a dense cluster of transfers
+   * during a narrow time window, with no transfers before or after.
+   */
+  static burstSpike(options: BurstSpikeOptions): TransferScenario {
+    const {
+      chains,
+      burstStart,
+      burstDuration,
+      burstTransferCount,
+      totalDuration,
+      burstTarget,
+      amountRange,
+    } = options;
+
+    const otherChains = chains.filter((c) => c !== burstTarget);
+    const transfers: TransferEvent[] = [];
+
+    for (let i = 0; i < burstTransferCount; i++) {
+      const originIndex = Math.floor(Math.random() * otherChains.length);
+      const timestamp = burstStart + Math.floor(Math.random() * burstDuration);
+
+      transfers.push({
+        id: generateTransferId(i, 'burst'),
+        timestamp,
+        origin: otherChains[originIndex],
+        destination: burstTarget,
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: randomAddress() as Address,
+      });
+    }
+
+    // Sort by timestamp
+    transfers.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      name: `burst-spike-${burstTarget}-${burstTransferCount}tx`,
+      duration: totalDuration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
+   * Generates a gradual ramp scenario where transfer frequency linearly
+   * increases from startRate to endRate over the duration.
+   */
+  static gradualRamp(options: GradualRampOptions): TransferScenario {
+    const { chains, targetChain, startRate, endRate, duration, amountRange } =
+      options;
+
+    const otherChains = chains.filter((c) => c !== targetChain);
+    const transfers: TransferEvent[] = [];
+    let txIndex = 0;
+    let currentTime = 0;
+
+    while (currentTime < duration) {
+      // Normalized progress 0-1
+      const t = currentTime / duration;
+      // Linear interpolation of rate
+      const currentRate = startRate + (endRate - startRate) * t;
+      // Interval = 1000ms / rate (rate is transfers/sec)
+      const interval = 1000 / currentRate;
+
+      const originIndex = Math.floor(Math.random() * otherChains.length);
+
+      transfers.push({
+        id: generateTransferId(txIndex++, 'ramp'),
+        timestamp: Math.floor(currentTime),
+        origin: otherChains[originIndex],
+        destination: targetChain,
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: randomAddress() as Address,
+      });
+
+      currentTime += interval;
+    }
+
+    return {
+      name: `gradual-ramp-${targetChain}-${startRate}to${endRate}`,
+      duration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
+   * Generates an oscillating bidirectional scenario where transfers
+   * alternate direction in waves between two chains.
+   */
+  static oscillatingBidirectional(
+    options: OscillatingBidirectionalOptions,
+  ): TransferScenario {
+    const {
+      chainA,
+      chainB,
+      oscillationPeriod,
+      totalDuration,
+      transfersPerOscillation,
+      amountRange,
+    } = options;
+
+    const transfers: TransferEvent[] = [];
+    let txIndex = 0;
+    const halfPeriod = oscillationPeriod / 2;
+    const transfersPerHalf = Math.floor(transfersPerOscillation / 2);
+
+    for (
+      let cycleStart = 0;
+      cycleStart < totalDuration;
+      cycleStart += oscillationPeriod
+    ) {
+      // First half: A → B
+      for (let i = 0; i < transfersPerHalf; i++) {
+        const timestamp =
+          cycleStart + Math.floor((i / transfersPerHalf) * halfPeriod);
+        if (timestamp >= totalDuration) break;
+
+        transfers.push({
+          id: generateTransferId(txIndex++, 'osc'),
+          timestamp,
+          origin: chainA,
+          destination: chainB,
+          amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+          user: randomAddress() as Address,
+        });
+      }
+
+      // Second half: B → A
+      for (let i = 0; i < transfersPerHalf; i++) {
+        const timestamp =
+          cycleStart +
+          halfPeriod +
+          Math.floor((i / transfersPerHalf) * halfPeriod);
+        if (timestamp >= totalDuration) break;
+
+        transfers.push({
+          id: generateTransferId(txIndex++, 'osc'),
+          timestamp,
+          origin: chainB,
+          destination: chainA,
+          amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+          user: randomAddress() as Address,
+        });
+      }
+    }
+
+    return {
+      name: `oscillating-${chainA}-${chainB}-${oscillationPeriod}ms`,
+      duration: totalDuration,
+      transfers,
+      chains: [chainA, chainB],
+    };
+  }
+
+  /**
+   * Generates a whale plus noise scenario mixing large whale transfers
+   * with many small random noise transfers.
+   */
+  static whalePlusNoise(options: WhalePlusNoiseOptions): TransferScenario {
+    const {
+      chains,
+      whaleAmount,
+      whaleCount,
+      noiseCount,
+      duration,
+      noiseAmountRange,
+    } = options;
+
+    const transfers: TransferEvent[] = [];
+    let txIndex = 0;
+
+    // Generate whale transfers evenly spread across duration
+    for (let i = 0; i < whaleCount; i++) {
+      const timestamp = Math.floor((i / whaleCount) * duration);
+
+      const originIndex = Math.floor(Math.random() * chains.length);
+      let destIndex = Math.floor(Math.random() * chains.length);
+      while (destIndex === originIndex) {
+        destIndex = Math.floor(Math.random() * chains.length);
+      }
+
+      transfers.push({
+        id: generateTransferId(txIndex++, 'whale'),
+        timestamp,
+        origin: chains[originIndex],
+        destination: chains[destIndex],
+        amount: whaleAmount,
+        user: randomAddress() as Address,
+      });
+    }
+
+    // Generate noise transfers at random times
+    for (let i = 0; i < noiseCount; i++) {
+      const timestamp = Math.floor(Math.random() * duration);
+
+      const originIndex = Math.floor(Math.random() * chains.length);
+      let destIndex = Math.floor(Math.random() * chains.length);
+      while (destIndex === originIndex) {
+        destIndex = Math.floor(Math.random() * chains.length);
+      }
+
+      transfers.push({
+        id: generateTransferId(txIndex++, 'noise'),
+        timestamp,
+        origin: chains[originIndex],
+        destination: chains[destIndex],
+        amount: randomBigIntInRange(noiseAmountRange[0], noiseAmountRange[1]),
+        user: randomAddress() as Address,
+      });
+    }
+
+    // Sort all transfers by timestamp
+    transfers.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      name: `whale-plus-noise-${whaleCount}whales-${noiseCount}noise`,
       duration,
       transfers,
       chains,

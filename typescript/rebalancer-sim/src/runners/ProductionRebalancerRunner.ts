@@ -77,7 +77,7 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains,
     } as StrategyConfig;
-  } else {
+  } else if (strategyConfig.type === 'minAmount') {
     const chains: Record<string, any> = {};
 
     for (const [chainName, chainConfig] of Object.entries(
@@ -98,6 +98,114 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
       rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
       chains,
     } as StrategyConfig;
+  } else if (strategyConfig.type === 'emaFlow') {
+    const chains: Record<string, any> = {};
+
+    for (const [chainName, chainConfig] of Object.entries(
+      strategyConfig.chains,
+    )) {
+      chains[chainName] = {
+        bridge: chainConfig.bridge,
+        bridgeLockTime: Math.ceil(chainConfig.bridgeLockTime / 1000),
+        emaFlow: {
+          alpha: parseFloat(chainConfig.emaFlow?.alpha ?? '0.3'),
+          windowSizeMs: chainConfig.emaFlow?.windowSizeMs ?? 5000,
+          minSamplesForSignal: chainConfig.emaFlow?.minSamplesForSignal ?? 3,
+          coldStartCycles: chainConfig.emaFlow?.coldStartCycles ?? 2,
+        },
+      };
+    }
+
+    return {
+      rebalanceStrategy: RebalancerStrategyOptions.EMAFlow,
+      chains,
+    } as StrategyConfig;
+  } else if (strategyConfig.type === 'velocityFlow') {
+    const chains: Record<string, any> = {};
+
+    for (const [chainName, chainConfig] of Object.entries(
+      strategyConfig.chains,
+    )) {
+      chains[chainName] = {
+        bridge: chainConfig.bridge,
+        bridgeLockTime: Math.ceil(chainConfig.bridgeLockTime / 1000),
+        velocityFlow: {
+          velocityMultiplier: parseFloat(
+            chainConfig.velocityFlow?.velocityMultiplier ?? '1.0',
+          ),
+          baseResponse: parseFloat(
+            chainConfig.velocityFlow?.baseResponse ?? '0.5',
+          ),
+          windowSizeMs: chainConfig.velocityFlow?.windowSizeMs ?? 5000,
+          minSamplesForSignal:
+            chainConfig.velocityFlow?.minSamplesForSignal ?? 3,
+          coldStartCycles: chainConfig.velocityFlow?.coldStartCycles ?? 2,
+        },
+      };
+    }
+
+    return {
+      rebalanceStrategy: RebalancerStrategyOptions.VelocityFlow,
+      chains,
+    } as StrategyConfig;
+  } else if (strategyConfig.type === 'thresholdFlow') {
+    const chains: Record<string, any> = {};
+
+    for (const [chainName, chainConfig] of Object.entries(
+      strategyConfig.chains,
+    )) {
+      chains[chainName] = {
+        bridge: chainConfig.bridge,
+        bridgeLockTime: Math.ceil(chainConfig.bridgeLockTime / 1000),
+        thresholdFlow: {
+          noiseThreshold: parseFloat(
+            chainConfig.thresholdFlow?.noiseThreshold ?? '0.05',
+          ),
+          proportionalGain: parseFloat(
+            chainConfig.thresholdFlow?.proportionalGain ?? '1.0',
+          ),
+          windowSizeMs: chainConfig.thresholdFlow?.windowSizeMs ?? 5000,
+          minSamplesForSignal:
+            chainConfig.thresholdFlow?.minSamplesForSignal ?? 3,
+          coldStartCycles: chainConfig.thresholdFlow?.coldStartCycles ?? 2,
+        },
+      };
+    }
+
+    return {
+      rebalanceStrategy: RebalancerStrategyOptions.ThresholdFlow,
+      chains,
+    } as StrategyConfig;
+  } else if (strategyConfig.type === 'accelerationFlow') {
+    const chains: Record<string, any> = {};
+
+    for (const [chainName, chainConfig] of Object.entries(
+      strategyConfig.chains,
+    )) {
+      chains[chainName] = {
+        bridge: chainConfig.bridge,
+        bridgeLockTime: Math.ceil(chainConfig.bridgeLockTime / 1000),
+        accelerationFlow: {
+          accelerationWeight: parseFloat(
+            chainConfig.accelerationFlow?.accelerationWeight ?? '0.5',
+          ),
+          damping: parseFloat(chainConfig.accelerationFlow?.damping ?? '0.1'),
+          windowSizeMs: chainConfig.accelerationFlow?.windowSizeMs ?? 5000,
+          minSamplesForSignal:
+            chainConfig.accelerationFlow?.minSamplesForSignal ?? 3,
+          coldStartCycles: chainConfig.accelerationFlow?.coldStartCycles ?? 2,
+        },
+      };
+    }
+
+    return {
+      rebalanceStrategy: RebalancerStrategyOptions.AccelerationFlow,
+      chains,
+    } as StrategyConfig;
+  } else {
+    throw new Error(
+      `Unsupported strategy type: ${(strategyConfig as any).type}`,
+    );
   }
 }
 

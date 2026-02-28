@@ -336,6 +336,45 @@ export interface ComparisonReport {
   };
 }
 
+/**
+ * Result of running a single strategy against a scenario
+ */
+export interface StrategyRunResult {
+  strategyName: string;
+  strategyType: string;
+  kpis: SimulationKPIs;
+  transferRecords: TransferRecord[];
+  rebalanceRecords: RebalanceRecord[];
+  duration: number;
+}
+
+/**
+ * Scorecard entry for ranking strategies
+ */
+export interface StrategyScorecard {
+  strategyName: string;
+  strategyType: string;
+  rank: number;
+  completionRate: number;
+  totalRebalances: number;
+  rebalanceVolume: bigint;
+  averageLatency: number;
+  /** Efficiency: rebalanceVolume / totalTransferVolume (lower = better) */
+  efficiency: number;
+}
+
+/**
+ * Complete comparison report for flow-reactive strategies
+ */
+export interface FlowReactiveComparisonReport {
+  scenarioName: string;
+  scenarioDescription?: string;
+  results: StrategyRunResult[];
+  scorecard: StrategyScorecard[];
+  winner: string;
+  summary: string;
+}
+
 // =============================================================================
 // REBALANCER TYPES
 // =============================================================================
@@ -729,6 +768,96 @@ export interface SurgeScenarioOptions {
   totalDuration: number;
   /** Amount range */
   amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating sustained drain scenarios
+ */
+export interface SustainedDrainOptions {
+  /** Chain that receives all transfers */
+  targetChain: string;
+  /** Chains that send transfers */
+  otherChains: string[];
+  /** Number of transfers */
+  transferCount: number;
+  /** Total duration in milliseconds */
+  duration: number;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating burst spike scenarios
+ */
+export interface BurstSpikeOptions {
+  /** All chains involved */
+  chains: string[];
+  /** Burst start time (ms from start) */
+  burstStart: number;
+  /** Burst duration (ms) */
+  burstDuration: number;
+  /** Number of transfers during burst */
+  burstTransferCount: number;
+  /** Total scenario duration (ms) */
+  totalDuration: number;
+  /** Chain that receives burst transfers */
+  burstTarget: string;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating gradual ramp scenarios
+ */
+export interface GradualRampOptions {
+  /** All chains involved */
+  chains: string[];
+  /** Chain that receives all transfers */
+  targetChain: string;
+  /** Starting transfer rate (transfers/sec) */
+  startRate: number;
+  /** Ending transfer rate (transfers/sec) */
+  endRate: number;
+  /** Total duration in milliseconds */
+  duration: number;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating oscillating bidirectional scenarios
+ */
+export interface OscillatingBidirectionalOptions {
+  /** First chain */
+  chainA: string;
+  /** Second chain */
+  chainB: string;
+  /** Duration of one full oscillation cycle (ms) */
+  oscillationPeriod: number;
+  /** Total duration in milliseconds */
+  totalDuration: number;
+  /** Number of transfers per full oscillation cycle */
+  transfersPerOscillation: number;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating whale plus noise scenarios
+ */
+export interface WhalePlusNoiseOptions {
+  /** All chains involved */
+  chains: string[];
+  /** Amount for each whale transfer */
+  whaleAmount: bigint;
+  /** Number of whale transfers */
+  whaleCount: number;
+  /** Number of noise transfers */
+  noiseCount: number;
+  /** Total duration in milliseconds */
+  duration: number;
+  /** Range of noise transfer amounts in wei [min, max] */
+  noiseAmountRange: [bigint, bigint];
 }
 
 /**

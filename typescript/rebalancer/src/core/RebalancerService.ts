@@ -164,7 +164,10 @@ export class RebalancerService {
     }
 
     // Create strategy
-    this.strategy = await this.contextFactory.createStrategy(this.metrics);
+    this.strategy = await this.contextFactory.createStrategy(
+      this.metrics,
+      this.config.actionTracker,
+    );
 
     // Create or use provided ActionTracker for tracking inflight actions
     // Must be created BEFORE rebalancer since rebalancer needs it
