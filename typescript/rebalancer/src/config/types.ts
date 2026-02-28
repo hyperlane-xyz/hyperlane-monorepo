@@ -4,6 +4,10 @@ export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
   CollateralDeficit = 'collateralDeficit',
+  EMAFlow = 'emaFlow',
+  VelocityFlow = 'velocityFlow',
+  ThresholdFlow = 'thresholdFlow',
+  AccelerationFlow = 'accelerationFlow',
 }
 
 // Weighted strategy config schema
@@ -79,6 +83,46 @@ const CollateralDeficitChainConfigSchema =
     buffer: z.string().or(z.number()),
   });
 
+const EMAFlowChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
+  emaFlow: z.object({
+    alpha: z.number().min(0).max(1),
+    windowSizeMs: z.number().positive(),
+    minSamplesForSignal: z.number().int().positive().default(3),
+    coldStartCycles: z.number().int().nonnegative().default(2),
+  }),
+});
+
+const VelocityFlowChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
+  velocityFlow: z.object({
+    velocityMultiplier: z.number().positive().default(1),
+    baseResponse: z.number().positive().default(0.5),
+    windowSizeMs: z.number().positive(),
+    minSamplesForSignal: z.number().int().positive().default(3),
+    coldStartCycles: z.number().int().nonnegative().default(2),
+  }),
+});
+
+const ThresholdFlowChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
+  thresholdFlow: z.object({
+    noiseThreshold: z.number().nonnegative().default(0.05),
+    proportionalGain: z.number().positive().default(1),
+    windowSizeMs: z.number().positive(),
+    minSamplesForSignal: z.number().int().positive().default(3),
+    coldStartCycles: z.number().int().nonnegative().default(2),
+  }),
+});
+
+const AccelerationFlowChainConfigSchema =
+  RebalancerBaseChainConfigSchema.extend({
+    accelerationFlow: z.object({
+      accelerationWeight: z.number().positive().default(0.5),
+      damping: z.number().min(0).max(1).default(0.1),
+      windowSizeMs: z.number().positive(),
+      minSamplesForSignal: z.number().int().positive().default(3),
+      coldStartCycles: z.number().int().nonnegative().default(2),
+    }),
+  });
+
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
   chains: z.record(z.string(), WeightedChainConfigSchema),
@@ -94,10 +138,36 @@ const CollateralDeficitStrategySchema = z.object({
   chains: z.record(z.string(), CollateralDeficitChainConfigSchema),
 });
 
+const EMAFlowStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.EMAFlow),
+  chains: z.record(z.string(), EMAFlowChainConfigSchema),
+});
+
+const VelocityFlowStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.VelocityFlow),
+  chains: z.record(z.string(), VelocityFlowChainConfigSchema),
+});
+
+const ThresholdFlowStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.ThresholdFlow),
+  chains: z.record(z.string(), ThresholdFlowChainConfigSchema),
+});
+
+const AccelerationFlowStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.AccelerationFlow),
+  chains: z.record(z.string(), AccelerationFlowChainConfigSchema),
+});
+
 export type WeightedStrategy = z.infer<typeof WeightedStrategySchema>;
 export type MinAmountStrategy = z.infer<typeof MinAmountStrategySchema>;
 export type CollateralDeficitStrategy = z.infer<
   typeof CollateralDeficitStrategySchema
+>;
+export type EMAFlowStrategy = z.infer<typeof EMAFlowStrategySchema>;
+export type VelocityFlowStrategy = z.infer<typeof VelocityFlowStrategySchema>;
+export type ThresholdFlowStrategy = z.infer<typeof ThresholdFlowStrategySchema>;
+export type AccelerationFlowStrategy = z.infer<
+  typeof AccelerationFlowStrategySchema
 >;
 
 export type WeightedStrategyConfig = WeightedStrategy['chains'];
@@ -109,6 +179,10 @@ export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   WeightedStrategySchema,
   MinAmountStrategySchema,
   CollateralDeficitStrategySchema,
+  EMAFlowStrategySchema,
+  VelocityFlowStrategySchema,
+  ThresholdFlowStrategySchema,
+  AccelerationFlowStrategySchema,
 ]);
 
 export const RebalancerStrategySchema = z
