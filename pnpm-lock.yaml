@@ -2336,6 +2336,9 @@ importers:
       '@hyperlane-xyz/deploy-sdk':
         specifier: workspace:*
         version: link:../deploy-sdk
+      '@hyperlane-xyz/multicollateral':
+        specifier: workspace:*
+        version: link:../../solidity/multicollateral
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
@@ -27660,7 +27663,7 @@ snapshots:
       debug: 4.4.3(supports-color@5.5.0)
       minimatch: 9.0.5
       semver: 7.7.3
-      tinyglobby: 0.2.14
+      tinyglobby: 0.2.15
       ts-api-utils: 2.4.0(typescript@5.8.3)
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -32728,7 +32731,7 @@ snapshots:
       solc: 0.8.26(debug@4.4.3)
       source-map-support: 0.5.21
       stacktrace-parser: 0.1.11
-      tinyglobby: 0.2.14
+      tinyglobby: 0.2.15
       tsort: 0.0.1
       undici: 5.29.0
       uuid: 8.3.2

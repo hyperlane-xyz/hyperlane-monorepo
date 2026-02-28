@@ -9,11 +9,11 @@ import {
   IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
-  MultiCollateral__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,

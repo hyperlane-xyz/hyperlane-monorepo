@@ -7,7 +7,6 @@ import {
   GasRouter,
   IMessageTransmitter__factory,
   MovableCollateralRouter__factory,
-  MultiCollateral__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
@@ -15,6 +14,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   ProtocolType,
@@ -767,7 +767,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as unknown as TokenRouter;
       }
     }
     throw new Error('No matching contract found');
