@@ -249,6 +249,9 @@ export function hyperlaneWarpSendRelay({
   value = 2,
   chains,
   roundTrip,
+  sourceToken,
+  destinationToken,
+  skipValidation,
 }: {
   origin?: string;
   destination?: string;
@@ -257,6 +260,9 @@ export function hyperlaneWarpSendRelay({
   value?: number | string;
   chains?: string[];
   roundTrip?: boolean;
+  sourceToken?: string;
+  destinationToken?: string;
+  skipValidation?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
@@ -269,7 +275,10 @@ export function hyperlaneWarpSendRelay({
         --yes \
         --amount ${value} \
         ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
-        ${roundTrip ? ['--round-trip'] : []} `;
+        ${roundTrip ? ['--round-trip'] : []} \
+        ${sourceToken ? ['--source-token', sourceToken] : []} \
+        ${destinationToken ? ['--destination-token', destinationToken] : []} \
+        ${skipValidation ? ['--skip-validation'] : []} `;
 }
 
 export function hyperlaneWarpCombine({
@@ -277,7 +286,7 @@ export function hyperlaneWarpCombine({
   outputWarpRouteId,
 }: {
   routes: string;
-  outputWarpRouteId?: string;
+  outputWarpRouteId: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp combine \
         --registry ${REGISTRY_PATH} \
