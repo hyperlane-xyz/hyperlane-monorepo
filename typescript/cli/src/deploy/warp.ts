@@ -1273,8 +1273,7 @@ function formatScaleForLogs(
   scale: WarpCoreConfig['tokens'][number]['scale'],
 ): string {
   if (!scale) return '1';
-  if (typeof scale === 'number') return scale.toString();
-  return `${scale.numerator.toString()}/${scale.denominator.toString()}`;
+  return scale.toString();
 }
 
 function getCanonicalWholeTokenRatio(
