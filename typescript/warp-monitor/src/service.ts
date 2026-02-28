@@ -13,6 +13,9 @@
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
  * - REGISTRY_URI: Registry URI for chain metadata. Can include /tree/{commit} to pin version (default: GitHub registry)
  * - RPC_URL_<CHAIN>: Override RPC URL for a specific chain (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM)
+ * - EXPLORER_API_URL: Hyperlane explorer GraphQL endpoint for pending transfer liabilities (optional)
+ * - EXPLORER_QUERY_LIMIT: Max pending transfer rows fetched per cycle (default: 200)
+ * - INVENTORY_ADDRESS: Address whose per-node inventory balances should be tracked (optional)
  *
  * Usage:
  *   node dist/service.js
@@ -49,6 +52,18 @@ async function main(): Promise<void> {
   }
 
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
+  const explorerApiUrl = process.env.EXPLORER_API_URL;
+  const inventoryAddress = process.env.INVENTORY_ADDRESS;
+
+  let explorerQueryLimit = 200;
+  if (process.env.EXPLORER_QUERY_LIMIT) {
+    const parsed = parseInt(process.env.EXPLORER_QUERY_LIMIT, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      rootLogger.error('EXPLORER_QUERY_LIMIT must be a positive integer');
+      process.exit(1);
+    }
+    explorerQueryLimit = parsed;
+  }
 
   // Create logger (uses LOG_LEVEL environment variable for level configuration)
   const logger = await initializeLogger('warp-balance-monitor', VERSION);
@@ -58,6 +73,9 @@ async function main(): Promise<void> {
       version: VERSION,
       warpRouteId,
       checkFrequency,
+      explorerApiUrl,
+      explorerQueryLimit,
+      inventoryAddress,
     },
     'Starting Hyperlane Warp Balance Monitor Service',
   );
@@ -80,6 +98,9 @@ async function main(): Promise<void> {
         checkFrequency,
         coingeckoApiKey,
         registryUri,
+        explorerApiUrl,
+        explorerQueryLimit,
+        inventoryAddress,
       },
       registry,
     );

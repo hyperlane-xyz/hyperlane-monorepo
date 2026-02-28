@@ -10,7 +10,11 @@ import { TokenStandard } from '@hyperlane-xyz/sdk';
 
 import {
   metricsRegister,
+  resetInventoryBalanceMetrics,
+  resetPendingDestinationMetrics,
+  updateInventoryBalanceMetrics,
   updateNativeWalletBalanceMetrics,
+  updatePendingDestinationMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
@@ -299,6 +303,61 @@ describe('Warp Monitor Metrics', () => {
       expect(metrics).to.include(
         'bridge_address="0xZeroLimits123456789012345678901234567890"',
       );
+    });
+  });
+
+  describe('pending destination metrics', () => {
+    it('should record pending amount/count/age and projected deficit', async () => {
+      resetPendingDestinationMetrics();
+      updatePendingDestinationMetrics({
+        warpRouteId: 'MULTI/stableswap',
+        nodeId: 'USDC|base|0xrouter',
+        chainName: 'base',
+        routerAddress: '0xrouter',
+        tokenAddress: '0xtoken',
+        tokenSymbol: 'USDC',
+        tokenName: 'USD Coin',
+        pendingAmount: 123.45,
+        pendingCount: 3,
+        oldestPendingSeconds: 120,
+        projectedDeficit: 23.45,
+      });
+
+      const metrics = await metricsRegister.metrics();
+      expect(metrics).to.include(
+        'hyperlane_warp_route_pending_destination_amount',
+      );
+      expect(metrics).to.include(
+        'hyperlane_warp_route_pending_destination_count',
+      );
+      expect(metrics).to.include(
+        'hyperlane_warp_route_pending_destination_oldest_seconds',
+      );
+      expect(metrics).to.include('hyperlane_warp_route_projected_deficit');
+      expect(metrics).to.include('node_id="USDC|base|0xrouter"');
+      expect(metrics).to.include('token_symbol="USDC"');
+    });
+  });
+
+  describe('inventory balance metrics', () => {
+    it('should record configured inventory address balances', async () => {
+      resetInventoryBalanceMetrics();
+      updateInventoryBalanceMetrics({
+        warpRouteId: 'MULTI/stableswap',
+        nodeId: 'USDT|arbitrum|0xrouter2',
+        chainName: 'arbitrum',
+        routerAddress: '0xrouter2',
+        tokenAddress: '0xtoken2',
+        tokenSymbol: 'USDT',
+        tokenName: 'Tether USD',
+        inventoryAddress: '0xrebalancer',
+        inventoryBalance: 77.7,
+      });
+
+      const metrics = await metricsRegister.metrics();
+      expect(metrics).to.include('hyperlane_warp_route_inventory_balance');
+      expect(metrics).to.include('inventory_address="0xrebalancer"');
+      expect(metrics).to.include('node_id="USDT|arbitrum|0xrouter2"');
     });
   });
 });
