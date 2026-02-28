@@ -272,6 +272,22 @@ export function hyperlaneWarpSendRelay({
         ${roundTrip ? ['--round-trip'] : []} `;
 }
 
+export function hyperlaneWarpCombine({
+  routes,
+  outputWarpRouteId,
+}: {
+  routes: string;
+  outputWarpRouteId?: string;
+}): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp combine \
+        --registry ${REGISTRY_PATH} \
+        --routes ${routes} \
+        ${outputWarpRouteId ? ['--output-warp-route-id', outputWarpRouteId] : []} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+}
+
 export function hyperlaneWarpRebalancer(
   checkFrequency: number,
   config: string,
@@ -448,6 +464,8 @@ export function generateWarpConfigs(
     // No adapter has been implemented yet
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
+    // Collateral-only, can't pair with synthetics; tested separately
+    TokenType.multiCollateral,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
   ]);

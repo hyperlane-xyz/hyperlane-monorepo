@@ -134,6 +134,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.EvmHypEverclearCollateral]: null,
   [TokenStandard.EvmHypEverclearEth]: null,
+  [TokenStandard.EvmHypMultiCollateral]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
