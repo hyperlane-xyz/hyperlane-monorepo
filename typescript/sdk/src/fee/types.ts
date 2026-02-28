@@ -155,15 +155,6 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
       z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
     )
     .optional(), // Destination -> Fee
-  routerFeeContracts: z
-    .record(
-      ZChainName,
-      z.record(
-        ZHash,
-        z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
-      ),
-    )
-    .optional(), // Destination -> TargetRouter (bytes32) -> Fee
   maxFee: ZBigNumberish.optional(),
   halfAmount: ZBigNumberish.optional(),
 });
@@ -176,15 +167,6 @@ export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
     .record(
       ZChainName,
       z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
-    )
-    .optional(),
-  routerFeeContracts: z
-    .record(
-      ZChainName,
-      z.record(
-        ZHash,
-        z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
-      ),
     )
     .optional(),
 });
@@ -217,8 +199,4 @@ export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
 export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
   token: string;
   feeContracts?: Record<string, ResolvedTokenFeeConfigInput>;
-  routerFeeContracts?: Record<
-    string,
-    Record<string, ResolvedTokenFeeConfigInput>
-  >;
 };

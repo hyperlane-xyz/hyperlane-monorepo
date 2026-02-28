@@ -5,7 +5,7 @@ import {
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -28,13 +28,11 @@ export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
 export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
   feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
-  routerFeeContracts?: Record<ChainName, Record<string, DerivedTokenFeeConfig>>;
 };
 
 export type TokenFeeReaderParams = {
   address: Address;
   routingDestinations?: number[]; // Optional: when provided, derives feeContracts
-  routersByDestination?: Record<number, string[]>; // Optional: destination domain -> router addresses, derives routerFeeContracts
 };
 
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -48,7 +46,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   async deriveTokenFeeConfig(
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
-    const { address, routingDestinations, routersByDestination } = params;
+    const { address, routingDestinations } = params;
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
@@ -67,7 +65,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         derivedConfig = await this.deriveRoutingFeeConfig({
           address,
           routingDestinations,
-          routersByDestination,
         });
         break;
       default:
@@ -117,7 +114,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   private async deriveRoutingFeeConfig(
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
-    const { address, routingDestinations, routersByDestination } = params;
+    const { address, routingDestinations } = params;
     const routingFee = RoutingFee__factory.connect(address, this.provider);
     const [token, owner, maxFee, halfAmount] = await Promise.all([
       routingFee.token(),
@@ -134,10 +131,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     if (routingDestinations)
       await Promise.all(
         routingDestinations.map(async (destination) => {
-          const subFeeAddress = await routingFee.feeContracts(
-            destination,
-            constants.HashZero,
-          );
+          const subFeeAddress = await routingFee.feeContracts(destination);
           if (subFeeAddress === constants.AddressZero) return;
           const chainName = this.multiProvider.getChainName(destination);
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
@@ -149,39 +143,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
           });
         }),
       );
-
-    const routerFeeContracts: Record<
-      ChainName,
-      Record<string, DerivedTokenFeeConfig>
-    > = {};
-    if (routersByDestination) {
-      await Promise.all(
-        Object.entries(routersByDestination).map(
-          async ([destStr, routerAddrs]) => {
-            const destination = Number(destStr);
-            const chainName = this.multiProvider.getChainName(destination);
-            const perRouter: Record<string, DerivedTokenFeeConfig> = {};
-            await Promise.all(
-              routerAddrs.map(async (routerAddr) => {
-                const routerBytes32 = addressToBytes32(routerAddr);
-                const subFeeAddress = await routingFee.feeContracts(
-                  destination,
-                  routerBytes32,
-                );
-                if (subFeeAddress === constants.AddressZero) return;
-                perRouter[routerBytes32] = await this.deriveTokenFeeConfig({
-                  address: subFeeAddress,
-                });
-              }),
-            );
-            if (Object.keys(perRouter).length > 0) {
-              routerFeeContracts[chainName] = perRouter;
-            }
-          },
-        ),
-      );
-    }
-
     return {
       type: TokenFeeType.RoutingFee,
       maxFee: maxFeeBn,
@@ -190,9 +151,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       token,
       owner,
       feeContracts,
-      ...(Object.keys(routerFeeContracts).length > 0 && {
-        routerFeeContracts,
-      }),
     };
   }
 

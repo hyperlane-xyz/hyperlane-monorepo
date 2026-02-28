@@ -1,10 +1,10 @@
 import { PopulatedTransaction } from 'ethers';
 
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
-  ERC20__factory,
   MultiCollateral,
   MultiCollateral__factory,
-} from '@hyperlane-xyz/core';
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,

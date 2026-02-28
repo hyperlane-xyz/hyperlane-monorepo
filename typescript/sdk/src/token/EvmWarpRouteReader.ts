@@ -17,7 +17,6 @@ import {
   IWETH__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
-  MultiCollateral__factory,
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   Ownable__factory,
@@ -28,6 +27,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
