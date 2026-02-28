@@ -35,6 +35,9 @@ type PendingDestinationMetric = BaseRouterMetric & {
   pendingAmount: number;
   pendingCount: number;
   oldestPendingSeconds: number;
+};
+
+type ProjectedDeficitMetric = BaseRouterMetric & {
   projectedDeficit: number;
 };
 
@@ -196,6 +199,21 @@ export function updatePendingDestinationMetrics(
   pendingDestinationOldestSecondsGauge
     .labels(labels)
     .set(metric.oldestPendingSeconds);
+}
+
+export function updateProjectedDeficitMetrics(
+  metric: ProjectedDeficitMetric,
+): void {
+  const labels = {
+    warp_route_id: metric.warpRouteId,
+    node_id: metric.nodeId,
+    chain_name: metric.chainName,
+    router_address: metric.routerAddress,
+    token_address: metric.tokenAddress,
+    token_symbol: metric.tokenSymbol,
+    token_name: metric.tokenName,
+  };
+
   projectedDeficitGauge.labels(labels).set(metric.projectedDeficit);
 }
 

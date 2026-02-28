@@ -42,6 +42,7 @@ import {
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updatePendingDestinationMetrics,
+  updateProjectedDeficitMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
@@ -291,10 +292,6 @@ export class WarpMonitor {
       };
 
       const routerCollateral = collateralByNodeId.get(node.nodeId) ?? 0n;
-      const projectedDeficitBaseUnits =
-        aggregate.amountBaseUnits > routerCollateral
-          ? aggregate.amountBaseUnits - routerCollateral
-          : 0n;
 
       updatePendingDestinationMetrics({
         warpRouteId,
@@ -304,9 +301,31 @@ export class WarpMonitor {
         tokenAddress: node.tokenAddress,
         tokenSymbol: node.tokenSymbol,
         tokenName: node.tokenName,
-        pendingAmount: this.formatTokenAmount(node.token, aggregate.amountBaseUnits),
+        pendingAmount: this.formatTokenAmount(
+          node.token,
+          aggregate.amountBaseUnits,
+        ),
         pendingCount: aggregate.count,
         oldestPendingSeconds: aggregate.oldestPendingSeconds,
+      });
+
+      if (!node.token.isCollateralized()) {
+        continue;
+      }
+
+      const projectedDeficitBaseUnits =
+        aggregate.amountBaseUnits > routerCollateral
+          ? aggregate.amountBaseUnits - routerCollateral
+          : 0n;
+
+      updateProjectedDeficitMetrics({
+        warpRouteId,
+        nodeId: node.nodeId,
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
         projectedDeficit: this.formatTokenAmount(
           node.token,
           projectedDeficitBaseUnits,
@@ -355,7 +374,10 @@ export class WarpMonitor {
           tokenSymbol: node.tokenSymbol,
           tokenName: node.tokenName,
           inventoryAddress,
-          inventoryBalance: this.formatTokenAmount(node.token, inventoryBalance),
+          inventoryBalance: this.formatTokenAmount(
+            node.token,
+            inventoryBalance,
+          ),
         });
       }),
     );
@@ -375,7 +397,9 @@ export class WarpMonitor {
       tryFn(
         async () => {
           const bridgedSupply = token.isHypToken()
-            ? await token.getHypAdapter(warpCore.multiProvider).getBridgedSupply()
+            ? await token
+                .getHypAdapter(warpCore.multiProvider)
+                .getBridgedSupply()
             : undefined;
 
           const balanceInfo = await getTokenBridgedBalance(
@@ -561,7 +585,9 @@ export class WarpMonitor {
         chainName: token.chainName,
         domainId,
         routerAddress,
-        tokenAddress: (token.collateralAddressOrDenom ?? token.addressOrDenom).toLowerCase(),
+        tokenAddress: (
+          token.collateralAddressOrDenom ?? token.addressOrDenom
+        ).toLowerCase(),
         tokenName: token.name,
         tokenSymbol: token.symbol,
         tokenDecimals: token.decimals,
