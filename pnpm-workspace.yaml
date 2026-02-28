@@ -1,6 +1,7 @@
 packages:
   - 'solhint-plugin'
   - 'solidity'
+  - 'solidity/multicollateral'
   - 'typescript/*'
   - 'starknet'
 

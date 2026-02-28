@@ -1,0 +1,50 @@
+{
+  "name": "@hyperlane-xyz/multicollateral",
+  "description": "MultiCollateral solidity contracts and typechain artifacts for Hyperlane",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./typechain": "./dist/typechain/index.js",
+    "./typechain/*": "./dist/typechain/*",
+    "./contracts": "./contracts"
+  },
+  "files": [
+    "/dist",
+    "/contracts"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "Hyperlane",
+    "Solidity",
+    "MultiCollateral"
+  ],
+  "license": "Apache-2.0",
+  "scripts": {
+    "deps:soldeer": "[ -d ../dependencies/@openzeppelin-contracts-4.9.3 ] || pnpm -C ../ deps:soldeer",
+    "build": "pnpm clean && pnpm deps:soldeer && forge build && pnpm build:typechain && tsc -p tsconfig.json",
+    "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/MultiCollateral.sol/MultiCollateral.json out/MultiCollateralRoutingFee.sol/MultiCollateralRoutingFee.json out/IMultiCollateralFee.sol/IMultiCollateralFee.json",
+    "clean": "rm -rf ./artifacts ./cache ./dist ./typechain ./forge-cache ./out",
+    "lint": "eslint -c ./eslint.config.mjs ./index.ts",
+    "test": "pnpm deps:soldeer && forge test -vvv",
+    "test:ci": "pnpm test"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@typechain/ethers-v5": "catalog:",
+    "typechain": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*"
+  }
+}
