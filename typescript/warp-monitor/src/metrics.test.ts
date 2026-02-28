@@ -15,6 +15,7 @@ import {
   updateInventoryBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updatePendingDestinationMetrics,
+  updateProjectedDeficitMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
@@ -307,7 +308,7 @@ describe('Warp Monitor Metrics', () => {
   });
 
   describe('pending destination metrics', () => {
-    it('should record pending amount/count/age and projected deficit', async () => {
+    it('should record pending amount/count/age', async () => {
       resetPendingDestinationMetrics();
       updatePendingDestinationMetrics({
         warpRouteId: 'MULTI/stableswap',
@@ -320,7 +321,6 @@ describe('Warp Monitor Metrics', () => {
         pendingAmount: 123.45,
         pendingCount: 3,
         oldestPendingSeconds: 120,
-        projectedDeficit: 23.45,
       });
 
       const metrics = await metricsRegister.metrics();
@@ -333,9 +333,27 @@ describe('Warp Monitor Metrics', () => {
       expect(metrics).to.include(
         'hyperlane_warp_route_pending_destination_oldest_seconds',
       );
-      expect(metrics).to.include('hyperlane_warp_route_projected_deficit');
       expect(metrics).to.include('node_id="USDC|base|0xrouter"');
       expect(metrics).to.include('token_symbol="USDC"');
+    });
+
+    it('should record projected deficit separately', async () => {
+      resetPendingDestinationMetrics();
+      updateProjectedDeficitMetrics({
+        warpRouteId: 'MULTI/stableswap',
+        nodeId: 'USDC|base|0xrouter',
+        chainName: 'base',
+        routerAddress: '0xrouter',
+        tokenAddress: '0xtoken',
+        tokenSymbol: 'USDC',
+        tokenName: 'USD Coin',
+        projectedDeficit: 23.45,
+      });
+
+      const metrics = await metricsRegister.metrics();
+      expect(metrics).to.include('hyperlane_warp_route_projected_deficit');
+      expect(metrics).to.include('node_id="USDC|base|0xrouter"');
+      expect(metrics).to.include('23.45');
     });
   });
 
