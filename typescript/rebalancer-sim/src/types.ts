@@ -358,7 +358,13 @@ export interface RebalancerSimConfig {
  * Strategy configuration for rebalancer
  */
 export interface RebalancerStrategyConfig {
-  type: 'weighted' | 'minAmount';
+  type:
+    | 'weighted'
+    | 'minAmount'
+    | 'emaFlow'
+    | 'velocityFlow'
+    | 'thresholdFlow'
+    | 'accelerationFlow';
   chains: Record<string, ChainStrategyConfig>;
 }
 
@@ -377,6 +383,33 @@ export interface ChainStrategyConfig {
   };
   bridge: string;
   bridgeLockTime: number;
+  emaFlow?: {
+    alpha: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
+  velocityFlow?: {
+    velocityMultiplier: string;
+    baseResponse: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
+  thresholdFlow?: {
+    noiseThreshold: string;
+    proportionalGain: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
+  accelerationFlow?: {
+    accelerationWeight: string;
+    damping: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
 }
 
 /**
@@ -521,7 +554,13 @@ export interface SerializedBridgeConfig {
  * Serialized strategy config for JSON storage (bridge addresses added at runtime)
  */
 export interface SerializedStrategyConfig {
-  type: 'weighted' | 'minAmount';
+  type:
+    | 'weighted'
+    | 'minAmount'
+    | 'emaFlow'
+    | 'velocityFlow'
+    | 'thresholdFlow'
+    | 'accelerationFlow';
   chains: {
     [chain: string]: {
       weighted?: {
@@ -535,6 +574,52 @@ export interface SerializedStrategyConfig {
         min: string;
         /** Target balance in tokens (as string) */
         target: string;
+      };
+      emaFlow?: {
+        /** EMA smoothing factor as decimal string (e.g., "0.3") */
+        alpha: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
+      velocityFlow?: {
+        /** Velocity multiplier as decimal string (e.g., "1.5") */
+        velocityMultiplier: string;
+        /** Base response magnitude as decimal string (e.g., "0.5") */
+        baseResponse: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
+      thresholdFlow?: {
+        /** Noise threshold as decimal string (e.g., "0.05") */
+        noiseThreshold: string;
+        /** Proportional gain as decimal string (e.g., "1.0") */
+        proportionalGain: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
+      accelerationFlow?: {
+        /** Acceleration weight as decimal string (e.g., "0.5") */
+        accelerationWeight: string;
+        /** Damping factor as decimal string (e.g., "0.1") */
+        damping: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
       };
       /** Time bridge locks funds before delivery (ms) - used for semaphore */
       bridgeLockTime: number;
