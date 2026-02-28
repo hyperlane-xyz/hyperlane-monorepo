@@ -35,6 +35,7 @@ function createLiFiStep(overrides?: {
   toTokenAddress?: string;
   toAddress?: string;
   fromAmount?: string;
+  toAmount?: string;
   fromAddress?: string;
 }): LiFiStep {
   const fromChainId = overrides?.fromChainId ?? 42161;
@@ -79,7 +80,7 @@ function createLiFiStep(overrides?: {
       tool: 'across',
       fromAmount,
       fromAmountUSD: '10000',
-      toAmount: '9950000000',
+      toAmount: overrides?.toAmount ?? '9950000000',
       toAmountMin: '9900000000',
       toAmountUSD: '9950',
       approvalAddress: '0x0000000000000000000000000000000000000000',
@@ -150,6 +151,7 @@ const VALIDATION_PATTERNS = [
   /Route toToken .* does not match requested/,
   /Route toAddress .* does not match requested/,
   /Route fromAmount .* does not match requested/,
+  /Route toAmount .* does not match requested/,
   /Route fromAmount must be positive/,
 ];
 
@@ -363,9 +365,10 @@ describe('LiFiBridge.execute() route validation', function () {
 
   it('should pass validation for toAmount quote path (fromAmount undefined, toAmount present)', async () => {
     // Tests reverse-quote pattern where toAmount is set and fromAmount is undefined.
-    // The fromAmount equality check is skipped; only the positivity check runs.
+    // The fromAmount equality check is skipped when requestParams.fromAmount is undefined.
+    // The toAmount equality check passes because route.toAmount matches requestParams.toAmount.
     const quote = createTestQuote(
-      { fromAmount: '5000000000' },
+      { fromAmount: '5000000000', toAmount: '5000000000' },
       { fromAmount: undefined, toAmount: 5000000000n },
     );
     try {
@@ -376,6 +379,23 @@ describe('LiFiBridge.execute() route validation', function () {
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
       ).to.equal(false);
+    }
+  });
+
+  it('should throw when route toAmount does not match requested for reverse quote', async () => {
+    // Route estimate.toAmount='9950000000' but requestParams.toAmount=123n -> mismatch
+    const quote = createTestQuote(
+      {},
+      { fromAmount: undefined, toAmount: 123n },
+    );
+    try {
+      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('toAmount');
+      expect(msg).to.include('9950000000');
+      expect(msg).to.include('123');
     }
   });
 });

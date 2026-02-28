@@ -504,6 +504,13 @@ export class LiFiBridge implements IExternalBridge {
         `Route fromAmount ${route.fromAmount} does not match requested ${requestParams.fromAmount}`,
       );
     }
+    if (requestParams.toAmount !== undefined) {
+      const routeToAmount = BigInt(route.toAmount);
+      assert(
+        routeToAmount === requestParams.toAmount,
+        `Route toAmount ${route.toAmount} does not match requested ${requestParams.toAmount}`,
+      );
+    }
     assert(routeFromAmount > 0n, 'Route fromAmount must be positive');
   }
 
