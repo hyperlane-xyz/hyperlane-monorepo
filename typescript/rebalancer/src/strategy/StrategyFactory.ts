@@ -19,7 +19,9 @@ import type {
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { CompositeStrategy } from './CompositeStrategy.js';
+import { AccelerationFlowStrategy } from './flow-reactive/AccelerationFlowStrategy.js';
 import { EMAFlowStrategy } from './flow-reactive/EMAFlowStrategy.js';
+import { ThresholdFlowStrategy } from './flow-reactive/ThresholdFlowStrategy.js';
 import { VelocityFlowStrategy } from './flow-reactive/VelocityFlowStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
@@ -147,11 +149,32 @@ export class StrategyFactory {
           tokensByChainName,
         );
       }
-      case RebalancerStrategyOptions.ThresholdFlow:
+      case RebalancerStrategyOptions.ThresholdFlow: {
+        assert(
+          actionTracker,
+          'ActionTracker required for ThresholdFlow strategy',
+        );
+        return new ThresholdFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
+        );
+      }
       case RebalancerStrategyOptions.AccelerationFlow: {
-        // Strategy classes will be implemented in Tasks 6-9
-        throw new Error(
-          `Flow-reactive strategy '${strategyConfig.rebalanceStrategy}' not yet implemented`,
+        assert(
+          actionTracker,
+          'ActionTracker required for AccelerationFlow strategy',
+        );
+        return new AccelerationFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
         );
       }
       default: {
