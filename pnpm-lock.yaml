@@ -507,7 +507,6 @@ importers:
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:..
-    devDependencies:
       '@typechain/ethers-v5':
         specifier: 11.1.2
         version: 11.1.2(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(typescript@5.8.3))(typescript@5.8.3)

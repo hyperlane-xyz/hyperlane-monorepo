@@ -38,6 +38,7 @@ import {
   WarpCoreConfigSchema,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  TokenStandard,
   altVmChainLookup,
   enrollCrossChainRouters,
   executeWarpDeploy,
@@ -49,6 +50,7 @@ import {
   isCollateralTokenConfig,
   isMultiCollateralTokenConfig,
   isXERC20TokenConfig,
+  normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
@@ -1256,6 +1258,89 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   };
 }
 
+type CombineRouteConfig = {
+  id: string;
+  coreConfig: WarpCoreConfig;
+  deployConfig: WarpRouteDeployConfigMailboxRequired;
+};
+
+type CanonicalWholeTokenRatio = {
+  numerator: bigint;
+  denominator: bigint;
+};
+
+function formatScaleForLogs(
+  scale: WarpCoreConfig['tokens'][number]['scale'],
+): string {
+  if (!scale) return '1';
+  if (typeof scale === 'number') return scale.toString();
+  return `${scale.numerator.toString()}/${scale.denominator.toString()}`;
+}
+
+function getCanonicalWholeTokenRatio(
+  token: WarpCoreConfig['tokens'][number],
+): CanonicalWholeTokenRatio {
+  const normalizedScale = normalizeScale(token.scale);
+  const oneTokenBaseUnits = 10n ** BigInt(token.decimals);
+  return {
+    numerator: oneTokenBaseUnits * normalizedScale.numerator,
+    denominator: normalizedScale.denominator,
+  };
+}
+
+function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
+  for (const route of routes) {
+    const invalidDeployChains = Object.entries(route.deployConfig)
+      .filter(([, chainConfig]) => !isMultiCollateralTokenConfig(chainConfig))
+      .map(([chain]) => chain);
+    assert(
+      invalidDeployChains.length === 0,
+      `Route "${route.id}" contains non-MultiCollateral deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
+    );
+
+    const invalidCoreTokens = route.coreConfig.tokens.filter(
+      (token) => token.standard !== TokenStandard.EvmHypMultiCollateral,
+    );
+    assert(
+      invalidCoreTokens.length === 0,
+      `Route "${route.id}" contains non-MultiCollateral warp config token(s): ${invalidCoreTokens
+        .map((token) => `${token.chainName}:${token.addressOrDenom}`)
+        .join(', ')}`,
+    );
+  }
+
+  const tokensByChain = new Map<
+    string,
+    Array<{ routeId: string; token: WarpCoreConfig['tokens'][number] }>
+  >();
+  for (const route of routes) {
+    for (const token of route.coreConfig.tokens) {
+      const chainTokens = tokensByChain.get(token.chainName) ?? [];
+      chainTokens.push({ routeId: route.id, token });
+      tokensByChain.set(token.chainName, chainTokens);
+    }
+  }
+
+  for (const [chainName, chainTokens] of tokensByChain.entries()) {
+    if (chainTokens.length <= 1) continue;
+
+    const [base, ...rest] = chainTokens;
+    const baseRatio = getCanonicalWholeTokenRatio(base.token);
+
+    for (const candidate of rest) {
+      const candidateRatio = getCanonicalWholeTokenRatio(candidate.token);
+      const isCompatible =
+        baseRatio.numerator * candidateRatio.denominator ===
+        candidateRatio.numerator * baseRatio.denominator;
+
+      assert(
+        isCompatible,
+        `Incompatible decimals/scale on chain "${chainName}" between route "${base.routeId}" (${base.token.symbol}, decimals=${base.token.decimals}, scale=${formatScaleForLogs(base.token.scale)}) and route "${candidate.routeId}" (${candidate.token.symbol}, decimals=${candidate.token.decimals}, scale=${formatScaleForLogs(candidate.token.scale)}).`,
+      );
+    }
+  }
+}
+
 /**
  * Combines multiple warp routes into a single merged WarpCoreConfig and updates
  * each route's deploy config with cross-route enrolledRouters.
@@ -1272,11 +1357,7 @@ export async function runWarpRouteCombine({
   assert(routeIds.length >= 2, 'At least 2 route IDs are required to combine');
 
   // 1. Read each route's WarpCoreConfig and deploy config
-  const routes: Array<{
-    id: string;
-    coreConfig: WarpCoreConfig;
-    deployConfig: WarpRouteDeployConfigMailboxRequired;
-  }> = [];
+  const routes: CombineRouteConfig[] = [];
 
   for (const id of routeIds) {
     const coreConfig = await context.registry.getWarpRoute(id);
@@ -1289,6 +1370,8 @@ export async function runWarpRouteCombine({
       deployConfig: deployConfig as WarpRouteDeployConfigMailboxRequired,
     });
   }
+
+  assertCombineRoutesAreValid(routes);
 
   // 2. For each route, update enrolledRouters with routers from other routes
   for (const route of routes) {
@@ -1319,6 +1402,24 @@ export async function runWarpRouteCombine({
           [...routers],
         ]),
       );
+
+      const routersRemovedByCombine = Object.entries(
+        chainConfig.enrolledRouters ?? {},
+      ).reduce((acc, [domain, routers]) => {
+        const enrolledAfterCombine = new Set(
+          reconciledEnrolledRouters[domain] ?? [],
+        );
+        return (
+          acc +
+          routers.filter((router) => !enrolledAfterCombine.has(router)).length
+        );
+      }, 0);
+
+      if (routersRemovedByCombine > 0) {
+        warnYellow(
+          `Combining route "${route.id}" on chain "${chain}" will remove ${routersRemovedByCombine} enrolled router(s) not present in --routes. They will be unenrolled on next "warp apply".`,
+        );
+      }
 
       (route.deployConfig[chain] as any).enrolledRouters =
         Object.keys(reconciledEnrolledRouters).length > 0
