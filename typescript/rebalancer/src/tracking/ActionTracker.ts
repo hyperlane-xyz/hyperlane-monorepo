@@ -192,7 +192,9 @@ export class ActionTracker implements IActionTracker {
       );
 
       if (delivered) {
-        await this.transferStore.update(transfer.id, { status: 'complete' });
+        await this.transferStore.update(transfer.id, {
+          status: 'complete',
+        });
         completedTransfers++;
         this.logger.debug({ id: transfer.id }, 'Transfer completed');
       }
@@ -362,6 +364,12 @@ export class ActionTracker implements IActionTracker {
     return this.transferStore.getByDestination(destination);
   }
 
+  async getRecentTransfers(sinceMs: number): Promise<Transfer[]> {
+    const cutoff = Date.now() - sinceMs;
+    const all = await this.transferStore.getAll();
+    return all.filter((t) => t.createdAt >= cutoff);
+  }
+
   // === RebalanceIntent Queries ===
 
   async getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined> {
@@ -510,7 +518,9 @@ export class ActionTracker implements IActionTracker {
     const completedAmount = await this.getCompletedAmountForIntent(intentId);
 
     if (completedAmount >= intent.amount) {
-      await this.rebalanceIntentStore.update(intentId, { status: 'complete' });
+      await this.rebalanceIntentStore.update(intentId, {
+        status: 'complete',
+      });
       this.logger.debug(
         { intentId, completedAmount: completedAmount.toString() },
         'RebalanceIntent fully fulfilled',
@@ -949,7 +959,11 @@ export class ActionTracker implements IActionTracker {
 
       await this.rebalanceActionStore.save(action);
       this.logger.debug(
-        { id: action.id, intentId: action.intentId, amount: amount.toString() },
+        {
+          id: action.id,
+          intentId: action.intentId,
+          amount: amount.toString(),
+        },
         'Recovered RebalanceAction',
       );
     } catch (error) {
