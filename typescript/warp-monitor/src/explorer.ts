@@ -123,7 +123,9 @@ export class ExplorerPendingTransfersClient {
 
       let parsedMessage: ReturnType<typeof parseWarpRouteMessage>;
       try {
-        parsedMessage = parseWarpRouteMessage(normalizeExplorerHex(row.message_body));
+        parsedMessage = parseWarpRouteMessage(
+          normalizeExplorerHex(row.message_body),
+        );
       } catch (error) {
         this.logger.debug(
           {
@@ -182,7 +184,9 @@ export class ExplorerPendingTransfersClient {
     return address.replace(/^0x/i, '\\x').toLowerCase();
   }
 
-  private async queryInflightTransfers(limit: number): Promise<ExplorerMessageRow[]> {
+  private async queryInflightTransfers(
+    limit: number,
+  ): Promise<ExplorerMessageRow[]> {
     if (this.routers.length === 0 || this.domains.length === 0) return [];
 
     const variables = {
