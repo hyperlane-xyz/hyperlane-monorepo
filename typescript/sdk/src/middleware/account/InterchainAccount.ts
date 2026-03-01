@@ -541,6 +541,22 @@ export function commitmentFromIcaCalls(
   return utils.keccak256(encodeIcaCalls(calls, salt));
 }
 
+export type IcaCommitment = {
+  encodedCalls: string;
+  commitment: string;
+};
+
+export function buildIcaCommitment(
+  calls: CallData[],
+  salt: string,
+): IcaCommitment {
+  const encodedCalls = encodeIcaCalls(calls, salt);
+  return {
+    encodedCalls,
+    commitment: utils.keccak256(encodedCalls),
+  };
+}
+
 export const PostCallsSchema = z.object({
   calls: z
     .array(
@@ -553,11 +569,52 @@ export const PostCallsSchema = z.object({
     .min(1),
   relayers: z.array(z.string()),
   salt: z.string(),
-  commitmentDispatchTx: z.string(),
+  commitmentDispatchTx: z.string().optional(),
   originDomain: z.number(),
+  ismOverride: z.string().optional(),
+  userSalt: z.string().optional(),
+  destinationDomain: z.number().optional(),
+  owner: z.string().optional(),
 });
 
 export type PostCallsType = z.infer<typeof PostCallsSchema>;
+
+export function buildPostCallsPayload(params: {
+  calls: CallData[];
+  relayers: string[];
+  salt: string;
+  commitmentDispatchTx?: string;
+  originDomain: number;
+  ismOverride?: string;
+  userSalt?: string;
+  destinationDomain?: number;
+  owner?: string;
+}): PostCallsType {
+  const calls = params.calls.map((call) => {
+    const payloadCall: { to: string; data: string; value?: string } = {
+      to: call.to,
+      data: call.data,
+    };
+
+    if (call.value) {
+      payloadCall.value = call.value.toString();
+    }
+
+    return payloadCall;
+  });
+
+  return PostCallsSchema.parse({
+    calls,
+    relayers: params.relayers,
+    salt: params.salt,
+    commitmentDispatchTx: params.commitmentDispatchTx,
+    originDomain: params.originDomain,
+    ismOverride: params.ismOverride,
+    userSalt: params.userSalt,
+    destinationDomain: params.destinationDomain,
+    owner: params.owner,
+  });
+}
 
 export async function shareCallsWithPrivateRelayer(
   serverUrl: string,
