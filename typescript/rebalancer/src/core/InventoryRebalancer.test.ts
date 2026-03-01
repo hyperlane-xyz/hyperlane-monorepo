@@ -143,7 +143,7 @@ describe('InventoryRebalancer E2E', () => {
       getTransferRemoteTxs: Sinon.stub().resolves([
         {
           category: 'transfer',
-          type: 'ethersV5',
+          type: ProviderType.EthersV5,
           transaction: {
             to: '0xRouterAddress',
             data: '0xTransferRemoteData',
