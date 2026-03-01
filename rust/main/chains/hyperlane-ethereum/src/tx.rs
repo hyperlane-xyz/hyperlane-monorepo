@@ -131,6 +131,16 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
+    // Set the from address to the signer's address when estimating gas.
+    // On some chains, if no `from` address is specified, the RPC assumes the zero address,
+    // which may not have funds, causing gas estimation to fail even though the relayer
+    // has sufficient funds. See: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+    let tx = if let Some(signer) = provider.default_sender() {
+        tx.from(signer)
+    } else {
+        tx
+    };
+
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
