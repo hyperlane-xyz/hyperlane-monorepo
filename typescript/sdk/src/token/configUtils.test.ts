@@ -89,6 +89,112 @@ describe('configUtils', () => {
         },
       },
       {
+        msg: 'It should remove maxFee and halfAmount from tokenFee config',
+        input: {
+          type: TokenType.collateral,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            maxFee: 123456789n,
+            halfAmount: 987654321n,
+            bps: 100n,
+            owner: ADDRESS,
+            token: ADDRESS,
+          },
+        },
+        expected: {
+          type: TokenType.collateral,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+            owner: ADDRESS.toLowerCase(),
+            token: ADDRESS.toLowerCase(),
+          },
+        },
+      },
+      {
+        msg: 'It should remove maxFee and halfAmount from nested feeContracts',
+        input: {
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            maxFee: 999n,
+            halfAmount: 888n,
+            owner: ADDRESS,
+            token: ADDRESS,
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.LinearFee,
+                maxFee: 111n,
+                halfAmount: 222n,
+                bps: 50n,
+                owner: ADDRESS,
+                token: ADDRESS,
+              },
+            },
+          },
+        },
+        expected: {
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            owner: ADDRESS.toLowerCase(),
+            token: ADDRESS.toLowerCase(),
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.LinearFee,
+                bps: 50n,
+                owner: ADDRESS.toLowerCase(),
+                token: ADDRESS.toLowerCase(),
+              },
+            },
+          },
+        },
+      },
+      {
+        msg: 'It should preserve maxFee and halfAmount for ProgressiveFee (no bps)',
+        input: {
+          type: TokenType.collateral,
+          tokenFee: {
+            type: TokenFeeType.ProgressiveFee,
+            maxFee: 123456789n,
+            halfAmount: 987654321n,
+            owner: ADDRESS,
+            token: ADDRESS,
+          },
+        },
+        expected: {
+          type: TokenType.collateral,
+          tokenFee: {
+            type: TokenFeeType.ProgressiveFee,
+            maxFee: 123456789n,
+            halfAmount: 987654321n,
+            owner: ADDRESS.toLowerCase(),
+            token: ADDRESS.toLowerCase(),
+          },
+        },
+      },
+      {
+        msg: 'It should preserve maxFee and halfAmount for RegressiveFee (no bps)',
+        input: {
+          type: TokenType.collateral,
+          tokenFee: {
+            type: TokenFeeType.RegressiveFee,
+            maxFee: 111222333n,
+            halfAmount: 444555666n,
+            owner: ADDRESS,
+            token: ADDRESS,
+          },
+        },
+        expected: {
+          type: TokenType.collateral,
+          tokenFee: {
+            type: TokenFeeType.RegressiveFee,
+            maxFee: 111222333n,
+            halfAmount: 444555666n,
+            owner: ADDRESS.toLowerCase(),
+            token: ADDRESS.toLowerCase(),
+          },
+        },
+      },
+      {
         msg: 'It should sort out of order modules and validator arrays',
         expected: {
           bsc: {
