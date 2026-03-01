@@ -96,7 +96,7 @@ describe('Mixed WeightedStrategy E2E', function () {
         erc20DeployedAddresses: deployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances(inventoryBalances)
+      .withInventorySignerBalances(inventoryBalances)
       .build();
   }
 
