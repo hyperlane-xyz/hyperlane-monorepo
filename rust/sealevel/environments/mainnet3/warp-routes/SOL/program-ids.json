@@ -1,0 +1,10 @@
+{
+  "celestia": {
+    "hex": "0x726f757465725f6170700000000000000000000000000002000000000000000a",
+    "base58": "8hi42sG6MAUwJi3u9YbCrmqgsS1bDADu322p29GzrCZf"
+  },
+  "solanamainnet": {
+    "hex": "0x2f09ee7b04e4bb9bedf09825c2964c04899f1778190b9dbf3c3b09863b106221",
+    "base58": "4Acwq4Sw8Y7rZT8traFYmYsxZ86MAe2pQtGgkjh1mHP6"
+  }
+}
