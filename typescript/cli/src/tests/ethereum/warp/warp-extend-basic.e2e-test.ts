@@ -78,7 +78,6 @@ describe('hyperlane warp apply basic extension tests', async function () {
     };
 
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
@@ -136,7 +135,6 @@ describe('hyperlane warp apply basic extension tests', async function () {
     };
 
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
@@ -326,7 +324,6 @@ describe('hyperlane warp apply basic extension tests', async function () {
     };
 
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
