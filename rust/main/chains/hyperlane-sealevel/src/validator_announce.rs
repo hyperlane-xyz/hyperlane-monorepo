@@ -11,6 +11,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -228,5 +229,137 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             gas_used: U256::zero(),
             gas_price: U256::zero().try_into()?,
         })
+    }
+
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        let payer = self.get_signer()?;
+
+        let announce_instruction = AnnounceInstruction {
+            validator: announcement.value.validator,
+            storage_location: announcement.value.storage_location.clone(),
+            signature: announcement.signature.to_vec(),
+        };
+
+        let (validator_announce_account, _validator_announce_bump) =
+            Pubkey::find_program_address(validator_announce_pda_seeds!(), &self.program_id);
+
+        let (validator_storage_locations_key, _validator_storage_locations_bump_seed) =
+            Pubkey::find_program_address(
+                validator_storage_locations_pda_seeds!(announce_instruction.validator),
+                &self.program_id,
+            );
+
+        let replay_id = announce_instruction.replay_id();
+        let (replay_protection_pda_key, _replay_protection_bump_seed) =
+            Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &self.program_id);
+
+        let ixn = ValidatorAnnounceInstruction::Announce(announce_instruction);
+
+        let accounts = vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new_readonly(validator_announce_account, false),
+            AccountMeta::new(validator_storage_locations_key, false),
+            AccountMeta::new(replay_protection_pda_key, false),
+        ];
+
+        let data = ixn
+            .into_instruction_data()
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        let instruction = Instruction {
+            program_id: self.program_id,
+            data,
+            accounts,
+        };
+
+        serde_json::to_vec(&instruction).map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::{Announcement, Signature, SignedType, U256};
+
+    fn create_test_signed_announcement() -> SignedType<Announcement> {
+        let announcement = Announcement {
+            validator: H256::from_low_u64_be(1).into(),
+            mailbox_address: H256::from_low_u64_be(2),
+            mailbox_domain: 1399811149, // Solana mainnet domain
+            storage_location: "s3://test-bucket/validator".to_string(),
+        };
+
+        // Create a mock signature
+        let signature = Signature {
+            r: U256::from(1),
+            s: U256::from(2),
+            v: 27,
+        };
+
+        SignedType {
+            value: announcement,
+            signature,
+        }
+    }
+
+    #[test]
+    fn test_announce_instruction_construction() {
+        // Test that the AnnounceInstruction can be properly constructed and serialized
+        let signed_announcement = create_test_signed_announcement();
+
+        let validator_address: H160 = signed_announcement.value.validator.into();
+        let storage_location = signed_announcement.value.storage_location.clone();
+        let serialized_signature = signed_announcement.signature.to_vec();
+
+        let announce_instruction = AnnounceInstruction {
+            validator: validator_address,
+            storage_location: storage_location.clone(),
+            signature: serialized_signature.clone(),
+        };
+
+        let instruction = ValidatorAnnounceInstruction::Announce(announce_instruction);
+        let ixn_data = borsh::to_vec(&instruction).expect("Failed to serialize instruction");
+
+        // Verify the instruction data is not empty and contains expected content
+        assert!(!ixn_data.is_empty());
+        // Can't check directly as it's borsh encoded, but verify length is reasonable
+        assert!(ixn_data.len() > storage_location.len());
+    }
+
+    #[test]
+    fn test_pda_derivation_consistency() {
+        // Test that PDA derivation is consistent
+        let program_id = Pubkey::new_unique();
+        let validator_address = H160::from_low_u64_be(12345);
+
+        // Derive storage locations PDA
+        let (storage_pda_1, bump_1) = Pubkey::find_program_address(
+            validator_storage_locations_pda_seeds!(validator_address),
+            &program_id,
+        );
+
+        // Derive again with same parameters
+        let (storage_pda_2, bump_2) = Pubkey::find_program_address(
+            validator_storage_locations_pda_seeds!(validator_address),
+            &program_id,
+        );
+
+        // PDAs should be identical for same inputs
+        assert_eq!(storage_pda_1, storage_pda_2);
+        assert_eq!(bump_1, bump_2);
+
+        // Test replay protection PDA with a replay_id
+        let replay_id: [u8; 32] = [1u8; 32];
+        let (replay_pda_1, _) =
+            Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &program_id);
+
+        let (replay_pda_2, _) =
+            Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &program_id);
+
+        assert_eq!(replay_pda_1, replay_pda_2);
     }
 }
