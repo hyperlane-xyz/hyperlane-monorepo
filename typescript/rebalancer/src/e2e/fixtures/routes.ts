@@ -363,6 +363,11 @@ export const INVENTORY_SIGNER_PRESETS: Record<
     anvil2: '600000000', // 600 USDC
     anvil3: '300000000', // 300 USDC
   },
+  ERC20_INVENTORY_BALANCED: {
+    anvil1: '5000000000',
+    anvil2: '5000000000',
+    anvil3: '5000000000',
+  },
 };
 
 // The min/target values used by buildInventoryMinAmountStrategyConfig below.
