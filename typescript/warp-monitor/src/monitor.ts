@@ -1,3 +1,5 @@
+import { utils as ethersUtils } from 'ethers';
+
 import {
   type TokenPriceGetter,
   getExtraLockboxBalance,
@@ -29,14 +31,35 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  ExplorerPendingTransfersClient,
+  type RouterNodeMetadata,
+} from './explorer.js';
+import {
   metricsRegister,
+  resetInventoryBalanceMetrics,
+  resetPendingDestinationMetrics,
+  updateInventoryBalanceMetrics,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
+  updatePendingDestinationMetrics,
+  updateProjectedDeficitMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
 import type { WarpMonitorConfig } from './types.js';
 import { getLogger, setLoggerBindings } from './utils.js';
+
+type RouterCollateralSnapshot = {
+  nodeId: string;
+  routerCollateralBaseUnits: bigint;
+  token: Token;
+};
+
+type PendingDestinationAggregate = {
+  amountBaseUnits: bigint;
+  count: number;
+  oldestPendingSeconds: number;
+};
 
 export class WarpMonitor {
   private readonly config: WarpMonitorConfig;
@@ -49,7 +72,14 @@ export class WarpMonitor {
 
   async start(): Promise<void> {
     const logger = getLogger();
-    const { warpRouteId, checkFrequency, coingeckoApiKey } = this.config;
+    const {
+      warpRouteId,
+      checkFrequency,
+      coingeckoApiKey,
+      explorerApiUrl,
+      explorerQueryLimit,
+      inventoryAddress,
+    } = this.config;
 
     setLoggerBindings({
       warp_route: warpRouteId,
@@ -92,6 +122,10 @@ export class WarpMonitor {
     const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
     const warpDeployConfig =
       await this.registry.getWarpDeployConfig(warpRouteId);
+    const routerNodes = this.buildRouterNodes(warpCore, chainMetadata);
+    const pendingTransfersClient = explorerApiUrl
+      ? new ExplorerPendingTransfersClient(explorerApiUrl, routerNodes, logger)
+      : undefined;
 
     logger.info(
       {
@@ -99,6 +133,9 @@ export class WarpMonitor {
         checkFrequency,
         tokenCount: warpCore.tokens.length,
         chains: warpCore.getTokenChains(),
+        multiCollateralNodeCount: routerNodes.length,
+        explorerEnabled: !!pendingTransfersClient,
+        inventoryTrackingEnabled: !!inventoryAddress,
       },
       'Starting warp route monitor',
     );
@@ -110,6 +147,10 @@ export class WarpMonitor {
       chainMetadata,
       warpRouteId,
       coingeckoApiKey,
+      routerNodes,
+      pendingTransfersClient,
+      explorerQueryLimit,
+      inventoryAddress,
     );
   }
 
@@ -120,7 +161,11 @@ export class WarpMonitor {
     warpDeployConfig: WarpRouteDeployConfig | null,
     chainMetadata: ChainMap<ChainMetadata>,
     warpRouteId: string,
-    coingeckoApiKey?: string,
+    coingeckoApiKey: string | undefined,
+    routerNodes: RouterNodeMetadata[],
+    pendingTransfersClient?: ExplorerPendingTransfersClient,
+    explorerQueryLimit = 200,
+    inventoryAddress?: string,
   ): Promise<void> {
     const logger = getLogger();
     const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
@@ -144,7 +189,7 @@ export class WarpMonitor {
     while (true) {
       await tryFn(
         async () => {
-          await Promise.all(
+          const collateralSnapshots = await Promise.all(
             warpCore.tokens.map((token) =>
               this.updateTokenMetrics(
                 warpCore,
@@ -155,12 +200,186 @@ export class WarpMonitor {
               ),
             ),
           );
+
+          const collateralByNodeId = new Map<string, bigint>();
+          for (const snapshot of collateralSnapshots) {
+            if (!snapshot) continue;
+            collateralByNodeId.set(
+              snapshot.nodeId,
+              snapshot.routerCollateralBaseUnits,
+            );
+          }
+
+          await this.updatePendingAndInventoryMetrics(
+            warpCore,
+            routerNodes,
+            collateralByNodeId,
+            warpRouteId,
+            pendingTransfersClient,
+            explorerQueryLimit,
+            inventoryAddress,
+          );
         },
         'Updating warp route metrics',
         logger,
       );
       await sleep(checkFrequency);
     }
+  }
+
+  private async updatePendingAndInventoryMetrics(
+    warpCore: WarpCore,
+    routerNodes: RouterNodeMetadata[],
+    collateralByNodeId: Map<string, bigint>,
+    warpRouteId: string,
+    pendingTransfersClient?: ExplorerPendingTransfersClient,
+    explorerQueryLimit = 200,
+    inventoryAddress?: string,
+  ): Promise<void> {
+    const logger = getLogger();
+    const now = Date.now();
+
+    resetPendingDestinationMetrics();
+    resetInventoryBalanceMetrics();
+
+    const pendingByNodeId = new Map<string, PendingDestinationAggregate>();
+    if (pendingTransfersClient) {
+      try {
+        const pendingTransfers =
+          await pendingTransfersClient.getPendingDestinationTransfers(
+            explorerQueryLimit,
+          );
+
+        for (const transfer of pendingTransfers) {
+          const aggregate = pendingByNodeId.get(transfer.destinationNodeId) ?? {
+            amountBaseUnits: 0n,
+            count: 0,
+            oldestPendingSeconds: 0,
+          };
+
+          aggregate.amountBaseUnits += transfer.amountBaseUnits;
+          aggregate.count += 1;
+
+          if (transfer.sendOccurredAtMs) {
+            const ageSeconds = Math.max(
+              0,
+              Math.floor((now - transfer.sendOccurredAtMs) / 1000),
+            );
+            aggregate.oldestPendingSeconds = Math.max(
+              aggregate.oldestPendingSeconds,
+              ageSeconds,
+            );
+          }
+
+          pendingByNodeId.set(transfer.destinationNodeId, aggregate);
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: (error as Error).message,
+          },
+          'Failed to query explorer pending transfers',
+        );
+      }
+    }
+
+    const deficits: Array<{ nodeId: string; projectedDeficit: string }> = [];
+    for (const node of routerNodes) {
+      const aggregate = pendingByNodeId.get(node.nodeId) ?? {
+        amountBaseUnits: 0n,
+        count: 0,
+        oldestPendingSeconds: 0,
+      };
+
+      const routerCollateral = collateralByNodeId.get(node.nodeId) ?? 0n;
+
+      updatePendingDestinationMetrics({
+        warpRouteId,
+        nodeId: node.nodeId,
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
+        pendingAmount: this.formatTokenAmount(
+          node.token,
+          aggregate.amountBaseUnits,
+        ),
+        pendingCount: aggregate.count,
+        oldestPendingSeconds: aggregate.oldestPendingSeconds,
+      });
+
+      if (!node.token.isCollateralized()) {
+        continue;
+      }
+
+      const projectedDeficitBaseUnits =
+        aggregate.amountBaseUnits > routerCollateral
+          ? aggregate.amountBaseUnits - routerCollateral
+          : 0n;
+
+      updateProjectedDeficitMetrics({
+        warpRouteId,
+        nodeId: node.nodeId,
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
+        projectedDeficit: this.formatTokenAmount(
+          node.token,
+          projectedDeficitBaseUnits,
+        ),
+      });
+
+      if (projectedDeficitBaseUnits > 0n) {
+        deficits.push({
+          nodeId: node.nodeId,
+          projectedDeficit: projectedDeficitBaseUnits.toString(),
+        });
+      }
+    }
+
+    if (deficits.length > 0) {
+      logger.warn(
+        {
+          deficits,
+          deficitNodeCount: deficits.length,
+        },
+        'Detected projected destination deficits from pending transfers',
+      );
+    }
+
+    if (!inventoryAddress) return;
+
+    await Promise.all(
+      routerNodes.map(async (node) => {
+        try {
+          const adapter = node.token.getAdapter(warpCore.multiProvider);
+          const inventoryBalance = await adapter.getBalance(inventoryAddress);
+
+          updateInventoryBalanceMetrics({
+            warpRouteId,
+            nodeId: node.nodeId,
+            chainName: node.chainName,
+            routerAddress: node.routerAddress,
+            tokenAddress: node.tokenAddress,
+            tokenSymbol: node.tokenSymbol,
+            tokenName: node.tokenName,
+            inventoryAddress,
+            inventoryBalance: this.formatTokenAmount(
+              node.token,
+              inventoryBalance,
+            ),
+          });
+        } catch (error) {
+          logger.error(
+            { nodeId: node.nodeId, err: error as Error },
+            `Reading inventory balance for ${node.nodeId} failed`,
+          );
+        }
+      }),
+    );
   }
 
   // Updates the metrics for a single token in a warp route.
@@ -170,21 +389,37 @@ export class WarpMonitor {
     token: Token,
     tokenPriceGetter: TokenPriceGetter,
     warpRouteId: string,
-  ): Promise<void> {
+  ): Promise<RouterCollateralSnapshot | null> {
     const logger = getLogger();
+    let collateralSnapshot: RouterCollateralSnapshot | null = null;
     const promises = [
       tryFn(
         async () => {
+          const bridgedSupply = token.isHypToken()
+            ? await token
+                .getHypAdapter(warpCore.multiProvider)
+                .getBridgedSupply()
+            : undefined;
+
           const balanceInfo = await getTokenBridgedBalance(
             warpCore,
             token,
             tokenPriceGetter,
             logger,
+            bridgedSupply,
           );
           if (!balanceInfo) {
             return;
           }
           updateTokenBalanceMetrics(warpCore, token, balanceInfo, warpRouteId);
+
+          if (bridgedSupply !== undefined) {
+            collateralSnapshot = {
+              nodeId: this.buildNodeId(token),
+              routerCollateralBaseUnits: bridgedSupply,
+              token,
+            };
+          }
         },
         'Getting bridged balance and value',
         logger,
@@ -240,7 +475,7 @@ export class WarpMonitor {
           'Failed to read warp deploy config, skipping extra lockboxes',
         );
         await Promise.all(promises);
-        return;
+        return collateralSnapshot;
       }
 
       // If the current token is an xERC20, we need to check if there are any extra lockboxes
@@ -259,7 +494,7 @@ export class WarpMonitor {
           'Invalid deploy config type for xERC20 token',
         );
         await Promise.all(promises);
-        return;
+        return collateralSnapshot;
       }
 
       const extraLockboxes =
@@ -323,6 +558,51 @@ export class WarpMonitor {
     }
 
     await Promise.all(promises);
+    return collateralSnapshot;
+  }
+
+  private buildRouterNodes(
+    warpCore: WarpCore,
+    chainMetadata: ChainMap<ChainMetadata>,
+  ): RouterNodeMetadata[] {
+    const nodeByKey = new Map<string, RouterNodeMetadata>();
+
+    for (const token of warpCore.tokens) {
+      const metadata = chainMetadata[token.chainName];
+      if (!metadata) continue;
+      if (!ethersUtils.isAddress(token.addressOrDenom)) continue;
+
+      const domainId = metadata.domainId;
+      const routerAddress = ethersUtils
+        .getAddress(token.addressOrDenom)
+        .toLowerCase();
+      const key = `${domainId}:${routerAddress}`;
+      if (nodeByKey.has(key)) continue;
+
+      nodeByKey.set(key, {
+        nodeId: this.buildNodeId(token),
+        chainName: token.chainName,
+        domainId,
+        routerAddress,
+        tokenAddress: (
+          token.collateralAddressOrDenom ?? token.addressOrDenom
+        ).toLowerCase(),
+        tokenName: token.name,
+        tokenSymbol: token.symbol,
+        tokenDecimals: token.decimals,
+        token,
+      });
+    }
+
+    return [...nodeByKey.values()];
+  }
+
+  private buildNodeId(token: Token): string {
+    return `${token.symbol}|${token.chainName}|${token.addressOrDenom.toLowerCase()}`;
+  }
+
+  private formatTokenAmount(token: Token, amount: bigint): number {
+    return token.amount(amount).getDecimalFormattedAmount();
   }
 
   // Tries to get the price of a token from CoinGecko. Returns undefined if there's no

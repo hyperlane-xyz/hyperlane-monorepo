@@ -166,7 +166,10 @@ describe('EvmWarpModule', async () => {
   });
 
   const movableCollateralTypes = Object.values(TokenType).filter(
-    isMovableCollateralTokenType,
+    (t) =>
+      isMovableCollateralTokenType(t) &&
+      // MultiCollateral contract too large for hardhat; covered by forge tests
+      t !== TokenType.multiCollateral,
   ) as MovableTokenType[];
 
   const everclearTokenBridgeTypes = [
@@ -211,6 +214,12 @@ describe('EvmWarpModule', async () => {
       [TokenType.nativeScaled]: {
         ...baseConfig,
         type: TokenType.nativeScaled,
+        allowedRebalancers,
+      },
+      [TokenType.multiCollateral]: {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
         allowedRebalancers,
       },
     };

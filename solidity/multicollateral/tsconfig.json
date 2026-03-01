@@ -1,0 +1,9 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true
+  },
+  "include": ["index.ts", "typechain/**/*.ts"],
+  "exclude": ["dist", "artifacts", "cache", "forge-cache", "out", "test"]
+}

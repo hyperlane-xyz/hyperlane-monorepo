@@ -13,6 +13,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,
@@ -79,6 +80,7 @@ import {
   derivedIsmAddress,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isMultiCollateralTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -211,6 +213,14 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
 
+      ...this.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createUnenrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -410,6 +420,104 @@ export class EvmWarpModule extends HyperlaneModule<
         [rebalancerToRemove],
       ),
     }));
+  }
+
+  /**
+   * Create transactions to enroll MultiCollateral routers.
+   */
+  createEnrollMultiCollateralRoutersTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMultiCollateralTokenConfig(expectedConfig) ||
+      !isMultiCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.enrolledRouters) {
+      return [];
+    }
+
+    const actualEnrolled = actualConfig.enrolledRouters ?? {};
+    const expectedEnrolled = expectedConfig.enrolledRouters;
+
+    const domainsToEnroll: number[] = [];
+    const routersToEnroll: string[] = [];
+
+    for (const [domain, expectedRouters] of Object.entries(expectedEnrolled)) {
+      const actualRouters = new Set(actualEnrolled[domain] ?? []);
+      for (const router of expectedRouters) {
+        if (!actualRouters.has(router)) {
+          domainsToEnroll.push(Number(domain));
+          routersToEnroll.push(router);
+        }
+      }
+    }
+
+    if (domainsToEnroll.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Enrolling ${domainsToEnroll.length} MultiCollateral routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MultiCollateral__factory.createInterface().encodeFunctionData(
+          'enrollRouters',
+          [domainsToEnroll, routersToEnroll],
+        ),
+      },
+    ];
+  }
+
+  /**
+   * Create transactions to unenroll MultiCollateral routers.
+   */
+  createUnenrollMultiCollateralRoutersTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMultiCollateralTokenConfig(expectedConfig) ||
+      !isMultiCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const actualEnrolled = actualConfig.enrolledRouters ?? {};
+    const expectedEnrolled = expectedConfig.enrolledRouters ?? {};
+
+    const domainsToUnenroll: number[] = [];
+    const routersToUnenroll: string[] = [];
+
+    for (const [domain, actualRouters] of Object.entries(actualEnrolled)) {
+      const expectedRouters = new Set(expectedEnrolled[domain] ?? []);
+      for (const router of actualRouters) {
+        if (!expectedRouters.has(router)) {
+          domainsToUnenroll.push(Number(domain));
+          routersToUnenroll.push(router);
+        }
+      }
+    }
+
+    if (domainsToUnenroll.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Unenrolling ${domainsToUnenroll.length} MultiCollateral routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MultiCollateral__factory.createInterface().encodeFunctionData(
+          'unenrollRouters',
+          [domainsToUnenroll, routersToUnenroll],
+        ),
+      },
+    ];
   }
 
   async getAllowedBridgesApprovalTxs(
@@ -1367,6 +1475,21 @@ export class EvmWarpModule extends HyperlaneModule<
       ];
 
       for (const tx of everclearTxs) {
+        await multiProvider.sendTransaction(chain, tx);
+      }
+    }
+
+    if (
+      isMultiCollateralTokenConfig(config) &&
+      config.enrolledRouters &&
+      Object.keys(config.enrolledRouters).length > 0
+    ) {
+      const enrollTxs = warpModule.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        config,
+      );
+
+      for (const tx of enrollTxs) {
         await multiProvider.sendTransaction(chain, tx);
       }
     }
