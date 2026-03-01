@@ -1,0 +1,19 @@
+[Unit]
+Description=Hyperlane {{ hyperlane_agent_type | capitalize }} Agent
+After=network.target
+
+[Service]
+User={{ hyperlane_agent_user }}
+Group={{ hyperlane_agent_group }}
+WorkingDirectory={{ hyperlane_agent_home }}
+Environment="CONFIG_PATH={{ hyperlane_agent_config_dir }}"
+Environment="LOG_LEVEL={{ hyperlane_agent_log_level }}"
+{% for key, value in hyperlane_agent_env_vars.items() %}
+Environment="{{ key }}={{ value }}"
+{% endfor %}
+ExecStart={{ hyperlane_agent_bin_path }}/hyperlane-{{ hyperlane_agent_type }}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
