@@ -9,6 +9,7 @@ export default [
       '**/dist/**/*',
       '**/lib/**/*',
       '**/typechain/**/*',
+      '**/multicollateral/**/*',
       '**/dependencies/**/*',
       '**/multicollateral/**/*',
       '.solcover.js',
