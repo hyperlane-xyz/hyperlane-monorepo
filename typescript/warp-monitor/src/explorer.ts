@@ -229,26 +229,44 @@ export class ExplorerPendingTransfersClient {
       }
     `;
 
-    const response = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    if (!response.ok) {
-      let details: string;
-      try {
-        details = JSON.stringify(await response.json());
-      } catch {
-        details = await response.text();
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let details: string;
+        try {
+          details = JSON.stringify(await response.json());
+        } catch {
+          details = await response.text();
+        }
+
+        throw new Error(
+          `Explorer query failed: ${response.status} ${response.statusText} ${details}`,
+        );
       }
 
-      throw new Error(
-        `Explorer query failed: ${response.status} ${response.statusText} ${details}`,
-      );
-    }
+      const payload: {
+        data?: { message_view?: ExplorerMessageRow[] };
+        errors?: unknown;
+      } = await response.json();
 
-    const payload = await response.json();
-    return (payload?.data?.message_view ?? []) as ExplorerMessageRow[];
+      if (payload.errors) {
+        throw new Error(
+          `Explorer query returned GraphQL errors: ${JSON.stringify(payload.errors)}`,
+        );
+      }
+
+      return payload.data?.message_view ?? [];
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }

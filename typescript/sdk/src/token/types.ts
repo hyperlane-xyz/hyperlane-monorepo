@@ -262,7 +262,9 @@ export const MultiCollateralTokenConfigSchema =
     type: z.literal(TokenType.multiCollateral),
     token: z.string().describe('Collateral token address'),
     /** Map of domain → router addresses to enroll */
-    enrolledRouters: z.record(z.string(), z.array(ZHash)).optional(),
+    enrolledRouters: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
     ...BaseMovableTokenConfigSchema.shape,
   });
 export type MultiCollateralTokenConfig = z.infer<

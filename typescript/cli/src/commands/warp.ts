@@ -189,7 +189,7 @@ export const deploy: CommandModuleWithWarpDeployContext<SelectWarpRouteBuilder> 
 
 const combine: CommandModuleWithWriteContext<{
   routes: string;
-  'output-warp-route-id'?: string;
+  'output-warp-route-id': string;
 }> = {
   command: 'combine',
   describe:
@@ -211,7 +211,6 @@ const combine: CommandModuleWithWriteContext<{
   handler: async ({ context, routes, 'output-warp-route-id': outputId }) => {
     logCommandHeader('Hyperlane Warp Combine');
 
-    assert(outputId, '--output-warp-route-id is required');
     const routeIds = routes.split(',').map((r) => r.trim());
     await runWarpRouteCombine({
       context,

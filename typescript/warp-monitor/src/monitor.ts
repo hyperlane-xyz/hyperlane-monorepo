@@ -354,31 +354,30 @@ export class WarpMonitor {
 
     await Promise.all(
       routerNodes.map(async (node) => {
-        let inventoryBalance = 0n;
+        try {
+          const adapter = node.token.getAdapter(warpCore.multiProvider);
+          const inventoryBalance = await adapter.getBalance(inventoryAddress);
 
-        await tryFn(
-          async () => {
-            const adapter = node.token.getAdapter(warpCore.multiProvider);
-            inventoryBalance = await adapter.getBalance(inventoryAddress);
-          },
-          `Reading inventory balance for ${node.nodeId}`,
-          logger,
-        );
-
-        updateInventoryBalanceMetrics({
-          warpRouteId,
-          nodeId: node.nodeId,
-          chainName: node.chainName,
-          routerAddress: node.routerAddress,
-          tokenAddress: node.tokenAddress,
-          tokenSymbol: node.tokenSymbol,
-          tokenName: node.tokenName,
-          inventoryAddress,
-          inventoryBalance: this.formatTokenAmount(
-            node.token,
-            inventoryBalance,
-          ),
-        });
+          updateInventoryBalanceMetrics({
+            warpRouteId,
+            nodeId: node.nodeId,
+            chainName: node.chainName,
+            routerAddress: node.routerAddress,
+            tokenAddress: node.tokenAddress,
+            tokenSymbol: node.tokenSymbol,
+            tokenName: node.tokenName,
+            inventoryAddress,
+            inventoryBalance: this.formatTokenAmount(
+              node.token,
+              inventoryBalance,
+            ),
+          });
+        } catch (error) {
+          logger.error(
+            { nodeId: node.nodeId, err: error as Error },
+            `Reading inventory balance for ${node.nodeId} failed`,
+          );
+        }
       }),
     );
   }

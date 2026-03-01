@@ -57,8 +57,8 @@ async function main(): Promise<void> {
 
   let explorerQueryLimit = 200;
   if (process.env.EXPLORER_QUERY_LIMIT) {
-    const parsed = parseInt(process.env.EXPLORER_QUERY_LIMIT, 10);
-    if (isNaN(parsed) || parsed <= 0) {
+    const parsed = Number(process.env.EXPLORER_QUERY_LIMIT);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
       rootLogger.error('EXPLORER_QUERY_LIMIT must be a positive integer');
       process.exit(1);
     }

@@ -37,12 +37,13 @@
     "test:ci": "pnpm test"
   },
   "dependencies": {
-    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/core": "workspace:*"
+  },
+  "devDependencies": {
     "@typechain/ethers-v5": "catalog:",
     "typechain": "catalog:",
     "typescript": "catalog:"
   },
-  "devDependencies": {},
   "peerDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*"
