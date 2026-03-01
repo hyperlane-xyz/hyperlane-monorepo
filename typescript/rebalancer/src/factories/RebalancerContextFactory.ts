@@ -11,7 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, toWei } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -350,7 +350,8 @@ export class RebalancerContextFactory {
       routersByDomain,
       bridges,
       rebalancerAddress,
-      inventorySignerAddress: this.config.inventorySigner,
+      inventorySignerAddress:
+        this.config.inventorySigners?.[ProtocolType.Ethereum],
       intentTTL: this.config.intentTTL,
     };
 
@@ -396,9 +397,9 @@ export class RebalancerContextFactory {
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigner } = this.config;
+    const { inventorySigners } = this.config;
 
-    if (!inventorySigner) {
+    if (!inventorySigners) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -406,23 +407,86 @@ export class RebalancerContextFactory {
     }
 
     this.logger.debug(
-      { warpRouteId: this.config.warpRouteId, inventorySigner },
+      { warpRouteId: this.config.warpRouteId },
       'Creating inventory components',
     );
 
-    const inventoryChains = getStrategyChainNames(
-      this.config.strategyConfig,
-    ).filter((chainName) => {
-      const chainConfig = getStrategyChainConfig(
-        this.config.strategyConfig,
-        chainName,
-      );
-      return chainConfig?.executionType === ExecutionType.Inventory;
-    });
+    const inventoryChains = Array.from(
+      new Set(
+        this.config.strategyConfig.flatMap((strategy) => {
+          const chainEntries = Object.entries(strategy.chains);
+          const topLevelInventoryChains = chainEntries
+            .filter(
+              ([, chainConfig]) =>
+                chainConfig.executionType === ExecutionType.Inventory,
+            )
+            .map(([chainName]) => chainName);
+
+          const overrideInventoryChains = chainEntries.flatMap(
+            ([, chainConfig]) => {
+              if (!chainConfig.override) {
+                return [];
+              }
+
+              const overrideEntries = Object.entries(chainConfig.override);
+
+              return overrideEntries
+                .filter(([, overrideConfig]) => {
+                  const overrideExecutionType =
+                    typeof overrideConfig === 'object' &&
+                    overrideConfig !== null &&
+                    'executionType' in overrideConfig
+                      ? (
+                          overrideConfig as {
+                            executionType?: ExecutionType;
+                          }
+                        ).executionType
+                      : undefined;
+
+                  return (
+                    (overrideExecutionType ??
+                      chainConfig.executionType ??
+                      ExecutionType.MovableCollateral) ===
+                    ExecutionType.Inventory
+                  );
+                })
+                .map(([destinationChain]) => destinationChain);
+            },
+          );
+
+          return [...topLevelInventoryChains, ...overrideInventoryChains];
+        }),
+      ),
+    );
 
     if (inventoryChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
+    }
+
+    const inventoryProtocols = new Set(
+      inventoryChains.map((chainName) =>
+        this.multiProvider.getProtocol(chainName),
+      ),
+    );
+    if (inventoryProtocols.size > 1) {
+      throw new Error(
+        `Inventory execution currently supports one protocol per rebalancer instance, found: ${Array.from(inventoryProtocols).join(', ')}`,
+      );
+    }
+
+    const inventoryProtocol = inventoryProtocols.values().next().value as
+      | ProtocolType
+      | undefined;
+    if (!inventoryProtocol) {
+      throw new Error('No protocol found for inventory chains');
+    }
+
+    const inventorySigner = inventorySigners[inventoryProtocol];
+    if (!inventorySigner) {
+      throw new Error(
+        `Missing inventory signer for protocol '${inventoryProtocol}'. Add inventorySigners.${inventoryProtocol} to config.`,
+      );
     }
 
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
@@ -463,15 +527,14 @@ export class RebalancerContextFactory {
       this.logger,
     );
 
-    if (externalBridgeRegistryOverride === undefined) {
-      this.logger.info(
-        {
-          inventoryChains,
-          inventorySigner,
-        },
-        'Inventory components created successfully',
-      );
-    }
+    this.logger.info(
+      {
+        inventoryChains,
+        inventoryProtocol,
+        inventorySigner,
+      },
+      'Inventory components created successfully',
+    );
 
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }
@@ -527,7 +590,7 @@ export class RebalancerContextFactory {
   }> {
     const rebalancers: IRebalancer[] = [];
     let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
-    let inventoryConfig: undefined | InventoryMonitorConfig;
+    let inventoryConfig: InventoryMonitorConfig | undefined;
 
     // Check if any chains use movableCollateral execution type
     const hasMovableCollateral = this.hasMovableCollateralChains();

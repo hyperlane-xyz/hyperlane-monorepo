@@ -9,6 +9,7 @@ import {
   type InterchainGasQuote,
   type MultiProvider,
   Token,
+  ProviderType,
   TOKEN_COLLATERALIZED_STANDARDS,
   TokenAmount,
   type WarpCore,
@@ -862,7 +863,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     const originTokenAmount = originToken.amount(amount);
-    const transactions = await this.warpCore.getTransferRemoteTxs({
+    const transferTxs = await this.warpCore.getTransferRemoteTxs({
       originTokenAmount,
       destination,
       sender: this.config.inventorySigner,
@@ -871,52 +872,72 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       tokenFeeQuote,
     });
     assert(
-      transactions.length > 0,
+      transferTxs.length > 0,
       'Expected at least one transaction from WarpCore',
     );
 
-    // Send the transaction using inventory MultiProvider if available
     this.logger.info(
       {
         origin,
         destination,
         amount: amount.toString(),
+        transactionCount: transferTxs.length,
         intentId: intent.id,
       },
-      'Sending transferRemote transaction',
+      'Sending transferRemote transactions',
     );
 
-    let receipt: ContractReceipt | undefined;
-    for (const tx of transactions) {
-      this.logger.debug(
-        { origin, destination, category: tx.category },
-        `Sending ${tx.category} transaction`,
-      );
-      const isTransfer = tx.category === WarpTxCategory.Transfer;
-      receipt = await signingProvider.sendTransaction(
-        origin,
-        tx.transaction as AnnotatedEV5Transaction,
-        isTransfer
-          ? {
-              waitConfirmations: reorgPeriod as
-                | number
-                | EthJsonRpcBlockParameterTag,
-            }
-          : undefined,
-      );
+    let transferTxHash: string | undefined;
+    let transferReceipt:
+      | ContractReceipt
+      | Awaited<ReturnType<MultiProvider['sendTransaction']>>
+      | undefined;
+
+    for (const tx of transferTxs) {
+      if (tx.type === ProviderType.EthersV5) {
+        const receipt = await signingProvider.sendTransaction(
+          origin,
+          tx.transaction as AnnotatedEV5Transaction,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
+        );
+        if (tx.category === WarpTxCategory.Transfer) {
+          transferTxHash = receipt.transactionHash;
+          transferReceipt = receipt;
+        }
+      } else {
+        const protocolSigner = signingProvider.getSigner(origin) as unknown as {
+          sendAndConfirmTransaction: (tx: unknown) => Promise<string>;
+        };
+        assert(
+          typeof protocolSigner.sendAndConfirmTransaction === 'function',
+          `Signer for ${origin} does not implement IMultiProtocolSigner.sendAndConfirmTransaction`,
+        );
+
+        const txHash = await protocolSigner.sendAndConfirmTransaction(
+          tx.transaction,
+        );
+        if (tx.category === WarpTxCategory.Transfer) {
+          transferTxHash = txHash;
+        }
+      }
     }
 
-    // Extract messageId from the transaction receipt logs
-    assert(receipt, 'Expected receipt from transferRemote transactions');
-    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
-    const messageId = dispatchedMessages[0]?.id;
+    const messageId = transferReceipt
+      ? HyperlaneCore.getDispatchedMessages(transferReceipt)[0]?.id
+      : undefined;
+
+    assert(transferTxHash, 'No transfer transaction hash found');
 
     if (!messageId) {
       this.logger.warn(
         {
           origin,
           destination,
-          txHash: receipt.transactionHash,
+          txHash: transferTxHash,
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
@@ -927,7 +948,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         origin,
         destination,
-        txHash: receipt.transactionHash,
+        txHash: transferTxHash,
         messageId,
         intentId: intent.id,
       },
@@ -941,7 +962,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: destinationDomain,
       amount,
       type: 'inventory_deposit',
-      txHash: receipt.transactionHash,
+      txHash: transferTxHash,
       messageId,
     });
 
