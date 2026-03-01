@@ -9,6 +9,11 @@ import { ChainMetadata } from './chainMetadataTypes.js';
 
 describe(ChainMetadataManager.name, () => {
   let manager: ChainMetadataManager;
+  const chainAddresses = {
+    ethereum: {
+      batchContractAddress: '0x1111111111111111111111111111111111111111',
+    },
+  };
 
   const ethereumMetadata: ChainMetadata = {
     chainId: 1,
@@ -47,12 +52,17 @@ describe(ChainMetadataManager.name, () => {
   };
 
   beforeEach(() => {
-    manager = new ChainMetadataManager({
-      ethereum: ethereumMetadata,
-      polygon: polygonMetadata,
-      cosmos: cosmosMetadata,
-      solana: solanaMetadata,
-    });
+    manager = new ChainMetadataManager(
+      {
+        ethereum: ethereumMetadata,
+        polygon: polygonMetadata,
+        cosmos: cosmosMetadata,
+        solana: solanaMetadata,
+      },
+      {
+        chainAddresses,
+      },
+    );
   });
 
   describe(ChainMetadataManager.prototype.tryGetChainMetadata.name, () => {
@@ -140,4 +150,44 @@ describe(ChainMetadataManager.name, () => {
       });
     });
   });
+
+  describe(
+    ChainMetadataManager.prototype.tryGetBatchContractAddress.name,
+    () => {
+      it('returns configured batch contract address for EVM chains', () => {
+        expect(manager.tryGetBatchContractAddress('ethereum')).to.equal(
+          chainAddresses.ethereum.batchContractAddress,
+        );
+      });
+
+      it('returns null for non-EVM chains without configured address', () => {
+        expect(manager.tryGetBatchContractAddress('cosmos')).to.equal(null);
+      });
+
+      it('returns null when no batch contract is configured', () => {
+        expect(manager.tryGetBatchContractAddress('polygon')).to.equal(null);
+      });
+    },
+  );
+
+  describe(
+    ChainMetadataManager.prototype.tryGetEvmBatchContractAddress.name,
+    () => {
+      it('returns configured batch contract address for EVM chains', () => {
+        expect(manager.tryGetEvmBatchContractAddress('ethereum')).to.equal(
+          chainAddresses.ethereum.batchContractAddress,
+        );
+      });
+
+      it('returns default multicall3 address for EVM chains without override', () => {
+        expect(manager.tryGetEvmBatchContractAddress('polygon')).to.equal(
+          ChainMetadataManager.DEFAULT_EVM_BATCH_CONTRACT_ADDRESS,
+        );
+      });
+
+      it('returns null for non-EVM chains', () => {
+        expect(manager.tryGetEvmBatchContractAddress('cosmos')).to.equal(null);
+      });
+    },
+  );
 });

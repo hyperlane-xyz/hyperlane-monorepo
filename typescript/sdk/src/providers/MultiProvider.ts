@@ -26,6 +26,7 @@ import {
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainAddressesMap } from '../metadata/ChainMetadataManager.js';
 import {
   ChainMetadata,
   ChainTechnicalStack,
@@ -35,6 +36,15 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
+import type {
+  EvmMulticallReadOptions,
+  EvmReadCall,
+  EvmReadCallResults,
+} from './multicall3.js';
+import {
+  readEvmCallMapWithMulticall,
+  readEvmCallsWithMulticall,
+} from './multicall3.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
@@ -48,6 +58,7 @@ const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
 export interface MultiProviderOptions {
+  chainAddresses?: ChainAddressesMap;
   logger?: Logger;
   providers?: ChainMap<Provider>;
   providerBuilder?: ProviderBuilderFn<Provider>;
@@ -271,6 +282,31 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   getSignerOrProvider(chainNameOrId: ChainNameOrId): Signer | Provider {
     return this.tryGetSigner(chainNameOrId) || this.getProvider(chainNameOrId);
+  }
+
+  /**
+   * Batch EVM read calls using multicall when available and direct RPC as fallback.
+   * Write transactions are not supported by this helper.
+   */
+  async multicall(
+    chainNameOrId: ChainNameOrId,
+    calls: EvmReadCall[],
+    options?: EvmMulticallReadOptions,
+  ): Promise<unknown[]>;
+  async multicall<TCalls extends Record<string, EvmReadCall<unknown>>>(
+    chainNameOrId: ChainNameOrId,
+    calls: TCalls,
+    options?: EvmMulticallReadOptions,
+  ): Promise<EvmReadCallResults<TCalls>>;
+  async multicall<TCalls extends Record<string, EvmReadCall<unknown>>>(
+    chainNameOrId: ChainNameOrId,
+    calls: EvmReadCall[] | TCalls,
+    options?: EvmMulticallReadOptions,
+  ): Promise<unknown[] | EvmReadCallResults<TCalls>> {
+    if (Array.isArray(calls)) {
+      return readEvmCallsWithMulticall(this, chainNameOrId, calls, options);
+    }
+    return readEvmCallMapWithMulticall(this, chainNameOrId, calls, options);
   }
 
   /**
