@@ -401,6 +401,19 @@ export abstract class HyperlaneDeployer<
     return 'initialize';
   }
 
+  /**
+   * Formats function arguments with their parameter names for logging
+   * @param inputs - The parameter types from the contract interface
+   * @param args - The argument values
+   * @returns Formatted string like "param1=value1, param2=value2"
+   */
+  private formatFunctionArgs(
+    inputs: ReadonlyArray<ethers.utils.ParamType>,
+    args: any[],
+  ): string {
+    return inputs.map((input, i) => `${input.name}=${args[i]}`).join(', ');
+  }
+
   public async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
@@ -427,10 +440,12 @@ export abstract class HyperlaneDeployer<
       }
     }
 
+    const namedArgs = this.formatFunctionArgs(
+      factory.interface.deploy.inputs,
+      constructorArgs,
+    );
     this.logger.info(
-      `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
-        ', ',
-      )})...`,
+      `Deploying ${contractName} on ${chain} with constructor args (${namedArgs})...`,
     );
 
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
@@ -456,8 +471,13 @@ export abstract class HyperlaneDeployer<
           `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
         );
       } else {
-        this.logger.debug(
-          `Initializing ${contractName} (${contract.address}) on ${chain}...`,
+        const namedArgs = this.formatFunctionArgs(
+          contract.interface.functions[this.initializeFnSignature(contractName)]
+            .inputs,
+          initializeArgs,
+        );
+        this.logger.info(
+          `Initializing ${contractName} (${contract.address}) on ${chain} with args (${namedArgs})...`,
         );
 
         // Estimate gas for the initialize transaction
@@ -666,6 +686,19 @@ export abstract class HyperlaneDeployer<
       initializeArgs,
       this.initializeFnSignature(contractName ?? ''),
     );
+
+    if (initializeArgs) {
+      const namedArgs = this.formatFunctionArgs(
+        implementation.interface.functions[
+          this.initializeFnSignature(contractName ?? '')
+        ].inputs,
+        initializeArgs,
+      );
+      this.logger.info(
+        `Encoding initialize args for proxy deployment (${namedArgs})...`,
+      );
+    }
+
     const proxy = await this.deployContractFromFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
