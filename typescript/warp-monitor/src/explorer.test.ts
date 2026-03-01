@@ -127,4 +127,42 @@ describe('Explorer Pending Transfers', () => {
     expect(transfers[0].amountBaseUnits).to.equal(1234567n);
     expect(transfers[0].sendOccurredAtMs).to.be.a('number');
   });
+
+  it('throws when explorer returns GraphQL errors', async () => {
+    const nodes: RouterNodeMetadata[] = [
+      {
+        nodeId: 'USDC|base|0xrouter',
+        chainName: 'base' as any,
+        domainId: 8453,
+        routerAddress: '0x00000000000000000000000000000000000000aa',
+        tokenAddress: '0x00000000000000000000000000000000000000bb',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: {} as any,
+      },
+    ];
+
+    sinon.stub(globalThis, 'fetch' as any).resolves({
+      ok: true,
+      json: async () => ({
+        errors: [{ message: 'boom' }],
+      }),
+    } as any);
+
+    const client = new ExplorerPendingTransfersClient(
+      'https://explorer.example/v1/graphql',
+      nodes,
+      rootLogger,
+    );
+
+    let thrown: Error | undefined;
+    try {
+      await client.getPendingDestinationTransfers();
+    } catch (error) {
+      thrown = error as Error;
+    }
+    expect(thrown).to.not.equal(undefined);
+    expect(thrown!.message).to.contain('GraphQL errors');
+  });
 });

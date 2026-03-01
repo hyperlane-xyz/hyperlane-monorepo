@@ -9,7 +9,8 @@
     ".": "./dist/index.js",
     "./typechain": "./dist/typechain/index.js",
     "./typechain/*": "./dist/typechain/*",
-    "./contracts": "./contracts"
+    "./contracts": "./contracts",
+    "./contracts/*": "./contracts/*"
   },
   "files": [
     "/dist",
@@ -29,18 +30,19 @@
   "scripts": {
     "deps:soldeer": "[ -d ../dependencies/@openzeppelin-contracts-4.9.3 ] || pnpm -C ../ deps:soldeer",
     "build": "pnpm clean && pnpm deps:soldeer && forge build && pnpm build:typechain && tsc -p tsconfig.json",
-    "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/MultiCollateral.sol/MultiCollateral.json out/MultiCollateralRoutingFee.sol/MultiCollateralRoutingFee.json out/IMultiCollateralFee.sol/IMultiCollateralFee.json",
+    "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/MultiCollateral.sol/MultiCollateral.json out/MultiCollateralRoutingFee.sol/MultiCollateralRoutingFee.json out/interfaces/IMultiCollateralFee.sol/IMultiCollateralFee.json",
     "clean": "rm -rf ./artifacts ./cache ./dist ./typechain ./forge-cache ./out",
     "test": "pnpm deps:soldeer && forge test -vvv",
     "test:ci": "pnpm test"
   },
   "dependencies": {
-    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/core": "workspace:*"
+  },
+  "devDependencies": {
     "@typechain/ethers-v5": "catalog:",
     "typechain": "catalog:",
     "typescript": "catalog:"
   },
-  "devDependencies": {},
   "peerDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*"

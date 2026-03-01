@@ -767,7 +767,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key] as unknown as TokenRouter;
+        return contracts[key] as TokenRouter;
       }
     }
     throw new Error('No matching contract found');

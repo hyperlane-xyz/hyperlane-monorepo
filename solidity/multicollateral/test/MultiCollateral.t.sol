@@ -20,6 +20,7 @@ import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "@hyperlane-xyz/core/mock/MockHyperlaneEnvironment.sol";
 import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
 import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
+import {TestPostDispatchHook} from "@hyperlane-xyz/core/test/TestPostDispatchHook.sol";
 import {ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 
 import {MultiCollateral} from "../contracts/MultiCollateral.sol";
@@ -343,6 +344,34 @@ contract MultiCollateralTest is Test {
             address(usdtRouterA).addressToBytes32()
         );
 
+        assertEq(
+            originUSDC.balanceOf(address(originUsdcFee)),
+            feeBalBefore + expectedFee
+        );
+    }
+
+    function test_fees_sameChainTransfer_noHookFeeCharged() public {
+        uint256 amount = 10000e6;
+        uint256 expectedFee = (amount * DEFAULT_FEE_BPS) / 10000;
+        uint256 hookFee = 777e6;
+
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        testHook.setFee(hookFee);
+        usdcRouterA.setHook(address(testHook));
+
+        uint256 aliceBalBefore = originUSDC.balanceOf(ALICE);
+        uint256 feeBalBefore = originUSDC.balanceOf(address(originUsdcFee));
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            amount,
+            address(usdtRouterA).addressToBytes32()
+        );
+
+        uint256 aliceDebit = aliceBalBefore - originUSDC.balanceOf(ALICE);
+        assertEq(aliceDebit, amount + expectedFee);
         assertEq(
             originUSDC.balanceOf(address(originUsdcFee)),
             feeBalBefore + expectedFee

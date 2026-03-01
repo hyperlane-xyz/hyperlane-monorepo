@@ -204,23 +204,25 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         address _feeHook = feeHook();
         address _token = token();
 
-        if (_feeHook != address(0)) {
+        if (_feeHook != address(0) && _destination != localDomain) {
             uint256 hookFee = _quoteGasPayment(
                 _destination,
                 _recipient,
                 _amount,
                 _token
             );
-            if (_token != address(this)) {
-                charge += hookFee;
-            } else {
-                IERC20(_token).safeTransferFrom(
-                    msg.sender,
-                    address(this),
-                    hookFee
-                );
+            if (hookFee > 0) {
+                if (_token != address(this)) {
+                    charge += hookFee;
+                } else {
+                    IERC20(_token).safeTransferFrom(
+                        msg.sender,
+                        address(this),
+                        hookFee
+                    );
+                }
+                IERC20(_token).forceApprove(_feeHook, hookFee);
             }
-            IERC20(_token).approve(_feeHook, hookFee);
         }
 
         _transferFromSender(charge);

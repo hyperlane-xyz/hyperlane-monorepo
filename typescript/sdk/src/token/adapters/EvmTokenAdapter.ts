@@ -78,6 +78,8 @@ import { buildBlockTagOverrides } from './utils.js';
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+type RawTupleQuote = { 0: string; 1: BigNumber };
+type RawTokenBridgeQuote = { token: string; amount: BigNumber };
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -321,12 +323,10 @@ export class EvmHypSyntheticAdapter
     ](destination, recipBytes32, amount.toString());
     const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map(
-      (quote: { 0: string; 1: any }) => ({
-        addressOrDenom: quote[0],
-        amount: BigInt(quote[1].toString()),
-      }),
-    );
+    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: RawTupleQuote) => ({
+      addressOrDenom: quote[0],
+      amount: BigInt(quote[1].toString()),
+    }));
 
     // Because the amount is added on  the fees, we need to subtract it from the actual fees
     const tokenFeeQuote: Quote | undefined =
@@ -558,7 +558,7 @@ export class EvmMovableCollateralAdapter
       'quoteTransferRemote(uint32,bytes32,uint256)'
     ](domain, addressToBytes32(recipient), amount);
 
-    return quotes.map((quote: { token: string; amount: any }) => ({
+    return quotes.map((quote: RawTokenBridgeQuote) => ({
       igpQuote: {
         addressOrDenom:
           quote.token === ethersConstants.AddressZero ? undefined : quote.token,
