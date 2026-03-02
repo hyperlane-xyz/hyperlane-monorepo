@@ -267,7 +267,7 @@
     }
   },
   "expectations": {
-    "shouldTriggerRebalancing": true,
+    "shouldTriggerRebalancing": false,
     "minCompletionRate": 0.8
   }
 }
