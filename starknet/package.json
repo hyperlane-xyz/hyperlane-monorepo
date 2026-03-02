@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
-  "version": "25.3.2",
+  "version": "25.4.0",
   "description": "Core cairo contracts for Hyperlane",
   "keywords": [
     "Cairo",

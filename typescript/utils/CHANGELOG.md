@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 25.4.0
+
+### Patch Changes
+
+- 1f021bf: Implemented warp token artifact API for Aleo. Added warp token readers and writers for native, collateral, and synthetic tokens, with AleoWarpArtifactManager providing factory methods for type-specific operations. Writers support creating new warp tokens with ISM and Hook configuration, enrolling remote routers, and transferring ownership. Update operations generate transaction arrays for ISM and Hook changes, router enrollment/unenrollment, and ownership transfers.
+
 ## 25.3.2
 
 ## 25.3.1
