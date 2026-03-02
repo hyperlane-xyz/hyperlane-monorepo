@@ -243,7 +243,9 @@ describe('WarpTokenWriter', () => {
         expectedTxCount: 2,
         assertion: (txs) => {
           expect(txs).to.have.lengthOf(2);
-          txs.forEach((tx) => expect(tx.annotation).to.include('router'));
+          txs.forEach((tx) => {
+            expect(tx.annotation).to.include('router');
+          });
         },
       },
       {
