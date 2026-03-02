@@ -73,12 +73,7 @@ export class MixedLocalDeploymentManager extends BaseLocalDeploymentManager<Erc2
 
       const monitoredRoute = await new HypERC20Collateral__factory(
         deployer,
-      ).deploy(
-        token.address,
-        TOKEN_SCALE,
-        TOKEN_SCALE,
-        chainInfra[config.name].mailbox,
-      );
+      ).deploy(token.address, TOKEN_SCALE, chainInfra[config.name].mailbox);
       await monitoredRoute.deployed();
       await monitoredRoute.initialize(
         ethers.constants.AddressZero,
@@ -88,12 +83,7 @@ export class MixedLocalDeploymentManager extends BaseLocalDeploymentManager<Erc2
 
       const bridgeRoute = await new HypERC20Collateral__factory(
         deployer,
-      ).deploy(
-        token.address,
-        TOKEN_SCALE,
-        TOKEN_SCALE,
-        chainInfra[config.name].mailbox,
-      );
+      ).deploy(token.address, TOKEN_SCALE, chainInfra[config.name].mailbox);
       await bridgeRoute.deployed();
       await bridgeRoute.initialize(
         ethers.constants.AddressZero,

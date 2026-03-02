@@ -10,8 +10,9 @@
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
  * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
- * - HYP_INVENTORY_KEY: Private key for inventory operations - LiFi bridges and transferRemote (optional)
+ * - HYP_INVENTORY_KEY: Private key for inventory operations on EVM chains (optional)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
+ * - HYP_INVENTORY_KEY_SOLANA: Private key for inventory operations on Solana chains (optional)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Optional: inventory keys for inventory-based operations (LiFi bridges, transferRemote)
+  // Optional inventory keys by protocol.
   const inventoryPrivateKey = process.env.HYP_INVENTORY_KEY;
   const inventoryPrivateKeySolana = process.env.HYP_INVENTORY_KEY_SOLANA;
 
@@ -127,9 +128,15 @@ async function main(): Promise<void> {
       '✅ Initialized MultiProvider with rebalancer signer',
     );
 
+    // Build inventory signer keys by protocol
+    const inventorySignerKeysByProtocol: Partial<Record<ProtocolType, string>> =
+      {};
+
     // Create inventory MultiProvider if inventory key is provided
     let inventoryMultiProvider: MultiProvider | undefined;
     if (inventoryPrivateKey) {
+      inventorySignerKeysByProtocol[ProtocolType.Ethereum] =
+        inventoryPrivateKey;
       inventoryMultiProvider = new MultiProvider(chainMetadata, {
         providers: multiProvider.providers,
       });
@@ -138,15 +145,14 @@ async function main(): Promise<void> {
 
       // Validate against config.inventorySigners.ethereum if present
       const inventoryAddress = inventorySigner.address;
-      const configuredEthereumInventorySigner =
-        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum];
       if (
-        configuredEthereumInventorySigner &&
-        configuredEthereumInventorySigner.toLowerCase() !==
-          inventoryAddress.toLowerCase()
+        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
+        rebalancerConfig.inventorySigners[
+          ProtocolType.Ethereum
+        ]!.toLowerCase() !== inventoryAddress.toLowerCase()
       ) {
         throw new Error(
-          `inventorySigners.ethereum mismatch: config has ${configuredEthereumInventorySigner} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
+          `inventorySigners.ethereum mismatch: config has ${rebalancerConfig.inventorySigners[ProtocolType.Ethereum]} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
         );
       }
       logger.info(
@@ -155,8 +161,12 @@ async function main(): Promise<void> {
       );
     }
 
-    // Fail fast if config references inventorySigners.ethereum but no HYP_INVENTORY_KEY is provided
-    // Without the matching key, inventory operations would silently use the wrong signer
+    if (inventoryPrivateKeySolana) {
+      inventorySignerKeysByProtocol[ProtocolType.Sealevel] =
+        inventoryPrivateKeySolana;
+    }
+
+    // Fail fast if config references protocol-specific inventory signer but key is missing.
     if (
       rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
       !inventoryPrivateKey
@@ -166,7 +176,7 @@ async function main(): Promise<void> {
           inventorySigner:
             rebalancerConfig.inventorySigners[ProtocolType.Ethereum],
         },
-        'Config specifies inventorySigners.ethereum but HYP_INVENTORY_KEY is not set. Provide the key or remove inventorySigners.ethereum from config.',
+        'Config specifies inventorySigners.ethereum but HYP_INVENTORY_KEY is not set.',
       );
       process.exit(1);
     }
@@ -180,7 +190,7 @@ async function main(): Promise<void> {
           inventorySigner:
             rebalancerConfig.inventorySigners[ProtocolType.Sealevel],
         },
-        'Config specifies inventorySigners.sealevel but HYP_INVENTORY_KEY_SOLANA is not set. Provide the key or remove inventorySigners.sealevel from config.',
+        'Config specifies inventorySigners.sealevel but HYP_INVENTORY_KEY_SOLANA is not set.',
       );
       process.exit(1);
     }
@@ -204,6 +214,7 @@ async function main(): Promise<void> {
         logger,
         version: VERSION,
       },
+      inventorySignerKeysByProtocol,
     );
 
     // Start the service

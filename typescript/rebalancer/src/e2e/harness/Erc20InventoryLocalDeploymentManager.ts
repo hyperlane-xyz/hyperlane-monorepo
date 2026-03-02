@@ -64,12 +64,7 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
 
       const monitoredRoute = await new HypERC20Collateral__factory(
         deployer,
-      ).deploy(
-        token.address,
-        TOKEN_SCALE,
-        TOKEN_SCALE,
-        chainInfra[config.name].mailbox,
-      );
+      ).deploy(token.address, TOKEN_SCALE, chainInfra[config.name].mailbox);
       await monitoredRoute.deployed();
       await monitoredRoute.initialize(
         ethers.constants.AddressZero,
@@ -79,12 +74,7 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
 
       const bridgeRoute = await new HypERC20Collateral__factory(
         deployer,
-      ).deploy(
-        token.address,
-        TOKEN_SCALE,
-        TOKEN_SCALE,
-        chainInfra[config.name].mailbox,
-      );
+      ).deploy(token.address, TOKEN_SCALE, chainInfra[config.name].mailbox);
       await bridgeRoute.deployed();
       await bridgeRoute.initialize(
         ethers.constants.AddressZero,

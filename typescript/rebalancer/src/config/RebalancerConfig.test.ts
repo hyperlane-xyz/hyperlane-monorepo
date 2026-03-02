@@ -5,7 +5,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
 import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
@@ -358,48 +357,6 @@ describe('RebalancerConfig', () => {
       );
     });
 
-    it('should throw when inventory override has no externalBridge in override or chain config', () => {
-      data = {
-        warpRouteId: 'warpRouteId',
-        strategy: [
-          {
-            rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-            chains: {
-              chain1: {
-                minAmount: {
-                  min: 1000,
-                  target: 1100,
-                  type: RebalancerMinAmountType.Absolute,
-                },
-                bridge: ethers.constants.AddressZero,
-                bridgeLockTime: 1,
-                override: {
-                  chain2: {
-                    executionType: ExecutionType.Inventory,
-                  },
-                },
-              },
-              chain2: {
-                minAmount: {
-                  min: 2000,
-                  target: 2200,
-                  type: RebalancerMinAmountType.Absolute,
-                },
-                bridge: ethers.constants.AddressZero,
-                bridgeLockTime: 1,
-              },
-            },
-          },
-        ],
-      };
-
-      writeYamlOrJson(TEST_CONFIG_PATH, data);
-
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
-        /chain1.*override for 'chain2'.*inventory execution.*externalBridge/i,
-      );
-    });
-
     it('should allow multiple chain overrides', () => {
       getStrategyArray(data)[0].chains.chain1 = {
         bridge: ethers.constants.AddressZero,
@@ -456,6 +413,72 @@ describe('RebalancerConfig', () => {
       expect(chain3Overrides).to.have.property('bridge');
       expect(chain3Overrides.bridge).to.equal(
         '0x1234567890123456789012345678901234567890',
+      );
+    });
+
+    it('should require externalBridge when override executionType is inventory', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              chain1: {
+                weighted: { weight: 60, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+                override: {
+                  chain2: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              chain2: {
+                weighted: { weight: 40, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+              },
+            },
+          },
+        ],
+        inventorySigners: { ethereum: ethers.constants.AddressZero },
+        externalBridges: { lifi: { integrator: 'test' } },
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        /override.*inventory execution.*externalBridge/i,
+      );
+    });
+
+    it('should require inventorySigners when only override enables inventory execution', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              chain1: {
+                weighted: { weight: 60, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+                override: {
+                  chain2: {
+                    executionType: ExecutionType.Inventory,
+                    externalBridge: ExternalBridgeType.LiFi,
+                  },
+                },
+              },
+              chain2: {
+                weighted: { weight: 40, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+              },
+            },
+          },
+        ],
+        externalBridges: { lifi: { integrator: 'test' } },
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        /inventorySigners.*required/i,
       );
     });
   });
@@ -577,7 +600,7 @@ describe('per-chain bridge configuration', () => {
         },
       ],
       inventorySigners: {
-        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+        ethereum: '0x1234567890123456789012345678901234567890',
       },
       externalBridges: {
         lifi: {
@@ -611,7 +634,7 @@ describe('per-chain bridge configuration', () => {
         },
       ],
       inventorySigners: {
-        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+        ethereum: '0x1234567890123456789012345678901234567890',
       },
       externalBridges: {
         lifi: {
@@ -645,7 +668,7 @@ describe('per-chain bridge configuration', () => {
         },
       ],
       inventorySigners: {
-        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+        ethereum: '0x1234567890123456789012345678901234567890',
       },
     };
 
@@ -672,7 +695,7 @@ describe('per-chain bridge configuration', () => {
         },
       ],
       inventorySigners: {
-        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+        ethereum: '0x1234567890123456789012345678901234567890',
       },
     };
 
@@ -698,7 +721,7 @@ describe('per-chain bridge configuration', () => {
         },
       ],
       inventorySigners: {
-        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+        ethereum: '0x1234567890123456789012345678901234567890',
       },
       externalBridges: {
         lifi: {
