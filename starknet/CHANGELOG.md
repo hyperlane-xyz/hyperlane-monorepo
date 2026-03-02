@@ -1,5 +1,7 @@
 # @hyperlane-xyz/starknet-core
 
+## 25.4.0
+
 ## 25.3.2
 
 ## 25.3.1

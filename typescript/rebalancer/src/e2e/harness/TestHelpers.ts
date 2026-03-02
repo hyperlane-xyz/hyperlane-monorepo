@@ -2,6 +2,7 @@ import { BigNumber, providers } from 'ethers';
 
 import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
+import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import { expect } from 'chai';
 
 import type { RebalanceAction } from '../../tracking/types.js';
@@ -13,6 +14,7 @@ import { tryRelayMessage } from './TransferHelper.js';
 
 import {
   DOMAIN_IDS,
+  type Erc20InventoryDeployedAddresses,
   type NativeDeployedAddresses,
   TEST_CHAINS,
 } from '../fixtures/routes.js';
@@ -60,6 +62,20 @@ export async function getRouterBalances(
     balances[chain] = await provider.getBalance(
       addresses.monitoredRoute[chain],
     );
+  }
+  return balances;
+}
+
+export async function getErc20RouterBalances(
+  localProviders: Map<string, providers.JsonRpcProvider>,
+  addresses: Erc20InventoryDeployedAddresses,
+): Promise<Record<string, BigNumber>> {
+  const balances: Record<string, BigNumber> = {};
+  for (const chain of TEST_CHAINS) {
+    const provider = localProviders.get(chain);
+    assert(provider, `Missing provider for chain ${chain}`);
+    const token = ERC20Test__factory.connect(addresses.tokens[chain], provider);
+    balances[chain] = await token.balanceOf(addresses.monitoredRoute[chain]);
   }
   return balances;
 }
