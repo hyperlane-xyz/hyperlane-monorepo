@@ -1054,23 +1054,25 @@ describe('EvmWarpRouteReader', async () => {
 
     const deriveMultiCollateralTokenConfig = (evmERC20WarpRouteReader as any)
       .deriveMultiCollateralTokenConfig as (address: string) => Promise<any>;
-    const derivedConfig = await deriveMultiCollateralTokenConfig.call(
-      evmERC20WarpRouteReader,
-      routerAddress,
-    );
+    try {
+      const derivedConfig = await deriveMultiCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
 
-    expect(derivedConfig.type).to.equal(TokenType.multiCollateral);
-    expect(derivedConfig.token).to.equal(wrappedTokenAddress);
-    expect(derivedConfig.scale).to.deep.equal(expectedScale);
-    expect(derivedConfig.enrolledRouters).to.deep.equal({
-      [localDomain.toString()]: [localRouter],
-      [remoteDomain.toString()]: [remoteRouter],
-    });
-
-    mcConnectStub.restore();
-    tokenRouterConnectStub.restore();
-    metadataStub.restore();
-    scaleStub.restore();
+      expect(derivedConfig.type).to.equal(TokenType.multiCollateral);
+      expect(derivedConfig.token).to.equal(wrappedTokenAddress);
+      expect(derivedConfig.scale).to.deep.equal(expectedScale);
+      expect(derivedConfig.enrolledRouters).to.deep.equal({
+        [localDomain.toString()]: [localRouter],
+        [remoteDomain.toString()]: [remoteRouter],
+      });
+    } finally {
+      mcConnectStub.restore();
+      tokenRouterConnectStub.restore();
+      metadataStub.restore();
+      scaleStub.restore();
+    }
   });
 
   describe('Backward compatibility for token type detection', () => {
