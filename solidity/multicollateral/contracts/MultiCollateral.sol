@@ -242,7 +242,8 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount
     ) public payable override returns (bytes32 messageId) {
         bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
-        return transferRemoteTo(_destination, _recipient, _amount, targetRouter);
+        return
+            transferRemoteTo(_destination, _recipient, _amount, targetRouter);
     }
 
     /**
