@@ -5,7 +5,6 @@ inputs:
   build-filter:
     description: 'Optional turbo filter to scope the build (e.g. @hyperlane-xyz/cli...)'
     required: false
-    default: ''
 
 runs:
   using: 'composite'

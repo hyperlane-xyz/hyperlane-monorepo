@@ -76,6 +76,10 @@ jobs:
       - name: Check if coverage should have run
         id: should-run
         run: |
+          if [ "${{ needs.check-solidity-changes.result }}" != "success" ]; then
+            echo "Solidity change detection failed (result: ${{ needs.check-solidity-changes.result }})"
+            exit 1
+          fi
           if [ "${{ needs.check-solidity-changes.outputs.has_solidity_changes }}" == "true" ]; then
             echo "Coverage should have run, checking status..."
             if [ "${{ needs.coverage-run.result }}" != "success" ]; then
