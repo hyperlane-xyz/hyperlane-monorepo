@@ -262,8 +262,6 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 scaled = _outboundAmount(_amount);
         bytes memory tokenMsg = TokenMessage.format(_recipient, scaled);
 
-        emit SentTransferRemote(_destination, _recipient, scaled);
-
         if (_destination == localDomain) {
             // Same-domain: call target router's handle directly
             address target = _targetRouter.bytes32ToAddress();
@@ -274,6 +272,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 tokenMsg
             );
         } else {
+            emit SentTransferRemote(_destination, _recipient, scaled);
             messageId = mailbox.dispatch{value: remainingValue}(
                 _destination,
                 _targetRouter,
