@@ -16,7 +16,7 @@ pub struct RequestBody {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
-    pub queued_transactions: usize,
+    pub queued_nonces: usize,
 }
 
 /// Trigger manual reprocessing for transactions captured from an oversized reorg.
@@ -40,7 +40,7 @@ pub async fn handler(
         )
     })?;
 
-    let queued_transactions = dispatcher_entrypoint
+    let queued_nonces = dispatcher_entrypoint
         .trigger_reprocess_reorged_transactions()
         .await
         .map_err(|err| {
@@ -61,7 +61,5 @@ pub async fn handler(
             )
         })?;
 
-    Ok(ServerSuccessResponse::new(ResponseBody {
-        queued_transactions,
-    }))
+    Ok(ServerSuccessResponse::new(ResponseBody { queued_nonces }))
 }

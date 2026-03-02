@@ -94,7 +94,7 @@ async fn test_get_reprocess_txs_oversized_reorg_requires_manual_trigger() {
         .trigger_reprocess_reorged_transactions()
         .await
         .unwrap();
-    assert_eq!(queued, 3);
+    assert_eq!(queued, 101);
 
     let manual_reprocess_txs = adapter.get_reprocess_txs().await.unwrap();
     assert_eq!(manual_reprocess_txs.len(), 3);

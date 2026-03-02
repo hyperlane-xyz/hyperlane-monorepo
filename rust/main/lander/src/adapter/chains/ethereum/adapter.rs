@@ -925,20 +925,19 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn trigger_reprocess_reorged_transactions(&self) -> Result<usize, LanderError> {
-        let tx_count = self
-            .inspect_reorged_transactions()
-            .await?
-            .transactions
-            .len();
-        if tx_count == 0 {
-            return Err(LanderError::NonRetryableError(
-                "No oversized reorg transactions are pending manual reprocessing".to_string(),
-            ));
-        }
-
         let mut state = self.reorg_reprocess_state.lock().await;
+        let pending = state.pending_manual_reorg.as_ref().ok_or_else(|| {
+            LanderError::NonRetryableError(
+                "No oversized reorg transactions are pending manual reprocessing".to_string(),
+            )
+        })?;
+        let queued_nonces = pending
+            .end_nonce
+            .saturating_sub(pending.start_nonce)
+            .as_u64()
+            + 1;
         state.manual_reprocess_requested = true;
-        Ok(tx_count)
+        Ok(queued_nonces as usize)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
