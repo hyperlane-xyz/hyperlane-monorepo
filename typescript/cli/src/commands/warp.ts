@@ -11,10 +11,10 @@ import {
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   assert,
   difference,
   intersection,
+  isEVMLike,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -479,10 +479,10 @@ export const check: CommandModuleWithContext<
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
     // Remove any non EVM chain configs to avoid the checker crashing
-    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
-      (config) =>
-        context.multiProvider.getProtocol(config.chainName) ===
-        ProtocolType.Ethereum,
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter((config) =>
+      isEVMLike(
+        context.multiProvider.getChainMetadata(config.chainName).protocol,
+      ),
     );
 
     // Get on-chain config
@@ -507,7 +507,7 @@ export const check: CommandModuleWithContext<
     expandedWarpDeployConfig = objFilter(
       expandedWarpDeployConfig,
       (chain, _config): _config is any =>
-        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        isEVMLike(context.multiProvider.getChainMetadata(chain).protocol),
     );
 
     await runWarpRouteCheck({

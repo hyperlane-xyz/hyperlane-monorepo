@@ -17,6 +17,7 @@ import {
   ProtocolType,
   addBufferToGasLimit,
   eqAddress,
+  isEVMLike,
   isZeroishAddress,
   rootLogger,
   runWithTimeout,
@@ -154,10 +155,8 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
-    const ethereumConfigChains = configChains.filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
+    const ethereumConfigChains = configChains.filter((chain) =>
+      isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
     );
 
     const targetChains = this.multiProvider.intersect(

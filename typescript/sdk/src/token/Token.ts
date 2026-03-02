@@ -8,6 +8,7 @@ import {
   ProtocolType,
   assert,
   eqAddress,
+  isEVMLike,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -88,13 +89,6 @@ import {
   StarknetHypSyntheticAdapter,
   StarknetTokenAdapter,
 } from './adapters/StarknetTokenAdapter.js';
-import {
-  TronHypCollateralAdapter,
-  TronHypNativeAdapter,
-  TronHypSyntheticAdapter,
-  TronNativeTokenAdapter,
-  TronTokenAdapter,
-} from './adapters/TronTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
@@ -156,11 +150,14 @@ export class Token implements IToken {
       `Token chain ${chainName} not found in multiProvider`,
     );
 
-    if (standard === TokenStandard.ERC20) {
+    if (standard === TokenStandard.ERC20 || standard === TokenStandard.TRC20) {
       return new EvmTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmNative) {
+    } else if (
+      standard === TokenStandard.EvmNative ||
+      standard === TokenStandard.TronNative
+    ) {
       return new EvmNativeTokenAdapter(chainName, multiProvider, {});
     } else if (
       standard === TokenStandard.SealevelSpl ||
@@ -201,10 +198,6 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.AleoNative) {
       return new AleoNativeTokenAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.TronNative) {
-      return new TronNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (this.isHypToken()) {
@@ -248,43 +241,64 @@ export class Token implements IToken {
       `Token chain ${chainName} not found in multiProvider`,
     );
 
-    if (standard === TokenStandard.EvmHypNative) {
+    if (
+      standard === TokenStandard.EvmHypNative ||
+      standard === TokenStandard.TronHypNative
+    ) {
       return new EvmHypNativeAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypOwnerCollateral
+      standard === TokenStandard.EvmHypOwnerCollateral ||
+      standard === TokenStandard.TronHypCollateral ||
+      standard === TokenStandard.TronHypOwnerCollateral
     ) {
       return new EvmMovableCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypRebaseCollateral) {
+    } else if (
+      standard === TokenStandard.EvmHypRebaseCollateral ||
+      standard === TokenStandard.TronHypRebaseCollateral
+    ) {
       return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypCollateralFiat) {
+    } else if (
+      standard === TokenStandard.EvmHypCollateralFiat ||
+      standard === TokenStandard.TronHypCollateralFiat
+    ) {
       return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypSynthetic) {
+    } else if (
+      standard === TokenStandard.EvmHypSynthetic ||
+      standard === TokenStandard.TronHypSynthetic
+    ) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypSyntheticRebase) {
+    } else if (
+      standard === TokenStandard.EvmHypSyntheticRebase ||
+      standard === TokenStandard.TronHypSyntheticRebase
+    ) {
       return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypXERC20 ||
-      standard === TokenStandard.EvmHypVSXERC20
+      standard === TokenStandard.EvmHypVSXERC20 ||
+      standard === TokenStandard.TronHypXERC20 ||
+      standard === TokenStandard.TronHypVSXERC20
     ) {
       return new EvmHypXERC20Adapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypXERC20Lockbox ||
-      standard === TokenStandard.EvmHypVSXERC20Lockbox
+      standard === TokenStandard.EvmHypVSXERC20Lockbox ||
+      standard === TokenStandard.TronHypXERC20Lockbox ||
+      standard === TokenStandard.TronHypVSXERC20Lockbox
     ) {
       return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
         token: addressOrDenom,
@@ -390,19 +404,10 @@ export class Token implements IToken {
       return new AleoHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.TronHypNative) {
-      return new TronHypNativeAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.TronHypCollateral) {
-      return new TronHypCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.TronHypSynthetic) {
-      return new TronHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.EvmM0PortalLite) {
+    } else if (
+      standard === TokenStandard.EvmM0PortalLite ||
+      standard === TokenStandard.TronM0PortalLite
+    ) {
       assert(
         collateralAddressOrDenom,
         'collateralAddressOrDenom (mToken address) required for M0PortalLite',
@@ -603,7 +608,7 @@ export function getCollateralTokenAdapter({
   const protocolType = multiProvider.getProtocol(chainName);
 
   // ERC20s
-  if (protocolType === ProtocolType.Ethereum) {
+  if (isEVMLike(protocolType)) {
     return new EvmTokenAdapter(chainName, multiProvider, {
       token: tokenAddress,
     });
@@ -619,10 +624,6 @@ export function getCollateralTokenAdapter({
     });
   } else if (protocolType === ProtocolType.Radix) {
     return new RadixTokenAdapter(chainName, multiProvider, {
-      token: tokenAddress,
-    });
-  } else if (protocolType === ProtocolType.Tron) {
-    return new TronTokenAdapter(chainName, multiProvider, {
       token: tokenAddress,
     });
   } else {

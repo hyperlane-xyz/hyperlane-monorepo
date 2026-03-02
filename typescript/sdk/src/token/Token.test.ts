@@ -246,10 +246,23 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.AleoHypCollateral]: null,
   [TokenStandard.AleoHypSynthetic]: null,
 
+  [TokenStandard.TRC20]: null,
+  [TokenStandard.TRC721]: null,
   [TokenStandard.TronNative]: null,
   [TokenStandard.TronHypNative]: null,
   [TokenStandard.TronHypCollateral]: null,
+  [TokenStandard.TronHypOwnerCollateral]: null,
+  [TokenStandard.TronHypRebaseCollateral]: null,
+  [TokenStandard.TronHypCollateralFiat]: null,
   [TokenStandard.TronHypSynthetic]: null,
+  [TokenStandard.TronHypSyntheticRebase]: null,
+  [TokenStandard.TronHypXERC20]: null,
+  [TokenStandard.TronHypXERC20Lockbox]: null,
+  [TokenStandard.TronHypVSXERC20]: null,
+  [TokenStandard.TronHypVSXERC20Lockbox]: null,
+  [TokenStandard.TronM0PortalLite]: null,
+  [TokenStandard.TronHypEverclearCollateral]: null,
+  [TokenStandard.TronHypEverclearEth]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<

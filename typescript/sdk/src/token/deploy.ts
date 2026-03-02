@@ -13,8 +13,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  ProtocolType,
   addressToBytes32,
+  isEVMLike,
   assert,
   objFilter,
   objKeys,
@@ -663,7 +663,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         const tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
-        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        if (!isEVMLike(this.multiProvider.getProtocol(chain))) {
           this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
           return;
         }

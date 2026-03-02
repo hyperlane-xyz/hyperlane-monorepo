@@ -72,10 +72,23 @@ export enum TokenStandard {
   AleoHypSynthetic = 'AleoHypSynthetic',
 
   // Tron
+  TRC20 = 'TRC20',
+  TRC721 = 'TRC721',
   TronNative = 'TronNative',
   TronHypNative = 'TronHypNative',
   TronHypCollateral = 'TronHypCollateral',
+  TronHypOwnerCollateral = 'TronHypOwnerCollateral',
+  TronHypRebaseCollateral = 'TronHypRebaseCollateral',
+  TronHypCollateralFiat = 'TronHypCollateralFiat',
   TronHypSynthetic = 'TronHypSynthetic',
+  TronHypSyntheticRebase = 'TronHypSyntheticRebase',
+  TronHypXERC20 = 'TronHypXERC20',
+  TronHypXERC20Lockbox = 'TronHypXERC20Lockbox',
+  TronHypVSXERC20 = 'TronHypVSXERC20',
+  TronHypVSXERC20Lockbox = 'TronHypVSXERC20Lockbox',
+  TronM0PortalLite = 'TronM0PortalLite',
+  TronHypEverclearCollateral = 'TronHypEverclearCollateral',
+  TronHypEverclearEth = 'TronHypEverclearEth',
 }
 
 // Allows for omission of protocol field in token args
@@ -146,10 +159,23 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   AleoHypSynthetic: ProtocolType.Aleo,
 
   // Tron
+  TRC20: ProtocolType.Tron,
+  TRC721: ProtocolType.Tron,
   TronNative: ProtocolType.Tron,
   TronHypNative: ProtocolType.Tron,
   TronHypCollateral: ProtocolType.Tron,
+  TronHypOwnerCollateral: ProtocolType.Tron,
+  TronHypRebaseCollateral: ProtocolType.Tron,
+  TronHypCollateralFiat: ProtocolType.Tron,
   TronHypSynthetic: ProtocolType.Tron,
+  TronHypSyntheticRebase: ProtocolType.Tron,
+  TronHypXERC20: ProtocolType.Tron,
+  TronHypXERC20Lockbox: ProtocolType.Tron,
+  TronHypVSXERC20: ProtocolType.Tron,
+  TronHypVSXERC20Lockbox: ProtocolType.Tron,
+  TronM0PortalLite: ProtocolType.Tron,
+  TronHypEverclearCollateral: ProtocolType.Tron,
+  TronHypEverclearEth: ProtocolType.Tron,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -168,6 +194,7 @@ export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
 
 export const TOKEN_NFT_STANDARDS = [
   TokenStandard.ERC721,
+  TokenStandard.TRC721,
   TokenStandard.CosmosIcs721,
   TokenStandard.CW721,
   // TODO solana here
@@ -187,6 +214,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.AleoHypCollateral,
   TokenStandard.TronHypNative,
   TokenStandard.TronHypCollateral,
+  TokenStandard.TronHypXERC20Lockbox,
+  TokenStandard.TronHypVSXERC20Lockbox,
 ];
 
 export const XERC20_STANDARDS = [
@@ -194,11 +223,17 @@ export const XERC20_STANDARDS = [
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.TronHypXERC20,
+  TokenStandard.TronHypXERC20Lockbox,
+  TokenStandard.TronHypVSXERC20,
+  TokenStandard.TronHypVSXERC20Lockbox,
 ];
 
 export const LOCKBOX_STANDARDS = [
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.TronHypXERC20Lockbox,
+  TokenStandard.TronHypVSXERC20Lockbox,
 ];
 
 export const MINT_LIMITED_STANDARDS = [
@@ -207,6 +242,11 @@ export const MINT_LIMITED_STANDARDS = [
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.EvmHypCollateralFiat,
+  TokenStandard.TronHypXERC20,
+  TokenStandard.TronHypXERC20Lockbox,
+  TokenStandard.TronHypVSXERC20,
+  TokenStandard.TronHypVSXERC20Lockbox,
+  TokenStandard.TronHypCollateralFiat,
 ];
 
 export const TOKEN_HYP_STANDARDS = [
@@ -240,7 +280,18 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.AleoHypSynthetic,
   TokenStandard.TronHypNative,
   TokenStandard.TronHypCollateral,
+  TokenStandard.TronHypOwnerCollateral,
+  TokenStandard.TronHypRebaseCollateral,
+  TokenStandard.TronHypCollateralFiat,
   TokenStandard.TronHypSynthetic,
+  TokenStandard.TronHypSyntheticRebase,
+  TokenStandard.TronHypXERC20,
+  TokenStandard.TronHypXERC20Lockbox,
+  TokenStandard.TronHypVSXERC20,
+  TokenStandard.TronHypVSXERC20Lockbox,
+  TokenStandard.TronM0PortalLite,
+  TokenStandard.TronHypEverclearCollateral,
+  TokenStandard.TronHypEverclearEth,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -318,19 +369,7 @@ export const tokenTypeToStandard = (
       );
     }
     case ProtocolType.Tron: {
-      if (
-        TRON_SUPPORTED_TOKEN_TYPES.includes(
-          tokenType as TronSupportedTokenTypes,
-        )
-      ) {
-        return TRON_TOKEN_TYPE_TO_STANDARD[
-          tokenType as TronSupportedTokenTypes
-        ];
-      }
-
-      throw new Error(
-        `token type ${tokenType} not available on protocol ${protocolType}`,
-      );
+      return TRON_TOKEN_TYPE_TO_STANDARD[tokenType];
     }
     case ProtocolType.Sealevel: {
       const sealevelTokenStandard =
@@ -462,21 +501,27 @@ export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
 };
 
-export const TRON_SUPPORTED_TOKEN_TYPES = [
-  TokenType.native,
-  TokenType.collateral,
-  TokenType.synthetic,
-] as const;
-
-type TronSupportedTokenTypes = (typeof TRON_SUPPORTED_TOKEN_TYPES)[number];
-
 export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
-  TronSupportedTokenTypes,
+  DeployableTokenType,
   TokenStandard
 > = {
   [TokenType.native]: TokenStandard.TronHypNative,
   [TokenType.collateral]: TokenStandard.TronHypCollateral,
+  [TokenType.collateralFiat]: TokenStandard.TronHypCollateralFiat,
+  [TokenType.XERC20]: TokenStandard.TronHypXERC20,
+  [TokenType.XERC20Lockbox]: TokenStandard.TronHypXERC20Lockbox,
+  [TokenType.collateralVault]: TokenStandard.TronHypOwnerCollateral,
+  [TokenType.collateralVaultRebase]: TokenStandard.TronHypRebaseCollateral,
+  [TokenType.collateralUri]: TokenStandard.TronHypCollateral,
   [TokenType.synthetic]: TokenStandard.TronHypSynthetic,
+  [TokenType.syntheticRebase]: TokenStandard.TronHypSyntheticRebase,
+  [TokenType.syntheticUri]: TokenStandard.TronHypSynthetic,
+  [TokenType.nativeScaled]: TokenStandard.TronHypNative,
+  [TokenType.collateralCctp]: TokenStandard.TronHypCollateral,
+  [TokenType.nativeOpL1]: TokenStandard.TronHypNative,
+  [TokenType.nativeOpL2]: TokenStandard.TronHypNative,
+  [TokenType.ethEverclear]: TokenStandard.TronHypEverclearEth,
+  [TokenType.collateralEverclear]: TokenStandard.TronHypEverclearCollateral,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<

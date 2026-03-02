@@ -153,7 +153,10 @@ export async function getXERC20Info(
   warpCore: WarpCore,
   token: Token,
 ): Promise<XERC20Info> {
-  if (token.protocol !== ProtocolType.Ethereum) {
+  if (
+    token.protocol !== ProtocolType.Ethereum &&
+    token.protocol !== ProtocolType.Tron
+  ) {
     throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
   }
 

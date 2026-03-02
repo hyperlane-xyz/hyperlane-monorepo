@@ -7,6 +7,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { getContext } from '../../context/context.js';
 import { readYamlOrJson } from '../../utils/files.js';
 
+import { IS_TRON_TEST } from '../ethereum/consts.js';
+
 import { localTestRunCmdPrefix } from './helpers.js';
 
 $.verbose = true;
@@ -38,12 +40,18 @@ export class HyperlaneE2ECoreTestCommands {
     this.coreOutputPath = coreOutputPath;
   }
 
-  protected get privateKeyFlag() {
-    if (this.protocol === ProtocolType.Ethereum) {
-      return '--key';
+  protected getPrivateKeyFlags(key: string): string[] {
+    if (
+      this.protocol === ProtocolType.Ethereum ||
+      this.protocol === ProtocolType.Tron
+    ) {
+      if (IS_TRON_TEST) {
+        return ['--key.ethereum', key, '--key.tron', key];
+      }
+      return ['--key', key];
     }
 
-    return `--key.${this.protocol}`;
+    return [`--key.${this.protocol}`, key];
   }
 
   protected get hypKeyEnvName() {
@@ -77,7 +85,7 @@ export class HyperlaneE2ECoreTestCommands {
     ];
 
     if (privateKey) {
-      flags.push(this.privateKeyFlag, privateKey);
+      flags.push(...this.getPrivateKeyFlags(privateKey));
     }
 
     return $`${
@@ -147,7 +155,7 @@ export class HyperlaneE2ECoreTestCommands {
     ];
 
     if (privateKey) {
-      flags.push(this.privateKeyFlag, privateKey);
+      flags.push(...this.getPrivateKeyFlags(privateKey));
     }
 
     if (skipConfirmationPrompts) {
@@ -171,7 +179,7 @@ export class HyperlaneE2ECoreTestCommands {
         --registry ${this.registryPath} \
         --config ${this.coreInputPath} \
         --chain ${this.chain} \
-        ${this.privateKeyFlag} ${privateKey} \
+        ${this.getPrivateKeyFlags(privateKey)} \
         --verbosity debug \
         --yes`;
   }
@@ -206,7 +214,7 @@ export class HyperlaneE2ECoreTestCommands {
         --registry ${this.registryPath} \
         --config ${this.coreOutputPath} \
         --chain ${this.chain} \
-        ${this.privateKeyFlag} ${privateKey} \
+        ${this.getPrivateKeyFlags(privateKey)} \
         --verbosity debug \
         --yes`;
   }

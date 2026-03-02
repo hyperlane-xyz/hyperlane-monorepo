@@ -28,6 +28,7 @@ import {
   TEMP_PATH,
   WARP_CORE_CONFIG_PATH_2,
   getCombinedWarpRoutePath,
+  getKeyFlags,
 } from '../consts.js';
 
 import {
@@ -59,7 +60,7 @@ export function hyperlaneWarpInitRaw({
   } ${localTestRunCmdPrefix()} hyperlane warp init \
         --registry ${REGISTRY_PATH} \
         ${warpCorePath ? ['--out', warpCorePath] : []} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${privateKey ? getKeyFlags(privateKey) : []} \
         ${advanced ? ['--advanced'] : []} \
         --verbosity debug \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
@@ -100,7 +101,7 @@ export function hyperlaneWarpDeployRaw({
         --registry ${REGISTRY_PATH} \
         ${warpDeployPath ? ['--config', warpDeployPath] : []} \
         ${warpCorePath ? ['--warp', warpCorePath] : []} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${privateKey ? getKeyFlags(privateKey) : []} \
         --verbosity debug \
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
@@ -159,7 +160,7 @@ export function hyperlaneWarpApplyRaw({
         ${warpCorePath ? ['--warp', warpCorePath] : []} \
         ${strategyUrl ? ['--strategy', strategyUrl] : []} \
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
-        --key ${ANVIL_KEY} \
+        ${getKeyFlags(ANVIL_KEY)} \
         --verbosity debug \
         ${relay ? ['--relay'] : []} \
         --yes`;
@@ -264,7 +265,7 @@ export function hyperlaneWarpSendRelay({
         ${origin ? ['--origin', origin] : []} \
         ${destination ? ['--destination', destination] : []} \
         --warp ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        ${getKeyFlags(ANVIL_KEY)} \
         --verbosity debug \
         --yes \
         --amount ${value} \
@@ -291,7 +292,7 @@ export function hyperlaneWarpRebalancer(
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
-        --key ${key ?? ANVIL_KEY} \
+        ${getKeyFlags(key ?? ANVIL_KEY)} \
         --verbosity debug \
         --withMetrics ${withMetrics ? ['true'] : ['false']} \
         --monitorOnly ${monitorOnly ? ['true'] : ['false']} \

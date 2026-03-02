@@ -5,6 +5,7 @@ import {
   ProtocolType,
   assert,
   exclude,
+  isEVMLike,
   pick,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -183,7 +184,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   getEvmChainId(chainNameOrId: ChainNameOrId): EvmChainId {
     const { protocol, chainId } = this.getChainMetadata(chainNameOrId);
-    if (protocol !== ProtocolType.Ethereum) {
+    if (!isEVMLike(protocol)) {
       throw new Error(`Chain is not an EVM chain: ${chainNameOrId}`);
     }
     if (typeof chainId !== 'number') {
