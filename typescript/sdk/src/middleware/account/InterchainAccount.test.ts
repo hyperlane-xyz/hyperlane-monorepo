@@ -9,8 +9,7 @@ import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
 
-import { InterchainAccount } from './InterchainAccount.js';
-import { PostCallsSchema } from './InterchainAccount.js';
+import { InterchainAccount, PostCallsSchema } from './InterchainAccount.js';
 
 const validPayload = (overrides: Record<string, any> = {}) => ({
   calls: [
