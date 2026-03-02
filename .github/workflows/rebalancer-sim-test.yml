@@ -1,4 +1,4 @@
-name: rebalancer-sim-test
+name: Rebalancer Sim Tests
 
 on:
   push:
@@ -19,6 +19,12 @@ on:
 concurrency:
   group: rebalancer-sim-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
   rebalancer-sim-test:

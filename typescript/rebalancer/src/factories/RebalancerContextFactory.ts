@@ -452,7 +452,8 @@ export class RebalancerContextFactory {
     const inventoryRebalancer = new InventoryRebalancer(
       {
         inventorySigner,
-        inventoryMultiProvider: this.inventoryMultiProvider,
+        inventoryMultiProvider:
+          this.inventoryMultiProvider ?? this.multiProvider,
         inventoryChains,
       },
       actionTracker,

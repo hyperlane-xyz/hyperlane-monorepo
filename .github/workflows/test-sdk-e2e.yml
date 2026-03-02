@@ -1,0 +1,113 @@
+name: test-sdk-e2e
+
+on:
+  workflow_call:
+    inputs:
+      has_cosmos:
+        type: string
+      has_aleo:
+        type: string
+      has_radix:
+        type: string
+      has_tron:
+        type: string
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  cosmos-sdk-e2e-run:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_cosmos == 'true'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/cosmos-sdk...'
+
+      - name: Cosmos SDK e2e tests
+        run: pnpm -C typescript/cosmos-sdk test:e2e
+
+  aleo-sdk-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_aleo == 'true'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - 1_interchain_security
+          - 2_core
+          - 3_post_dispatch
+          - 4_warp
+          - 5_ism_artifacts
+          - 6_hook_artifacts
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/aleo-sdk...'
+
+      - name: Aleo SDK e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/aleo-sdk test:e2e
+        env:
+          ALEO_SDK_E2E_TEST: ${{ matrix.test }}
+
+  radix-sdk-e2e-run:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_radix == 'true'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/radix-sdk...'
+
+      - name: Radix SDK e2e tests
+        run: pnpm -C typescript/radix-sdk test:e2e
+
+  tron-sdk-e2e-run:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_tron == 'true'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/tron-sdk...'
+
+      - name: Tron SDK e2e tests with coverage
+        run: pnpm -C typescript/tron-sdk coverage
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: tron-sdk
+          files: typescript/tron-sdk/coverage/lcov.info
+          fail_ci_if_error: false
