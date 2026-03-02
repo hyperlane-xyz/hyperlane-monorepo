@@ -114,6 +114,12 @@ export class WarpTokenWriter
   ): Promise<[DeployedWarpArtifact, TxReceipt[]]> {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
+    if (config.hook) {
+      assert(
+        config.mailbox,
+        'Mailbox is required when hook configuration is provided',
+      );
+    }
 
     // Deploy ISM if configured as a NEW artifact
     let onChainIsmArtifact:
@@ -194,6 +200,13 @@ export class WarpTokenWriter
    */
   async update(artifact: DeployedWarpArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
+    const expectedHook = config.hook;
+    if (expectedHook && !isArtifactUnderived(expectedHook)) {
+      assert(
+        config.mailbox,
+        'Mailbox is required when hook configuration is provided',
+      );
+    }
 
     // Read current on-chain state to verify token type hasn't changed
     const currentArtifact = await this.read(deployed.address);
@@ -252,7 +265,6 @@ export class WarpTokenWriter
     }
 
     // Resolve Hook updates
-    const expectedHook = config.hook;
     const currentHook = currentArtifact.config.hook;
 
     let onChainHookArtifact:
