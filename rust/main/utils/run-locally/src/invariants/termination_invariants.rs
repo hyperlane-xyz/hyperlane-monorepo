@@ -88,6 +88,8 @@ pub fn relayer_termination_invariants_met(
     const LANDER_PREPARATION_ESTIMATION_FAILED_LOG_MESSAGE: &str =
         "Lander preparation gas estimation failed";
     const EXPECTED_FAILED_MESSAGE_REVERT: &str = "execution reverted: failMessageBody";
+    const EXPECTED_SIMULATED_DELIVERY_FAILURE_REVERT: &str =
+        "execution reverted: block hash ends in 0";
 
     const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
 
@@ -204,23 +206,24 @@ pub fn relayer_termination_invariants_met(
     let lander_preparation_estimation_failed_log_count = *log_counts
         .get(&lander_preparation_estimation_failed_line_filter)
         .unwrap_or(&0);
-    let expected_lander_preparation_estimation_failed_log_count = if failed_message_count > 0 {
+    let expected_lander_preparation_estimation_failed_log_count = {
         let relayer_logfile = File::open(AGENT_LOGGING_DIR.join("RLY-output.log"))?;
         BufReader::new(relayer_logfile)
             .lines()
             .map_while(Result::ok)
             .filter(|line| line.contains(LANDER_PREPARATION_ESTIMATION_FAILED_LOG_MESSAGE))
-            .filter(|line| line.contains(EXPECTED_FAILED_MESSAGE_REVERT))
+            .filter(|line| {
+                line.contains(EXPECTED_FAILED_MESSAGE_REVERT)
+                    || line.contains(EXPECTED_SIMULATED_DELIVERY_FAILURE_REVERT)
+            })
             .count() as u32
-    } else {
-        0
     };
     let unexpected_lander_preparation_estimation_failed_log_count =
         lander_preparation_estimation_failed_log_count
             .saturating_sub(expected_lander_preparation_estimation_failed_log_count);
     if unexpected_lander_preparation_estimation_failed_log_count > 0 {
         log!(
-            "Found {} unexpected preparation-estimation failures in relayer logs (ignored {} expected failMessageBody reverts)",
+            "Found {} unexpected preparation-estimation failures in relayer logs (ignored {} expected synthetic reverts)",
             unexpected_lander_preparation_estimation_failed_log_count,
             expected_lander_preparation_estimation_failed_log_count
         );
