@@ -1,0 +1,2347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flow-Reactive Strategy Comparison: flow-oscillating</title>
+  <style>
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header-bar {
+      background: #16213e;
+      padding: 16px 24px;
+      border-radius: 8px 8px 0 0;
+      margin-bottom: 0;
+    }
+
+    .header-bar h1 {
+      color: #fff;
+      font-size: 1.5rem;
+      margin: 0;
+    }
+
+    h2 {
+      color: #e0e0e0;
+      font-size: 1.25rem;
+      padding: 12px 24px;
+      background: #1e1e35;
+      border-radius: 0 0 8px 8px;
+      margin-bottom: 16px;
+    }
+
+    h3 {
+      color: #fff;
+      font-size: 1.1rem;
+      margin: 24px 0 12px;
+    }
+
+    .description {
+      color: #aaa;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+
+    .winner-banner {
+      background: linear-gradient(135deg, #3d3400, #5a4e00);
+      border: 1px solid #ffd700;
+      color: #ffd700;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      margin-bottom: 20px;
+    }
+
+    .winner-banner strong {
+      color: #fff;
+    }
+
+    /* Scorecard Table */
+    .scorecard {
+      width: 100%;
+      border-collapse: collapse;
+      background: #252542;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .scorecard thead {
+      position: sticky;
+      top: 0;
+    }
+
+    .scorecard th {
+      background: #16213e;
+      color: #aaa;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      padding: 10px 12px;
+      text-align: left;
+      letter-spacing: 0.05em;
+    }
+
+    .scorecard td {
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      border-bottom: 1px solid #2a2a45;
+    }
+
+    .scorecard tbody tr:nth-child(even) {
+      background: #1e1e35;
+    }
+
+    .scorecard tbody tr:nth-child(odd) {
+      background: #252542;
+    }
+
+    .scorecard tbody tr.winner-row {
+      background: rgba(255, 215, 0, 0.1);
+    }
+
+    .scorecard tbody tr.winner-row td {
+      border-bottom-color: rgba(255, 215, 0, 0.3);
+    }
+
+    .color-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    /* KPI Bar Charts */
+    .kpi-bars {
+      background: #252542;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .bar-group {
+      margin-bottom: 20px;
+    }
+
+    .bar-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .bar-label {
+      font-size: 0.85rem;
+      color: #aaa;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .bar-name {
+      width: 160px;
+      min-width: 160px;
+      font-size: 0.85rem;
+      color: #ccc;
+      text-align: right;
+      padding-right: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 26px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding-left: 8px;
+      font-size: 0.8rem;
+      color: #fff;
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: fit-content;
+      transition: width 0.3s ease;
+    }
+
+    /* Strategy Cards */
+    .strategy-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .strategy-card {
+      background: #252542;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #1e1e35;
+    }
+
+    .card-header h4 {
+      color: #fff;
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    .strategy-badge {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      color: #fff;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .card-body {
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .card-kpi {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-kpi-label {
+      font-size: 0.7rem;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .card-kpi-value {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #4ecdc4;
+    }
+  
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <div class="header-bar">
+      <h1>Flow-Reactive Strategy Comparison</h1>
+    </div>
+    <h2>flow-oscillating</h2>
+    <p class="description">Transfers alternate direction between chain1 and chain2 every 3 seconds. Tests whether strategies avoid whiplash on direction changes.</p>
+    <div class="winner-banner">
+      &#127942; Winner: <strong>emaFlow</strong> &mdash; Winner: emaFlow with 100.00% completion and 0 rebalances
+    </div>
+    
+    <h3>Strategy Scorecard</h3>
+    <table class="scorecard">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Strategy</th>
+          <th>Type</th>
+          <th>Completion %</th>
+          <th>Rebalances</th>
+          <th>Rebalance Volume</th>
+          <th>Avg Latency (ms)</th>
+          <th>Efficiency</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="winner-row">
+          <td>1</td>
+          <td><span class="color-dot" style="background:#4CAF50;"></span>emaFlow</td>
+          <td>emaFlow</td>
+          <td>10000.0%</td>
+          <td>0</td>
+          <td>0.00</td>
+          <td>159</td>
+          <td>0.000</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><span class="color-dot" style="background:#2196F3;"></span>velocityFlow</td>
+          <td>velocityFlow</td>
+          <td>10000.0%</td>
+          <td>0</td>
+          <td>0.00</td>
+          <td>153</td>
+          <td>0.000</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><span class="color-dot" style="background:#FF9800;"></span>thresholdFlow</td>
+          <td>thresholdFlow</td>
+          <td>10000.0%</td>
+          <td>0</td>
+          <td>0.00</td>
+          <td>154</td>
+          <td>0.000</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><span class="color-dot" style="background:#9C27B0;"></span>accelerationFlow</td>
+          <td>accelerationFlow</td>
+          <td>10000.0%</td>
+          <td>0</td>
+          <td>0.00</td>
+          <td>170</td>
+          <td>0.000</td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <h3>KPI Comparison</h3>
+    <div class="kpi-bars">
+      <div class="bar-group">
+        <div class="bar-label">Completion Rate</div>
+        
+      <div class="bar-row">
+        <span class="bar-name">emaFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 100.0%; background: #4CAF50;">
+            100.0%
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">velocityFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 100.0%; background: #2196F3;">
+            100.0%
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">thresholdFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 100.0%; background: #FF9800;">
+            100.0%
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">accelerationFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 100.0%; background: #9C27B0;">
+            100.0%
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="bar-group">
+        <div class="bar-label">Average Latency</div>
+        
+      <div class="bar-row">
+        <span class="bar-name">emaFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 93.5%; background: #4CAF50;">
+            159ms
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">velocityFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 90.1%; background: #2196F3;">
+            153ms
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">thresholdFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 90.7%; background: #FF9800;">
+            154ms
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">accelerationFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 100.0%; background: #9C27B0;">
+            170ms
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="bar-group">
+        <div class="bar-label">Total Rebalances</div>
+        
+      <div class="bar-row">
+        <span class="bar-name">emaFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #4CAF50;">
+            0
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">velocityFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #2196F3;">
+            0
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">thresholdFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #FF9800;">
+            0
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">accelerationFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #9C27B0;">
+            0
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="bar-group">
+        <div class="bar-label">Rebalance Volume</div>
+        
+      <div class="bar-row">
+        <span class="bar-name">emaFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #4CAF50;">
+            0.00 tokens
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">velocityFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #2196F3;">
+            0.00 tokens
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">thresholdFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #FF9800;">
+            0.00 tokens
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">accelerationFlow</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: 0.0%; background: #9C27B0;">
+            0.00 tokens
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    
+    <h3>Strategy Details</h3>
+    <div class="strategy-cards">
+      <div class="strategy-card">
+        <div class="card-header" style="border-left: 4px solid #4CAF50;">
+          <h4>emaFlow</h4>
+          <span class="strategy-badge" style="background:#4CAF50;">emaFlow</span>
+        </div>
+        <div class="card-body">
+          <div class="card-kpi">
+            <span class="card-kpi-label">Completion</span>
+            <span class="card-kpi-value">100.0%</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Transfers</span>
+            <span class="card-kpi-value">36/36</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Avg Latency</span>
+            <span class="card-kpi-value">159ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P50 Latency</span>
+            <span class="card-kpi-value">150ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P95 Latency</span>
+            <span class="card-kpi-value">241ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P99 Latency</span>
+            <span class="card-kpi-value">257ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebalances</span>
+            <span class="card-kpi-value">0</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebal Volume</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Gas Cost</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Duration</span>
+            <span class="card-kpi-value">22.1s</span>
+          </div>
+        </div>
+      </div>
+      <div class="strategy-card">
+        <div class="card-header" style="border-left: 4px solid #2196F3;">
+          <h4>velocityFlow</h4>
+          <span class="strategy-badge" style="background:#2196F3;">velocityFlow</span>
+        </div>
+        <div class="card-body">
+          <div class="card-kpi">
+            <span class="card-kpi-label">Completion</span>
+            <span class="card-kpi-value">100.0%</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Transfers</span>
+            <span class="card-kpi-value">36/36</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Avg Latency</span>
+            <span class="card-kpi-value">153ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P50 Latency</span>
+            <span class="card-kpi-value">149ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P95 Latency</span>
+            <span class="card-kpi-value">175ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P99 Latency</span>
+            <span class="card-kpi-value">205ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebalances</span>
+            <span class="card-kpi-value">0</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebal Volume</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Gas Cost</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Duration</span>
+            <span class="card-kpi-value">22.1s</span>
+          </div>
+        </div>
+      </div>
+      <div class="strategy-card">
+        <div class="card-header" style="border-left: 4px solid #FF9800;">
+          <h4>thresholdFlow</h4>
+          <span class="strategy-badge" style="background:#FF9800;">thresholdFlow</span>
+        </div>
+        <div class="card-body">
+          <div class="card-kpi">
+            <span class="card-kpi-label">Completion</span>
+            <span class="card-kpi-value">100.0%</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Transfers</span>
+            <span class="card-kpi-value">36/36</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Avg Latency</span>
+            <span class="card-kpi-value">154ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P50 Latency</span>
+            <span class="card-kpi-value">153ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P95 Latency</span>
+            <span class="card-kpi-value">203ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P99 Latency</span>
+            <span class="card-kpi-value">206ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebalances</span>
+            <span class="card-kpi-value">0</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebal Volume</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Gas Cost</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Duration</span>
+            <span class="card-kpi-value">22.2s</span>
+          </div>
+        </div>
+      </div>
+      <div class="strategy-card">
+        <div class="card-header" style="border-left: 4px solid #9C27B0;">
+          <h4>accelerationFlow</h4>
+          <span class="strategy-badge" style="background:#9C27B0;">accelerationFlow</span>
+        </div>
+        <div class="card-body">
+          <div class="card-kpi">
+            <span class="card-kpi-label">Completion</span>
+            <span class="card-kpi-value">100.0%</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Transfers</span>
+            <span class="card-kpi-value">36/36</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Avg Latency</span>
+            <span class="card-kpi-value">170ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P50 Latency</span>
+            <span class="card-kpi-value">167ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P95 Latency</span>
+            <span class="card-kpi-value">205ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">P99 Latency</span>
+            <span class="card-kpi-value">205ms</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebalances</span>
+            <span class="card-kpi-value">0</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Rebal Volume</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Gas Cost</span>
+            <span class="card-kpi-value">0.00 tokens</span>
+          </div>
+          <div class="card-kpi">
+            <span class="card-kpi-label">Duration</span>
+            <span class="card-kpi-value">22.1s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Embedded data for potential interactive features
+    const reportData = {
+  "scenarioName": "flow-oscillating",
+  "scenarioDescription": "Transfers alternate direction between chain1 and chain2 every 3 seconds. Tests whether strategies avoid whiplash on direction changes.",
+  "results": [
+    {
+      "strategyName": "emaFlow",
+      "strategyType": "emaFlow",
+      "kpis": {
+        "totalTransfers": 36,
+        "completedTransfers": 36,
+        "failedTransfers": 0,
+        "completionRate": 1,
+        "averageLatency": 159.11111111111111,
+        "p50Latency": 150,
+        "p95Latency": 241,
+        "p99Latency": 257,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "100000000000000000000",
+            "finalBalance": "99024163220796053360",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "100000000000000000000",
+            "finalBalance": "100975836779203946640",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": [
+        {
+          "id": "0xe70f03fa6008efd6e25f13c7438af4118360d854ee1107e8df644adb4bf9f99a",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3569359000602839974",
+          "startTime": 1772446744820,
+          "status": "completed",
+          "endTime": 1772446744986,
+          "latency": 166
+        },
+        {
+          "id": "0x678620c108296148353130bed9e680ac78fde7517fbbd6d33706c9ec90286df3",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4032136648086858464",
+          "startTime": 1772446745224,
+          "status": "completed",
+          "endTime": 1772446745371,
+          "latency": 147
+        },
+        {
+          "id": "0xb67ff6425d82962f053c2ec3a4997d2c31eb8140b774872967a26e7c846184f6",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3981459293767414450",
+          "startTime": 1772446745633,
+          "status": "completed",
+          "endTime": 1772446745800,
+          "latency": 167
+        },
+        {
+          "id": "0x081d18b4fdb5625d1f1a62be39429ab7937e46825de25412e58167288b347f7a",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3172690276587432648",
+          "startTime": 1772446746244,
+          "status": "completed",
+          "endTime": 1772446746393,
+          "latency": 149
+        },
+        {
+          "id": "0xb9c7ece70143432c184f082d155a3313f23152541b9a062a3a66136b52988be7",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4927943600926911736",
+          "startTime": 1772446746652,
+          "status": "completed",
+          "endTime": 1772446746821,
+          "latency": 169
+        },
+        {
+          "id": "0xc9c335b7c64079549a1a8fbbe733882e17dfd3ed8cc1eb3433bb86a986245f47",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3052884604367924036",
+          "startTime": 1772446747266,
+          "status": "completed",
+          "endTime": 1772446747411,
+          "latency": 145
+        },
+        {
+          "id": "0x3d82e88bdc71e0f48ac66fc68a7c3016348923b86374af16c2a05bc6c2a955c1",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4566130218078335789",
+          "startTime": 1772446747673,
+          "status": "completed",
+          "endTime": 1772446747842,
+          "latency": 169
+        },
+        {
+          "id": "0x7601295fb3466754e822063be55164152afd8a5e54f7a9fc1a609914fc208922",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4449695630245689037",
+          "startTime": 1772446748285,
+          "status": "completed",
+          "endTime": 1772446748435,
+          "latency": 150
+        },
+        {
+          "id": "0xe4eed4378ae65225990aa52e6510e333f9a3b433b4c4379b5a2266b6020c0402",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3947729503063933653",
+          "startTime": 1772446748687,
+          "status": "completed",
+          "endTime": 1772446748819,
+          "latency": 132
+        },
+        {
+          "id": "0x426a7436922bc63f02ec7e49a3da4d076d0b0531df56f4ed67447555e1d41bf5",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2604747730440158705",
+          "startTime": 1772446749293,
+          "status": "completed",
+          "endTime": 1772446749466,
+          "latency": 173
+        },
+        {
+          "id": "0xc209dedf7bc6368c963c0295700901f7fd75db0bc8f1e384b97ede474e478891",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4652219659079038536",
+          "startTime": 1772446749702,
+          "status": "completed",
+          "endTime": 1772446749855,
+          "latency": 153
+        },
+        {
+          "id": "0x41f9e681befc2542b3531ab95105b6a12eb8f60eb777cff1b8bbc15f6b1eb1df",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2615424283123447610",
+          "startTime": 1772446750314,
+          "status": "completed",
+          "endTime": 1772446750442,
+          "latency": 128
+        },
+        {
+          "id": "0x93ebf93b751bdb08ede55fb4d43d17b7a2335f71c64220a2233c98f583fa6c72",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2765516564262137838",
+          "startTime": 1772446750718,
+          "status": "completed",
+          "endTime": 1772446750878,
+          "latency": 160
+        },
+        {
+          "id": "0x1d600aa46f9be6bebd6f956ce074dea5514f817003ce9ce46c7848cba47d8fe3",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2878023501747301680",
+          "startTime": 1772446751122,
+          "status": "completed",
+          "endTime": 1772446751264,
+          "latency": 142
+        },
+        {
+          "id": "0x1689735410a7bbf83ee864cab41b441bb0bbaf74210be70bc4b4ae3849864b09",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4598113660503165499",
+          "startTime": 1772446751733,
+          "status": "completed",
+          "endTime": 1772446751902,
+          "latency": 169
+        },
+        {
+          "id": "0x16d19b920fdccdca570acd610ddc5bf84950b0471563898e49b9a8675cb931df",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3488769818070805746",
+          "startTime": 1772446752140,
+          "status": "completed",
+          "endTime": 1772446752288,
+          "latency": 148
+        },
+        {
+          "id": "0x9331e33f9415a089777046bd535b7fe14ab09269f8f1281bd6d5c3a73ec384ef",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4960848415034822959",
+          "startTime": 1772446752753,
+          "status": "completed",
+          "endTime": 1772446752921,
+          "latency": 168
+        },
+        {
+          "id": "0x705962ca83afc7e0616161ee97962dd9b26de2b9943f3297bc601e2658862369",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4629988519760891748",
+          "startTime": 1772446753161,
+          "status": "completed",
+          "endTime": 1772446753306,
+          "latency": 145
+        },
+        {
+          "id": "0xbeb21c4328b39500f809b83bea24dbc419789823773cd117ffa4747c2f58bd21",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2499004361114193855",
+          "startTime": 1772446753774,
+          "status": "completed",
+          "endTime": 1772446753946,
+          "latency": 172
+        },
+        {
+          "id": "0xd8dd2862f8a323807068333a3fd2e6d33b030d47a771732fb065c50489d356a9",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3823199826987153559",
+          "startTime": 1772446754184,
+          "status": "completed",
+          "endTime": 1772446754329,
+          "latency": 145
+        },
+        {
+          "id": "0xdce87871af0f22f58f8b76af33b70a9f05ed10d2d4ecf26490ffe8878d196db5",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3517424533044545860",
+          "startTime": 1772446754790,
+          "status": "completed",
+          "endTime": 1772446754920,
+          "latency": 130
+        },
+        {
+          "id": "0xbaa2b3206768d4cafb1c6df3bd3e0e6ad8869dcc16ffdec2e55f8e93e9772918",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2043515438422538205",
+          "startTime": 1772446755197,
+          "status": "completed",
+          "endTime": 1772446755355,
+          "latency": 158
+        },
+        {
+          "id": "0xc6eee72948e64fd0b3083f03ed2dbdb055389e796cd7bb598fc5bcb6882c0133",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4139382012386996337",
+          "startTime": 1772446755806,
+          "status": "completed",
+          "endTime": 1772446755952,
+          "latency": 146
+        },
+        {
+          "id": "0xbfcfee42bb81218ea99d47e09cb77b33cc3367d0a1475d68a000b0f6ebcbf9ef",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4459373337712750188",
+          "startTime": 1772446758535,
+          "status": "completed",
+          "endTime": 1772446758704,
+          "latency": 169
+        },
+        {
+          "id": "0x975b09f521a37f7c0ebfa23b41625b6c12d2783b2c4e9fa7c0872d32615df93e",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2032545562026613314",
+          "startTime": 1772446758535,
+          "status": "completed",
+          "endTime": 1772446758739,
+          "latency": 204
+        },
+        {
+          "id": "0x5b36c5b5c46fe442856c079fe33f4a3e829848dfb7963ab2963bbe48ac3b6bf6",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2688013345777703897",
+          "startTime": 1772446758536,
+          "status": "completed",
+          "endTime": 1772446758777,
+          "latency": 241
+        },
+        {
+          "id": "0x08f47dbcfc39232925eeefc6ac1f3920c5684f5ecd3f517f9b0bddd6d03351cb",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3864892021011653588",
+          "startTime": 1772446758536,
+          "status": "completed",
+          "endTime": 1772446758793,
+          "latency": 257
+        },
+        {
+          "id": "0x2d226d99d16aaab55385efc10765ec0e763609bb29c7e4ea23e86bf5a0c20fe8",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3380031925892944953",
+          "startTime": 1772446758742,
+          "status": "completed",
+          "endTime": 1772446758871,
+          "latency": 129
+        },
+        {
+          "id": "0x2c404af45b865ca0dc568adbd31c5feab4f90c324e2b7f572f8b4a666167bae4",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4082410019934950419",
+          "startTime": 1772446758742,
+          "status": "completed",
+          "endTime": 1772446758889,
+          "latency": 147
+        },
+        {
+          "id": "0xd3f1eded44ff1cb8017bc502b6e7265c0e8aa9a4e2cdf2bbe4bd79e545188d6d",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2252491132430115141",
+          "startTime": 1772446759145,
+          "status": "completed",
+          "endTime": 1772446759270,
+          "latency": 125
+        },
+        {
+          "id": "0xe074ccc9d322fd69789e31e8078eab3a9e1fa3827585da9393fb301ddfa4e513",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3371437942168509151",
+          "startTime": 1772446759752,
+          "status": "completed",
+          "endTime": 1772446759913,
+          "latency": 161
+        },
+        {
+          "id": "0xa68a29685a3205a001551da66cf79b654ff72acdbf15c761fdb93bb0208fc1fb",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2419831343837387386",
+          "startTime": 1772446760163,
+          "status": "completed",
+          "endTime": 1772446760297,
+          "latency": 134
+        },
+        {
+          "id": "0xcc4e9d09e30a5b358579691806711eb6b8d32f12fce09474bcb172743d4ea3a6",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3195703306661852334",
+          "startTime": 1772446760771,
+          "status": "completed",
+          "endTime": 1772446760937,
+          "latency": 166
+        },
+        {
+          "id": "0xd62196830ebf3b88302e2f6804c78e4f9ef3f21ce8d2acbcccbdfb934d943a82",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3070866930559000897",
+          "startTime": 1772446761178,
+          "status": "completed",
+          "endTime": 1772446761324,
+          "latency": 146
+        },
+        {
+          "id": "0x54be037e45edd0be76b3f15b4336abcd398fdbd065ca552432d22b061853a4e2",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3223485632584291608",
+          "startTime": 1772446761790,
+          "status": "completed",
+          "endTime": 1772446761960,
+          "latency": 170
+        },
+        {
+          "id": "0x86f8ef792ec4b09f035b8c44e2f881a877715e5fadb768df2e0cc97d3fa7e9fd",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2418979704876214496",
+          "startTime": 1772446762196,
+          "status": "completed",
+          "endTime": 1772446762344,
+          "latency": 148
+        }
+      ],
+      "rebalanceRecords": [],
+      "duration": 22074
+    },
+    {
+      "strategyName": "velocityFlow",
+      "strategyType": "velocityFlow",
+      "kpis": {
+        "totalTransfers": 36,
+        "completedTransfers": 36,
+        "failedTransfers": 0,
+        "completionRate": 1,
+        "averageLatency": 153.22222222222223,
+        "p50Latency": 149,
+        "p95Latency": 175,
+        "p99Latency": 205,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "99024163220796053360",
+            "finalBalance": "98048326441592106720",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "100975836779203946640",
+            "finalBalance": "101951673558407893280",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": [
+        {
+          "id": "0xfc97a6dfd3399272dcae22e4af84110fffb8ce33a61a516fd3a993e6c94fad6b",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3569359000602839974",
+          "startTime": 1772446767698,
+          "status": "completed",
+          "endTime": 1772446767863,
+          "latency": 165
+        },
+        {
+          "id": "0x6e0c098ddcdcc8cb3d4f50a195fcd053d4aadde3a3df04e10944c237e49d883a",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4032136648086858464",
+          "startTime": 1772446768307,
+          "status": "completed",
+          "endTime": 1772446768456,
+          "latency": 149
+        },
+        {
+          "id": "0x2d55b551304d51283c51e28beefc4f6b9652c0c269fed66ea5e85884559d6c5a",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3981459293767414450",
+          "startTime": 1772446768715,
+          "status": "completed",
+          "endTime": 1772446768886,
+          "latency": 171
+        },
+        {
+          "id": "0x8a14e35bcaf0cd5c3de3c9bfc2d928ef6c5bfec3263987bec8921ab474669b44",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3172690276587432648",
+          "startTime": 1772446769122,
+          "status": "completed",
+          "endTime": 1772446769271,
+          "latency": 149
+        },
+        {
+          "id": "0x9e6047c4ab2c66a33b171dc50af90fc7c005aef564bb0e7e574108b68da57235",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4927943600926911736",
+          "startTime": 1772446769735,
+          "status": "completed",
+          "endTime": 1772446769905,
+          "latency": 170
+        },
+        {
+          "id": "0x6c77dfb944dc73214e475536af23d80b6885460f04d78b854b3e26ba096891c0",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3052884604367924036",
+          "startTime": 1772446770143,
+          "status": "completed",
+          "endTime": 1772446770291,
+          "latency": 148
+        },
+        {
+          "id": "0x66a5d0eacc4f5742ceff66bebe860e0c4e9c2f2a8aeeeca47a64ad96dc88b961",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4566130218078335789",
+          "startTime": 1772446770755,
+          "status": "completed",
+          "endTime": 1772446770923,
+          "latency": 168
+        },
+        {
+          "id": "0xcf1f592531df29e33c839ab64c7bd0811961e2f6211e933740224c119f5a21eb",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4449695630245689037",
+          "startTime": 1772446771164,
+          "status": "completed",
+          "endTime": 1772446771305,
+          "latency": 141
+        },
+        {
+          "id": "0x7f5c82caf05811bb3d8964de9c62b27f80b30a2cf4288b8ef8f9332be5badf94",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3947729503063933653",
+          "startTime": 1772446771772,
+          "status": "completed",
+          "endTime": 1772446771977,
+          "latency": 205
+        },
+        {
+          "id": "0x931161ed47429555383895b036a340e7fb60ec80892424e5e685a36a2d518da1",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2604747730440158705",
+          "startTime": 1772446772179,
+          "status": "completed",
+          "endTime": 1772446772309,
+          "latency": 130
+        },
+        {
+          "id": "0x3be257d5ba41c3383e0044424023130fbdba094e2828a666a076a92758bb98c2",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4652219659079038536",
+          "startTime": 1772446772789,
+          "status": "completed",
+          "endTime": 1772446772950,
+          "latency": 161
+        },
+        {
+          "id": "0x0ace9af54433271667362762bb7bd0d4a94655816424e96521ad7b5bab00176d",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2615424283123447610",
+          "startTime": 1772446773194,
+          "status": "completed",
+          "endTime": 1772446773336,
+          "latency": 142
+        },
+        {
+          "id": "0x70399e491aa503ea4f6c94e8af018ea4a2b5acc2ea3b4186f1bffe9032791283",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2765516564262137838",
+          "startTime": 1772446773801,
+          "status": "completed",
+          "endTime": 1772446773923,
+          "latency": 122
+        },
+        {
+          "id": "0x257e3bbf2fd36489f6258ce09b3d01ee874b60011830a99540999e53aebf5c69",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2878023501747301680",
+          "startTime": 1772446774207,
+          "status": "completed",
+          "endTime": 1772446774359,
+          "latency": 152
+        },
+        {
+          "id": "0x862b28c2902fe1fe709954b1c34818319743232213fe357a20812016b09d8876",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4598113660503165499",
+          "startTime": 1772446774613,
+          "status": "completed",
+          "endTime": 1772446774742,
+          "latency": 129
+        },
+        {
+          "id": "0x067457ccea8b1b132168602704d2f67e2938e12b5db2a8271019cab26e6f95bf",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3488769818070805746",
+          "startTime": 1772446775223,
+          "status": "completed",
+          "endTime": 1772446775387,
+          "latency": 164
+        },
+        {
+          "id": "0xeb6e1b8ff6203c6ca921891a4409407945afb733388de678824333fc721d68d2",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4960848415034822959",
+          "startTime": 1772446775631,
+          "status": "completed",
+          "endTime": 1772446775771,
+          "latency": 140
+        },
+        {
+          "id": "0x5c6dd6806f9992a9fa606b10cb3f73040ef126283b4d2432c839cb89afd1574a",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4629988519760891748",
+          "startTime": 1772446776241,
+          "status": "completed",
+          "endTime": 1772446776407,
+          "latency": 166
+        },
+        {
+          "id": "0xe6a71cc178675212da53e52b59a3967b82eaa29cadbcd842f7af4d4337e8551c",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2499004361114193855",
+          "startTime": 1772446776650,
+          "status": "completed",
+          "endTime": 1772446776795,
+          "latency": 145
+        },
+        {
+          "id": "0x8f9f0c5b569d68875c52909d6c9fea7d5a2e550d773f7ea399514f1d286472f1",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3823199826987153559",
+          "startTime": 1772446777259,
+          "status": "completed",
+          "endTime": 1772446777434,
+          "latency": 175
+        },
+        {
+          "id": "0xb2777bb85508cbbb223eec85c937d5e2518543b9950bf33b7f2ad06ffadc7ba4",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3517424533044545860",
+          "startTime": 1772446777665,
+          "status": "completed",
+          "endTime": 1772446777819,
+          "latency": 154
+        },
+        {
+          "id": "0x4cd0aab50654701b5615a0b51e5a7554aaf0ac55f22c55ae0d2ff6f7dfb53bad",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2043515438422538205",
+          "startTime": 1772446778276,
+          "status": "completed",
+          "endTime": 1772446778414,
+          "latency": 138
+        },
+        {
+          "id": "0x8cad35ccfbc9620aaeac62e1be39f09a7f6fb3ea5d76f56344e5f44da9c37665",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4139382012386996337",
+          "startTime": 1772446778682,
+          "status": "completed",
+          "endTime": 1772446778850,
+          "latency": 168
+        },
+        {
+          "id": "0xab70d39430f182b825fa5d488439da25246f3c06c573e216bef1a7052321076e",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4459373337712750188",
+          "startTime": 1772446779493,
+          "status": "completed",
+          "endTime": 1772446779649,
+          "latency": 156
+        },
+        {
+          "id": "0x9bc9d05ab98326627446092fdc5191250893d00e6368d996575816172ea897cf",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2032545562026613314",
+          "startTime": 1772446779696,
+          "status": "completed",
+          "endTime": 1772446779823,
+          "latency": 127
+        },
+        {
+          "id": "0xd5e19876b65299350ef611308beaf8f6579a304571e97a7576e6389c3e6c894d",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2688013345777703897",
+          "startTime": 1772446780304,
+          "status": "completed",
+          "endTime": 1772446780470,
+          "latency": 166
+        },
+        {
+          "id": "0xd6f2d322b487507689ded85a91cd1b47eef896875a76f1781954cf253f97e477",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3864892021011653588",
+          "startTime": 1772446780712,
+          "status": "completed",
+          "endTime": 1772446780855,
+          "latency": 143
+        },
+        {
+          "id": "0xe67ec5119b43e4d9e78f748227c64bbb25bf9064ee01f1016be9b4a86969a307",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3380031925892944953",
+          "startTime": 1772446781118,
+          "status": "completed",
+          "endTime": 1772446781287,
+          "latency": 169
+        },
+        {
+          "id": "0x398caacfe17ab8a26c774cd1d7319087e4b8bbab027ad69f89fee29392ad1dc2",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4082410019934950419",
+          "startTime": 1772446781730,
+          "status": "completed",
+          "endTime": 1772446781878,
+          "latency": 148
+        },
+        {
+          "id": "0x832f6fcb7729c314118b000e87903d3915b6b8828c292a4d0ba4ff0f3ad66e6b",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2252491132430115141",
+          "startTime": 1772446782138,
+          "status": "completed",
+          "endTime": 1772446782304,
+          "latency": 166
+        },
+        {
+          "id": "0xf310ade990d7ceefae1f19bf50e7fdf794a349c39aeb924fcb7b7bd049c1735a",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3371437942168509151",
+          "startTime": 1772446782749,
+          "status": "completed",
+          "endTime": 1772446782895,
+          "latency": 146
+        },
+        {
+          "id": "0xad8897696ba44067273dbc4326ec10239722b22b73a2384dcc3ac16b81d0c3ec",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2419831343837387386",
+          "startTime": 1772446783158,
+          "status": "completed",
+          "endTime": 1772446783327,
+          "latency": 169
+        },
+        {
+          "id": "0x5a3963aaa2b55b34a9d8549cc85c91470cef4882a4acb3a2c5eaa763b003a7a7",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3195703306661852334",
+          "startTime": 1772446783771,
+          "status": "completed",
+          "endTime": 1772446783919,
+          "latency": 148
+        },
+        {
+          "id": "0xd0865a2f827f1e9961909ffbda1a99b21424bcb85932a079f4f67d1b3157caa8",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3070866930559000897",
+          "startTime": 1772446784178,
+          "status": "completed",
+          "endTime": 1772446784301,
+          "latency": 123
+        },
+        {
+          "id": "0x7f51f2761fc6e0c0aa75883c7ec247834c1357996527dbc97c3b3bbdb73663ca",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3223485632584291608",
+          "startTime": 1772446784787,
+          "status": "completed",
+          "endTime": 1772446784947,
+          "latency": 160
+        },
+        {
+          "id": "0x21d23da90de8f848f431ffd9be45d83de8982a77b4aaa1bb0468264b12b4553e",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2418979704876214496",
+          "startTime": 1772446785191,
+          "status": "completed",
+          "endTime": 1772446785334,
+          "latency": 143
+        }
+      ],
+      "rebalanceRecords": [],
+      "duration": 22068
+    },
+    {
+      "strategyName": "thresholdFlow",
+      "strategyType": "thresholdFlow",
+      "kpis": {
+        "totalTransfers": 36,
+        "completedTransfers": 36,
+        "failedTransfers": 0,
+        "completionRate": 1,
+        "averageLatency": 154.27777777777777,
+        "p50Latency": 153,
+        "p95Latency": 203,
+        "p99Latency": 206,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "98048326441592106720",
+            "finalBalance": "97072489662388160080",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "101951673558407893280",
+            "finalBalance": "102927510337611839920",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": [
+        {
+          "id": "0x605b47a927f71f0d6e783e69c5e1ecff79dd5125c684106fd156dc0a2d613caa",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3569359000602839974",
+          "startTime": 1772446790050,
+          "status": "completed",
+          "endTime": 1772446790217,
+          "latency": 167
+        },
+        {
+          "id": "0x9205d8497430d8366677628022dcbdbf5e5dc2adb3f9c720130f85a079be83fd",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4032136648086858464",
+          "startTime": 1772446790453,
+          "status": "completed",
+          "endTime": 1772446790602,
+          "latency": 149
+        },
+        {
+          "id": "0xb0c047f70c32587f82c6e97e1d16bdffbd0f847d22e23cad7c6b1553fc73eb5b",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3981459293767414450",
+          "startTime": 1772446790861,
+          "status": "completed",
+          "endTime": 1772446791032,
+          "latency": 171
+        },
+        {
+          "id": "0x8eccf36a2061d07229ff3c4acfacfa61de56e7f38afe29cefb17adef272d7bfa",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3172690276587432648",
+          "startTime": 1772446791475,
+          "status": "completed",
+          "endTime": 1772446791625,
+          "latency": 150
+        },
+        {
+          "id": "0x12194b452f6b53754c25eac5ef9881d00dcc2797b7e357b8d52fe4ff19abdf09",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4927943600926911736",
+          "startTime": 1772446791880,
+          "status": "completed",
+          "endTime": 1772446792052,
+          "latency": 172
+        },
+        {
+          "id": "0xbf8d1fe7fa8c67b670410f51e69abed12596b4fe8930d295bedf9e316ac9561e",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3052884604367924036",
+          "startTime": 1772446792493,
+          "status": "completed",
+          "endTime": 1772446792646,
+          "latency": 153
+        },
+        {
+          "id": "0xacffb115f456e2432d03c67584f742622747b5c2a0da8278e1764c2fe427ec18",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4566130218078335789",
+          "startTime": 1772446793105,
+          "status": "completed",
+          "endTime": 1772446793235,
+          "latency": 130
+        },
+        {
+          "id": "0x2842febce122d8e159d1eaf2fee304e99908aa01289e3ccae8f5d1cc39a88009",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4449695630245689037",
+          "startTime": 1772446793513,
+          "status": "completed",
+          "endTime": 1772446793716,
+          "latency": 203
+        },
+        {
+          "id": "0x732df7a83fcceb845984915aaf20a9aed1f1d53ec0ccc1f788ae3bab8a4035f9",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3947729503063933653",
+          "startTime": 1772446793916,
+          "status": "completed",
+          "endTime": 1772446794048,
+          "latency": 132
+        },
+        {
+          "id": "0xa53ca9c99a010cc1873752c68498fae4f573f4b29527a550c2e02ab14dd93ac4",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2604747730440158705",
+          "startTime": 1772446794525,
+          "status": "completed",
+          "endTime": 1772446794693,
+          "latency": 168
+        },
+        {
+          "id": "0x755d6fb8fc185e64eb2728db917f2e33ad4e8554c7a6509c44037e9e7c591f12",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4652219659079038536",
+          "startTime": 1772446795134,
+          "status": "completed",
+          "endTime": 1772446795288,
+          "latency": 154
+        },
+        {
+          "id": "0x69cf43d67b23ecd714a8b308aba4aac60ab794a579d9b455c2e7c1e63232ac93",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2615424283123447610",
+          "startTime": 1772446795540,
+          "status": "completed",
+          "endTime": 1772446795670,
+          "latency": 130
+        },
+        {
+          "id": "0xa31a573625ff6535adc0cf108b3e857df1855d3695bd7c4a92778b7ef7e51c1d",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2765516564262137838",
+          "startTime": 1772446795944,
+          "status": "completed",
+          "endTime": 1772446796103,
+          "latency": 159
+        },
+        {
+          "id": "0xd8986d9705c1468ada790e059f80f79f567c97c7e5fa87463dca7cd3fa249800",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2878023501747301680",
+          "startTime": 1772446796350,
+          "status": "completed",
+          "endTime": 1772446796488,
+          "latency": 138
+        },
+        {
+          "id": "0x1da3926f3b31523cbb71ab1186aa83fed1ac8b8fdf1181c462dc9dbad26b6e27",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4598113660503165499",
+          "startTime": 1772446797166,
+          "status": "completed",
+          "endTime": 1772446797332,
+          "latency": 166
+        },
+        {
+          "id": "0x194069a2a8fd9b6127129bbe4c657f6eded5da54b013e3f47085a9c3ed1dda89",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3488769818070805746",
+          "startTime": 1772446797367,
+          "status": "completed",
+          "endTime": 1772446797508,
+          "latency": 141
+        },
+        {
+          "id": "0xd7002d7e44f96ff77796accbf47f2c56eba3c0ad474b866362110aaeff5dc842",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4960848415034822959",
+          "startTime": 1772446797974,
+          "status": "completed",
+          "endTime": 1772446798145,
+          "latency": 171
+        },
+        {
+          "id": "0x28ace4a35fcea2e8d5e24fc5e1277ed7d446036751fae2560bbcce63fa6e5923",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4629988519760891748",
+          "startTime": 1772446798383,
+          "status": "completed",
+          "endTime": 1772446798529,
+          "latency": 146
+        },
+        {
+          "id": "0xe8d3cd3de94dff7a3c51f467766c6470b372b4af613ac58847ff77b8c4337ffd",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2499004361114193855",
+          "startTime": 1772446798995,
+          "status": "completed",
+          "endTime": 1772446799163,
+          "latency": 168
+        },
+        {
+          "id": "0xee29b33e093ae3411bd7986ec051468f599f4da75c91d40cbbf6b180fe7e47a8",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3823199826987153559",
+          "startTime": 1772446799607,
+          "status": "completed",
+          "endTime": 1772446799752,
+          "latency": 145
+        },
+        {
+          "id": "0x3db7c28b0587f2c4a084a9a742bb717c899ecded29625122513c4efd3c2116cc",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3517424533044545860",
+          "startTime": 1772446800015,
+          "status": "completed",
+          "endTime": 1772446800181,
+          "latency": 166
+        },
+        {
+          "id": "0xd1eeef5fa5abb4d0f14644ef4691aaaf1b8745d6b6cde2e872e4e639187d31d9",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2043515438422538205",
+          "startTime": 1772446800624,
+          "status": "completed",
+          "endTime": 1772446800768,
+          "latency": 144
+        },
+        {
+          "id": "0x7a9b0a33609e843a9e701a86e7b154271749a7dd7ae72e4763e1a9f8e3be588a",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4139382012386996337",
+          "startTime": 1772446801029,
+          "status": "completed",
+          "endTime": 1772446801201,
+          "latency": 172
+        },
+        {
+          "id": "0xef692b26755e88ab96296d5ee43fc13759fa1205dde2ba0d03688ca3e26f77cf",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4459373337712750188",
+          "startTime": 1772446801436,
+          "status": "completed",
+          "endTime": 1772446801586,
+          "latency": 150
+        },
+        {
+          "id": "0xb491540e66115492f7a411da94ca38c29f05122b629abcb6c43620379ea4d58b",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2032545562026613314",
+          "startTime": 1772446802046,
+          "status": "completed",
+          "endTime": 1772446802171,
+          "latency": 125
+        },
+        {
+          "id": "0xaedd4c776af5fea2f011d869ebea0f8db57a1a43d9920d63193b91778c4b4f4b",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2688013345777703897",
+          "startTime": 1772446802452,
+          "status": "completed",
+          "endTime": 1772446802607,
+          "latency": 155
+        },
+        {
+          "id": "0xf1c07da7fab0da6ddf3fe62cbfb5458d9bd2d194bc24a29ec41561e69f75c0bd",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3864892021011653588",
+          "startTime": 1772446802858,
+          "status": "completed",
+          "endTime": 1772446802988,
+          "latency": 130
+        },
+        {
+          "id": "0xf697dfae4a37111aa6496a87abbc631e7103f11e2e0afabd7608ec6a8f5bc91c",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3380031925892944953",
+          "startTime": 1772446803471,
+          "status": "completed",
+          "endTime": 1772446803632,
+          "latency": 161
+        },
+        {
+          "id": "0x1a5a5ba56b8a03b2287d864d8640c92b368655285e9cf2d21843170e4737cd4e",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4082410019934950419",
+          "startTime": 1772446803875,
+          "status": "completed",
+          "endTime": 1772446804013,
+          "latency": 138
+        },
+        {
+          "id": "0x3d34b65934a9ec4acfaa639f77e7fab5c9c0870f72f9b02f45f8b5f5150226f7",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2252491132430115141",
+          "startTime": 1772446804689,
+          "status": "completed",
+          "endTime": 1772446804895,
+          "latency": 206
+        },
+        {
+          "id": "0x0a7c3bfe4c1146fddb113435fbd7438729446f29770ed23eb8174641a76b119a",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3371437942168509151",
+          "startTime": 1772446804896,
+          "status": "completed",
+          "endTime": 1772446805025,
+          "latency": 129
+        },
+        {
+          "id": "0xabd6d932da5625739b34277f3b371c2ab95bbf02a37b03cecc5ea702a3dfd7f5",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2419831343837387386",
+          "startTime": 1772446805507,
+          "status": "completed",
+          "endTime": 1772446805662,
+          "latency": 155
+        },
+        {
+          "id": "0x24aa6ab9d4ef174beace269caf1e659b09ccb7f0ac035065c264955e1cbe8e54",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3195703306661852334",
+          "startTime": 1772446805913,
+          "status": "completed",
+          "endTime": 1772446806043,
+          "latency": 130
+        },
+        {
+          "id": "0xd31c76a1516dba317d7256d8bdb6b9aca63aa0bb38c44f62ae887877dd40a6f8",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3070866930559000897",
+          "startTime": 1772446807089,
+          "status": "completed",
+          "endTime": 1772446807251,
+          "latency": 162
+        },
+        {
+          "id": "0x0c4e57a5cfb74770fc4436aef135be4be547cd2c9bf279b7d39f414b04ea7e7d",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3223485632584291608",
+          "startTime": 1772446807284,
+          "status": "completed",
+          "endTime": 1772446807429,
+          "latency": 145
+        },
+        {
+          "id": "0x1af59082d682731091cdf0e810175c88f7bdc7ca9fd9755c1fb32607d646d82d",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2418979704876214496",
+          "startTime": 1772446807491,
+          "status": "completed",
+          "endTime": 1772446807664,
+          "latency": 173
+        }
+      ],
+      "rebalanceRecords": [],
+      "duration": 22169
+    },
+    {
+      "strategyName": "accelerationFlow",
+      "strategyType": "accelerationFlow",
+      "kpis": {
+        "totalTransfers": 36,
+        "completedTransfers": 36,
+        "failedTransfers": 0,
+        "completionRate": 1,
+        "averageLatency": 170.11111111111111,
+        "p50Latency": 167,
+        "p95Latency": 205,
+        "p99Latency": 205,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "97072489662388160080",
+            "finalBalance": "96096652883184213440",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "102927510337611839920",
+            "finalBalance": "103903347116815786560",
+            "transfersIn": 18,
+            "transfersOut": 18,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": [
+        {
+          "id": "0x65368434806e5e8cbc0c6dcabe8299a99d88a2991e77759813155d7f9792a5e8",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3569359000602839974",
+          "startTime": 1772446812542,
+          "status": "completed",
+          "endTime": 1772446812709,
+          "latency": 167
+        },
+        {
+          "id": "0x9dc7feb44d69078859a4dbf6f65127558942d66dd0271e77a8c6031afc2d99e8",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4032136648086858464",
+          "startTime": 1772446812949,
+          "status": "completed",
+          "endTime": 1772446813095,
+          "latency": 146
+        },
+        {
+          "id": "0x7b61e2b455198422cee57ca1903af04e0cc3ef329e6befa78abe571bb9e8457b",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3981459293767414450",
+          "startTime": 1772446813353,
+          "status": "completed",
+          "endTime": 1772446813475,
+          "latency": 122
+        },
+        {
+          "id": "0x121d578d733e38a03dad4506cf1806ddb823a7635960f002746822ae2b175671",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3172690276587432648",
+          "startTime": 1772446813966,
+          "status": "completed",
+          "endTime": 1772446814117,
+          "latency": 151
+        },
+        {
+          "id": "0xa4c5a2908b5cd7503db11f74ff4970985479c14842da25eeca3e3ffec95acc35",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4927943600926911736",
+          "startTime": 1772446814580,
+          "status": "completed",
+          "endTime": 1772446814784,
+          "latency": 204
+        },
+        {
+          "id": "0x2c24042aaced3aed6df85920235717ed61e49099ae75aabec7dc539a5c05a822",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3052884604367924036",
+          "startTime": 1772446814987,
+          "status": "completed",
+          "endTime": 1772446815191,
+          "latency": 204
+        },
+        {
+          "id": "0x352fa9726b4089f40f8af006d4361ee6b4d482b90c3be18748da29bf0b78535a",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4566130218078335789",
+          "startTime": 1772446815393,
+          "status": "completed",
+          "endTime": 1772446815598,
+          "latency": 205
+        },
+        {
+          "id": "0xa21858712b410e201918356285c124cf8335013d1753e79fd5d75d56db0f85cc",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4449695630245689037",
+          "startTime": 1772446816008,
+          "status": "completed",
+          "endTime": 1772446816210,
+          "latency": 202
+        },
+        {
+          "id": "0xa8065d03ee3b7e16bf3a9329aed9560e5537114718f8b3bf6fd45409a1b081f3",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3947729503063933653",
+          "startTime": 1772446816412,
+          "status": "completed",
+          "endTime": 1772446816541,
+          "latency": 129
+        },
+        {
+          "id": "0x43795ec7ddebfd7ca80794b3575e49573f5f7632803f3fe885af2a2d87028bb9",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2604747730440158705",
+          "startTime": 1772446817020,
+          "status": "completed",
+          "endTime": 1772446817187,
+          "latency": 167
+        },
+        {
+          "id": "0x63ac08e0e31b51f097bde06b4aa4d7365ae06fd6d75c76162abb3f47eee75bb9",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4652219659079038536",
+          "startTime": 1772446817627,
+          "status": "completed",
+          "endTime": 1772446817778,
+          "latency": 151
+        },
+        {
+          "id": "0xb4d368d63d45d2cd0f99ad1efe2387b2fdcf2f2a349d249909d05520e8d28b46",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2615424283123447610",
+          "startTime": 1772446818031,
+          "status": "completed",
+          "endTime": 1772446818236,
+          "latency": 205
+        },
+        {
+          "id": "0xda9eb1259d9393f4db89406d990bdf43a7b08ccea010b35aa31889b11fe0192f",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2765516564262137838",
+          "startTime": 1772446818646,
+          "status": "completed",
+          "endTime": 1772446818777,
+          "latency": 131
+        },
+        {
+          "id": "0x4af30bf5cdac2c0f08ce594055b1ad4c54d1c49331c9b9a70357c63e44e19910",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2878023501747301680",
+          "startTime": 1772446819049,
+          "status": "completed",
+          "endTime": 1772446819210,
+          "latency": 161
+        },
+        {
+          "id": "0xcfb621a2a000080bb79958f740f5253582e20806429059066a1356257214a7ac",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "4598113660503165499",
+          "startTime": 1772446819449,
+          "status": "completed",
+          "endTime": 1772446819653,
+          "latency": 204
+        },
+        {
+          "id": "0x592672e866ca9c523db187e7218f6bad7170fd16ac5843d7c258c6e0129f4f00",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3488769818070805746",
+          "startTime": 1772446820060,
+          "status": "completed",
+          "endTime": 1772446820265,
+          "latency": 205
+        },
+        {
+          "id": "0xffc241a4f06a1db4922915d8e7ffa2ba1d1ce962bb1436947ca85c795ecab885",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4960848415034822959",
+          "startTime": 1772446820471,
+          "status": "completed",
+          "endTime": 1772446820671,
+          "latency": 200
+        },
+        {
+          "id": "0x9b05b58178cfdc1ed322a7bc82a6972d93b584947b290dc2449e55847a3c4443",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4629988519760891748",
+          "startTime": 1772446820877,
+          "status": "completed",
+          "endTime": 1772446821080,
+          "latency": 203
+        },
+        {
+          "id": "0x4dd57f7da22040254dc8dcbc438f05160fcb86efdde5e76ab5d2f3090fa87d88",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2499004361114193855",
+          "startTime": 1772446821693,
+          "status": "completed",
+          "endTime": 1772446821823,
+          "latency": 130
+        },
+        {
+          "id": "0x6dc77c9b3b384e57374e6c17f59e0c42d381ece46584077f4300da0b4755819f",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3823199826987153559",
+          "startTime": 1772446821895,
+          "status": "completed",
+          "endTime": 1772446822099,
+          "latency": 204
+        },
+        {
+          "id": "0x48d0f1ec7a7de485a7a6ac051919b8d61c982c0e11db6759386035f3f28a99a1",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3517424533044545860",
+          "startTime": 1772446822510,
+          "status": "completed",
+          "endTime": 1772446822639,
+          "latency": 129
+        },
+        {
+          "id": "0xc21f1fdc31ec53e6b2b72a44e842eb7a2884166944d72be7fcd866b65f2922f9",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2043515438422538205",
+          "startTime": 1772446822913,
+          "status": "completed",
+          "endTime": 1772446823074,
+          "latency": 161
+        },
+        {
+          "id": "0x12c431d20aec5348e2047405cf5602bbcf9593944966ccf27734b99e393d9159",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4139382012386996337",
+          "startTime": 1772446823522,
+          "status": "completed",
+          "endTime": 1772446823726,
+          "latency": 204
+        },
+        {
+          "id": "0x86bafce033623787ab1c655d4c01191deafb8ef9b377c720f90b5916e98fbf47",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4459373337712750188",
+          "startTime": 1772446823925,
+          "status": "completed",
+          "endTime": 1772446824058,
+          "latency": 133
+        },
+        {
+          "id": "0xe5052f32e4b2313b76519e84772d919b2a48ce6ac51be4889bceb343e47bf870",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2032545562026613314",
+          "startTime": 1772446824538,
+          "status": "completed",
+          "endTime": 1772446824737,
+          "latency": 199
+        },
+        {
+          "id": "0x38eeb75b56e4e06d3f9ad7cab6be0b2724d4725774e1a3bb1380954ec4c0bd69",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2688013345777703897",
+          "startTime": 1772446825146,
+          "status": "completed",
+          "endTime": 1772446825347,
+          "latency": 201
+        },
+        {
+          "id": "0xeb27040539532d6cf212bb920e7467fb703ae3bce17d86cb84168c4ff43595f2",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3864892021011653588",
+          "startTime": 1772446825550,
+          "status": "completed",
+          "endTime": 1772446825674,
+          "latency": 124
+        },
+        {
+          "id": "0xa9f9a65367613936176b5d5f92e193762b5e175242642ad6ee2d915c941006eb",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3380031925892944953",
+          "startTime": 1772446826164,
+          "status": "completed",
+          "endTime": 1772446826323,
+          "latency": 159
+        },
+        {
+          "id": "0x0c2ddf986c73efda99e1b1c10b5f6da89782c5834b55a0e1a3c7db5eed1fc13d",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "4082410019934950419",
+          "startTime": 1772446826365,
+          "status": "completed",
+          "endTime": 1772446826567,
+          "latency": 202
+        },
+        {
+          "id": "0x3b7801267374d04c068de98a32b9758eaaf7b9f0bf8f6f9a086d3f9e9522daeb",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2252491132430115141",
+          "startTime": 1772446827182,
+          "status": "completed",
+          "endTime": 1772446827309,
+          "latency": 127
+        },
+        {
+          "id": "0xbd4bb0ab9b04a4a981f00dfac8aa1936ef2d3f7d6188bce0421ef4b9a3800550",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3371437942168509151",
+          "startTime": 1772446827386,
+          "status": "completed",
+          "endTime": 1772446827590,
+          "latency": 204
+        },
+        {
+          "id": "0x74119482a03c674f624c37d189a4b19af56d27907303bc53b28f029dba8b6c2e",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "2419831343837387386",
+          "startTime": 1772446828204,
+          "status": "completed",
+          "endTime": 1772446828333,
+          "latency": 129
+        },
+        {
+          "id": "0xb9da5d73f8993d9e5a9fd67882f97ed450502c6168c72b89eda8d8ae0489ebbc",
+          "origin": "chain1",
+          "destination": "chain2",
+          "amount": "3195703306661852334",
+          "startTime": 1772446828609,
+          "status": "completed",
+          "endTime": 1772446828813,
+          "latency": 204
+        },
+        {
+          "id": "0xe4ee24dba1192c56d0613ad203af8d2a0186e8859bc4e1b9bb33c2d6190d3d80",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3070866930559000897",
+          "startTime": 1772446829015,
+          "status": "completed",
+          "endTime": 1772446829146,
+          "latency": 131
+        },
+        {
+          "id": "0xcc461f5199d5dce955771405290e3e4785647caf16fd2e357c4fb5d8022639ed",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "3223485632584291608",
+          "startTime": 1772446829622,
+          "status": "completed",
+          "endTime": 1772446829820,
+          "latency": 198
+        },
+        {
+          "id": "0x20fc75a644b49cafc9850d60ddeb77641139a4ff74bd3a43e3fe56c4e0920368",
+          "origin": "chain2",
+          "destination": "chain1",
+          "amount": "2418979704876214496",
+          "startTime": 1772446830025,
+          "status": "completed",
+          "endTime": 1772446830153,
+          "latency": 128
+        }
+      ],
+      "rebalanceRecords": [],
+      "duration": 22150
+    }
+  ],
+  "scorecard": [
+    {
+      "strategyName": "emaFlow",
+      "strategyType": "emaFlow",
+      "rank": 1,
+      "completionRate": 100,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 159.11111111111111,
+      "efficiency": 0
+    },
+    {
+      "strategyName": "velocityFlow",
+      "strategyType": "velocityFlow",
+      "rank": 2,
+      "completionRate": 100,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 153.22222222222223,
+      "efficiency": 0
+    },
+    {
+      "strategyName": "thresholdFlow",
+      "strategyType": "thresholdFlow",
+      "rank": 3,
+      "completionRate": 100,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 154.27777777777777,
+      "efficiency": 0
+    },
+    {
+      "strategyName": "accelerationFlow",
+      "strategyType": "accelerationFlow",
+      "rank": 4,
+      "completionRate": 100,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 170.11111111111111,
+      "efficiency": 0
+    }
+  ],
+  "winner": "emaFlow",
+  "summary": "Winner: emaFlow with 100.00% completion and 0 rebalances"
+};
+  </script>
+</body>
+</html>
