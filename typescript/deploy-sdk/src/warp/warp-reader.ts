@@ -27,7 +27,6 @@ import {
   WarpArtifactConfig,
   warpArtifactToDerivedConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
@@ -40,10 +39,6 @@ export class WarpTokenReader implements ArtifactReader<
   WarpArtifactConfig,
   DeployedWarpAddress
 > {
-  protected readonly logger: Logger = rootLogger.child({
-    module: WarpTokenReader.name,
-  });
-
   protected readonly ismReader: IsmReader;
   protected readonly hookReader: HookReader;
 
