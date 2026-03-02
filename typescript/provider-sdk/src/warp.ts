@@ -318,20 +318,6 @@ export function warpConfigToArtifact(
     }
   }
 
-  if (!isNullish(config.interchainSecurityModule)) {
-    assert(
-      !isNullish(ismArtifact),
-      'Expected ISM artifact when interchainSecurityModule is configured',
-    );
-  }
-
-  if (!isNullish(config.hook)) {
-    assert(
-      !isNullish(hookArtifact),
-      'Expected hook artifact when hook is configured',
-    );
-  }
-
   const baseArtifactConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -440,7 +426,7 @@ export function warpArtifactToDerivedConfig(
   );
   let ismConfig: DerivedWarpConfig['interchainSecurityModule'];
   if (isNullish(config.interchainSecurityModule)) {
-    ismConfig = '';
+    ismConfig = '0x0000000000000000000000000000000000000000';
   } else if (isArtifactDeployed(config.interchainSecurityModule)) {
     ismConfig = ismArtifactToDerivedConfig(
       config.interchainSecurityModule,
@@ -457,7 +443,7 @@ export function warpArtifactToDerivedConfig(
   );
   let hookConfig: DerivedWarpConfig['hook'];
   if (isNullish(config.hook)) {
-    hookConfig = '';
+    hookConfig = '0x0000000000000000000000000000000000000000';
   } else if (isArtifactDeployed(config.hook)) {
     hookConfig = hookArtifactToDerivedConfig(config.hook, chainLookup);
   } else {
