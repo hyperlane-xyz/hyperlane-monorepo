@@ -81,6 +81,16 @@ function createFlowStrategyConfigs(
         coldStartCycles: 2,
       },
     })),
+    buildConfig('compositeDeficitWeighted', () => ({
+      collateralDeficit: {
+        buffer: '0',
+      },
+      weighted: {
+        weight: (1 / chains.length).toFixed(4),
+        tolerance: '0.05',
+      },
+      bridgeMinAcceptedAmount: '100000000000000',
+    })),
   ];
 }
 
@@ -114,7 +124,7 @@ describe('Flow-Reactive Strategy Comparison', function () {
   ];
 
   for (const scenarioName of FLOW_SCENARIOS) {
-    it(`${scenarioName}: compare 4 flow-reactive strategies`, async function () {
+    it(`${scenarioName}: compare 5 strategies (4 flow-reactive + composite)`, async function () {
       this.timeout(600_000);
       const file = loadScenarioFile(scenarioName);
 
@@ -166,8 +176,8 @@ describe('Flow-Reactive Strategy Comparison', function () {
         );
       }
 
-      expect(report.results).to.have.lengthOf(4);
-      expect(report.scorecard).to.have.lengthOf(4);
+      expect(report.results).to.have.lengthOf(5);
+      expect(report.scorecard).to.have.lengthOf(5);
 
       // Check that the best strategy (winner) meets the minimum completion rate.
       // Individual strategies may underperform — that’s the point of comparing.

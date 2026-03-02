@@ -403,7 +403,8 @@ export interface RebalancerStrategyConfig {
     | 'emaFlow'
     | 'velocityFlow'
     | 'thresholdFlow'
-    | 'accelerationFlow';
+    | 'accelerationFlow'
+    | 'compositeDeficitWeighted';
   chains: Record<string, ChainStrategyConfig>;
 }
 
@@ -421,7 +422,11 @@ export interface ChainStrategyConfig {
     type: 'absolute' | 'relative';
   };
   bridge: string;
-  bridgeLockTime: number;
+  bridgeLockTime?: number;
+  bridgeMinAcceptedAmount?: string;
+  collateralDeficit?: {
+    buffer: string;
+  };
   emaFlow?: {
     alpha: string;
     windowSizeMs: number;
@@ -599,7 +604,8 @@ export interface SerializedStrategyConfig {
     | 'emaFlow'
     | 'velocityFlow'
     | 'thresholdFlow'
-    | 'accelerationFlow';
+    | 'accelerationFlow'
+    | 'compositeDeficitWeighted';
   chains: {
     [chain: string]: {
       weighted?: {
@@ -661,7 +667,7 @@ export interface SerializedStrategyConfig {
         coldStartCycles?: number;
       };
       /** Time bridge locks funds before delivery (ms) - used for semaphore */
-      bridgeLockTime: number;
+      bridgeLockTime?: number;
     };
   };
 }
