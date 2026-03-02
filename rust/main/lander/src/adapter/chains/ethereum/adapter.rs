@@ -935,7 +935,7 @@ impl AdaptsChain for EthereumAdapter {
             .end_nonce
             .saturating_sub(pending.start_nonce)
             .as_u64()
-            + 1;
+            .saturating_add(1);
         state.manual_reprocess_requested = true;
         Ok(queued_nonces as usize)
     }
