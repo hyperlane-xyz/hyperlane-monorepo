@@ -86,6 +86,7 @@ export interface RebalanceAction extends TrackedActionBase {
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
   lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed external bridge status
+  nonPendingSince?: number; // Timestamp when bridge status first became non-pending
 }
 
 // === Type Aliases for Stores ===

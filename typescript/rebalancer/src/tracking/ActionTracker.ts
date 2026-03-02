@@ -590,20 +590,22 @@ export class ActionTracker implements IActionTracker {
       const actions = await this.getActionsForIntent(intent.id);
 
       // Check for in-flight inventory_movement actions
-      // Skip intents with active bridge movement(s). Only stale movements whose last
-      // bridge status is NOT `pending` are failed to unblock the intent. Movements
-      // still `pending` on the bridge are kept alive regardless of age (the intent
-      // TTL acts as the ultimate backstop for perpetually-pending movements).
-      // `undefined` status (pre-first-sync or pre-deploy data) is treated as stale.
+      // Skip intents with active bridge movement(s). Movements still `pending` on
+      // the bridge are kept alive regardless of age. Non-pending movements are only
+      // failed after they've been in a non-pending state for the staleness window
+      // (nonPendingSince), preventing premature failure from transient not_found polls.
+      // `undefined` status (pre-deploy data) falls back to createdAt for staleness.
       const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
       const now = Date.now();
-      const staleMovements = inflightMovements.filter(
-        (a) =>
-          a.lastBridgeStatus !== 'pending' &&
-          now - a.createdAt >= DEFAULT_MOVEMENT_STALENESS_MS,
-      );
+      const staleMovements = inflightMovements.filter((a) => {
+        if (a.lastBridgeStatus === 'pending') return false;
+        // Use nonPendingSince when available; fall back to createdAt for
+        // pre-deploy data that lacks the field.
+        const nonPendingStart = a.nonPendingSince ?? a.createdAt;
+        return now - nonPendingStart >= DEFAULT_MOVEMENT_STALENESS_MS;
+      });
       const staleMovementIds = new Set(staleMovements.map((a) => a.id));
 
       const hasBlockingInflightMovement = inflightMovements.some(
@@ -625,6 +627,8 @@ export class ActionTracker implements IActionTracker {
           {
             actionId: movement.id,
             age: now - movement.createdAt,
+            nonPendingDuration:
+              now - (movement.nonPendingSince ?? movement.createdAt),
             intentId: intent.id,
             lastBridgeStatus: movement.lastBridgeStatus,
           },
@@ -748,6 +752,7 @@ export class ActionTracker implements IActionTracker {
         } else if (status.status === 'pending') {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'pending',
+            nonPendingSince: undefined,
           });
           this.logger.debug(
             {
@@ -760,6 +765,7 @@ export class ActionTracker implements IActionTracker {
         } else if (status.status === 'not_found') {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'not_found',
+            nonPendingSince: action.nonPendingSince ?? Date.now(),
           });
           this.logger.debug(
             {
