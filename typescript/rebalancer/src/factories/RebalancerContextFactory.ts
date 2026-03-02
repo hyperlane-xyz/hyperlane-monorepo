@@ -76,6 +76,9 @@ export class RebalancerContextFactory {
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
+    private readonly inventorySignerKeysByProtocol?: Partial<
+      Record<ProtocolType, string>
+    >,
   ) {}
 
   /**
@@ -93,6 +96,7 @@ export class RebalancerContextFactory {
     multiProtocolProvider: MultiProtocolProvider | undefined,
     registry: IRegistry,
     logger: Logger,
+    inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
     warpCoreConfigOverride?: WarpCoreConfig,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
@@ -163,6 +167,7 @@ export class RebalancerContextFactory {
       extendedMultiProtocolProvider,
       registry,
       logger,
+      inventorySignerKeysByProtocol,
     );
   }
 
@@ -405,15 +410,19 @@ export class RebalancerContextFactory {
   } | null> {
     const { inventorySigners } = this.config;
 
-    if (!inventorySigners) {
+    if (!inventorySigners || Object.keys(inventorySigners).length === 0) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
       return null;
     }
 
+    const inventorySigner =
+      inventorySigners[ProtocolType.Ethereum] ??
+      Object.values(inventorySigners)[0];
+
     this.logger.debug(
-      { warpRouteId: this.config.warpRouteId },
+      { warpRouteId: this.config.warpRouteId, inventorySigners },
       'Creating inventory components',
     );
 
@@ -470,31 +479,6 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    const inventoryProtocols = new Set(
-      inventoryChains.map((chainName) =>
-        this.multiProvider.getProtocol(chainName),
-      ),
-    );
-    if (inventoryProtocols.size > 1) {
-      throw new Error(
-        `Inventory execution currently supports one protocol per rebalancer instance, found: ${Array.from(inventoryProtocols).join(', ')}`,
-      );
-    }
-
-    const inventoryProtocol = inventoryProtocols.values().next().value as
-      | ProtocolType
-      | undefined;
-    if (!inventoryProtocol) {
-      throw new Error('No protocol found for inventory chains');
-    }
-
-    const inventorySigner = inventorySigners[inventoryProtocol];
-    if (!inventorySigner) {
-      throw new Error(
-        `Missing inventory signer for protocol '${inventoryProtocol}'. Add inventorySigners.${inventoryProtocol} to config.`,
-      );
-    }
-
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
       externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
 
@@ -508,7 +492,28 @@ export class RebalancerContextFactory {
           'No external bridges configured, skipping inventory components',
         );
       }
-      return null;
+      const inventoryConfig: InventoryMonitorConfig = {
+        inventoryAddress: inventorySigner,
+        chains: inventoryChains,
+      };
+      const inventoryRebalancer = new InventoryRebalancer(
+        {
+          inventorySigners,
+          inventorySignerKeysByProtocol: this.inventorySignerKeysByProtocol,
+          inventoryMultiProvider: this.inventoryMultiProvider,
+          inventoryChains,
+        },
+        actionTracker,
+        externalBridgeRegistryOverride ?? {},
+        this.warpCore,
+        this.multiProvider,
+        this.logger,
+      );
+      return {
+        inventoryRebalancer,
+        externalBridgeRegistry: externalBridgeRegistryOverride ?? {},
+        inventoryConfig,
+      };
     }
 
     // 3. Build inventory config
@@ -521,9 +526,9 @@ export class RebalancerContextFactory {
     // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
     const inventoryRebalancer = new InventoryRebalancer(
       {
-        inventorySigner,
-        inventoryMultiProvider:
-          this.inventoryMultiProvider ?? this.multiProvider,
+        inventorySigners,
+        inventorySignerKeysByProtocol: this.inventorySignerKeysByProtocol,
+        inventoryMultiProvider: this.inventoryMultiProvider,
         inventoryChains,
       },
       actionTracker,
@@ -536,8 +541,7 @@ export class RebalancerContextFactory {
     this.logger.info(
       {
         inventoryChains,
-        inventoryProtocol,
-        inventorySigner,
+        inventorySigners,
       },
       'Inventory components created successfully',
     );

@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import { Wallet, type ContractReceipt } from 'ethers';
+import { type ContractReceipt } from 'ethers';
 
 import {
   type AnnotatedEV5Transaction,
@@ -14,8 +14,10 @@ import {
   TokenAmount,
   type WarpCore,
   WarpTxCategory,
+  getSignerForChain,
+  type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
-import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -66,10 +68,12 @@ const MAX_GAS_PERCENT_THRESHOLD = 10n;
  * Configuration for the InventoryRebalancer.
  */
 export interface InventoryRebalancerConfig {
-  /** EOA address of the inventory signer */
-  inventorySigner: string;
-  /** MultiProvider with inventory signer for signing transactions */
-  inventoryMultiProvider: MultiProvider;
+  /** signer address map by protocol */
+  inventorySigners: Partial<Record<ProtocolType, string>>;
+  /** signer private keys by protocol */
+  inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>;
+  /** Optional MultiProvider with inventory signer for signing transactions */
+  inventoryMultiProvider?: MultiProvider;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
 }
@@ -136,7 +140,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     this.validateCollateralBackedTokens();
 
     this.logger.info(
-      { inventorySigner: config.inventorySigner },
+      { inventorySigners: config.inventorySigners },
       'InventoryRebalancer initialized',
     );
   }
@@ -193,6 +197,32 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    */
   private getTokenForChain(chainName: ChainName) {
     return this.warpCore.tokens.find((t) => t.chainName === chainName);
+  }
+
+  private getProtocolForChain(chainName: ChainName): ProtocolType {
+    const metadata =
+      this.warpCore.multiProvider.getChainMetadata?.(chainName) ?? undefined;
+    return metadata?.protocol ?? ProtocolType.Ethereum;
+  }
+
+  private getInventorySignerAddress(chainName: ChainName): string {
+    const protocol = this.getProtocolForChain(chainName);
+    const signer = this.config.inventorySigners[protocol];
+    assert(
+      signer,
+      `Missing inventory signer address for protocol ${protocol} (chain ${chainName})`,
+    );
+    return signer;
+  }
+
+  private getInventorySignerKey(chainName: ChainName): string {
+    const protocol = this.getProtocolForChain(chainName);
+    const signerKey = this.config.inventorySignerKeysByProtocol?.[protocol];
+    assert(
+      signerKey,
+      `Missing inventory signer key for protocol ${protocol} (chain ${chainName})`,
+    );
+    return signerKey;
   }
 
   /**
@@ -519,7 +549,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.config.inventorySigner,
+      this.getInventorySignerAddress(destination),
       isNativeTokenStandard,
       this.logger,
     );
@@ -823,7 +853,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    const signingProvider = this.config.inventoryMultiProvider;
+    const signingProvider =
+      this.config.inventoryMultiProvider ?? this.multiProvider;
 
     // Get reorgPeriod for confirmation waiting
     const reorgPeriod =
@@ -866,8 +897,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const transferTxs = await this.warpCore.getTransferRemoteTxs({
       originTokenAmount,
       destination,
-      sender: this.config.inventorySigner,
-      recipient: this.config.inventorySigner,
+      sender: this.getInventorySignerAddress(origin),
+      recipient: this.getInventorySignerAddress(destination),
       interchainFee,
       tokenFeeQuote,
     });
@@ -973,6 +1004,124 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     };
   }
 
+  protected async sendInventoryTransaction(
+    origin: ChainName,
+    tx: any,
+  ): Promise<string> {
+    const protocol = this.getProtocolForChain(origin);
+    if (protocol === ProtocolType.Ethereum) {
+      const signingProvider =
+        this.config.inventoryMultiProvider ?? this.multiProvider;
+      const reorgPeriod =
+        this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+      const receipt = await signingProvider.sendTransaction(origin, tx, {
+        waitConfirmations: reorgPeriod as number,
+      });
+      return receipt.transactionHash;
+    }
+    if (protocol === ProtocolType.Sealevel) {
+      const signer = await getSignerForChain(
+        origin,
+        {
+          protocol,
+          privateKey: this.parseSolanaPrivateKey(
+            this.getInventorySignerKey(origin),
+          ),
+        },
+        this.warpCore.multiProvider,
+      );
+      return signer.sendAndConfirmTransaction({
+        type: ProviderType.SolanaWeb3,
+        transaction: tx,
+      } as any);
+    }
+    throw new Error(`Unsupported inventory transaction protocol ${protocol}`);
+  }
+
+  private parseSolanaPrivateKey(rawKey: string): Uint8Array {
+    try {
+      if (rawKey.trim().startsWith('[')) {
+        const parsed = JSON.parse(rawKey);
+        if (Array.isArray(parsed)) return Uint8Array.from(parsed);
+      }
+      const byComma = rawKey
+        .split(',')
+        .map((v) => Number(v.trim()))
+        .filter((v) => Number.isFinite(v));
+      if (byComma.length > 0) return Uint8Array.from(byComma);
+    } catch (error) {
+      this.logger.debug(
+        { error: (error as Error).message },
+        'Failed parsing Solana private key in JSON mode',
+      );
+    }
+    throw new Error(
+      'Invalid HYP_INVENTORY_KEY_SOLANA format. Expected JSON byte array or comma-separated bytes.',
+    );
+  }
+
+  protected async extractDispatchedMessageId(
+    origin: ChainName,
+    txHash: string,
+  ): Promise<string | undefined> {
+    const protocol = this.getProtocolForChain(origin);
+    const receipt = await this.getTransactionReceipt(origin, txHash);
+    if (!receipt) return undefined;
+
+    if (protocol === ProtocolType.Ethereum) {
+      return HyperlaneCore.getDispatchedMessages(receipt.receipt as any)[0]?.id;
+    }
+
+    if (protocol === ProtocolType.Sealevel) {
+      const logs = (receipt.receipt as any).meta?.logMessages as
+        | string[]
+        | undefined;
+      if (!logs) return undefined;
+      const regex = /Dispatched message to (.*), ID (.*)/;
+      const dispatchLog = logs.find((log) => regex.test(log));
+      if (!dispatchLog) return undefined;
+      const [, _destination, messageId] = regex.exec(dispatchLog) ?? [];
+      return messageId ? `0x${messageId.replace(/^0x/, '')}` : undefined;
+    }
+
+    return undefined;
+  }
+
+  private async getTransactionReceipt(
+    origin: ChainName,
+    txHash: string,
+  ): Promise<TypedTransactionReceipt | undefined> {
+    try {
+      const protocol = this.getProtocolForChain(origin);
+
+      if (protocol === ProtocolType.Ethereum) {
+        const provider =
+          this.warpCore.multiProvider.getEthersV5Provider(origin);
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (!receipt) return undefined;
+        return { type: ProviderType.EthersV5, receipt };
+      }
+
+      if (protocol === ProtocolType.Sealevel) {
+        const provider =
+          this.warpCore.multiProvider.getSolanaWeb3Provider(origin);
+        const receipt = await provider.getTransaction(txHash, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        });
+        if (!receipt) return undefined;
+        return { type: ProviderType.SolanaWeb3, receipt };
+      }
+    } catch (error) {
+      this.logger.debug(
+        { origin, txHash, error: (error as Error).message },
+        'Unable to fetch typed transaction receipt',
+      );
+    }
+
+    return undefined;
+  }
+
   /**
    * Select all source chains with available inventory for bridging.
    * Returns sources sorted by available amount (highest first).
@@ -1055,8 +1204,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
         fromAmount: rawInventory,
-        fromAddress: this.config.inventorySigner,
-        toAddress: this.config.inventorySigner,
+        fromAddress: this.getInventorySignerAddress(sourceChain),
+        toAddress: this.getInventorySignerAddress(targetChain),
       });
 
       // Apply 20x multiplier on quoted gas (LiFi underestimates by ~14x)
@@ -1190,7 +1339,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.config.inventorySigner,
+      this.getInventorySignerAddress(targetChain),
       isNativeTokenStandard,
       this.logger,
     );
@@ -1225,8 +1374,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
         fromAmount: effectiveAmount,
-        fromAddress: this.config.inventorySigner,
-        toAddress: this.config.inventorySigner,
+        fromAddress: this.getInventorySignerAddress(sourceChain),
+        toAddress: this.getInventorySignerAddress(targetChain),
       });
 
       const inputRequired = quote.fromAmount;
@@ -1266,14 +1415,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Received LiFi quote for inventory movement',
       );
 
-      const signingProvider = this.config.inventoryMultiProvider;
-      const signer = signingProvider.getSigner(sourceChain);
-      assert(
-        signer instanceof Wallet,
-        `External bridge execution requires a Wallet signer with private key access, got ${signer.constructor.name}`,
+      const result = await externalBridge.execute(
+        quote,
+        this.getInventorySignerKey(sourceChain),
       );
-
-      const result = await externalBridge.execute(quote, signer.privateKey);
 
       this.logger.info(
         {

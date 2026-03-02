@@ -52,7 +52,10 @@ describe('InventoryRebalancer E2E', () => {
   beforeEach(() => {
     // Config
     config = {
-      inventorySigner: INVENTORY_SIGNER,
+      inventorySigners: { [ProtocolType.Ethereum]: INVENTORY_SIGNER },
+      inventorySignerKeysByProtocol: {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      },
       inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
       // inventoryMultiProvider set below after multiProvider is initialized
     } as unknown as InventoryRebalancerConfig;
@@ -138,6 +141,16 @@ describe('InventoryRebalancer E2E', () => {
       multiProvider: {
         getProvider: Sinon.stub(),
         getSigner: Sinon.stub(),
+        getChainMetadata: Sinon.stub().callsFake((chain: ChainName) => ({
+          name: chain,
+          protocol: ProtocolType.Ethereum,
+        })),
+        getEthersV5Provider: Sinon.stub().returns({
+          getTransactionReceipt: Sinon.stub().resolves({
+            transactionHash: '0xTransferRemoteTxHash',
+            logs: [],
+          }),
+        }),
       },
       findToken: Sinon.stub().returns(null),
       getTransferRemoteTxs: Sinon.stub().resolves([
@@ -649,13 +662,16 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('Gas quote failed');
     });
 
-    it('throws when signer is not a Wallet instance', async () => {
-      multiProvider.getSigner = Sinon.stub().returns({
-        getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
-      });
+    it('throws when inventory signer key is missing', async () => {
+      // Config without inventorySignerKeysByProtocol
+      const configWithoutKeys = {
+        inventorySigners: { [ProtocolType.Ethereum]: INVENTORY_SIGNER },
+        inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
+        inventoryMultiProvider: multiProvider,
+      } as unknown as InventoryRebalancerConfig;
 
       inventoryRebalancer = new InventoryRebalancer(
-        config,
+        configWithoutKeys,
         actionTracker as unknown as IActionTracker,
         { lifi: bridge as unknown as IExternalBridge },
         warpCore as unknown as WarpCore,
@@ -682,7 +698,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Wallet');
+      expect(results[0].error).to.include('Missing inventory signer key');
       expect(bridge.execute.called).to.be.false;
     });
   });

@@ -291,6 +291,9 @@ export class TestRebalancerBuilder {
     let inventoryMultiProvider: MultiProvider | undefined;
     let rebalancerConfig: RebalancerConfig;
     let warpCoreConfig: WarpCoreConfig;
+    let inventorySignerKeysByProtocol:
+      | Partial<Record<ProtocolType, string>>
+      | undefined;
     if (isErc20InventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
@@ -308,6 +311,9 @@ export class TestRebalancerBuilder {
       warpCoreConfig = buildErc20InventoryWarpRouteConfig(
         erc20InventoryModeConfig.erc20DeployedAddresses,
       );
+      inventorySignerKeysByProtocol = {
+        [ProtocolType.Ethereum]: erc20InventoryModeConfig.inventorySignerKey,
+      };
     } else if (isInventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
@@ -325,6 +331,9 @@ export class TestRebalancerBuilder {
       warpCoreConfig = buildNativeWarpRouteConfig(
         inventoryModeConfig.nativeDeployedAddresses,
       );
+      inventorySignerKeysByProtocol = {
+        [ProtocolType.Ethereum]: inventoryModeConfig.inventorySignerKey,
+      };
     } else {
       if (!('tokens' in deployedAddresses)) {
         throw new Error('Expected ERC20 deployed addresses with tokens field');
@@ -344,6 +353,7 @@ export class TestRebalancerBuilder {
       mpp,
       registry,
       this.logger,
+      inventorySignerKeysByProtocol,
       warpCoreConfig,
     );
 
