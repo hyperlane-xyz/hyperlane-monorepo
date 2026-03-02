@@ -89,7 +89,7 @@ function createFlowStrategyConfigs(
         weight: (1 / chains.length).toFixed(4),
         tolerance: '0.05',
       },
-      bridgeMinAcceptedAmount: '100000000000000',
+      bridgeMinAcceptedAmount: '0.1',
     })),
   ];
 }
