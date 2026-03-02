@@ -30,18 +30,6 @@ contract MultiCollateralRoutingFee is IMultiCollateralFee, ITokenFee, Ownable {
         _transferOwnership(_owner);
     }
 
-    /**
-     * @notice Sets the fee contract for a specific destination + target router.
-     */
-    function setRouterFeeContract(
-        uint32 destination,
-        bytes32 targetRouter,
-        address feeContract
-    ) external onlyOwner {
-        feeContracts[destination][targetRouter] = feeContract;
-        emit FeeContractSet(destination, targetRouter, feeContract);
-    }
-
     function setRouterFeeContracts(
         uint32[] calldata destinations,
         bytes32[] calldata targetRouters,

@@ -833,15 +833,20 @@ contract MultiCollateralTest is Test {
         MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
             address(this)
         );
-        routingFee.setRouterFeeContract(
-            DESTINATION,
-            address(usdtRouterB).addressToBytes32(),
-            address(linearFee5bps)
-        );
-        routingFee.setRouterFeeContract(
-            DESTINATION,
-            address(usdcRouterB).addressToBytes32(),
-            address(linearFee10bps)
+        uint32[] memory destinations = new uint32[](2);
+        bytes32[] memory targetRouters = new bytes32[](2);
+        address[] memory feeContracts = new address[](2);
+        destinations[0] = DESTINATION;
+        destinations[1] = DESTINATION;
+        targetRouters[0] = address(usdtRouterB).addressToBytes32();
+        targetRouters[1] = address(usdcRouterB).addressToBytes32();
+        feeContracts[0] = address(linearFee5bps);
+        feeContracts[1] = address(linearFee10bps);
+
+        routingFee.setRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
         );
 
         usdcRouterA.setFeeRecipient(address(routingFee));
@@ -885,10 +890,17 @@ contract MultiCollateralTest is Test {
         MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
             address(this)
         );
-        routingFee.setRouterFeeContract(
-            DESTINATION,
-            routingFee.DEFAULT_ROUTER(),
-            address(destFee)
+        uint32[] memory destinations = new uint32[](1);
+        bytes32[] memory targetRouters = new bytes32[](1);
+        address[] memory feeContracts = new address[](1);
+        destinations[0] = DESTINATION;
+        targetRouters[0] = routingFee.DEFAULT_ROUTER();
+        feeContracts[0] = address(destFee);
+
+        routingFee.setRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
         );
 
         usdcRouterA.setFeeRecipient(address(routingFee));
@@ -970,10 +982,17 @@ contract MultiCollateralTest is Test {
         MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
             address(this)
         );
-        routingFee.setRouterFeeContract(
-            DESTINATION,
-            address(usdtRouterB).addressToBytes32(),
-            address(linearFee5bps)
+        uint32[] memory destinations = new uint32[](1);
+        bytes32[] memory targetRouters = new bytes32[](1);
+        address[] memory feeContracts = new address[](1);
+        destinations[0] = DESTINATION;
+        targetRouters[0] = address(usdtRouterB).addressToBytes32();
+        feeContracts[0] = address(linearFee5bps);
+
+        routingFee.setRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
         );
         usdcRouterA.setFeeRecipient(address(routingFee));
 
