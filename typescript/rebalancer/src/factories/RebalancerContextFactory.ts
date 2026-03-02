@@ -253,6 +253,17 @@ export class RebalancerContextFactory {
       'Built minimum amounts by chain for strategy',
     );
 
+    // Build domain→chainName map for flow-reactive strategies
+    const domainToChainName = new Map<number, string>();
+    for (const chainName of chainNames) {
+      try {
+        const domainId = this.multiProvider.getDomainId(chainName);
+        domainToChainName.set(domainId, chainName);
+      } catch {
+        // Chain may not have domain metadata — skip
+      }
+    }
+
     return StrategyFactory.createStrategy(
       this.config.strategyConfig,
       this.tokensByChainName,
@@ -261,6 +272,7 @@ export class RebalancerContextFactory {
       metrics,
       minAmountsByChain,
       actionTracker,
+      domainToChainName,
     );
   }
 

@@ -1,6 +1,6 @@
 import { type Logger } from 'pino';
 
-import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import { type ChainMap, type ChainName, type Token } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -48,6 +48,7 @@ export class StrategyFactory {
     metrics?: Metrics,
     minAmountsByChain?: ChainMap<bigint>,
     actionTracker?: IActionTracker,
+    domainToChainName?: Map<number, ChainName>,
   ): IStrategy {
     if (strategyConfigs.length === 0) {
       throw new Error('At least one strategy must be configured');
@@ -63,6 +64,7 @@ export class StrategyFactory {
         metrics,
         minAmountsByChain,
         actionTracker,
+        domainToChainName,
       );
     }
 
@@ -76,6 +78,7 @@ export class StrategyFactory {
         metrics,
         minAmountsByChain,
         actionTracker,
+        domainToChainName,
       ),
     );
     return new CompositeStrategy(subStrategies, logger);
@@ -92,6 +95,7 @@ export class StrategyFactory {
     metrics?: Metrics,
     _minAmountsByChain?: ChainMap<bigint>,
     actionTracker?: IActionTracker,
+    domainToChainName?: Map<number, ChainName>,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 
@@ -133,6 +137,7 @@ export class StrategyFactory {
           actionTracker,
           metrics,
           tokensByChainName,
+          domainToChainName,
         );
       }
       case RebalancerStrategyOptions.VelocityFlow: {
@@ -147,6 +152,7 @@ export class StrategyFactory {
           actionTracker,
           metrics,
           tokensByChainName,
+          domainToChainName,
         );
       }
       case RebalancerStrategyOptions.ThresholdFlow: {
@@ -161,6 +167,7 @@ export class StrategyFactory {
           actionTracker,
           metrics,
           tokensByChainName,
+          domainToChainName,
         );
       }
       case RebalancerStrategyOptions.AccelerationFlow: {
@@ -175,6 +182,7 @@ export class StrategyFactory {
           actionTracker,
           metrics,
           tokensByChainName,
+          domainToChainName,
         );
       }
       default: {

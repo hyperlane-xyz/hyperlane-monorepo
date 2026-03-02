@@ -93,14 +93,20 @@ export class VelocityFlowStrategy extends FlowReactiveBaseStrategy {
       const baseResponseScale = this.baseResponseScaleByChain.get(chain) ?? 0n;
 
       const absNetFlow = netFlow > 0n ? netFlow : -netFlow;
-      const velocity = (netFlow * FLOW_SCALE) / windowDurationMs;
-      const absVelocity = velocity > 0n ? velocity : -velocity;
 
-      const velocityComponent =
-        (absNetFlow * velocityMultiplierScale * absVelocity) /
-        (FLOW_SCALE * FLOW_SCALE);
-      const baseComponent = (absNetFlow * baseResponseScale) / FLOW_SCALE;
-      const magnitude = velocityComponent + baseComponent;
+      // Compute a dimensionless urgency factor from flow rate.
+      // rateFactor = FLOW_SCALE² / windowDurationMs keeps precision in bigint math.
+      // velocityBoost is a scaled additive term on top of baseResponse.
+      const rateFactor =
+        (FLOW_SCALE * FLOW_SCALE) /
+        (windowDurationMs > 0n ? windowDurationMs : 1n);
+      const velocityBoost = (velocityMultiplierScale * rateFactor) / FLOW_SCALE;
+      const totalResponse = baseResponseScale + velocityBoost;
+
+      // magnitude is linear in absNetFlow, keeping values within on-chain balance range
+      const magnitude = (absNetFlow * totalResponse) / FLOW_SCALE;
+
+      if (magnitude === 0n) continue;
 
       signals.push({
         chain,

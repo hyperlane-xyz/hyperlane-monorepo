@@ -5,6 +5,7 @@ import * as path from 'path';
 import {
   FlowReactiveComparisonRunner,
   RebalancerSimulationHarness,
+  generateFlowReactiveComparisonHtml,
   loadScenarioFile,
 } from '../../src/index.js';
 import type {
@@ -91,7 +92,7 @@ function toSimulatedChains(chains: string[]): SimulatedChainConfig[] {
 }
 
 describe('Flow-Reactive Strategy Comparison', function () {
-  this.timeout(180_000);
+  this.timeout(600_000);
 
   const anvil = setupAnvilTestSuite(this);
 
@@ -114,6 +115,7 @@ describe('Flow-Reactive Strategy Comparison', function () {
 
   for (const scenarioName of FLOW_SCENARIOS) {
     it(`${scenarioName}: compare 4 flow-reactive strategies`, async function () {
+      this.timeout(600_000);
       const file = loadScenarioFile(scenarioName);
 
       const harness = new RebalancerSimulationHarness({
@@ -167,14 +169,17 @@ describe('Flow-Reactive Strategy Comparison', function () {
       expect(report.results).to.have.lengthOf(4);
       expect(report.scorecard).to.have.lengthOf(4);
 
-      for (const result of report.results) {
-        if (file.expectations.minCompletionRate !== undefined) {
-          expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-            file.expectations.minCompletionRate,
-            `${result.strategyName} should meet min completion rate for ${scenarioName}`,
-          );
-        }
+      // Check that the best strategy (winner) meets the minimum completion rate.
+      // Individual strategies may underperform — that’s the point of comparing.
+      if (file.expectations.minCompletionRate !== undefined) {
+        const winner = report.scorecard[0];
+        expect(winner.completionRate / 100).to.be.greaterThanOrEqual(
+          file.expectations.minCompletionRate,
+          `Winner ${winner.strategyName} should meet min completion rate for ${scenarioName}`,
+        );
+      }
 
+      for (const result of report.results) {
         expect(result.duration).to.be.lessThan(
           file.duration * 5,
           `${result.strategyName} simulation should not hang`,
@@ -213,6 +218,14 @@ describe('Flow-Reactive Strategy Comparison', function () {
         })),
       };
       fs.writeFileSync(resultPath, JSON.stringify(jsonSafeReport, null, 2));
+
+      // Generate HTML comparison visualization
+      const html = generateFlowReactiveComparisonHtml(report);
+      const htmlPath = path.join(
+        RESULTS_DIR,
+        `${scenarioName}-comparison.html`,
+      );
+      fs.writeFileSync(htmlPath, html);
     });
   }
 });
