@@ -48,7 +48,6 @@ node patch-isContract.mjs $ISCONTRACT_FILES
 # Compile with tron-solc
 NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
 
-<<<<<<< HEAD
 # trap will restore files
 trap - EXIT
 restore_files
