@@ -17,7 +17,7 @@ use radix_transactions::{
 use scrypto::{
     address::{AddressBech32Decoder, AddressBech32Encoder},
     crypto::IsHash,
-    math::{CheckedMul, Decimal, SaturatingAdd},
+    math::{CheckedDiv, CheckedMul, Decimal, SaturatingAdd},
     network::NetworkDefinition,
     prelude::{
         manifest_decode, ManifestArgs, ManifestCustomValue, ManifestCustomValueKind, ManifestValue,
@@ -352,15 +352,25 @@ impl AdaptsChain for RadixAdapter {
             .await
             .map_err(LanderError::ChainCommunicationError)?;
 
-        let total_units = fee_summary.execution_cost_units_consumed
-            + fee_summary.finalization_cost_units_consumed;
+        let total_units = fee_summary
+            .execution_cost_units_consumed
+            .checked_add(fee_summary.finalization_cost_units_consumed)
+            .ok_or_else(|| {
+                LanderError::ChainCommunicationError(ChainCommunicationError::from_other_str(
+                    "Radix fee summary total units overflowed",
+                ))
+            })?;
 
         let paid =
             RadixProvider::total_fee(fee_summary).map_err(LanderError::ChainCommunicationError)?;
         let paid_per_unit = if total_units == 0 {
             paid
         } else {
-            paid / total_units
+            paid.checked_div(total_units).ok_or_else(|| {
+                LanderError::ChainCommunicationError(ChainCommunicationError::from_other_str(
+                    "Radix fee summary per-unit fee division failed",
+                ))
+            })?
         };
 
         Ok(hyperlane_core::TxCostEstimate {
