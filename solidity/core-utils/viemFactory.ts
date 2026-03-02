@@ -1378,11 +1378,6 @@ async function performGetLogs(
   return logs as Log[];
 }
 
-function normalizeWriteResult(result: unknown): unknown {
-  if (Array.isArray(result) && result.length === 1) return result[0];
-  return result;
-}
-
 function normalizeFunctionsReadResult(
   result: unknown,
   outputCount: number,
@@ -1426,8 +1421,7 @@ export function createContractProxy<TAbi extends Abi>(
       to: address,
       data: encodeFunctionCallData(fn, fnArgs),
     });
-    const response = await performSend(runner, request);
-    return normalizeWriteResult(response);
+    return performSend(runner, request);
   };
 
   const estimateGas = new Proxy(
