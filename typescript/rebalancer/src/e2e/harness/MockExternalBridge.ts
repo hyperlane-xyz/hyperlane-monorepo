@@ -221,9 +221,14 @@ export class MockExternalBridge implements IExternalBridge {
               provider,
               dispatchTxReceipt,
             );
+            // Find the actual destination chain process tx
+            const processEvents = await destMailbox.queryFilter(
+              destMailbox.filters.ProcessId(dispatchedMsgId),
+            );
+            const receivingTxHash = processEvents[0]?.transactionHash ?? txHash;
             return {
               status: 'complete',
-              receivingTxHash: txHash,
+              receivingTxHash,
               receivedAmount,
             };
           }
