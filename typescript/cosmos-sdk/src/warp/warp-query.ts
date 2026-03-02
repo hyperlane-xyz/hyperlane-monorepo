@@ -96,8 +96,9 @@ export async function getCollateralWarpTokenConfig(
       mailbox: token.origin_mailbox,
       interchainSecurityModule: token.ism_id,
       token: token.origin_denom,
-      name: '',
-      symbol: '',
+      // Cosmos SDK tokens do not store token metadata on chain yet
+      name: 'Unknown',
+      symbol: 'Unknown',
       decimals: 0,
       remoteRouters,
       destinationGas,
@@ -135,8 +136,9 @@ export async function getSyntheticWarpTokenConfig(
       owner: token.owner,
       mailbox: token.origin_mailbox,
       interchainSecurityModule: token.ism_id,
-      name: '',
-      symbol: '',
+      // Cosmos SDK tokens do not store token metadata on chain yet
+      name: 'Unknown',
+      symbol: 'Unknown',
       decimals: 0,
       remoteRouters,
       destinationGas,
