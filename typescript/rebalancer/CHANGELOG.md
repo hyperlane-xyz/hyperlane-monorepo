@@ -1,5 +1,16 @@
 # @hyperlane-xyz/rebalancer
 
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/metrics@0.1.10
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+  - @hyperlane-xyz/core@11.0.1
+
 ## 3.2.0
 
 ### Minor Changes
