@@ -20,7 +20,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     multiProtocolProvider: MultiProtocolProvider,
   ) {
     const multiProvider = multiProtocolProvider.toMultiProvider();
-    const { technicalStack, rpcUrls } =
+    const { protocol, technicalStack, rpcUrls } =
       multiProvider.getChainMetadata(chainName);
 
     assert(
@@ -31,7 +31,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     let wallet: Wallet;
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       wallet = new ZkSyncWallet(privateKey);
-    } else if (technicalStack === ChainTechnicalStack.Tron) {
+    } else if (protocol === ProtocolType.Tron) {
       assert(
         rpcUrls.length > 0,
         `No RPC URLs configured for Tron chain ${chainName}`,

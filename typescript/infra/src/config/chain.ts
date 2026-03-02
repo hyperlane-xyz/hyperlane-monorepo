@@ -14,6 +14,7 @@ import {
   ProtocolType,
   inCIMode,
   inKubernetes,
+  isEVMLike,
   objFilter,
   objMerge,
   rootLogger,
@@ -99,13 +100,11 @@ export function getChainMetadatas(chains: Array<ChainName>) {
 
   const ethereumMetadatas = objFilter(
     allMetadatas,
-    (_, metadata): metadata is ChainMetadata =>
-      metadata.protocol === ProtocolType.Ethereum,
+    (_, metadata): metadata is ChainMetadata => isEVMLike(metadata.protocol),
   );
   const nonEthereumMetadatas = objFilter(
     allMetadatas,
-    (_, metadata): metadata is ChainMetadata =>
-      metadata.protocol !== ProtocolType.Ethereum,
+    (_, metadata): metadata is ChainMetadata => !isEVMLike(metadata.protocol),
   );
 
   return { ethereumMetadatas, nonEthereumMetadatas };

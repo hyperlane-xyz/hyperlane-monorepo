@@ -17,6 +17,10 @@ export type ProtocolTypeValue = `${ProtocolType}`;
 // All protocol types except Unknown - for use in mappings that only support known protocols
 export type KnownProtocolType = Exclude<ProtocolType, ProtocolType.Unknown>;
 
+export function isEVMLike(protocol: ProtocolType): boolean {
+  return protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron;
+}
+
 export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
   [ProtocolType.Sealevel]: 'lamports',

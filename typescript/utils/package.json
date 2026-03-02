@@ -70,6 +70,7 @@
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/bs58": "catalog:",
     "@types/lodash-es": "catalog:",
     "@types/mocha": "catalog:",
     "@types/sinon": "catalog:",

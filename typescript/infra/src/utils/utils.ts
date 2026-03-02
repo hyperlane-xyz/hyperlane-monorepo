@@ -9,6 +9,7 @@ import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
+  isEVMLike,
   objFilter,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
@@ -281,7 +282,9 @@ export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
-  return chainIsProtocol(chainName, ProtocolType.Ethereum);
+  const metadata = getChain(chainName);
+  if (!metadata) throw new Error(`Unknown chain ${chainName}`);
+  return isEVMLike(metadata.protocol);
 }
 
 export function getInfraPath() {

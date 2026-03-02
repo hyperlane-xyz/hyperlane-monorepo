@@ -126,6 +126,9 @@ catalogs:
     '@typechain/hardhat':
       specifier: ^9.1.0
       version: 9.1.0
+    '@types/bs58':
+      specifier: ^5.0.0
+      version: 5.0.0
     '@types/chai':
       specifier: ^4.3.11
       version: 4.3.20
@@ -2634,6 +2637,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
+      '@types/bs58':
+        specifier: 'catalog:'
+        version: 5.0.0
       '@types/lodash-es':
         specifier: 'catalog:'
         version: 4.17.12

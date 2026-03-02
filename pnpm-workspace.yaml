@@ -46,6 +46,7 @@ catalog:
   '@typechain/ethers-v5': ^11.1.2
   '@typechain/ethers-v6': ^0.5.1
   '@typechain/hardhat': ^9.1.0
+  '@types/bs58': ^5.0.0
   '@types/chai': ^4.3.11
   '@types/chai-as-promised': ^8
   '@types/lodash-es': ^4.17.12

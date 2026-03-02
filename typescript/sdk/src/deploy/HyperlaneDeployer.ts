@@ -124,7 +124,7 @@ export abstract class HyperlaneDeployer<
     const metadata = this.multiProvider.getChainMetadata(chain);
 
     // Skip verification for Tron chains (not supported yet)
-    if (metadata.technicalStack === ChainTechnicalStack.Tron) {
+    if (metadata.protocol === ProtocolType.Tron) {
       logger.debug(`Skipping contract verification for Tron chain ${chain}`);
       return;
     }

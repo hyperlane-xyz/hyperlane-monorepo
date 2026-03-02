@@ -220,6 +220,7 @@ export {
   ParsedMessage,
   ProtocolSmallestUnit,
   ProtocolType,
+  isEVMLike,
   ProtocolTypeValue,
   ReorgEvent,
   S3Announcement,

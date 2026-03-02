@@ -21,6 +21,7 @@ import {
 import {
   type Address,
   ProtocolType,
+  isEVMLike,
   mustGet,
   objFilter,
   objMap,
@@ -73,14 +74,13 @@ export async function runWarpRouteRead({
   const filteredAddresses = objFilter(
     addresses,
     (chain, _address): _address is string =>
-      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+      isEVMLike(context.multiProvider.getProtocol(chain)) ||
       hasProtocol(context.multiProvider.getProtocol(chain)),
   );
   if (warpCoreConfig) {
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
       (config) =>
-        context.multiProvider.getProtocol(config.chainName) ===
-          ProtocolType.Ethereum ||
+        isEVMLike(context.multiProvider.getProtocol(config.chainName)) ||
         hasProtocol(context.multiProvider.getProtocol(config.chainName)),
     );
   }
@@ -125,6 +125,7 @@ async function deriveWarpRouteConfigs(
     objMap(addresses, async (chain, address) => {
       const protocol = context.multiProvider.getProtocol(chain);
       switch (protocol) {
+        case ProtocolType.Tron:
         case ProtocolType.Ethereum: {
           return new EvmWarpRouteReader(
             multiProvider,

@@ -13,7 +13,7 @@ import {
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
+  isEVMLike,
   parseWarpRouteMessage,
   timeout,
 } from '@hyperlane-xyz/utils';
@@ -56,7 +56,7 @@ export async function sendTestTransfer({
   // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
   // but CLI transaction handling currently only processes EthersV5 transactions.
   const nonEvmChains = chains.filter(
-    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
   );
   if (nonEvmChains.length > 0) {
     const chainDetails = nonEvmChains

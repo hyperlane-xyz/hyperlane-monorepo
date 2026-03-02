@@ -13,10 +13,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   type ObjectDiff,
-  ProtocolType,
   assert,
   diffObjMerge,
   eqAddress,
+  isEVMLike,
   keepOnlyDiffObjects,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
@@ -137,7 +137,7 @@ export async function runWarpIcaOwnerCheck({
       warnYellow(`Chain "${chain}" is not part of the warp config, skipping`);
       return false;
     }
-    if (multiProvider.tryGetProtocol(chain) !== ProtocolType.Ethereum) {
+    if (!isEVMLike(multiProvider.tryGetProtocol(chain)!)) {
       warnYellow(`Skipping non-EVM destination chain "${chain}"`);
       return false;
     }
@@ -145,7 +145,7 @@ export async function runWarpIcaOwnerCheck({
   });
   assert(chainsToCheck.length > 0, 'No EVM destination chains to check');
   assert(
-    multiProvider.tryGetProtocol(origin) === ProtocolType.Ethereum,
+    isEVMLike(multiProvider.tryGetProtocol(origin)!),
     `origin ${origin} must be EVM chain`,
   );
 

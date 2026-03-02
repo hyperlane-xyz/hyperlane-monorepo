@@ -131,6 +131,7 @@ export async function executeWarpDeploy(
     }
 
     switch (protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         const deployer = warpDeployConfig.isNft
           ? new HypERC721Deployer(multiProvider)
@@ -260,6 +261,7 @@ async function createWarpIsm({
   const protocolType = multiProvider.getProtocol(chain);
 
   switch (protocolType) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const evmIsmModule = await EvmIsmModule.create({
         chain,
@@ -324,6 +326,7 @@ async function createWarpHook({
   const protocolType = multiProvider.getProtocol(chain);
 
   switch (protocolType) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       rootLogger.info(`Loading registry factory addresses for ${chain}...`);
 
@@ -438,6 +441,7 @@ export async function enrollCrossChainRouters(
       let transactions: TypedAnnotatedTransaction[] = [];
 
       switch (protocol) {
+        case ProtocolType.Tron:
         case ProtocolType.Ethereum: {
           const {
             domainRoutingIsmFactory,
