@@ -739,13 +739,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const xerc20TokenAddress =
       await hypXERC20TokenLockboxTokenInstance.xERC20();
-    const [erc20TokenMetadata, xERC20Metadata, lockbox, scale] =
+    const [wrappedTokenAddress, lockbox, xERC20Metadata, scale] =
       await Promise.all([
-        this.fetchERC20Metadata(xerc20TokenAddress),
-        this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
+        hypXERC20TokenLockboxTokenInstance.wrappedToken(),
         hypXERC20TokenLockboxTokenInstance.lockbox(),
+        this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
         this.fetchScale(hypTokenAddress),
       ]);
+    const erc20TokenMetadata = await this.fetchERC20Metadata(wrappedTokenAddress);
 
     return {
       ...erc20TokenMetadata,
