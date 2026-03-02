@@ -31,7 +31,7 @@ function buildMultiCollateralToken({
   symbol: string;
   address: string;
   decimals: number;
-  scale?: number;
+  scale?: number | { numerator: number; denominator: number };
 }) {
   return {
     chainName,
@@ -318,5 +318,70 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include(
       'Incompatible decimals/scale on chain "anvil2"',
     );
+  });
+
+  it('formats ratio scales in incompatibility error messages', async () => {
+    const routeA = {
+      coreConfig: {
+        tokens: [
+          buildMultiCollateralToken({
+            chainName: 'anvil2',
+            symbol: 'USDC',
+            address: ROUTER_A,
+            decimals: 18,
+            scale: { numerator: 3, denominator: 2 },
+          }),
+        ],
+      } as WarpCoreConfig,
+      deployConfig: {
+        anvil2: {
+          type: TokenType.multiCollateral,
+          owner: ROUTER_A,
+          token: ROUTER_A,
+          scale: { numerator: 3, denominator: 2 },
+        },
+      },
+    };
+    const routeB = {
+      coreConfig: {
+        tokens: [
+          buildMultiCollateralToken({
+            chainName: 'anvil2',
+            symbol: 'USDT',
+            address: ROUTER_B,
+            decimals: 18,
+            scale: 1,
+          }),
+        ],
+      } as WarpCoreConfig,
+      deployConfig: {
+        anvil2: {
+          type: TokenType.multiCollateral,
+          owner: ROUTER_B,
+          token: ROUTER_B,
+          scale: 1,
+        },
+      },
+    };
+
+    const { context } = buildContext({
+      'route-a': routeA,
+      'route-b': routeB,
+    });
+
+    let thrown: Error | undefined;
+    try {
+      await runWarpRouteCombine({
+        context,
+        routeIds: ['route-a', 'route-b'],
+        outputWarpRouteId: 'MULTI/test',
+      });
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    expect(thrown?.message).to.include('scale=3/2');
+    expect(thrown?.message).to.include('scale=1');
+    expect(thrown?.message).to.not.include('[object Object]');
   });
 });

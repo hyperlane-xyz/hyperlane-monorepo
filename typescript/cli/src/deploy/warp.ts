@@ -1267,7 +1267,11 @@ function formatScaleForLogs(
   scale: WarpCoreConfig['tokens'][number]['scale'],
 ): string {
   if (!scale) return '1';
-  return scale.toString();
+  const normalizedScale = normalizeScale(scale);
+  if (normalizedScale.denominator === 1n) {
+    return normalizedScale.numerator.toString();
+  }
+  return `${normalizedScale.numerator}/${normalizedScale.denominator}`;
 }
 
 function getCanonicalWholeTokenRatio(
