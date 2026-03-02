@@ -207,6 +207,10 @@ async function executeDelivery({
       txReceipts.push(txReceipt);
     }
   }
+  assert(
+    txReceipts.length > 0,
+    `No supported transfer receipt produced for ${origin} -> ${destination}`,
+  );
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messages = HyperlaneCore.getDispatchedMessages(transferTxReceipt);
   const message: DispatchedMessage | undefined = messages[0];

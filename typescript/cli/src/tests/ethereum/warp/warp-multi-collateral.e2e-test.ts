@@ -166,6 +166,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
 
     // Send cross-stablecoin transfer via CLI: USDC(chain2) -> USDT(chain3)
     const sendAmount = parseUnits('1', 6); // 1 USDC in 6-dec
+    const balanceBefore = await usdtChain3.balanceOf(ownerAddress);
     await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
@@ -177,9 +178,9 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     });
 
     // Verify: 1 USDC(6dec) → canonical 1e18 → 1 USDT(18dec) = 1e18
-    const recipientBalance = await usdtChain3.balanceOf(ownerAddress);
-    // The balance should include the received 1 USDT (1e18)
-    expect(recipientBalance.gte(parseUnits('1', 18))).to.be.true;
+    const balanceAfter = await usdtChain3.balanceOf(ownerAddress);
+    const received = balanceAfter.sub(balanceBefore);
+    expect(received.toString()).to.equal(parseUnits('1', 18).toString());
   });
 
   it('should swap same-chain via CLI warp send (USDC -> USDT local)', async function () {

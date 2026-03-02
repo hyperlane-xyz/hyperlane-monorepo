@@ -10,6 +10,7 @@ import {
   Domain,
   Numberish,
   addressToBytes32,
+  assert,
 } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
@@ -212,6 +213,10 @@ export class EvmHypMultiCollateralAdapter
       params.amount.toString(),
       targetRouterBytes32,
     );
+    assert(
+      quotes.length >= 1,
+      'quoteTransferRemoteTo returned no native quote',
+    );
     const nativeGas = quotes[0].amount;
 
     return this.contract.populateTransaction.transferRemoteTo(
@@ -240,6 +245,10 @@ export class EvmHypMultiCollateralAdapter
       recipientBytes32,
       params.amount.toString(),
       targetRouterBytes32,
+    );
+    assert(
+      quotes.length >= 3,
+      'quoteTransferRemoteTo returned incomplete quote set',
     );
 
     const amount = BigInt(params.amount.toString());
