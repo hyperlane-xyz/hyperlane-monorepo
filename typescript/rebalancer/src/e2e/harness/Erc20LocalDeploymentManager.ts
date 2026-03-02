@@ -17,6 +17,7 @@ import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 const USDC_INITIAL_SUPPLY = '100000000000000';
 const USDC_DECIMALS = 6;
 const TOKEN_SCALE_NUMERATOR = ethers.BigNumber.from(1);
+const TOKEN_SCALE_DENOMINATOR = ethers.BigNumber.from(1);
 
 export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<DeployedAddresses> {
   protected async deployRoutes(
@@ -52,6 +53,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       ).deploy(
         token.address,
         TOKEN_SCALE_NUMERATOR,
+        TOKEN_SCALE_DENOMINATOR,
         chainInfra[config.name].mailbox,
       );
       await monitoredRoute.deployed();
@@ -66,6 +68,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       ).deploy(
         token.address,
         TOKEN_SCALE_NUMERATOR,
+        TOKEN_SCALE_DENOMINATOR,
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute1.deployed();
@@ -80,6 +83,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
       ).deploy(
         token.address,
         TOKEN_SCALE_NUMERATOR,
+        TOKEN_SCALE_DENOMINATOR,
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute2.deployed();
