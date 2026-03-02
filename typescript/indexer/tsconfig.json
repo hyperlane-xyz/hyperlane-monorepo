@@ -1,0 +1,18 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "ponder:registry": ["./.ponder/types/virtual.d.ts"],
+      "ponder:schema": ["./.ponder/types/schema.d.ts"]
+    }
+  },
+  "include": ["./src/**/*", "./scripts/**/*"],
+  "exclude": ["node_modules", "dist", ".ponder"]
+}

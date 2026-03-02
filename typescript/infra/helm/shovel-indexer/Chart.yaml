@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shovel-indexer
+description: Shovel-based database-native indexer for Hyperlane protocol events
+type: application
+version: 0.1.0
+appVersion: 0.1.0

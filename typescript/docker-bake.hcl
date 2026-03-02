@@ -32,7 +32,7 @@ variable "REGISTRY" {
 
 # Default group builds all targets
 group "default" {
-  targets = ["ncc-services"]
+  targets = ["ncc-services", "indexer"]
 }
 
 # NCC-bundled services using the unified Dockerfile
@@ -63,5 +63,17 @@ target "ncc-services" {
   tags = compact([
     "${REGISTRY}/${item.image}:${TAG}",
     TAG_SHA_DATE != "" ? "${REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
+  ])
+}
+
+# Ponder-based indexer (cannot use NCC bundling due to Ponder runtime requirements)
+target "indexer" {
+  dockerfile = "typescript/indexer/Dockerfile"
+  context    = "."
+  platforms  = split(",", PLATFORMS)
+
+  tags = compact([
+    "${REGISTRY}/hyperlane-indexer:${TAG}",
+    TAG_SHA_DATE != "" ? "${REGISTRY}/hyperlane-indexer:${TAG_SHA_DATE}" : "",
   ])
 }
