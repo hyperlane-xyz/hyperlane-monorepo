@@ -68,4 +68,76 @@ describe('EvmHypMultiCollateralAdapter', () => {
     expect(quote.tokenFeeQuote?.amount).to.equal(0n);
     expect(quote.tokenFeeQuote?.addressOrDenom).to.equal(COLLATERAL_ADDRESS);
   });
+
+  it('sets igp quote token when gas quote is non-native', async () => {
+    const GAS_TOKEN = '0x5555555555555555555555555555555555555555';
+    const quoteTransferRemoteTo = sinon.stub().resolves([
+      { amount: BigNumber.from('777'), token: GAS_TOKEN },
+      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
+      { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
+    ] as any);
+    (adapter as any).contract = { quoteTransferRemoteTo };
+
+    const quote = await adapter.quoteTransferRemoteToGas({
+      destination: DESTINATION_DOMAIN,
+      recipient: RECIPIENT,
+      amount: 1000n,
+      targetRouter: TARGET_ROUTER,
+    });
+
+    expect(quote.igpQuote.amount).to.equal(777n);
+    expect(quote.igpQuote.addressOrDenom).to.equal(GAS_TOKEN);
+  });
+
+  it('does not send native value when gas quote token is non-native', async () => {
+    const GAS_TOKEN = '0x6666666666666666666666666666666666666666';
+    const quoteTransferRemoteTo = sinon.stub().resolves([
+      { amount: BigNumber.from('50'), token: GAS_TOKEN },
+      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
+      { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
+    ] as any);
+    const transferRemoteTo = sinon.stub().resolves({});
+    (adapter as any).contract = {
+      quoteTransferRemoteTo,
+      populateTransaction: { transferRemoteTo },
+    };
+
+    await adapter.populateTransferRemoteToTx({
+      destination: DESTINATION_DOMAIN,
+      recipient: RECIPIENT,
+      amount: 1000n,
+      targetRouter: TARGET_ROUTER,
+    });
+
+    expect(transferRemoteTo.calledOnce).to.equal(true);
+    const callArgs = transferRemoteTo.getCall(0).args;
+    expect(callArgs[4].value).to.equal('0');
+  });
+
+  it('sends native value when gas quote token is native', async () => {
+    const quoteTransferRemoteTo = sinon.stub().resolves([
+      {
+        amount: BigNumber.from('88'),
+        token: '0x0000000000000000000000000000000000000000',
+      },
+      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
+      { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
+    ] as any);
+    const transferRemoteTo = sinon.stub().resolves({});
+    (adapter as any).contract = {
+      quoteTransferRemoteTo,
+      populateTransaction: { transferRemoteTo },
+    };
+
+    await adapter.populateTransferRemoteToTx({
+      destination: DESTINATION_DOMAIN,
+      recipient: RECIPIENT,
+      amount: 1000n,
+      targetRouter: TARGET_ROUTER,
+    });
+
+    expect(transferRemoteTo.calledOnce).to.equal(true);
+    const callArgs = transferRemoteTo.getCall(0).args;
+    expect(callArgs[4].value).to.equal('88');
+  });
 });

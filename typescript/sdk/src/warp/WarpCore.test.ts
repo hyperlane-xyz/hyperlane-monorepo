@@ -572,6 +572,68 @@ describe('WarpCore', () => {
     }
   });
 
+  it('Adds revoke before approval for MultiCollateral when allowance must be reset', async () => {
+    const tokenFeeAmount = 123n;
+    const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;
+    (evmHypNative as any).collateralAddressOrDenom =
+      evmHypNative.addressOrDenom;
+
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationMultiStub = sinon
+      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .returns(true);
+
+    const quoteTransferRemoteToGas = sinon.stub().resolves({
+      igpQuote: { amount: 1n },
+      tokenFeeQuote: {
+        addressOrDenom: evmHypNative.addressOrDenom,
+        amount: tokenFeeAmount,
+      },
+    });
+    const isApproveRequired = sinon.stub().resolves(true);
+    const isRevokeApprovalRequired = sinon.stub().resolves(true);
+    const populateApproveTx = sinon.stub().resolves({});
+    const populateTransferRemoteToTx = sinon.stub().resolves({});
+
+    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
+      quoteTransferRemoteToGas,
+      isApproveRequired,
+      isRevokeApprovalRequired,
+      populateApproveTx,
+      populateTransferRemoteToTx,
+    } as any);
+
+    try {
+      const result = await warpCore.getTransferRemoteTxs({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        destinationToken: evmHypSynthetic,
+      });
+
+      expect(result.length).to.equal(3);
+      expect(result[0].category).to.equal(WarpTxCategory.Revoke);
+      expect(result[1].category).to.equal(WarpTxCategory.Approval);
+      expect(result[2].category).to.equal(WarpTxCategory.Transfer);
+
+      sinon.assert.calledWithMatch(populateApproveTx.firstCall, {
+        weiAmountOrId: 0,
+      });
+      sinon.assert.calledWithMatch(populateApproveTx.secondCall, {
+        weiAmountOrId: TRANSFER_AMOUNT + tokenFeeAmount,
+      });
+    } finally {
+      adapterStub.restore();
+      originMultiStub.restore();
+      destinationMultiStub.restore();
+      (evmHypNative as any).collateralAddressOrDenom =
+        originalCollateralAddress;
+    }
+  });
+
   it('Uses destination router-aware quote for MultiCollateral fees', async () => {
     const originMultiStub = sinon
       .stub(evmHypNative, 'isMultiCollateralToken')
@@ -613,6 +675,95 @@ describe('WarpCore', () => {
       adapterStub.restore();
       originMultiStub.restore();
       destinationMultiStub.restore();
+    }
+  });
+
+  it('Rejects non-connected destination token for MultiCollateral fee quote', async () => {
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const quoteTransferRemoteToGas = sinon.stub().resolves({
+      igpQuote: { amount: 42n },
+    });
+    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
+      quoteTransferRemoteToGas,
+    } as any);
+
+    const invalidDestinationToken = new Token({
+      ...evmHypSynthetic,
+      addressOrDenom: '0x9999999999999999999999999999999999999999',
+    });
+    const invalidDestinationMultiStub = sinon
+      .stub(invalidDestinationToken, 'isMultiCollateralToken')
+      .returns(true);
+
+    try {
+      let error: Error | undefined;
+      try {
+        await warpCore.getInterchainTransferFee({
+          originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          destinationToken: invalidDestinationToken,
+        });
+      } catch (e) {
+        error = e as Error;
+      }
+
+      expect(error).to.exist;
+      expect(error!.message).to.contain('is not connected');
+      expect(quoteTransferRemoteToGas.called).to.equal(false);
+    } finally {
+      invalidDestinationMultiStub.restore();
+      adapterStub.restore();
+      originMultiStub.restore();
+    }
+  });
+
+  it('Converts destination minimum transfer amount into origin decimals correctly', async () => {
+    const destinationAdapterStub = sinon
+      .stub(sealevelHypSynthetic, 'getAdapter')
+      .returns({
+        getMinimumTransferAmount: () => Promise.resolve(1_000_000_000n),
+      } as any);
+
+    try {
+      const belowMinimum = await (
+        warpCore as unknown as {
+          validateAmount: (
+            originTokenAmount: TokenAmount,
+            destination: ChainName,
+            recipient: string,
+            destinationToken?: Token,
+          ) => Promise<Record<string, string> | null>;
+        }
+      ).validateAmount(
+        evmHypNative.amount(500_000_000_000_000_000n),
+        testSealevelChain.name,
+        MOCK_ADDRESS,
+        sealevelHypSynthetic,
+      );
+      expect(belowMinimum?.amount).to.contain('Minimum transfer amount');
+
+      const atMinimum = await (
+        warpCore as unknown as {
+          validateAmount: (
+            originTokenAmount: TokenAmount,
+            destination: ChainName,
+            recipient: string,
+            destinationToken?: Token,
+          ) => Promise<Record<string, string> | null>;
+        }
+      ).validateAmount(
+        evmHypNative.amount(1_000_000_000_000_000_000n),
+        testSealevelChain.name,
+        MOCK_ADDRESS,
+        sealevelHypSynthetic,
+      );
+      expect(atMinimum).to.be.null;
+    } finally {
+      destinationAdapterStub.restore();
     }
   });
 

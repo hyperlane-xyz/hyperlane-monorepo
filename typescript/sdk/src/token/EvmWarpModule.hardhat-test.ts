@@ -23,6 +23,7 @@ import {
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   EvmIsmModule,
   HookConfig,
@@ -892,6 +893,72 @@ describe('EvmWarpModule', async () => {
       expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(1);
       expect(updatedConfig.remoteRouters?.['3'].address.toLowerCase()).to.be.eq(
         addressToBytes32(extendedRemoteRouter['3'].address),
+      );
+    });
+
+    it('normalizes chain-name enrolledRouters keys for multicollateral enroll/unenroll txs', async () => {
+      const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+      const keepRouter = addressToBytes32(randomAddress());
+      const addRouter = addressToBytes32(randomAddress());
+      const removeRouter = addressToBytes32(randomAddress());
+
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.multiCollateral,
+          token: token.address,
+        } as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: randomAddress(),
+        },
+      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+      const actualConfig = {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        enrolledRouters: {
+          [destinationDomain]: [keepRouter, removeRouter],
+        },
+      } as Parameters<
+        EvmWarpModule['createEnrollMultiCollateralRoutersTxs']
+      >[0];
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        enrolledRouters: {
+          [TestChainName.test2]: [keepRouter, addRouter],
+        },
+      } as HypTokenRouterConfig;
+
+      const enrollTxs = module.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      expect(enrollTxs.length).to.equal(1);
+      const [enrollDomains, enrollRouters] =
+        MultiCollateral__factory.createInterface().decodeFunctionData(
+          'enrollRouters',
+          enrollTxs[0].data!,
+        );
+      expect(enrollDomains.map(Number)).to.deep.equal([destinationDomain]);
+      expect(enrollRouters[0].toLowerCase()).to.equal(addRouter.toLowerCase());
+
+      const unenrollTxs = module.createUnenrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      expect(unenrollTxs.length).to.equal(1);
+      const [unenrollDomains, unenrollRouters] =
+        MultiCollateral__factory.createInterface().decodeFunctionData(
+          'unenrollRouters',
+          unenrollTxs[0].data!,
+        );
+      expect(unenrollDomains.map(Number)).to.deep.equal([destinationDomain]);
+      expect(unenrollRouters[0].toLowerCase()).to.equal(
+        removeRouter.toLowerCase(),
       );
     });
 

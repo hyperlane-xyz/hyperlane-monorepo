@@ -167,8 +167,13 @@ export class WarpCore {
       let quote: InterchainGasQuote;
       const destinationDomainId = this.multiProvider.getDomainId(destination);
       if (this.isMultiCollateralTransfer(originToken, destinationToken)) {
+        const resolvedDestinationToken = this.resolveDestinationToken({
+          originToken,
+          destination,
+          destinationToken,
+        });
         assert(
-          destinationToken?.addressOrDenom,
+          resolvedDestinationToken.addressOrDenom,
           'Destination token missing addressOrDenom',
         );
         const multiCollateralAdapter = originToken.getHypAdapter(
@@ -179,7 +184,7 @@ export class WarpCore {
           destination: destinationDomainId,
           recipient,
           amount,
-          targetRouter: destinationToken.addressOrDenom,
+          targetRouter: resolvedDestinationToken.addressOrDenom,
         });
       } else {
         const hypAdapter = originToken.getHypAdapter(
@@ -601,13 +606,18 @@ export class WarpCore {
     const transactions: Array<WarpTypedTransaction> = [];
     const { token: originToken, amount } = originTokenAmount;
     const destinationName = this.multiProvider.getChainName(destination);
+    const resolvedDestinationToken = this.resolveDestinationToken({
+      originToken,
+      destination,
+      destinationToken,
+    });
 
     assert(
       originToken.collateralAddressOrDenom,
       'Origin token missing collateralAddressOrDenom',
     );
     assert(
-      destinationToken.addressOrDenom,
+      resolvedDestinationToken.addressOrDenom,
       'Destination token missing addressOrDenom',
     );
 
@@ -622,17 +632,31 @@ export class WarpCore {
       destination: this.multiProvider.getDomainId(destination),
       recipient,
       amount,
-      targetRouter: destinationToken.addressOrDenom!,
+      targetRouter: resolvedDestinationToken.addressOrDenom,
     });
     const tokenFeeAmount = transferQuote.tokenFeeQuote?.amount ?? 0n;
     const totalDebit = amount + tokenFeeAmount;
 
-    // Check approval
-    const isApproveRequired = await adapter.isApproveRequired(
-      sender,
-      originToken.addressOrDenom!,
-      totalDebit,
-    );
+    const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+      adapter.isApproveRequired(
+        sender,
+        originToken.addressOrDenom!,
+        totalDebit,
+      ),
+      adapter.isRevokeApprovalRequired(sender, originToken.addressOrDenom!),
+    ]);
+
+    if (isApproveRequired && isRevokeApprovalRequired) {
+      const revokeTxReq = await adapter.populateApproveTx({
+        weiAmountOrId: 0,
+        recipient: originToken.addressOrDenom!,
+      });
+      transactions.push({
+        category: WarpTxCategory.Revoke,
+        type: providerType,
+        transaction: revokeTxReq,
+      } as WarpTypedTransaction);
+    }
 
     if (isApproveRequired) {
       const approveTxReq = await adapter.populateApproveTx({
@@ -654,7 +678,7 @@ export class WarpCore {
       destination: destinationDomainId,
       recipient,
       amount,
-      targetRouter: destinationToken.addressOrDenom!,
+      targetRouter: resolvedDestinationToken.addressOrDenom,
     });
     transactions.push({
       category: WarpTxCategory.Transfer,
@@ -745,6 +769,11 @@ export class WarpCore {
   }): Promise<WarpCoreFeeEstimate> {
     const { token: originToken } = originTokenAmount;
     const destinationName = this.multiProvider.getChainName(destination);
+    const resolvedDestinationToken = this.resolveDestinationToken({
+      originToken,
+      destination,
+      destinationToken,
+    });
 
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -757,7 +786,7 @@ export class WarpCore {
       'Origin token missing collateralAddressOrDenom',
     );
     assert(
-      destinationToken.addressOrDenom,
+      resolvedDestinationToken.addressOrDenom,
       'Destination token missing addressOrDenom',
     );
 
@@ -772,7 +801,7 @@ export class WarpCore {
         destination: destinationDomainId,
         recipient,
         amount: originTokenAmount.amount,
-        targetRouter: destinationToken.addressOrDenom!,
+        targetRouter: resolvedDestinationToken.addressOrDenom,
       });
 
     let tokenFeeQuote: TokenAmount | undefined;
@@ -1151,10 +1180,10 @@ export class WarpCore {
       await destinationAdapter.getMinimumTransferAmount(recipient);
 
     // Convert the minDestinationTransferAmount to an origin amount
-    const minOriginTransferAmount = resolvedDestinationToken.amount(
+    const minOriginTransferAmount = originToken.amount(
       convertDecimalsToIntegerString(
-        originToken.decimals,
         resolvedDestinationToken.decimals,
+        originToken.decimals,
         minDestinationTransferAmount.toString(),
       ),
     );

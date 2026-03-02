@@ -11,6 +11,7 @@ import {
   Numberish,
   addressToBytes32,
   assert,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
@@ -197,6 +198,23 @@ export class EvmHypMultiCollateralAdapter
   /**
    * Populate cross-chain transfer to a specific target router.
    */
+  private async quoteTransferRemoteToRaw(params: {
+    destination: Domain;
+    recipient: Address;
+    amount: Numberish;
+    targetRouter: Address;
+  }) {
+    const recipientBytes32 = addressToBytes32(params.recipient);
+    const targetRouterBytes32 = addressToBytes32(params.targetRouter);
+
+    return this.contract.quoteTransferRemoteTo(
+      params.destination,
+      recipientBytes32,
+      params.amount.toString(),
+      targetRouterBytes32,
+    );
+  }
+
   async populateTransferRemoteToTx(params: {
     destination: Domain;
     recipient: Address;
@@ -205,19 +223,10 @@ export class EvmHypMultiCollateralAdapter
   }): Promise<PopulatedTransaction> {
     const recipientBytes32 = addressToBytes32(params.recipient);
     const targetRouterBytes32 = addressToBytes32(params.targetRouter);
-
-    // Quote gas
-    const quotes = await this.contract.quoteTransferRemoteTo(
-      params.destination,
-      recipientBytes32,
-      params.amount.toString(),
-      targetRouterBytes32,
-    );
-    assert(
-      quotes.length >= 1,
-      'quoteTransferRemoteTo returned no native quote',
-    );
-    const nativeGas = quotes[0].amount;
+    const quote = await this.quoteTransferRemoteToGas(params);
+    const nativeGas = !quote.igpQuote.addressOrDenom
+      ? quote.igpQuote.amount.toString()
+      : '0';
 
     return this.contract.populateTransaction.transferRemoteTo(
       params.destination,
@@ -237,15 +246,7 @@ export class EvmHypMultiCollateralAdapter
     amount: Numberish;
     targetRouter: Address;
   }): Promise<InterchainGasQuote> {
-    const recipientBytes32 = addressToBytes32(params.recipient);
-    const targetRouterBytes32 = addressToBytes32(params.targetRouter);
-
-    const quotes = await this.contract.quoteTransferRemoteTo(
-      params.destination,
-      recipientBytes32,
-      params.amount.toString(),
-      targetRouterBytes32,
-    );
+    const quotes = await this.quoteTransferRemoteToRaw(params);
     assert(
       quotes.length >= 3,
       'quoteTransferRemoteTo returned incomplete quote set',
@@ -260,7 +261,12 @@ export class EvmHypMultiCollateralAdapter
         : externalFeeAmount;
 
     return {
-      igpQuote: { amount: BigInt(quotes[0].amount.toString()) },
+      igpQuote: {
+        amount: BigInt(quotes[0].amount.toString()),
+        addressOrDenom: isZeroishAddress(quotes[0].token)
+          ? undefined
+          : quotes[0].token,
+      },
       tokenFeeQuote: {
         addressOrDenom: quotes[1].token,
         amount: tokenFeeAmount,

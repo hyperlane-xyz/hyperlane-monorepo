@@ -21,7 +21,7 @@ function createMockToken({
 }: {
   collateralized: boolean;
   decimals: number;
-}): Pick<Token, 'isCollateralized' | 'amount' | 'getAdapter'> {
+}): Token {
   return {
     isCollateralized: () => collateralized,
     amount: (amount: bigint) => ({
@@ -30,7 +30,40 @@ function createMockToken({
     getAdapter: () => ({
       getBalance: async () => 0n,
     }),
-  };
+  } as unknown as Token;
+}
+
+async function invokeUpdatePendingAndInventoryMetrics(
+  monitor: WarpMonitor,
+  warpCore: WarpCore,
+  routerNodes: RouterNodeMetadata[],
+  collateralByNodeId: Map<string, bigint>,
+  warpRouteId: string,
+  pendingTransfersClient?: ExplorerPendingTransfersClient,
+  explorerQueryLimit?: number,
+  inventoryAddress?: string,
+) {
+  await (
+    monitor as unknown as {
+      updatePendingAndInventoryMetrics: (
+        warpCore: WarpCore,
+        routerNodes: RouterNodeMetadata[],
+        collateralByNodeId: Map<string, bigint>,
+        warpRouteId: string,
+        pendingTransfersClient?: ExplorerPendingTransfersClient,
+        explorerQueryLimit?: number,
+        inventoryAddress?: string,
+      ) => Promise<void>;
+    }
+  ).updatePendingAndInventoryMetrics(
+    warpCore,
+    routerNodes,
+    collateralByNodeId,
+    warpRouteId,
+    pendingTransfersClient,
+    explorerQueryLimit,
+    inventoryAddress,
+  );
 }
 
 describe('WarpMonitor', () => {
@@ -114,19 +147,8 @@ describe('WarpMonitor', () => {
       [nonCollateralizedNodeId, 1_000_000n],
     ]);
 
-    await (
-      monitor as unknown as WarpMonitor & {
-        updatePendingAndInventoryMetrics: (
-          warpCore: WarpCore,
-          routerNodes: RouterNodeMetadata[],
-          collateralByNodeId: Map<string, bigint>,
-          warpRouteId: string,
-          pendingTransfersClient?: ExplorerPendingTransfersClient,
-          explorerQueryLimit?: number,
-          inventoryAddress?: string,
-        ) => Promise<void>;
-      }
-    ).updatePendingAndInventoryMetrics(
+    await invokeUpdatePendingAndInventoryMetrics(
+      monitor,
       { multiProvider: {} } as WarpCore,
       routerNodes,
       collateralByNodeId,
@@ -213,19 +235,8 @@ describe('WarpMonitor', () => {
       },
     };
 
-    await (
-      monitor as unknown as WarpMonitor & {
-        updatePendingAndInventoryMetrics: (
-          warpCore: WarpCore,
-          routerNodes: RouterNodeMetadata[],
-          collateralByNodeId: Map<string, bigint>,
-          warpRouteId: string,
-          pendingTransfersClient?: ExplorerPendingTransfersClient,
-          explorerQueryLimit?: number,
-          inventoryAddress?: string,
-        ) => Promise<void>;
-      }
-    ).updatePendingAndInventoryMetrics(
+    await invokeUpdatePendingAndInventoryMetrics(
+      monitor,
       { multiProvider: {} } as WarpCore,
       routerNodes,
       new Map([[nodeId, 1_000_000n]]),
@@ -244,5 +255,79 @@ describe('WarpMonitor', () => {
     expect(
       inventoryLines.some((line) => line.includes(`node_id="${nodeId}"`)),
     ).to.equal(false);
+  });
+
+  it('resets pending metrics and still updates inventory when explorer query fails', async () => {
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'MULTI/explorer-fail-test',
+        checkFrequency: 10_000,
+      },
+      {} as IRegistry,
+    );
+
+    const nodeId = 'COLLAT|anvil2|0xroutera';
+    const routerNodes: RouterNodeMetadata[] = [
+      {
+        nodeId,
+        chainName: 'anvil2' as RouterNodeMetadata['chainName'],
+        domainId: 31337,
+        routerAddress: '0xroutera',
+        tokenAddress: '0xtokena',
+        tokenName: 'Collateral Token',
+        tokenSymbol: 'COLLAT',
+        tokenDecimals: 6,
+        token: {
+          isCollateralized: () => true,
+          amount: (amount: bigint) => ({
+            getDecimalFormattedAmount: () => Number(amount) / 10 ** 6,
+          }),
+          getAdapter: () => ({
+            getBalance: async () => 1_000_000n,
+          }),
+        } as unknown as Token,
+      },
+    ];
+
+    const pendingTransfersClient: Pick<
+      ExplorerPendingTransfersClient,
+      'getPendingDestinationTransfers'
+    > = {
+      async getPendingDestinationTransfers() {
+        throw new Error('explorer down');
+      },
+    };
+
+    await invokeUpdatePendingAndInventoryMetrics(
+      monitor,
+      { multiProvider: {} } as WarpCore,
+      routerNodes,
+      new Map([[nodeId, 2_000_000n]]),
+      'MULTI/explorer-fail-test',
+      pendingTransfersClient as ExplorerPendingTransfersClient,
+      200,
+      '0x1111111111111111111111111111111111111111',
+    );
+
+    const metrics = await metricsRegister.metrics();
+    const pendingAmountLine = metrics
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith('hyperlane_warp_route_pending_destination_amount{') &&
+          line.includes(`node_id="${nodeId}"`),
+      );
+    expect(pendingAmountLine).to.exist;
+    expect(pendingAmountLine!.trim().endsWith(' 0')).to.equal(true);
+
+    const inventoryLine = metrics
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith('hyperlane_warp_route_inventory_balance{') &&
+          line.includes(`node_id="${nodeId}"`),
+      );
+    expect(inventoryLine).to.exist;
+    expect(inventoryLine!.trim().endsWith(' 1')).to.equal(true);
   });
 });

@@ -440,17 +440,24 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    const actualEnrolled = actualConfig.enrolledRouters ?? {};
-    const expectedEnrolled = expectedConfig.enrolledRouters;
+    const actualEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.enrolledRouters ?? {},
+    );
+    const expectedEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.enrolledRouters,
+    );
 
     const domainsToEnroll: number[] = [];
     const routersToEnroll: string[] = [];
 
     for (const [domain, expectedRouters] of Object.entries(expectedEnrolled)) {
-      const actualRouters = new Set(actualEnrolled[domain] ?? []);
+      const domainId = Number(domain);
+      const actualRouters = new Set(actualEnrolled[domainId] ?? []);
       for (const router of expectedRouters) {
         if (!actualRouters.has(router)) {
-          domainsToEnroll.push(Number(domain));
+          domainsToEnroll.push(domainId);
           routersToEnroll.push(router);
         }
       }
@@ -487,17 +494,24 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    const actualEnrolled = actualConfig.enrolledRouters ?? {};
-    const expectedEnrolled = expectedConfig.enrolledRouters ?? {};
+    const actualEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.enrolledRouters ?? {},
+    );
+    const expectedEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.enrolledRouters ?? {},
+    );
 
     const domainsToUnenroll: number[] = [];
     const routersToUnenroll: string[] = [];
 
     for (const [domain, actualRouters] of Object.entries(actualEnrolled)) {
-      const expectedRouters = new Set(expectedEnrolled[domain] ?? []);
+      const domainId = Number(domain);
+      const expectedRouters = new Set(expectedEnrolled[domainId] ?? []);
       for (const router of actualRouters) {
         if (!expectedRouters.has(router)) {
-          domainsToUnenroll.push(Number(domain));
+          domainsToUnenroll.push(domainId);
           routersToUnenroll.push(router);
         }
       }

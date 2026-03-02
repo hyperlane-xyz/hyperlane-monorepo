@@ -273,10 +273,11 @@ export class WarpMonitor {
 
           pendingByNodeId.set(transfer.destinationNodeId, aggregate);
         }
-      } catch (error) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         logger.error(
           {
-            error: (error as Error).message,
+            error: message,
           },
           'Failed to query explorer pending transfers',
         );
@@ -372,9 +373,11 @@ export class WarpMonitor {
               inventoryBalance,
             ),
           });
-        } catch (error) {
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error ? error.message : String(error);
           logger.error(
-            { nodeId: node.nodeId, err: error as Error },
+            { nodeId: node.nodeId, error: message },
             `Reading inventory balance for ${node.nodeId} failed`,
           );
         }
