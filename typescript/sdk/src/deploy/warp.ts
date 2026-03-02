@@ -516,13 +516,8 @@ export async function enrollCrossChainRouters(
             signer,
           );
 
-          const actualConfig = await writer.deriveWarpConfig(
-            deployedContracts[currentChain],
-          );
-
           const expectedConfig: HypTokenRouterConfig = {
-            ...actualConfig,
-            owner: resolvedConfigMap[currentChain].owner,
+            ...resolvedConfigMap[currentChain],
             remoteRouters,
             destinationGas,
           };
