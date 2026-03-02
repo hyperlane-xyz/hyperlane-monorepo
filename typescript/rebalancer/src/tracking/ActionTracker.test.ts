@@ -5,7 +5,10 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
-import { DEFAULT_INTENT_TTL_MS } from '../config/types.js';
+import {
+  DEFAULT_INTENT_TTL_MS,
+  DEFAULT_MOVEMENT_STALENESS_MS,
+} from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -874,6 +877,115 @@ describe('ActionTracker', () => {
         await tracker.getPartiallyFulfilledInventoryIntents();
 
       // remaining = 0n AND inflightAmount = 0n → should NOT be returned
+      expect(partialIntents).to.have.lengthOf(0);
+    });
+
+    it('skips intent with recent in-flight inventory_movement', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-recent-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Recent movement (created just now)
+      await rebalanceActionStore.save({
+        id: 'movement-recent',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-recent-movement',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(0);
+    });
+
+    it('fails stale movement and returns intent', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-stale-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Stale movement (created > 30 min ago)
+      await rebalanceActionStore.save({
+        id: 'movement-stale',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-stale-movement',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal('intent-stale-movement');
+
+      // Verify the stale movement was failed
+      const failedAction = await rebalanceActionStore.get('movement-stale');
+      expect(failedAction?.status).to.equal('failed');
+    });
+
+    it('handles mix of recent and stale movements', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-mixed-movements',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // One stale movement
+      await rebalanceActionStore.save({
+        id: 'movement-old',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-mixed-movements',
+        origin: 1,
+        destination: 2,
+        amount: 500000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      // One recent movement
+      await rebalanceActionStore.save({
+        id: 'movement-new',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-mixed-movements',
+        origin: 1,
+        destination: 2,
+        amount: 500000000000000000n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Should skip because there's still a recent movement
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
       expect(partialIntents).to.have.lengthOf(0);
     });
   });

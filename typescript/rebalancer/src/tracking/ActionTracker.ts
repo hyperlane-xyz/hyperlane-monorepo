@@ -5,6 +5,7 @@ import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_MOVEMENT_STALENESS_MS } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
@@ -589,17 +590,35 @@ export class ActionTracker implements IActionTracker {
       const actions = await this.getActionsForIntent(intent.id);
 
       // Check for in-flight inventory_movement actions
-      // Skip intents that have a bridge in progress - wait for it to complete
-      const hasInflightMovement = actions.some(
+      // Skip intents that have a recent bridge in progress - wait for it to complete
+      // Stale movements (older than DEFAULT_MOVEMENT_STALENESS_MS) are failed to unblock the intent
+      const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
+      const now = Date.now();
+      const hasRecentInflightMovement = inflightMovements.some(
+        (a) => now - a.createdAt < DEFAULT_MOVEMENT_STALENESS_MS,
+      );
 
-      if (hasInflightMovement) {
+      if (hasRecentInflightMovement) {
         this.logger.debug(
           { intentId: intent.id },
           'Skipping partial intent - has in-flight inventory movement',
         );
         continue;
+      }
+
+      // Fail stale movements so the intent can proceed
+      for (const stale of inflightMovements) {
+        await this.failRebalanceAction(stale.id);
+        this.logger.warn(
+          {
+            actionId: stale.id,
+            age: now - stale.createdAt,
+            intentId: intent.id,
+          },
+          'Failing stale inventory movement to unblock intent',
+        );
       }
 
       // Compute amounts from action states
