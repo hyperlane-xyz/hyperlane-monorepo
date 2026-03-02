@@ -213,16 +213,18 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 _amount,
                 _token
             );
-            if (_token != address(this)) {
-                charge += hookFee;
-            } else {
-                IERC20(_token).safeTransferFrom(
-                    msg.sender,
-                    address(this),
-                    hookFee
-                );
+            if (hookFee > 0) {
+                if (_token != address(this)) {
+                    charge += hookFee;
+                } else {
+                    IERC20(_token).safeTransferFrom(
+                        msg.sender,
+                        address(this),
+                        hookFee
+                    );
+                }
+                IERC20(_token).forceApprove(_feeHook, hookFee);
             }
-            IERC20(_token).approve(_feeHook, hookFee);
         }
 
         _transferFromSender(charge);
@@ -274,7 +276,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
 
         if (_destination == localDomain) {
             // Same-domain: call target router's handle directly
-            MultiCollateral(_targetRouter.bytes32ToAddress()).handle{
+            address target = _targetRouter.bytes32ToAddress();
+            require(target.code.length > 0, "MC: target router not contract");
+            MultiCollateral(target).handle{
                 value: remainingValue
             }(localDomain, TypeCasts.addressToBytes32(address(this)), tokenMsg);
         } else {
