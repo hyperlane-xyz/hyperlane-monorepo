@@ -61,6 +61,27 @@ contract MockDepositFee is ITokenFee, IMultiCollateralFee {
     }
 }
 
+/// @notice Mock fee contract that implements only IMultiCollateralFee.
+contract MockRouterOnlyFee is IMultiCollateralFee {
+    address public immutable token;
+    uint256 public immutable feeBps;
+
+    constructor(address _token, uint256 _feeBps) {
+        token = _token;
+        feeBps = _feeBps;
+    }
+
+    function quoteTransferRemoteTo(
+        uint32,
+        bytes32,
+        uint256 _amount,
+        bytes32 /*_targetRouter*/
+    ) external view override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote(token, (_amount * feeBps) / 10000);
+    }
+}
+
 contract FixedQuoteHook is IPostDispatchHook {
     uint256 public immutable quote;
 
@@ -407,6 +428,26 @@ contract MultiCollateralTest is Test {
 
         assertEq(
             originUSDC.balanceOf(address(originUsdcFee)),
+            feeBalBefore + expectedFee
+        );
+    }
+
+    function test_transferRemote_withImultiCollateralFeeOnlyRecipient() public {
+        MockRouterOnlyFee routerOnlyFee = new MockRouterOnlyFee(
+            address(originUSDC),
+            DEFAULT_FEE_BPS
+        );
+        usdcRouterA.setFeeRecipient(address(routerOnlyFee));
+
+        uint256 amount = 10000e6;
+        uint256 expectedFee = (amount * DEFAULT_FEE_BPS) / 10000;
+        uint256 feeBalBefore = originUSDC.balanceOf(address(routerOnlyFee));
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+
+        assertEq(
+            originUSDC.balanceOf(address(routerOnlyFee)),
             feeBalBefore + expectedFee
         );
     }
@@ -1033,6 +1074,55 @@ contract MultiCollateralTest is Test {
             feeBalBefore;
 
         assertEq(quotedFee, actualFee, "quote matches actual charge");
+    }
+
+    function test_routingFee_claim() public {
+        LinearFee linearFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6,
+            10000e6,
+            address(this)
+        );
+        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+            address(this)
+        );
+        uint32[] memory destinations = new uint32[](1);
+        bytes32[] memory targetRouters = new bytes32[](1);
+        address[] memory feeContracts = new address[](1);
+        destinations[0] = DESTINATION;
+        targetRouters[0] = address(usdtRouterB).addressToBytes32();
+        feeContracts[0] = address(linearFee5bps);
+        routingFee.setRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
+        );
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        uint256 amount = 10000e6;
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+
+        uint256 accrued = originUSDC.balanceOf(address(routingFee));
+        assertGt(accrued, 0, "expected accrued routing fee");
+        uint256 beneficiaryBefore = originUSDC.balanceOf(BOB);
+        routingFee.claim(BOB, address(originUSDC));
+        assertEq(originUSDC.balanceOf(address(routingFee)), 0);
+        assertEq(originUSDC.balanceOf(BOB), beneficiaryBefore + accrued);
+    }
+
+    function test_revert_routingFee_claim_nonOwner() public {
+        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+            address(this)
+        );
+        vm.prank(ALICE);
+        vm.expectRevert("Ownable: caller is not the owner");
+        routingFee.claim(ALICE, address(originUSDC));
     }
 
     // ============ Helpers ============

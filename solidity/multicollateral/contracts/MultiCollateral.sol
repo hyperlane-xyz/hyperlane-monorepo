@@ -229,6 +229,20 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     // ============ Cross-chain Transfer to Specific Router ============
 
     /**
+     * @notice Transfers tokens to the primary enrolled router for `_destination`.
+     * @dev Uses the enrolled primary remote router for `_destination` and routes through
+     * router-aware fee lookup (`IMultiCollateralFee`) via `transferRemoteTo`.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable override returns (bytes32 messageId) {
+        bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
+        return transferRemoteTo(_destination, _recipient, _amount, targetRouter);
+    }
+
+    /**
      * @notice Transfer tokens cross-chain to a specific target router.
      * @dev Follows TokenRouter.transferRemote() flow: fees → message → emit → dispatch.
      * Bypasses _Router_dispatch (which hardcodes the enrolled router) to dispatch

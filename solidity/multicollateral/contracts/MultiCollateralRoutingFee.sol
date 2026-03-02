@@ -4,6 +4,8 @@ pragma solidity >=0.8.0;
 import {IMultiCollateralFee} from "./interfaces/IMultiCollateralFee.sol";
 import {ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title MultiCollateralRoutingFee
@@ -11,6 +13,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * existing ITokenFee (3-param) fee contracts (LinearFee, ProgressiveFee, etc.).
  */
 contract MultiCollateralRoutingFee is IMultiCollateralFee, ITokenFee, Ownable {
+    using SafeERC20 for IERC20;
+
     /// @notice Sentinel key for destination-level default fee contracts.
     bytes32 public constant DEFAULT_ROUTER =
         keccak256("RoutingFee.DEFAULT_ROUTER");
@@ -49,6 +53,11 @@ contract MultiCollateralRoutingFee is IMultiCollateralFee, ITokenFee, Ownable {
                 _feeContracts[i]
             );
         }
+    }
+
+    function claim(address beneficiary, address token) external onlyOwner {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(beneficiary, balance);
     }
 
     /**
