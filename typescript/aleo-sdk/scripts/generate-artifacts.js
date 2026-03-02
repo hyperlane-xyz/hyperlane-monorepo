@@ -11,14 +11,26 @@ const outputFile = path.join(__dirname, '../src/artifacts.ts');
 
 const VERSION = 'v1.0.0';
 
+async function fetchWithRetry(url, options, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
+      return res;
+    } catch (e) {
+      if (i === attempts - 1) throw e;
+      const delay = 1000 * 2 ** i;
+      console.log(`Fetch attempt ${i + 1} failed, retrying in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 const main = async () => {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://github.com/hyperlane-xyz/hyperlane-aleo/releases/download/${VERSION}/programs.zip`,
-    {
-      cache: 'no-store',
-    },
+    { cache: 'no-store' },
   );
-  if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
 
   const buffer = Buffer.from(await res.arrayBuffer());
 

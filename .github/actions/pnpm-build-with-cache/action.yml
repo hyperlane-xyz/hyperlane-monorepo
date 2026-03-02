@@ -1,6 +1,12 @@
 name: 'PNPM Build with Cache'
 description: 'Run pnpm build using pnpm cache'
 
+inputs:
+  build-filter:
+    description: 'Optional turbo filter to scope the build (e.g. @hyperlane-xyz/cli...)'
+    required: false
+    default: ''
+
 runs:
   using: 'composite'
   steps:
@@ -25,4 +31,9 @@ runs:
 
     - name: Build
       shell: bash
-      run: pnpm run build
+      run: |
+        if [ -n "${{ inputs.build-filter }}" ]; then
+          pnpm exec turbo run build --filter='${{ inputs.build-filter }}'
+        else
+          pnpm run build
+        fi
