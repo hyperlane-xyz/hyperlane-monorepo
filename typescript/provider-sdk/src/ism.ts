@@ -440,6 +440,7 @@ export function ismConfigToArtifact(
     }
 
     return {
+      artifactState: ArtifactState.NEW,
       config: {
         type: 'domainRoutingIsm',
         owner: config.owner,

@@ -47,6 +47,7 @@ const OWNER_ADDRESS = 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5';
 const MAILBOX_ADDRESS =
   '0x68797065726c616e650000000000000000000000000000000000000000000000';
 const ISM_ADDRESS = '0x1234';
+const HOOK_ADDRESS = '0x5678';
 
 // Type-safe mock implementations
 type MockRawWarpWriter = ArtifactWriter<
@@ -177,7 +178,7 @@ describe('WarpTokenWriter', () => {
       chainLookup: mockChainLookup,
       signer: mockSigner,
       ismWriter: mockIsmWriter,
-      hookWriter: mockHookWriter,
+      hookWriterFactory: () => mockHookWriter,
     });
 
     // Default read stub - returns current config
@@ -483,6 +484,125 @@ describe('WarpTokenWriter', () => {
     });
   });
 
+  describe('update() - Hook Updates', () => {
+    const merkleTreeHookConfig: HookArtifactConfig = {
+      type: 'merkleTreeHook',
+    };
+
+    it('should deploy new hook when none existed before', async () => {
+      const configWithHook: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.NEW,
+          config: merkleTreeHookConfig,
+        },
+      };
+
+      const deployedHook: DeployedHookArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: merkleTreeHookConfig,
+        deployed: { address: HOOK_ADDRESS },
+      };
+
+      mockHookWriter.create.resolves([deployedHook, []]);
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub(),
+        update: Sinon.stub().resolves([
+          { annotation: 'Set hook', to: TOKEN_ADDRESS, data: '0x' },
+        ]),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: configWithHook,
+      };
+
+      const updateTxs = await writer.update(artifact);
+
+      expect(mockHookWriter.create.callCount).to.equal(1);
+      expect(updateTxs.length).to.be.greaterThan(0);
+    });
+
+    it('should skip hook deployment when hook is underived (address reference)', async () => {
+      const configWithUnderivedHook: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: HOOK_ADDRESS },
+        },
+      };
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub(),
+        update: Sinon.stub().resolves([]),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: configWithUnderivedHook,
+      };
+
+      await writer.update(artifact);
+
+      expect(mockHookWriter.create.called).to.be.false;
+      expect(mockHookWriter.update.called).to.be.false;
+    });
+
+    it('should handle hook + router updates in single call', async () => {
+      const configWithHookAndRouter: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.NEW,
+          config: merkleTreeHookConfig,
+        },
+        remoteRouters: {
+          ...actualConfig.remoteRouters,
+          [REMOTE_DOMAIN_ID_2]: { address: '0xNEWROUTER' },
+        },
+        destinationGas: {
+          ...actualConfig.destinationGas,
+          [REMOTE_DOMAIN_ID_2]: '300000',
+        },
+      };
+
+      const deployedHook: DeployedHookArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: merkleTreeHookConfig,
+        deployed: { address: HOOK_ADDRESS },
+      };
+
+      mockHookWriter.create.resolves([deployedHook, []]);
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub(),
+        update: Sinon.stub().resolves([
+          { annotation: 'Set hook', to: TOKEN_ADDRESS, data: '0x' },
+          { annotation: 'Enroll router', to: TOKEN_ADDRESS, data: '0x' },
+        ]),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: configWithHookAndRouter,
+      };
+
+      const updateTxs = await writer.update(artifact);
+
+      expect(mockHookWriter.create.callCount).to.equal(1);
+      expect(updateTxs.length).to.equal(2);
+    });
+  });
+
   describe('update() - Validation', () => {
     it('should reject changing token type', async () => {
       // Current artifact is collateral
@@ -772,6 +892,94 @@ describe('WarpTokenWriter', () => {
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
       expect(receipts).to.be.an('array');
+    });
+  });
+
+  describe('create() - Hook', () => {
+    const merkleTreeHookConfig: HookArtifactConfig = {
+      type: 'merkleTreeHook',
+    };
+
+    it('should deploy hook before warp token when hook is new', async () => {
+      const configWithHook: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.NEW,
+          config: merkleTreeHookConfig,
+        },
+      };
+
+      const hookReceipt: TxReceipt = { transactionHash: '0xHOOKTX' };
+      const deployedHook: DeployedHookArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: merkleTreeHookConfig,
+        deployed: { address: HOOK_ADDRESS },
+      };
+
+      mockHookWriter.create.resolves([deployedHook, [hookReceipt]]);
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub().resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: configWithHook,
+            deployed: { address: TOKEN_ADDRESS },
+          },
+          [],
+        ]),
+        update: Sinon.stub(),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: ArtifactNew<WarpArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: configWithHook,
+      };
+
+      const [deployed, receipts] = await writer.create(artifact);
+
+      expect(mockHookWriter.create.callCount).to.equal(1);
+      expect(receipts).to.include(hookReceipt);
+      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
+    });
+
+    it('should reuse hook address when hook is already deployed', async () => {
+      const configWithDeployedHook: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: merkleTreeHookConfig,
+          deployed: { address: HOOK_ADDRESS },
+        },
+      };
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub().resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: configWithDeployedHook,
+            deployed: { address: TOKEN_ADDRESS },
+          },
+          [],
+        ]),
+        update: Sinon.stub(),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: ArtifactNew<WarpArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: configWithDeployedHook,
+      };
+
+      const [deployed] = await writer.create(artifact);
+
+      expect(mockHookWriter.create.called).to.be.false;
+      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
     });
   });
 

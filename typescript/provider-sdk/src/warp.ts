@@ -281,7 +281,7 @@ export function warpConfigToArtifact(
         deployed: { address: config.hook },
       };
     } else {
-      // ISM config - convert using ismConfigToArtifact
+      // Hook config - convert using hookConfigToArtifact
       hookArtifact = hookConfigToArtifact(config.hook, chainLookup);
     }
   }

@@ -85,6 +85,7 @@ export class WarpTokenWriter
   implements ArtifactWriter<WarpArtifactConfig, DeployedWarpAddress>
 {
   protected readonly ismWriter: IsmWriter;
+  protected readonly hookWriterFactory: (mailbox: string) => HookWriter;
 
   constructor(
     protected readonly artifactManager: IRawWarpArtifactManager,
@@ -94,12 +95,8 @@ export class WarpTokenWriter
   ) {
     super(artifactManager, chainMetadata, chainLookup);
     this.ismWriter = createIsmWriter(chainMetadata, chainLookup, signer);
-  }
-
-  protected getHookWriter(mailbox: string): HookWriter {
-    return createHookWriter(this.chainMetadata, this.chainLookup, this.signer, {
-      mailbox,
-    });
+    this.hookWriterFactory = (mailbox) =>
+      createHookWriter(chainMetadata, chainLookup, signer, { mailbox });
   }
 
   /**
@@ -143,7 +140,7 @@ export class WarpTokenWriter
       | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
     if (config.hook) {
-      const hookWriter = this.getHookWriter(config.mailbox);
+      const hookWriter = this.hookWriterFactory(config.mailbox);
       if (isArtifactNew(config.hook)) {
         const [deployedHook, hookReceipts] = await hookWriter.create(
           config.hook,
@@ -272,7 +269,7 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedHook && !isArtifactUnderived(expectedHook)) {
-      const hookWriter = this.getHookWriter(config.mailbox);
+      const hookWriter = this.hookWriterFactory(config.mailbox);
 
       // NEW or DEPLOYED: Merge with current and decide deploy vs update
       const mergedHookConfig = mergeHookArtifacts(currentHook, expectedHook);

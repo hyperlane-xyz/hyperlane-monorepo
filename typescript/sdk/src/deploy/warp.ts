@@ -129,7 +129,7 @@ export async function executeWarpDeploy(
       (
         chainName,
         config,
-      ): config is WarpRouteDeployConfigMailboxRequired['string'] =>
+      ): config is WarpRouteDeployConfigMailboxRequired[string] =>
         multiProvider.getProtocol(chainName) === protocol &&
         !config.foreignDeployment,
     );
