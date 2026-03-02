@@ -278,9 +278,11 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             // Same-domain: call target router's handle directly
             address target = _targetRouter.bytes32ToAddress();
             require(target.code.length > 0, "MC: target router not contract");
-            MultiCollateral(target).handle{
-                value: remainingValue
-            }(localDomain, TypeCasts.addressToBytes32(address(this)), tokenMsg);
+            MultiCollateral(target).handle{value: remainingValue}(
+                localDomain,
+                TypeCasts.addressToBytes32(address(this)),
+                tokenMsg
+            );
         } else {
             messageId = mailbox.dispatch{value: remainingValue}(
                 _destination,
