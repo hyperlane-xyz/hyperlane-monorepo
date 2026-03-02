@@ -81,7 +81,7 @@ describe('CallCommitmentsService.handleCommitment input validation', () => {
   test('normalizeCalls throws on malformed address that bypasses schema', () => {
     expect(() => {
       normalizeCalls([{ to: 'not-an-address', data: '0x', value: '0' }]);
-    }).toThrow();
+    }).toThrow('address bytes must not be empty');
   });
 
   test('commitmentFromIcaCalls works with valid normalized calls', () => {
