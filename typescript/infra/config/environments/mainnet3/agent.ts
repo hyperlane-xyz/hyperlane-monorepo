@@ -728,10 +728,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       matchingList: routerMatchingList(merklyEthAddresses),
     },
     {
-      name: 'merkly_nft',
-      matchingList: routerMatchingList(merklyNftAddresses),
-    },
-    {
       name: 'velo_message_module',
       // Almost all messages to / from this address relate to the Velo Message Module.
       // The only exception is Metal, which had an initial misconfiguration that the Velo
