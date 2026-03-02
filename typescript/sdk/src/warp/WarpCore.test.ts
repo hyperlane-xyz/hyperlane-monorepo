@@ -678,6 +678,48 @@ describe('WarpCore', () => {
     }
   });
 
+  it('uses quoted interchain fee token for MultiCollateral estimateTransferRemoteFees', async () => {
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationMultiStub = sinon
+      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .returns(true);
+    const quoteTransferRemoteToGas = sinon.stub().resolves({
+      igpQuote: {
+        amount: 42n,
+        addressOrDenom: evmHypNative.addressOrDenom,
+      },
+    });
+    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
+      quoteTransferRemoteToGas,
+    } as any);
+    const localFeeAmountStub = sinon
+      .stub(warpCore as any, 'getLocalTransferFeeAmount')
+      .resolves(evmHypNative.amount(7n));
+
+    try {
+      const quote = await warpCore.estimateTransferRemoteFees({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        destinationToken: evmHypSynthetic,
+      });
+
+      expect(quote.interchainQuote.amount).to.equal(42n);
+      expect(quote.interchainQuote.token.addressOrDenom).to.equal(
+        evmHypNative.addressOrDenom,
+      );
+      expect(quote.localQuote.amount).to.equal(7n);
+    } finally {
+      localFeeAmountStub.restore();
+      adapterStub.restore();
+      destinationMultiStub.restore();
+      originMultiStub.restore();
+    }
+  });
+
   it('Rejects non-connected destination token for MultiCollateral fee quote', async () => {
     const originMultiStub = sinon
       .stub(evmHypNative, 'isMultiCollateralToken')

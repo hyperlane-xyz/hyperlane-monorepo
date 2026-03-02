@@ -454,11 +454,16 @@ export class EvmWarpModule extends HyperlaneModule<
 
     for (const [domain, expectedRouters] of Object.entries(expectedEnrolled)) {
       const domainId = Number(domain);
-      const actualRouters = new Set(actualEnrolled[domainId] ?? []);
+      const actualRouters = new Set(
+        (actualEnrolled[domainId] ?? []).map((router) =>
+          this.toCanonicalRouterId(router),
+        ),
+      );
       for (const router of expectedRouters) {
-        if (!actualRouters.has(router)) {
+        const canonicalRouter = this.toCanonicalRouterId(router);
+        if (!actualRouters.has(canonicalRouter)) {
           domainsToEnroll.push(domainId);
-          routersToEnroll.push(router);
+          routersToEnroll.push(canonicalRouter);
         }
       }
     }
@@ -508,11 +513,16 @@ export class EvmWarpModule extends HyperlaneModule<
 
     for (const [domain, actualRouters] of Object.entries(actualEnrolled)) {
       const domainId = Number(domain);
-      const expectedRouters = new Set(expectedEnrolled[domainId] ?? []);
+      const expectedRouters = new Set(
+        (expectedEnrolled[domainId] ?? []).map((router) =>
+          this.toCanonicalRouterId(router),
+        ),
+      );
       for (const router of actualRouters) {
-        if (!expectedRouters.has(router)) {
+        const canonicalRouter = this.toCanonicalRouterId(router);
+        if (!expectedRouters.has(canonicalRouter)) {
           domainsToUnenroll.push(domainId);
-          routersToUnenroll.push(router);
+          routersToUnenroll.push(canonicalRouter);
         }
       }
     }
@@ -532,6 +542,13 @@ export class EvmWarpModule extends HyperlaneModule<
         ),
       },
     ];
+  }
+
+  private toCanonicalRouterId(router: string): string {
+    if (router.length === 42) {
+      return addressToBytes32(router.toLowerCase());
+    }
+    return router.toLowerCase();
   }
 
   async getAllowedBridgesApprovalTxs(

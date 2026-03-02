@@ -898,9 +898,12 @@ describe('EvmWarpModule', async () => {
 
     it('normalizes chain-name enrolledRouters keys for multicollateral enroll/unenroll txs', async () => {
       const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
-      const keepRouter = addressToBytes32(randomAddress());
-      const addRouter = addressToBytes32(randomAddress());
-      const removeRouter = addressToBytes32(randomAddress());
+      const keepRouterAddress = '0x1111111111111111111111111111111111111111';
+      const keepRouter = addressToBytes32(keepRouterAddress);
+      const addRouterAddress = '0x2222222222222222222222222222222222222222';
+      const addRouter = addressToBytes32(addRouterAddress);
+      const removeRouterAddress = '0x3333333333333333333333333333333333333333';
+      const removeRouter = addressToBytes32(removeRouterAddress);
 
       const module = new EvmWarpModule(multiProvider, {
         chain,
@@ -929,7 +932,7 @@ describe('EvmWarpModule', async () => {
         type: TokenType.multiCollateral,
         token: token.address,
         enrolledRouters: {
-          [TestChainName.test2]: [keepRouter, addRouter],
+          [TestChainName.test2]: [keepRouterAddress.toUpperCase(), addRouter],
         },
       } as HypTokenRouterConfig;
 

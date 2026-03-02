@@ -768,55 +768,21 @@ export class WarpCore {
     senderPubKey?: HexString;
   }): Promise<WarpCoreFeeEstimate> {
     const { token: originToken } = originTokenAmount;
-    const destinationName = this.multiProvider.getChainName(destination);
     const resolvedDestinationToken = this.resolveDestinationToken({
       originToken,
       destination,
       destinationToken,
     });
 
-    const originMetadata = this.multiProvider.getChainMetadata(
-      originToken.chainName,
-    );
-    const localGasToken = Token.FromChainMetadataNativeToken(originMetadata);
-
-    // Quote from contract (works for both same-chain and cross-chain)
-    assert(
-      originToken.collateralAddressOrDenom,
-      'Origin token missing collateralAddressOrDenom',
-    );
-    assert(
-      resolvedDestinationToken.addressOrDenom,
-      'Destination token missing addressOrDenom',
-    );
-
-    const adapter = originToken.getHypAdapter(
-      this.multiProvider,
-      destinationName,
-    ) as EvmHypMultiCollateralAdapter;
-
-    const destinationDomainId = this.multiProvider.getDomainId(destination);
-    const { igpQuote, tokenFeeQuote: rawTokenFeeQuote } =
-      await adapter.quoteTransferRemoteToGas({
-        destination: destinationDomainId,
+    const { igpQuote: interchainQuote, tokenFeeQuote } =
+      await this.getInterchainTransferFee({
+        originTokenAmount,
+        destination,
+        sender,
         recipient,
-        amount: originTokenAmount.amount,
-        targetRouter: resolvedDestinationToken.addressOrDenom,
+        destinationToken: resolvedDestinationToken,
       });
 
-    let tokenFeeQuote: TokenAmount | undefined;
-    if (rawTokenFeeQuote?.amount) {
-      if (
-        !rawTokenFeeQuote.addressOrDenom ||
-        isZeroishAddress(rawTokenFeeQuote.addressOrDenom)
-      ) {
-        tokenFeeQuote = localGasToken.amount(rawTokenFeeQuote.amount);
-      } else {
-        tokenFeeQuote = originToken.amount(rawTokenFeeQuote.amount);
-      }
-    }
-
-    const interchainQuote = localGasToken.amount(igpQuote.amount);
     const localQuote = await this.getLocalTransferFeeAmount({
       originToken,
       destination,

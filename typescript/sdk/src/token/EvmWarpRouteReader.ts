@@ -1142,11 +1142,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [collateralTokenAddress, remoteDomains, localDomain] =
+    const [collateralTokenAddress, remoteDomains, localDomain, scale] =
       await Promise.all([
         mc.wrappedToken(),
         tokenRouter.domains(),
         mc.localDomain(),
+        this.fetchScale(hypTokenAddress),
       ]);
 
     const erc20TokenMetadata = await this.fetchERC20Metadata(
@@ -1170,6 +1171,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ...erc20TokenMetadata,
       type: TokenType.multiCollateral,
       token: collateralTokenAddress,
+      scale,
       enrolledRouters:
         Object.keys(enrolledRouters).length > 0 ? enrolledRouters : undefined,
     };

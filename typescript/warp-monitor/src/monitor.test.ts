@@ -15,13 +15,15 @@ import {
 } from './metrics.js';
 import { WarpMonitor } from './monitor.js';
 
+type TokenLike = Pick<Token, 'isCollateralized' | 'amount' | 'getAdapter'>;
+
 function createMockToken({
   collateralized,
   decimals,
 }: {
   collateralized: boolean;
   decimals: number;
-}): Token {
+}): TokenLike {
   return {
     isCollateralized: () => collateralized,
     amount: (amount: bigint) => ({
@@ -30,7 +32,7 @@ function createMockToken({
     getAdapter: () => ({
       getBalance: async () => 0n,
     }),
-  } as unknown as Token;
+  };
 }
 
 async function invokeUpdatePendingAndInventoryMetrics(
@@ -43,19 +45,19 @@ async function invokeUpdatePendingAndInventoryMetrics(
   explorerQueryLimit?: number,
   inventoryAddress?: string,
 ) {
-  await (
-    monitor as unknown as {
-      updatePendingAndInventoryMetrics: (
-        warpCore: WarpCore,
-        routerNodes: RouterNodeMetadata[],
-        collateralByNodeId: Map<string, bigint>,
-        warpRouteId: string,
-        pendingTransfersClient?: ExplorerPendingTransfersClient,
-        explorerQueryLimit?: number,
-        inventoryAddress?: string,
-      ) => Promise<void>;
-    }
-  ).updatePendingAndInventoryMetrics(
+  const updatePendingAndInventoryMetrics = (monitor as any)
+    .updatePendingAndInventoryMetrics as (
+    warpCore: WarpCore,
+    routerNodes: RouterNodeMetadata[],
+    collateralByNodeId: Map<string, bigint>,
+    warpRouteId: string,
+    pendingTransfersClient?: ExplorerPendingTransfersClient,
+    explorerQueryLimit?: number,
+    inventoryAddress?: string,
+  ) => Promise<void>;
+
+  await updatePendingAndInventoryMetrics.call(
+    monitor,
     warpCore,
     routerNodes,
     collateralByNodeId,
@@ -96,7 +98,7 @@ describe('WarpMonitor', () => {
         token: createMockToken({
           collateralized: true,
           decimals: 6,
-        }) as unknown as Token,
+        }) as Token,
       },
       {
         nodeId: nonCollateralizedNodeId,
@@ -110,7 +112,7 @@ describe('WarpMonitor', () => {
         token: createMockToken({
           collateralized: false,
           decimals: 6,
-        }) as unknown as Token,
+        }) as Token,
       },
     ];
 

@@ -27,6 +27,7 @@ import {
   type MultisigIsmConfig,
   type OpStackIsmConfig,
   type PausableIsmConfig,
+  type HypTokenRouterConfig,
   type RoutingIsmConfig,
   type SubmissionStrategy,
   type TokenMetadataMap,
@@ -36,6 +37,7 @@ import {
   type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
+  type WarpRouteDeployConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   TokenStandard,
@@ -269,11 +271,10 @@ export async function runWarpRouteDeploy({
     warpRouteIdOptions = addWarpRouteOptions;
   }
 
-  await writeDeploymentArtifacts(
-    warpCoreConfig,
-    context,
-    warpRouteIdOptions,
+  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
+  await context.registry.addWarpRouteConfig(
     warpDeployConfig,
+    warpRouteIdOptions,
   );
 
   await completeDeploy(
@@ -333,19 +334,9 @@ async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
   addWarpRouteOptions?: AddWarpRouteConfigOptions,
-  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired,
 ) {
   log('Writing deployment artifacts...');
   await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
-
-  // Save deploy config so `warp combine` can read it later
-  if (warpDeployConfig && addWarpRouteOptions) {
-    await context.registry.addWarpRouteConfig(
-      warpDeployConfig,
-      addWarpRouteOptions,
-    );
-  }
-
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
@@ -718,14 +709,17 @@ export async function extendWarpRoute(
     };
   }
 
+  const warpRouteOptions = params.warpRouteId
+    ? { warpRouteId: params.warpRouteId }
+    : addWarpRouteOptions;
+
   // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
-    params.warpRouteId
-      ? { warpRouteId: params.warpRouteId }
-      : addWarpRouteOptions,
+    warpRouteOptions,
   );
+  await context.registry.addWarpRouteConfig(warpDeployConfig, warpRouteOptions);
 
   // Throw after persisting successes so user can re-run for failures
   if (allRejected.size > 0) {
@@ -1261,7 +1255,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 type CombineRouteConfig = {
   id: string;
   coreConfig: WarpCoreConfig;
-  deployConfig: WarpRouteDeployConfigMailboxRequired;
+  deployConfig: WarpRouteDeployConfig;
 };
 
 type CanonicalWholeTokenRatio = {
@@ -1354,6 +1348,14 @@ export async function runWarpRouteCombine({
   outputWarpRouteId: string;
 }): Promise<void> {
   assert(routeIds.length >= 2, 'At least 2 route IDs are required to combine');
+  assert(
+    routeIds.every((id) => id.length > 0),
+    'Route IDs must be non-empty strings',
+  );
+  assert(
+    new Set(routeIds).size === routeIds.length,
+    'Duplicate route IDs are not allowed',
+  );
 
   // 1. Read each route's WarpCoreConfig and deploy config
   const routes: CombineRouteConfig[] = [];
@@ -1361,12 +1363,12 @@ export async function runWarpRouteCombine({
   for (const id of routeIds) {
     const coreConfig = await context.registry.getWarpRoute(id);
     assert(coreConfig, `Warp route "${id}" not found in registry`);
-    const deployConfig = await context.registry.getWarpDeployConfig(id);
-    assert(deployConfig, `Deploy config for "${id}" not found in registry`);
+    const deployConfigRaw = await context.registry.getWarpDeployConfig(id);
+    const deployConfig = WarpRouteDeployConfigSchema.parse(deployConfigRaw);
     routes.push({
       id,
       coreConfig,
-      deployConfig: deployConfig as WarpRouteDeployConfigMailboxRequired,
+      deployConfig,
     });
   }
 
@@ -1374,7 +1376,9 @@ export async function runWarpRouteCombine({
 
   // 2. For each route, update enrolledRouters with routers from other routes
   for (const route of routes) {
-    for (const [chain, chainConfig] of Object.entries(route.deployConfig)) {
+    for (const [chain, chainConfig] of Object.entries(
+      route.deployConfig,
+    ) as Array<[string, HypTokenRouterConfig]>) {
       if (!isMultiCollateralTokenConfig(chainConfig)) continue;
 
       const enrolledRouters: Record<string, Set<string>> = {};
@@ -1420,7 +1424,7 @@ export async function runWarpRouteCombine({
         );
       }
 
-      (route.deployConfig[chain] as any).enrolledRouters =
+      chainConfig.enrolledRouters =
         Object.keys(reconciledEnrolledRouters).length > 0
           ? reconciledEnrolledRouters
           : undefined;

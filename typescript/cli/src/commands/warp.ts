@@ -211,7 +211,14 @@ const combine: CommandModuleWithWriteContext<{
   handler: async ({ context, routes, 'output-warp-route-id': outputId }) => {
     logCommandHeader('Hyperlane Warp Combine');
 
-    const routeIds = routes.split(',').map((r) => r.trim());
+    const routeIds = routes
+      .split(',')
+      .map((r) => r.trim())
+      .filter((r) => r.length > 0);
+    assert(
+      routeIds.length >= 2,
+      'At least 2 route IDs are required to combine',
+    );
     await runWarpRouteCombine({
       context,
       routeIds,

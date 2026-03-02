@@ -105,6 +105,7 @@ describe('runWarpRouteCombine', () => {
       deployConfig: {
         anvil2: {
           type: TokenType.multiCollateral,
+          owner: ROUTER_A,
           token: ROUTER_A,
           enrolledRouters: {
             [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_C)],
@@ -126,6 +127,7 @@ describe('runWarpRouteCombine', () => {
       deployConfig: {
         anvil3: {
           type: TokenType.multiCollateral,
+          owner: ROUTER_B,
           token: ROUTER_B,
         },
       },
@@ -159,6 +161,36 @@ describe('runWarpRouteCombine', () => {
     });
   });
 
+  it('rejects duplicate route IDs', async () => {
+    let thrown: Error | undefined;
+    try {
+      await runWarpRouteCombine({
+        context: {} as any,
+        routeIds: ['route-a', 'route-a'],
+        outputWarpRouteId: 'MULTI/test',
+      });
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    expect(thrown?.message).to.include('Duplicate route IDs are not allowed');
+  });
+
+  it('rejects empty route IDs', async () => {
+    let thrown: Error | undefined;
+    try {
+      await runWarpRouteCombine({
+        context: {} as any,
+        routeIds: ['route-a', ''],
+        outputWarpRouteId: 'MULTI/test',
+      });
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    expect(thrown?.message).to.include('Route IDs must be non-empty strings');
+  });
+
   it('rejects routes that are not MultiCollateral', async () => {
     const routeA = {
       coreConfig: {
@@ -174,6 +206,7 @@ describe('runWarpRouteCombine', () => {
       deployConfig: {
         anvil2: {
           type: TokenType.multiCollateral,
+          owner: ROUTER_A,
           token: ROUTER_A,
         },
       },
@@ -195,6 +228,7 @@ describe('runWarpRouteCombine', () => {
       deployConfig: {
         anvil3: {
           type: TokenType.collateral,
+          owner: ROUTER_B,
           token: ROUTER_B,
         },
       },
@@ -237,6 +271,7 @@ describe('runWarpRouteCombine', () => {
       deployConfig: {
         anvil2: {
           type: TokenType.multiCollateral,
+          owner: ROUTER_A,
           token: ROUTER_A,
           scale: 1_000_000_000_000,
         },
@@ -257,6 +292,7 @@ describe('runWarpRouteCombine', () => {
       deployConfig: {
         anvil2: {
           type: TokenType.multiCollateral,
+          owner: ROUTER_B,
           token: ROUTER_B,
           scale: 2,
         },
