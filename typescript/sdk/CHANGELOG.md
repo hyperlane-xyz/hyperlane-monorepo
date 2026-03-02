@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 25.4.1
+
+### Patch Changes
+
+- 5a7efbb: Fixed `getHypAdapter` to handle `EvmNative` tokens with warp connections by returning `EvmHypNativeAdapter`, enabling cross-chain transfers for mint/burn native gas tokens. Also fixed gas estimation in `WarpCore.getLocalTransferFee` to use a decimal-aware amount that survives on-chain truncation between chains with different decimals.
+  - @hyperlane-xyz/aleo-sdk@25.4.1
+  - @hyperlane-xyz/starknet-core@25.4.1
+  - @hyperlane-xyz/cosmos-sdk@25.4.1
+  - @hyperlane-xyz/radix-sdk@25.4.1
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/deploy-sdk@1.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+  - @hyperlane-xyz/tron-sdk@21.1.4
+  - @hyperlane-xyz/core@11.0.1
+
 ## 25.4.0
 
 ### Minor Changes
