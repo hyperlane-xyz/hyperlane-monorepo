@@ -80,10 +80,19 @@ export class CallCommitmentsService extends BaseService {
     const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
 
-    const commitment = commitmentFromIcaCalls(
-      normalizeCalls(data.calls),
-      data.salt,
-    );
+    let commitment: string;
+    try {
+      commitment = commitmentFromIcaCalls(
+        normalizeCalls(data.calls),
+        data.salt,
+      );
+    } catch (error: any) {
+      logger.warn(
+        { error: error.message, calls: data.calls },
+        'Invalid call data',
+      );
+      return res.status(400).json({ error: 'Invalid call data' });
+    }
     logger.setBindings({ commitment });
 
     logger.info(

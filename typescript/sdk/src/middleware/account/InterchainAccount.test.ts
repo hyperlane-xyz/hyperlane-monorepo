@@ -10,6 +10,81 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
+import { PostCallsSchema } from './InterchainAccount.js';
+
+const validPayload = (overrides: Record<string, any> = {}) => ({
+  calls: [
+    {
+      to: '0x' + 'ab'.repeat(20),
+      data: '0x',
+      value: '0',
+    },
+  ],
+  relayers: ['0x' + 'cd'.repeat(20)],
+  salt: '0x' + '00'.repeat(32),
+  commitmentDispatchTx: '0x' + 'ef'.repeat(32),
+  originDomain: 1,
+  ...overrides,
+});
+
+describe('PostCallsSchema', () => {
+  it('accepts valid EVM address', () => {
+    const result = PostCallsSchema.safeParse(validPayload());
+    expect(result.success).to.be.true;
+  });
+
+  it('accepts valid bytes32 address', () => {
+    const result = PostCallsSchema.safeParse(
+      validPayload({
+        calls: [{ to: '0x' + 'ab'.repeat(32), data: '0x', value: '0' }],
+      }),
+    );
+    expect(result.success).to.be.true;
+  });
+
+  it('rejects empty string to address', () => {
+    const result = PostCallsSchema.safeParse(
+      validPayload({
+        calls: [{ to: '', data: '0x', value: '0' }],
+      }),
+    );
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects URL as to address', () => {
+    const result = PostCallsSchema.safeParse(
+      validPayload({
+        calls: [{ to: 'http://evil.com', data: '0x', value: '0' }],
+      }),
+    );
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects SQL injection in to address', () => {
+    const result = PostCallsSchema.safeParse(
+      validPayload({
+        calls: [{ to: "'; DROP TABLE--", data: '0x', value: '0' }],
+      }),
+    );
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects prototype pollution in to address', () => {
+    const result = PostCallsSchema.safeParse(
+      validPayload({
+        calls: [{ to: '__proto__', data: '0x', value: '0' }],
+      }),
+    );
+    expect(result.success).to.be.false;
+  });
+
+  it('rejects invalid relayer address', () => {
+    const result = PostCallsSchema.safeParse(
+      validPayload({ relayers: ['not-an-address'] }),
+    );
+    expect(result.success).to.be.false;
+  });
+});
 
 describe('InterchainAccount.getCallRemote', () => {
   const defaultGasLimit = BigNumber.from(50_000);
