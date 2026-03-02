@@ -1,5 +1,4 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import type { Request, Response } from 'express';
 
 import {
   PostCallsSchema,
@@ -9,44 +8,77 @@ import {
 
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService';
 
-// Minimal mock request/response for testing handleCommitment
-function mockReqRes(body: any) {
-  const req = {
-    body,
-    log: {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      setBindings: jest.fn(),
-      child: jest.fn().mockReturnThis(),
-    },
-  } as unknown as Request;
+function mockLogger() {
+  return {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    setBindings: jest.fn(),
+    child: jest.fn().mockReturnThis(),
+  };
+}
 
-  const json = jest.fn().mockReturnThis();
+function mockRes() {
+  const json = jest.fn();
   const status = jest.fn().mockReturnValue({ json });
   const sendStatus = jest.fn();
-  const res = { status, json, sendStatus } as unknown as Response;
-
-  return { req, res, status, json };
+  return { status, json, sendStatus };
 }
 
 describe('CallCommitmentsService.handleCommitment input validation', () => {
-  test('returns 400 for invalid to address via schema', () => {
-    const body = {
-      calls: [{ to: '', data: '0x', value: '0' }],
-      relayers: ['0x' + 'ab'.repeat(20)],
+  test('returns 400 when schema rejects invalid to address', async () => {
+    const logger = mockLogger();
+    const service = Object.create(CallCommitmentsService.prototype);
+    service.addLoggerServiceContext = () => logger;
+
+    const req = {
+      body: {
+        calls: [{ to: '', data: '0x', value: '0' }],
+        relayers: ['0x' + 'ab'.repeat(20)],
+        salt: '0x' + '00'.repeat(32),
+        commitmentDispatchTx: '0x' + 'ef'.repeat(32),
+        originDomain: 1,
+      },
+      log: logger,
+    };
+    const res = mockRes();
+
+    await service.handleCommitment(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  test('PostCallsSchema rejects malicious input', () => {
+    const base = {
+      calls: [{ to: '0x' + 'ab'.repeat(20), data: '0x', value: '0' }],
+      relayers: ['0x' + 'cd'.repeat(20)],
       salt: '0x' + '00'.repeat(32),
       commitmentDispatchTx: '0x' + 'ef'.repeat(32),
       originDomain: 1,
     };
 
-    // Schema should reject before reaching normalizeCalls
-    const result = PostCallsSchema.safeParse(body);
-    expect(result.success).toBe(false);
+    // Empty string
+    expect(
+      PostCallsSchema.safeParse({
+        ...base,
+        calls: [{ to: '', data: '0x', value: '0' }],
+      }).success,
+    ).toBe(false);
+
+    // URL
+    expect(
+      PostCallsSchema.safeParse({
+        ...base,
+        calls: [{ to: 'http://evil.com', data: '0x', value: '0' }],
+      }).success,
+    ).toBe(false);
+
+    // Valid address passes
+    expect(PostCallsSchema.safeParse(base).success).toBe(true);
   });
 
   test('normalizeCalls throws on malformed address that bypasses schema', () => {
-    // Defense-in-depth: even if schema were loosened, normalizeCalls should throw
     expect(() => {
       normalizeCalls([{ to: 'not-an-address', data: '0x', value: '0' }]);
     }).toThrow();
