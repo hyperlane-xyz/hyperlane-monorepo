@@ -344,6 +344,67 @@ describe('Token', () => {
         'not applicable to hyp adapter',
       );
     });
+
+    it('throws for EvmNative with IBC connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+      const remoteToken = new Token({
+        chainName: testCosmosChain.name,
+        standard: TokenStandard.CosmosIbc,
+        addressOrDenom: 'ibc/1234',
+        decimals: 6,
+        symbol: 'TIA',
+        name: 'TIA',
+      });
+      evmNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Ibc,
+        sourcePort: 'transfer',
+        sourceChannel: 'channel-0',
+      });
+
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+        'not applicable to hyp adapter',
+      );
+    });
+
+    it('throws for EvmNative with chain not in multiProvider', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token({
+        chainName: 'nonexistent',
+        standard: TokenStandard.EvmNative,
+        addressOrDenom: '0x0000000000000000000000000000000000000000',
+        decimals: 18,
+        symbol: 'ETH',
+        name: 'Ether',
+      });
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 18,
+        symbol: 'ETH',
+        name: 'Ether',
+      });
+      evmNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Hyperlane,
+      });
+
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+        'not found in multiProvider',
+      );
+    });
   });
 
   describe('isFungibleWith', () => {
