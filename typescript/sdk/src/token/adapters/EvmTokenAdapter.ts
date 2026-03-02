@@ -781,6 +781,10 @@ abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
     );
   }
 
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.hypXERC20Lockbox.wrappedToken();
+  }
+
   /**
    * Note this may be inaccurate, as this returns the balance
    * of the lockbox contract, which may be used by other bridges.
