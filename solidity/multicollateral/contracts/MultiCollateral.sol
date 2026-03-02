@@ -232,6 +232,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
      * @notice Transfers tokens to the primary enrolled router for `_destination`.
      * @dev Uses the enrolled primary remote router for `_destination` and routes through
      * router-aware fee lookup (`IMultiCollateralFee`) via `transferRemoteTo`.
+     * @dev This override is required because TokenRouter's `_feeRecipientAndAmount`
+     * is non-virtual and hardcodes `ITokenFee`. Delegating through
+     * `transferRemoteTo` keeps both transfer paths on `IMultiCollateralFee`.
      */
     function transferRemote(
         uint32 _destination,
