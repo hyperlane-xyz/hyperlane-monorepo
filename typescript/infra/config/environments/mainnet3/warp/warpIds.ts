@@ -137,4 +137,10 @@ export enum WarpRouteIds {
 
   // Aleo
   AleoUSDC = 'USDC/aleo',
+  AleoUSDT = 'USDT/aleo',
+  AleoETH = 'ETH/aleo',
+  AleoWBTC = 'WBTC/aleo',
+  AleoSOL = 'SOL/aleo',
+  AleoUSAD = 'USAD/aleo',
+  AleoALEO = 'ALEO/aleo',
 }
