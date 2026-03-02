@@ -30,7 +30,7 @@ env:
 
 jobs:
   rebalancer-e2e-test:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6

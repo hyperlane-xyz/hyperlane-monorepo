@@ -4,32 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - 'typescript/**'
-      - 'solidity/**'
-      - 'starknet/**'
-      - 'scripts/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'package.json'
-      - 'patches/**'
-      - 'turbo.json'
-      - '.dockerignore'
-      - '.github/workflows/node-services-docker.yml'
-      - 'solidity/.foundryrc'
       - 'typescript/Dockerfile.node-service'
       - 'typescript/docker-bake.hcl'
+      - '.dockerignore'
+      - '.github/workflows/node-services-docker.yml'
+      - 'pnpm-lock.yaml'
   pull_request:
     paths:
-      - 'typescript/rebalancer/**'
-      - 'typescript/warp-monitor/**'
-      - 'typescript/ccip-server/**'
-      - 'typescript/keyfunder/**'
-      - 'typescript/relayer/**'
       - 'typescript/Dockerfile.node-service'
-      - 'pnpm-lock.yaml'
+      - 'typescript/docker-bake.hcl'
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
-      - 'typescript/docker-bake.hcl'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
     inputs:
       include_arm64:
