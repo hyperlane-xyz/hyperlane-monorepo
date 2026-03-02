@@ -73,12 +73,14 @@ jobs:
           echo "TAG_SHA_DATE=${TAG_SHA}-${TAG_DATE}" >> $GITHUB_OUTPUT
 
           # Determine primary tag based on event type
+          # Replace forward slashes with dashes for Docker tag compatibility
+          SANITIZED_REF=$(echo '${{ github.ref_name }}' | tr '/' '-')
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "TAG=${SANITIZED_REF}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "TAG=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           else
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "TAG=${SANITIZED_REF}" >> $GITHUB_OUTPUT
           fi
 
           # Determine platforms
