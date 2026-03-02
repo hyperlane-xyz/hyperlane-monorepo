@@ -86,9 +86,12 @@ export class CallCommitmentsService extends BaseService {
         normalizeCalls(data.calls),
         data.salt,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.warn(
-        { error: error.message, calls: data.calls },
+        {
+          error: error instanceof Error ? error.message : error,
+          calls: data.calls,
+        },
         'Invalid call data',
       );
       return res.status(400).json({ error: 'Invalid call data' });
