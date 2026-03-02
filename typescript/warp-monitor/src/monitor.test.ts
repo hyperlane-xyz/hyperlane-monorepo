@@ -15,24 +15,24 @@ import {
 } from './metrics.js';
 import { WarpMonitor } from './monitor.js';
 
-type TokenLike = Pick<Token, 'isCollateralized' | 'amount' | 'getAdapter'>;
-
 function createMockToken({
   collateralized,
   decimals,
+  getBalance = async () => 0n,
 }: {
   collateralized: boolean;
   decimals: number;
-}): TokenLike {
+  getBalance?: () => Promise<bigint>;
+}): Token {
   return {
     isCollateralized: () => collateralized,
-    amount: (amount: bigint) => ({
+    amount: ((amount: bigint) => ({
       getDecimalFormattedAmount: () => Number(amount) / 10 ** decimals,
-    }),
-    getAdapter: () => ({
-      getBalance: async () => 0n,
-    }),
-  };
+    })) as Token['amount'],
+    getAdapter: (() => ({
+      getBalance,
+    })) as unknown as Token['getAdapter'],
+  } as Token;
 }
 
 async function invokeUpdatePendingAndInventoryMetrics(
@@ -98,7 +98,7 @@ describe('WarpMonitor', () => {
         token: createMockToken({
           collateralized: true,
           decimals: 6,
-        }) as Token,
+        }),
       },
       {
         nodeId: nonCollateralizedNodeId,
@@ -112,7 +112,7 @@ describe('WarpMonitor', () => {
         token: createMockToken({
           collateralized: false,
           decimals: 6,
-        }) as Token,
+        }),
       },
     ];
 
@@ -214,17 +214,13 @@ describe('WarpMonitor', () => {
         tokenName: 'Collateral Token',
         tokenSymbol: 'COLLAT',
         tokenDecimals: 6,
-        token: {
-          isCollateralized: () => true,
-          amount: (amount: bigint) => ({
-            getDecimalFormattedAmount: () => Number(amount) / 10 ** 6,
-          }),
-          getAdapter: () => ({
-            getBalance: async () => {
-              throw new Error('rpc down');
-            },
-          }),
-        } as unknown as Token,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async () => {
+            throw new Error('rpc down');
+          },
+        }),
       },
     ];
 
@@ -279,15 +275,11 @@ describe('WarpMonitor', () => {
         tokenName: 'Collateral Token',
         tokenSymbol: 'COLLAT',
         tokenDecimals: 6,
-        token: {
-          isCollateralized: () => true,
-          amount: (amount: bigint) => ({
-            getDecimalFormattedAmount: () => Number(amount) / 10 ** 6,
-          }),
-          getAdapter: () => ({
-            getBalance: async () => 1_000_000n,
-          }),
-        } as unknown as Token,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async () => 1_000_000n,
+        }),
       },
     ];
 

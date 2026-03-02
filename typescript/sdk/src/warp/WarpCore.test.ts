@@ -378,8 +378,12 @@ describe('WarpCore', () => {
       Object.values(invalidCollateralXERC20LockboxToken || {})[0],
     ).to.equal('Insufficient collateral on destination');
 
-    balanceStubs.forEach((s) => s.restore());
-    quoteStubs.forEach((s) => s.restore());
+    balanceStubs.forEach((s) => {
+      s.restore();
+    });
+    quoteStubs.forEach((s) => {
+      s.restore();
+    });
   });
 
   it('Validates destination token routing', async () => {
@@ -422,8 +426,12 @@ describe('WarpCore', () => {
     });
     expect(validDestinationToken).to.be.null;
 
-    balanceStubs.forEach((s) => s.restore());
-    quoteStubs.forEach((s) => s.restore());
+    balanceStubs.forEach((s) => {
+      s.restore();
+    });
+    quoteStubs.forEach((s) => {
+      s.restore();
+    });
   });
 
   it('Requires explicit destination token for ambiguous routes', async () => {
