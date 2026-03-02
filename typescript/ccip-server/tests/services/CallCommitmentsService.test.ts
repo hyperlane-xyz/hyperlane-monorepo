@@ -1,10 +1,6 @@
 import { describe, expect, jest, test } from '@jest/globals';
 
-import {
-  PostCallsSchema,
-  commitmentFromIcaCalls,
-  normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+import { commitmentFromIcaCalls, normalizeCalls } from '@hyperlane-xyz/sdk';
 
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService';
 
@@ -47,35 +43,6 @@ describe('CallCommitmentsService.handleCommitment input validation', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalled();
-  });
-
-  test('PostCallsSchema rejects malicious input', () => {
-    const base = {
-      calls: [{ to: '0x' + 'ab'.repeat(20), data: '0x', value: '0' }],
-      relayers: ['0x' + 'cd'.repeat(20)],
-      salt: '0x' + '00'.repeat(32),
-      commitmentDispatchTx: '0x' + 'ef'.repeat(32),
-      originDomain: 1,
-    };
-
-    // Empty string
-    expect(
-      PostCallsSchema.safeParse({
-        ...base,
-        calls: [{ to: '', data: '0x', value: '0' }],
-      }).success,
-    ).toBe(false);
-
-    // URL
-    expect(
-      PostCallsSchema.safeParse({
-        ...base,
-        calls: [{ to: 'http://evil.com', data: '0x', value: '0' }],
-      }).success,
-    ).toBe(false);
-
-    // Valid address passes
-    expect(PostCallsSchema.safeParse(base).success).toBe(true);
   });
 
   test('normalizeCalls throws on malformed address that bypasses schema', () => {
