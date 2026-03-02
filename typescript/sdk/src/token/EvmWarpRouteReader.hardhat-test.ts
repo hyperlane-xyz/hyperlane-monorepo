@@ -385,7 +385,7 @@ describe('EvmWarpRouteReader', async () => {
     );
 
     // Check if token values matches
-    if (derivedConfig.type === TokenType.XERC20Lockbox) {
+    if (derivedConfig.type === TokenType.XERC20) {
       expect(derivedConfig.name).to.equal(TOKEN_NAME);
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
