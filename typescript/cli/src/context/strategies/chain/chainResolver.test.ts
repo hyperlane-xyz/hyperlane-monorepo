@@ -4,7 +4,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 
-import { getSubmitterChains } from './chainResolver.js';
+import { getSubmitterChains, resolveChains } from './chainResolver.js';
 
 type Submitter = ExtendedSubmissionStrategy['submitter'];
 
@@ -75,5 +75,29 @@ describe('getSubmitterChains', () => {
       'arbitrum',
       'ethereum',
     ]);
+  });
+});
+
+describe('resolveChains — STATUS command', () => {
+  const statusArgv = (overrides: Record<string, any> = {}) => ({
+    _: ['status'],
+    ...overrides,
+  });
+
+  it('returns only origin when origin provided', async () => {
+    const result = await resolveChains(statusArgv({ origin: 'bsc' }));
+    expect(result).to.deep.equal(['bsc']);
+  });
+
+  it('returns origin and destination when both provided', async () => {
+    const result = await resolveChains(
+      statusArgv({ origin: 'bsc', destination: 'ethereum' }),
+    );
+    expect(result).to.deep.equal(['bsc', 'ethereum']);
+  });
+
+  it('returns empty array when neither provided', async () => {
+    const result = await resolveChains(statusArgv());
+    expect(result).to.deep.equal([]);
   });
 });

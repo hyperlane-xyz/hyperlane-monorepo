@@ -8,6 +8,7 @@ import {
   HyperlaneCore,
 } from '@hyperlane-xyz/sdk';
 
+import { ensureEvmSignersForChains } from '../context/context.js';
 import {
   type CommandContext,
   type WriteCommandContext,
@@ -71,6 +72,22 @@ export async function checkMessageStatus({
   const messages = messageId
     ? dispatched.filter((m) => m.id === messageId)
     : dispatched;
+
+  if (selfRelay && (context as WriteCommandContext).key) {
+    const destinationChains = [
+      ...new Set(
+        messages
+          .map((m) => m.parsed.destinationChain)
+          .filter((c): c is string => !!c),
+      ),
+    ];
+    if (destinationChains.length > 0) {
+      await ensureEvmSignersForChains(
+        context as WriteCommandContext,
+        destinationChains,
+      );
+    }
+  }
 
   const undelivered = [];
   for (const message of messages) {
