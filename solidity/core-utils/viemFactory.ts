@@ -1498,14 +1498,15 @@ export function createContractProxy<TAbi extends Abi>(
             })
           : (filter.topics as readonly Hex[] | undefined);
 
-      const resolvedFromBlock = fromBlock ?? 0n;
+      const resolvedFromBlock = fromBlock ?? filter.fromBlock;
+      const resolvedToBlock = toBlock ?? filter.toBlock;
       const logsFilter: Record<string, unknown> = {
         address: filterAddress,
         topics,
       };
 
       const fromBlockRef = toLogBlockRef(resolvedFromBlock);
-      const toBlockRef = toLogBlockRef(toBlock);
+      const toBlockRef = toLogBlockRef(resolvedToBlock);
       if (fromBlockRef !== undefined) logsFilter.fromBlock = fromBlockRef;
       if (toBlockRef !== undefined) logsFilter.toBlock = toBlockRef;
 
