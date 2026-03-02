@@ -22,12 +22,17 @@ import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {HypNative} from "../../contracts/token/HypNative.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-contract PredicateRouterWrapperTest is Test {
+/**
+ * @title PredicateRouterWrapperCollateralTest
+ * @notice Tests PredicateRouterWrapper with collateral token (HypERC20Collateral) warp routes
+ */
+contract PredicateRouterWrapperCollateralTest is Test {
     using TypeCasts for address;
 
     // Constants
@@ -585,8 +590,8 @@ contract PredicateRouterWrapperTest is Test {
 
     // ============ Hook Interface Tests ============
 
-    function test_hookType_returnsUnused() public view {
-        assertEq(predicateWrapper.hookType(), 0); // UNUSED = 0
+    function test_hookType_returnsPredicateRouterWrapper() public view {
+        assertEq(predicateWrapper.hookType(), 16); // PREDICATE_ROUTER_WRAPPER = 16
     }
 
     function test_quoteDispatch_returnsZero() public view {
@@ -619,10 +624,12 @@ contract PredicateRouterWrapperTest is Test {
 }
 
 /**
- * @title PredicateRouterWrapperIntegrationTest
- * @notice Integration tests demonstrating the full flow with mocked registry
+ * @title PredicateRouterWrapperCollateralIntegrationTest
+ * @notice Integration tests demonstrating the full flow with collateral tokens and mocked registry
  */
-contract PredicateRouterWrapperIntegrationTest is PredicateRouterWrapperTest {
+contract PredicateRouterWrapperCollateralIntegrationTest is
+    PredicateRouterWrapperCollateralTest
+{
     using TypeCasts for address;
 
     function test_integration_fullTransferFlow() public {
