@@ -197,6 +197,10 @@ export class MockExternalBridge implements IExternalBridge {
         return { status: 'not_found' };
       }
 
+      const dispatchedMessages =
+        HyperlaneCore.getDispatchedMessages(dispatchTxReceipt);
+      const dispatchedMsgId = dispatchedMessages[0]?.id;
+
       const relayer = new HyperlaneRelayer({ core: this.core });
       const receipts = await relayer.relayAll(dispatchTxReceipt);
 
@@ -206,7 +210,24 @@ export class MockExternalBridge implements IExternalBridge {
         receipts[toChain] ??
         receipts[destinationDomain];
 
+      // If relayAll didn't produce receipts (e.g. message already delivered),
+      // fall back to checking on-chain delivery status directly.
       if (!destinationReceipts || destinationReceipts.length === 0) {
+        if (dispatchedMsgId) {
+          const destMailbox = this.core.getContracts(toChainName).mailbox;
+          const isDelivered = await destMailbox.delivered(dispatchedMsgId);
+          if (isDelivered) {
+            const receivedAmount = await this.getTransferredAmount(
+              provider,
+              dispatchTxReceipt,
+            );
+            return {
+              status: 'complete',
+              receivingTxHash: txHash,
+              receivedAmount,
+            };
+          }
+        }
         return { status: 'not_found' };
       }
 
