@@ -590,17 +590,27 @@ export class ActionTracker implements IActionTracker {
       const actions = await this.getActionsForIntent(intent.id);
 
       // Check for in-flight inventory_movement actions
-      // Skip intents that have a recent bridge in progress - wait for it to complete
-      // Stale movements (older than DEFAULT_MOVEMENT_STALENESS_MS) are failed to unblock the intent
+      // Skip intents with active bridge movement(s). Only stale movements whose last
+      // bridge status is NOT `pending` are failed to unblock the intent. Movements
+      // still `pending` on the bridge are kept alive regardless of age (the intent
+      // TTL acts as the ultimate backstop for perpetually-pending movements).
+      // `undefined` status (pre-first-sync or pre-deploy data) is treated as stale.
       const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
       const now = Date.now();
-      const hasRecentInflightMovement = inflightMovements.some(
-        (a) => now - a.createdAt < DEFAULT_MOVEMENT_STALENESS_MS,
+      const staleMovements = inflightMovements.filter(
+        (a) =>
+          a.lastBridgeStatus !== 'pending' &&
+          now - a.createdAt >= DEFAULT_MOVEMENT_STALENESS_MS,
+      );
+      const staleMovementIds = new Set(staleMovements.map((a) => a.id));
+
+      const hasBlockingInflightMovement = inflightMovements.some(
+        (a) => !staleMovementIds.has(a.id),
       );
 
-      if (hasRecentInflightMovement) {
+      if (hasBlockingInflightMovement) {
         this.logger.debug(
           { intentId: intent.id },
           'Skipping partial intent - has in-flight inventory movement',
@@ -609,13 +619,14 @@ export class ActionTracker implements IActionTracker {
       }
 
       // Fail stale movements so the intent can proceed
-      for (const stale of inflightMovements) {
-        await this.failRebalanceAction(stale.id);
+      for (const movement of staleMovements) {
+        await this.failRebalanceAction(movement.id);
         this.logger.warn(
           {
-            actionId: stale.id,
-            age: now - stale.createdAt,
+            actionId: movement.id,
+            age: now - movement.createdAt,
             intentId: intent.id,
+            lastBridgeStatus: movement.lastBridgeStatus,
           },
           'Failing stale inventory movement to unblock intent',
         );
@@ -735,6 +746,9 @@ export class ActionTracker implements IActionTracker {
             'Inventory movement failed',
           );
         } else if (status.status === 'pending') {
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'pending',
+          });
           this.logger.debug(
             {
               actionId: action.id,
@@ -743,8 +757,18 @@ export class ActionTracker implements IActionTracker {
             },
             'Inventory movement still pending',
           );
+        } else if (status.status === 'not_found') {
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'not_found',
+          });
+          this.logger.debug(
+            {
+              actionId: action.id,
+              txHash: action.txHash,
+            },
+            'Inventory movement not found',
+          );
         }
-        // status === 'not_found' - wait for next cycle
       } catch (error) {
         this.logger.debug(
           {

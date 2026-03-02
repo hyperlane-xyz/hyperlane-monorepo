@@ -8,6 +8,7 @@ import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 import {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_MOVEMENT_STALENESS_MS,
+  ExternalBridgeType,
 } from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
@@ -564,6 +565,58 @@ describe('ActionTracker', () => {
     });
   });
 
+  describe('syncInventoryMovementActions', () => {
+    it('stores pending status on in-progress movement', async () => {
+      await rebalanceActionStore.save({
+        id: 'action-pending',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-pending',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const getStatus = Sinon.stub().resolves({ status: 'pending' });
+      await tracker.syncInventoryMovementActions({
+        lifi: { getStatus } as any,
+      });
+
+      const action = await rebalanceActionStore.get('action-pending');
+      expect(action?.status).to.equal('in_progress');
+      expect(action?.lastBridgeStatus).to.equal('pending');
+    });
+
+    it('stores not_found status on in-progress movement', async () => {
+      await rebalanceActionStore.save({
+        id: 'action-not-found',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-not-found',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
+      await tracker.syncInventoryMovementActions({
+        lifi: { getStatus } as any,
+      });
+
+      const action = await rebalanceActionStore.get('action-not-found');
+      expect(action?.status).to.equal('in_progress');
+      expect(action?.lastBridgeStatus).to.equal('not_found');
+    });
+  });
+
   describe('getInProgressTransfers', () => {
     it('should return only in_progress transfers', async () => {
       await transferStore.save({
@@ -927,6 +980,7 @@ describe('ActionTracker', () => {
         id: 'movement-stale',
         type: 'inventory_movement',
         status: 'in_progress',
+        lastBridgeStatus: 'not_found',
         intentId: 'intent-stale-movement',
         origin: 1,
         destination: 2,
@@ -943,6 +997,74 @@ describe('ActionTracker', () => {
       // Verify the stale movement was failed
       const failedAction = await rebalanceActionStore.get('movement-stale');
       expect(failedAction?.status).to.equal('failed');
+    });
+
+    it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-undefined-status',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Stale movement without lastBridgeStatus (simulates pre-deploy data)
+      await rebalanceActionStore.save({
+        id: 'movement-undefined-status',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-undefined-status',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(1);
+
+      const action = await rebalanceActionStore.get(
+        'movement-undefined-status',
+      );
+      expect(action?.status).to.equal('failed');
+    });
+
+    it('does not fail long-running pending movement', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-pending-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await rebalanceActionStore.save({
+        id: 'movement-pending-old',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'pending',
+        intentId: 'intent-pending-movement',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(0);
+
+      const action = await rebalanceActionStore.get('movement-pending-old');
+      expect(action?.status).to.equal('in_progress');
     });
 
     it('handles mix of recent and stale movements', async () => {
@@ -962,6 +1084,7 @@ describe('ActionTracker', () => {
         id: 'movement-old',
         type: 'inventory_movement',
         status: 'in_progress',
+        lastBridgeStatus: 'not_found',
         intentId: 'intent-mixed-movements',
         origin: 1,
         destination: 2,
@@ -975,6 +1098,7 @@ describe('ActionTracker', () => {
         id: 'movement-new',
         type: 'inventory_movement',
         status: 'in_progress',
+        lastBridgeStatus: 'pending',
         intentId: 'intent-mixed-movements',
         origin: 1,
         destination: 2,
@@ -987,6 +1111,9 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
       expect(partialIntents).to.have.lengthOf(0);
+
+      const staleAction = await rebalanceActionStore.get('movement-old');
+      expect(staleAction?.status).to.equal('in_progress');
     });
   });
 

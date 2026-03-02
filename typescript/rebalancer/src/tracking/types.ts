@@ -1,6 +1,7 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
+import type { BridgeTransferStatus } from '../interfaces/IExternalBridge.js';
 
 import type { IStore } from './store/IStore.js';
 
@@ -84,6 +85,7 @@ export interface RebalanceAction extends TrackedActionBase {
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
+  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed external bridge status
 }
 
 // === Type Aliases for Stores ===
