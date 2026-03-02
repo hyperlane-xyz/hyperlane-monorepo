@@ -11,10 +11,12 @@ const outputFile = path.join(__dirname, '../src/artifacts.ts');
 
 const VERSION = 'v1.0.0';
 
-async function fetchWithRetry(url, options, attempts = 3) {
+async function fetchWithRetry(url, options, attempts = 3, timeoutMs = 30000) {
   for (let i = 0; i < attempts; i++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, options);
+      const res = await fetch(url, { ...options, signal: controller.signal });
       if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
       return res;
     } catch (e) {
@@ -22,6 +24,8 @@ async function fetchWithRetry(url, options, attempts = 3) {
       const delay = 1000 * 2 ** i;
       console.log(`Fetch attempt ${i + 1} failed, retrying in ${delay}ms...`);
       await new Promise((r) => setTimeout(r, delay));
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

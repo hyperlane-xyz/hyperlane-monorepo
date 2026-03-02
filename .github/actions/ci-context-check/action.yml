@@ -37,11 +37,13 @@ runs:
           exit 0
         fi
 
-        # merge_group event - must run (this is the gate before merge)
+        # merge_group event - use path-based detection
+        # The merge group base/head SHAs cover all batched PRs, so
+        # change detection correctly identifies what needs testing.
         if [[ "$EVENT" == "merge_group" ]]; then
           echo "should_skip=false" >> $GITHUB_OUTPUT
-          echo "must_run=true" >> $GITHUB_OUTPUT
-          echo "reason=Merge queue gate - running full CI" >> $GITHUB_OUTPUT
+          echo "must_run=false" >> $GITHUB_OUTPUT
+          echo "reason=Merge queue gate - checking path changes" >> $GITHUB_OUTPUT
           exit 0
         fi
 
@@ -50,6 +52,14 @@ runs:
           echo "should_skip=false" >> $GITHUB_OUTPUT
           echo "must_run=true" >> $GITHUB_OUTPUT
           echo "reason=Bot PR ($ACTOR) - running full CI" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Manual workflow dispatch - must run full CI
+        if [[ "$EVENT" == "workflow_dispatch" ]]; then
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+          echo "must_run=true" >> $GITHUB_OUTPUT
+          echo "reason=Manual dispatch - running full CI" >> $GITHUB_OUTPUT
           exit 0
         fi
 
