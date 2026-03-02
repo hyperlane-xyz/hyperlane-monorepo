@@ -692,22 +692,21 @@ function resolveFunctionCall(
     overrideMatches.length === 1 ? overrideMatches : matches;
   if (disambiguationPool.length === 1) return disambiguationPool[0];
 
-  for (const candidate of disambiguationPool) {
-    try {
-      const resolved = getAbiItem({
-        abi: disambiguationPool.map(({ fn }) => fn),
-        args: candidate.fnArgs,
-        name: functionName,
-      });
-      if (!resolved || resolved.type !== 'function') continue;
+  try {
+    const resolved = getAbiItem({
+      abi: disambiguationPool.map(({ fn }) => fn),
+      args: disambiguationPool[0].fnArgs,
+      name: functionName,
+    });
+    if (resolved && resolved.type === 'function') {
       const signature = getFunctionSignature(resolved);
       const match = disambiguationPool.find(
         ({ fn }) => getFunctionSignature(fn) === signature,
       );
       if (match) return match;
-    } catch {
-      // ignore and try next candidate
     }
+  } catch {
+    // ignore and fall back to explicit ambiguity error below
   }
 
   throw new Error(`Ambiguous function ${functionName}; use full signature`);

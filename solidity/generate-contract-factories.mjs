@@ -63,6 +63,25 @@ function selectArtifact(existing, candidate) {
     return existing;
 }
 
+function sanitizeIdentifier(value) {
+    const sanitized = value.replace(/[^A-Za-z0-9_]/g, "_");
+    const compacted = sanitized.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+    if (!compacted.length) return "_";
+    return /^[A-Za-z_]/.test(compacted) ? compacted : `_${compacted}`;
+}
+
+function createUniqueIdentifier(base, usedNames) {
+    const normalizedBase = sanitizeIdentifier(base);
+    let candidate = normalizedBase;
+    let suffix = 2;
+    while (usedNames.has(candidate) || !isExportableIdentifier(candidate)) {
+        candidate = `${normalizedBase}_${suffix}`;
+        suffix += 1;
+    }
+    usedNames.add(candidate);
+    return candidate;
+}
+
 function uniqueStrings(values) {
     return [...new Set(values)].filter(
         (value) => typeof value === "string" && value.length > 0,
@@ -160,8 +179,8 @@ export class ${name}__factory extends ViemContractFactory<typeof ${abiIdentifier
 `;
 }
 
-function renderGeneratedIndexSource(artifacts) {
-    const names = [...artifacts.keys()].sort((a, b) => a.localeCompare(b));
+function renderGeneratedIndexSource(modules, artifactAliasMap) {
+    const names = [...modules.keys()].sort((a, b) => a.localeCompare(b));
     const exportLines = names
         .map((name) => `export * from './contracts/${name}.js';`)
         .join("\n");
@@ -171,8 +190,12 @@ function renderGeneratedIndexSource(artifacts) {
                 `import { ${name}Artifact } from './contracts/${name}.js';`,
         )
         .join("\n");
-    const mapEntries = names
-        .map((name) => `  ${JSON.stringify(name)}: ${name}Artifact,`)
+    const mapEntries = [...artifactAliasMap.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(
+            ([alias, moduleName]) =>
+                `  ${JSON.stringify(alias)}: ${moduleName}Artifact,`,
+        )
         .join("\n");
 
     return `/* eslint-disable */
@@ -200,22 +223,30 @@ async function generate() {
         if (!(await pathExists(artifactsRoot))) continue;
         artifactPaths.push(...(await collectArtifactPaths(artifactsRoot)));
     }
+    artifactPaths.sort((a, b) => a.localeCompare(b));
     if (!artifactPaths.length) {
         throw new Error(
             `No artifact files found under: ${CONFIG.artifactsRoots.join(", ")}`,
         );
     }
-    const artifactsByName = new Map();
+    const artifactsByQualifiedName = new Map();
 
     for (const artifactPath of artifactPaths) {
         const content = await fs.readFile(artifactPath, "utf8");
         const parsed = JSON.parse(content);
         const contractName =
             parsed.contractName ?? basename(artifactPath, ".json");
+        const sourceName =
+            typeof parsed.sourceName === "string" && parsed.sourceName.length
+                ? parsed.sourceName
+                : artifactPath;
         if (!isExportableIdentifier(contractName)) continue;
 
+        const qualifiedName = `${sourceName}:${contractName}`;
         const artifactEntry = {
             contractName,
+            sourceName,
+            qualifiedName,
             abi: parsed.abi ?? [],
             bytecode: parsed.bytecode ?? "0x",
             functionSignatures: (() => {
@@ -255,31 +286,78 @@ async function generate() {
                 ];
             })(),
         };
-        artifactsByName.set(
-            contractName,
-            selectArtifact(artifactsByName.get(contractName), artifactEntry),
+        artifactsByQualifiedName.set(
+            qualifiedName,
+            selectArtifact(
+                artifactsByQualifiedName.get(qualifiedName),
+                artifactEntry,
+            ),
         );
+    }
+
+    const artifactsByContractName = new Map();
+    for (const artifact of artifactsByQualifiedName.values()) {
+        const existing = artifactsByContractName.get(artifact.contractName) ?? [];
+        existing.push(artifact);
+        artifactsByContractName.set(artifact.contractName, existing);
+    }
+
+    const modulesByName = new Map();
+    const artifactAliasMap = new Map();
+    const usedModuleNames = new Set();
+    const contractNames = [...artifactsByContractName.keys()].sort((a, b) =>
+        a.localeCompare(b),
+    );
+    let duplicateContractNameCount = 0;
+
+    for (const contractName of contractNames) {
+        const artifacts = [...artifactsByContractName.get(contractName)].sort(
+            (a, b) => a.sourceName.localeCompare(b.sourceName),
+        );
+        if (artifacts.length > 1) duplicateContractNameCount += 1;
+
+        const primaryArtifact = artifacts.reduce((selected, candidate) =>
+            selectArtifact(selected, candidate),
+        );
+
+        for (const artifact of artifacts) {
+            const moduleName =
+                artifact === primaryArtifact
+                    ? createUniqueIdentifier(contractName, usedModuleNames)
+                    : createUniqueIdentifier(
+                          `${contractName}__${artifact.sourceName}`,
+                          usedModuleNames,
+                      );
+            modulesByName.set(moduleName, artifact);
+            artifactAliasMap.set(artifact.qualifiedName, moduleName);
+            if (artifact === primaryArtifact) {
+                artifactAliasMap.set(contractName, moduleName);
+            }
+        }
     }
 
     await fs.rm(CONFIG.outputRoot, {recursive: true, force: true});
     await fs.mkdir(CONFIG.contractsOutputRoot, {recursive: true});
 
-    const names = [...artifactsByName.keys()].sort((a, b) =>
-        a.localeCompare(b),
-    );
+    const names = [...modulesByName.keys()].sort((a, b) => a.localeCompare(b));
     for (const name of names) {
-        const artifact = artifactsByName.get(name);
+        const artifact = modulesByName.get(name);
         const source = renderContractModuleSource(name, artifact);
         const modulePath = join(CONFIG.contractsOutputRoot, `${name}.ts`);
         await fs.writeFile(modulePath, source);
     }
 
-    const indexSource = renderGeneratedIndexSource(artifactsByName);
+    const indexSource = renderGeneratedIndexSource(modulesByName, artifactAliasMap);
     await fs.mkdir(dirname(CONFIG.indexOutputPath), {recursive: true});
     await fs.writeFile(CONFIG.indexOutputPath, indexSource);
+    if (duplicateContractNameCount > 0) {
+        console.log(
+            `Detected ${duplicateContractNameCount} duplicate contract name(s); exported disambiguated factory modules and added fully-qualified artifact aliases.`,
+        );
+    }
     console.log(
         `Generated ${
-            artifactsByName.size
+            modulesByName.size
         } viem contract factory modules under ${CONFIG.outputRoot}`,
     );
 }
