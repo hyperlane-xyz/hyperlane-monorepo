@@ -252,11 +252,17 @@ describe('hyperlane warp apply e2e tests', async function () {
         chainName,
       );
 
-      expect(
+      const maybeUnsupportedChainRouterAddress =
+        (config[chainName].remoteRouters ?? {})[
+          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name
+        ]?.address ??
         (config[chainName].remoteRouters ?? {})[
           TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-        ].address,
-      ).to.eql(addressToBytes32(unsupportedChainAddress));
+        ]?.address;
+
+      expect(maybeUnsupportedChainRouterAddress).to.eql(
+        addressToBytes32(unsupportedChainAddress),
+      );
     }
   });
 
@@ -325,11 +331,17 @@ describe('hyperlane warp apply e2e tests', async function () {
         chainName,
       );
 
-      expect(
+      const maybeUnsupportedChainRouterAddress =
+        (config[chainName].remoteRouters ?? {})[
+          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name
+        ]?.address ??
         (config[chainName].remoteRouters ?? {})[
           TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-        ].address,
-      ).to.eql(addressToBytes32(unsupportedChainAddress));
+        ]?.address;
+
+      expect(maybeUnsupportedChainRouterAddress).to.eql(
+        addressToBytes32(unsupportedChainAddress),
+      );
     }
   });
 });
