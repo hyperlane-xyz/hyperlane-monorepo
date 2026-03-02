@@ -330,6 +330,29 @@ describe('Token', () => {
       expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
     });
 
+    it('returns EvmHypNativeAdapter for EvmNative with untyped connection', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 18,
+        symbol: 'TIA',
+        name: 'TIA',
+      });
+      evmNativeToken.addConnection({ token: remoteToken });
+
+      const adapter = evmNativeToken.getHypAdapter(multiProvider);
+      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+    });
+
     it('throws for EvmNative without connections', () => {
       const multiProvider =
         MultiProtocolProvider.createTestMultiProtocolProvider<{
