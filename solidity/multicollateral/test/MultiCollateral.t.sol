@@ -382,6 +382,18 @@ contract MultiCollateralTest is Test {
         );
     }
 
+    function test_revert_sameChain_swap_nonzeroMsgValue() public {
+        vm.deal(ALICE, 1 ether);
+        vm.prank(ALICE);
+        vm.expectRevert("MC: local transfer no msg.value");
+        usdcRouterA.transferRemoteTo{value: 1}(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            1000e6,
+            address(usdtRouterA).addressToBytes32()
+        );
+    }
+
     // ============ 4. Fees on remote transfer ============
 
     function test_fees_remoteTransfer() public {

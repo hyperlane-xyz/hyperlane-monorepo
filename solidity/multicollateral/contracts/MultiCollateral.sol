@@ -250,6 +250,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 _enrolledRouters[_destination].contains(_targetRouter),
             "MC: unauthorized router"
         );
+        if (_destination == localDomain) {
+            require(msg.value == 0, "MC: local transfer no msg.value");
+        }
 
         (, uint256 remainingValue) = _calculateFeesAndChargeForRouter(
             _destination,
@@ -266,7 +269,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             // Same-domain: call target router's handle directly
             address target = _targetRouter.bytes32ToAddress();
             require(target.code.length > 0, "MC: target router not contract");
-            MultiCollateral(target).handle{value: remainingValue}(
+            MultiCollateral(target).handle(
                 localDomain,
                 TypeCasts.addressToBytes32(address(this)),
                 tokenMsg
