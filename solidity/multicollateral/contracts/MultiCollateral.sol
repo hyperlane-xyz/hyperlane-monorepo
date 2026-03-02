@@ -21,6 +21,7 @@ import {IPostDispatchHook} from "@hyperlane-xyz/core/interfaces/hooks/IPostDispa
 import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Local Imports ============
 import {IMultiCollateralFee} from "./interfaces/IMultiCollateralFee.sol";
@@ -41,6 +42,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // ============ Events ============
 
@@ -51,11 +53,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
 
     /// @notice Additional enrolled routers by domain (beyond the standard
     /// enrolled remote router). Local routers use localDomain as key.
-    mapping(uint32 domain => mapping(bytes32 router => bool))
-        public enrolledRouters;
-
-    /// @notice Enumerable list of enrolled routers per domain.
-    mapping(uint32 => bytes32[]) internal _enrolledRouterList;
+    mapping(uint32 => EnumerableSet.Bytes32Set) private _enrolledRouters;
 
     // ============ Constructor ============
 
@@ -74,9 +72,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     ) external onlyOwner {
         require(_domains.length == _routers.length, "MC: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
-            if (!enrolledRouters[_domains[i]][_routers[i]]) {
-                enrolledRouters[_domains[i]][_routers[i]] = true;
-                _enrolledRouterList[_domains[i]].push(_routers[i]);
+            if (_enrolledRouters[_domains[i]].add(_routers[i])) {
                 emit RouterEnrolled(_domains[i], _routers[i]);
             }
         }
@@ -88,12 +84,17 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     ) external onlyOwner {
         require(_domains.length == _routers.length, "MC: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
-            if (enrolledRouters[_domains[i]][_routers[i]]) {
-                enrolledRouters[_domains[i]][_routers[i]] = false;
-                _removeFromList(_domains[i], _routers[i]);
+            if (_enrolledRouters[_domains[i]].remove(_routers[i])) {
                 emit RouterUnenrolled(_domains[i], _routers[i]);
             }
         }
+    }
+
+    function enrolledRouters(
+        uint32 _domain,
+        bytes32 _router
+    ) external view returns (bool) {
+        return _enrolledRouters[_domain].contains(_router);
     }
 
     // ============ Enumeration ============
@@ -101,25 +102,14 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     function getEnrolledRouters(
         uint32 _domain
     ) external view returns (bytes32[] memory) {
-        return _enrolledRouterList[_domain];
-    }
-
-    // ============ Internal ============
-
-    function _removeFromList(uint32 _domain, bytes32 _router) internal {
-        bytes32[] storage list = _enrolledRouterList[_domain];
-        for (uint256 i = 0; i < list.length; i++) {
-            if (list[i] == _router) {
-                list[i] = list[list.length - 1];
-                list.pop();
-                return;
-            }
-        }
+        return _enrolledRouters[_domain].values();
     }
 
     // ============ Handle Override ============
 
-    /// @dev Accepts messages from the mailbox (cross-chain) or directly from
+    /// @dev Overrides `Router.handle` from core (`client/Router.sol`) via
+    /// HypERC20Collateral -> TokenRouter -> GasRouter -> Router.
+    /// Accepts messages from the mailbox (cross-chain) or directly from
     /// enrolled routers on the same chain. Removes the onlyMailbox modifier.
     // solhint-disable-next-line hyperlane/no-virtual-override
     function handle(
@@ -131,15 +121,15 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             // Cross-chain via mailbox: sender must be enrolled
             require(
                 _isRemoteRouter(_origin, _sender) ||
-                    enrolledRouters[_origin][_sender],
+                    _enrolledRouters[_origin].contains(_sender),
                 "MC: unauthorized router"
             );
         } else {
             // Same-chain direct call: caller must be an enrolled router
             require(
-                enrolledRouters[localDomain][
+                _enrolledRouters[localDomain].contains(
                     TypeCasts.addressToBytes32(msg.sender)
-                ],
+                ),
                 "MC: unauthorized router"
             );
         }
@@ -257,7 +247,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     ) public payable returns (bytes32 messageId) {
         require(
             _isRemoteRouter(_destination, _targetRouter) ||
-                enrolledRouters[_destination][_targetRouter],
+                _enrolledRouters[_destination].contains(_targetRouter),
             "MC: unauthorized router"
         );
 

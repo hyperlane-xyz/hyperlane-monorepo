@@ -885,7 +885,11 @@ contract MultiCollateralTest is Test {
         MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
             address(this)
         );
-        routingFee.setFeeContract(DESTINATION, address(destFee));
+        routingFee.setRouterFeeContract(
+            DESTINATION,
+            routingFee.DEFAULT_ROUTER(),
+            address(destFee)
+        );
 
         usdcRouterA.setFeeRecipient(address(routingFee));
 
@@ -902,6 +906,58 @@ contract MultiCollateralTest is Test {
         uint256 charged = originUSDC.balanceOf(address(routingFee)) -
             feeBalBefore;
         assertEq(charged, 5e6, "fallback to destination fee");
+    }
+
+    function test_routingFee_batchSetRouterFeeContracts() public {
+        LinearFee linearFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6,
+            10000e6,
+            address(this)
+        );
+        LinearFee linearFee10bps = new LinearFee(
+            address(originUSDC),
+            20e6,
+            10000e6,
+            address(this)
+        );
+
+        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+            address(this)
+        );
+
+        uint32[] memory destinations = new uint32[](2);
+        bytes32[] memory targetRouters = new bytes32[](2);
+        address[] memory feeContracts = new address[](2);
+        destinations[0] = DESTINATION;
+        destinations[1] = DESTINATION;
+        targetRouters[0] = routingFee.DEFAULT_ROUTER();
+        targetRouters[1] = address(usdtRouterB).addressToBytes32();
+        feeContracts[0] = address(linearFee5bps);
+        feeContracts[1] = address(linearFee10bps);
+
+        routingFee.setRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
+        );
+
+        Quote[] memory defaultQuotes = routingFee.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            10000e6
+        );
+        assertEq(defaultQuotes.length, 1);
+        assertEq(defaultQuotes[0].amount, 5e6, "default sentinel fee");
+
+        Quote[] memory routerQuotes = routingFee.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            10000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
+        assertEq(routerQuotes.length, 1);
+        assertEq(routerQuotes[0].amount, 10e6, "router-specific fee");
     }
 
     function test_routingFee_quoteMatchesCharge() public {
