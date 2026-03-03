@@ -35,7 +35,7 @@ export interface BridgeQuoteParams {
 /**
  * Quote response from a bridge.
  */
-export interface BridgeQuote {
+export interface BridgeQuote<R = unknown> {
   id: string; // Unique quote identifier
   tool: string; // Bridge/DEX tool used (e.g., 'stargate', 'across')
   fromAmount: bigint; // Amount being sent (input required)
@@ -44,7 +44,8 @@ export interface BridgeQuote {
   executionDuration: number; // Estimated execution time in seconds
   gasCosts: bigint; // Sum of gas costs for the bridge operation
   feeCosts: bigint; // Sum of non-included fee costs (protocol fees, etc.)
-  route: unknown; // Bridge-specific route data for execution
+  route: R; // Bridge-specific route data for execution
+  requestParams: BridgeQuoteParams; // Original request parameters
 }
 
 /**
