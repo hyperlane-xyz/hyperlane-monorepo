@@ -179,6 +179,8 @@ export class SvmIgpHookWriter
       });
       receipts.push(initReceipt);
 
+      // TODO: re-fetch after init does not assert non-null; silent init failures
+      // will cause the gas oracle setup below to proceed against a null account.
       igp = await fetchIgpAccount(this.rpc, programId, this.salt);
     }
 

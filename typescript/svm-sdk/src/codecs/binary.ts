@@ -12,6 +12,10 @@ import {
   type ReadonlyUint8Array,
 } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
+import { MAX_ACCOUNT_DATA_SIZE } from '../constants.js';
+
 const U8_CODEC = getU8Codec();
 const BOOL_CODEC = getBooleanCodec();
 const U32_CODEC = getU32Codec();
@@ -87,7 +91,12 @@ export class ByteCursor {
   }
 
   readVecBytes(): Uint8Array {
-    return this.readBytes(this.readU32LE());
+    const length = this.readU32LE();
+    assert(
+      length <= MAX_ACCOUNT_DATA_SIZE,
+      `Vec length ${length} exceeds Solana max account size (${MAX_ACCOUNT_DATA_SIZE})`,
+    );
+    return this.readBytes(length);
   }
 
   readString(): string {
@@ -95,9 +104,13 @@ export class ByteCursor {
   }
 
   readWithDecoder<T>(decoder: Decoder<T>): T {
-    const [value, nextOffset] = decoder.read(this.data, this.offset);
-    this.offset = nextOffset;
-    return value;
+    try {
+      const [value, nextOffset] = decoder.read(this.data, this.offset);
+      this.offset = nextOffset;
+      return value;
+    } catch (e) {
+      throw new Error(`Decoder failed at offset ${this.offset}`, { cause: e });
+    }
   }
 
   private ensure(length: number): void {

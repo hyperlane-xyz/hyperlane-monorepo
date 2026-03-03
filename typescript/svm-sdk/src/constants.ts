@@ -19,3 +19,6 @@ export const SPL_NOOP_PROGRAM_ADDRESS =
 
 export const LOADER_V3_PROGRAM_ADDRESS =
   'BPFLoaderUpgradeab1e11111111111111111111111' as Address;
+
+// Solana hard limit on account data size.
+export const MAX_ACCOUNT_DATA_SIZE = 10_485_760;

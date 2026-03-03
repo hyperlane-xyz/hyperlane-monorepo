@@ -67,6 +67,16 @@ export async function deriveHyperlaneTokenPda(
   ]);
 }
 
+export async function deriveAtaPayerPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token'),
+    utf8.encode('-'),
+    utf8.encode('ata_payer'),
+  ]);
+}
+
 export async function deriveMailboxDispatchAuthorityPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {

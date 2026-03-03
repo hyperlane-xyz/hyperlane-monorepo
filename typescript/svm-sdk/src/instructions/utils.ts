@@ -37,7 +37,7 @@ export function buildInstruction(
 ): Instruction {
   return {
     programAddress,
-    accounts: accounts as AccountMeta[],
+    accounts,
     data,
   };
 }

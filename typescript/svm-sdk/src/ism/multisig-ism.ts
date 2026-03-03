@@ -176,6 +176,7 @@ export class SvmMessageIdMultisigIsmWriter
     return this.getUpdateDomainTxs(artifact, programId);
   }
 
+  // TODO: update logic not yet implemented; always returns empty (no-op)
   private async getUpdateDomainTxs(
     _artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
     _programId: Address,
