@@ -36,10 +36,6 @@ export async function resetSnapshotsAndRefreshProviders({
   for (const [chain, oldProvider] of localProviders) {
     const url = oldProvider.connection.url;
     const freshProvider = createFreshProvider(url);
-    // Reset the internal block-number cache so ethers v5 does not refuse
-    // to return block numbers lower than a previous high-water mark.
-    Reflect.set(freshProvider, '_maxInternalBlockNumber', -1);
-    Reflect.set(freshProvider, '_internalBlockNumber', null);
     localProviders.set(chain, freshProvider);
     multiProvider.setProvider(chain, freshProvider);
     multiProvider.setSigner(chain, signerWallet.connect(freshProvider));
