@@ -125,6 +125,7 @@ jobs:
           project: 057xstl4t6
           files: typescript/docker-bake.hcl
           push: true
+          provenance: false
 
       - name: Generate image tags output
         id: image-tags

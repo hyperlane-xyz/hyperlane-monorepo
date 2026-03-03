@@ -130,6 +130,7 @@ jobs:
           context: .
           file: ./rust/Dockerfile
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}

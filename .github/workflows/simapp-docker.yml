@@ -63,6 +63,7 @@ jobs:
           context: ./typescript/cosmos-sdk
           file: ./typescript/cosmos-sdk/Dockerfile
           push: true
+          provenance: false
           tags: |
             gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
             ghcr.io/hyperlane-xyz/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
