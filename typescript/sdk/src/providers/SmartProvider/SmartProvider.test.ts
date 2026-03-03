@@ -6,8 +6,8 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
-import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
-import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
+import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 

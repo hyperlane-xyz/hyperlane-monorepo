@@ -171,7 +171,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
-    if (signer && signer.provider) {
+    if (signer && signer.provider && !this.useSharedSigner) {
       try {
         this.setSigner(chainName, signer.connect(provider));
       } catch (e: unknown) {

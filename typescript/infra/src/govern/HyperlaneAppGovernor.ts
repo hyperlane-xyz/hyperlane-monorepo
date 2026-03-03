@@ -216,9 +216,10 @@ export abstract class HyperlaneAppGovernor<
                 })),
               );
             }
-          } catch (error) {
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
             rootLogger.error(
-              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+              chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
             throw error;
           }

@@ -239,6 +239,7 @@ export class TronWallet extends Wallet {
     }
 
     const txHash = ensure0x(tronTx.txID);
+    assert(tx.chainId, 'chainId is required');
 
     // Build the transaction response with Tron-specific fields
     const response: TronTransactionResponse = {
@@ -251,7 +252,7 @@ export class TronWallet extends Wallet {
       gasPrice,
       data: tx.data?.toString() ?? '0x',
       value: BigNumber.from(tx.value ?? 0),
-      chainId: tx.chainId!,
+      chainId: tx.chainId,
       tronTransaction: tronTx,
       wait: (confirmations?: number) =>
         this.provider!.waitForTransaction(txHash, confirmations),

@@ -126,12 +126,12 @@ export async function enableInstamine(port: number): Promise<void> {
 }
 
 function isAccountsJson(obj: unknown): obj is { privateKeys: string[] } {
+  if (!obj || typeof obj !== 'object' || !('privateKeys' in obj)) return false;
+  const keys = (obj as { privateKeys: unknown }).privateKeys;
   return (
-    !!obj &&
-    typeof obj === 'object' &&
-    'privateKeys' in obj &&
-    Array.isArray((obj as { privateKeys: unknown }).privateKeys) &&
-    (obj as { privateKeys: unknown[] }).privateKeys.length > 0
+    Array.isArray(keys) &&
+    keys.length > 0 &&
+    keys.every((k): k is string => typeof k === 'string' && k.length > 0)
   );
 }
 
