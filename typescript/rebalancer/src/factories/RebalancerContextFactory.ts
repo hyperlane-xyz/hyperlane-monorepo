@@ -417,10 +417,6 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    const inventorySigner =
-      inventorySigners[ProtocolType.Ethereum] ??
-      Object.values(inventorySigners)[0];
-
     this.logger.debug(
       { warpRouteId: this.config.warpRouteId, inventorySigners },
       'Creating inventory components',
@@ -493,7 +489,7 @@ export class RebalancerContextFactory {
         );
       }
       const inventoryConfig: InventoryMonitorConfig = {
-        inventoryAddress: inventorySigner,
+        inventoryAddresses: inventorySigners,
         chains: inventoryChains,
       };
       const inventoryRebalancer = new InventoryRebalancer(
@@ -518,7 +514,7 @@ export class RebalancerContextFactory {
 
     // 3. Build inventory config
     const inventoryConfig: InventoryMonitorConfig = {
-      inventoryAddress: inventorySigner,
+      inventoryAddresses: inventorySigners,
       chains: inventoryChains,
     };
 
