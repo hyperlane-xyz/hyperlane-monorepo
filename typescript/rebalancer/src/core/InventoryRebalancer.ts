@@ -1436,6 +1436,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const result = await externalBridge.execute(
         quote,
         this.getInventorySignerKey(sourceChain),
+        this.config.inventorySignerKeysByProtocol?.[ProtocolType.Sealevel],
       );
 
       this.logger.info(

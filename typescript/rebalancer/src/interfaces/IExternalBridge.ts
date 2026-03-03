@@ -92,6 +92,7 @@ export interface IExternalBridge {
   execute(
     quote: BridgeQuote,
     privateKey: string,
+    solanaPrivateKey?: string,
   ): Promise<BridgeTransferResult>;
 
   /**
