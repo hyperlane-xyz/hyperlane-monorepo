@@ -945,17 +945,28 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           transferReceipt = receipt;
         }
       } else {
-        const protocolSigner = signingProvider.getSigner(origin) as unknown as {
-          sendAndConfirmTransaction: (tx: unknown) => Promise<string>;
-        };
-        assert(
-          typeof protocolSigner.sendAndConfirmTransaction === 'function',
-          `Signer for ${origin} does not implement IMultiProtocolSigner.sendAndConfirmTransaction`,
-        );
-
-        const txHash = await protocolSigner.sendAndConfirmTransaction(
-          tx.transaction,
-        );
+        const protocol = this.getProtocolForChain(origin);
+        const signerKey = this.config.inventorySignerKeysByProtocol?.[protocol];
+        const txHash =
+          protocol === ProtocolType.Sealevel && signerKey
+            ? await (
+                await getSignerForChain(
+                  origin,
+                  {
+                    protocol,
+                    privateKey: this.parseSolanaPrivateKey(
+                      this.getInventorySignerKey(origin),
+                    ),
+                  },
+                  this.warpCore.multiProvider,
+                )
+              ).sendAndConfirmTransaction({
+                type: ProviderType.SolanaWeb3,
+                transaction: tx.transaction,
+              } as any)
+            : await (
+                signingProvider.getSigner(origin) as any
+              ).sendAndConfirmTransaction(tx.transaction);
         if (tx.category === WarpTxCategory.Transfer) {
           transferTxHash = txHash;
         }
