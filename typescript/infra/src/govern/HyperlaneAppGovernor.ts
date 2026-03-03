@@ -221,7 +221,11 @@ export abstract class HyperlaneAppGovernor<
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
-            throw error;
+            // Re-throw for SAFE so retryAsync can detect failures and retry.
+            // SIGNER/MANUAL log and continue to avoid aborting remaining submissions.
+            if (submissionType === SubmissionType.SAFE) {
+              throw error;
+            }
           }
         } else {
           rootLogger.info(
