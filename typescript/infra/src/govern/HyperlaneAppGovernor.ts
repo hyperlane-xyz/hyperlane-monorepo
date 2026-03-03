@@ -229,6 +229,11 @@ export abstract class HyperlaneAppGovernor<
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
+            // Re-throw for SAFE so the caller knows the submission failed.
+            // SIGNER/MANUAL log and continue to avoid aborting remaining submissions.
+            if (submissionType === SubmissionType.SAFE) {
+              throw error;
+            }
           }
         } else {
           rootLogger.info(
@@ -265,11 +270,16 @@ export abstract class HyperlaneAppGovernor<
         chain,
         safeOwner,
       );
-      await sendCallsForType(
-        SubmissionType.SAFE,
-        safeMultiSend,
-        governanceType,
-      );
+      try {
+        await sendCallsForType(
+          SubmissionType.SAFE,
+          safeMultiSend,
+          governanceType,
+        );
+      } catch {
+        // Error already logged inside sendCallsForType.
+        // Continue with remaining governance types rather than aborting.
+      }
     }
 
     // Then finally submit remaining calls manually
