@@ -31,7 +31,7 @@ import {
   RawWarpArtifactConfig,
   WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, isNullish } from '@hyperlane-xyz/utils';
+import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HookWriter, createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
@@ -269,28 +269,35 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedHook && !isArtifactUnderived(expectedHook)) {
-      const hookWriter = this.hookWriterFactory(config.mailbox);
+      if (!this.artifactManager.supportsHookUpdates()) {
+        rootLogger.warn(
+          'Hook updates are not supported for this protocol. Hook configuration will be ignored.',
+        );
+        onChainHookArtifact = currentHook;
+      } else {
+        const hookWriter = this.hookWriterFactory(config.mailbox);
 
-      // NEW or DEPLOYED: Merge with current and decide deploy vs update
-      const mergedHookConfig = mergeHookArtifacts(currentHook, expectedHook);
+        // NEW or DEPLOYED: Merge with current and decide deploy vs update
+        const mergedHookConfig = mergeHookArtifacts(currentHook, expectedHook);
 
-      if (isArtifactNew(mergedHookConfig)) {
-        // Deploy new Hook
-        const [deployed] = await hookWriter.create(mergedHookConfig);
+        if (isArtifactNew(mergedHookConfig)) {
+          // Deploy new Hook
+          const [deployed] = await hookWriter.create(mergedHookConfig);
 
-        onChainHookArtifact = {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: deployed.deployed.address },
-        };
-      } else if (isArtifactDeployed(mergedHookConfig)) {
-        // DEPLOYED: update existing Hook (or reuse if unchanged)
-        const txs = await hookWriter.update(mergedHookConfig);
+          onChainHookArtifact = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: deployed.deployed.address },
+          };
+        } else if (isArtifactDeployed(mergedHookConfig)) {
+          // DEPLOYED: update existing Hook (or reuse if unchanged)
+          const txs = await hookWriter.update(mergedHookConfig);
 
-        updateTxs.push(...txs);
-        onChainHookArtifact = {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: mergedHookConfig.deployed.address },
-        };
+          updateTxs.push(...txs);
+          onChainHookArtifact = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: mergedHookConfig.deployed.address },
+          };
+        }
       }
     } else {
       onChainHookArtifact = expectedHook;

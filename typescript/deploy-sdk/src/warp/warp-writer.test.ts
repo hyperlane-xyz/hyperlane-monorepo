@@ -61,6 +61,7 @@ interface MockArtifactManager {
     [WarpType, ISigner<AnnotatedTx, TxReceipt>],
     MockRawWarpWriter
   >;
+  supportsHookUpdates: Sinon.SinonStub<[], boolean>;
 }
 
 interface MockIsmWriter {
@@ -133,6 +134,7 @@ describe('WarpTokenWriter', () => {
         [WarpType, ISigner<AnnotatedTx, TxReceipt>],
         MockRawWarpWriter
       >(),
+      supportsHookUpdates: Sinon.stub<[], boolean>().returns(true),
     } as MockArtifactManager;
 
     // Create minimal mock signer
@@ -414,7 +416,55 @@ describe('WarpTokenWriter', () => {
       expect(updateTxs.length).to.be.greaterThan(0);
     });
 
-    it('should update existing ISM', async () => {
+    it('should update existing ISM in-place when type is unchanged', async () => {
+      const ismConfig = createIsmConfig('messageIdMultisigIsm', [
+        '0xVALIDATOR1',
+      ]);
+
+      const currentArtifactWithIsm: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: {
+          ...actualConfig,
+          interchainSecurityModule: {
+            artifactState: ArtifactState.DEPLOYED,
+            config: ismConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+        },
+      };
+
+      readStub.restore();
+      readStub = Sinon.stub(writer, 'read').resolves(currentArtifactWithIsm);
+
+      mockIsmWriter.update.resolves([]);
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub(),
+        update: Sinon.stub().resolves([]),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: {
+          ...actualConfig,
+          interchainSecurityModule: {
+            artifactState: ArtifactState.DEPLOYED,
+            config: ismConfig,
+            deployed: { address: ISM_ADDRESS },
+          },
+        },
+      };
+
+      await writer.update(artifact);
+
+      expect(mockIsmWriter.create.callCount).to.equal(0);
+      expect(mockIsmWriter.update.callCount).to.equal(1);
+    });
+
+    it('should replace existing ISM when type changes', async () => {
       // Setup current artifact with existing ISM
       const currentIsmConfig = createIsmConfig('messageIdMultisigIsm', [
         '0xVALIDATOR1',
@@ -484,6 +534,42 @@ describe('WarpTokenWriter', () => {
       expect(mockIsmWriter.create.callCount).to.equal(1);
       expect(updateTxs.length).to.be.greaterThan(0);
     });
+
+    it('should treat omitted ISM and zero-address ISM equivalently', async () => {
+      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub(),
+        update: Sinon.stub().resolves([]),
+      };
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      // Case 1: no ISM
+      const artifactNoIsm: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: { ...actualConfig, interchainSecurityModule: undefined },
+      };
+      await writer.update(artifactNoIsm);
+      const createCountAfterNoIsm = mockIsmWriter.create.callCount;
+
+      // Case 2: zero-address ISM (UNDERIVED — treated as pass-through)
+      const artifactZeroIsm: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: {
+          ...actualConfig,
+          interchainSecurityModule: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS },
+          },
+        },
+      };
+      await writer.update(artifactZeroIsm);
+
+      // Neither case should trigger ISM creation
+      expect(mockIsmWriter.create.callCount).to.equal(createCountAfterNoIsm);
+      expect(mockIsmWriter.create.callCount).to.equal(0);
+    });
   });
 
   describe('update() - Hook Updates', () => {
@@ -549,6 +635,36 @@ describe('WarpTokenWriter', () => {
       const artifact: DeployedWarpArtifact = {
         ...baseDeployedArtifact,
         config: configWithUnderivedHook,
+      };
+
+      await writer.update(artifact);
+
+      expect(mockHookWriter.create.called).to.be.false;
+      expect(mockHookWriter.update.called).to.be.false;
+    });
+
+    it('should skip hook deployment when protocol does not support hook updates', async () => {
+      mockArtifactManager.supportsHookUpdates.returns(false);
+
+      const configWithHook: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.NEW,
+          config: merkleTreeHookConfig,
+        },
+      };
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub(),
+        update: Sinon.stub().resolves([]),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: DeployedWarpArtifact = {
+        ...baseDeployedArtifact,
+        config: configWithHook,
       };
 
       await writer.update(artifact);

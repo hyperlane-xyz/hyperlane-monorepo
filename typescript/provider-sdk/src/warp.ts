@@ -228,6 +228,12 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
    * @returns The artifact configuration and deployment data
    */
   readWarpToken(address: string): Promise<DeployedRawWarpArtifact>;
+
+  /**
+   * Whether this protocol supports attaching hook configs to warp tokens.
+   * Protocols that don't implement setTokenHook should return false.
+   */
+  supportsHookUpdates(): boolean;
 }
 
 // Warp Config Utilities

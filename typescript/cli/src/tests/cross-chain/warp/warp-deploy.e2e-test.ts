@@ -262,6 +262,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chainName,
         );
 
+        // AltVM readers key remoteRouters by chain name; EVM readers by domain ID.
+        // Try both until the inconsistency is addressed in a follow-up PR.
         const maybeUnsupportedChainRouterAddress =
           (config[chainName].remoteRouters ?? {})[
             TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name

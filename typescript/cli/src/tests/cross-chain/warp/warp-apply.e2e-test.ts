@@ -47,6 +47,21 @@ import {
   getUnsupportedChainWarpCoreTokenConfig,
 } from '../../utils.js';
 
+// AltVM readers key remoteRouters by chain name; EVM readers by domain ID.
+// Try both until the inconsistency is addressed in a follow-up PR.
+function getUnsupportedChainRouterAddress(
+  config: DerivedWarpRouteDeployConfig,
+  chainName: string,
+): string | undefined {
+  const routers = config[chainName].remoteRouters ?? {};
+  return (
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name]
+      ?.address ??
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId]
+      ?.address
+  );
+}
+
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
@@ -252,15 +267,7 @@ describe('hyperlane warp apply e2e tests', async function () {
         chainName,
       );
 
-      const maybeUnsupportedChainRouterAddress =
-        (config[chainName].remoteRouters ?? {})[
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name
-        ]?.address ??
-        (config[chainName].remoteRouters ?? {})[
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-        ]?.address;
-
-      expect(maybeUnsupportedChainRouterAddress).to.eql(
+      expect(getUnsupportedChainRouterAddress(config, chainName)).to.eql(
         addressToBytes32(unsupportedChainAddress),
       );
     }
@@ -331,15 +338,7 @@ describe('hyperlane warp apply e2e tests', async function () {
         chainName,
       );
 
-      const maybeUnsupportedChainRouterAddress =
-        (config[chainName].remoteRouters ?? {})[
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name
-        ]?.address ??
-        (config[chainName].remoteRouters ?? {})[
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-        ]?.address;
-
-      expect(maybeUnsupportedChainRouterAddress).to.eql(
+      expect(getUnsupportedChainRouterAddress(config, chainName)).to.eql(
         addressToBytes32(unsupportedChainAddress),
       );
     }
