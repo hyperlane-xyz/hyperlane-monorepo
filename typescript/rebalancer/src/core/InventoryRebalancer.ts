@@ -202,7 +202,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   private getProtocolForChain(chainName: ChainName): ProtocolType {
     const metadata =
       this.warpCore.multiProvider.getChainMetadata?.(chainName) ?? undefined;
-    return metadata?.protocol ?? ProtocolType.Ethereum;
+    assert(metadata, `No chain metadata found for chain ${chainName}`);
+    assert(
+      metadata.protocol,
+      `No protocol type in metadata for chain ${chainName}`,
+    );
+    return metadata.protocol;
   }
 
   private getInventorySignerAddress(chainName: ChainName): string {
