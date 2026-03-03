@@ -136,7 +136,11 @@ export {
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
+export {
+  executeWarpDeploy,
+  enrollCrossChainRouters,
+  validateWarpConfigForAltVM,
+} from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelIgpProgramAdapter,

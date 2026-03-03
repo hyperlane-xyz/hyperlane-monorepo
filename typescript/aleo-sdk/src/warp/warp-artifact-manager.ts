@@ -35,6 +35,10 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
     private readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {}
 
+  supportsHookUpdates(): boolean {
+    return true;
+  }
+
   async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
     // Detect warp token type first
     const aleoTokenType = await getAleoWarpTokenType(this.aleoClient, address);
