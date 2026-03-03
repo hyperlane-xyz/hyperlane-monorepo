@@ -630,7 +630,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(destination, tx);
 
         // TODO: Break this out into a generalized function
-        const dispatchLogs = receipt.logs
+        const dispatchLogs = (receipt.logs ?? [])
           .map((log) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
@@ -714,10 +714,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress(address[],uint8)'](
+    const getAddressResult = await factory['getAddress(address[],uint8)'](
       sorted,
       threshold,
     );
+    const address =
+      (await this.previewFactoryDeployAddress(
+        chain,
+        factory,
+        'deploy(address[],uint8)',
+        [sorted, threshold],
+      )) ?? getAddressResult;
+    if (!eqAddress(address, getAddressResult)) {
+      logger.debug(
+        `Factory getAddress mismatch on ${chain}, using deploy simulation address ${address}`,
+      );
+    }
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -756,10 +768,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress((address,uint96)[],uint96)'](
-      sorted,
-      thresholdWeight,
-    );
+    const getAddressResult = await factory[
+      'getAddress((address,uint96)[],uint96)'
+    ](sorted, thresholdWeight);
+    const address =
+      (await this.previewFactoryDeployAddress(
+        chain,
+        factory,
+        'deploy((address,uint96)[],uint96)',
+        [sorted, thresholdWeight],
+      )) ?? getAddressResult;
+    if (!eqAddress(address, getAddressResult)) {
+      logger.debug(
+        `Weighted factory getAddress mismatch on ${chain}, using deploy simulation address ${address}`,
+      );
+    }
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -789,5 +812,42 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       );
     }
     return address;
+  }
+
+  private async previewFactoryDeployAddress(
+    chain: ChainName,
+    factory: {
+      address: string;
+      interface: {
+        encodeFunctionData(
+          functionName: string,
+          args?: readonly unknown[],
+        ): string;
+        decodeFunctionResult(functionName: string, data: string): unknown;
+      };
+    },
+    signature: string,
+    args: readonly unknown[],
+  ): Promise<Address | undefined> {
+    try {
+      const data = factory.interface.encodeFunctionData(signature, args);
+      const result = await this.multiProvider.getProvider(chain).call({
+        to: factory.address,
+        data,
+      });
+      const decoded = factory.interface.decodeFunctionResult(signature, result);
+      if (Array.isArray(decoded) && typeof decoded[0] === 'string') {
+        return decoded[0] as Address;
+      }
+      if (typeof decoded === 'string') {
+        return decoded as Address;
+      }
+      return undefined;
+    } catch (e: unknown) {
+      this.logger.debug(
+        `Failed to preview factory deploy address on ${chain} (factory=${factory.address}, fn=${signature}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return undefined;
+    }
   }
 }

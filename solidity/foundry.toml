@@ -24,6 +24,8 @@ bytecode_hash = "none"
 [profile.tron]
 # Tron uses 0x41 prefix for CREATE2 instead of 0xff
 # Override Create2.sol with patched version in overrides/tron/
+out = 'out-tron'
+cache_path = 'forge-cache-tron'
 remappings = [
     "@openzeppelin/contracts/utils/Create2.sol=overrides/tron/Create2.sol",
     "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-4.9.3/contracts/",

@@ -50,6 +50,7 @@ import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -61,7 +62,7 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
@@ -135,6 +136,16 @@ export function validateWarpConfigForAltVM(
     };
     return result;
   }
+}
+
+function shouldDeployConcurrently(
+  multiProvider: MultiProvider,
+  chains: ChainName[],
+): boolean {
+  return chains.every((chain) => {
+    const metadata = multiProvider.getChainMetadata(chain);
+    return metadata.technicalStack !== ChainTechnicalStack.Tron;
+  });
 }
 
 export async function executeWarpDeploy(
@@ -213,9 +224,23 @@ export async function executeWarpDeploy(
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
+        const concurrentDeploy = shouldDeployConcurrently(
+          multiProvider,
+          Object.keys(protocolSpecificConfig),
+        );
         const deployer = warpDeployConfig.isNft
-          ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmWarpModule
+          ? new HypERC721Deployer(
+              multiProvider,
+              undefined,
+              undefined,
+              concurrentDeploy,
+            )
+          : new HypERC20Deployer(
+              multiProvider,
+              undefined,
+              undefined,
+              concurrentDeploy,
+            ); // TODO: replace with EvmWarpModule
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {

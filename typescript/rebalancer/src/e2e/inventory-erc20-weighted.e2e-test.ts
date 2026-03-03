@@ -1,12 +1,7 @@
 import { expect } from 'chai';
 import { ethers, providers } from 'ethers';
 
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import { ExternalBridgeType } from '../config/types.js';
 
@@ -22,6 +17,7 @@ import {
 } from './fixtures/routes.js';
 import { Erc20InventoryLocalDeploymentManager } from './harness/Erc20InventoryLocalDeploymentManager.js';
 import { MockExternalBridge } from './harness/MockExternalBridge.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import {
   classifyChains,
   getErc20RouterBalances,
@@ -95,16 +91,11 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
 
   afterEach(async function () {
     mockBridge.reset();
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-      // ethers v5 refuses to return block numbers lower than a previous
-      // high-water mark (_maxInternalBlockNumber). After evm_revert the
-      // actual chain block number decreases, so reset the cache.
-      Reflect.set(provider, '_maxInternalBlockNumber', -1);
-      Reflect.set(provider, '_internalBlockNumber', null);
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {

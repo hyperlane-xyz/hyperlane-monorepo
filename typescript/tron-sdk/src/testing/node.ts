@@ -82,6 +82,7 @@ export async function runTronNode(
 
   // Enable instamine mode for faster tests
   await enableInstamine(chainMetadata.port);
+  await waitForTronRpcReadiness(chainMetadata.port);
 
   return { container, privateKeys };
 }
@@ -147,35 +148,94 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
       const provider = new TronJsonRpcProvider(tronUrl);
       const tronweb = new TronWeb({ fullHost: tronUrl });
 
-      const [blockNumber, block] = await withTimeout(
-        Promise.all([provider.getBlockNumber(), tronweb.trx.getCurrentBlock()]),
-        5000,
-      );
-      if (blockNumber === 0) {
-        throw new Error('Block number is 0, node not ready');
-      }
-      if (!block.blockID) {
-        throw new Error('HTTP API returned invalid block data');
-      }
+      try {
+        const [blockNumber, block, latestBlock, gasPrice] = await withTimeout(
+          Promise.all([
+            provider.getBlockNumber(),
+            tronweb.trx.getCurrentBlock(),
+            provider.getBlock('latest'),
+            provider.getGasPrice(),
+          ]),
+          5000,
+        );
+        if (blockNumber === 0) {
+          throw new Error('Block number is 0, node not ready');
+        }
+        if (!block.blockID) {
+          throw new Error('HTTP API returned invalid block data');
+        }
+        if (!latestBlock) {
+          throw new Error('eth_getBlockByNumber returned empty block');
+        }
+        if (gasPrice.lt(0)) {
+          throw new Error('eth_gasPrice returned invalid value');
+        }
 
-      // Wait for TRE to fund accounts (happens after node starts mining)
-      const resp = await withTimeout(
-        fetch(`${tronUrl}/admin/accounts-json`),
-        5000,
-      );
-      const data = (await resp.json()) as { privateKeys: string[] };
-      if (!data.privateKeys?.length) {
-        throw new Error('No funded accounts yet');
-      }
-      privateKeys = data.privateKeys;
+        // Wait for TRE to fund accounts (happens after node starts mining)
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        let resp: Response;
+        try {
+          resp = await fetch(`${tronUrl}/admin/accounts-json`, {
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!resp.ok) {
+          throw new Error(
+            `accounts-json request failed with status ${resp.status}`,
+          );
+        }
+        const data: unknown = await resp.json();
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          !('privateKeys' in data) ||
+          !Array.isArray((data as { privateKeys: unknown }).privateKeys) ||
+          !(data as { privateKeys: unknown[] }).privateKeys.length
+        ) {
+          throw new Error('No funded accounts yet');
+        }
+        privateKeys = (data as { privateKeys: string[] }).privateKeys;
 
-      rootLogger.info(
-        `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
-      );
+        rootLogger.info(
+          `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
+        );
+      } finally {
+        provider.removeAllListeners();
+      }
     },
     1000,
     60,
   );
 
   return privateKeys;
+}
+
+async function waitForTronRpcReadiness(port: number): Promise<void> {
+  const tronUrl = `http://127.0.0.1:${port}`;
+
+  await pollAsync(
+    async () => {
+      const provider = new TronJsonRpcProvider(tronUrl);
+      try {
+        const [latestBlock, gasPrice] = await withTimeout(
+          Promise.all([provider.getBlock('latest'), provider.getGasPrice()]),
+          5000,
+        );
+
+        if (!latestBlock) {
+          throw new Error('eth_getBlockByNumber returned empty block');
+        }
+        if (gasPrice.lt(0)) {
+          throw new Error('eth_gasPrice returned invalid value');
+        }
+      } finally {
+        provider.removeAllListeners();
+      }
+    },
+    1000,
+    30,
+  );
 }

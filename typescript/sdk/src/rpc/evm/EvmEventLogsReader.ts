@@ -1,7 +1,7 @@
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { Address, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
@@ -65,6 +65,10 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
     const deploymentTransactionReceipt = await this.multiProvider
       .getProvider(this.chain)
       .getTransactionReceipt(contractDeploymentTx.txHash);
+    assert(
+      deploymentTransactionReceipt?.blockNumber != null,
+      `No deployment receipt block number for contract ${address} on ${this.chain}`,
+    );
 
     return deploymentTransactionReceipt.blockNumber;
   }

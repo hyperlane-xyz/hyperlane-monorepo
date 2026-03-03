@@ -23,20 +23,35 @@ export async function getFirstMonitorEvent(
   monitor: Monitor,
 ): Promise<MonitorEvent> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+
+    async function finalize(
+      cb: (v: any) => void,
+      value: any,
+      timer: ReturnType<typeof setTimeout>,
+    ) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        await monitor.stop();
+      } catch (stopError) {
+        reject(stopError);
+        return;
+      }
+      cb(value);
+    }
+
     const timeout = setTimeout(() => {
-      reject(new Error('Monitor event timeout'));
+      void finalize(reject, new Error('Monitor event timeout'), timeout);
     }, 60_000);
 
     monitor.on(MonitorEventType.TokenInfo, (event: MonitorEvent) => {
-      clearTimeout(timeout);
-      void monitor.stop();
-      resolve(event);
+      void finalize(resolve, event, timeout);
     });
 
     monitor.on(MonitorEventType.Error, (error: Error) => {
-      clearTimeout(timeout);
-      void monitor.stop();
-      reject(error);
+      void finalize(reject, error, timeout);
     });
 
     void monitor.start();

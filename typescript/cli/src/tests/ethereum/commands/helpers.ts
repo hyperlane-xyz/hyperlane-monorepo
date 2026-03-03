@@ -27,7 +27,7 @@ import {
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
+import { type Address, assert, ensure0x, inCIMode } from '@hyperlane-xyz/utils';
 
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 
@@ -185,11 +185,15 @@ function setSignerForChain(
   chain: string,
   privateKey: string,
 ): void {
+  const key = ensure0x(privateKey);
   const { technicalStack, rpcUrls } = multiProvider.getChainMetadata(chain);
   if (technicalStack === ChainTechnicalStack.Tron) {
-    multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrls[0].http));
+    assert(rpcUrls?.length, `No rpcUrls configured for chain ${chain}`);
+    // TronWallet expects the base node URL without /jsonrpc suffix
+    const tronUrl = rpcUrls[0].http.replace(/\/jsonrpc\/?$/, '');
+    multiProvider.setSigner(chain, new TronWallet(key, tronUrl));
   } else {
-    multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+    multiProvider.setSigner(chain, new ethers.Wallet(key));
   }
 }
 

@@ -15,6 +15,31 @@ import type {
   MetadataContext,
 } from './types.js';
 
+function isHexString(value: unknown): value is string {
+  return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2}){4,}$/.test(value);
+}
+
+function extractRevertData(error: unknown): string | undefined {
+  const seen = new Set<unknown>();
+  const queue: unknown[] = [error];
+
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+
+    if (isHexString(candidate)) return candidate;
+    if (typeof candidate !== 'object') continue;
+
+    const record = candidate as Record<string, unknown>;
+    for (const key of ['data', 'error', 'cause', 'details', 'info']) {
+      if (record[key] !== undefined) queue.push(record[key]);
+    }
+  }
+
+  return undefined;
+}
+
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
@@ -40,9 +65,10 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       // Should revert with OffchainLookup
       await contract.getOffchainVerifyInfo(message.message);
       throw new Error('Expected OffchainLookup revert');
-    } catch (err: any) {
-      revertData = err.error?.data || err.data;
-      if (!revertData) throw err;
+    } catch (err: unknown) {
+      const extracted = extractRevertData(err);
+      if (!extracted) throw err;
+      revertData = extracted;
     }
 
     const parsed = contract.interface.parseError(revertData);
@@ -89,7 +115,11 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
           res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender, data: callDataHex, signature }),
+            body: JSON.stringify({
+              sender,
+              data: callDataHex,
+              signature,
+            }),
           });
         }
       } catch (error: any) {
