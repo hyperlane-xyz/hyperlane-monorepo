@@ -89,22 +89,15 @@ describe('resolveChains — STATUS command', () => {
     expect(result).to.deep.equal(['bsc']);
   });
 
-  it('returns origin and destination when both provided', async () => {
-    const result = await resolveChains(
-      statusArgv({ origin: 'bsc', destination: 'ethereum' }),
-    );
-    expect(result).to.deep.equal(['bsc', 'ethereum']);
-  });
-
-  it('returns empty array when neither provided', async () => {
+  it('returns empty array when origin not provided', async () => {
     const result = await resolveChains(statusArgv());
     expect(result).to.deep.equal([]);
   });
 
-  it('returns one chain when origin equals destination', async () => {
+  it('ignores destination since status command does not declare it', async () => {
     const result = await resolveChains(
-      statusArgv({ origin: 'ethereum', destination: 'ethereum' }),
+      statusArgv({ origin: 'bsc', destination: 'ethereum' }),
     );
-    expect(result).to.deep.equal(['ethereum']);
+    expect(result).to.deep.equal(['bsc']);
   });
 });
