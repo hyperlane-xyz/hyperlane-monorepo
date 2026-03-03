@@ -13,9 +13,6 @@
   "license": "Apache-2.0",
   "author": "Abacus Works, Inc.",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "bin": {
-    "hyperlane-rebalancer": "./dist/service.js"
-  },
   "files": [
     "dist",
     "src"
