@@ -173,7 +173,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   tryGetEvmChainId(chainNameOrId: ChainNameOrId): number | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    if (metadata.protocol !== ProtocolType.Ethereum) return null;
+    if (!isEVMLike(metadata.protocol)) return null;
     if (typeof metadata.chainId !== 'number') return null;
     return metadata.chainId;
   }

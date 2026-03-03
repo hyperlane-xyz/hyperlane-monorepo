@@ -162,7 +162,9 @@ export async function getXERC20Info(
 
   if (
     token.standard === TokenStandard.EvmHypXERC20 ||
-    token.standard === TokenStandard.EvmHypVSXERC20
+    token.standard === TokenStandard.EvmHypVSXERC20 ||
+    token.standard == TokenStandard.TronHypVSXERC20 ||
+    token.standard == TokenStandard.TronHypXERC20
   ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
@@ -173,7 +175,9 @@ export async function getXERC20Info(
     };
   } else if (
     token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox ||
+    token.standard === TokenStandard.TronHypXERC20Lockbox ||
+    token.standard === TokenStandard.TronHypVSXERC20Lockbox
   ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
