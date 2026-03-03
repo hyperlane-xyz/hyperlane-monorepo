@@ -150,6 +150,7 @@ const VALIDATION_PATTERNS = [
   /Route fromToken .* does not match requested/,
   /Route toToken .* does not match requested/,
   /Route toAddress .* does not match requested/,
+  /Route fromAddress .* does not match requested/,
   /Route fromAmount .* does not match requested/,
   /Route toAmount .* is less than requested/,
   /Route fromAmount must be positive/,
@@ -258,6 +259,21 @@ describe('LiFiBridge.execute() route validation', function () {
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(msg).to.include('toAddress');
+    }
+  });
+
+  it('should throw when route fromAddress does not match requested', async () => {
+    const quote = createTestQuote(
+      { fromAddress: BAD_ADDR },
+      { fromAddress: SENDER_ADDR },
+    );
+
+    try {
+      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('fromAddress');
     }
   });
 
