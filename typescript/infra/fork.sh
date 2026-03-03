@@ -70,6 +70,7 @@ execute_command "pnpm tsx ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODU
 
 AFTER=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 DEPLOY_DELTA="$((BEFORE-AFTER))"
+echo "Deploy gas delta: $DEPLOY_DELTA"
 
 BEFORE=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 echo "Checking deploy with --govern"
@@ -77,6 +78,7 @@ execute_command "pnpm tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CH
 
 AFTER=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 GOVERN_DELTA="$((BEFORE-AFTER))"
+echo "Govern gas delta: $GOVERN_DELTA"
 
 echo "Checking deploy without --govern"
 execute_command "pnpm tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"

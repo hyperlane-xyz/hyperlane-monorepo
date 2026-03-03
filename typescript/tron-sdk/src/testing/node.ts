@@ -1,7 +1,12 @@
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { TronWeb } from 'tronweb';
 
-import { pollAsync, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  pollAsync,
+  retryAsync,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { TronJsonRpcProvider } from '../ethers/TronJsonRpcProvider.js';
 
@@ -120,6 +125,16 @@ export async function enableInstamine(port: number): Promise<void> {
   rootLogger.info('Enabled instamine mode');
 }
 
+function isAccountsJson(obj: unknown): obj is { privateKeys: string[] } {
+  return (
+    !!obj &&
+    typeof obj === 'object' &&
+    'privateKeys' in obj &&
+    Array.isArray((obj as { privateKeys: unknown }).privateKeys) &&
+    (obj as { privateKeys: unknown[] }).privateKeys.length > 0
+  );
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
@@ -188,16 +203,8 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
           );
         }
         const data: unknown = await resp.json();
-        if (
-          !data ||
-          typeof data !== 'object' ||
-          !('privateKeys' in data) ||
-          !Array.isArray((data as { privateKeys: unknown }).privateKeys) ||
-          !(data as { privateKeys: unknown[] }).privateKeys.length
-        ) {
-          throw new Error('No funded accounts yet');
-        }
-        privateKeys = (data as { privateKeys: string[] }).privateKeys;
+        assert(isAccountsJson(data), 'No funded accounts yet');
+        privateKeys = data.privateKeys;
 
         rootLogger.info(
           `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,

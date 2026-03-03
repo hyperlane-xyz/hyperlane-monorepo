@@ -35,8 +35,10 @@ export async function getFirstMonitorEvent(
       clearTimeout(timer);
       try {
         await monitor.stop();
-      } catch (stopError) {
-        reject(stopError);
+      } catch (stopError: unknown) {
+        reject(
+          stopError instanceof Error ? stopError : new Error(String(stopError)),
+        );
         return;
       }
       cb(value);

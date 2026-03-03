@@ -33,7 +33,8 @@ function nextTronTxExtension(): number {
  */
 function decodeTronErrorMessage(message: string | undefined): string {
   if (!message) return 'unknown error';
-  if (!/^[0-9a-fA-F]+$/.test(message)) return message;
+  if (!/^[0-9a-fA-F]+$/.test(message) || message.length % 2 !== 0)
+    return message;
   try {
     return Buffer.from(message, 'hex').toString('utf8');
   } catch {
@@ -218,7 +219,8 @@ export class TronWallet extends Wallet {
     tronTx = await this.makeUnique(tronTx);
 
     // Sign and broadcast with retry on contract address collision
-    for (let attempt = 0; ; attempt += 1) {
+    const MAX_BROADCAST_RETRIES = 5;
+    for (let attempt = 0; attempt <= MAX_BROADCAST_RETRIES; attempt += 1) {
       const signedTx = await this.tronWeb.trx.sign(
         structuredClone(tronTx as Types.Transaction),
       );
@@ -226,7 +228,10 @@ export class TronWallet extends Wallet {
         await this.tronWeb.trx.sendRawTransaction(signedTx);
       if (broadcastResult.result) break;
       const decodedMessage = decodeTronErrorMessage(broadcastResult.message);
-      if (attempt < 5 && isContractAddressCollision(decodedMessage)) {
+      if (
+        attempt < MAX_BROADCAST_RETRIES &&
+        isContractAddressCollision(decodedMessage)
+      ) {
         tronTx = await this.makeUnique(tronTx);
         continue;
       }

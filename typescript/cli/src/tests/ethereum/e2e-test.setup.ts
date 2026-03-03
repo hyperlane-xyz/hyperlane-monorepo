@@ -30,24 +30,36 @@ before(async function () {
 
   if (IS_TRON_TEST && !useExternalNodes) {
     // Read chain metadata to derive port and chainId
-    const meta: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    assert(
-      meta.rpcUrls?.[0],
-      `Missing rpcUrls in chain metadata for ${CHAIN_2_METADATA_PATH}`,
-    );
-    assert(
-      meta.rpcUrls[0].http,
-      `Missing rpcUrls[0].http in chain metadata for ${CHAIN_2_METADATA_PATH}`,
-    );
-    const port = new URL(meta.rpcUrls[0].http).port;
-    assert(port, `Could not derive port from rpcUrl ${meta.rpcUrls[0].http}`);
+    let meta: ChainMetadata;
+    let port: number;
+    let chainId: number;
+    try {
+      meta = readYamlOrJson(CHAIN_2_METADATA_PATH);
+      assert(
+        meta.rpcUrls?.[0]?.http,
+        `Missing rpcUrls[0].http in chain metadata`,
+      );
+      const rpcUrl = meta.rpcUrls[0].http;
+      port = Number(new URL(rpcUrl).port);
+      assert(port > 0, `Invalid port derived from rpcUrl ${rpcUrl}`);
+      chainId = Number(meta.chainId);
+      assert(
+        Number.isFinite(chainId) && chainId > 0,
+        `Invalid chainId ${meta.chainId}`,
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        `Failed to read Tron chain metadata from ${CHAIN_2_METADATA_PATH}: ${msg}`,
+      );
+    }
     // Single Tron node handles all 3 logical chains (anvil2/3/4 aliases).
     // runTronNode uses a fixed mnemonic so ANVIL_KEY matches account 0.
     await runTronNode({
       name: 'tron-local',
-      chainId: Number(meta.chainId),
-      domainId: meta.domainId ?? Number(meta.chainId),
-      port: Number(port),
+      chainId,
+      domainId: meta.domainId ?? chainId,
+      port,
     });
   } else if (!useExternalNodes) {
     // Separate Anvil nodes for each chain

@@ -220,6 +220,7 @@ export abstract class HyperlaneAppGovernor<
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${error}`),
             );
+            throw error;
           }
         } else {
           rootLogger.info(

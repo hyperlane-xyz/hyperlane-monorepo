@@ -6,6 +6,8 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
+import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 
@@ -110,7 +112,7 @@ class RetrySpySmartProvider extends HyperlaneSmartProvider {
   protected override async performWithFallback(
     _method: string,
     _params: { [name: string]: any },
-    _providers: any[],
+    _providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
     _reqId: number,
   ): Promise<any> {
     this.performWithFallbackCallCount += 1;
@@ -709,15 +711,17 @@ describe('SmartProvider', () => {
       // Call perform() (the public entry point) so the SendTransaction bypass in perform() is exercised.
       // RetrySpySmartProvider.performWithFallback always throws, so if retryAsync
       // were wrapping it, the call count would be > 1 (maxRetries=3).
+      let threw = false;
       try {
         await smartProvider.perform(ProviderMethod.SendTransaction, {
           signedTransaction: '0x02',
         });
-        expect.fail('Should have thrown');
       } catch {
-        // performWithFallback should be called exactly once (no retryAsync wrapping)
-        expect(smartProvider.performWithFallbackCallCount).to.equal(1);
+        threw = true;
       }
+      expect(threw, 'perform should have thrown').to.be.true;
+      // performWithFallback should be called exactly once (no retryAsync wrapping)
+      expect(smartProvider.performWithFallbackCallCount).to.equal(1);
     });
 
     it('sendTransaction waits for provider instead of racing against timeout', async () => {

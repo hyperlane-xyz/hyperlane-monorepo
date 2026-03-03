@@ -21,6 +21,10 @@ function isHexString(value: unknown): value is string {
   return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2}){64,}$/.test(value);
 }
 
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null && !Array.isArray(x);
+}
+
 const MAX_BFS_ITERATIONS = 50;
 
 function extractRevertData(error: unknown): string | undefined {
@@ -35,11 +39,10 @@ function extractRevertData(error: unknown): string | undefined {
     seen.add(candidate);
 
     if (isHexString(candidate)) return candidate;
-    if (typeof candidate !== 'object') continue;
+    if (!isRecord(candidate)) continue;
 
-    const record = candidate as Record<string, unknown>;
     for (const key of ['data', 'error', 'cause', 'details', 'info']) {
-      if (record[key] !== undefined) queue.push(record[key]);
+      if (candidate[key] !== undefined) queue.push(candidate[key]);
     }
   }
 

@@ -33,9 +33,7 @@ export async function resetSnapshotsAndRefreshProviders({
   // Replace providers so ethers v5 internal block-number caches are cleared.
   const signerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
 
-  for (const chain of TEST_CHAINS) {
-    const oldProvider = localProviders.get(chain);
-    assert(oldProvider, `Missing provider for chain ${chain}`);
+  for (const [chain, oldProvider] of localProviders) {
     const url = oldProvider.connection.url;
     const freshProvider = createFreshProvider(url);
     // Reset the internal block-number cache so ethers v5 does not refuse

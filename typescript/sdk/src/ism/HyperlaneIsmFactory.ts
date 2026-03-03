@@ -837,10 +837,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       });
       const decoded = factory.interface.decodeFunctionResult(signature, result);
       if (Array.isArray(decoded) && typeof decoded[0] === 'string') {
-        return decoded[0] as Address;
+        return decoded[0];
       }
       if (typeof decoded === 'string') {
-        return decoded as Address;
+        return decoded;
       }
       return undefined;
     } catch (e: unknown) {

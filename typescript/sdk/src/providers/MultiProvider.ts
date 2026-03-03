@@ -174,8 +174,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (signer && signer.provider) {
       try {
         this.setSigner(chainName, signer.connect(provider));
-      } catch {
-        // Some signers (e.g. JsonRpcSigner) don't support .connect()
+      } catch (e: unknown) {
+        // JsonRpcSigner throws UNSUPPORTED_OPERATION for .connect()
+        const code = (e as { code?: string })?.code;
+        if (code !== 'UNSUPPORTED_OPERATION') {
+          throw e;
+        }
       }
     }
     return provider;
