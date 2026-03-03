@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { ethers } from 'ethers';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { ScenarioFile, SimulationResult } from './types.js';
 import { generateTimelineHtml } from './visualizer/HtmlTimelineGenerator.js';
@@ -27,7 +28,13 @@ export type SaveSimulationResultsOutput = {
 export function saveSimulationResults(
   options: SaveSimulationResultsOptions,
 ): SaveSimulationResultsOutput {
-  const { outputDir, scenarioName, scenarioFile, results, comparison } = options;
+  const { outputDir, scenarioName, scenarioFile, results, comparison } =
+    options;
+
+  assert(
+    !scenarioName.includes('..') && !path.isAbsolute(scenarioName),
+    `Invalid scenario name: ${scenarioName}`,
+  );
 
   fs.mkdirSync(outputDir, { recursive: true });
 
@@ -109,7 +116,9 @@ export function saveSimulationResults(
       ethers.utils.formatEther(scenarioFile.defaultInitialCollateral),
     );
     const extra = scenarioFile.initialImbalance?.[chain]
-      ? parseFloat(ethers.utils.formatEther(scenarioFile.initialImbalance[chain]))
+      ? parseFloat(
+          ethers.utils.formatEther(scenarioFile.initialImbalance[chain]),
+        )
       : 0;
     vizConfig.initialCollateral[chain] = (base + extra).toString();
   }

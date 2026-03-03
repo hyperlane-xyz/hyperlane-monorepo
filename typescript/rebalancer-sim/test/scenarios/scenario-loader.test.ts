@@ -13,8 +13,13 @@ import {
 
 describe('ScenarioLoader', () => {
   const originalScenariosDir = process.env['SCENARIOS_DIR'];
+  let customDir: string | undefined;
 
   afterEach(() => {
+    if (customDir) {
+      fs.rmSync(customDir, { recursive: true, force: true });
+      customDir = undefined;
+    }
     if (originalScenariosDir === undefined) {
       delete process.env['SCENARIOS_DIR'];
     } else {
@@ -37,7 +42,7 @@ describe('ScenarioLoader', () => {
   });
 
   it('supports SCENARIOS_DIR override', () => {
-    const customDir = fs.mkdtempSync(
+    customDir = fs.mkdtempSync(
       path.join(os.tmpdir(), 'rebalancer-sim-scenarios-'),
     );
 

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
+import { assert } from '@hyperlane-xyz/utils';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { ScenarioFile, TransferScenario } from './types.js';
@@ -27,6 +28,10 @@ function resolveScenariosDir(): string {
  * Load a scenario file (full format with metadata and defaults)
  */
 export function loadScenarioFile(name: string): ScenarioFile {
+  assert(
+    !name.includes('..') && !path.isAbsolute(name),
+    `Invalid scenario name: ${name}`,
+  );
   const scenariosDir = resolveScenariosDir();
   const filePath = path.join(scenariosDir, `${name}.json`);
 
