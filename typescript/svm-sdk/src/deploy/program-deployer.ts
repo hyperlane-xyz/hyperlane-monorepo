@@ -8,6 +8,7 @@ import { getCreateAccountInstruction } from '@solana-program/system';
 import {
   generateKeyPairSigner,
   getAddressCodec,
+  getAddressDecoder,
   getProgramDerivedAddress,
   type Address,
   type Instruction,
@@ -16,7 +17,7 @@ import {
 
 import { LOADER_V3_PROGRAM_ADDRESS } from '../constants.js';
 import { DEFAULT_WRITE_CHUNK_SIZE } from '../tx.js';
-import type { SvmReceipt } from '../types.js';
+import type { SvmReceipt, SvmRpc } from '../types.js';
 
 const ADDRESS_CODEC = getAddressCodec();
 const BUFFER_METADATA_SIZE = 37;
@@ -226,7 +227,7 @@ export async function executeDeployPlan(
   return receipts;
 }
 
-async function deriveProgramDataAddress(
+export async function deriveProgramDataAddress(
   programAddress: Address,
 ): Promise<Address> {
   const pda = await getProgramDerivedAddress({
@@ -234,4 +235,30 @@ async function deriveProgramDataAddress(
     seeds: [ADDRESS_CODEC.encode(programAddress)],
   });
   return pda[0];
+}
+
+/**
+ * Reads the BPF loader upgradeable ProgramData account to return the current
+ * upgrade authority, or null if the program is immutable or not found.
+ *
+ * ProgramData binary layout:
+ *   [0-3]  u32 discriminant (= 3)
+ *   [4-11] u64 slot
+ *   [12]   u8  option tag (0 = None, 1 = Some)
+ *   [13-44] [u8; 32] upgrade authority pubkey (only when tag = 1)
+ */
+export async function getProgramUpgradeAuthority(
+  rpc: SvmRpc,
+  programAddress: Address,
+): Promise<Address | null> {
+  const programDataAddress = await deriveProgramDataAddress(programAddress);
+  const account = await rpc
+    .getAccountInfo(programDataAddress, { encoding: 'base64' })
+    .send();
+  if (!account.value) return null;
+  const data = Buffer.from(account.value.data[0] as string, 'base64');
+  if (data.length < 45) return null;
+  const hasAuthority = data[12] === 1;
+  if (!hasAuthority) return null;
+  return getAddressDecoder().decode(data.slice(13, 45));
 }

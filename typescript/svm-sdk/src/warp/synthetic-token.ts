@@ -397,6 +397,7 @@ export class SvmSyntheticTokenWriter
       programId,
       parseAddress(current.config.owner),
       this.config.igpProgramId,
+      this.rpc,
       `synthetic token ${programId}`,
     );
   }

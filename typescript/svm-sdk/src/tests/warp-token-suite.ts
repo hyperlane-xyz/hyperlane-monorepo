@@ -10,9 +10,11 @@ import type {
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
+import { address as parseAddress } from '@solana/kit';
 import { SvmSigner } from '../clients/signer.js';
-import { airdropSol } from '../testing/setup.js';
+import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { createRpc } from '../rpc.js';
+import { airdropSol } from '../testing/setup.js';
 
 /**
  * Overrides that can be applied to any token type config.
@@ -270,6 +272,13 @@ export function defineWarpTokenTests(
     expect(afterTransfer.config.owner).to.equal(
       newOwnerSigner.getSignerAddress(),
     );
+
+    // Verify the BPF loader upgrade authority was also transferred.
+    const upgradeAuthority = await getProgramUpgradeAuthority(
+      rpc,
+      parseAddress(deployedProgramId),
+    );
+    expect(upgradeAuthority).to.equal(newOwnerSigner.getSignerAddress());
 
     // New owner sets the ISM — instructions reference newOwnerSigner.address.
     const updateTxs = await writer.update({
