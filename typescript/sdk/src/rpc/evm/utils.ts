@@ -33,6 +33,10 @@ function toNumber(value: unknown, field: string): number {
       ? parseInt(value, 16)
       : parseInt(value, 10);
     assert(!Number.isNaN(num), `${field} parsed to NaN from "${value}"`);
+    assert(
+      Number.isSafeInteger(num),
+      `${field} string value "${value}" exceeds safe integer range`,
+    );
     return num;
   }
   assert(false, `Unable to convert ${field} to number`);
