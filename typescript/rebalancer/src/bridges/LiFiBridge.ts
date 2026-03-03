@@ -12,7 +12,7 @@ import {
   getStatus,
   config as lifiConfig,
 } from '@lifi/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -381,7 +381,9 @@ export class LiFiBridge implements IExternalBridge {
       );
     } else {
       // Create viem account and wallet client for the source chain
-      const account = privateKeyToAccount(privateKey as `0x${string}`);
+      const account = privateKeyToAccount(
+        ensure0x(privateKey) as `0x${string}`,
+      );
       const rpcUrl = this.getRpcUrlForChainId(fromChain);
       const chain = getViemChain(fromChain, rpcUrl);
 
