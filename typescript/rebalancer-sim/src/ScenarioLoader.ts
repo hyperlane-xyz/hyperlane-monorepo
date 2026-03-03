@@ -7,17 +7,32 @@ import type { Address } from '@hyperlane-xyz/utils';
 import type { ScenarioFile, TransferScenario } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCENARIOS_DIR = path.join(__dirname, '..', 'scenarios');
+const DEFAULT_SCENARIOS_DIR = path.join(__dirname, '..', 'scenarios');
+const SCENARIOS_DIR_ENV = 'SCENARIOS_DIR';
+
+function resolveScenariosDir(): string {
+  const envValue = process.env[SCENARIOS_DIR_ENV]?.trim();
+  if (!envValue) {
+    return DEFAULT_SCENARIOS_DIR;
+  }
+
+  if (path.isAbsolute(envValue)) {
+    return envValue;
+  }
+
+  return path.resolve(process.cwd(), envValue);
+}
 
 /**
  * Load a scenario file (full format with metadata and defaults)
  */
 export function loadScenarioFile(name: string): ScenarioFile {
-  const filePath = path.join(SCENARIOS_DIR, `${name}.json`);
+  const scenariosDir = resolveScenariosDir();
+  const filePath = path.join(scenariosDir, `${name}.json`);
 
   if (!fs.existsSync(filePath)) {
     throw new Error(
-      `Scenario not found: ${name}. Run 'pnpm generate-scenarios' first.`,
+      `Scenario not found: ${name} in ${scenariosDir}. Run 'pnpm generate-scenarios' first.`,
     );
   }
 
@@ -55,19 +70,21 @@ function deserializeTransfers(file: ScenarioFile): TransferScenario {
  * List all available scenarios
  */
 export function listScenarios(): string[] {
-  if (!fs.existsSync(SCENARIOS_DIR)) {
+  const scenariosDir = resolveScenariosDir();
+  if (!fs.existsSync(scenariosDir)) {
     return [];
   }
 
   return fs
-    .readdirSync(SCENARIOS_DIR)
+    .readdirSync(scenariosDir)
     .filter((f) => f.endsWith('.json'))
-    .map((f) => f.replace('.json', ''));
+    .map((f) => f.replace('.json', ''))
+    .sort();
 }
 
 /**
  * Get the scenarios directory path
  */
 export function getScenariosDir(): string {
-  return SCENARIOS_DIR;
+  return resolveScenariosDir();
 }
