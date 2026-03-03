@@ -10,6 +10,6 @@
     "outDir": "./dist",
     "declaration": true
   },
-  "include": ["index.ts", "typechain/**/*.ts"],
+  "include": ["index.ts", "generated/**/*.ts"],
   "exclude": ["dist", "artifacts", "cache", "forge-cache", "out", "test"]
 }

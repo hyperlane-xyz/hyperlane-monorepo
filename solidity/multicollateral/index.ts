@@ -1,1 +1,1 @@
-export * from './typechain/index.js';
+export * from './generated/index.js';
