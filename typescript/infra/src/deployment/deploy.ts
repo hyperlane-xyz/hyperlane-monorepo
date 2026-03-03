@@ -10,7 +10,6 @@ import {
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   isEVMLike,
   objFilter,
   objMerge,

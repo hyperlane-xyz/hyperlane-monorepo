@@ -4,7 +4,7 @@ import {
   TurnkeyEvmSigner,
   TurnkeySealevelSigner,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, isEVMLike, rootLogger } from '@hyperlane-xyz/utils';
+import { isEVMLike, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
 import { TurnkeyRole } from '../roles.js';

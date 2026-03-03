@@ -6,7 +6,7 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';

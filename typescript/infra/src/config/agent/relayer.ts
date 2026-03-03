@@ -15,7 +15,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   addressToBytes32,
   isEVMLike,
   isValidAddressEvm,

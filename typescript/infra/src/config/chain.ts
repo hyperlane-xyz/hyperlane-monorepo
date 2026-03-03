@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   inCIMode,
   inKubernetes,
   isEVMLike,
