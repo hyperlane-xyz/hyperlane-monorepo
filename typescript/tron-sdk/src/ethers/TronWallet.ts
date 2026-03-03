@@ -164,7 +164,9 @@ export class TronTransactionBuilder extends TronWeb {
     return {
       hash: txHash ?? originalTxHash,
       confirmations: 0,
-      from: this.tronAddressHex,
+      from: ethers.utils.getAddress(
+        ensure0x(this.tronAddressHex.slice(2)).toLowerCase(),
+      ),
       to: evmTx.to ?? undefined,
       nonce: 0,
       gasLimit,
