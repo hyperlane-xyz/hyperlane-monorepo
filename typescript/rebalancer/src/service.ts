@@ -25,6 +25,7 @@
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
+import { Keypair } from '@solana/web3.js';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -164,6 +165,33 @@ async function main(): Promise<void> {
     if (inventoryPrivateKeySolana) {
       inventorySignerKeysByProtocol[ProtocolType.Sealevel] =
         inventoryPrivateKeySolana;
+
+      // Validate Solana key against configured signer address
+      const configuredSolanaAddress =
+        rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel];
+      if (configuredSolanaAddress) {
+        // Parse the private key (supports JSON array or comma-separated bytes)
+        let keyBytes: Uint8Array;
+        try {
+          const parsed = JSON.parse(inventoryPrivateKeySolana);
+          keyBytes = Uint8Array.from(parsed);
+        } catch {
+          keyBytes = Uint8Array.from(
+            inventoryPrivateKeySolana.split(',').map(Number),
+          );
+        }
+        const keypair = Keypair.fromSecretKey(keyBytes);
+        const derivedAddress = keypair.publicKey.toBase58();
+        if (derivedAddress !== configuredSolanaAddress) {
+          throw new Error(
+            `inventorySigners.sealevel mismatch: config has ${configuredSolanaAddress} but HYP_INVENTORY_KEY_SOLANA derives to ${derivedAddress}`,
+          );
+        }
+        logger.info(
+          { solanaAddress: derivedAddress },
+          '✅ Solana inventory signer validated',
+        );
+      }
     }
 
     // Fail fast if config references protocol-specific inventory signer but key is missing.
