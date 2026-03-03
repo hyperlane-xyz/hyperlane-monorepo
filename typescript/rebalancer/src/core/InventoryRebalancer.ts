@@ -975,7 +975,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const messageId = transferReceipt
       ? HyperlaneCore.getDispatchedMessages(transferReceipt)[0]?.id
-      : undefined;
+      : transferTxHash
+        ? await this.extractDispatchedMessageId(origin, transferTxHash)
+        : undefined;
 
     assert(transferTxHash, 'No transfer transaction hash found');
 
