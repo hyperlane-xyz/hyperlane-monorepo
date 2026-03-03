@@ -7,6 +7,8 @@ import { type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
+  TokenStandard.SealevelHypCollateral,
+  TokenStandard.SealevelHypNative,
 ]);
 
 /**
@@ -17,8 +19,11 @@ const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
  * @returns `true` if the token is a native token standard, `false` otherwise.
  */
 export function isNativeTokenStandard(standard: TokenStandard): boolean {
-  // EvmHypNative covers all native token types including scaled variants
-  return standard === TokenStandard.EvmHypNative;
+  // EvmHypNative and SealevelHypNative cover all native token types including scaled variants
+  return (
+    standard === TokenStandard.EvmHypNative ||
+    standard === TokenStandard.SealevelHypNative
+  );
 }
 
 /**
