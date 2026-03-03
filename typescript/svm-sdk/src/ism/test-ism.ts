@@ -74,14 +74,17 @@ export class SvmTestIsmWriter
       this.rpc,
     );
 
-    const instruction = await getInitTestIsmInstruction(
-      programAddress,
-      this.svmSigner.signer,
-    );
-
-    const initReceipt = await this.svmSigner.send({
-      instructions: [instruction],
-    });
+    const storage = await fetchTestIsmStorageAccount(this.rpc, programAddress);
+    if (storage === null) {
+      const instruction = await getInitTestIsmInstruction(
+        programAddress,
+        this.svmSigner.signer,
+      );
+      const initReceipt = await this.svmSigner.send({
+        instructions: [instruction],
+      });
+      receipts.push(initReceipt);
+    }
 
     return [
       {
@@ -89,7 +92,7 @@ export class SvmTestIsmWriter
         config: { type: IsmType.TEST_ISM as 'testIsm' },
         deployed: { address: programAddress, programId: programAddress },
       },
-      [...receipts, initReceipt],
+      receipts,
     ];
   }
 
