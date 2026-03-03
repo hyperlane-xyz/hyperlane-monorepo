@@ -46,7 +46,6 @@ import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' wi
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
-import merklyNftAddresses from './misc-artifacts/merkly-nft-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -726,10 +725,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     {
       name: 'merkly_eth',
       matchingList: routerMatchingList(merklyEthAddresses),
-    },
-    {
-      name: 'merkly_nft',
-      matchingList: routerMatchingList(merklyNftAddresses),
     },
     {
       name: 'velo_message_module',

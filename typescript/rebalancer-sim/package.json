@@ -1,6 +1,7 @@
 {
   "name": "@hyperlane-xyz/rebalancer-sim",
-  "version": "0.1.7",
+  "version": "0.1.9",
+  "private": true,
   "description": "Fast real-time simulation framework for testing Hyperlane warp route rebalancers",
   "keywords": [
     "hyperlane",

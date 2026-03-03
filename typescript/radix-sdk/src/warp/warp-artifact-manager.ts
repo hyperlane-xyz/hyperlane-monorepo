@@ -34,6 +34,10 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
     private readonly base: RadixBase,
   ) {}
 
+  supportsHookUpdates(): boolean {
+    return false;
+  }
+
   async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
     // Detect warp token type first
     const warpType = await getRadixWarpTokenType(this.gateway, address);

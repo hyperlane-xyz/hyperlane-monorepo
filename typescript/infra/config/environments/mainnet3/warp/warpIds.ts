@@ -134,4 +134,13 @@ export enum WarpRouteIds {
   EniUSDT = 'USDT/eni',
 
   ModeUSDTSTAGE = 'USDTSTAGE/mode',
+
+  // Aleo
+  AleoUSDC = 'USDC/aleo',
+  AleoUSDT = 'USDT/aleo',
+  AleoETH = 'ETH/aleo',
+  AleoWBTC = 'WBTC/aleo',
+  AleoSOL = 'SOL/aleo',
+  AleoUSAD = 'USAD/aleo',
+  AleoALEO = 'ALEO/aleo',
 }

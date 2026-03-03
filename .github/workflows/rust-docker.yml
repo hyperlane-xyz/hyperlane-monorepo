@@ -3,16 +3,18 @@ on:
   push:
     branches: [main]
     paths:
-      - 'rust/**'
+      - 'rust/Dockerfile'
       - '.dockerignore'
       - '.github/workflows/rust-docker.yml'
+      - 'rust/main/Cargo.lock'
     tags:
       - 'agents-*'
   pull_request:
     paths:
-      - 'rust/**'
+      - 'rust/Dockerfile'
       - '.dockerignore'
       - '.github/workflows/rust-docker.yml'
+      - 'rust/main/Cargo.lock'
   workflow_dispatch:
     inputs:
       include_arm64:
