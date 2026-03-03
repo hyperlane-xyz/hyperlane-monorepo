@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-Corrected validator alias typo from O-OPS to P-OPS in multisig ISM constants.
+Corrected validator alias from O-OPS to P-OPS Team in multisig ISM constants.
