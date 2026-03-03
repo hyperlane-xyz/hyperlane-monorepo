@@ -112,11 +112,15 @@ export class TronWallet extends Wallet {
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
-    const extension = ++TronWallet.txCounter;
+    const counter = ++TronWallet.txCounter;
+    // Use data (memo field) instead of extension to avoid TronWeb's
+    // time-based validation which fails when node clock drifts.
+    const data = '0x' + counter.toString(16).padStart(8, '0');
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
-        extension,
+        data,
+        dataFormat: 'hex',
       },
     );
 

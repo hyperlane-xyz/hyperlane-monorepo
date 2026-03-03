@@ -54,12 +54,14 @@ export class HyperlaneE2ECoreTestCommands {
     return [`--key.${this.protocol}`, key];
   }
 
-  protected get hypKeyEnvName() {
-    if (this.protocol === ProtocolType.Ethereum) {
-      return 'HYP_KEY';
+  protected get hypKeyEnvNames(): string[] {
+    if (IS_TRON_TEST) {
+      return ['HYP_KEY', 'HYP_KEY_TRON'];
     }
-
-    return `HYP_KEY_${this.protocol.toUpperCase()}`;
+    if (this.protocol === ProtocolType.Ethereum) {
+      return ['HYP_KEY'];
+    }
+    return [`HYP_KEY_${this.protocol.toUpperCase()}`];
   }
 
   public setCoreInputPath(coreInputPath: string) {
@@ -89,7 +91,9 @@ export class HyperlaneE2ECoreTestCommands {
     }
 
     return $`${
-      privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
+      privateKeyEnv
+        ? this.hypKeyEnvNames.map((name) => `${name}=${privateKeyEnv}`)
+        : []
     } ${this.cmdPrefix} hyperlane core init ${flags}`;
   }
 
@@ -167,7 +171,9 @@ export class HyperlaneE2ECoreTestCommands {
     }
 
     return $`${
-      privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
+      privateKeyEnv
+        ? this.hypKeyEnvNames.map((name) => `${name}=${privateKeyEnv}`)
+        : []
     } ${this.cmdPrefix} hyperlane core deploy ${flags}`;
   }
 
