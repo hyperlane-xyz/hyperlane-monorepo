@@ -191,6 +191,7 @@ export class SvmNativeTokenWriter
       programId,
       parseAddress(current.config.owner),
       this.config.igpProgramId,
+      this.rpc,
       `native token ${programId}`,
     );
   }
