@@ -141,7 +141,7 @@ export function useTronTransactionFns(
           (provider.provider as TronJsonRpcProvider).host,
           address!,
         );
-        let tronTx = await txBuilder.buildTransaction(ethersTx);
+        const tronTx = await txBuilder.buildTransaction(ethersTx);
 
         const signedTransaction = await signTransaction(tronTx);
         const result =
