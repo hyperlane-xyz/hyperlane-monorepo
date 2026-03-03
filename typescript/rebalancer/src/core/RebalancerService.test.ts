@@ -57,7 +57,10 @@ function createMockRebalancerConfig(): RebalancerConfig {
 function createMockMultiProvider(): MultiProvider {
   return {
     getDomainId: Sinon.stub().callsFake((chain: string) => {
-      const domains: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
+      const domains: Record<string, number> = {
+        ethereum: 1,
+        arbitrum: 42161,
+      };
       return domains[chain] ?? 0;
     }),
     getSigner: Sinon.stub().returns({
@@ -128,6 +131,7 @@ function createMockActionTracker(): IActionTracker {
     getInProgressTransfers: Sinon.stub().resolves([]),
     getActiveRebalanceIntents: Sinon.stub().resolves([]),
     getTransfersByDestination: Sinon.stub().resolves([]),
+    getRecentTransfers: Sinon.stub().resolves([]),
     getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
     getTransfer: Sinon.stub().resolves(undefined),
     getRebalanceIntent: Sinon.stub().resolves(undefined),
@@ -329,7 +333,11 @@ describe('RebalancerService', () => {
       const rebalancer = createMockRebalancer();
       rebalancer.rebalance.resolves([
         {
-          route: { origin: 'ethereum', destination: 'arbitrum', amount: 1000n },
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+          },
           success: true,
           messageId:
             '0x1111111111111111111111111111111111111111111111111111111111111111',

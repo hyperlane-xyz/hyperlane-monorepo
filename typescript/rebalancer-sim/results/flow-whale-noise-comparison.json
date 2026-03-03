@@ -1,0 +1,335 @@
+{
+  "scenarioName": "flow-whale-noise",
+  "scenarioDescription": "Large whale transfers mixed with random small noise. Tests signal-to-noise filtering.",
+  "results": [
+    {
+      "strategyName": "emaFlow",
+      "strategyType": "emaFlow",
+      "kpis": {
+        "totalTransfers": 23,
+        "completedTransfers": 23,
+        "failedTransfers": 0,
+        "completionRate": 1,
+        "averageLatency": 157,
+        "p50Latency": 156,
+        "p95Latency": 187,
+        "p99Latency": 207,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "100000000000000000000",
+            "finalBalance": "71579882315842375265",
+            "transfersIn": 7,
+            "transfersOut": 7,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "100000000000000000000",
+            "finalBalance": "39069991753447553581",
+            "transfersIn": 9,
+            "transfersOut": 8,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain3": {
+            "chainName": "chain3",
+            "initialBalance": "100000000000000000000",
+            "finalBalance": "189350125930710071154",
+            "transfersIn": 7,
+            "transfersOut": 8,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": 23,
+      "rebalanceRecords": 0,
+      "duration": 18336
+    },
+    {
+      "strategyName": "velocityFlow",
+      "strategyType": "velocityFlow",
+      "kpis": {
+        "totalTransfers": 23,
+        "completedTransfers": 22,
+        "failedTransfers": 1,
+        "completionRate": 0.9565217391304348,
+        "averageLatency": 150.86363636363637,
+        "p50Latency": 147,
+        "p95Latency": 171,
+        "p99Latency": 202,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "71579882315842375265",
+            "finalBalance": "43159764631684750530",
+            "transfersIn": 7,
+            "transfersOut": 7,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "39069991753447553581",
+            "finalBalance": "8139983506895107162",
+            "transfersIn": 8,
+            "transfersOut": 8,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain3": {
+            "chainName": "chain3",
+            "initialBalance": "189350125930710071154",
+            "finalBalance": "278700251861420142308",
+            "transfersIn": 7,
+            "transfersOut": 7,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": 23,
+      "rebalanceRecords": 0,
+      "duration": 78346
+    },
+    {
+      "strategyName": "thresholdFlow",
+      "strategyType": "thresholdFlow",
+      "kpis": {
+        "totalTransfers": 23,
+        "completedTransfers": 21,
+        "failedTransfers": 2,
+        "completionRate": 0.9130434782608695,
+        "averageLatency": 161.1904761904762,
+        "p50Latency": 163,
+        "p95Latency": 194,
+        "p99Latency": 210,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "43159764631684750530",
+            "finalBalance": "14739646947527125795",
+            "transfersIn": 7,
+            "transfersOut": 7,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "8139983506895107162",
+            "finalBalance": "7209975260342660743",
+            "transfersIn": 7,
+            "transfersOut": 8,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain3": {
+            "chainName": "chain3",
+            "initialBalance": "278700251861420142308",
+            "finalBalance": "368050377792130213462",
+            "transfersIn": 7,
+            "transfersOut": 6,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": 23,
+      "rebalanceRecords": 0,
+      "duration": 78343
+    },
+    {
+      "strategyName": "accelerationFlow",
+      "strategyType": "accelerationFlow",
+      "kpis": {
+        "totalTransfers": 23,
+        "completedTransfers": 20,
+        "failedTransfers": 3,
+        "completionRate": 0.8695652173913043,
+        "averageLatency": 159.3,
+        "p50Latency": 159,
+        "p95Latency": 184,
+        "p99Latency": 197,
+        "totalRebalances": 0,
+        "rebalanceVolume": "0",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "14739646947527125795",
+            "finalBalance": "16319529263369501060",
+            "transfersIn": 6,
+            "transfersOut": 7,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "7209975260342660743",
+            "finalBalance": "6279967013790214324",
+            "transfersIn": 7,
+            "transfersOut": 8,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain3": {
+            "chainName": "chain3",
+            "initialBalance": "368050377792130213462",
+            "finalBalance": "457400503722840284616",
+            "transfersIn": 7,
+            "transfersOut": 5,
+            "rebalancesIn": 0,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "0"
+          }
+        }
+      },
+      "transferRecords": 23,
+      "rebalanceRecords": 0,
+      "duration": 78426
+    },
+    {
+      "strategyName": "compositeDeficitWeighted",
+      "strategyType": "compositeDeficitWeighted",
+      "kpis": {
+        "totalTransfers": 23,
+        "completedTransfers": 23,
+        "failedTransfers": 0,
+        "completionRate": 1,
+        "averageLatency": 354.17391304347825,
+        "p50Latency": 165,
+        "p95Latency": 1733,
+        "p99Latency": 2765,
+        "totalRebalances": 5,
+        "rebalanceVolume": "232392981030944657671",
+        "totalGasCost": "0",
+        "perChainMetrics": {
+          "chain1": {
+            "chainName": "chain1",
+            "initialBalance": "16319529263369501060",
+            "finalBalance": "159720348725509539763",
+            "transfersIn": 7,
+            "transfersOut": 7,
+            "rebalancesIn": 2,
+            "rebalancesOut": 1,
+            "rebalanceVolumeIn": "172677740517098619153",
+            "rebalanceVolumeOut": "856803370800955715"
+          },
+          "chain2": {
+            "chainName": "chain2",
+            "initialBalance": "6279967013790214324",
+            "finalBalance": "5065199281083806423",
+            "transfersIn": 9,
+            "transfersOut": 8,
+            "rebalancesIn": 3,
+            "rebalancesOut": 0,
+            "rebalanceVolumeIn": "59715240513846038518",
+            "rebalanceVolumeOut": "0"
+          },
+          "chain3": {
+            "chainName": "chain3",
+            "initialBalance": "457400503722840284616",
+            "finalBalance": "161494419007196868138",
+            "transfersIn": 7,
+            "transfersOut": 8,
+            "rebalancesIn": 0,
+            "rebalancesOut": 4,
+            "rebalanceVolumeIn": "0",
+            "rebalanceVolumeOut": "231536177660143701956"
+          }
+        }
+      },
+      "transferRecords": 23,
+      "rebalanceRecords": 5,
+      "duration": 18681
+    }
+  ],
+  "scorecard": [
+    {
+      "strategyName": "emaFlow",
+      "strategyType": "emaFlow",
+      "rank": 1,
+      "completionRate": 100,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 157,
+      "efficiency": 0
+    },
+    {
+      "strategyName": "compositeDeficitWeighted",
+      "strategyType": "compositeDeficitWeighted",
+      "rank": 2,
+      "completionRate": 100,
+      "totalRebalances": 5,
+      "rebalanceVolume": "232392981030944657671",
+      "averageLatency": 354.17391304347825,
+      "efficiency": 2.2614021965000415
+    },
+    {
+      "strategyName": "velocityFlow",
+      "strategyType": "velocityFlow",
+      "rank": 3,
+      "completionRate": 95.65217391304348,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 150.86363636363637,
+      "efficiency": 0
+    },
+    {
+      "strategyName": "thresholdFlow",
+      "strategyType": "thresholdFlow",
+      "rank": 4,
+      "completionRate": 91.30434782608695,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 161.1904761904762,
+      "efficiency": 0
+    },
+    {
+      "strategyName": "accelerationFlow",
+      "strategyType": "accelerationFlow",
+      "rank": 5,
+      "completionRate": 86.95652173913044,
+      "totalRebalances": 0,
+      "rebalanceVolume": "0",
+      "averageLatency": 159.3,
+      "efficiency": 0
+    }
+  ],
+  "winner": "emaFlow",
+  "summary": "Winner: emaFlow with 100.00% completion and 0 rebalances"
+}

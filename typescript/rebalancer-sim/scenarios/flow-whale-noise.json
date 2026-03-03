@@ -1,0 +1,273 @@
+{
+  "name": "flow-whale-noise",
+  "description": "Large whale transfers mixed with random small noise. Tests signal-to-noise filtering.",
+  "expectedBehavior": "3 whale transfers of 30 tokens mixed with 20 small noise transfers (0.1-1 token).\nThreshold strategy should excel here - noise is below threshold, whales are above.\nEMA will smooth whale signals, possibly underreacting.\nVelocity should detect whale-induced rate changes.\nKey test: does the strategy respond to whales while ignoring noise?",
+  "duration": 15000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "whale-000000",
+      "timestamp": 0,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "30000000000000000000",
+      "user": "0xd552ef414f83cc8f5f481741d6943810c46b59d0"
+    },
+    {
+      "id": "noise-000005",
+      "timestamp": 807,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "856803370800955715",
+      "user": "0x82b936719d4cdff97f492a0d749c70881a110353"
+    },
+    {
+      "id": "noise-000015",
+      "timestamp": 1222,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "798645403518148704",
+      "user": "0x2a106ce680da8882ce596d3a73bad499da5aa95c"
+    },
+    {
+      "id": "noise-000010",
+      "timestamp": 1234,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "967822547469702262",
+      "user": "0xec80014cfbbaa95a921c61d85130efe97b89a95a"
+    },
+    {
+      "id": "noise-000020",
+      "timestamp": 1284,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "703744795840869456",
+      "user": "0xac31c4792178c827bfe57e55f59a85e0023b908e"
+    },
+    {
+      "id": "noise-000012",
+      "timestamp": 1473,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "547140871479882269",
+      "user": "0x245feeeed7b84b67a14cadfae663e2ab65f48b62"
+    },
+    {
+      "id": "noise-000011",
+      "timestamp": 2472,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "914715341653833488",
+      "user": "0xd3f80ac2cb383c58f6495162258e34a2fb914e68"
+    },
+    {
+      "id": "noise-000008",
+      "timestamp": 4302,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "503325436719062899",
+      "user": "0x2af122ce8a8d62ad54d14aaff4188178ffd31274"
+    },
+    {
+      "id": "whale-000001",
+      "timestamp": 5000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "30000000000000000000",
+      "user": "0xd46f7e07cdb0ec678ff2c92861f02f6fa03f7a10"
+    },
+    {
+      "id": "noise-000004",
+      "timestamp": 5433,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "214680818379428769",
+      "user": "0x68c93430e6aa6a227b0af819d03b8c2081f30de5"
+    },
+    {
+      "id": "noise-000016",
+      "timestamp": 5766,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "495949707260673636",
+      "user": "0xcda1ccc226bcaf3753c01fd12abb69e53b9471cb"
+    },
+    {
+      "id": "noise-000017",
+      "timestamp": 6122,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "318985340924168689",
+      "user": "0x694a9eb9c34896cd3e82161bd21a537975ddd334"
+    },
+    {
+      "id": "noise-000021",
+      "timestamp": 6150,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "187932251722502883",
+      "user": "0x14e2c91d9804f50a09f214ae5fc1de2a531b9f47"
+    },
+    {
+      "id": "noise-000003",
+      "timestamp": 8026,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "965345983716582998",
+      "user": "0xfbf0fd0baa2819a4b586bf00881b06bbf0ac2774"
+    },
+    {
+      "id": "whale-000002",
+      "timestamp": 10000,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "30000000000000000000",
+      "user": "0x5edb09398b92ee5a414cbf920767214dab53d2ab"
+    },
+    {
+      "id": "noise-000019",
+      "timestamp": 10932,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "199109724076789623",
+      "user": "0x0d5529715a91bdf54b6a1fbc97701ee158559d31"
+    },
+    {
+      "id": "noise-000018",
+      "timestamp": 11265,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "790941838769589068",
+      "user": "0xafa36bb6a735d72481e324d516f9555789fcbddf"
+    },
+    {
+      "id": "noise-000009",
+      "timestamp": 11455,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "561349114543981571",
+      "user": "0x5a82dc6987bb72c421739ddba74b4325b2cd5242"
+    },
+    {
+      "id": "noise-000014",
+      "timestamp": 12033,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "713294959995484276",
+      "user": "0x6e8aead7c15d322d775bfd9a14cc6fda8bb8d377"
+    },
+    {
+      "id": "noise-000006",
+      "timestamp": 12125,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "321184402198524127",
+      "user": "0x207b6fda4566eae8770e110cd201991a583aba06"
+    },
+    {
+      "id": "noise-000022",
+      "timestamp": 12739,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "850257425678809267",
+      "user": "0x9d14bdbad7cc26bdd2a44f6bf9ae7cdb733e1d41"
+    },
+    {
+      "id": "noise-000007",
+      "timestamp": 13715,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "920710742071408826",
+      "user": "0x9c2b4573f9681e8eea83e4b7596469046cd93d6d"
+    },
+    {
+      "id": "noise-000013",
+      "timestamp": 13863,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "933052983953085438",
+      "user": "0x4f2b09739b00f5aec74cccef8757d814ba91f2fe"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "emaFlow",
+    "chains": {
+      "chain1": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "shouldTriggerRebalancing": false,
+    "minCompletionRate": 0.8
+  }
+}

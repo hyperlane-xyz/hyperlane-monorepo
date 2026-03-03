@@ -64,6 +64,7 @@ describe('InventoryRebalancer E2E', () => {
       syncInventoryMovementActions: Sinon.stub(),
       getInProgressTransfers: Sinon.stub(),
       getTransfersByDestination: Sinon.stub(),
+      getRecentTransfers: Sinon.stub(),
       getActiveRebalanceIntents: Sinon.stub(),
       getRebalanceIntentsByDestination: Sinon.stub(),
       createRebalanceIntent: Sinon.stub(),

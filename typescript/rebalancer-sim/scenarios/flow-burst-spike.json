@@ -1,0 +1,249 @@
+{
+  "name": "flow-burst-spike",
+  "description": "Idle period followed by sudden burst of transfers to chain2. Tests reaction speed to sudden flow changes.",
+  "expectedBehavior": "5s idle, then 20 transfers in 3s burst to chain2, then idle.\nVelocity strategy should react fastest due to rate-of-change detection.\nEMA may lag behind due to smoothing. Threshold should fire once burst exceeds noise floor.\nAcceleration strategy should detect the sudden onset.",
+  "duration": 13000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "burst-000018",
+      "timestamp": 5069,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "4348452819001882206",
+      "user": "0xbb3eecd9b85de501a6942d64f20a66df104c6b9a"
+    },
+    {
+      "id": "burst-000017",
+      "timestamp": 5317,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "5348389584827232478",
+      "user": "0x399e019930aa644ac96edce204626dce6fa5adb7"
+    },
+    {
+      "id": "burst-000019",
+      "timestamp": 5686,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "5643053478850421255",
+      "user": "0x5112cbed5ab78cbf67c3d487540f543c48eb3e18"
+    },
+    {
+      "id": "burst-000004",
+      "timestamp": 5699,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "5911651134735949440",
+      "user": "0x43ce80afd056d9223ae93fef7b32599a396bfd89"
+    },
+    {
+      "id": "burst-000012",
+      "timestamp": 5769,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3783756187786516805",
+      "user": "0x4ce8eae82d4909abd722e254858cf65e1e735467"
+    },
+    {
+      "id": "burst-000011",
+      "timestamp": 5784,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "5137929301315146180",
+      "user": "0x90da1e264ec85247a2709ed6c3c8f898ac062938"
+    },
+    {
+      "id": "burst-000014",
+      "timestamp": 5936,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "6069250129619818472",
+      "user": "0xc7f6582c4f49b52600164eea1f5d61eaeaa652a4"
+    },
+    {
+      "id": "burst-000008",
+      "timestamp": 6310,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "5055549087461902296",
+      "user": "0xe0b10559524825279c1176e5b08899737c82dfbf"
+    },
+    {
+      "id": "burst-000015",
+      "timestamp": 6370,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "4918023613265290213",
+      "user": "0xcc47bf24bbf1f2a153e0db2267eb6774c07546b2"
+    },
+    {
+      "id": "burst-000009",
+      "timestamp": 6420,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "7385508744366258135",
+      "user": "0x174ecc81addc75bd4af1ac6be1db92881bfdda1f"
+    },
+    {
+      "id": "burst-000003",
+      "timestamp": 6727,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "3936685599378603589",
+      "user": "0x2421763af9f1cf12843597e592106f813f523df4"
+    },
+    {
+      "id": "burst-000000",
+      "timestamp": 6907,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "4360032819218472886",
+      "user": "0x2c2c0bc260627283fc0fd14d9ba2ace9a2f5f5b0"
+    },
+    {
+      "id": "burst-000002",
+      "timestamp": 6917,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3545490429265504161",
+      "user": "0xc51d2bc91c124e107189270ebce509d6eea1d1ee"
+    },
+    {
+      "id": "burst-000013",
+      "timestamp": 7066,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3650512024493518920",
+      "user": "0x35061b5a85f4257d2e3640d9fe527b9d5d9abf5b"
+    },
+    {
+      "id": "burst-000001",
+      "timestamp": 7208,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "6007586996584726916",
+      "user": "0x297787fb2a97faa0fece15474b20ee0938d396d1"
+    },
+    {
+      "id": "burst-000005",
+      "timestamp": 7306,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "4089024975603261709",
+      "user": "0xcf7f5841459ffbd51ce90e52f62316e2c9c739ab"
+    },
+    {
+      "id": "burst-000007",
+      "timestamp": 7515,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3387423409667059754",
+      "user": "0x57b75108c5280fc60197d1a9090b5bce49c5cfb9"
+    },
+    {
+      "id": "burst-000010",
+      "timestamp": 7586,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "5488007381751648362",
+      "user": "0xd2417476a47b50614ef03fb037777fd13b2d9068"
+    },
+    {
+      "id": "burst-000016",
+      "timestamp": 7655,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "7844828583250689427",
+      "user": "0x2c25bb8f7e03450120d28d455e8fde2f89ab8541"
+    },
+    {
+      "id": "burst-000006",
+      "timestamp": 7805,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "5759292198554662407",
+      "user": "0xb93f46ca5160747b7a058752765f3a326e203b6b"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "emaFlow",
+    "chains": {
+      "chain1": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "shouldTriggerRebalancing": true,
+    "minCompletionRate": 0.8
+  }
+}

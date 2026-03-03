@@ -336,6 +336,45 @@ export interface ComparisonReport {
   };
 }
 
+/**
+ * Result of running a single strategy against a scenario
+ */
+export interface StrategyRunResult {
+  strategyName: string;
+  strategyType: string;
+  kpis: SimulationKPIs;
+  transferRecords: TransferRecord[];
+  rebalanceRecords: RebalanceRecord[];
+  duration: number;
+}
+
+/**
+ * Scorecard entry for ranking strategies
+ */
+export interface StrategyScorecard {
+  strategyName: string;
+  strategyType: string;
+  rank: number;
+  completionRate: number;
+  totalRebalances: number;
+  rebalanceVolume: bigint;
+  averageLatency: number;
+  /** Efficiency: rebalanceVolume / totalTransferVolume (lower = better) */
+  efficiency: number;
+}
+
+/**
+ * Complete comparison report for flow-reactive strategies
+ */
+export interface FlowReactiveComparisonReport {
+  scenarioName: string;
+  scenarioDescription?: string;
+  results: StrategyRunResult[];
+  scorecard: StrategyScorecard[];
+  winner: string;
+  summary: string;
+}
+
 // =============================================================================
 // REBALANCER TYPES
 // =============================================================================
@@ -358,7 +397,14 @@ export interface RebalancerSimConfig {
  * Strategy configuration for rebalancer
  */
 export interface RebalancerStrategyConfig {
-  type: 'weighted' | 'minAmount';
+  type:
+    | 'weighted'
+    | 'minAmount'
+    | 'emaFlow'
+    | 'velocityFlow'
+    | 'thresholdFlow'
+    | 'accelerationFlow'
+    | 'compositeDeficitWeighted';
   chains: Record<string, ChainStrategyConfig>;
 }
 
@@ -376,7 +422,38 @@ export interface ChainStrategyConfig {
     type: 'absolute' | 'relative';
   };
   bridge: string;
-  bridgeLockTime: number;
+  bridgeLockTime?: number;
+  bridgeMinAcceptedAmount?: string;
+  collateralDeficit?: {
+    buffer: string;
+  };
+  emaFlow?: {
+    alpha: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
+  velocityFlow?: {
+    velocityMultiplier: string;
+    baseResponse: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
+  thresholdFlow?: {
+    noiseThreshold: string;
+    proportionalGain: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
+  accelerationFlow?: {
+    accelerationWeight: string;
+    damping: string;
+    windowSizeMs: number;
+    minSamplesForSignal?: number;
+    coldStartCycles?: number;
+  };
 }
 
 /**
@@ -521,7 +598,14 @@ export interface SerializedBridgeConfig {
  * Serialized strategy config for JSON storage (bridge addresses added at runtime)
  */
 export interface SerializedStrategyConfig {
-  type: 'weighted' | 'minAmount';
+  type:
+    | 'weighted'
+    | 'minAmount'
+    | 'emaFlow'
+    | 'velocityFlow'
+    | 'thresholdFlow'
+    | 'accelerationFlow'
+    | 'compositeDeficitWeighted';
   chains: {
     [chain: string]: {
       weighted?: {
@@ -536,8 +620,54 @@ export interface SerializedStrategyConfig {
         /** Target balance in tokens (as string) */
         target: string;
       };
+      emaFlow?: {
+        /** EMA smoothing factor as decimal string (e.g., "0.3") */
+        alpha: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
+      velocityFlow?: {
+        /** Velocity multiplier as decimal string (e.g., "1.5") */
+        velocityMultiplier: string;
+        /** Base response magnitude as decimal string (e.g., "0.5") */
+        baseResponse: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
+      thresholdFlow?: {
+        /** Noise threshold as decimal string (e.g., "0.05") */
+        noiseThreshold: string;
+        /** Proportional gain as decimal string (e.g., "1.0") */
+        proportionalGain: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
+      accelerationFlow?: {
+        /** Acceleration weight as decimal string (e.g., "0.5") */
+        accelerationWeight: string;
+        /** Damping factor as decimal string (e.g., "0.1") */
+        damping: string;
+        /** Time window for flow observation (ms) */
+        windowSizeMs: number;
+        /** Minimum samples before signal is generated */
+        minSamplesForSignal?: number;
+        /** Cycles to wait before using signal (cold start) */
+        coldStartCycles?: number;
+      };
       /** Time bridge locks funds before delivery (ms) - used for semaphore */
-      bridgeLockTime: number;
+      bridgeLockTime?: number;
     };
   };
 }
@@ -644,6 +774,96 @@ export interface SurgeScenarioOptions {
   totalDuration: number;
   /** Amount range */
   amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating sustained drain scenarios
+ */
+export interface SustainedDrainOptions {
+  /** Chain that receives all transfers */
+  targetChain: string;
+  /** Chains that send transfers */
+  otherChains: string[];
+  /** Number of transfers */
+  transferCount: number;
+  /** Total duration in milliseconds */
+  duration: number;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating burst spike scenarios
+ */
+export interface BurstSpikeOptions {
+  /** All chains involved */
+  chains: string[];
+  /** Burst start time (ms from start) */
+  burstStart: number;
+  /** Burst duration (ms) */
+  burstDuration: number;
+  /** Number of transfers during burst */
+  burstTransferCount: number;
+  /** Total scenario duration (ms) */
+  totalDuration: number;
+  /** Chain that receives burst transfers */
+  burstTarget: string;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating gradual ramp scenarios
+ */
+export interface GradualRampOptions {
+  /** All chains involved */
+  chains: string[];
+  /** Chain that receives all transfers */
+  targetChain: string;
+  /** Starting transfer rate (transfers/sec) */
+  startRate: number;
+  /** Ending transfer rate (transfers/sec) */
+  endRate: number;
+  /** Total duration in milliseconds */
+  duration: number;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating oscillating bidirectional scenarios
+ */
+export interface OscillatingBidirectionalOptions {
+  /** First chain */
+  chainA: string;
+  /** Second chain */
+  chainB: string;
+  /** Duration of one full oscillation cycle (ms) */
+  oscillationPeriod: number;
+  /** Total duration in milliseconds */
+  totalDuration: number;
+  /** Number of transfers per full oscillation cycle */
+  transfersPerOscillation: number;
+  /** Range of transfer amounts in wei [min, max] */
+  amountRange: [bigint, bigint];
+}
+
+/**
+ * Options for generating whale plus noise scenarios
+ */
+export interface WhalePlusNoiseOptions {
+  /** All chains involved */
+  chains: string[];
+  /** Amount for each whale transfer */
+  whaleAmount: bigint;
+  /** Number of whale transfers */
+  whaleCount: number;
+  /** Number of noise transfers */
+  noiseCount: number;
+  /** Total duration in milliseconds */
+  duration: number;
+  /** Range of noise transfer amounts in wei [min, max] */
+  noiseAmountRange: [bigint, bigint];
 }
 
 /**

@@ -8,6 +8,7 @@
 // Core simulation classes
 export { KPICollector } from './KPICollector.js';
 export { MockInfrastructureController } from './MockInfrastructureController.js';
+export { FlowReactiveComparisonRunner } from './FlowReactiveComparisonRunner.js';
 export { RebalancerSimulationHarness } from './RebalancerSimulationHarness.js';
 export {
   deployMultiDomainSimulation,
@@ -35,6 +36,7 @@ export { SimulationRegistry } from './runners/SimulationRegistry.js';
 
 // Visualization
 export { generateTimelineHtml } from './visualizer/HtmlTimelineGenerator.js';
+export { generateFlowReactiveComparisonHtml } from './visualizer/FlowReactiveVisualization.js';
 
 // Types - explicit exports for tree-shaking
 export type {
@@ -52,9 +54,12 @@ export type {
   // KPI types
   ChainMetrics,
   ComparisonReport,
+  FlowReactiveComparisonReport,
   RebalanceRecord,
   SimulationKPIs,
   SimulationResult,
+  StrategyRunResult,
+  StrategyScorecard,
   StateSnapshot,
   TransferRecord,
   // Rebalancer types
@@ -64,6 +69,9 @@ export type {
   RebalancerSimConfig,
   RebalancerStrategyConfig,
   // Scenario types
+  BurstSpikeOptions,
+  GradualRampOptions,
+  OscillatingBidirectionalOptions,
   RandomTrafficOptions,
   ScenarioExpectations,
   ScenarioFile,
@@ -73,9 +81,11 @@ export type {
   SerializedTransferEvent,
   SimulationTiming,
   SurgeScenarioOptions,
+  SustainedDrainOptions,
   TransferEvent,
   TransferScenario,
   UnidirectionalFlowOptions,
+  WhalePlusNoiseOptions,
   // Visualizer types
   HtmlGeneratorOptions,
   SimulationConfig,

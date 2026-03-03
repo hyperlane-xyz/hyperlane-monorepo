@@ -1,0 +1,449 @@
+{
+  "name": "flow-gradual-ramp",
+  "description": "Transfer rate increases linearly from 1/s to 5/s over 15 seconds. Tests whether strategies scale response with increasing pressure.",
+  "expectedBehavior": "Transfers to chain3 start slow and accelerate.\nAcceleration strategy should excel here - it detects the increasing rate.\nEMA smoothing may underreact to the ramp. Velocity should track the increasing rate.\nThreshold may fire late if initial flow is below noise floor.",
+  "duration": 15000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "ramp-000000",
+      "timestamp": 0,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4109608898170721766",
+      "user": "0x6caf1860b8b578850a2306a727ebb46f7e9188eb"
+    },
+    {
+      "id": "ramp-000001",
+      "timestamp": 1000,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3644669955512915462",
+      "user": "0x348abb40c63a2f5c8ca0bb6f7943fc0ca0fdee10"
+    },
+    {
+      "id": "ramp-000002",
+      "timestamp": 1789,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4024550386582103617",
+      "user": "0x22e935782e14b6a58953706d368b09517238ff8e"
+    },
+    {
+      "id": "ramp-000003",
+      "timestamp": 2466,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4045594392776780083",
+      "user": "0xeb30aba6893b6654210b373c50e90e6e2131e3a7"
+    },
+    {
+      "id": "ramp-000004",
+      "timestamp": 3069,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2723396821851169395",
+      "user": "0x5de14a270837c44e93a68c5b6a101e145a8e3574"
+    },
+    {
+      "id": "ramp-000005",
+      "timestamp": 3619,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5890484631124358510",
+      "user": "0x31cccbe18d6b90e58b7a5ac3229579e9ef5a12d7"
+    },
+    {
+      "id": "ramp-000006",
+      "timestamp": 4128,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4643088987675080806",
+      "user": "0xd2cd1beb10dd970f7d13188845f98659ac874c94"
+    },
+    {
+      "id": "ramp-000007",
+      "timestamp": 4604,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4432256471828686874",
+      "user": "0x58e1706c74f6e2b3b5cc363598fb1a9e9cb7be9c"
+    },
+    {
+      "id": "ramp-000008",
+      "timestamp": 5053,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3097171607920492046",
+      "user": "0xb414cb4bc59ecd4ae7087a710c4c1874973b47e3"
+    },
+    {
+      "id": "ramp-000009",
+      "timestamp": 5479,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4541794895107000659",
+      "user": "0xd7ae93749a27fb6b22478a22ae004a7a3c0ceb7e"
+    },
+    {
+      "id": "ramp-000010",
+      "timestamp": 5885,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2000032520028737964",
+      "user": "0x0c19c97b9c98dd30558f6fceecb24beeda3af6e1"
+    },
+    {
+      "id": "ramp-000011",
+      "timestamp": 6274,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4378138091996828694",
+      "user": "0xe93e9889713ad3421d24a2f6db3c49debd4ad637"
+    },
+    {
+      "id": "ramp-000012",
+      "timestamp": 6648,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "2632078334249304539",
+      "user": "0xfb743040eef8756f6bb24f446d8661d128cf5dca"
+    },
+    {
+      "id": "ramp-000013",
+      "timestamp": 7009,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4414686836093531128",
+      "user": "0x1a94fbc95c51b9c91ab8ffbe974857b6c0515ceb"
+    },
+    {
+      "id": "ramp-000014",
+      "timestamp": 7357,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3597433527583098005",
+      "user": "0x72241c7bc809259a8bc481ba0c27aa56a01511d7"
+    },
+    {
+      "id": "ramp-000015",
+      "timestamp": 7695,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5395784283334017092",
+      "user": "0x26abf132ed06cd88aea9f405771b4a459a21b546"
+    },
+    {
+      "id": "ramp-000016",
+      "timestamp": 8023,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "2512783888083817357",
+      "user": "0xcd3337e25c172f52486d039b47b83096f8d19b34"
+    },
+    {
+      "id": "ramp-000017",
+      "timestamp": 8341,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3616863289277922167",
+      "user": "0x9605cdbbf1f78abe66b82c2dcbf5407d4cb32020"
+    },
+    {
+      "id": "ramp-000018",
+      "timestamp": 8651,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5357531726820587029",
+      "user": "0x6b9bd7d0381542de4fcc0c3bcbb491ecb4b847be"
+    },
+    {
+      "id": "ramp-000019",
+      "timestamp": 8954,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2564303124664559712",
+      "user": "0xd76297b7bd7043e9133779927300a7a244bee821"
+    },
+    {
+      "id": "ramp-000020",
+      "timestamp": 9249,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5835239958081814102",
+      "user": "0xbf2467d2600ece1f3f6b02ae76a19d14362013d3"
+    },
+    {
+      "id": "ramp-000021",
+      "timestamp": 9537,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4032345982927638306",
+      "user": "0x1be3609882304d04784dffa36c4b166863cfb16b"
+    },
+    {
+      "id": "ramp-000022",
+      "timestamp": 9820,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "5574222994831872994",
+      "user": "0x968950f4cd729240dc08804f3abb7ebeb048d02f"
+    },
+    {
+      "id": "ramp-000023",
+      "timestamp": 10096,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4599269338191820375",
+      "user": "0x19df5382bcf8c0584146f8cf7e2830b53d29aff0"
+    },
+    {
+      "id": "ramp-000024",
+      "timestamp": 10367,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4444673692871697097",
+      "user": "0x78c500359f4482bbb476ce9766897f46f9441d13"
+    },
+    {
+      "id": "ramp-000025",
+      "timestamp": 10632,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "5554450708186609943",
+      "user": "0xb6edb6f23e40d52cb2352a98373d78dc0f723a9e"
+    },
+    {
+      "id": "ramp-000026",
+      "timestamp": 10893,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "3630732698890211605",
+      "user": "0x62f9f687f30445dd1e40405b3b98bc1f2091db4d"
+    },
+    {
+      "id": "ramp-000027",
+      "timestamp": 11149,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4858111755555766286",
+      "user": "0xe770a53be4ca5a4bd45483a441e93561408a25b2"
+    },
+    {
+      "id": "ramp-000028",
+      "timestamp": 11401,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5237595123854415021",
+      "user": "0xec2fc3ae894b4e7ba28a405ab8daa831463bca7e"
+    },
+    {
+      "id": "ramp-000029",
+      "timestamp": 11648,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4290114717148759339",
+      "user": "0x4aa9cbeee8974aa28fe424632a292b1207a84953"
+    },
+    {
+      "id": "ramp-000030",
+      "timestamp": 11892,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5061627848111720838",
+      "user": "0x32332b7b441fc1ce538ee79e5c137cb779cb3f64"
+    },
+    {
+      "id": "ramp-000031",
+      "timestamp": 12132,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5019729450115971287",
+      "user": "0x43b1d3db86056e719fac6d96309dae2ca0067f1b"
+    },
+    {
+      "id": "ramp-000032",
+      "timestamp": 12368,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5875205006017068553",
+      "user": "0x781a88c878c45304ec30bea32b32d28acfb06a1e"
+    },
+    {
+      "id": "ramp-000033",
+      "timestamp": 12600,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2868105341080732657",
+      "user": "0x7477d5566c30939b16ba687635c5aae22c701ef2"
+    },
+    {
+      "id": "ramp-000034",
+      "timestamp": 12830,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3590168054651347452",
+      "user": "0x072be38d5e1794fc6cec1f8a844afc6876101868"
+    },
+    {
+      "id": "ramp-000035",
+      "timestamp": 13056,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "2400844921221954292",
+      "user": "0xeb1fb14e218ad1a7e820af0b4e5ae116919f9ffa"
+    },
+    {
+      "id": "ramp-000036",
+      "timestamp": 13279,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4800983656473697276",
+      "user": "0x24d76c7b92f8ccb94a76d6ea0b5bdc6125ea617a"
+    },
+    {
+      "id": "ramp-000037",
+      "timestamp": 13499,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "5123673091165084066",
+      "user": "0x6c72b96b481619b18ad475333a3346ca05b0202b"
+    },
+    {
+      "id": "ramp-000038",
+      "timestamp": 13717,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3633519864868916356",
+      "user": "0xb9122153933fc00ecc0a67013d040a9a21026e2f"
+    },
+    {
+      "id": "ramp-000039",
+      "timestamp": 13931,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4778486089192552747",
+      "user": "0x39edc0bf1da61053f7e4a1cee9dca4e6abe39607"
+    },
+    {
+      "id": "ramp-000040",
+      "timestamp": 14143,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "4635944830796775064",
+      "user": "0x1aa47c0a7b80bf800c7afe668a2e94ff74d19345"
+    },
+    {
+      "id": "ramp-000041",
+      "timestamp": 14353,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3655156351920065706",
+      "user": "0x9ea98c42e3e645b5753427abbcacd0fa762b743c"
+    },
+    {
+      "id": "ramp-000042",
+      "timestamp": 14560,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2933658412127647079",
+      "user": "0x92d2a8ff95fb6b2e02c882f3c498fa8b8645dc85"
+    },
+    {
+      "id": "ramp-000043",
+      "timestamp": 14765,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2120550478056374440",
+      "user": "0x2363e1447b243d78e452773ce32b1c7b3ae2ee2b"
+    },
+    {
+      "id": "ramp-000044",
+      "timestamp": 14967,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4226964382273000202",
+      "user": "0x922c071fe6bcb55c18b7037199e805f98583ba0b"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "emaFlow",
+    "chains": {
+      "chain1": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "emaFlow": {
+          "alpha": "0.3",
+          "windowSizeMs": 5000,
+          "minSamplesForSignal": 3,
+          "coldStartCycles": 2
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "shouldTriggerRebalancing": true,
+    "minCompletionRate": 0.8
+  }
+}

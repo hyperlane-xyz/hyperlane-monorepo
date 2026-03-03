@@ -1,6 +1,7 @@
 import { type Logger } from 'pino';
 
-import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import { type ChainMap, type ChainName, type Token } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   ExecutionType,
@@ -9,6 +10,7 @@ import {
 } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type {
   BridgeConfigWithOverride,
   InventoryBridgeConfig,
@@ -17,6 +19,10 @@ import type {
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { CompositeStrategy } from './CompositeStrategy.js';
+import { AccelerationFlowStrategy } from './flow-reactive/AccelerationFlowStrategy.js';
+import { EMAFlowStrategy } from './flow-reactive/EMAFlowStrategy.js';
+import { ThresholdFlowStrategy } from './flow-reactive/ThresholdFlowStrategy.js';
+import { VelocityFlowStrategy } from './flow-reactive/VelocityFlowStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -41,6 +47,8 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     minAmountsByChain?: ChainMap<bigint>,
+    actionTracker?: IActionTracker,
+    domainToChainName?: Map<number, ChainName>,
   ): IStrategy {
     if (strategyConfigs.length === 0) {
       throw new Error('At least one strategy must be configured');
@@ -55,6 +63,8 @@ export class StrategyFactory {
         logger,
         metrics,
         minAmountsByChain,
+        actionTracker,
+        domainToChainName,
       );
     }
 
@@ -67,6 +77,8 @@ export class StrategyFactory {
         logger,
         metrics,
         minAmountsByChain,
+        actionTracker,
+        domainToChainName,
       ),
     );
     return new CompositeStrategy(subStrategies, logger);
@@ -82,6 +94,8 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     _minAmountsByChain?: ChainMap<bigint>,
+    actionTracker?: IActionTracker,
+    domainToChainName?: Map<number, ChainName>,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 
@@ -112,6 +126,63 @@ export class StrategyFactory {
           logger,
           bridgeConfigs,
           metrics,
+        );
+      }
+      case RebalancerStrategyOptions.EMAFlow: {
+        assert(actionTracker, 'ActionTracker required for EMAFlow strategy');
+        return new EMAFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
+          domainToChainName,
+        );
+      }
+      case RebalancerStrategyOptions.VelocityFlow: {
+        assert(
+          actionTracker,
+          'ActionTracker required for VelocityFlow strategy',
+        );
+        return new VelocityFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
+          domainToChainName,
+        );
+      }
+      case RebalancerStrategyOptions.ThresholdFlow: {
+        assert(
+          actionTracker,
+          'ActionTracker required for ThresholdFlow strategy',
+        );
+        return new ThresholdFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
+          domainToChainName,
+        );
+      }
+      case RebalancerStrategyOptions.AccelerationFlow: {
+        assert(
+          actionTracker,
+          'ActionTracker required for AccelerationFlow strategy',
+        );
+        return new AccelerationFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
+          domainToChainName,
         );
       }
       default: {
