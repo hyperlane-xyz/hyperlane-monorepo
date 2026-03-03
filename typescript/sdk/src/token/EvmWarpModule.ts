@@ -546,10 +546,11 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   private toCanonicalRouterId(router: string): string {
-    if (isAddressEvm(router)) {
-      return addressToBytes32(router.toLowerCase());
+    const lower = router.toLowerCase();
+    if (isAddressEvm(lower)) {
+      return addressToBytes32(lower);
     }
-    return router.toLowerCase();
+    return lower;
   }
 
   async getAllowedBridgesApprovalTxs(
