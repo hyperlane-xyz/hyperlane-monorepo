@@ -284,7 +284,7 @@ contract PredicateRouterWrapperForkTest is Test {
         address owner = IPredicateRegistryAdmin(PREDICATE_REGISTRY).owner();
         assertEq(
             owner,
-            0x62ca17e47cC2EFF4a81FC0E173cAfCb1B840635F,
+            0x8A3c2193521Cf895D77c8Dedb290fC5E19126fdE,
             "Owner should match expected"
         );
     }
