@@ -172,7 +172,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
     if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
+      try {
+        this.setSigner(chainName, signer.connect(provider));
+      } catch {
+        // Some signers (e.g. JsonRpcSigner) don't support .connect()
+      }
     }
     return provider;
   }
@@ -183,8 +187,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   setProviders(providers: ChainMap<Provider>): void {
     for (const chain of Object.keys(providers)) {
-      const chainName = this.getChainName(chain);
-      this.providers[chainName] = providers[chain];
+      this.setProvider(chain, providers[chain]);
     }
   }
 

@@ -844,7 +844,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       return undefined;
     } catch (e: unknown) {
-      this.logger.debug(
+      this.logger.warn(
         `Failed to preview factory deploy address on ${chain} (factory=${factory.address}, fn=${signature}): ${e instanceof Error ? e.message : String(e)}`,
       );
       return undefined;

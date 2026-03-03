@@ -2,4 +2,4 @@
 '@hyperlane-xyz/tron-sdk': patch
 ---
 
-TronWallet uses process-global tx counter, retries on contract address collisions, decodes hex error messages, and normalizes gas→gasLimit in transaction requests.
+TronWallet was updated to use a process-global tx counter, retry on contract address collisions, decode hex error messages, and normalize gas→gasLimit in transaction requests.

@@ -33,6 +33,7 @@ function nextTronTxExtension(): number {
  */
 function decodeTronErrorMessage(message: string | undefined): string {
   if (!message) return 'unknown error';
+  if (!/^[0-9a-fA-F]+$/.test(message)) return message;
   try {
     return Buffer.from(message, 'hex').toString('utf8');
   } catch {

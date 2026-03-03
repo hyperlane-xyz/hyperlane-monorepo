@@ -405,6 +405,17 @@ export class HyperlaneSmartProvider
           break;
         case ProviderStatus.Error: {
           providerResultErrors.push(result.error);
+
+          // SendTransaction must never fall through to another provider - the tx
+          // may already be in a mempool even if the RPC returned a transient error.
+          if (method === ProviderMethod.SendTransaction) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `SendTransaction error - not falling through to next provider`,
+            );
+            break providerLoop;
+          }
+
           // If this is a blockchain error, stop trying additional providers as it's a permanent failure
           // For CALL_EXCEPTION, we need to distinguish:
           // 1. Real revert with data - permanent (has revert data like "0x08c379a0...")

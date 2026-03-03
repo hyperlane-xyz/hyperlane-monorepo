@@ -32,7 +32,7 @@ set -e
 # avoid stale anvil from prior retry attempts in the same CI runner
 kill_local_anvil
 
-LOG_LEVEL=error pnpm tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
+LOG_LEVEL=error pnpm tsx ./scripts/run-anvil.ts -e "$ENVIRONMENT" -c "$CHAIN" &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
@@ -52,9 +52,9 @@ fi
 execute_command() {
     local cmd="$1"
     if [ -n "$WARP_ROUTE_ID" ]; then
-        $cmd $AS_DEPLOYER_FLAG --warpRouteId $WARP_ROUTE_ID
+        $cmd ${AS_DEPLOYER_FLAG:+"$AS_DEPLOYER_FLAG"} --warpRouteId "$WARP_ROUTE_ID"
     else
-        $cmd $AS_DEPLOYER_FLAG
+        $cmd ${AS_DEPLOYER_FLAG:+"$AS_DEPLOYER_FLAG"}
     fi
 }
 
@@ -63,19 +63,19 @@ execute_command "pnpm tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CH
 
 echo "Getting balance"
 DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
-BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+BEFORE=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 
 echo "Deploying"
 execute_command "pnpm tsx ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
 
-AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+AFTER=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 DEPLOY_DELTA="$((BEFORE-AFTER))"
 
-BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+BEFORE=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 echo "Checking deploy with --govern"
 execute_command "pnpm tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE"
 
-AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+AFTER=$(cast balance "$DEPLOYER" --rpc-url http://localhost:8545)
 GOVERN_DELTA="$((BEFORE-AFTER))"
 
 echo "Checking deploy without --govern"

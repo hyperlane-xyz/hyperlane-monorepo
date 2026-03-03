@@ -16,14 +16,20 @@ import type {
 } from './types.js';
 
 function isHexString(value: unknown): value is string {
-  return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2}){4,}$/.test(value);
+  // Minimum 64 hex bytes (128 chars) to avoid matching addresses (20B) and tx hashes (32B).
+  // OffchainLookup is 4 + 5×32 = 164 bytes minimum, so 64B is a conservative floor.
+  return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2}){64,}$/.test(value);
 }
+
+const MAX_BFS_ITERATIONS = 50;
 
 function extractRevertData(error: unknown): string | undefined {
   const seen = new Set<unknown>();
   const queue: unknown[] = [error];
+  let iterations = 0;
 
-  while (queue.length) {
+  while (queue.length && iterations < MAX_BFS_ITERATIONS) {
+    iterations += 1;
     const candidate = queue.shift();
     if (!candidate || seen.has(candidate)) continue;
     seen.add(candidate);
