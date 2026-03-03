@@ -198,10 +198,10 @@ async function resolveSendMessageChains(
 async function resolveStatusChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const chains: ChainName[] = [];
-  if (argv.origin) chains.push(argv.origin);
-  if (argv.destination) chains.push(argv.destination);
-  return chains;
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.destination) chains.add(argv.destination);
+  return Array.from(chains);
 }
 
 async function resolveRelayerChains(

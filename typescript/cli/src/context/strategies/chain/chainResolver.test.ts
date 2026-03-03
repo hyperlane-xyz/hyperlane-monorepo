@@ -100,4 +100,11 @@ describe('resolveChains — STATUS command', () => {
     const result = await resolveChains(statusArgv());
     expect(result).to.deep.equal([]);
   });
+
+  it('returns one chain when origin equals destination', async () => {
+    const result = await resolveChains(
+      statusArgv({ origin: 'ethereum', destination: 'ethereum' }),
+    );
+    expect(result).to.deep.equal(['ethereum']);
+  });
 });
