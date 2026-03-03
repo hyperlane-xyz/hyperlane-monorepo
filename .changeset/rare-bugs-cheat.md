@@ -2,7 +2,7 @@
 '@hyperlane-xyz/deploy-sdk': major
 '@hyperlane-xyz/cli': patch
 '@hyperlane-xyz/sdk': minor
-'@hyperlane-xyz/provider-sdk': minor
+'@hyperlane-xyz/provider-sdk': major
 '@hyperlane-xyz/cosmos-sdk': patch
 ---
 

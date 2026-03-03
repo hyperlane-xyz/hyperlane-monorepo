@@ -463,7 +463,7 @@ async function createWarpHook({
       });
       const artifact = hookConfigToArtifact(
         hook as ProviderHookConfig,
-        multiProvider,
+        chainLookup,
       );
       const [deployed] = await writer.create(artifact);
       return deployed.deployed.address;
