@@ -1,5 +1,41 @@
 # @hyperlane-xyz/provider-sdk
 
+## 2.0.0
+
+### Major Changes
+
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+### Minor Changes
+
+- e197331: Added WarpTokenReader and WarpTokenWriter for artifact API-based warp token operations.
+
+  New exports:
+  - createWarpTokenReader: Factory for reading warp tokens
+  - createWarpTokenWriter: Factory for creating/updating warp tokens
+  - WarpTokenReader: Artifact for reading warp tokens with nested ISM/hook expansion
+  - WarpTokenWriter: Artifact for deploying and updating warp tokens
+
+  Protocol providers now support createWarpArtifactManager method.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.5.0
+
 ## 1.4.1
 
 ### Patch Changes
