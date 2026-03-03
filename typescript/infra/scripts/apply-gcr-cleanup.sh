@@ -5,7 +5,7 @@
 # and has allUsers read access, generating ~$6K/month in internet egress from public pulls.
 #
 # This script:
-# 1. Sets a 30-day cleanup policy (deletes old untagged images and old PR/SHA-tagged images)
+# 1. Sets a 30-day cleanup policy (deletes old untagged images and old PR-tagged images)
 # 2. Disables vulnerability scanning (scanning all 27K+ images is wasteful)
 #
 # Usage: ./apply-gcr-cleanup.sh [--dry-run]

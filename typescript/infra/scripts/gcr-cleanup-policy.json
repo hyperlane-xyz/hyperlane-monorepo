@@ -10,25 +10,14 @@
     }
   },
   {
-    "name": "delete-old-tagged",
+    "name": "delete-old-pr-images",
     "action": {
       "type": "Delete"
     },
     "condition": {
       "tagState": "tagged",
       "olderThan": "30d",
-      "tagPrefixes": ["sha-", "pr-"]
-    }
-  },
-  {
-    "name": "keep-recent-main",
-    "action": {
-      "type": "Keep"
-    },
-    "condition": {
-      "tagState": "tagged",
-      "tagPrefixes": ["main"],
-      "newerThan": "30d"
+      "tagPrefixes": ["pr-"]
     }
   }
 ]
