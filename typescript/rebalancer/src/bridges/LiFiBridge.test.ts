@@ -151,7 +151,7 @@ const VALIDATION_PATTERNS = [
   /Route toToken .* does not match requested/,
   /Route toAddress .* does not match requested/,
   /Route fromAmount .* does not match requested/,
-  /Route toAmount .* does not match requested/,
+  /Route toAmount .* is less than requested/,
   /Route fromAmount must be positive/,
 ];
 
@@ -382,10 +382,10 @@ describe('LiFiBridge.execute() route validation', function () {
     }
   });
 
-  it('should throw when route toAmount does not match requested for reverse quote', async () => {
-    // Route estimate.toAmount='9950000000' but requestParams.toAmount=123n -> mismatch
+  it('should throw when route toAmount is less than requested for reverse quote', async () => {
+    // Route estimate.toAmount='100' but requestParams.toAmount=123n -> 100 < 123, should throw
     const quote = createTestQuote(
-      {},
+      { toAmount: '100' },
       { fromAmount: undefined, toAmount: 123n },
     );
     try {
@@ -394,8 +394,27 @@ describe('LiFiBridge.execute() route validation', function () {
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(msg).to.include('toAmount');
-      expect(msg).to.include('9950000000');
+      expect(msg).to.include('100');
       expect(msg).to.include('123');
+      expect(msg).to.include('is less than');
+    }
+  });
+
+  it('should pass validation when route toAmount exceeds requested (reverse quote)', async () => {
+    // paulbalaji reproduction: requested 1000000, LiFi returned 1000002.
+    // >= semantics: 1000002 >= 1000000 passes validation.
+    const quote = createTestQuote(
+      { toAmount: '1000002' },
+      { fromAmount: undefined, toAmount: 1000000n },
+    );
+    try {
+      await bridge.execute(quote, TEST_PRIVATE_KEY);
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(
+        isValidationError(msg),
+        `Expected non-validation error but got: ${msg}`,
+      ).to.equal(false);
     }
   });
 });
