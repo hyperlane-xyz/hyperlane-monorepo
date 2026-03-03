@@ -29,6 +29,7 @@ export {
   eqAddressStarknet,
   eqAddressRadix,
   eqAddressAleo,
+  eqOptionalAddress,
   eqAddressTron,
   getAddressProtocolType,
   isAddress,

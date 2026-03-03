@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 25.4.1
+
+## 25.4.0
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+### Minor Changes
+
+- 1970a32: Updated CLI warp rebalancer command to match new RebalancerService constructor signature.
+
 ## 25.2.0
 
 ### Minor Changes

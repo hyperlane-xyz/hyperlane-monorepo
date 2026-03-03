@@ -60,6 +60,28 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       ],
     );
 
+    // Approve fee tokens for hooks if configured
+    // This is needed when using ERC-20 fee tokens with aggregation hooks
+    // containing an IGP as a child hook
+    if (config.feeTokenApprovals?.length) {
+      this.logger.info(
+        `Approving ${config.feeTokenApprovals.length} fee token(s) for hooks on ${chain}...`,
+      );
+
+      for (const approval of config.feeTokenApprovals) {
+        this.logger.debug(
+          `Approving fee token ${approval.feeToken} for hook ${approval.hook}`,
+        );
+        await this.multiProvider.handleTx(
+          chain,
+          interchainAccountRouter.approveFeeTokenForHook(
+            approval.feeToken,
+            approval.hook,
+          ),
+        );
+      }
+    }
+
     return {
       interchainAccountRouter,
     };

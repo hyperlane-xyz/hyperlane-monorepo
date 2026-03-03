@@ -1,9 +1,16 @@
 packages:
-  - solhint-plugin
-  - solidity
-  - typescript/*
-  - starknet
+  - 'solhint-plugin'
+  - 'solidity'
+  - 'solidity/multicollateral'
+  - 'typescript/*'
+  - 'starknet'
 
+# Require catalog: protocol for all cataloged dependencies
+catalogMode: strict
+
+# Shared dependency versions for consistent versioning across all packages.
+# Use `catalog:` in package.json to reference these versions.
+# See: https://pnpm.io/catalogs
 catalog:
   '@arbitrum/sdk': ^4.0.0
   '@aws-sdk/client-kms': ^3.577.0
@@ -109,5 +116,3 @@ catalog:
   zksync-ethers: ^5.10.0
   zod: ^3.21.2
   zod-validation-error: ^3.3.0
-
-catalogMode: strict

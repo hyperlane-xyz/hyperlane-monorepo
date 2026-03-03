@@ -1,19 +1,55 @@
 {
-  "ethereum": {
-    "hex": "0x00000000000000000000000004c26a1efb87d5ac9ee6179754b4cddc61fc11d5",
-    "base58": "1111111111114r4GbDr6GpjADEPGeD9AtRdhQXE"
+  "ink": {
+    "hex": "0x000000000000000000000000416714e092f2b6e3296039ca2adf7eb6e06806f7",
+    "base58": "111111111111urB1VggAhzjDSyqyqD5hFfqUB5p"
   },
-  "solanamainnet": {
-    "hex": "0xc266368bc2886153843d9c8f894956f16795cccfef8957a87fe088c4ce2fb428",
-    "base58": "E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo"
+  "worldchain": {
+    "hex": "0x000000000000000000000000414b67f62b143d6db6e9b633168dd6fd4da20642",
+    "base58": "111111111111um79Yc6Evs5e1m2fdD2x7T1cpXb"
+  },
+  "arbitrum": {
+    "hex": "0x000000000000000000000000604610e6b3310852f1599a6edbebd6b6b2b766dc",
+    "base58": "1111111111112LnypxSnrNqS5179u14fDdfwNncs"
+  },
+  "hyperevm": {
+    "hex": "0x000000000000000000000000ff806e766f9dd784b370c5a2a4baaf21ea62d877",
+    "base58": "1111111111114ZTPR91WMYRUiDjYtmawZhxZsgDL"
+  },
+  "unichain": {
+    "hex": "0x00000000000000000000000033e6681548a0e5a07bf2ffa33e7ef274f08a34e1",
+    "base58": "111111111111iwMdNt5G76R3tRa3wBheDD4HKap"
+  },
+  "polygon": {
+    "hex": "0x000000000000000000000000fc78f4dace2ee0057281d0267db3491181510593",
+    "base58": "1111111111114X1RLCsn5bQ44oUBphcPDPHZpcyY"
+  },
+  "avalanche": {
+    "hex": "0x00000000000000000000000043295d726c09a1578960549f2513e186c3b62e57",
+    "base58": "111111111111wGcAwddbP4RfHuw3era2o9z9D4i"
   },
   "base": {
     "hex": "0x0000000000000000000000005a0e13290ec57f5e9031d01d03c6a40029cc24ea",
     "base58": "1111111111112FmXstQD1rxBjW64ydHaB5rgGxSV"
   },
-  "arbitrum": {
-    "hex": "0x000000000000000000000000604610e6b3310852f1599a6edbebd6b6b2b766dc",
-    "base58": "1111111111112LnypxSnrNqS5179u14fDdfwNncs"
+  "ethereum": {
+    "hex": "0x00000000000000000000000004c26a1efb87d5ac9ee6179754b4cddc61fc11d5",
+    "base58": "1111111111114r4GbDr6GpjADEPGeD9AtRdhQXE"
+  },
+  "monad": {
+    "hex": "0x0000000000000000000000001b681aaccc77b5aee34675eac5ce3ddeabc0b4c9",
+    "base58": "111111111111P9SpXCqV9xLRmMMCKStywA1YjNg"
+  },
+  "linea": {
+    "hex": "0x000000000000000000000000aa3c7a670f0afd18c2ec8b998aa56bb371e0df5d",
+    "base58": "1111111111113NZKeB4wWYn18nf1HRQ4nvtBjmLG"
+  },
+  "optimism": {
+    "hex": "0x00000000000000000000000036d930c7782bafe74ff52cab54648a1b2ecc48be",
+    "base58": "111111111111mKY1hn2mwHeQv79xvGdWZherCHT"
+  },
+  "solanamainnet": {
+    "hex": "0xc266368bc2886153843d9c8f894956f16795cccfef8957a87fe088c4ce2fb428",
+    "base58": "E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo"
   },
   "eclipsemainnet": {
     "hex": "0x504ba2b10af57f82d8a4b657495f5eaf81ba69873f5735733da684564167095b",

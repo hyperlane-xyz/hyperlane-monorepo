@@ -7,8 +7,8 @@ import {
   runTronNode,
   stopTronNode,
 } from '../testing/node.js';
-import { TestStorage } from '../typechain/contracts/test/TestStorage.js';
-import { TestStorage__factory } from '../typechain/factories/contracts/test/TestStorage__factory.js';
+import { TestStorage } from '@hyperlane-xyz/core/tron/typechain/contracts/test/TestStorage.js';
+import { TestStorage__factory } from '@hyperlane-xyz/core/tron/typechain/factories/contracts/test/TestStorage__factory.js';
 
 import { TronContractFactory } from './TronContractFactory.js';
 import { TronWallet } from './TronWallet.js';

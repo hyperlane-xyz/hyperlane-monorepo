@@ -6,13 +6,14 @@ pnpm-debug.log*
 **/.turbo
 
 # Git & IDE
-.git
 .github
 .idea
 .DS_STORE
 
 # Directories not used in Docker images
 rust
+!rust/main
+!rust/sealevel
 docs
 tools
 vectors

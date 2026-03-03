@@ -3,8 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
-import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_MOVEMENT_STALENESS_MS } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
@@ -34,6 +35,7 @@ export interface ActionTrackerConfig {
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddress?: Address; // Optional - for excluding inventory signer from user transfers query
+  intentTTL: number; // Max age in ms before in-progress intent is expired
 }
 
 /**
@@ -211,9 +213,12 @@ export class ActionTracker implements IActionTracker {
   async syncRebalanceIntents(): Promise<void> {
     this.logger.debug('Syncing rebalance intents');
 
-    // Check in_progress intents for completion by deriving from action states
+    // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
+    const allInProgressActions =
+      await this.rebalanceActionStore.getByStatus('in_progress');
+    const now = Date.now();
     for (const intent of inProgressIntents) {
       const completedAmount = await this.getCompletedAmountForIntent(intent.id);
       if (completedAmount >= intent.amount) {
@@ -221,6 +226,39 @@ export class ActionTracker implements IActionTracker {
           status: 'complete',
         });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
+      } else if (now - intent.createdAt > this.config.intentTTL) {
+        await this.rebalanceIntentStore.update(intent.id, {
+          status: 'failed',
+        });
+
+        // Fail any in-progress actions associated with the expired intent
+        for (const action of allInProgressActions) {
+          if (action.intentId === intent.id) {
+            await this.rebalanceActionStore.update(action.id, {
+              status: 'failed',
+            });
+            this.logger.warn(
+              { actionId: action.id, intentId: intent.id },
+              'RebalanceAction failed due to parent intent TTL expiry',
+            );
+          }
+        }
+
+        this.logger.debug(
+          {
+            id: intent.id,
+            origin: intent.origin,
+            destination: intent.destination,
+            amount: intent.amount.toString(),
+            ageMs: now - intent.createdAt,
+            ttlMs: this.config.intentTTL,
+          },
+          'RebalanceIntent TTL expiry details',
+        );
+        this.logger.warn(
+          { id: intent.id },
+          'RebalanceIntent expired due to TTL',
+        );
       }
     }
 
@@ -524,8 +562,8 @@ export class ActionTracker implements IActionTracker {
   }
 
   /**
-   * Get inventory intents that are in_progress or not_started but not fully fulfilled,
-   * and have no in-flight actions (safe to continue).
+   * Get inventory intents that are in_progress or not_started but not fully settled.
+   * Intents with in-flight deposits are included but flagged via hasInflightDeposit.
    * Returns enriched data with computed values derived from action states.
    *
    * NOTE: We include 'not_started' intents because they may have been created
@@ -552,17 +590,50 @@ export class ActionTracker implements IActionTracker {
       const actions = await this.getActionsForIntent(intent.id);
 
       // Check for in-flight inventory_movement actions
-      // Skip intents that have a bridge in progress - wait for it to complete
-      const hasInflightMovement = actions.some(
+      // Skip intents with active bridge movement(s). Movements still `pending` on
+      // the bridge are kept alive regardless of age. Non-pending movements are only
+      // failed after they've been in a non-pending state for the staleness window
+      // (nonPendingSince), preventing premature failure from transient not_found polls.
+      // `undefined` status (pre-deploy data) falls back to createdAt for staleness.
+      const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
+      const now = Date.now();
+      const staleMovements = inflightMovements.filter((a) => {
+        if (a.lastBridgeStatus === 'pending') return false;
+        // Use nonPendingSince when available; fall back to createdAt for
+        // pre-deploy data that lacks the field.
+        const nonPendingStart = a.nonPendingSince ?? a.createdAt;
+        return now - nonPendingStart >= DEFAULT_MOVEMENT_STALENESS_MS;
+      });
+      const staleMovementIds = new Set(staleMovements.map((a) => a.id));
 
-      if (hasInflightMovement) {
+      const hasBlockingInflightMovement = inflightMovements.some(
+        (a) => !staleMovementIds.has(a.id),
+      );
+
+      if (hasBlockingInflightMovement) {
         this.logger.debug(
           { intentId: intent.id },
           'Skipping partial intent - has in-flight inventory movement',
         );
         continue;
+      }
+
+      // Fail stale movements so the intent can proceed
+      for (const movement of staleMovements) {
+        await this.failRebalanceAction(movement.id);
+        this.logger.warn(
+          {
+            actionId: movement.id,
+            age: now - movement.createdAt,
+            nonPendingDuration:
+              now - (movement.nonPendingSince ?? movement.createdAt),
+            intentId: intent.id,
+            lastBridgeStatus: movement.lastBridgeStatus,
+          },
+          'Failing stale inventory movement to unblock intent',
+        );
       }
 
       // Compute amounts from action states
@@ -580,9 +651,13 @@ export class ActionTracker implements IActionTracker {
 
       const remaining = intent.amount - completedAmount - inflightAmount;
 
-      // Safe to continue if: remaining > 0 AND no in-flight inventory_deposit
-      if (remaining > 0n && inflightAmount === 0n) {
-        partialIntents.push({ intent, completedAmount, remaining });
+      if (remaining > 0n || inflightAmount > 0n) {
+        partialIntents.push({
+          intent,
+          completedAmount,
+          remaining,
+          hasInflightDeposit: inflightAmount > 0n,
+        });
       }
     }
 
@@ -675,6 +750,10 @@ export class ActionTracker implements IActionTracker {
             'Inventory movement failed',
           );
         } else if (status.status === 'pending') {
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'pending',
+            nonPendingSince: undefined,
+          });
           this.logger.debug(
             {
               actionId: action.id,
@@ -683,8 +762,19 @@ export class ActionTracker implements IActionTracker {
             },
             'Inventory movement still pending',
           );
+        } else if (status.status === 'not_found') {
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'not_found',
+            nonPendingSince: action.nonPendingSince ?? Date.now(),
+          });
+          this.logger.debug(
+            {
+              actionId: action.id,
+              txHash: action.txHash,
+            },
+            'Inventory movement not found',
+          );
         }
-        // status === 'not_found' - wait for next cycle
       } catch (error) {
         this.logger.debug(
           {
@@ -863,6 +953,16 @@ export class ActionTracker implements IActionTracker {
     try {
       // Create synthetic intent
       const { amount } = parseWarpRouteMessage(msg.message_body);
+      // Hasura returns block timestamps as UTC without 'Z' suffix (e.g. "2024-01-15T12:30:45").
+      // Null when the scraper hasn't indexed the origin block yet, so fall back to now.
+      // Note: when null, TTL effectively extends by scraper lag since recoverAction won't update createdAt later.
+      const createdAt = msg.send_occurred_at
+        ? new Date(msg.send_occurred_at + 'Z').getTime()
+        : Date.now();
+      assert(
+        !isNaN(createdAt),
+        `Invalid send_occurred_at timestamp: ${msg.send_occurred_at}`,
+      );
       const intent: RebalanceIntent = {
         id: uuidv4(),
         status: 'in_progress',
@@ -871,13 +971,13 @@ export class ActionTracker implements IActionTracker {
         amount,
         priority: undefined,
         strategyType: undefined,
-        createdAt: Date.now(),
+        createdAt,
         updatedAt: Date.now(),
       };
 
       await this.rebalanceIntentStore.save(intent);
       this.logger.debug(
-        { id: intent.id, amount: amount.toString() },
+        { id: intent.id, amount: amount.toString(), createdAt },
         'Created synthetic RebalanceIntent',
       );
 
@@ -892,7 +992,7 @@ export class ActionTracker implements IActionTracker {
         origin: msg.origin_domain_id,
         destination: msg.destination_domain_id,
         amount,
-        createdAt: Date.now(),
+        createdAt,
         updatedAt: Date.now(),
       };
 

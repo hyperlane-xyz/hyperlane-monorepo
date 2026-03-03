@@ -61,6 +61,8 @@ cd rust/main && cargo test --all-targets --features aleo,integration_test
 cd rust/main && cargo fmt
 ```
 
+**Do NOT add `Co-Authored-By` trailers to commit messages.**
+
 ### Changeset Style
 
 Write changeset descriptions in past tense describing what changed:

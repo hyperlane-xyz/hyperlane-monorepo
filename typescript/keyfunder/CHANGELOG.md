@@ -1,5 +1,61 @@
 # @hyperlane-xyz/keyfunder
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/metrics@0.1.10
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [027eeac]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/metrics@0.1.9
+
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/metrics@0.1.8
+  - @hyperlane-xyz/sdk@25.3.2
+  - @hyperlane-xyz/utils@25.3.2
+
+## 0.1.2
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.1
+- @hyperlane-xyz/metrics@0.1.7
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/core@10.1.5
+
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/metrics@0.1.6
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/core@10.1.5
+
 ## 0.1.0
 
 ### Minor Changes

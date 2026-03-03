@@ -5,6 +5,11 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
+import {
+  DEFAULT_INTENT_TTL_MS,
+  DEFAULT_MOVEMENT_STALENESS_MS,
+  ExternalBridgeType,
+} from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -71,6 +76,7 @@ describe('ActionTracker', () => {
       },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
+      intentTTL: DEFAULT_INTENT_TTL_MS,
     };
 
     tracker = new ActionTracker(
@@ -99,6 +105,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -128,6 +135,102 @@ describe('ActionTracker', () => {
       expect(actions[0].messageId).to.equal('0xmsg1');
     });
 
+    it('should use send_occurred_at for createdAt when available', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: '2024-01-15T12:30:45',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(1);
+      // Hasura timestamps are UTC without 'Z'; recoverAction appends 'Z' before parsing
+      const expectedMs = new Date('2024-01-15T12:30:45Z').getTime();
+      expect(intents[0].createdAt).to.equal(expectedMs);
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions[0].createdAt).to.equal(expectedMs);
+    });
+
+    it('should fall back to Date.now() when send_occurred_at is null', async () => {
+      const before = Date.now();
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+      const after = Date.now();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents[0].createdAt).to.be.at.least(before);
+      expect(intents[0].createdAt).to.be.at.most(after);
+    });
+
+    it('should skip action with invalid send_occurred_at timestamp', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: 'garbage',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      // Invalid timestamp is caught by recoverAction's catch block, so the action is skipped
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(0);
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions).to.have.lengthOf(0);
+    });
+
     it('should skip creating action if it already exists', async () => {
       const inflightMessages: ExplorerMessage[] = [
         {
@@ -142,6 +245,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -189,6 +293,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -232,6 +337,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -336,6 +442,61 @@ describe('ActionTracker', () => {
       const updated = await rebalanceIntentStore.get('intent-1');
       expect(updated?.status).to.equal('in_progress');
     });
+
+    it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
+
+      await tracker.syncRebalanceIntents();
+
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('failed');
+
+      const updatedAction = await rebalanceActionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('failed');
+    });
+
+    it('should not expire intents within TTL', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS + 60_000,
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await rebalanceIntentStore.get('intent-1');
+      expect(updated?.status).to.equal('in_progress');
+    });
   });
 
   describe('syncRebalanceActions', () => {
@@ -401,6 +562,115 @@ describe('ActionTracker', () => {
 
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('in_progress');
+    });
+  });
+
+  describe('syncInventoryMovementActions', () => {
+    it('stores pending status on in-progress movement', async () => {
+      await rebalanceActionStore.save({
+        id: 'action-pending',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-pending',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const getStatus = Sinon.stub().resolves({ status: 'pending' });
+      await tracker.syncInventoryMovementActions({
+        lifi: { getStatus } as any,
+      });
+
+      const action = await rebalanceActionStore.get('action-pending');
+      expect(action?.status).to.equal('in_progress');
+      expect(action?.lastBridgeStatus).to.equal('pending');
+    });
+
+    it('stores not_found status on in-progress movement', async () => {
+      await rebalanceActionStore.save({
+        id: 'action-not-found',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-not-found',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
+      await tracker.syncInventoryMovementActions({
+        lifi: { getStatus } as any,
+      });
+
+      const action = await rebalanceActionStore.get('action-not-found');
+      expect(action?.status).to.equal('in_progress');
+      expect(action?.lastBridgeStatus).to.equal('not_found');
+      expect(action?.nonPendingSince).to.be.a('number');
+    });
+
+    it('clears nonPendingSince when status returns to pending', async () => {
+      await rebalanceActionStore.save({
+        id: 'action-back-to-pending',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-back-pending',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: Date.now() - 60_000,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const getStatus = Sinon.stub().resolves({ status: 'pending' });
+      await tracker.syncInventoryMovementActions({
+        lifi: { getStatus } as any,
+      });
+
+      const action = await rebalanceActionStore.get('action-back-to-pending');
+      expect(action?.lastBridgeStatus).to.equal('pending');
+      expect(action?.nonPendingSince).to.be.undefined;
+    });
+
+    it('preserves existing nonPendingSince on repeated not_found polls', async () => {
+      const originalNonPendingSince = Date.now() - 120_000;
+      await rebalanceActionStore.save({
+        id: 'action-repeated-not-found',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-repeated',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: originalNonPendingSince,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
+      await tracker.syncInventoryMovementActions({
+        lifi: { getStatus } as any,
+      });
+
+      const action = await rebalanceActionStore.get(
+        'action-repeated-not-found',
+      );
+      expect(action?.nonPendingSince).to.equal(originalNonPendingSince);
     });
   });
 
@@ -554,6 +824,392 @@ describe('ActionTracker', () => {
         await tracker.getPartiallyFulfilledInventoryIntents();
 
       expect(partialIntents).to.have.lengthOf(0);
+    });
+
+    it('returns intent with in-flight deposit and sets hasInflightDeposit flag', async () => {
+      // Setup: in_progress inventory intent (amount: 1 ETH = 1_000_000_000_000_000_000n)
+      await rebalanceIntentStore.save({
+        id: 'intent-with-inflight',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Complete inventory_deposit action (amount: 400_000_000_000_000_000n = 0.4 ETH)
+      await rebalanceActionStore.save({
+        id: 'action-complete',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-with-inflight',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n, // 0.4 ETH completed
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // In_progress inventory_deposit action (amount: 300_000_000_000_000_000n = 0.3 ETH)
+      await rebalanceActionStore.save({
+        id: 'action-inflight',
+        type: 'inventory_deposit',
+        status: 'in_progress',
+        intentId: 'intent-with-inflight',
+        origin: 1,
+        destination: 2,
+        amount: 300000000000000000n, // 0.3 ETH in-flight
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightDeposit).to.be.true;
+      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
+      expect(partialIntents[0].remaining).to.equal(300000000000000000n); // 1.0 - 0.4 - 0.3
+    });
+
+    it('returns intent without in-flight deposit with hasInflightDeposit false', async () => {
+      // Setup: in_progress inventory intent (amount: 1 ETH)
+      await rebalanceIntentStore.save({
+        id: 'intent-no-inflight',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Complete inventory_deposit action (amount: 0.4 ETH)
+      await rebalanceActionStore.save({
+        id: 'action-complete-only',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-no-inflight',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n, // 0.4 ETH completed
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      // NO in_progress inventory_deposit actions
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightDeposit).to.be.false;
+      expect(partialIntents[0].remaining).to.equal(600000000000000000n);
+    });
+
+    it('returns intent when remaining is 0n but has in-flight deposit', async () => {
+      // intent.amount = 1 ETH, completedAmount = 0.7 ETH, inflightAmount = 0.3 ETH → remaining = 0n
+      await rebalanceIntentStore.save({
+        id: 'intent-zero-remaining',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // 0.7 ETH already completed
+      await rebalanceActionStore.save({
+        id: 'action-complete-part',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-zero-remaining',
+        origin: 1,
+        destination: 2,
+        amount: 700000000000000000n, // 0.7 ETH
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // 0.3 ETH in-flight — exactly fills the remaining gap
+      await rebalanceActionStore.save({
+        id: 'action-inflight-rest',
+        type: 'inventory_deposit',
+        status: 'in_progress',
+        intentId: 'intent-zero-remaining',
+        origin: 1,
+        destination: 2,
+        amount: 300000000000000000n, // 0.3 ETH in-flight
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].remaining).to.equal(0n);
+      expect(partialIntents[0].hasInflightDeposit).to.be.true;
+      expect(partialIntents[0].completedAmount).to.equal(700000000000000000n);
+    });
+
+    it('does not return fully completed intent with no in-flight deposits', async () => {
+      // intent.amount = 1 ETH, completedAmount = 1 ETH, inflightAmount = 0 → remaining = 0n, no inflight
+      await rebalanceIntentStore.save({
+        id: 'intent-fully-done',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Full amount completed
+      await rebalanceActionStore.save({
+        id: 'action-all-done',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-fully-done',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH — full amount
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      // remaining = 0n AND inflightAmount = 0n → should NOT be returned
+      expect(partialIntents).to.have.lengthOf(0);
+    });
+
+    it('skips intent with recent in-flight inventory_movement', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-recent-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Recent movement (created just now)
+      await rebalanceActionStore.save({
+        id: 'movement-recent',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-recent-movement',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(0);
+    });
+
+    it('fails stale movement and returns intent', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-stale-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Stale movement (non-pending for > 30 min)
+      await rebalanceActionStore.save({
+        id: 'movement-stale',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        intentId: 'intent-stale-movement',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal('intent-stale-movement');
+
+      // Verify the stale movement was failed
+      const failedAction = await rebalanceActionStore.get('movement-stale');
+      expect(failedAction?.status).to.equal('failed');
+    });
+
+    it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-undefined-status',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Stale movement without lastBridgeStatus (simulates pre-deploy data)
+      await rebalanceActionStore.save({
+        id: 'movement-undefined-status',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-undefined-status',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(1);
+
+      const action = await rebalanceActionStore.get(
+        'movement-undefined-status',
+      );
+      expect(action?.status).to.equal('failed');
+    });
+
+    it('does not fail long-running pending movement', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-pending-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await rebalanceActionStore.save({
+        id: 'movement-pending-old',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'pending',
+        intentId: 'intent-pending-movement',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(0);
+
+      const action = await rebalanceActionStore.get('movement-pending-old');
+      expect(action?.status).to.equal('in_progress');
+    });
+
+    it('does not fail old movement that recently became non-pending', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-recent-not-found',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Old by createdAt but only recently transitioned to not_found
+      await rebalanceActionStore.save({
+        id: 'movement-recent-not-found',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: Date.now() - 60_000, // only 1 min ago
+        intentId: 'intent-recent-not-found',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(0);
+
+      const action = await rebalanceActionStore.get(
+        'movement-recent-not-found',
+      );
+      expect(action?.status).to.equal('in_progress');
+    });
+
+    it('handles mix of recent and stale movements', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-mixed-movements',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // One stale movement (non-pending for > 30 min)
+      await rebalanceActionStore.save({
+        id: 'movement-old',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'not_found',
+        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        intentId: 'intent-mixed-movements',
+        origin: 1,
+        destination: 2,
+        amount: 500000000000000000n,
+        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
+        updatedAt: Date.now(),
+      });
+
+      // One recent movement
+      await rebalanceActionStore.save({
+        id: 'movement-new',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        lastBridgeStatus: 'pending',
+        intentId: 'intent-mixed-movements',
+        origin: 1,
+        destination: 2,
+        amount: 500000000000000000n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Should skip because there's still a recent movement
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partialIntents).to.have.lengthOf(0);
+
+      const staleAction = await rebalanceActionStore.get('movement-old');
+      expect(staleAction?.status).to.equal('in_progress');
     });
   });
 

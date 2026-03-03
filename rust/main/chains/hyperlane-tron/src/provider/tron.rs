@@ -7,7 +7,7 @@ use ethers::providers::Provider;
 use ethers::providers::{Middleware, ProviderError};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{BlockId, Bytes, H160};
-use ethers_signers::Signer;
+use hyperlane_core::utils::hex_or_base58_or_bech32_to_h256;
 use num::ToPrimitive;
 use prost_types::Any;
 use time::OffsetDateTime;
@@ -276,7 +276,10 @@ impl TronProvider {
         let (mut tx, hash) = Self::build_tx(&tron_call, &block, fee_limit)?;
 
         let signer = self.get_signer()?;
-        let signature = signer.sign_hash(hash.into());
+        let signature = signer
+            .sign_hash(hash)
+            .await
+            .map_err(HyperlaneTronError::from)?;
 
         // Set the signature
         tx.signature = vec![signature.to_vec()];
@@ -502,7 +505,8 @@ impl HyperlaneProvider for TronProvider {
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         // Can't use the address directly as a string, because ethers interprets it
         // as an ENS name rather than an address.
-        let addr: Address = address.parse()?;
+        let addr = hex_or_base58_or_bech32_to_h256(&address)?;
+        let addr: Address = Address::from(addr);
         let balance = self
             .jsonrpc
             .get_balance(addr, None)

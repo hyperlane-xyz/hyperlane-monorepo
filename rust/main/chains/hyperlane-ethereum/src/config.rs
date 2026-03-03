@@ -53,6 +53,14 @@ pub struct ConnectionConf {
     /// we will try other providers and see if another provider returns something
     /// non-null
     pub consider_null_transaction_receipt: bool,
+
+    // Tron specific rpcs
+    /// gRPC urls
+    pub grpc_urls: Option<Vec<Url>>,
+    /// Solidity gRPC urls
+    pub solidity_grpc_urls: Option<Vec<Url>>,
+    /// Tron energy multiplier
+    pub energy_multiplier: Option<f64>,
 }
 
 impl ConnectionConf {

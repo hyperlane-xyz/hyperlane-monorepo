@@ -1,6 +1,7 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
+import type { BridgeTransferStatus } from '../interfaces/IExternalBridge.js';
 
 import type { IStore } from './store/IStore.js';
 
@@ -84,6 +85,8 @@ export interface RebalanceAction extends TrackedActionBase {
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
+  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed external bridge status
+  nonPendingSince?: number; // Timestamp when bridge status first became non-pending
 }
 
 // === Type Aliases for Stores ===
@@ -108,6 +111,8 @@ export interface PartialInventoryIntent {
   intent: RebalanceIntent;
   /** Sum of complete inventory_deposit action amounts */
   completedAmount: bigint;
-  /** Amount remaining to fulfill: intent.amount - completedAmount - inflightAmount */
+  /** Amount remaining to fulfill (0n when final deposit is fully in-flight). Formula: intent.amount - completedAmount - inflightAmount */
   remaining: bigint;
+  /** True when intent has in_progress inventory_deposit actions (not safe to continue, but still active) */
+  hasInflightDeposit: boolean;
 }

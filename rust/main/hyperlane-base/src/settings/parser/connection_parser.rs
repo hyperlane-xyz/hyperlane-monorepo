@@ -125,11 +125,39 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
+    let grpc_urls =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", err, true);
+    let solidity_grpc_urls = parse_base_and_override_urls(
+        chain,
+        "solidityGrpcUrls",
+        "customSolidityGrpcUrls",
+        "http",
+        err,
+        true,
+    );
+
+    let energy_multiplier = chain
+        .chain(err)
+        .get_opt_key("feeMultiplier")
+        .parse_f64()
+        .end();
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
+        grpc_urls: if grpc_urls.is_empty() {
+            None
+        } else {
+            Some(grpc_urls)
+        },
+        solidity_grpc_urls: if solidity_grpc_urls.is_empty() {
+            None
+        } else {
+            Some(solidity_grpc_urls)
+        },
+        energy_multiplier,
     }))
 }
 
@@ -347,6 +375,14 @@ fn parse_native_token(
         .parse_u32()
         .unwrap_or(default_decimals);
 
+    let native_token_symbol = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("symbol")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
     let native_token_denom = chain
         .chain(err)
         .get_opt_key("nativeToken")
@@ -356,6 +392,7 @@ fn parse_native_token(
 
     NativeToken {
         decimals: native_token_decimals,
+        symbol: native_token_symbol,
         denom: native_token_denom.to_owned(),
     }
 }
