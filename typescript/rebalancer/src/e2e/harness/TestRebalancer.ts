@@ -8,7 +8,7 @@ import {
   type MultiProvider,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
@@ -289,11 +289,17 @@ export class TestRebalancerBuilder {
     const mpp = MultiProtocolProvider.fromMultiProvider(workingMultiProvider);
 
     let inventoryMultiProvider: MultiProvider | undefined;
+    let inventorySignerKeysByProtocol:
+      | Partial<Record<ProtocolType, string>>
+      | undefined;
     let rebalancerConfig: RebalancerConfig;
     let warpCoreConfig: WarpCoreConfig;
     if (isErc20InventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
+      inventorySignerKeysByProtocol = {
+        [ProtocolType.Ethereum]: erc20InventoryModeConfig.inventorySignerKey,
+      };
       const inventorySignerAddress = new ethers.Wallet(
         erc20InventoryModeConfig.inventorySignerKey,
       ).address;
@@ -302,7 +308,7 @@ export class TestRebalancerBuilder {
         ERC20_INVENTORY_MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
-        inventorySignerAddress,
+        { ethereum: inventorySignerAddress },
         { lifi: { integrator: 'test' } },
       );
       warpCoreConfig = buildErc20InventoryWarpRouteConfig(
@@ -311,6 +317,9 @@ export class TestRebalancerBuilder {
     } else if (isInventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
+      inventorySignerKeysByProtocol = {
+        [ProtocolType.Ethereum]: inventoryModeConfig.inventorySignerKey,
+      };
       const inventorySignerAddress = new ethers.Wallet(
         inventoryModeConfig.inventorySignerKey,
       ).address;
@@ -319,7 +328,7 @@ export class TestRebalancerBuilder {
         NATIVE_MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
-        inventorySignerAddress,
+        { ethereum: inventorySignerAddress },
         { lifi: { integrator: 'test' } },
       );
       warpCoreConfig = buildNativeWarpRouteConfig(
@@ -345,6 +354,7 @@ export class TestRebalancerBuilder {
       registry,
       this.logger,
       warpCoreConfig,
+      inventorySignerKeysByProtocol,
     );
 
     const strategy = await contextFactory.createStrategy();

@@ -11,7 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, toWei } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -76,6 +76,9 @@ export class RebalancerContextFactory {
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
+    private readonly inventorySignerKeysByProtocol?: Partial<
+      Record<ProtocolType, string>
+    >,
   ) {}
 
   /**
@@ -94,6 +97,7 @@ export class RebalancerContextFactory {
     registry: IRegistry,
     logger: Logger,
     warpCoreConfigOverride?: WarpCoreConfig,
+    inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
       {
@@ -157,6 +161,7 @@ export class RebalancerContextFactory {
       extendedMultiProtocolProvider,
       registry,
       logger,
+      inventorySignerKeysByProtocol,
     );
   }
 
@@ -350,7 +355,8 @@ export class RebalancerContextFactory {
       routersByDomain,
       bridges,
       rebalancerAddress,
-      inventorySignerAddress: this.config.inventorySigner,
+      inventorySignerAddress:
+        this.config.inventorySigners?.[ProtocolType.Ethereum],
       intentTTL: this.config.intentTTL,
     };
 
@@ -396,17 +402,20 @@ export class RebalancerContextFactory {
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigner } = this.config;
+    const { inventorySigners } = this.config;
 
-    if (!inventorySigner) {
+    if (!inventorySigners || Object.keys(inventorySigners).length === 0) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
       return null;
     }
+    const inventorySigner =
+      inventorySigners[ProtocolType.Ethereum] ??
+      Object.values(inventorySigners)[0];
 
     this.logger.debug(
-      { warpRouteId: this.config.warpRouteId, inventorySigner },
+      { warpRouteId: this.config.warpRouteId, inventorySigners },
       'Creating inventory components',
     );
 
@@ -417,7 +426,15 @@ export class RebalancerContextFactory {
         this.config.strategyConfig,
         chainName,
       );
-      return chainConfig?.executionType === ExecutionType.Inventory;
+      if (chainConfig?.executionType === ExecutionType.Inventory) return true;
+      if (!chainConfig?.override) return false;
+      return Object.values(chainConfig.override).some((overrideConfig) => {
+        const merged = {
+          ...chainConfig,
+          ...(overrideConfig as Record<string, unknown>),
+        };
+        return merged.executionType === ExecutionType.Inventory;
+      });
     });
 
     if (inventoryChains.length === 0) {
@@ -438,7 +455,28 @@ export class RebalancerContextFactory {
           'No external bridges configured, skipping inventory components',
         );
       }
-      return null;
+      const inventoryConfig: InventoryMonitorConfig = {
+        inventoryAddress: inventorySigner,
+        chains: inventoryChains,
+      };
+      const inventoryRebalancer = new InventoryRebalancer(
+        {
+          inventorySigners,
+          inventorySignerKeysByProtocol: this.inventorySignerKeysByProtocol,
+          inventoryMultiProvider: this.inventoryMultiProvider,
+          inventoryChains,
+        },
+        actionTracker,
+        externalBridgeRegistryOverride ?? {},
+        this.warpCore,
+        this.multiProvider,
+        this.logger,
+      );
+      return {
+        inventoryRebalancer,
+        externalBridgeRegistry: externalBridgeRegistryOverride ?? {},
+        inventoryConfig,
+      };
     }
 
     // 3. Build inventory config
@@ -451,9 +489,9 @@ export class RebalancerContextFactory {
     // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
     const inventoryRebalancer = new InventoryRebalancer(
       {
-        inventorySigner,
-        inventoryMultiProvider:
-          this.inventoryMultiProvider ?? this.multiProvider,
+        inventorySigners,
+        inventorySignerKeysByProtocol: this.inventorySignerKeysByProtocol,
+        inventoryMultiProvider: this.inventoryMultiProvider,
         inventoryChains,
       },
       actionTracker,
@@ -463,15 +501,13 @@ export class RebalancerContextFactory {
       this.logger,
     );
 
-    if (externalBridgeRegistryOverride === undefined) {
-      this.logger.info(
-        {
-          inventoryChains,
-          inventorySigner,
-        },
-        'Inventory components created successfully',
-      );
-    }
+    this.logger.info(
+      {
+        inventoryChains,
+        inventorySigners,
+      },
+      'Inventory components created successfully',
+    );
 
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }

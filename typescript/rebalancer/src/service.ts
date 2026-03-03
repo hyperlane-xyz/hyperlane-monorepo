@@ -10,7 +10,8 @@
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
  * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
- * - HYP_INVENTORY_KEY: Private key for inventory operations - LiFi bridges and transferRemote (optional)
+ * - HYP_INVENTORY_KEY: Private key for inventory operations on EVM chains (optional)
+ * - HYP_INVENTORY_KEY_SOLANA: Private key for inventory operations on Solana chains (optional)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
@@ -29,6 +30,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
+  ProtocolType,
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
   rootLogger,
@@ -55,8 +57,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Optional: inventory key for inventory-based operations (LiFi bridges, transferRemote)
+  // Optional inventory keys by protocol.
   const inventoryPrivateKey = process.env.HYP_INVENTORY_KEY;
+  const inventoryPrivateKeySolana = process.env.HYP_INVENTORY_KEY_SOLANA;
 
   // Parse optional environment variables
   let checkFrequency = 60_000;
@@ -125,24 +128,30 @@ async function main(): Promise<void> {
       '✅ Initialized MultiProvider with rebalancer signer',
     );
 
+    const inventorySignerKeysByProtocol: Partial<Record<ProtocolType, string>> =
+      {};
+
     // Create inventory MultiProvider if inventory key is provided
     let inventoryMultiProvider: MultiProvider | undefined;
     if (inventoryPrivateKey) {
+      inventorySignerKeysByProtocol[ProtocolType.Ethereum] =
+        inventoryPrivateKey;
       inventoryMultiProvider = new MultiProvider(chainMetadata, {
         providers: multiProvider.providers,
       });
       const inventorySigner = new Wallet(inventoryPrivateKey);
       inventoryMultiProvider.setSharedSigner(inventorySigner);
 
-      // Validate against config.inventorySigner if present
+      // Validate against config.inventorySigners.ethereum if present
       const inventoryAddress = inventorySigner.address;
       if (
-        rebalancerConfig.inventorySigner &&
-        rebalancerConfig.inventorySigner.toLowerCase() !==
-          inventoryAddress.toLowerCase()
+        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
+        rebalancerConfig.inventorySigners[
+          ProtocolType.Ethereum
+        ]!.toLowerCase() !== inventoryAddress.toLowerCase()
       ) {
         throw new Error(
-          `inventorySigner mismatch: config has ${rebalancerConfig.inventorySigner} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
+          `inventorySigners.ethereum mismatch: config has ${rebalancerConfig.inventorySigners[ProtocolType.Ethereum]} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
         );
       }
       logger.info(
@@ -151,12 +160,35 @@ async function main(): Promise<void> {
       );
     }
 
-    // Fail fast if config references inventorySigner but no HYP_INVENTORY_KEY is provided
-    // Without the matching key, inventory operations would silently use the wrong signer
-    if (rebalancerConfig.inventorySigner && !inventoryPrivateKey) {
+    if (inventoryPrivateKeySolana) {
+      inventorySignerKeysByProtocol[ProtocolType.Sealevel] =
+        inventoryPrivateKeySolana;
+    }
+
+    // Fail fast if config references protocol-specific inventory signer but key is missing.
+    if (
+      rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
+      !inventoryPrivateKey
+    ) {
       logger.error(
-        { inventorySigner: rebalancerConfig.inventorySigner },
-        'Config specifies inventorySigner but HYP_INVENTORY_KEY is not set. Provide the key or remove inventorySigner from config.',
+        {
+          inventorySigner:
+            rebalancerConfig.inventorySigners[ProtocolType.Ethereum],
+        },
+        'Config specifies inventorySigners.ethereum but HYP_INVENTORY_KEY is not set.',
+      );
+      process.exit(1);
+    }
+    if (
+      rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel] &&
+      !inventoryPrivateKeySolana
+    ) {
+      logger.error(
+        {
+          inventorySigner:
+            rebalancerConfig.inventorySigners[ProtocolType.Sealevel],
+        },
+        'Config specifies inventorySigners.sealevel but HYP_INVENTORY_KEY_SOLANA is not set.',
       );
       process.exit(1);
     }
@@ -180,6 +212,7 @@ async function main(): Promise<void> {
         logger,
         version: VERSION,
       },
+      inventorySignerKeysByProtocol,
     );
 
     // Start the service

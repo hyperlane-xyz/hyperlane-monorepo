@@ -1,20 +1,17 @@
 import type { Logger } from 'pino';
-import { Wallet, type ContractReceipt } from 'ethers';
 
 import {
-  type AnnotatedEV5Transaction,
   type ChainName,
-  type EthJsonRpcBlockParameterTag,
+  getSignerForChain,
   HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
-  Token,
+  ProviderType,
   TOKEN_COLLATERALIZED_STANDARDS,
-  TokenAmount,
+  type TypedTransactionReceipt,
   type WarpCore,
-  WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
-import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -65,10 +62,12 @@ const MAX_GAS_PERCENT_THRESHOLD = 10n;
  * Configuration for the InventoryRebalancer.
  */
 export interface InventoryRebalancerConfig {
-  /** EOA address of the inventory signer */
-  inventorySigner: string;
-  /** MultiProvider with inventory signer for signing transactions */
-  inventoryMultiProvider: MultiProvider;
+  /** signer address map by protocol */
+  inventorySigners: Partial<Record<ProtocolType, string>>;
+  /** signer private keys by protocol */
+  inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>;
+  /** Optional MultiProvider with inventory signer for signing transactions */
+  inventoryMultiProvider?: MultiProvider;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
 }
@@ -135,7 +134,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     this.validateCollateralBackedTokens();
 
     this.logger.info(
-      { inventorySigner: config.inventorySigner },
+      { inventorySigners: config.inventorySigners },
       'InventoryRebalancer initialized',
     );
   }
@@ -192,6 +191,32 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    */
   private getTokenForChain(chainName: ChainName) {
     return this.warpCore.tokens.find((t) => t.chainName === chainName);
+  }
+
+  private getProtocolForChain(chainName: ChainName): ProtocolType {
+    const metadata =
+      this.warpCore.multiProvider.getChainMetadata?.(chainName) ?? undefined;
+    return metadata?.protocol ?? ProtocolType.Ethereum;
+  }
+
+  private getInventorySignerAddress(chainName: ChainName): string {
+    const protocol = this.getProtocolForChain(chainName);
+    const signer = this.config.inventorySigners[protocol];
+    assert(
+      signer,
+      `Missing inventory signer address for protocol ${protocol} (chain ${chainName})`,
+    );
+    return signer;
+  }
+
+  private getInventorySignerKey(chainName: ChainName): string {
+    const protocol = this.getProtocolForChain(chainName);
+    const signerKey = this.config.inventorySignerKeysByProtocol?.[protocol];
+    assert(
+      signerKey,
+      `Missing inventory signer key for protocol ${protocol} (chain ${chainName})`,
+    );
+    return signerKey;
   }
 
   /**
@@ -518,7 +543,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.config.inventorySigner,
+      this.getInventorySignerAddress(destination),
       isNativeTokenStandard,
       this.logger,
     );
@@ -814,6 +839,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     gasQuote: InterchainGasQuote,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
+    const originSignerAddress = this.getInventorySignerAddress(origin);
+    const destinationSignerAddress =
+      this.getInventorySignerAddress(destination);
 
     const originToken = this.getTokenForChain(origin);
     if (!originToken) {
@@ -822,11 +850,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    const signingProvider = this.config.inventoryMultiProvider;
-
-    // Get reorgPeriod for confirmation waiting
-    const reorgPeriod =
-      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+    // Get the hyperlane adapter for the token
+    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
 
     this.logger.debug(
       {
@@ -841,39 +866,78 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Using pre-calculated gas quote for transferRemote',
     );
 
-    // Convert pre-calculated gas quote to TokenAmount for WarpCore
-    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
-    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
-    const igpToken =
-      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
-        ? Token.FromChainMetadataNativeToken(originChainMetadata)
-        : this.warpCore.findToken(origin, igpAddressOrDenom);
-    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
-    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
+    if (!isNativeTokenStandard(originToken.standard)) {
+      const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+        adapter.isApproveRequired(
+          originSignerAddress,
+          originToken.addressOrDenom,
+          amount,
+        ),
+        adapter.isRevokeApprovalRequired(
+          originSignerAddress,
+          originToken.addressOrDenom,
+        ),
+      ]);
 
-    let tokenFeeQuote: TokenAmount | undefined;
-    if (gasQuote.tokenFeeQuote?.amount) {
-      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
-      const feeToken =
-        !feeAddress || isZeroishAddress(feeAddress)
-          ? Token.FromChainMetadataNativeToken(originChainMetadata)
-          : originToken;
-      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
+      this.logger.debug(
+        {
+          origin,
+          destination,
+          amount: amount.toString(),
+          isApproveRequired,
+          isRevokeApprovalRequired,
+          spender: originToken.addressOrDenom,
+        },
+        'Checked transferRemote approval requirements',
+      );
+
+      if (isApproveRequired && isRevokeApprovalRequired) {
+        this.logger.debug(
+          {
+            origin,
+            destination,
+            amount: '0',
+            spender: originToken.addressOrDenom,
+          },
+          'Sending revoke approval transaction before transferRemote',
+        );
+
+        const revokeTx = await adapter.populateApproveTx({
+          weiAmountOrId: 0,
+          recipient: originToken.addressOrDenom,
+        });
+
+        await this.sendInventoryTransaction(origin, revokeTx as any);
+      }
+
+      if (isApproveRequired) {
+        this.logger.debug(
+          {
+            origin,
+            destination,
+            amount: amount.toString(),
+            spender: originToken.addressOrDenom,
+          },
+          'Sending approval transaction before transferRemote',
+        );
+
+        const approveTx = await adapter.populateApproveTx({
+          weiAmountOrId: amount,
+          recipient: originToken.addressOrDenom,
+        });
+
+        await this.sendInventoryTransaction(origin, approveTx as any);
+      }
     }
 
-    const originTokenAmount = originToken.amount(amount);
-    const transactions = await this.warpCore.getTransferRemoteTxs({
-      originTokenAmount,
-      destination,
-      sender: this.config.inventorySigner,
-      recipient: this.config.inventorySigner,
-      interchainFee,
-      tokenFeeQuote,
+    // Populate the transferRemote transaction
+    const populatedTx = await adapter.populateTransferRemoteTx({
+      destination: destinationDomain,
+      recipient: destinationSignerAddress,
+      fromAccountOwner: originSignerAddress,
+      weiAmountOrId: amount,
+      interchainGas: gasQuote,
     });
-    assert(
-      transactions.length > 0,
-      'Expected at least one transaction from WarpCore',
-    );
 
     // Send the transaction using inventory MultiProvider if available
     this.logger.info(
@@ -886,37 +950,18 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Sending transferRemote transaction',
     );
 
-    let receipt: ContractReceipt | undefined;
-    for (const tx of transactions) {
-      this.logger.debug(
-        { origin, destination, category: tx.category },
-        `Sending ${tx.category} transaction`,
-      );
-      const isTransfer = tx.category === WarpTxCategory.Transfer;
-      receipt = await signingProvider.sendTransaction(
-        origin,
-        tx.transaction as AnnotatedEV5Transaction,
-        isTransfer
-          ? {
-              waitConfirmations: reorgPeriod as
-                | number
-                | EthJsonRpcBlockParameterTag,
-            }
-          : undefined,
-      );
-    }
-
-    // Extract messageId from the transaction receipt logs
-    assert(receipt, 'Expected receipt from transferRemote transactions');
-    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
-    const messageId = dispatchedMessages[0]?.id;
+    const txHash = await this.sendInventoryTransaction(
+      origin,
+      populatedTx as any,
+    );
+    const messageId = await this.extractDispatchedMessageId(origin, txHash);
 
     if (!messageId) {
       this.logger.warn(
         {
           origin,
           destination,
-          txHash: receipt.transactionHash,
+          txHash,
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
@@ -927,7 +972,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         origin,
         destination,
-        txHash: receipt.transactionHash,
+        txHash,
         messageId,
         intentId: intent.id,
       },
@@ -941,7 +986,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: destinationDomain,
       amount,
       type: 'inventory_deposit',
-      txHash: receipt.transactionHash,
+      txHash,
       messageId,
     });
 
@@ -950,6 +995,124 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       success: true,
       amountSent: amount,
     };
+  }
+
+  private async sendInventoryTransaction(
+    origin: ChainName,
+    tx: any,
+  ): Promise<string> {
+    const protocol = this.getProtocolForChain(origin);
+    if (protocol === ProtocolType.Ethereum) {
+      const signingProvider =
+        this.config.inventoryMultiProvider ?? this.multiProvider;
+      const reorgPeriod =
+        this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+      const receipt = await signingProvider.sendTransaction(origin, tx, {
+        waitConfirmations: reorgPeriod as number,
+      });
+      return receipt.transactionHash;
+    }
+    if (protocol === ProtocolType.Sealevel) {
+      const signer = await getSignerForChain(
+        origin,
+        {
+          protocol,
+          privateKey: this.parseSolanaPrivateKey(
+            this.getInventorySignerKey(origin),
+          ),
+        },
+        this.warpCore.multiProvider,
+      );
+      return signer.sendAndConfirmTransaction({
+        type: ProviderType.SolanaWeb3,
+        transaction: tx,
+      } as any);
+    }
+    throw new Error(`Unsupported inventory transaction protocol ${protocol}`);
+  }
+
+  private parseSolanaPrivateKey(rawKey: string): Uint8Array {
+    try {
+      if (rawKey.trim().startsWith('[')) {
+        const parsed = JSON.parse(rawKey);
+        if (Array.isArray(parsed)) return Uint8Array.from(parsed);
+      }
+      const byComma = rawKey
+        .split(',')
+        .map((v) => Number(v.trim()))
+        .filter((v) => Number.isFinite(v));
+      if (byComma.length > 0) return Uint8Array.from(byComma);
+    } catch (error) {
+      this.logger.debug(
+        { error: (error as Error).message },
+        'Failed parsing Solana private key in JSON mode',
+      );
+    }
+    throw new Error(
+      'Invalid HYP_INVENTORY_KEY_SOLANA format. Expected JSON byte array or comma-separated bytes.',
+    );
+  }
+
+  private async extractDispatchedMessageId(
+    origin: ChainName,
+    txHash: string,
+  ): Promise<string | undefined> {
+    const protocol = this.getProtocolForChain(origin);
+    const receipt = await this.getTransactionReceipt(origin, txHash);
+    if (!receipt) return undefined;
+
+    if (protocol === ProtocolType.Ethereum) {
+      return HyperlaneCore.getDispatchedMessages(receipt.receipt as any)[0]?.id;
+    }
+
+    if (protocol === ProtocolType.Sealevel) {
+      const logs = (receipt.receipt as any).meta?.logMessages as
+        | string[]
+        | undefined;
+      if (!logs) return undefined;
+      const regex = /Dispatched message to (.*), ID (.*)/;
+      const dispatchLog = logs.find((log) => regex.test(log));
+      if (!dispatchLog) return undefined;
+      const [, _destination, messageId] = regex.exec(dispatchLog) ?? [];
+      return messageId ? `0x${messageId.replace(/^0x/, '')}` : undefined;
+    }
+
+    return undefined;
+  }
+
+  private async getTransactionReceipt(
+    origin: ChainName,
+    txHash: string,
+  ): Promise<TypedTransactionReceipt | undefined> {
+    try {
+      const protocol = this.getProtocolForChain(origin);
+
+      if (protocol === ProtocolType.Ethereum) {
+        const provider =
+          this.warpCore.multiProvider.getEthersV5Provider(origin);
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (!receipt) return undefined;
+        return { type: ProviderType.EthersV5, receipt };
+      }
+
+      if (protocol === ProtocolType.Sealevel) {
+        const provider =
+          this.warpCore.multiProvider.getSolanaWeb3Provider(origin);
+        const receipt = await provider.getTransaction(txHash, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        });
+        if (!receipt) return undefined;
+        return { type: ProviderType.SolanaWeb3, receipt };
+      }
+    } catch (error) {
+      this.logger.debug(
+        { origin, txHash, error: (error as Error).message },
+        'Unable to fetch typed transaction receipt',
+      );
+    }
+
+    return undefined;
   }
 
   /**
@@ -1034,8 +1197,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
         fromAmount: rawInventory,
-        fromAddress: this.config.inventorySigner,
-        toAddress: this.config.inventorySigner,
+        fromAddress: this.getInventorySignerAddress(sourceChain),
+        toAddress: this.getInventorySignerAddress(targetChain),
       });
 
       // Apply 20x multiplier on quoted gas (LiFi underestimates by ~14x)
@@ -1169,7 +1332,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.config.inventorySigner,
+      this.getInventorySignerAddress(targetChain),
       isNativeTokenStandard,
       this.logger,
     );
@@ -1204,8 +1367,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
         fromAmount: effectiveAmount,
-        fromAddress: this.config.inventorySigner,
-        toAddress: this.config.inventorySigner,
+        fromAddress: this.getInventorySignerAddress(sourceChain),
+        toAddress: this.getInventorySignerAddress(targetChain),
       });
 
       const inputRequired = quote.fromAmount;
@@ -1245,14 +1408,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Received LiFi quote for inventory movement',
       );
 
-      const signingProvider = this.config.inventoryMultiProvider;
-      const signer = signingProvider.getSigner(sourceChain);
-      assert(
-        signer instanceof Wallet,
-        `External bridge execution requires a Wallet signer with private key access, got ${signer.constructor.name}`,
+      const result = await externalBridge.execute(
+        quote,
+        this.getInventorySignerKey(sourceChain),
       );
-
-      const result = await externalBridge.execute(quote, signer.privateKey);
 
       this.logger.info(
         {
