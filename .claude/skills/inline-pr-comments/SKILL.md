@@ -1,80 +1,117 @@
 ---
 name: inline-pr-comments
-description: Post inline PR review comments on specific lines. Use this skill to deliver code review feedback as inline comments rather than a single summary.
+description: Post a single consolidated PR review with summary and inline comments. Use this skill to deliver code review feedback as one unified review per run.
 ---
 
-# Inline PR Comments Skill
+# Consolidated PR Review Skill
 
-Use this skill to post code review feedback as inline comments on specific lines in a PR.
+Use this skill to submit code review feedback as a **single consolidated GitHub review** containing both the summary body and all inline comments.
 
 ## When to Use
 
 - After completing a code review (use with /claude-review, /claude-security-review, /claude-tob-review)
 - When you have specific line-by-line feedback to deliver
-- To make review feedback more actionable
 
 ## Instructions
 
-Use MCP inline comment tool, not `gh api`:
+Submit one consolidated review per run using the GitHub API. **Do NOT post inline comments individually.** Each run produces a new review — nothing is overwritten.
 
-1. For each issue on a changed line, call:
-   - `mcp__github_inline_comment__create_inline_comment`
-2. Required args:
-   - `path`
-   - `body`
-   - `line` (single-line), or `startLine` + `line` (multi-line)
-   - `side: "RIGHT"` unless intentionally commenting old code
-3. After posting inline comments, update the Claude sticky summary comment with:
-   - `mcp__github_comment__update_claude_comment`
-4. Do **not** use `gh api` here; action tool permissions often block non-git Bash commands.
+### Step 1: Fetch Prior Review Context
 
-### Comment Fields (`create_inline_comment`)
+Before reviewing, read existing reviews and comments on the PR for context:
 
-- `path` - File path relative to repo root
-- `line` - Line number in the NEW version of the file (right side of diff)
-- `startLine` + `line` - For comments spanning multiple lines
-- `side` - `RIGHT` (new code) or `LEFT` (old code), default to `RIGHT`
-- `body` - Markdown-formatted feedback
+```bash
+# Fetch existing reviews (summaries)
+gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --jq '.[] | {user: .user.login, state: .state, body: .body}'
+
+# Fetch inline review comments
+gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/comments" --jq '.[] | {user: .user.login, path: .path, line: .line, body: .body}'
+
+# Fetch general PR discussion comments
+gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | {user: .user.login, body: .body}'
+```
+
+Use this context to:
+
+- **Skip issues already raised** — don't re-flag something a prior review already pointed out
+- **Reference prior discussions** — e.g. "As noted in the previous review, ..."
+- **Flag unresolved issues** — if a prior review raised something that still isn't fixed, note it briefly (e.g. "Still unresolved from prior review: ...")
+- **Avoid contradictions** — don't suggest the opposite of what a human reviewer requested
+
+### Step 2: Collect All Findings
+
+Complete the full review. Collect:
+
+- **Summary** — Overall assessment, architecture concerns, non-diff observations
+- **Inline comments** — Specific issues on changed lines (path, line, body)
+
+### Step 3: Build Review JSON
+
+Write a JSON file to `/tmp/review.json`:
+
+```json
+{
+  "body": "## Review Summary\n\nOverall assessment here.\n\n## Observations Outside This PR\n- `file:line`: description",
+  "event": "COMMENT",
+  "comments": [
+    {
+      "path": "src/file.ts",
+      "line": 42,
+      "body": "Issue description here"
+    },
+    {
+      "path": "src/other.ts",
+      "start_line": 10,
+      "line": 15,
+      "body": "Multi-line comment"
+    }
+  ]
+}
+```
+
+**Fields:**
+
+- `body` — Markdown review summary (required)
+- `event` — Always `"COMMENT"` (never APPROVE or REQUEST_CHANGES)
+- `comments` — Array of inline comment objects (can be empty if no inline findings)
+  - `path` — File path relative to repo root
+  - `line` — Line number in the NEW version of the file
+  - `start_line` + `line` — For multi-line comments
+  - `body` — Markdown-formatted feedback
+
+### Step 4: Submit the Review
+
+```bash
+gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --input /tmp/review.json
+```
+
+The `GITHUB_REPOSITORY` and `PR_NUMBER` environment variables are set by the CI workflow.
 
 ### Limitations
 
-- Can only comment on lines that appear in the diff (changed/added lines)
-- Comments on unchanged lines will fail with "Line could not be resolved"
+- Inline comments can only target lines in the diff (changed/added lines)
+- Comments targeting unchanged lines will cause the API call to fail
+- If unsure whether a line is in the diff, put the finding in the summary body instead
 
 ### Handling Non-Diff Findings
 
-When you discover issues in code NOT changed by the PR:
+Issues in code NOT changed by the PR go in the review `body` under a dedicated section:
 
-1. **Include in summary body** - Always report in the `"body"` field
-2. **Format clearly** - Use a dedicated section "## Observations Outside This PR"
-3. **Be actionable** - Include file:line references so author can follow up
-4. **Don't block** - These are informational; don't use `REQUEST_CHANGES` for non-diff issues
+```markdown
+## Observations Outside This PR
 
-Example: update the sticky comment to include non-diff findings:
-
-```yaml
-tool: mcp__github_comment__update_claude_comment
-args:
-  body: |
-    ## Review Summary
-    [inline feedback summary]
-
-    ## Observations Outside This PR
-    While reviewing, I noticed:
-    - `src/utils/foo.ts:142`: Pre-existing null check missing
-    - `src/core/bar.ts:78-82`: Similar pattern to line 45 issue - consider deduping
+- `src/utils/foo.ts:142`: Pre-existing null check missing
+- `src/core/bar.ts:78-82`: Similar pattern to line 45 issue
 ```
 
 ### Feedback Guidelines
 
-| Feedback Type                 | In Diff? | Where to Put It                                              |
-| ----------------------------- | -------- | ------------------------------------------------------------ |
-| Specific code issue           | ✅ Yes   | Inline comment on that line                                  |
-| Pattern repeated across files | ✅ Yes   | Inline on first occurrence + note "same issue in X, Y, Z"    |
-| Related issue found           | ❌ No    | Summary body under "Observations Outside This PR"            |
-| Pre-existing bug discovered   | ❌ No    | Summary body (consider separate issue if critical)           |
-| Overall architecture concern  | N/A      | Summary body                                                 |
-| Approve PR                    | N/A      | Out of scope for this skill; keep feedback in sticky comment |
-| Changes requested             | N/A      | Sticky comment; never use `REQUEST_CHANGES`                  |
+| Feedback Type                 | In Diff? | Where to Put It                                      |
+| ----------------------------- | -------- | ---------------------------------------------------- |
+| Specific code issue           | Yes      | `comments` array entry for that line                 |
+| Pattern repeated across files | Yes      | First occurrence in `comments` + note others in body |
+| Related issue found           | No       | `body` under "Observations Outside This PR"          |
+| Pre-existing bug discovered   | No       | `body` (consider separate issue if critical)         |
+| Overall architecture concern  | N/A      | `body`                                               |
 
-Be concise. Group minor style issues together.
+Be concise. Group minor style issues together. Never use APPROVE or REQUEST_CHANGES.
