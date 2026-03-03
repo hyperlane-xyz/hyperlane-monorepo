@@ -212,16 +212,13 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
-<<<<<<< HEAD
   TokenStandard.TronHypNative,
   TokenStandard.TronHypCollateral,
   TokenStandard.TronHypXERC20Lockbox,
   TokenStandard.TronHypVSXERC20Lockbox,
-=======
   TokenStandard.RadixHypCollateral,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypNative,
->>>>>>> origin/main
 ];
 
 export const XERC20_STANDARDS = [
