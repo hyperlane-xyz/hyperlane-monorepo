@@ -12,7 +12,7 @@ import {
   LocalAccountViemSigner,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ensure0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,

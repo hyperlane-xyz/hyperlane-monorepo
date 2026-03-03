@@ -156,10 +156,6 @@ catalog:
   # Solidity
   solhint: ^5.0.5
   solhint-plugin-prettier: ^0.1.0
-  typechain: 8.3.2
-  '@typechain/ethers-v5': ^11.1.2
-  '@typechain/ethers-v6': ^0.5.1
-  '@typechain/hardhat': ^9.1.0
 
   # OpenZeppelin
   '@openzeppelin/contracts': ^4.9.3

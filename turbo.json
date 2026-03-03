@@ -19,7 +19,7 @@
       "outputs": ["cache-tron/**", "artifacts-tron/**"]
     },
     "test:ci": {
-      "dependsOn": ["build", "^test:ci"]
+      "dependsOn": ["build", "build:tron", "^test:ci"]
     },
     "test": {
       "dependsOn": ["build"]
