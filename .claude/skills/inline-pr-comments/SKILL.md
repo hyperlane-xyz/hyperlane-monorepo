@@ -22,13 +22,13 @@ Before reviewing, read existing reviews and comments on the PR for context:
 
 ```bash
 # Fetch existing reviews (summaries)
-gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --jq '.[] | {user: .user.login, state: .state, body: .body}'
+gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --jq '.[] | {user: .user.login, state: .state, body: .body}'
 
 # Fetch inline review comments
-gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/comments" --jq '.[] | {user: .user.login, path: .path, line: .line, body: .body}'
+gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/comments" --jq '.[] | {user: .user.login, path: .path, line: .line, body: .body}'
 
 # Fetch general PR discussion comments
-gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | {user: .user.login, body: .body}'
+gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | {user: .user.login, body: .body}'
 ```
 
 Use this context to:
