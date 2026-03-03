@@ -187,7 +187,7 @@ export class TronTransactionBuilder extends TronWeb {
     const gasPrice = tx.gasPrice
       ? BigNumber.from(tx.gasPrice)
       : BigNumber.from(0);
-    const gasLimit = tx.gasPrice
+    const gasLimit = tx.gasLimit
       ? BigNumber.from(tx.gasLimit)
       : BigNumber.from(0);
     let feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5;
