@@ -46,6 +46,7 @@
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
     "@lifi/sdk": "catalog:",
+    "@solana/web3.js": "catalog:",
     "bignumber.js": "catalog:",
     "ethers": "catalog:",
     "express": "^5.1.0",
