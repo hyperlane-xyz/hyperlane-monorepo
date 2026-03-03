@@ -5,6 +5,7 @@ import { TronWeb, Types } from 'tronweb';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
+import { TransactionRequest } from '@ethersproject/providers';
 
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
@@ -46,8 +47,10 @@ export class TronWallet extends Wallet {
   private tronWeb: TronWeb;
   private tronAddress: string;
   private tronAddressHex: string;
+  private txBuilder: TronTransactionBuilder;
 
   constructor(privateKey: string, tronUrl: string) {
+    tronUrl = tronUrl.endsWith('/jsonrpc') ? tronUrl.slice(0, -8) : tronUrl;
     super(privateKey, new TronJsonRpcProvider(tronUrl));
     this.tronUrl = tronUrl;
 
@@ -60,6 +63,8 @@ export class TronWallet extends Wallet {
     this.tronAddress = derivedAddress;
     this.tronAddressHex = this.tronWeb.address.toHex(this.tronAddress);
     this.tronWeb.setAddress(this.tronAddress);
+
+    this.txBuilder = new TronTransactionBuilder(tronUrl, this.tronAddress);
   }
 
   /**
@@ -68,11 +73,6 @@ export class TronWallet extends Wallet {
    */
   connect(_provider: providers.Provider): TronWallet {
     return new TronWallet(this.privateKey, this.tronUrl);
-  }
-
-  /** Convert ethers 0x address to Tron 41-prefixed hex */
-  private toTronHex(address: string): string {
-    return '41' + strip0x(address).toLowerCase();
   }
 
   /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
@@ -95,57 +95,7 @@ export class TronWallet extends Wallet {
     assert(tx.gasLimit, 'gasLimit is required');
     assert(tx.gasPrice, 'gasPrice is required');
 
-    // Convert gasLimit to feeLimit in SUN (1 TRX = 1,000,000 SUN)
-    const gasPrice = BigNumber.from(tx.gasPrice);
-    const gasLimit = BigNumber.from(tx.gasLimit);
-    let feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5; // Add 50% buffer to feeLimit to avoid "Out of energy" errors
-    feeLimit = Math.min(feeLimit, 1000000000); // Tron max fee is 1000000000 SUN (1000 TRX)
-    feeLimit = feeLimit <= 0 ? 1000000000 : feeLimit; // Ensure we have at least some fee limit
-    const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
-
-    let tronTx: TronTransaction;
-
-    if (!tx.to) {
-      // Contract deployment
-      assert(tx.data, 'Deployment transaction must have data');
-      tronTx = await this.tronWeb.transactionBuilder.createSmartContract(
-        {
-          abi: [],
-          bytecode: strip0x(tx.data.toString()),
-          feeLimit,
-          callValue,
-          originEnergyLimit: gasLimit.toNumber(),
-        },
-        this.tronAddress,
-      );
-    } else if (tx.data && tx.data !== '0x') {
-      // Contract call - use 'input' option for raw ABI-encoded calldata
-      const tronHexTo = this.toTronHex(tx.to);
-      const result = await this.tronWeb.transactionBuilder.triggerSmartContract(
-        tronHexTo,
-        '', // Empty functionSelector since we pass raw encoded data via input
-        {
-          feeLimit,
-          callValue,
-          input: strip0x(tx.data.toString()),
-        },
-        [],
-        this.tronAddress,
-      );
-      assert(
-        result.result?.result,
-        `triggerSmartContract failed: ${result.result?.message}`,
-      );
-      tronTx = result.transaction;
-    } else {
-      // Simple TRX transfer
-      tronTx = await this.tronWeb.transactionBuilder.sendTrx(
-        this.toTronHex(tx.to),
-        callValue,
-        this.tronAddress,
-      );
-    }
-
+    let tronTx = await this.txBuilder.buildTransaction(tx);
     // Ensure unique txID by extending expiration with a counter.
     // Tron has no nonces, so identical txs in the same block produce the same txID.
     tronTx = await this.makeUnique(tronTx);
@@ -158,26 +108,7 @@ export class TronWallet extends Wallet {
       `Broadcast failed: ${broadcastResult.message}`,
     );
 
-    const txHash = ensure0x(tronTx.txID);
-
-    // Build the transaction response with Tron-specific fields
-    const response: TronTransactionResponse = {
-      hash: txHash,
-      confirmations: 0,
-      from: this.address,
-      to: tx.to ?? undefined,
-      nonce: 0,
-      gasLimit,
-      gasPrice,
-      data: tx.data?.toString() ?? '0x',
-      value: BigNumber.from(tx.value ?? 0),
-      chainId: tx.chainId!,
-      tronTransaction: tronTx,
-      wait: (confirmations?: number) =>
-        this.provider!.waitForTransaction(txHash, confirmations),
-    };
-
-    return response;
+    return this.txBuilder.getTransactionResponse(tx, tronTx);
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
@@ -199,5 +130,132 @@ export class TronWallet extends Wallet {
     }
 
     return altered as TronTransaction;
+  }
+}
+
+export class TronTransactionBuilder extends TronWeb {
+  private tronAddress: string;
+  private tronAddressHex: string;
+  private provider: TronJsonRpcProvider;
+
+  constructor(tronUrl: string, tronAddress: string) {
+    tronUrl = tronUrl.endsWith('/jsonrpc') ? tronUrl.slice(0, -8) : tronUrl;
+    super({ fullHost: tronUrl });
+
+    this.tronAddress = tronAddress;
+    this.setAddress(this.tronAddress);
+    this.provider = new TronJsonRpcProvider(tronUrl);
+    this.tronAddressHex = this.address.toHex(this.tronAddress);
+  }
+
+  getTransactionResponse(
+    evmTx: TransactionRequest,
+    tronTx: TronTransaction,
+    txHash?: string,
+  ): TronTransactionResponse {
+    const originalTxHash = ensure0x(tronTx.txID);
+    const gasPrice = evmTx.gasPrice
+      ? BigNumber.from(evmTx.gasPrice)
+      : BigNumber.from(0);
+    const gasLimit = evmTx.gasLimit
+      ? BigNumber.from(evmTx.gasLimit)
+      : BigNumber.from(0);
+
+    return {
+      hash: txHash ?? originalTxHash,
+      confirmations: 0,
+      from: this.tronAddressHex,
+      to: evmTx.to ?? undefined,
+      nonce: 0,
+      gasLimit,
+      gasPrice,
+      data: evmTx.data?.toString() ?? '0x',
+      value: BigNumber.from(evmTx.value ?? 0),
+      chainId: evmTx.chainId!,
+      tronTransaction: tronTx,
+      wait: (confirmations?: number) =>
+        this.provider!.waitForTransaction(
+          txHash ? ensure0x(txHash) : originalTxHash,
+          confirmations,
+        ),
+    };
+  }
+
+  async buildTransaction(
+    tx: providers.TransactionRequest,
+  ): Promise<TronTransaction> {
+    const gasPrice = tx.gasPrice
+      ? BigNumber.from(tx.gasPrice)
+      : BigNumber.from(0);
+    const gasLimit = tx.gasPrice
+      ? BigNumber.from(tx.gasLimit)
+      : BigNumber.from(0);
+    let feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5;
+    feeLimit = Math.min(feeLimit, 1000000000);
+    feeLimit = feeLimit <= 0 ? 1000000000 : feeLimit;
+    const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
+
+    if (!tx.to) {
+      return this.buildDeployment(tx, feeLimit, callValue, gasLimit);
+    } else if (tx.data && tx.data !== '0x') {
+      return this.buildContractCall(tx, feeLimit, callValue);
+    } else {
+      return this.buildTransfer(tx.to, callValue);
+    }
+  }
+
+  private async buildDeployment(
+    tx: providers.TransactionRequest,
+    feeLimit: number,
+    callValue: number,
+    gasLimit: BigNumber,
+  ): Promise<TronTransaction> {
+    assert(tx.data, 'Deployment transaction must have data');
+    return this.transactionBuilder.createSmartContract(
+      {
+        abi: [],
+        bytecode: strip0x(tx.data.toString()),
+        feeLimit,
+        callValue,
+        originEnergyLimit: gasLimit.toNumber(),
+      },
+      this.tronAddress,
+    );
+  }
+
+  private async buildContractCall(
+    tx: providers.TransactionRequest,
+    feeLimit: number,
+    callValue: number,
+  ): Promise<TronTransaction> {
+    const tronHexTo = '41' + strip0x(tx.to!).toLowerCase();
+    const result = await this.transactionBuilder.triggerSmartContract(
+      tronHexTo,
+      '',
+      {
+        feeLimit,
+        callValue,
+        input: strip0x(tx.data!.toString()),
+      },
+      [],
+      this.tronAddress,
+    );
+    assert(
+      result.result?.result,
+      `triggerSmartContract failed: ${result.result?.message}`,
+    );
+    return result.transaction;
+  }
+
+  private async buildTransfer(
+    to: string,
+    callValue: number,
+  ): Promise<TronTransaction> {
+    const tronHexTo = '41' + strip0x(to).toLowerCase();
+    return this.transactionBuilder.sendTrx(
+      tronHexTo,
+      callValue,
+      this.tronAddress,
+    );
   }
 }

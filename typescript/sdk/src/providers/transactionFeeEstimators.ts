@@ -6,7 +6,14 @@ import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
-import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  Numberish,
+  ProtocolType,
+  assert,
+  convertToProtocolAddress,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
@@ -28,8 +35,6 @@ import {
   SolanaWeb3Transaction,
   StarknetJsProvider,
   StarknetJsTransaction,
-  TronProvider,
-  TronTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -293,18 +298,6 @@ export async function estimateTransactionFeeAleo({
   });
 }
 
-export async function estimateTransactionFeeTron({
-  transaction,
-  provider,
-}: {
-  transaction: TronTransaction;
-  provider: TronProvider;
-}): Promise<TransactionFeeEstimate> {
-  return provider.provider.estimateTransactionFee({
-    transaction: transaction.transaction,
-  });
-}
-
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -403,9 +396,12 @@ export function estimateTransactionFee({
     transaction.type === ProviderType.Tron &&
     provider.type === ProviderType.Tron
   ) {
-    return estimateTransactionFeeTron({
-      transaction,
-      provider,
+    // Tron is EVM-compatible; its typed transaction/provider use EthersV5 underlying types
+    sender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
+    return estimateTransactionFeeEthersV5({
+      transaction: transaction as unknown as EthersV5Transaction,
+      provider: provider as unknown as EthersV5Provider,
+      sender,
     });
   } else {
     throw new Error(

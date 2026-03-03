@@ -13,6 +13,12 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
+  TronJsonRpcProvider,
+  TronTransactionBuilder,
+  TronTransactionResponse,
+} from '@hyperlane-xyz/tron-sdk';
+
+import {
   AccountInfo,
   ActiveChainInfo,
   ChainAddress,
@@ -124,28 +130,37 @@ export function useTronTransactionFns(
       const provider = multiProvider.getProvider(chainName);
 
       let txID: string;
+      let response: TronTransactionResponse;
 
       if (
         tx.type === ProviderType.Tron &&
         provider.type === ProviderType.Tron
       ) {
-        const signedTransaction = await signTransaction(tx.transaction);
+        const ethersTx = tx.transaction;
+        const txBuilder = new TronTransactionBuilder(
+          (provider.provider as TronJsonRpcProvider).host,
+          address!,
+        );
+        let tronTx = await txBuilder.buildTransaction(ethersTx);
 
+        const signedTransaction = await signTransaction(tronTx);
         const result =
-          await provider.provider['tronweb'].trx.sendRawTransaction(
-            signedTransaction,
-          );
-
+          await txBuilder.trx.sendRawTransaction(signedTransaction);
         if (!result.result) {
           throw new Error(`Tron broadcast failed: ${JSON.stringify(result)}`);
         }
         txID = result.txid;
+        response = txBuilder.getTransactionResponse(
+          tx.transaction,
+          tronTx,
+          txID,
+        );
       } else {
         throw new Error(`Invalid Tron provider type ${tx.type}`);
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
-        const receipt = await provider.provider['waitForTransaction'](txID);
+        const receipt = await response.wait(1);
 
         return {
           type: tx.type,

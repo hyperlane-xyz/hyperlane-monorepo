@@ -209,7 +209,10 @@ export function isValidAddressAleo(address: Address) {
 
 export function isValidAddressTron(address: Address) {
   try {
-    const isValid = address && TRON_ADDRESS_REGEX.test(address);
+    // Tron is EVM-compatible, so accept both Tron base58 (T...) and EVM hex (0x...) formats
+    const isValid =
+      address &&
+      (TRON_ADDRESS_REGEX.test(address) || isValidAddressEvm(address));
     return !!isValid;
   } catch {
     return false;

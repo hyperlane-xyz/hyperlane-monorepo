@@ -45,11 +45,6 @@ import {
   RadixSDKTransaction,
 } from '@hyperlane-xyz/radix-sdk';
 import {
-  TronProvider as TronSDKProvider,
-  TronReceipt as TronSDKReceipt,
-  TronTransaction as TronSDKTransaction,
-} from '@hyperlane-xyz/tron-sdk';
-import {
   Annotated,
   KnownProtocolType,
   ProtocolType,
@@ -239,9 +234,9 @@ export interface AleoProvider extends TypedProviderBase<AleoSDKProvider> {
   provider: AleoSDKProvider;
 }
 
-export interface TronProvider extends TypedProviderBase<TronSDKProvider> {
+export interface TronProvider extends TypedProviderBase<EV5Providers.Provider> {
   type: ProviderType.Tron;
-  provider: TronSDKProvider;
+  provider: EV5Providers.Provider;
 }
 
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
@@ -378,9 +373,9 @@ export interface ZKSyncTransaction extends TypedTransactionBase<zkSyncTypes.Tran
   transaction: zkSyncTypes.TransactionRequest;
 }
 
-export interface TronTransaction extends TypedTransactionBase<TronSDKTransaction> {
+export interface TronTransaction extends TypedTransactionBase<EV5Transaction> {
   type: ProviderType.Tron;
-  transaction: TronSDKTransaction;
+  transaction: EV5Transaction;
 }
 
 export type TypedTransaction =
@@ -416,7 +411,7 @@ export type AnnotatedZKSyncTransaction =
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
-export type AnnotatedTronTransaction = Annotated<TronSDKTransaction>;
+export type AnnotatedTronTransaction = Annotated<EV5Transaction>;
 
 export type TypedAnnotatedTransaction =
   | AnnotatedEV5Transaction
@@ -489,9 +484,9 @@ export interface AleoTransactionReceipt extends TypedTransactionReceiptBase<Aleo
   receipt: AleoSDKReceipt;
 }
 
-export interface TronTransactionReceipt extends TypedTransactionReceiptBase<TronSDKReceipt> {
+export interface TronTransactionReceipt extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
   type: ProviderType.Tron;
-  receipt: TronSDKReceipt;
+  receipt: EV5Providers.TransactionReceipt;
 }
 
 export type TypedTransactionReceipt =

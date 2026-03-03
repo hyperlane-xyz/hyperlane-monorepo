@@ -9,10 +9,7 @@ import { Provider as ZKProvider } from 'zksync-ethers';
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import {
-  TronJsonRpcProvider,
-  TronProvider as TronSDKProvider,
-} from '@hyperlane-xyz/tron-sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -203,8 +200,10 @@ export function defaultTronProviderBuilder(
   _network: string | number,
 ): TronProvider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  const provider = new TronSDKProvider(rpcUrls.map((rpc) => rpc.http));
-  return { provider, type: ProviderType.Tron };
+  return {
+    provider: new TronJsonRpcProvider(rpcUrls[0].http),
+    type: ProviderType.Tron,
+  };
 }
 
 // Kept for backwards compatibility
