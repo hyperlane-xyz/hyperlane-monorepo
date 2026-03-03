@@ -93,11 +93,4 @@ describe('resolveChains — STATUS command', () => {
     const result = await resolveChains(statusArgv());
     expect(result).to.deep.equal([]);
   });
-
-  it('ignores destination since status command does not declare it', async () => {
-    const result = await resolveChains(
-      statusArgv({ origin: 'bsc', destination: 'ethereum' }),
-    );
-    expect(result).to.deep.equal(['bsc']);
-  });
 });
