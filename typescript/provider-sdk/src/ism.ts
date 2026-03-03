@@ -2,6 +2,7 @@ import {
   WithAddress,
   assert,
   deepEquals,
+  isNullish,
   normalizeConfig,
 } from '@hyperlane-xyz/utils';
 
@@ -419,7 +420,7 @@ export function ismConfigToArtifact(
 
     for (const [chainName, nestedConfig] of Object.entries(config.domains)) {
       const domainId = chainLookup.getDomainId(chainName);
-      if (!domainId) {
+      if (isNullish(domainId)) {
         // Skip unknown chains - they'll be warned about during deployment
         continue;
       }

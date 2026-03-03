@@ -4,6 +4,7 @@ import {
   createHookWriter,
   createIsmWriter,
   createWarpTokenWriter,
+  validateIsmConfig,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -17,6 +18,10 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  CollateralWarpConfig,
+  NativeWarpConfig,
+  SyntheticWarpConfig,
+  TokenType as ProviderTokenType,
   WarpConfig as ProviderWarpConfig,
   warpConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/warp';
@@ -49,7 +54,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { EvmWarpModule } from '../token/EvmWarpModule.js';
-import { gasOverhead } from '../token/config.js';
+import { TokenType, gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
@@ -63,6 +68,74 @@ import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.j
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
 type ChainAddresses = Record<string, string>;
+
+const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
+  TokenType.synthetic,
+  TokenType.collateral,
+  TokenType.native,
+]);
+
+export function validateWarpConfigForAltVM(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  chain: string,
+): ProviderWarpConfig {
+  if (!SUPPORTED_ALTVM_TOKEN_TYPES.has(config.type)) {
+    const supportedTypes = Array.from(SUPPORTED_ALTVM_TOKEN_TYPES).join(', ');
+    throw new Error(
+      `Unsupported token type '${config.type}' for Alt-VM chain '${chain}'.\n` +
+        `Supported token types: ${supportedTypes}.`,
+    );
+  }
+
+  if (config.interchainSecurityModule) {
+    validateIsmConfig(
+      config.interchainSecurityModule as ProviderIsmConfig | string,
+      chain,
+      'warp config',
+    );
+  }
+
+  const baseConfig = {
+    owner: config.owner,
+    mailbox: config.mailbox,
+    interchainSecurityModule: config.interchainSecurityModule as
+      | ProviderIsmConfig
+      | string
+      | undefined,
+    hook: config.hook as ProviderHookConfig | string | undefined,
+    remoteRouters: config.remoteRouters,
+    destinationGas: config.destinationGas,
+  };
+
+  if (config.type === TokenType.collateral) {
+    if (!config.token) {
+      throw new Error(
+        `Collateral token config for chain '${chain}' must specify 'token' address`,
+      );
+    }
+    const result: CollateralWarpConfig = {
+      ...baseConfig,
+      type: ProviderTokenType.collateral,
+      token: config.token,
+    };
+    return result;
+  } else if (config.type === TokenType.synthetic) {
+    const result: SyntheticWarpConfig = {
+      ...baseConfig,
+      type: ProviderTokenType.synthetic,
+      name: config.name,
+      symbol: config.symbol,
+      decimals: config.decimals,
+    };
+    return result;
+  } else {
+    const result: NativeWarpConfig = {
+      ...baseConfig,
+      type: ProviderTokenType.native,
+    };
+    return result;
+  }
+}
 
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
@@ -170,7 +243,7 @@ export async function executeWarpDeploy(
           );
 
           const artifact = warpConfigToArtifact(
-            config as ProviderWarpConfig,
+            validateWarpConfigForAltVM(config, chain),
             chainLookup,
           );
 
@@ -516,14 +589,14 @@ export async function enrollCrossChainRouters(
             signer,
           );
 
-          const expectedConfig: HypTokenRouterConfig = {
+          const expectedConfig: WarpRouteDeployConfigMailboxRequired[string] = {
             ...resolvedConfigMap[currentChain],
             remoteRouters,
             destinationGas,
           };
 
           const artifact = warpConfigToArtifact(
-            expectedConfig as ProviderWarpConfig,
+            validateWarpConfigForAltVM(expectedConfig, currentChain),
             chainLookup,
           );
 

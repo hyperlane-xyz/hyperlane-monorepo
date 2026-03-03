@@ -806,13 +806,13 @@ async function updateExistingWarpRoute(
             );
             const artifact = warpConfigToArtifact(validatedConfig, chainLookup);
 
-            const deployedArtifact = {
+            const artifactToUpdate = {
               artifactState: ArtifactState.DEPLOYED,
               config: artifact.config,
               deployed: { address: deployedTokenRoute },
             };
 
-            const transactions = await writer.update(deployedArtifact);
+            const transactions = await writer.update(artifactToUpdate);
             updateTransactions[chain] = transactions;
             break;
           }
