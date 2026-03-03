@@ -15,6 +15,8 @@ import type { SvmSigner } from '../clients/signer.js';
 import { u32le } from '../codecs/binary.js';
 import { InterchainGasPaymasterTypeKind } from '../codecs/shared.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
+import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
+import { getSetUpgradeAuthorityInstruction } from '../instructions/loader.js';
 import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
@@ -232,6 +234,7 @@ export async function computeWarpTokenUpdateInstructions(
   programId: Address,
   ownerAddress: Address,
   igpProgramId: Address,
+  rpc: SvmRpc,
   label: string,
 ): Promise<AnnotatedSvmTransaction[]> {
   const txs: AnnotatedSvmTransaction[] = [];
@@ -372,19 +375,42 @@ export async function computeWarpTokenUpdateInstructions(
     });
   }
 
-  // 3. Ownership change — always its own last tx
+  const expectedOwnerAddress =
+    expected.owner && !isZeroishAddress(expected.owner) ? expected.owner : null;
+
+  // 3. Ownership change — own tx
   if (!eqOptionalAddress(current.owner, expected.owner, eqAddressSol)) {
     txs.push({
       instructions: [
         await getTokenTransferOwnershipInstruction(
           programId,
           ownerAddress,
-          expected.owner && !isZeroishAddress(expected.owner)
-            ? parseAddress(expected.owner)
-            : null,
+          expectedOwnerAddress ? parseAddress(expectedOwnerAddress) : null,
         ),
       ],
       annotation: `Update ${label}: transfer ownership`,
+    });
+  }
+
+  // 4. Upgrade authority — always last tx
+  const currentUpgradeAuthority = await getProgramUpgradeAuthority(
+    rpc,
+    programId,
+  );
+  if (
+    currentUpgradeAuthority !== null &&
+    expectedOwnerAddress !== null &&
+    !eqAddressSol(currentUpgradeAuthority, parseAddress(expectedOwnerAddress))
+  ) {
+    txs.push({
+      instructions: [
+        await getSetUpgradeAuthorityInstruction(
+          programId,
+          currentUpgradeAuthority,
+          parseAddress(expectedOwnerAddress),
+        ),
+      ],
+      annotation: `Update ${label}: transfer upgrade authority`,
     });
   }
 
