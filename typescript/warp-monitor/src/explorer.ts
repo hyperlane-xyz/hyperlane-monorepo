@@ -8,8 +8,6 @@ import {
   parseWarpRouteMessage,
 } from '@hyperlane-xyz/utils';
 
-const CANONICAL_DECIMALS = 18;
-
 type ExplorerMessageRow = {
   msg_id: string;
   origin_domain_id: number;
@@ -29,6 +27,7 @@ export type RouterNodeMetadata = {
   tokenName: string;
   tokenSymbol: string;
   tokenDecimals: number;
+  tokenScale?: number;
   token: Token;
 };
 
@@ -70,18 +69,16 @@ function isValidEvmWarpRecipient(recipientBytes32: string): boolean {
   }
 }
 
-export function canonical18ToTokenBaseUnits(
-  amountCanonical18: bigint,
-  tokenDecimals: number,
+export function messageAmountToTokenBaseUnits(
+  amountMessageUnits: bigint,
+  tokenScale?: number,
 ): bigint {
-  if (tokenDecimals === CANONICAL_DECIMALS) return amountCanonical18;
-  if (tokenDecimals < CANONICAL_DECIMALS) {
-    const divisor = 10n ** BigInt(CANONICAL_DECIMALS - tokenDecimals);
-    return amountCanonical18 / divisor;
+  const scale = BigInt(tokenScale ?? 1);
+  if (scale <= 0n) {
+    throw new Error(`Invalid token scale ${scale.toString()}`);
   }
 
-  const multiplier = 10n ** BigInt(tokenDecimals - CANONICAL_DECIMALS);
-  return amountCanonical18 * multiplier;
+  return amountMessageUnits / scale;
 }
 
 export class ExplorerPendingTransfersClient {
@@ -160,9 +157,9 @@ export class ExplorerPendingTransfersClient {
         destinationChain: node.chainName,
         destinationNodeId: node.nodeId,
         destinationRouter,
-        amountBaseUnits: canonical18ToTokenBaseUnits(
+        amountBaseUnits: messageAmountToTokenBaseUnits(
           parsedMessage.amount,
-          node.tokenDecimals,
+          node.tokenScale,
         ),
         sendOccurredAtMs,
       });

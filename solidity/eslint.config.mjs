@@ -11,7 +11,6 @@ export default [
       '**/typechain/**/*',
       '**/multicollateral/**/*',
       '**/dependencies/**/*',
-      '**/multicollateral/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
     ],

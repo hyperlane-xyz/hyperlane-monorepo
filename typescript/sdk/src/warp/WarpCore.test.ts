@@ -580,6 +580,95 @@ describe('WarpCore', () => {
     }
   });
 
+  it('Rejects MultiCollateral transfer tx generation when IGP fee denom is non-native', async () => {
+    const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;
+    (evmHypNative as any).collateralAddressOrDenom =
+      evmHypNative.addressOrDenom;
+
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationMultiStub = sinon
+      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .returns(true);
+
+    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
+      quoteTransferRemoteToGas: sinon.stub().resolves({
+        igpQuote: {
+          amount: 1n,
+          addressOrDenom: evmHypNative.addressOrDenom,
+        },
+        tokenFeeQuote: {
+          addressOrDenom: evmHypNative.addressOrDenom,
+          amount: 0n,
+        },
+      }),
+      isApproveRequired: sinon.stub().resolves(false),
+      isRevokeApprovalRequired: sinon.stub().resolves(false),
+      populateTransferRemoteToTx: sinon.stub().resolves({}),
+    } as any);
+
+    try {
+      let thrown: Error | undefined;
+      try {
+        await warpCore.getTransferRemoteTxs({
+          originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS,
+          destinationToken: evmHypSynthetic,
+        });
+      } catch (error) {
+        thrown = error as Error;
+      }
+
+      expect(thrown).to.not.equal(undefined);
+      expect(thrown!.message).to.contain(
+        'MultiCollateral transferRemoteTo requires native IGP fee',
+      );
+    } finally {
+      adapterStub.restore();
+      originMultiStub.restore();
+      destinationMultiStub.restore();
+      (evmHypNative as any).collateralAddressOrDenom =
+        originalCollateralAddress;
+    }
+  });
+
+  it('Checks destination collateral for MultiCollateral route using explicit destination token', async () => {
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationMultiStub = sinon
+      .stub(cwHypCollateral, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationAdapterStub = sinon
+      .stub(cwHypCollateral, 'getAdapter')
+      .returns({
+        getBalance: sinon.stub().resolves(10n),
+      } as any);
+
+    try {
+      const smallResult = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: evmHypNative.amount(9n),
+        destination: cwHypCollateral.chainName,
+        destinationToken: cwHypCollateral,
+      });
+      expect(smallResult).to.equal(true);
+
+      const bigResult = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: evmHypNative.amount(11n),
+        destination: cwHypCollateral.chainName,
+        destinationToken: cwHypCollateral,
+      });
+      expect(bigResult).to.equal(false);
+    } finally {
+      destinationAdapterStub.restore();
+      originMultiStub.restore();
+      destinationMultiStub.restore();
+    }
+  });
+
   it('Adds revoke before approval for MultiCollateral when allowance must be reset', async () => {
     const tokenFeeAmount = 123n;
     const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;

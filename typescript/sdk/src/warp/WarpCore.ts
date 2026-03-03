@@ -634,6 +634,11 @@ export class WarpCore {
       amount,
       targetRouter: resolvedDestinationToken.addressOrDenom,
     });
+    assert(
+      !transferQuote.igpQuote.addressOrDenom ||
+        isZeroishAddress(transferQuote.igpQuote.addressOrDenom),
+      `MultiCollateral transferRemoteTo requires native IGP fee; got ${transferQuote.igpQuote.addressOrDenom}`,
+    );
     const tokenFeeAmount = transferQuote.tokenFeeQuote?.amount ?? 0n;
     const totalDebit = amount + tokenFeeAmount;
 

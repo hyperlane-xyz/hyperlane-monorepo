@@ -593,6 +593,7 @@ export class WarpMonitor {
         tokenName: token.name,
         tokenSymbol: token.symbol,
         tokenDecimals: token.decimals,
+        tokenScale: token.scale ?? 1,
         token,
       });
     }

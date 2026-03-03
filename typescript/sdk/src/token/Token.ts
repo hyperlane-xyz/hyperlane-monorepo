@@ -266,13 +266,8 @@ export class Token implements IToken {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypMultiCollateral) {
-      assert(
-        collateralAddressOrDenom,
-        'collateralAddressOrDenom required for EvmHypMultiCollateral',
-      );
       return new EvmHypMultiCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
-        collateralToken: collateralAddressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypRebaseCollateral) {
       return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {

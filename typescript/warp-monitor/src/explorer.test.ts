@@ -5,7 +5,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   ExplorerPendingTransfersClient,
-  canonical18ToTokenBaseUnits,
+  messageAmountToTokenBaseUnits,
   normalizeExplorerAddress,
   normalizeExplorerHex,
   type RouterNodeMetadata,
@@ -30,15 +30,22 @@ describe('Explorer Pending Transfers', () => {
       );
     });
 
-    it('converts canonical18 amount to token base units', () => {
-      const canonicalAmount = 1234567890000000000n;
-      expect(canonical18ToTokenBaseUnits(canonicalAmount, 18)).to.equal(
-        canonicalAmount,
+    it('converts message amount to token base units using scale', () => {
+      const messageAmount = 1234567890000000000n;
+      expect(messageAmountToTokenBaseUnits(messageAmount, 1)).to.equal(
+        messageAmount,
       );
-      expect(canonical18ToTokenBaseUnits(canonicalAmount, 6)).to.equal(
-        1234567n,
+      expect(
+        messageAmountToTokenBaseUnits(messageAmount, 1_000_000_000_000),
+      ).to.equal(1234567n);
+      expect(messageAmountToTokenBaseUnits(100n, 1)).to.equal(100n);
+      expect(messageAmountToTokenBaseUnits(100n, 10)).to.equal(10n);
+    });
+
+    it('throws on invalid scale', () => {
+      expect(() => messageAmountToTokenBaseUnits(1n, 0)).to.throw(
+        'Invalid token scale',
       );
-      expect(canonical18ToTokenBaseUnits(1n, 20)).to.equal(100n);
     });
   });
 
@@ -54,6 +61,7 @@ describe('Explorer Pending Transfers', () => {
         tokenName: 'USD Coin',
         tokenSymbol: 'USDC',
         tokenDecimals: 6,
+        tokenScale: 1_000_000_000_000,
         token: {} as any,
       },
     ];
