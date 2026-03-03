@@ -346,6 +346,32 @@ export const RebalancerConfigSchema = z
         });
       }
 
+      // Validate address format per protocol
+      if (config.inventorySigners) {
+        for (const [protocol, address] of Object.entries(
+          config.inventorySigners,
+        )) {
+          if (protocol === ProtocolType.Ethereum) {
+            if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `inventorySigners.${protocol} must be a valid EVM address (0x + 40 hex chars), got: ${address}`,
+                path: ['inventorySigners', protocol],
+              });
+            }
+          } else if (protocol === ProtocolType.Sealevel) {
+            if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `inventorySigners.${protocol} must be a valid Solana base58 address (32-44 chars), got: ${address}`,
+                path: ['inventorySigners', protocol],
+              });
+            }
+          }
+          // Other protocols: accept any non-empty string (future-proof)
+        }
+      }
+
       if (!config.externalBridges?.lifi?.integrator) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
