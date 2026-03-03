@@ -163,6 +163,7 @@ export const TOKEN_NFT_STANDARDS = [
 
 export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypOwnerCollateral,
   TokenStandard.EvmHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
