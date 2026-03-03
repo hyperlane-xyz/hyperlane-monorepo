@@ -88,6 +88,7 @@ contract PredicateRouterWrapperSyntheticTest is Test {
         HypERC20 implementation = new HypERC20(
             DECIMALS,
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -109,6 +110,7 @@ contract PredicateRouterWrapperSyntheticTest is Test {
         primaryToken = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
         remoteCollateralRouter = new HypERC20Collateral(
             address(primaryToken),
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );

@@ -80,7 +80,7 @@ contract PredicateRouterWrapperNativeTest is Test {
         remoteMailbox.setRequiredHook(address(noopHook));
 
         // Deploy native router
-        nativeRouter = new HypNative(SCALE, address(localMailbox));
+        nativeRouter = new HypNative(SCALE, SCALE, address(localMailbox));
         nativeRouter.initialize(
             address(noopHook),
             address(0), // ISM
@@ -90,6 +90,7 @@ contract PredicateRouterWrapperNativeTest is Test {
         // Deploy remote synthetic token
         HypERC20 implementation = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );

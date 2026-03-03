@@ -127,6 +127,7 @@ contract PredicateRouterWrapperForkTest is Test {
         collateralRouter = new HypERC20Collateral(
             address(primaryToken),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         collateralRouter.initialize(
@@ -138,6 +139,7 @@ contract PredicateRouterWrapperForkTest is Test {
         // Deploy remote synthetic token
         HypERC20 implementation = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );
