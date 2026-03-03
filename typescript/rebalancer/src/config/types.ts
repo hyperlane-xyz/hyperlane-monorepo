@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
@@ -131,9 +133,8 @@ export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
     strategy: RebalancerStrategySchema,
-    inventorySigner: z
-      .string()
-      .regex(/0x[a-fA-F0-9]{40}/)
+    inventorySigners: z
+      .record(z.nativeEnum(ProtocolType), z.string())
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
     intentTTL: z
@@ -178,7 +179,12 @@ export const RebalancerConfigSchema = z
       // Check each chain's overrides
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
         if ('override' in chainConfig && chainConfig.override) {
-          for (const overrideChainName of Object.keys(chainConfig.override)) {
+          for (const [overrideChainName, overrideConfig] of Object.entries(
+            chainConfig.override,
+          ) as [
+            string,
+            Partial<z.infer<typeof RebalancerBridgeConfigSchema>>,
+          ][]) {
             // Each override key must reference a valid chain
             if (!chainNames.has(overrideChainName)) {
               ctx.addIssue({
@@ -207,6 +213,31 @@ export const RebalancerConfigSchema = z
                   chainName,
                   'override',
                   overrideChainName,
+                ],
+              });
+            }
+
+            const overrideExecutionType =
+              overrideConfig.executionType ??
+              chainConfig.executionType ??
+              ExecutionType.MovableCollateral;
+
+            if (
+              overrideExecutionType === ExecutionType.Inventory &&
+              !overrideConfig.externalBridge &&
+              !chainConfig.externalBridge
+            ) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Chain '${chainName}' override for '${overrideChainName}' uses inventory execution but has no 'externalBridge' configured on override or chain config`,
+                path: [
+                  'strategy',
+                  strategyIndex,
+                  'chains',
+                  chainName,
+                  'override',
+                  overrideChainName,
+                  'externalBridge',
                 ],
               });
             }
@@ -271,12 +302,12 @@ export const RebalancerConfigSchema = z
     );
 
     if (hasInventoryChains) {
-      if (!config.inventorySigner) {
+      if (!config.inventorySigners) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'inventorySigner is required when any chain uses inventory execution type',
-          path: ['inventorySigner'],
+            'inventorySigners is required when any chain uses inventory execution type',
+          path: ['inventorySigners'],
         });
       }
 
