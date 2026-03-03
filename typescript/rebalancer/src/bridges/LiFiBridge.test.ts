@@ -475,4 +475,36 @@ describe('LiFiBridge.quote() input validation', function () {
       expect((error as Error).message).to.include('toAmount must be positive');
     }
   });
+
+  it('should throw when both fromAmount and toAmount are provided', async () => {
+    try {
+      await bridge.quote({
+        fromChain: 42161,
+        toChain: 1399811149,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+        fromAmount: 10000000000n,
+        toAmount: 5000000000n,
+      });
+      expect.fail('Expected quote to throw');
+    } catch (error: unknown) {
+      expect((error as Error).message).to.include('Cannot specify both');
+    }
+  });
+
+  it('should throw when neither fromAmount nor toAmount is provided', async () => {
+    try {
+      await bridge.quote({
+        fromChain: 42161,
+        toChain: 1399811149,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+      });
+      expect.fail('Expected quote to throw');
+    } catch (error: unknown) {
+      expect((error as Error).message).to.include('Must specify either');
+    }
+  });
 });
