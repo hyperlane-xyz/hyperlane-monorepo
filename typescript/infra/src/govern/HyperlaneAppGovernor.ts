@@ -200,7 +200,7 @@ export abstract class HyperlaneAppGovernor<
             ),
           );
           try {
-            // Process calls in batches up to max size of 100
+            // Process calls in batches up to max size of 120
             const maxBatchSize = 120;
             for (
               let i = 0;
@@ -208,24 +208,27 @@ export abstract class HyperlaneAppGovernor<
               i += maxBatchSize
             ) {
               const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
-              await multiSend.sendTransactions(
-                batch.map((call) => ({
-                  to: call.to,
-                  data: call.data,
-                  value: call.value,
-                })),
-              );
+              const sendBatch = () =>
+                multiSend.sendTransactions(
+                  batch.map((call) => ({
+                    to: call.to,
+                    data: call.data,
+                    value: call.value,
+                  })),
+                );
+              // Retry each batch individually for SAFE to avoid
+              // re-submitting already-successful batches on failure.
+              if (submissionType === SubmissionType.SAFE) {
+                await retryAsync(sendBatch, 10);
+              } else {
+                await sendBatch();
+              }
             }
           } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error);
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
-            // Re-throw for SAFE so retryAsync can detect failures and retry.
-            // SIGNER/MANUAL log and continue to avoid aborting remaining submissions.
-            if (submissionType === SubmissionType.SAFE) {
-              throw error;
-            }
           }
         } else {
           rootLogger.info(
@@ -262,10 +265,10 @@ export abstract class HyperlaneAppGovernor<
         chain,
         safeOwner,
       );
-      await retryAsync(
-        () =>
-          sendCallsForType(SubmissionType.SAFE, safeMultiSend, governanceType),
-        10,
+      await sendCallsForType(
+        SubmissionType.SAFE,
+        safeMultiSend,
+        governanceType,
       );
     }
 
