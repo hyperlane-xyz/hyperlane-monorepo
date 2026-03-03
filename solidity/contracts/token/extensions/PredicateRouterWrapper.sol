@@ -85,6 +85,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when attestation validation fails
     error PredicateRouterWrapper__AttestationInvalid();
 
+    /// @notice Thrown when warp route address is zero
+    error PredicateRouterWrapper__InvalidWarpRoute();
+
     /// @notice Thrown when registry address is zero
     error PredicateRouterWrapper__InvalidRegistry();
 
@@ -119,6 +122,8 @@ contract PredicateRouterWrapper is
         address _registry,
         string memory _policyID
     ) {
+        if (_warpRoute == address(0))
+            revert PredicateRouterWrapper__InvalidWarpRoute();
         if (_registry == address(0))
             revert PredicateRouterWrapper__InvalidRegistry();
         if (bytes(_policyID).length == 0)
