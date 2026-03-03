@@ -1,6 +1,6 @@
 image:
   repository: gcr.io/abacus-labs-dev/hyperlane-agent
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   tag: 'latest'
 
 imagePullSecrets: []
