@@ -28,6 +28,7 @@ import {
   startSolanaTestValidator,
   waitForRpcReady,
 } from '../testing/solana-container.js';
+import { address } from '@solana/kit';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -57,7 +58,7 @@ describe('SVM ISM E2E Tests', function () {
     signer = await createSigner(TEST_PRIVATE_KEY, rpc);
 
     console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, signer.address);
+    await airdropSol(rpc, address(signer.address));
   });
 
   after(async () => {

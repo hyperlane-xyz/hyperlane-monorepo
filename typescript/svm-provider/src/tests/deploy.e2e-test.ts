@@ -4,7 +4,7 @@ import { after, before, describe, it } from 'mocha';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 
-import { fetchEncodedAccount } from '@solana/kit';
+import { address, fetchEncodedAccount } from '@solana/kit';
 
 import {
   createDeployProgramPlan,
@@ -52,7 +52,7 @@ describe('SVM Deploy E2E Tests', function () {
     signer = await createSigner(TEST_PRIVATE_KEY, rpc);
 
     console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, signer.address);
+    await airdropSol(rpc, address(signer.address));
   });
 
   after(async () => {

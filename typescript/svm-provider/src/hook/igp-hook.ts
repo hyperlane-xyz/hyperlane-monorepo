@@ -15,7 +15,7 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import type { GasOracleConfig, GasOverheadConfig } from '../codecs/shared.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -105,9 +105,11 @@ export class SvmIgpHookReader implements ArtifactReader<
       artifactState: ArtifactState.DEPLOYED,
       config: {
         type: HookType.INTERCHAIN_GAS_PAYMASTER as 'interchainGasPaymaster',
-        owner,
+        // FIXME: address provider sdk type in a separate pr
+        owner: owner ?? ZERO_ADDRESS_HEX_32,
         beneficiary,
-        oracleKey: owner,
+        // FIXME: address provider sdk type in a separate pr
+        oracleKey: owner ?? ZERO_ADDRESS_HEX_32,
         overhead,
         oracleConfig,
       },

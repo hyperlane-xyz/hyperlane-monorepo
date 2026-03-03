@@ -53,9 +53,11 @@ export const MUTABLE_HOOK_TYPE: HookType[] = [
 
 export interface IgpHookModuleConfig {
   type: 'interchainGasPaymaster';
-  owner: string | null;
+  // FIXME: oracleKey and owner should be nullable but the change requires too many files to be touched
+  // address is an separate PR
+  owner: string;
   beneficiary: string;
-  oracleKey: string | null;
+  oracleKey: string;
   overhead: Record<string, number>;
   oracleConfig: Record<
     string,
@@ -89,11 +91,11 @@ export interface DeployedHookAddress {
  */
 export interface IgpHookConfig {
   type: 'interchainGasPaymaster';
-  /** Owner address. Null when the on-chain account has no owner (e.g. Solana). */
-  owner: string | null;
+  // FIXME: oracleKey and owner should be nullable but the change requires too many files to be touched
+  // address is an separate PR
+  owner: string;
   beneficiary: string;
-  /** Oracle key address. Null when the on-chain account has no oracle key (e.g. Solana). */
-  oracleKey: string | null;
+  oracleKey: string;
   overhead: Record<number, number>;
   oracleConfig: Record<
     number,
