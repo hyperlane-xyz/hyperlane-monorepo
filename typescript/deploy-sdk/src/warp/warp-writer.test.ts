@@ -1099,6 +1099,43 @@ describe('WarpTokenWriter', () => {
       expect(mockHookWriter.create.called).to.be.false;
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
     });
+
+    it('should skip hook deployment when protocol does not support hooks', async () => {
+      mockArtifactManager.supportsHookUpdates.returns(false);
+
+      const configWithHook: WarpArtifactConfig = {
+        ...actualConfig,
+        hook: {
+          artifactState: ArtifactState.NEW,
+          config: merkleTreeHookConfig,
+        },
+      };
+
+      const mockWriter: MockRawWarpWriter = {
+        read: Sinon.stub(),
+        create: Sinon.stub().resolves([
+          {
+            artifactState: ArtifactState.DEPLOYED,
+            config: configWithHook,
+            deployed: { address: TOKEN_ADDRESS },
+          },
+          [],
+        ]),
+        update: Sinon.stub(),
+      };
+
+      mockArtifactManager.createWriter.returns(mockWriter);
+
+      const artifact: ArtifactNew<WarpArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: configWithHook,
+      };
+
+      const [deployed] = await writer.create(artifact);
+
+      expect(mockHookWriter.create.called).to.be.false;
+      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+    });
   });
 
   describe('update() - Idempotency', () => {

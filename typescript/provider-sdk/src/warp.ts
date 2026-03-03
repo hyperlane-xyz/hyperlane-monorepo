@@ -247,8 +247,6 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
  *
  * @param config The warp configuration using Config API format
  * @param chainLookup Chain lookup interface for resolving chain names to domain IDs
- * @param ismArtifact Optional ISM artifact if ISM is configured
- * @param hookArtifact Optional hook artifact if hook is configured
  * @param logger Logger for warnings
  * @returns Artifact wrapper around WarpArtifactConfig suitable for artifact writers
  */

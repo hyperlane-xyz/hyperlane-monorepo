@@ -140,16 +140,22 @@ export class WarpTokenWriter
       | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
     if (config.hook) {
-      const hookWriter = this.hookWriterFactory(config.mailbox);
-      if (isArtifactNew(config.hook)) {
-        const [deployedHook, hookReceipts] = await hookWriter.create(
-          config.hook,
+      if (!this.artifactManager.supportsHookUpdates()) {
+        rootLogger.warn(
+          'Hook configuration is not supported for this protocol. Hook configuration will be ignored.',
         );
-        allReceipts.push(...hookReceipts);
-
-        onChainHookArtifact = deployedHook;
       } else {
-        onChainHookArtifact = config.hook;
+        const hookWriter = this.hookWriterFactory(config.mailbox);
+        if (isArtifactNew(config.hook)) {
+          const [deployedHook, hookReceipts] = await hookWriter.create(
+            config.hook,
+          );
+          allReceipts.push(...hookReceipts);
+
+          onChainHookArtifact = deployedHook;
+        } else {
+          onChainHookArtifact = config.hook;
+        }
       }
     }
 
