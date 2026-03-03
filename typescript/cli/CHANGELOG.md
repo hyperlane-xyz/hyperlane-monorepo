@@ -1,5 +1,49 @@
 # @hyperlane-xyz/cli
 
+## 25.5.0
+
+### Patch Changes
+
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+## 25.4.1
+
+## 25.4.0
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+### Minor Changes
+
+- 1970a32: Updated CLI warp rebalancer command to match new RebalancerService constructor signature.
+
+## 25.2.0
+
+### Minor Changes
+
+- 9d38b07: Warp route extension deployments were changed to run per-chain in parallel. Successful deployments are now written to the registry before reporting failures, making `warp apply` resumable — re-running after a partial failure skips already-deployed chains.
+
+### Patch Changes
+
+- 176b684: Fixed `hl submit` with ICA/timelock strategies failing with missing chain signer errors by extracting all referenced chains from the strategy file in `resolveSubmitChains`.
+
 ## 25.1.0
 
 ### Minor Changes

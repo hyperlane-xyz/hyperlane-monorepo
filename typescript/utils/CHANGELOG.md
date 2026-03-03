@@ -1,5 +1,31 @@
 # @hyperlane-xyz/utils
 
+## 25.5.0
+
+## 25.4.1
+
+## 25.4.0
+
+### Patch Changes
+
+- 1f021bf: Implemented warp token artifact API for Aleo. Added warp token readers and writers for native, collateral, and synthetic tokens, with AleoWarpArtifactManager providing factory methods for type-specific operations. Writers support creating new warp tokens with ISM and Hook configuration, enrolling remote routers, and transferring ownership. Update operations generate transaction arrays for ISM and Hook changes, router enrollment/unenrollment, and ownership transfers.
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+## 25.2.0
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- 360db52: Fixed `timeout()` to clear its internal `setTimeout` when the wrapped promise settles, preventing lingering timers from keeping the Node.js event loop alive.
+
 ## 25.1.0
 
 ### Patch Changes

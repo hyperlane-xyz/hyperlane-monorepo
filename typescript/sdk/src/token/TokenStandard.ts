@@ -163,6 +163,7 @@ export const TOKEN_NFT_STANDARDS = [
 
 export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypOwnerCollateral,
   TokenStandard.EvmHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
@@ -173,6 +174,9 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
+  TokenStandard.RadixHypCollateral,
+  TokenStandard.StarknetHypCollateral,
+  TokenStandard.StarknetHypNative,
 ];
 
 export const XERC20_STANDARDS = [

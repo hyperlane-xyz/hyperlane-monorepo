@@ -37,8 +37,8 @@ export async function downloadRadixContracts(): Promise<RadixContractArtifacts> 
   const rpdUrl = `${HYPERLANE_RADIX_GIT}/releases/download/v${HYPERLANE_RADIX_VERSION}/hyperlane_radix.rpd`;
 
   const [code, packageDefinition] = await Promise.all([
-    downloadFile(wasmUrl),
-    downloadFile(rpdUrl),
+    retryAsync(() => downloadFile(wasmUrl), 3, 1000),
+    retryAsync(() => downloadFile(rpdUrl), 3, 1000),
   ]);
 
   rootLogger.info('Downloaded Radix contracts successfully');

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/relayer",
-  "version": "1.0.2",
+  "version": "1.1.6",
   "description": "Hyperlane Message Relayer Service",
   "keywords": [
     "blockchain",
@@ -12,9 +12,6 @@
   "license": "Apache-2.0",
   "author": "Abacus Works, Inc.",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "bin": {
-    "hyperlane-relayer": "./dist/fs/service.js"
-  },
   "files": [
     "dist",
     "src"

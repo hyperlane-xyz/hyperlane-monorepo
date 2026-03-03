@@ -183,6 +183,7 @@ impl AgentConfig {
             index: AgentConfigIndex { from: 1, chunk: 5 },
             native_token: NativeToken {
                 decimals: 6,
+                symbol: "OSMO".to_string(),
                 denom: "uosmo".to_string(),
             },
         }

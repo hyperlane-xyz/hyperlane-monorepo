@@ -136,7 +136,11 @@ export {
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
+export {
+  executeWarpDeploy,
+  enrollCrossChainRouters,
+  validateWarpConfigForAltVM,
+} from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelIgpProgramAdapter,
@@ -570,6 +574,8 @@ export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
+  FeeTokenApproval,
+  FeeTokenApprovalSchema,
   IcaRouterConfig,
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
@@ -836,7 +842,13 @@ export {
   IMultiProtocolSignerManager,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
-export { verifyScale } from './utils/decimals.js';
+export {
+  DEFAULT_SCALE,
+  normalizeScale,
+  scalesEqual,
+  verifyScale,
+} from './utils/decimals.js';
+export type { NormalizedScale, ScaleInput } from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,

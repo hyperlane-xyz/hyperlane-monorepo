@@ -59,6 +59,19 @@ abstract contract AbstractMessageIdAuthHook is
         destinationDomain = _destinationDomain;
     }
 
+    /// @inheritdoc AbstractPostDispatchHook
+    /// @dev Bridge auth hooks charge fees in native tokens (via metadata.msgValue).
+    /// Rejects metadata with a non-zero ERC20 fee token to prevent denomination
+    /// mixing in Mailbox.quoteDispatch sums.
+    function supportsMetadata(
+        bytes calldata metadata
+    ) public view override returns (bool) {
+        if (metadata.feeToken(address(0)) != address(0)) {
+            return false;
+        }
+        return super.supportsMetadata(metadata);
+    }
+
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure virtual returns (uint8) {
         return uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM);

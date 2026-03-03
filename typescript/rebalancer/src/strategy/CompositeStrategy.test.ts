@@ -75,12 +75,14 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
       const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -110,6 +112,7 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -147,18 +150,21 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
       const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
       const route3: StrategyRoute = {
         origin: chain3,
         destination: chain1,
         amount: 3000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -206,6 +212,7 @@ describe('CompositeStrategy', () => {
         origin: chain3,
         destination: chain1,
         amount: 500n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -213,6 +220,7 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -306,18 +314,21 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
       const route1b: StrategyRoute = {
         origin: chain1,
         destination: chain3,
         amount: 1500n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
       const route2a: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -348,6 +359,7 @@ describe('CompositeStrategy', () => {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 
@@ -377,6 +389,7 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        executionType: 'movableCollateral',
         bridge: TEST_BRIDGE,
       };
 

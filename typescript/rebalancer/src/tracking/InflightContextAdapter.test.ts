@@ -16,6 +16,7 @@ describe('InflightContextAdapter', () => {
     actionTracker = {
       getActiveRebalanceIntents: Sinon.stub(),
       getInProgressTransfers: Sinon.stub(),
+      getActionsForIntent: Sinon.stub(),
     } as any;
 
     multiProvider = {
@@ -40,7 +41,6 @@ describe('InflightContextAdapter', () => {
           origin: 1,
           destination: 2,
           amount: 1000n,
-          fulfilledAmount: 0n,
           status: 'not_started',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -64,6 +64,7 @@ describe('InflightContextAdapter', () => {
 
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves(mockTransfers);
+      actionTracker.getActionsForIntent.resolves([]); // No actions
       multiProvider.getChainName.withArgs(1).returns('ethereum');
       multiProvider.getChainName.withArgs(2).returns('arbitrum');
 
@@ -74,6 +75,9 @@ describe('InflightContextAdapter', () => {
         origin: 'ethereum',
         destination: 'arbitrum',
         amount: 1000n,
+        deliveredAmount: 0n,
+        awaitingDeliveryAmount: 0n,
+        executionMethod: undefined,
         bridge: undefined,
       });
 
@@ -102,7 +106,6 @@ describe('InflightContextAdapter', () => {
           origin: 137,
           destination: 10,
           amount: 2000n,
-          fulfilledAmount: 0n,
           status: 'not_started',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -126,6 +129,7 @@ describe('InflightContextAdapter', () => {
 
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves(mockTransfers);
+      actionTracker.getActionsForIntent.resolves([]);
       multiProvider.getChainName.withArgs(137).returns('polygon');
       multiProvider.getChainName.withArgs(10).returns('optimism');
 
@@ -144,7 +148,6 @@ describe('InflightContextAdapter', () => {
           origin: 1,
           destination: 2,
           amount: 1000n,
-          fulfilledAmount: 0n,
           status: 'not_started',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -154,7 +157,6 @@ describe('InflightContextAdapter', () => {
           origin: 2,
           destination: 3,
           amount: 1500n,
-          fulfilledAmount: 0n,
           status: 'in_progress',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -190,6 +192,7 @@ describe('InflightContextAdapter', () => {
 
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves(mockTransfers);
+      actionTracker.getActionsForIntent.resolves([]);
       multiProvider.getChainName.withArgs(1).returns('ethereum');
       multiProvider.getChainName.withArgs(2).returns('arbitrum');
       multiProvider.getChainName.withArgs(3).returns('optimism');

@@ -1,5 +1,78 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 25.5.0
+
+### Patch Changes
+
+- e197331: Added WarpTokenReader and WarpTokenWriter for artifact API-based warp token operations.
+
+  New exports:
+  - createWarpTokenReader: Factory for reading warp tokens
+  - createWarpTokenWriter: Factory for creating/updating warp tokens
+  - WarpTokenReader: Artifact for reading warp tokens with nested ISM/hook expansion
+  - WarpTokenWriter: Artifact for deploying and updating warp tokens
+
+  Protocol providers now support createWarpArtifactManager method.
+
+- Updated dependencies [e197331]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/utils@25.5.0
+
+## 25.4.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.4.1
+- @hyperlane-xyz/provider-sdk@1.4.1
+
+## 25.4.0
+
+### Minor Changes
+
+- 1f021bf: Implemented warp token artifact API for Aleo. Added warp token readers and writers for native, collateral, and synthetic tokens, with AleoWarpArtifactManager providing factory methods for type-specific operations. Writers support creating new warp tokens with ISM and Hook configuration, enrolling remote routers, and transferring ownership. Update operations generate transaction arrays for ISM and Hook changes, router enrollment/unenrollment, and ownership transfers.
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+
+## 25.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.3.2
+- @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/provider-sdk@1.3.5
+
+## 25.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.3.0
+- @hyperlane-xyz/provider-sdk@1.3.4
+
+## 25.2.0
+
+### Minor Changes
+
+- 6091a31: Fix USAD getBridgedSupply query
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+
 ## 25.1.0
 
 ### Patch Changes

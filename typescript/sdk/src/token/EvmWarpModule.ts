@@ -59,6 +59,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { scalesEqual } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -175,7 +176,8 @@ export class EvmWarpModule extends HyperlaneModule<
      * @remark
      * The order of operations matter
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
-     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * 2. createEnrollRemoteRoutersUpdateTxs() must be BEFORE createSetDestinationGasUpdateTxs()
+     *    because GasRouter requires routers to be enrolled before setting destination gas
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
@@ -189,11 +191,11 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
         tokenReaderParams,
       )),
-      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
       ),
+      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
@@ -828,6 +830,26 @@ export class EvmWarpModule extends HyperlaneModule<
       'expectedDestinationGas is undefined',
     );
 
+    // Only set gas for domains that will have routers enrolled after the update
+    // Use resolveRouterMapConfig to handle both domain IDs and chain names as keys
+    const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteRouters ?? {},
+    );
+    const expectedRemoteRouterDomains = new Set(
+      Object.keys(resolvedExpectedRemoteRouters).map(Number),
+    );
+
+    if (
+      expectedRemoteRouterDomains.size === 0 &&
+      Object.keys(expectedConfig.destinationGas).length > 0
+    ) {
+      throw new Error(
+        `destinationGas is set but remoteRouters is empty. ` +
+          `Cannot configure gas for domains without corresponding router enrollments.`,
+      );
+    }
+
     const actualDestinationGas = resolveRouterMapConfig(
       this.multiProvider,
       actualConfig.destinationGas,
@@ -837,16 +859,32 @@ export class EvmWarpModule extends HyperlaneModule<
       expectedConfig.destinationGas,
     );
 
-    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
+    // Filter to only domains that will have routers enrolled
+    const filteredExpectedGas = Object.fromEntries(
+      Object.entries(expectedDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    // Filter actual gas to the same domains for comparison
+    const filteredActualGas = Object.fromEntries(
+      Object.entries(actualDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    if (!deepEquals(filteredActualGas, filteredExpectedGas)) {
       const contractToUpdate = GasRouter__factory.connect(
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.domainId),
       );
 
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
-      const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
-        [];
-      objMap(expectedDestinationGas, (domain: Domain, gas: string) => {
+      const gasRouterConfigs: {
+        domain: BigNumberish;
+        gas: BigNumberish;
+      }[] = [];
+      objMap(filteredExpectedGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
           gas,
@@ -1179,6 +1217,15 @@ export class EvmWarpModule extends HyperlaneModule<
     assert(
       contractVersionMatchesDependency(expectedConfig.contractVersion),
       VERSION_ERROR_MESSAGE,
+    );
+
+    // Scale values are immutables baked into the implementation bytecode.
+    // Changing the effective scale during an upgrade would cause in-flight
+    // messages to be decoded with incorrect scaling.
+    assert(
+      scalesEqual(actualConfig.scale, expectedConfig.scale),
+      `Scale change detected during upgrade. ` +
+        `Changing scale on an existing deployment may cause in-flight messages to be decoded incorrectly.`,
     );
 
     this.logger.info(
