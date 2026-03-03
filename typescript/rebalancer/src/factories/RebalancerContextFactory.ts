@@ -11,7 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -473,6 +473,24 @@ export class RebalancerContextFactory {
     if (inventoryChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
+    }
+
+    // Validate that every protocol used by inventory chains has a signer key
+    const requiredProtocols = new Set(
+      inventoryChains.map((chain) => {
+        const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
+        assert(
+          metadata?.protocol,
+          `No protocol in chain metadata for ${chain}`,
+        );
+        return metadata.protocol;
+      }),
+    );
+    for (const protocol of requiredProtocols) {
+      assert(
+        this.inventorySignerKeysByProtocol?.[protocol],
+        `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${inventoryChains.filter((c) => this.warpCore.multiProvider.getChainMetadata(c).protocol === protocol).join(', ')})`,
+      );
     }
 
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
