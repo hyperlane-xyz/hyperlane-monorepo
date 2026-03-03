@@ -577,7 +577,7 @@ export class WarpCore {
   protected isMultiCollateralTransfer(
     originToken: IToken,
     destinationToken?: IToken,
-  ): boolean {
+  ): destinationToken is IToken {
     if (!destinationToken) return false;
     return (
       originToken.isMultiCollateralToken() &&
@@ -643,18 +643,14 @@ export class WarpCore {
     const totalDebit = amount + tokenFeeAmount;
 
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
-      adapter.isApproveRequired(
-        sender,
-        originToken.addressOrDenom!,
-        totalDebit,
-      ),
-      adapter.isRevokeApprovalRequired(sender, originToken.addressOrDenom!),
+      adapter.isApproveRequired(sender, originToken.addressOrDenom, totalDebit),
+      adapter.isRevokeApprovalRequired(sender, originToken.addressOrDenom),
     ]);
 
     if (isApproveRequired && isRevokeApprovalRequired) {
       const revokeTxReq = await adapter.populateApproveTx({
         weiAmountOrId: 0,
-        recipient: originToken.addressOrDenom!,
+        recipient: originToken.addressOrDenom,
       });
       transactions.push({
         category: WarpTxCategory.Revoke,
@@ -666,7 +662,7 @@ export class WarpCore {
     if (isApproveRequired) {
       const approveTxReq = await adapter.populateApproveTx({
         weiAmountOrId: totalDebit,
-        recipient: originToken.addressOrDenom!,
+        recipient: originToken.addressOrDenom,
       });
       transactions.push({
         category: WarpTxCategory.Approval,
@@ -684,6 +680,7 @@ export class WarpCore {
       recipient,
       amount,
       targetRouter: resolvedDestinationToken.addressOrDenom,
+      interchainGas: transferQuote,
     });
     transactions.push({
       category: WarpTxCategory.Transfer,
@@ -721,7 +718,7 @@ export class WarpCore {
       return this.estimateMultiCollateralFees({
         originTokenAmount,
         destination,
-        destinationToken: destinationToken!,
+        destinationToken,
         recipient,
         sender,
         senderPubKey,

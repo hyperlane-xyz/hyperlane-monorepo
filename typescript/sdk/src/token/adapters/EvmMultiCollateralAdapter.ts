@@ -69,10 +69,12 @@ export class EvmHypMultiCollateralAdapter extends EvmHypCollateralAdapter {
     recipient: Address;
     amount: Numberish;
     targetRouter: Address;
+    interchainGas?: InterchainGasQuote;
   }): Promise<PopulatedTransaction> {
     const recipientBytes32 = addressToBytes32(params.recipient);
     const targetRouterBytes32 = addressToBytes32(params.targetRouter);
-    const quote = await this.quoteTransferRemoteToGas(params);
+    const quote =
+      params.interchainGas ?? (await this.quoteTransferRemoteToGas(params));
     const nativeGas = !quote.igpQuote.addressOrDenom
       ? quote.igpQuote.amount.toString()
       : '0';

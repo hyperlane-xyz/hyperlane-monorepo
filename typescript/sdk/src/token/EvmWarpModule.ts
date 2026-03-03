@@ -25,6 +25,7 @@ import {
   deepEquals,
   difference,
   eqAddress,
+  isAddressEvm,
   isNullish,
   isObjEmpty,
   isZeroishAddress,
@@ -545,7 +546,7 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   private toCanonicalRouterId(router: string): string {
-    if (router.length === 42) {
+    if (isAddressEvm(router)) {
       return addressToBytes32(router.toLowerCase());
     }
     return router.toLowerCase();

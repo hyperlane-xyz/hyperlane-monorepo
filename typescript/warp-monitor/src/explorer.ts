@@ -129,7 +129,7 @@ export class ExplorerPendingTransfersClient {
             messageId: row.msg_id,
             destinationDomainId: row.destination_domain_id,
             destinationRouter,
-            error: (error as Error).message,
+            error: error instanceof Error ? error.message : String(error),
           },
           'Skipping explorer message with unparsable warp message body',
         );

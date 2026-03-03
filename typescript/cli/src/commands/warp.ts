@@ -219,6 +219,10 @@ const combine: CommandModuleWithWriteContext<{
       routeIds.length >= 2,
       'At least 2 route IDs are required to combine',
     );
+    assert(
+      outputId.trim().length > 0,
+      'Output warp route ID must be non-empty',
+    );
     await runWarpRouteCombine({
       context,
       routeIds,

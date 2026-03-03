@@ -1396,7 +1396,11 @@ export async function runWarpRouteCombine({
           const otherDomain = context.multiProvider
             .getDomainId(otherToken.chainName)
             .toString();
-          const otherRouter = addressToBytes32(otherToken.addressOrDenom!);
+          assert(
+            otherToken.addressOrDenom,
+            `MultiCollateral token missing addressOrDenom on ${otherToken.chainName}`,
+          );
+          const otherRouter = addressToBytes32(otherToken.addressOrDenom);
 
           enrolledRouters[otherDomain] ??= new Set();
           enrolledRouters[otherDomain].add(otherRouter);
@@ -1443,9 +1447,16 @@ export async function runWarpRouteCombine({
 
   // 3. Create merged WarpCoreConfig with all tokens
   const mergedConfig: WarpCoreConfig = { tokens: [] };
+  const seenTokens = new Set<string>();
 
   for (const route of routes) {
     for (const token of route.coreConfig.tokens) {
+      const key = `${token.chainName}:${token.addressOrDenom}`;
+      assert(
+        !seenTokens.has(key),
+        `Duplicate token ${key} across input routes`,
+      );
+      seenTokens.add(key);
       mergedConfig.tokens.push({ ...token, connections: [] });
     }
   }
