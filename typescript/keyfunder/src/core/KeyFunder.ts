@@ -91,6 +91,15 @@ export class KeyFunder {
       await this.claimFromIgp(chain, chainConfig);
     }
 
+    try {
+      await this.recordFunderBalance(chain);
+    } catch (error) {
+      logger.warn(
+        { error },
+        'Failed to record funder balance metric, continuing',
+      );
+    }
+
     const resolvedKeys = this.resolveKeysForChain(chain, chainConfig);
     if (resolvedKeys.length > 0) {
       await this.fundKeys(chain, resolvedKeys);
@@ -107,6 +116,19 @@ export class KeyFunder {
       durationSeconds,
     );
     logger.info({ durationSeconds }, 'Chain funding completed');
+  }
+
+  private async recordFunderBalance(chain: string): Promise<void> {
+    const signer = this.multiProvider.getSigner(chain);
+    const funderAddress = await signer.getAddress();
+    const funderBalance = await signer.getBalance();
+    const balanceInEther = parseFloat(ethers.utils.formatEther(funderBalance));
+    this.options.metrics?.recordUnifiedWalletBalance(
+      chain,
+      funderAddress,
+      'key-funder',
+      balanceInEther,
+    );
   }
 
   private resolveKeysForChain(

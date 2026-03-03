@@ -22,10 +22,8 @@ import {
   TEST_CHAINS,
   type TestChain,
 } from './fixtures/routes.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './harness/LocalDeploymentManager.js';
+import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
+import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
@@ -36,7 +34,7 @@ import {
 describe('CompositeStrategy E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: LocalDeploymentManager;
+  let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
   let userAddress: string;
@@ -48,8 +46,9 @@ describe('CompositeStrategy E2E', function () {
     const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
-    deploymentManager = new LocalDeploymentManager();
-    const ctx: LocalDeploymentContext = await deploymentManager.start();
+    deploymentManager = new Erc20LocalDeploymentManager();
+    const ctx: LocalDeploymentContext<DeployedAddresses> =
+      await deploymentManager.start();
     multiProvider = ctx.multiProvider;
     localProviders = ctx.providers;
     deployedAddresses = ctx.deployedAddresses;
@@ -233,7 +232,7 @@ describe('CompositeStrategy E2E', function () {
           hyperlaneCore,
           {
             dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
+            messageId: action.messageId!,
             origin: originChain,
             destination: destChain,
           },
@@ -432,7 +431,7 @@ describe('CompositeStrategy E2E', function () {
           hyperlaneCore,
           {
             dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
+            messageId: action.messageId!,
             origin: originChain,
             destination: destChain,
           },
@@ -651,7 +650,7 @@ describe('CompositeStrategy E2E', function () {
           hyperlaneCore,
           {
             dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
+            messageId: action.messageId!,
             origin: originChain,
             destination: destChain,
           },
@@ -794,7 +793,7 @@ describe('CompositeStrategy E2E', function () {
       );
       const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
         dispatchTx: rebalanceTxReceipt,
-        messageId: inflightToBase.messageId,
+        messageId: inflightToBase.messageId!,
         origin: 'anvil1',
         destination: 'anvil3',
       });
@@ -959,7 +958,7 @@ describe('CompositeStrategy E2E', function () {
 
       const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
         dispatchTx: rebalanceTxReceipt,
-        messageId: action.messageId,
+        messageId: action.messageId!,
         origin: originChain,
         destination: destChain,
       });

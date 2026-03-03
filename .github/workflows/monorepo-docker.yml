@@ -2,18 +2,21 @@ name: Build and Push Monorepo Image to GCR
 on:
   push:
     branches: [main]
-    tags:
-      - '**'
-  pull_request:
     paths:
-      # Only build on PRs that change the Docker build itself
       - 'Dockerfile'
       - 'docker-entrypoint.sh'
       - '.dockerignore'
+      - '.registryrc'
       - '.github/workflows/monorepo-docker.yml'
       - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - '.dockerignore'
       - '.registryrc'
-      - 'solidity/.foundryrc'
+      - '.github/workflows/monorepo-docker.yml'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
     inputs:
       include_arm64:

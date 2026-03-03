@@ -127,7 +127,7 @@ export class KeyFunderHelmManager extends HelmManager {
       }
 
       const igpAddress = envAddresses[chain]?.interchainGasPaymaster;
-      const igpThreshold = this.config.igpClaimThresholdPerChain?.[chain];
+      const igpThreshold = this.getIgpClaimThreshold(chain);
       if (igpAddress && igpThreshold) {
         chainConfig.igp = {
           address: igpAddress,
@@ -262,6 +262,8 @@ export class KeyFunderHelmManager extends HelmManager {
           DeployEnvironment,
           Record<Contexts, string>
         >;
+      case Role.InventoryRebalancer:
+        return undefined;
       default:
         return undefined;
     }
@@ -276,9 +278,28 @@ export class KeyFunderHelmManager extends HelmManager {
         return this.config.desiredBalancePerChain[chain];
       case Role.Rebalancer:
         return this.config.desiredRebalancerBalancePerChain?.[chain];
+      case Role.InventoryRebalancer:
+        return this.config.desiredInventoryRebalancerBalancePerChain?.[chain];
       default:
         return undefined;
     }
+  }
+
+  private getIgpClaimThreshold(chain: string): string | undefined {
+    const explicitThreshold = this.config.igpClaimThresholdPerChain?.[chain];
+    if (explicitThreshold) {
+      return explicitThreshold;
+    }
+
+    const desiredRelayerBalance = this.config.desiredBalancePerChain?.[chain];
+    if (!desiredRelayerBalance) {
+      return undefined;
+    }
+
+    // Default threshold is 20% of relayer desired balance.
+    return ethers.utils.formatEther(
+      ethers.utils.parseEther(desiredRelayerBalance).div(5),
+    );
   }
 
   private applyRcDiscount(balance: string): string {

@@ -176,19 +176,33 @@ export function getMonorepoRoot(): string {
 }
 
 /**
- * Formats a file using oxfmt
+ * Formats a file using oxfmt (JS/TS) or prettier (other file types)
  * @param filepath - The path to the file to format
  */
+const OXFMT_EXTENSIONS = new Set([
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.cjs',
+]);
+
 export async function formatFile(filepath: string): Promise<void> {
+  const ext = filepath.slice(filepath.lastIndexOf('.'));
+  const formatter = OXFMT_EXTENSIONS.has(ext)
+    ? `npx oxfmt --write "${filepath}"`
+    : `npx prettier --write "${filepath}"`;
+
   try {
     const monorepoRoot = getMonorepoRoot();
-    await execCmd(`npx oxfmt --write "${filepath}"`, {
+    await execCmd(formatter, {
       cwd: monorepoRoot,
       stdio: 'pipe',
     });
   } catch (error) {
     console.warn(
-      `Warning: Failed to format file with oxfmt: ${filepath}`,
+      `Warning: Failed to format file: ${filepath}`,
       error instanceof Error ? error.message : error,
     );
   }

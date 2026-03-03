@@ -16,8 +16,6 @@ on:
 jobs:
   diff-check:
     runs-on: ubuntu-latest
-    # Skip on changeset version PRs, as storage layout is expected to change with package version bumps
-    if: github.head_ref != 'changeset-release/main'
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
@@ -50,14 +48,13 @@ jobs:
         env:
           BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
         run: |
-          # Fetch the base reference
           git fetch origin $BASE_REF
-          # Check if BASE_REF is a commit SHA (40 hex characters) or a branch name
+          # Remove then checkout to ensure clean state
+          # (git checkout alone doesn't delete files that only exist in HEAD)
+          rm -rf solidity/contracts
           if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            # For commit SHAs, checkout directly without origin/ prefix
             git checkout $BASE_REF -- solidity/contracts
           else
-            # For branch names, use origin/ prefix
             git checkout origin/$BASE_REF -- solidity/contracts
           fi
 

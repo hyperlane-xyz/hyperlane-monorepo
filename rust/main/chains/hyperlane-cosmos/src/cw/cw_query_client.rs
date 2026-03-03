@@ -314,6 +314,7 @@ mod test {
             },
             NativeToken {
                 decimals: 6,
+                symbol: String::new(),
                 denom: "utest".to_owned(),
             },
             1.4f64,

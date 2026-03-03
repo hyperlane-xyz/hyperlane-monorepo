@@ -3,6 +3,7 @@ import assert from 'assert';
 import {
   ChainMap,
   ChainName,
+  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MovableTokenConfig,
   TokenFeeConfigInput,
@@ -195,15 +196,21 @@ export function getFixedRoutingFeeConfig(
   owner: Address,
   feeDestinations: readonly ChainName[],
   bps: bigint,
+  feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
   for (const chain of feeDestinations) {
-    feeContracts[chain] = {
-      type: TokenFeeType.LinearFee,
-      owner,
-      bps,
-    };
+    const params = feeParams?.[chain];
+    feeContracts[chain] = params
+      ? {
+          type: TokenFeeType.LinearFee,
+          owner,
+          bps,
+          maxFee: BigInt(params.maxFee),
+          halfAmount: BigInt(params.halfAmount),
+        }
+      : { type: TokenFeeType.LinearFee, owner, bps };
   }
 
   return {
@@ -211,4 +218,20 @@ export function getFixedRoutingFeeConfig(
     owner,
     feeContracts,
   };
+}
+
+/**
+ * Creates a file submitter strategy config for the given chains.
+ * 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion.
+ */
+export function getFileSubmitterStrategyConfig(
+  chains: readonly string[],
+  filepath: string,
+): ChainSubmissionStrategy {
+  return Object.fromEntries(
+    chains.map((chain) => [
+      chain,
+      { submitter: { type: 'file', filepath, chain } },
+    ]),
+  ) as unknown as ChainSubmissionStrategy;
 }

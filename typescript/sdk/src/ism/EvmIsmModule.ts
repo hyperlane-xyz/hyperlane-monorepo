@@ -155,6 +155,26 @@ export class EvmIsmModule extends HyperlaneModule<
       return [];
     }
 
+    // additional check for deploying new ISM if it is mutable incremental routing
+    // and has updates to an existing domain
+    if (
+      normalizedCurrentConfig.type === IsmType.INCREMENTAL_ROUTING &&
+      normalizedTargetConfig.type === IsmType.INCREMENTAL_ROUTING
+    ) {
+      const hasUpdates =
+        calculateDomainRoutingDelta(
+          normalizedCurrentConfig,
+          normalizedTargetConfig,
+        ).domainsToUpdate.length > 0;
+      if (hasUpdates) {
+        const contract = await this.deploy({
+          config: normalizedTargetConfig,
+        });
+        this.args.addresses.deployedIsm = contract.address;
+        return [];
+      }
+    }
+
     // At this point, only the ownable/mutable ISM types should remain: PAUSABLE, ROUTING, FALLBACK_ROUTING, OFFCHAIN_LOOKUP
     return this.updateMutableIsm({
       current: normalizedCurrentConfig,
@@ -189,7 +209,9 @@ export class EvmIsmModule extends HyperlaneModule<
     if (
       (current.type === IsmType.ROUTING && target.type === IsmType.ROUTING) ||
       (current.type === IsmType.FALLBACK_ROUTING &&
-        target.type === IsmType.FALLBACK_ROUTING)
+        target.type === IsmType.FALLBACK_ROUTING) ||
+      (current.type === IsmType.INCREMENTAL_ROUTING &&
+        target.type === IsmType.INCREMENTAL_ROUTING)
     ) {
       const txs = await this.updateRoutingIsm({
         current,

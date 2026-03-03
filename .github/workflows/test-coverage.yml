@@ -1,0 +1,91 @@
+name: test-coverage
+
+on:
+  workflow_call:
+    inputs:
+      base_sha:
+        type: string
+      current_sha:
+        type: string
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  check-solidity-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for Solidity changes
+        id: check-solidity
+        uses: ./.github/actions/check-path-changes
+        with:
+          base_sha: ${{ inputs.base_sha }}
+          head_sha: ${{ inputs.current_sha }}
+          path_pattern: 'solidity/'
+
+  coverage-run:
+    runs-on: ubuntu-latest
+    needs: [check-solidity-changes]
+    if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Run tests with coverage
+        run: pnpm run coverage
+        env:
+          NODE_OPTIONS: --max_old_space_size=4096
+
+      - name: Upload coverage reports to Codecov with GitHub Action
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: solidity
+          fail_ci_if_error: true
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: [check-solidity-changes, coverage-run]
+    if: always()
+    steps:
+      - name: Check if coverage should have run
+        id: should-run
+        run: |
+          if [ "${{ needs.check-solidity-changes.result }}" != "success" ]; then
+            echo "Solidity change detection failed (result: ${{ needs.check-solidity-changes.result }})"
+            exit 1
+          fi
+          if [ "${{ needs.check-solidity-changes.outputs.has_solidity_changes }}" == "true" ]; then
+            echo "Coverage should have run, checking status..."
+            if [ "${{ needs.coverage-run.result }}" != "success" ]; then
+              echo "Coverage job failed or was cancelled"
+              exit 1
+            fi
+          else
+            echo "No Solidity changes detected, skipping coverage - this is OK"
+          fi

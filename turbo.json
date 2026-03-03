@@ -11,11 +11,11 @@
     },
     "build:tron": {
       "dependsOn": ["build"],
-      "outputs": ["cache-tron/**", "../typescript/tron-sdk/src/abi/**"]
-    },
-    "@hyperlane-xyz/tron-sdk#build": {
-      "dependsOn": ["@hyperlane-xyz/core#build:tron", "^build"],
-      "outputs": ["dist/**", "src/abi/**"]
+      "outputs": [
+        "cache-tron/**",
+        "artifacts-tron/**",
+        "dist/tron/typechain/**"
+      ]
     },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]

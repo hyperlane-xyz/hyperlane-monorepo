@@ -14,6 +14,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TronProvider } from './provider.js';
@@ -59,6 +60,14 @@ export class TronProtocolProvider implements ProtocolProvider {
     _chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string; proxyAdmin?: string },
   ): IRawHookArtifactManager {
+    // @TODO Implement in a follow up PR
+    throw Error('Not implemented');
+  }
+
+  createWarpArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
+  ): IRawWarpArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
   }

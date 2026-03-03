@@ -41,6 +41,48 @@ abstract contract ExternalBridgeTest is Test {
         messageId = Message.id(encodedMessage);
     }
 
+    /* ============ hook.supportsMetadata ============ */
+
+    function test_supportsMetadata_emptyMetadata() public view {
+        assertTrue(hook.supportsMetadata(""));
+    }
+
+    function test_supportsMetadata_standardMetadata() public view {
+        assertTrue(hook.supportsMetadata(testMetadata));
+    }
+
+    function test_supportsMetadata_rejectsFeeToken() public view {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF) // non-zero feeToken
+        );
+        assertFalse(hook.supportsMetadata(metadata));
+    }
+
+    function test_quoteDispatch_revertWhen_feeTokenMetadata() public {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF)
+        );
+        vm.expectRevert("AbstractPostDispatchHook: invalid metadata variant");
+        hook.quoteDispatch(metadata, encodedMessage);
+    }
+
+    function test_postDispatch_revertWhen_feeTokenMetadata() public {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF)
+        );
+        vm.expectRevert("AbstractPostDispatchHook: invalid metadata variant");
+        hook.postDispatch(metadata, encodedMessage);
+    }
+
     /* ============ hook.quoteDispatch ============ */
 
     function test_quoteDispatch() public view {

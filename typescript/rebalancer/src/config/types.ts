@@ -23,22 +23,39 @@ export enum RebalancerMinAmountType {
   Relative = 'relative',
 }
 
+/**
+ * Execution type for rebalancing on a chain:
+ * - `movableCollateral`: Uses MovableCollateralRouter.rebalance() on-chain (requires bridge address)
+ * - `inventory`: Uses external bridges (LiFi) + transferRemote (no bridge address needed)
+ */
+export enum ExecutionType {
+  MovableCollateral = 'movableCollateral',
+  Inventory = 'inventory',
+}
+
+export enum ExternalBridgeType {
+  LiFi = 'lifi',
+}
+
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
   type: z.nativeEnum(RebalancerMinAmountType),
 });
 
-// Base chain config with common properties
 const RebalancerBridgeConfigSchema = z.object({
-  bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
+  bridge: z
+    .string()
+    .regex(/0x[a-fA-F0-9]{40}/)
+    .optional(),
+  executionType: z.nativeEnum(ExecutionType).optional(),
+  externalBridge: z.nativeEnum(ExternalBridgeType).optional(),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
     .positive()
     .transform((val) => val * 1_000)
-    .optional()
-    .describe('Expected time in seconds for bridge to process a transfer'),
+    .optional(),
 });
 
 export const RebalancerBaseChainConfigSchema =
@@ -94,19 +111,39 @@ export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   CollateralDeficitStrategySchema,
 ]);
 
-// Accept either a single strategy (backwards compatible) or an array of strategies
-// Normalizes to array internally so the rest of the code doesn't need to change
 export const RebalancerStrategySchema = z
-  .union([
-    StrategyConfigSchema, // Old format: single object
-    z.array(StrategyConfigSchema).min(1), // New format: array
-  ])
+  .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
+
+export const DEFAULT_INTENT_TTL_S = 604800; // 7 days
+export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
+
+export const LiFiBridgeConfigSchema = z.object({
+  integrator: z.string(),
+  defaultSlippage: z.number().optional(),
+});
+
+export const ExternalBridgesConfigSchema = z.object({
+  lifi: LiFiBridgeConfigSchema.optional(),
+});
 
 export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
     strategy: RebalancerStrategySchema,
+    inventorySigner: z
+      .string()
+      .regex(/0x[a-fA-F0-9]{40}/)
+      .optional(),
+    externalBridges: ExternalBridgesConfigSchema.optional(),
+    intentTTL: z
+      .number()
+      .positive()
+      .default(DEFAULT_INTENT_TTL_S)
+      .describe(
+        'Max age in seconds before in-progress intent is expired. Default 7 days.',
+      )
+      .transform((val) => val * 1_000),
   })
   .superRefine((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
@@ -189,6 +226,83 @@ export const RebalancerConfigSchema = z
           });
         }
       }
+
+      // Validate bridge requirement based on executionType
+      for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
+        const executionType =
+          chainConfig.executionType ?? ExecutionType.MovableCollateral;
+
+        // bridge is required for movableCollateral execution type
+        if (
+          executionType === ExecutionType.MovableCollateral &&
+          !chainConfig.bridge
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' uses movableCollateral execution but has no 'bridge' address`,
+            path: ['strategy', strategyIndex, 'chains', chainName, 'bridge'],
+          });
+        }
+
+        // externalBridge is required for inventory execution type
+        if (
+          executionType === ExecutionType.Inventory &&
+          !chainConfig.externalBridge
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' uses inventory execution but has no 'externalBridge' configured`,
+            path: [
+              'strategy',
+              strategyIndex,
+              'chains',
+              chainName,
+              'externalBridge',
+            ],
+          });
+        }
+      }
+    }
+
+    const hasInventoryChains = config.strategy.some((strategy) =>
+      Object.values(strategy.chains).some(
+        (chainConfig) => chainConfig.executionType === ExecutionType.Inventory,
+      ),
+    );
+
+    if (hasInventoryChains) {
+      if (!config.inventorySigner) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'inventorySigner is required when any chain uses inventory execution type',
+          path: ['inventorySigner'],
+        });
+      }
+
+      if (!config.externalBridges?.lifi?.integrator) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'externalBridges.lifi is required when using inventory execution',
+          path: ['externalBridges', 'lifi'],
+        });
+      }
+    }
+
+    for (const strategy of config.strategy) {
+      for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
+        if (
+          chainConfig.externalBridge === ExternalBridgeType.LiFi &&
+          !config.externalBridges?.lifi?.integrator
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
+            path: ['externalBridges', 'lifi'],
+          });
+        }
+      }
     }
   });
 
@@ -260,4 +374,27 @@ export function getAllBridges(strategies: StrategyConfig[]): string[] {
   }
 
   return Array.from(bridges);
+}
+
+/**
+ * Get the execution type for a chain.
+ * Returns the executionType from chain config, or MovableCollateral as default.
+ */
+export function getChainExecutionType(
+  strategies: StrategyConfig[],
+  chainName: string,
+): ExecutionType {
+  const chainConfig = getStrategyChainConfig(strategies, chainName);
+  return chainConfig?.executionType ?? ExecutionType.MovableCollateral;
+}
+
+/**
+ * Check if any chain in the strategies uses inventory execution type.
+ */
+export function hasInventoryChains(strategies: StrategyConfig[]): boolean {
+  return strategies.some((strategy) =>
+    Object.values(strategy.chains).some(
+      (chainConfig) => chainConfig.executionType === ExecutionType.Inventory,
+    ),
+  );
 }

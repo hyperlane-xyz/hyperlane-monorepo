@@ -16,6 +16,7 @@ export const ProxyFactoryFactoriesSchema = z.object({
   staticAggregationIsmFactory: z.string(),
   staticAggregationHookFactory: z.string(),
   domainRoutingIsmFactory: z.string(),
+  incrementalDomainRoutingIsmFactory: z.string(),
   staticMerkleRootWeightedMultisigIsmFactory: z.string(),
   staticMessageIdWeightedMultisigIsmFactory: z.string(),
 });

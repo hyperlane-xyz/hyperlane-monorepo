@@ -1,5 +1,7 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
+import type { ExternalBridgeType } from '../config/types.js';
+
 import type { IStore } from './store/IStore.js';
 
 // === Base Interfaces ===
@@ -35,6 +37,26 @@ export type RebalanceIntentStatus =
   | 'failed';
 export type RebalanceActionStatus = 'in_progress' | 'complete' | 'failed';
 
+// === Execution Types ===
+
+/**
+ * Execution method for rebalancing:
+ * - `movable_collateral`: Uses MovableCollateralRouter.rebalance() on-chain
+ * - `inventory`: Uses external bridges + transferRemote
+ */
+export type ExecutionMethod = 'movable_collateral' | 'inventory';
+
+/**
+ * Type of rebalance action:
+ * - `rebalance_message`: Standard movable collateral rebalance (Hyperlane message)
+ * - `inventory_movement`: External bridge transfer (e.g., LiFi) to move inventory
+ * - `inventory_deposit`: transferRemote to deposit inventory as collateral
+ */
+export type ActionType =
+  | 'rebalance_message'
+  | 'inventory_movement'
+  | 'inventory_deposit';
+
 // === Entity Types ===
 
 export interface Transfer extends TrackedActionBase {
@@ -46,17 +68,22 @@ export interface Transfer extends TrackedActionBase {
 
 export interface RebalanceIntent extends TrackedActionBase {
   status: RebalanceIntentStatus;
-  fulfilledAmount: bigint;
   bridge?: Address; // Optional - bridge contract used (missing for recovered intents)
   priority?: number; // Optional - missing for recovered intents
   strategyType?: string; // Optional - missing for recovered intents
+  executionMethod?: ExecutionMethod; // Optional - defaults to movable_collateral
+  externalBridge?: ExternalBridgeType; // Optional - external bridge type (e.g., LiFi)
 }
 
 export interface RebalanceAction extends TrackedActionBase {
   status: RebalanceActionStatus;
+  type: ActionType; // Type of action (rebalance_message, inventory_movement, inventory_deposit)
   intentId: string; // Links to parent RebalanceIntent
-  messageId: string; // Hyperlane message ID
+  messageId?: string; // Hyperlane message ID (required for rebalance_message, inventory_deposit)
   txHash?: string; // Origin transaction hash
+  // Fields for inventory_movement (external bridge)
+  externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
+  externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
 }
 
 // === Type Aliases for Stores ===
@@ -70,3 +97,19 @@ export type IRebalanceActionStore = IStore<
   RebalanceAction,
   RebalanceActionStatus
 >;
+
+// === Derived Types ===
+
+/**
+ * Represents an inventory intent that has been partially fulfilled
+ * and can continue execution. Values are derived from action states.
+ */
+export interface PartialInventoryIntent {
+  intent: RebalanceIntent;
+  /** Sum of complete inventory_deposit action amounts */
+  completedAmount: bigint;
+  /** Amount remaining to fulfill (0n when final deposit is fully in-flight). Formula: intent.amount - completedAmount - inflightAmount */
+  remaining: bigint;
+  /** True when intent has in_progress inventory_deposit actions (not safe to continue, but still active) */
+  hasInflightDeposit: boolean;
+}
