@@ -1,5 +1,5 @@
 ---
-name: docker-image
+name: find-docker-image
 description: Find existing Docker image tags on GHCR for Hyperlane agent, monorepo, or node service images. Use when the user wants to find a recent image, look up an image for a branch or commit, or check what's currently deployed.
 ---
 
@@ -83,9 +83,9 @@ grep -E '(tag|Tag)' typescript/infra/config/docker.ts
 1. Determine what the user needs: latest for a branch, a specific commit, or what's deployed.
 2. Use the appropriate method above to find the tag.
 3. Return the full image reference: `ghcr.io/hyperlane-xyz/<image>:<tag>`.
-4. If no image exists for their branch/commit, suggest using `/docker-build` to trigger one.
+4. If no image exists for their branch/commit, suggest using `/build-docker-image` to trigger one.
 
 ## References
 
-- To trigger a new build, use the `/docker-build` skill.
+- To trigger a new build, use the `/build-docker-image` skill.
 - See `docs/docker-image-policy.md` for the full Docker image policy.

@@ -1,5 +1,5 @@
 ---
-name: docker-build
+name: build-docker-image
 description: Trigger Docker image builds for Hyperlane agent, monorepo, or node service images. Use when the user wants to build new Docker images for a branch, commit, or tag.
 ---
 
@@ -64,5 +64,5 @@ gh workflow run rust-docker.yml --ref <branch> -f include_arm64=true
 
 ## References
 
-- To find existing images instead of building, use the `/docker-image` skill.
+- To find existing images instead of building, use the `/find-docker-image` skill.
 - See `docs/docker-image-policy.md` for the full Docker image policy.
