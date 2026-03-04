@@ -43,6 +43,7 @@ import {
   getExternalBridgeTokenAddress,
   isNativeTokenStandard,
 } from '../utils/tokenUtils.js';
+import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -67,13 +68,16 @@ const MAX_GAS_PERCENT_THRESHOLD = 10n;
 /**
  * Configuration for the InventoryRebalancer.
  */
+export interface InventorySignerConfig {
+  /** Signer address for this protocol */
+  address: string;
+  /** Private key for signing (optional - absent in monitor-only mode) */
+  key?: string;
+}
+
 export interface InventoryRebalancerConfig {
-  /** signer address map by protocol */
-  inventorySigners: Partial<Record<ProtocolType, string>>;
-  /** signer private keys by protocol */
-  inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>;
-  /** Optional MultiProvider with inventory signer for signing transactions */
-  inventoryMultiProvider?: MultiProvider;
+  /** Signer config per protocol (address + optional key) */
+  inventorySigners: Partial<Record<ProtocolType, InventorySignerConfig>>;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
 }
@@ -212,22 +216,22 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
   private getInventorySignerAddress(chainName: ChainName): string {
     const protocol = this.getProtocolForChain(chainName);
-    const signer = this.config.inventorySigners[protocol];
+    const signerConfig = this.config.inventorySigners[protocol];
     assert(
-      signer,
+      signerConfig?.address,
       `Missing inventory signer address for protocol ${protocol} (chain ${chainName})`,
     );
-    return signer;
+    return signerConfig.address;
   }
 
   private getInventorySignerKey(chainName: ChainName): string {
     const protocol = this.getProtocolForChain(chainName);
-    const signerKey = this.config.inventorySignerKeysByProtocol?.[protocol];
+    const signerConfig = this.config.inventorySigners[protocol];
     assert(
-      signerKey,
+      signerConfig?.key,
       `Missing inventory signer key for protocol ${protocol} (chain ${chainName})`,
     );
-    return signerKey;
+    return signerConfig.key;
   }
 
   /**
@@ -954,7 +958,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
                   origin,
                   {
                     protocol,
-                    privateKey: this.parseSolanaPrivateKey(
+                    privateKey: parseSolanaPrivateKey(
                       this.getInventorySignerKey(origin),
                     ),
                   },
@@ -1042,9 +1046,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         origin,
         {
           protocol,
-          privateKey: this.parseSolanaPrivateKey(
-            this.getInventorySignerKey(origin),
-          ),
+          privateKey: parseSolanaPrivateKey(this.getInventorySignerKey(origin)),
         },
         this.warpCore.multiProvider,
       );
@@ -1054,28 +1056,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       } as any);
     }
     throw new Error(`Unsupported inventory transaction protocol ${protocol}`);
-  }
-
-  private parseSolanaPrivateKey(rawKey: string): Uint8Array {
-    try {
-      if (rawKey.trim().startsWith('[')) {
-        const parsed = JSON.parse(rawKey);
-        if (Array.isArray(parsed)) return Uint8Array.from(parsed);
-      }
-      const byComma = rawKey
-        .split(',')
-        .map((v) => Number(v.trim()))
-        .filter((v) => Number.isFinite(v));
-      if (byComma.length > 0) return Uint8Array.from(byComma);
-    } catch (error) {
-      this.logger.debug(
-        { error: (error as Error).message },
-        'Failed parsing Solana private key in JSON mode',
-      );
-    }
-    throw new Error(
-      'Invalid HYP_INVENTORY_KEY_SOLANA format. Expected JSON byte array or comma-separated bytes.',
-    );
   }
 
   protected async extractDispatchedMessageId(
