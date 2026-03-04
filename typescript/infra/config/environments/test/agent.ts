@@ -13,7 +13,7 @@ import { validators } from './validators.js';
 const roleBase = {
   docker: {
     repo: 'ghcr.io/hyperlane-xyz/hyperlane-agent',
-    tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
+    tag: 'c558a9f-20260304-105241',
   },
   rpcConsensusType: RpcConsensusType.Single,
 } as const;
