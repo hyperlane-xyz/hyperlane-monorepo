@@ -1,17 +1,16 @@
 import type { Logger } from 'pino';
-import { type ContractReceipt } from 'ethers';
 
 import {
-  type AnnotatedEV5Transaction,
   type ChainName,
-  type EthJsonRpcBlockParameterTag,
   HyperlaneCore,
   type InterchainGasQuote,
+  type MultiProtocolSignerSignerAccountInfo,
   type MultiProvider,
   Token,
   ProviderType,
   TOKEN_COLLATERALIZED_STANDARDS,
   TokenAmount,
+  type WarpTypedTransaction,
   type WarpCore,
   WarpTxCategory,
   getSignerForChain,
@@ -44,6 +43,7 @@ import {
   isNativeTokenStandard,
 } from '../utils/tokenUtils.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
+import { toProtocolTransaction } from '../utils/transactionUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -862,13 +862,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    const signingProvider =
-      this.config.inventoryMultiProvider ?? this.multiProvider;
-
-    // Get reorgPeriod for confirmation waiting
-    const reorgPeriod =
-      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
-
     this.logger.debug(
       {
         origin,
@@ -928,60 +921,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
 
     let transferTxHash: string | undefined;
-    let transferReceipt:
-      | ContractReceipt
-      | Awaited<ReturnType<MultiProvider['sendTransaction']>>
-      | undefined;
-
     for (const tx of transferTxs) {
-      if (tx.type === ProviderType.EthersV5) {
-        const receipt = await signingProvider.sendTransaction(
-          origin,
-          tx.transaction as AnnotatedEV5Transaction,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
-        if (tx.category === WarpTxCategory.Transfer) {
-          transferTxHash = receipt.transactionHash;
-          transferReceipt = receipt;
-        }
-      } else {
-        const protocol = this.getProtocolForChain(origin);
-        const signerKey = this.config.inventorySignerKeysByProtocol?.[protocol];
-        const txHash =
-          protocol === ProtocolType.Sealevel && signerKey
-            ? await (
-                await getSignerForChain(
-                  origin,
-                  {
-                    protocol,
-                    privateKey: parseSolanaPrivateKey(
-                      this.getInventorySignerKey(origin),
-                    ),
-                  },
-                  this.warpCore.multiProvider,
-                )
-              ).sendAndConfirmTransaction({
-                type: ProviderType.SolanaWeb3,
-                transaction: tx.transaction,
-              } as any)
-            : await (
-                signingProvider.getSigner(origin) as any
-              ).sendAndConfirmTransaction(tx.transaction);
-        if (tx.category === WarpTxCategory.Transfer) {
-          transferTxHash = txHash;
-        }
+      const { txHash } = await this.sendAndConfirmInventoryTx(origin, tx);
+      if (tx.category === WarpTxCategory.Transfer) {
+        transferTxHash = txHash;
       }
     }
 
-    const messageId = transferReceipt
-      ? HyperlaneCore.getDispatchedMessages(transferReceipt)[0]?.id
-      : transferTxHash
-        ? await this.extractDispatchedMessageId(origin, transferTxHash)
-        : undefined;
+    const messageId = transferTxHash
+      ? await this.extractDispatchedMessageId(origin, transferTxHash)
+      : undefined;
 
     assert(transferTxHash, 'No transfer transaction hash found');
 
@@ -1026,36 +975,57 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     };
   }
 
-  protected async sendInventoryTransaction(
-    origin: ChainName,
-    tx: any,
-  ): Promise<string> {
-    const protocol = this.getProtocolForChain(origin);
-    if (protocol === ProtocolType.Ethereum) {
-      const signingProvider =
-        this.config.inventoryMultiProvider ?? this.multiProvider;
-      const reorgPeriod =
-        this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
-      const receipt = await signingProvider.sendTransaction(origin, tx, {
-        waitConfirmations: reorgPeriod as number,
-      });
-      return receipt.transactionHash;
+  private async sendAndConfirmInventoryTx(
+    chain: ChainName,
+    typedTx: WarpTypedTransaction,
+  ): Promise<{ txHash: string }> {
+    const protocol = this.getProtocolForChain(chain);
+    const signerConfig = this.config.inventorySigners[protocol];
+    assert(
+      signerConfig?.key,
+      `Missing signer key for protocol ${protocol} (chain ${chain})`,
+    );
+
+    const accountConfig = this.buildSignerAccountConfig(
+      protocol,
+      signerConfig.key,
+      chain,
+    );
+    const signer = await getSignerForChain(
+      chain,
+      accountConfig,
+      this.warpCore.multiProvider,
+    );
+
+    const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
+    const configuredConfirmations =
+      metadata.blocks?.reorgPeriod ?? metadata.blocks?.confirmations;
+    let waitConfirmations = 1;
+    if (typeof configuredConfirmations === 'number') {
+      waitConfirmations = configuredConfirmations;
     }
+
+    const txHash = await signer.sendAndConfirmTransaction(
+      toProtocolTransaction(typedTx, protocol),
+      { waitConfirmations },
+    );
+    return { txHash };
+  }
+
+  private buildSignerAccountConfig(
+    protocol: ProtocolType,
+    key: string,
+    chain: ChainName,
+  ): MultiProtocolSignerSignerAccountInfo {
+    void chain;
     if (protocol === ProtocolType.Sealevel) {
-      const signer = await getSignerForChain(
-        origin,
-        {
-          protocol,
-          privateKey: parseSolanaPrivateKey(this.getInventorySignerKey(origin)),
-        },
-        this.warpCore.multiProvider,
-      );
-      return signer.sendAndConfirmTransaction({
-        type: ProviderType.SolanaWeb3,
-        transaction: tx,
-      } as any);
+      return { protocol, privateKey: parseSolanaPrivateKey(key) };
     }
-    throw new Error(`Unsupported inventory transaction protocol ${protocol}`);
+    if (protocol === ProtocolType.Starknet) {
+      const signerConfig = this.config.inventorySigners[protocol];
+      return { protocol, privateKey: key, address: signerConfig!.address };
+    }
+    return { protocol, privateKey: key };
   }
 
   protected async extractDispatchedMessageId(
@@ -1416,7 +1386,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const result = await externalBridge.execute(
         quote,
         this.getInventorySignerKey(sourceChain),
-        this.config.inventorySignerKeysByProtocol?.[ProtocolType.Sealevel],
+        this.config.inventorySigners[ProtocolType.Sealevel]?.key,
       );
 
       this.logger.info(
