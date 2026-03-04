@@ -135,7 +135,13 @@ export const RebalancerConfigSchema = z
     warpRouteId: z.string(),
     strategy: RebalancerStrategySchema,
     inventorySigners: z
-      .record(z.nativeEnum(ProtocolType), z.string())
+      .record(
+        z.nativeEnum(ProtocolType),
+        z.union([
+          z.object({ address: z.string(), key: z.string().optional() }),
+          z.string().transform((address) => ({ address })),
+        ]),
+      )
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
     intentTTL: z
@@ -348,22 +354,22 @@ export const RebalancerConfigSchema = z
 
       // Validate address format per protocol
       if (config.inventorySigners) {
-        for (const [protocol, address] of Object.entries(
+        for (const [protocol, signerConfig] of Object.entries(
           config.inventorySigners,
         )) {
           if (protocol === ProtocolType.Ethereum) {
-            if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+            if (!/^0x[0-9a-fA-F]{40}$/.test(signerConfig.address)) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `inventorySigners.${protocol} must be a valid EVM address (0x + 40 hex chars), got: ${address}`,
+                message: `inventorySigners.${protocol} must be a valid EVM address (0x + 40 hex chars), got: ${signerConfig.address}`,
                 path: ['inventorySigners', protocol],
               });
             }
           } else if (protocol === ProtocolType.Sealevel) {
-            if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+            if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(signerConfig.address)) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `inventorySigners.${protocol} must be a valid Solana base58 address (32-44 chars), got: ${address}`,
+                message: `inventorySigners.${protocol} must be a valid Solana base58 address (32-44 chars), got: ${signerConfig.address}`,
                 path: ['inventorySigners', protocol],
               });
             }
