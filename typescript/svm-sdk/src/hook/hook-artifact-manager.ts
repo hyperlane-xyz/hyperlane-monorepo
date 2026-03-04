@@ -83,16 +83,15 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const svmSigner = signer.getSvmSigner();
     const writers: {
       [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
     } = {
-      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, svmSigner),
+      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
       interchainGasPaymaster: () =>
-        new SvmIgpHookWriter(this.rpc, this.salt, svmSigner),
+        new SvmIgpHookWriter(this.rpc, this.salt, signer),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);

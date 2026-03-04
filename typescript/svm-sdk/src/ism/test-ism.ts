@@ -16,7 +16,7 @@ import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { getInitTestIsmInstruction } from '../instructions/test-ism.js';
-import type { SvmSigner } from '../signer.js';
+import type { SealevelSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedIsm,
@@ -59,7 +59,7 @@ export class SvmTestIsmWriter
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    private readonly svmSigner: SvmSigner,
+    private readonly svmSigner: SealevelSigner,
   ) {
     super(rpc);
   }

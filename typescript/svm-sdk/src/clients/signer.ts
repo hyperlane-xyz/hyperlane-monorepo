@@ -1,49 +1,103 @@
-import type { Address } from '@solana/kit';
+import {
+  type KeyPairSigner,
+  type ReadonlyUint8Array,
+  type RpcSubscriptions,
+  type SolanaRpcSubscriptionsApi,
+  type TransactionSigner,
+  addSignersToTransactionMessage,
+  createKeyPairSignerFromBytes,
+  createKeyPairSignerFromPrivateKeyBytes,
+  getBase58Encoder,
+  getBase64EncodedWireTransaction,
+  getSignatureFromTransaction,
+  sendAndConfirmTransactionFactory,
+  signTransactionMessageWithSigners,
+} from '@solana/kit';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
-import { type SvmSigner, createSigner } from '../signer.js';
+import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
 import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
 
 import { SealevelProvider } from './provider.js';
+
+const base58Encoder = getBase58Encoder();
+
+function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
+  // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
+  const stripped = strip0x(privateKey);
+  if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
+    return new Uint8Array(Buffer.from(stripped, 'hex'));
+  }
+  if (/^[0-9a-fA-F]{128}$/.test(stripped)) {
+    return new Uint8Array(Buffer.from(stripped, 'hex'));
+  }
+
+  // Try base58
+  let keyBytes: ReadonlyUint8Array;
+  try {
+    keyBytes = base58Encoder.encode(privateKey);
+  } catch (err) {
+    throw new Error(
+      `Failed to parse private key. Expected hex (64 or 128 chars) or base58. ` +
+        `Base58 error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (keyBytes.length !== 32 && keyBytes.length !== 64) {
+    throw new Error(
+      `Base58-decoded key has invalid length: ${keyBytes.length}. Expected 32 (private key) or 64 (keypair).`,
+    );
+  }
+  return keyBytes;
+}
 
 export class SealevelSigner
   extends SealevelProvider
   implements AltVM.ISigner<SvmTransaction, SvmReceipt>
 {
-  private readonly svmSigner: SvmSigner;
-  private readonly signerAddress: Address;
+  readonly signer: TransactionSigner;
+  private readonly rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
 
   private constructor(
     rpc: SvmRpc,
     rpcUrls: string[],
-    svmSigner: SvmSigner,
-    signerAddress: Address,
+    signer: TransactionSigner,
+    rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
   ) {
     super(rpc, rpcUrls);
-    this.svmSigner = svmSigner;
-    this.signerAddress = signerAddress;
+    this.signer = signer;
+    this.rpcSubscriptions = rpcSubscriptions;
   }
 
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
     _extraParams?: Record<string, any>,
+    rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
   ): Promise<SealevelSigner> {
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
-    const signer = await createSigner(privateKey, rpc);
-    return new SealevelSigner(rpc, rpcUrls, signer, signer.address);
-  }
+    const keyBytes = parseKeyBytes(privateKey);
 
-  getSvmSigner(): SvmSigner {
-    return this.svmSigner;
+    let keypair: KeyPairSigner;
+    if (keyBytes.length === 32) {
+      keypair = await createKeyPairSignerFromPrivateKeyBytes(keyBytes);
+    } else if (keyBytes.length === 64) {
+      keypair = await createKeyPairSignerFromBytes(keyBytes);
+    } else {
+      throw new Error(
+        `Invalid key length: ${keyBytes.length}. Expected 32 (private key) or 64 (keypair).`,
+      );
+    }
+
+    return new SealevelSigner(rpc, rpcUrls, keypair, rpcSubscriptions);
   }
 
   getSignerAddress(): string {
-    return this.signerAddress;
+    return this.signer.address;
   }
 
   supportsTransactionBatching(): boolean {
@@ -63,10 +117,87 @@ export class SealevelSigner
     };
   }
 
+  async send(tx: SvmTransaction): Promise<SvmReceipt> {
+    const { value: latestBlockhash } = await this.rpc
+      .getLatestBlockhash()
+      .send();
+
+    let txMessage = buildTransactionMessage({
+      instructions: tx.instructions,
+      feePayer: this.signer,
+      recentBlockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
+    });
+
+    if (tx.additionalSigners?.length) {
+      txMessage = addSignersToTransactionMessage(
+        tx.additionalSigners,
+        txMessage,
+      );
+    }
+
+    const signedTx = await signTransactionMessageWithSigners(txMessage);
+    const signature = getSignatureFromTransaction(signedTx);
+
+    if (this.rpcSubscriptions) {
+      const sendAndConfirm = sendAndConfirmTransactionFactory({
+        rpc: this.rpc,
+        rpcSubscriptions: this.rpcSubscriptions,
+      });
+      // buildTransactionMessage always uses blockhash lifetime.
+      // signTransactionMessageWithSigners widens the type to the lifetime union,
+      // so cast to the exact parameter type expected by sendAndConfirm.
+      await sendAndConfirm(signedTx as Parameters<typeof sendAndConfirm>[0], {
+        commitment: 'confirmed',
+      });
+      return { signature };
+    }
+
+    // Fallback: manual send + poll (no rpcSubscriptions provided).
+    // Prefer passing rpcSubscriptions for reliable confirmation semantics.
+    const base64Tx = getBase64EncodedWireTransaction(signedTx);
+    await this.rpc
+      .sendTransaction(base64Tx, {
+        encoding: 'base64',
+        skipPreflight: false,
+      })
+      .send();
+
+    let confirmed = false;
+    let slot: bigint = 0n;
+    const maxRetries = 120;
+    for (let i = 0; i < maxRetries && !confirmed; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const status = await this.rpc.getSignatureStatuses([signature]).send();
+      const result = status.value[0];
+      if (result && result.confirmationStatus) {
+        if (result.err) {
+          throw new Error(
+            `Transaction failed: ${signature}, err: ${JSON.stringify(result.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
+          );
+        }
+        if (
+          result.confirmationStatus === 'confirmed' ||
+          result.confirmationStatus === 'finalized'
+        ) {
+          confirmed = true;
+          slot = BigInt(result.slot);
+        }
+      }
+    }
+
+    if (!confirmed) {
+      throw new Error(`Transaction not confirmed: ${signature}`);
+    }
+
+    return { signature, slot };
+  }
+
   async sendAndConfirmTransaction(
     transaction: SvmTransaction,
   ): Promise<SvmReceipt> {
-    return this.svmSigner.send(transaction);
+    return this.send(transaction);
   }
 
   async sendAndConfirmBatchTransactions(

@@ -11,8 +11,8 @@ import {
   executeDeployPlan,
   type DeployStage,
 } from '../deploy/program-deployer.js';
+import { SealevelSigner } from '../clients/signer.js';
 import { createRpc } from '../rpc.js';
-import { type SvmSigner, createSigner } from '../signer.js';
 import {
   airdropSol,
   DEFAULT_PROGRAMS_PATH,
@@ -34,7 +34,7 @@ describe('SVM Deploy E2E Tests', function () {
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
-  let signer: SvmSigner & { address: string };
+  let signer: SealevelSigner;
 
   before(async function () {
     if (SKIP_DEPLOY_TEST) {
@@ -49,10 +49,13 @@ describe('SVM Deploy E2E Tests', function () {
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
-    signer = await createSigner(TEST_PRIVATE_KEY, rpc);
+    signer = await SealevelSigner.connectWithSigner(
+      [solana.rpcUrl],
+      TEST_PRIVATE_KEY,
+    );
 
-    console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, address(signer.address));
+    console.log(`Airdropping SOL to ${signer.getSignerAddress()}...`);
+    await airdropSol(rpc, address(signer.getSignerAddress()));
   });
 
   after(async () => {
