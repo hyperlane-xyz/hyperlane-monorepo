@@ -97,6 +97,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when insufficient ETH sent for native token transfer
     error PredicateRouterWrapper__InsufficientValue();
 
+    /// @notice Thrown when postDispatch was not executed during transfer
+    error PredicateRouterWrapper__PostDispatchNotExecuted();
+
     // ============ Events ============
 
     /// @notice Emitted when a transfer is authorized via attestation
@@ -215,6 +218,11 @@ contract PredicateRouterWrapper is
         }
 
         messageId = abi.decode(returnData, (bytes32));
+
+        // postDispatch should have consumed the authorization flag synchronously
+        if (pendingAttestation) {
+            revert PredicateRouterWrapper__PostDispatchNotExecuted();
+        }
 
         // Note: pendingAttestation is cleared in _postDispatch()
         // If we reach here, the transfer succeeded
