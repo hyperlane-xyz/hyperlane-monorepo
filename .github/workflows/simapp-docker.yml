@@ -4,7 +4,7 @@ on:
     inputs:
       hyperlane_cosmos_branch:
         description: 'Branch, ref, or tag to build'
-        default: 'v1.0.0-beta0'
+        default: 'v1.0.1'
 
 concurrency:
   group: build-push-cosmos-simapp-${{ github.ref }}
@@ -41,7 +41,7 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/hyperlane-xyz/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
+            ghcr.io/hyperlane-xyz/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.1' }}
           build-args: |
-            BRANCH_NAME=${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
+            BRANCH_NAME=${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.1' }}
           platforms: linux/amd64,linux/arm64
