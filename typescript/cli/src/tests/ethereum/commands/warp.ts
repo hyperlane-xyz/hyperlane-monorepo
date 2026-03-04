@@ -249,6 +249,8 @@ export function hyperlaneWarpSendRelay({
   value = 2,
   chains,
   roundTrip,
+  predicateApiKey,
+  attestation,
 }: {
   origin?: string;
   destination?: string;
@@ -257,6 +259,8 @@ export function hyperlaneWarpSendRelay({
   value?: number | string;
   chains?: string[];
   roundTrip?: boolean;
+  predicateApiKey?: string;
+  attestation?: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
@@ -269,7 +273,9 @@ export function hyperlaneWarpSendRelay({
         --yes \
         --amount ${value} \
         ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
-        ${roundTrip ? ['--round-trip'] : []} `;
+        ${roundTrip ? ['--round-trip'] : []} \
+        ${predicateApiKey ? ['--predicate-api-key', predicateApiKey] : []} \
+        ${attestation ? ['--attestation', attestation] : []} `;
 }
 
 export function hyperlaneWarpRebalancer(
