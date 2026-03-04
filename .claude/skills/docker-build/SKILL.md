@@ -1,6 +1,6 @@
 ---
 name: docker-build
-description: Trigger Docker image builds for Hyperlane agent, monorepo, or node service images. Use when the user wants to build Docker images for a branch, commit, or tag.
+description: Trigger Docker image builds for Hyperlane agent, monorepo, or node service images. Use when the user wants to build new Docker images for a branch, commit, or tag.
 ---
 
 # Trigger Docker Image Builds
@@ -9,7 +9,7 @@ Build and publish Docker images to GHCR (`ghcr.io/hyperlane-xyz/*`).
 
 ## Workflows
 
-| Workflow                   | Image                                                                                                                                | Contents                         |
+| Workflow                   | Image(s)                                                                                                                             | Contents                         |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
 | `rust-docker.yml`          | `hyperlane-agent`                                                                                                                    | Rust relayer, validator, scraper |
 | `monorepo-docker.yml`      | `hyperlane-monorepo`                                                                                                                 | Full TS/Solidity monorepo        |
@@ -62,6 +62,7 @@ gh workflow run rust-docker.yml --ref <branch> -f include_arm64=true
 5. Fetch and report the run URL(s) using `gh run list`.
 6. Optionally watch for completion if the user wants to wait.
 
-## Image Policy Reference
+## References
 
-See `docs/docker-image-policy.md` for the full Docker image policy (registry, tagging, retention, build triggers).
+- To find existing images instead of building, use the `/docker-image` skill.
+- See `docs/docker-image-policy.md` for the full Docker image policy.
