@@ -11,6 +11,7 @@ export type SvmWarpTokenConfig = Readonly<{
   program: SvmProgramTarget;
   /** The IGP program used as the default hook (needed for create and update). */
   igpProgramId: Address;
+  igpOverheadProgramId: Address;
   /**
    * Lamports to ensure the ATA payer PDA holds after deployment.
    * Required for synthetic and collateral tokens to pay for recipient ATA

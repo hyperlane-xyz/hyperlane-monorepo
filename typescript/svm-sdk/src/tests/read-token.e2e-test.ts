@@ -1,4 +1,4 @@
-import { address, type Address } from '@solana/kit';
+import { address } from '@solana/kit';
 import { before, describe, it } from 'mocha';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
@@ -10,14 +10,16 @@ describe('SVM Warp Token read E2E Tests', function () {
   this.timeout(300_000);
 
   let rpc: ReturnType<typeof createRpc>;
-  let igpProgramId: Address;
   let artifactManager: SvmWarpArtifactManager;
 
   before(async () => {
     rpc = createRpc('https://api.mainnet-beta.solana.com');
-    igpProgramId = address('BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv');
-
-    artifactManager = new SvmWarpArtifactManager(rpc, igpProgramId);
+    artifactManager = new SvmWarpArtifactManager(rpc, {
+      igpProgramId: address('BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv'),
+      igpOverheadProgramId: address(
+        'AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF',
+      ),
+    });
   });
 
   for (const testCase of [

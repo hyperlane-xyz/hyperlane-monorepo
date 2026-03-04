@@ -1,9 +1,4 @@
-import {
-  address,
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
 import type {
   ArtifactReader,
@@ -17,6 +12,8 @@ import type {
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
+import { SvmSigner } from '../clients/signer.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import {
   SvmCollateralTokenReader,
   SvmCollateralTokenWriter,
@@ -26,13 +23,16 @@ import {
   SvmSyntheticTokenReader,
   SvmSyntheticTokenWriter,
 } from './synthetic-token.js';
+import { SvmWarpTokenConfig } from './types.js';
 import { detectWarpTokenType } from './warp-query.js';
-import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
-    private readonly igpProgramId: Address,
+    private readonly config: Pick<
+      SvmWarpTokenConfig,
+      'igpOverheadProgramId' | 'igpProgramId'
+    >,
     private readonly ataPayerFundingAmount: bigint = 100_000_000n,
   ) {}
 
@@ -65,8 +65,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
 
   createWriter<T extends WarpType>(
     type: T,
-    // FIXME: Using any here because we still don't have a proper svm signer implemented
-    signer: any,
+    signer: SvmSigner,
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
     const writers: {
       [K in WarpType]: () => ArtifactWriter<
@@ -77,7 +76,8 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       native: () =>
         new SvmNativeTokenWriter(
           {
-            igpProgramId: this.igpProgramId,
+            igpProgramId: this.config.igpProgramId,
+            igpOverheadProgramId: this.config.igpOverheadProgramId,
             program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
           },
@@ -87,7 +87,8 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       synthetic: () =>
         new SvmSyntheticTokenWriter(
           {
-            igpProgramId: this.igpProgramId,
+            igpProgramId: this.config.igpProgramId,
+            igpOverheadProgramId: this.config.igpOverheadProgramId,
             program: {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenSynthetic,
             },
@@ -99,7 +100,8 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       collateral: () =>
         new SvmCollateralTokenWriter(
           {
-            igpProgramId: this.igpProgramId,
+            igpProgramId: this.config.igpProgramId,
+            igpOverheadProgramId: this.config.igpOverheadProgramId,
             program: {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral,
             },
