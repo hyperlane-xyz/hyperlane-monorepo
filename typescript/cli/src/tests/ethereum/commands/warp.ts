@@ -250,6 +250,9 @@ export function hyperlaneWarpSendRelay({
   value = 2,
   chains,
   roundTrip,
+  sourceToken,
+  destinationToken,
+  skipValidation,
 }: {
   origin?: string;
   destination?: string;
@@ -258,6 +261,9 @@ export function hyperlaneWarpSendRelay({
   value?: number | string;
   chains?: string[];
   roundTrip?: boolean;
+  sourceToken?: string;
+  destinationToken?: string;
+  skipValidation?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
@@ -270,7 +276,26 @@ export function hyperlaneWarpSendRelay({
         --yes \
         --amount ${value} \
         ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
-        ${roundTrip ? ['--round-trip'] : []} `;
+        ${roundTrip ? ['--round-trip'] : []} \
+        ${sourceToken ? ['--source-token', sourceToken] : []} \
+        ${destinationToken ? ['--destination-token', destinationToken] : []} \
+        ${skipValidation ? ['--skip-validation'] : []} `;
+}
+
+export function hyperlaneWarpCombine({
+  routes,
+  outputWarpRouteId,
+}: {
+  routes: string;
+  outputWarpRouteId: string;
+}): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp combine \
+        --registry ${REGISTRY_PATH} \
+        --routes ${routes} \
+        ${outputWarpRouteId ? ['--output-warp-route-id', outputWarpRouteId] : []} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
 }
 
 export function hyperlaneWarpRebalancer(
@@ -449,6 +474,8 @@ export function generateWarpConfigs(
     // No adapter has been implemented yet
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
+    // Collateral-only, can't pair with synthetics; tested separately
+    TokenType.multiCollateral,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
   ]);

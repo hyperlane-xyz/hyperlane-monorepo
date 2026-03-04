@@ -30,6 +30,7 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -1005,6 +1006,73 @@ describe('EvmWarpRouteReader', async () => {
 
     fetchPackageVersionStub.restore();
     fetchScaleStub.restore();
+  });
+
+  it('derives multicollateral config with scale from the router', async () => {
+    const routerAddress = '0x1000000000000000000000000000000000000001';
+    const wrappedTokenAddress = '0x2000000000000000000000000000000000000002';
+    const localDomain = 31337;
+    const remoteDomain = 31338;
+    const localRouter = addressToBytes32(
+      '0x3000000000000000000000000000000000000003',
+    );
+    const remoteRouter = addressToBytes32(
+      '0x4000000000000000000000000000000000000004',
+    );
+    const expectedScale = {
+      numerator: 1n,
+      denominator: 1_000_000_000_000n,
+    };
+
+    const mcConnectStub = sinon
+      .stub(MultiCollateral__factory, 'connect')
+      .returns({
+        wrappedToken: sinon.stub().resolves(wrappedTokenAddress),
+        localDomain: sinon.stub().resolves(localDomain),
+        getEnrolledRouters: sinon
+          .stub()
+          .callsFake(async (domain: number) =>
+            domain === localDomain ? [localRouter] : [remoteRouter],
+          ),
+      } as any);
+    const tokenRouterConnectStub = sinon
+      .stub(TokenRouter__factory, 'connect')
+      .returns({
+        domains: sinon.stub().resolves([remoteDomain]),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
+      .resolves({
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
+        isNft: false,
+      });
+    const scaleStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchScale')
+      .resolves(expectedScale);
+
+    const deriveMultiCollateralTokenConfig = (evmERC20WarpRouteReader as any)
+      .deriveMultiCollateralTokenConfig as (address: string) => Promise<any>;
+    try {
+      const derivedConfig = await deriveMultiCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+
+      expect(derivedConfig.type).to.equal(TokenType.multiCollateral);
+      expect(derivedConfig.token).to.equal(wrappedTokenAddress);
+      expect(derivedConfig.scale).to.deep.equal(expectedScale);
+      expect(derivedConfig.enrolledRouters).to.deep.equal({
+        [localDomain.toString()]: [localRouter],
+        [remoteDomain.toString()]: [remoteRouter],
+      });
+    } finally {
+      mcConnectStub.restore();
+      tokenRouterConnectStub.restore();
+      metadataStub.restore();
+      scaleStub.restore();
+    }
   });
 
   describe('Backward compatibility for token type detection', () => {

@@ -1,4 +1,4 @@
-name: Build and Push Node Services Images to GCR
+name: Build and Push Node Services Images
 
 on:
   push:
@@ -44,6 +44,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
       pull-requests: write
 
     needs: [check-env]
@@ -104,6 +105,13 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push all images
         id: build
         uses: depot/bake-action@v1
@@ -117,6 +125,7 @@ jobs:
           project: 057xstl4t6
           files: typescript/docker-bake.hcl
           push: true
+          provenance: false
 
       - name: Generate image tags output
         id: image-tags

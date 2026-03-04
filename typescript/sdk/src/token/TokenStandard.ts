@@ -27,6 +27,7 @@ export enum TokenStandard {
   EvmM0PortalLite = 'EvmM0PortalLite',
   EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
   EvmHypEverclearEth = 'EvmHypEverclearEth',
+  EvmHypMultiCollateral = 'EvmHypMultiCollateral',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -89,6 +90,7 @@ export enum TokenStandard {
   TronM0PortalLite = 'TronM0PortalLite',
   TronHypEverclearCollateral = 'TronHypEverclearCollateral',
   TronHypEverclearEth = 'TronHypEverclearEth',
+  TronHypMultiCollateral = 'TronHypMultiCollateral',
 }
 
 // Allows for omission of protocol field in token args
@@ -114,6 +116,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   EvmM0PortalLite: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearCollateral]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearEth]: ProtocolType.Ethereum,
+  [TokenStandard.EvmHypMultiCollateral]: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -176,6 +179,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   TronM0PortalLite: ProtocolType.Tron,
   TronHypEverclearCollateral: ProtocolType.Tron,
   TronHypEverclearEth: ProtocolType.Tron,
+  TronHypMultiCollateral: ProtocolType.Tron,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -220,6 +224,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.RadixHypCollateral,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypNative,
+  TokenStandard.EvmHypMultiCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -266,6 +271,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.EvmM0PortalLite,
+  TokenStandard.EvmHypMultiCollateral,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
@@ -416,6 +422,7 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
   [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
+  [TokenType.multiCollateral]: TokenStandard.EvmHypMultiCollateral,
 };
 
 // Cosmos Native supported token types
@@ -526,6 +533,7 @@ export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.TronHypNative,
   [TokenType.ethEverclear]: TokenStandard.TronHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.TronHypEverclearCollateral,
+  [TokenType.multiCollateral]: TokenStandard.TronHypMultiCollateral,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<

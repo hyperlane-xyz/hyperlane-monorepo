@@ -25,9 +25,13 @@ variable "SERVICE_VERSION" {
   default = ""
 }
 
-# Registry prefix for all images
+# Registry prefixes for all images
 variable "REGISTRY" {
   default = "gcr.io/abacus-labs-dev"
+}
+
+variable "GHCR_REGISTRY" {
+  default = "ghcr.io/hyperlane-xyz"
 }
 
 # Default group builds all targets
@@ -63,5 +67,7 @@ target "ncc-services" {
   tags = compact([
     "${REGISTRY}/${item.image}:${TAG}",
     TAG_SHA_DATE != "" ? "${REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
+    "${GHCR_REGISTRY}/${item.image}:${TAG}",
+    TAG_SHA_DATE != "" ? "${GHCR_REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
   ])
 }

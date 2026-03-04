@@ -1,0 +1,23 @@
+[
+  {
+    "name": "delete-old-untagged",
+    "action": {
+      "type": "Delete"
+    },
+    "condition": {
+      "tagState": "untagged",
+      "olderThan": "30d"
+    }
+  },
+  {
+    "name": "delete-old-pr-images",
+    "action": {
+      "type": "Delete"
+    },
+    "condition": {
+      "tagState": "tagged",
+      "olderThan": "30d",
+      "tagPrefixes": ["pr-"]
+    }
+  }
+]
