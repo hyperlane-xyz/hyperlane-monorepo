@@ -17,13 +17,16 @@ import type {
 import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { address as parseAddress } from '@solana/kit';
 import { assert } from '@hyperlane-xyz/utils';
+import { address, address as parseAddress } from '@solana/kit';
 
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 
+import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import { SvmProvider } from './provider.js';
 import { SvmSigner } from './signer.js';
+import { SVM_CORE_ADDRESSES } from '../generated/core-addresses.js';
 
 export class SvmProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -66,10 +69,22 @@ export class SvmProtocolProvider implements ProtocolProvider {
   }
 
   createWarpArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
-    throw new Error('Warp artifact manager not yet implemented for Sealevel');
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+
+    const { overheadIgpAccount, igpProgramId } =
+      SVM_CORE_ADDRESSES[chainMetadata.name] ?? {};
+
+    assert(
+      overheadIgpAccount && igpProgramId,
+      `IGP program id and overhead id are required for warp SVM deployments but none were found for chain ${chainMetadata.name}`,
+    );
+    return new SvmWarpArtifactManager(rpc, {
+      igpOverheadProgramId: address(overheadIgpAccount),
+      igpProgramId: parseAddress(igpProgramId),
+    });
   }
 
   getMinGas(): MinimumRequiredGasByAction {
