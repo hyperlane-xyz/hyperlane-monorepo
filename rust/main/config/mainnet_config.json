@@ -2964,7 +2964,8 @@
       "testRecipient": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
       "validatorAnnounce": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
       "index": {
-        "from": 6898609
+        "from": 6898609,
+        "chunk": 999
       },
       "interchainAccountRouter": "0xC3d9e724c6Bf3c4456EB8572Be05AA52f8acC9Ae",
       "timelockController": "0x0000000000000000000000000000000000000000",
