@@ -611,7 +611,7 @@ export function bytesToAddressRadix(
 }
 
 export function bytesToAddressAleo(bytes: Uint8Array): Address {
-  return `program.aleo/${bech32m.encode('aleo', bech32m.toWords(bytes))}`;
+  return bech32m.encode('aleo', bech32m.toWords(bytes));
 }
 
 export function bytesToProtocolAddress(
