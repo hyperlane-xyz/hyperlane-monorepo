@@ -1,10 +1,10 @@
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { createIsmWriter } from '@hyperlane-xyz/deploy-sdk';
 import {
-  createIsmWriter,
+  type IsmConfig as ProviderIsmConfig,
   ismConfigToArtifact,
-} from '@hyperlane-xyz/deploy-sdk';
+} from '@hyperlane-xyz/provider-sdk/ism';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import { type IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   ContractVerifier,
   EvmIsmModule,
