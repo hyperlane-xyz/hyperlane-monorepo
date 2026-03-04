@@ -59,6 +59,73 @@ function createMockConfig(): RebalancerConfig {
   } as RebalancerConfig;
 }
 
+function createMockMpp() {
+  return {
+    extendChainMetadata: Sinon.stub().returnsThis(),
+  } as unknown as MultiProtocolProvider;
+}
+
+function createToken(
+  chainName: string,
+  addressOrDenom: string,
+  standard: string,
+) {
+  return {
+    chainName,
+    addressOrDenom,
+    standard,
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  };
+}
+
+interface ChainDef {
+  name: string;
+  chainId: number | string;
+  protocol: ProtocolType;
+}
+
+function createMockMultiProvider(chains: ChainDef[]) {
+  const getProviderStub = Sinon.stub();
+  const protocolMap = Object.fromEntries(
+    chains.map((c) => [c.name, c.protocol]),
+  );
+  const getProtocolStub = Sinon.stub().callsFake(
+    (chain: string) => protocolMap[chain],
+  );
+  const metadata = Object.fromEntries(
+    chains.map((c) => [
+      c.name,
+      { name: c.name, chainId: c.chainId, protocol: c.protocol },
+    ]),
+  );
+
+  return {
+    multiProvider: {
+      getProvider: getProviderStub,
+      getProtocol: getProtocolStub,
+      metadata,
+    } as unknown as MultiProvider,
+    getProviderStub,
+  };
+}
+
+async function callCreate(
+  multiProvider: MultiProvider,
+  warpCoreConfig: WarpCoreConfig,
+) {
+  await RebalancerContextFactory.create(
+    createMockConfig(),
+    multiProvider,
+    undefined,
+    createMockMpp(),
+    createMockRegistry(),
+    testLogger,
+    warpCoreConfig,
+  );
+}
+
 describe('RebalancerContextFactory', () => {
   let sandbox: Sinon.SinonSandbox;
 
@@ -72,82 +139,25 @@ describe('RebalancerContextFactory', () => {
 
   describe('create() — non-EVM chain handling', () => {
     it('should skip provider initialization for StarkNet chains', async () => {
-      const getProviderStub = Sinon.stub();
-      const getProtocolStub = Sinon.stub().callsFake((chain: string) => {
-        if (chain === 'paradex') return ProtocolType.Starknet;
-        return ProtocolType.Ethereum;
-      });
-
-      const multiProvider = {
-        getProvider: getProviderStub,
-        getProtocol: getProtocolStub,
-        metadata: {
-          ethereum: {
-            name: 'ethereum',
-            chainId: 1,
-            protocol: ProtocolType.Ethereum,
-          },
-          arbitrum: {
-            name: 'arbitrum',
-            chainId: 42161,
-            protocol: ProtocolType.Ethereum,
-          },
-          paradex: {
-            name: 'paradex',
-            chainId:
-              '0x505249564154455f534e5f50415241434c4541525f4d41494e4e4554',
-            protocol: ProtocolType.Starknet,
-          },
+      const { multiProvider, getProviderStub } = createMockMultiProvider([
+        { name: 'ethereum', chainId: 1, protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', chainId: 42161, protocol: ProtocolType.Ethereum },
+        {
+          name: 'paradex',
+          chainId: '0x505249564154455f534e5f50415241434c4541525f4d41494e4e4554',
+          protocol: ProtocolType.Starknet,
         },
-      } as unknown as MultiProvider;
+      ]);
 
-      const mockMpp = {
-        extendChainMetadata: Sinon.stub().returnsThis(),
-      } as unknown as MultiProtocolProvider;
-
-      const warpCoreConfig: WarpCoreConfig = {
+      await callCreate(multiProvider, {
         tokens: [
-          {
-            chainName: 'ethereum',
-            addressOrDenom: TEST_ADDRESSES.ethereum,
-            standard: 'EvmHypCollateral',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
-          {
-            chainName: 'arbitrum',
-            addressOrDenom: TEST_ADDRESSES.arbitrum,
-            standard: 'EvmHypSynthetic',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
-          {
-            chainName: 'paradex',
-            addressOrDenom: '0xparadex',
-            standard: 'StarknetHypSynthetic',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
+          createToken('ethereum', TEST_ADDRESSES.ethereum, 'EvmHypCollateral'),
+          createToken('arbitrum', TEST_ADDRESSES.arbitrum, 'EvmHypSynthetic'),
+          createToken('paradex', '0xparadex', 'StarknetHypSynthetic'),
         ],
         options: {},
-      } as any;
+      } as any);
 
-      const registry = createMockRegistry();
-
-      await RebalancerContextFactory.create(
-        createMockConfig(),
-        multiProvider,
-        undefined,
-        mockMpp,
-        registry,
-        testLogger,
-        warpCoreConfig,
-      );
-
-      // getProvider should be called for EVM chains only
       expect(getProviderStub.callCount).to.equal(2);
       const providerChains = getProviderStub.getCalls().map((c) => c.args[0]);
       expect(providerChains).to.include('ethereum');
@@ -156,129 +166,40 @@ describe('RebalancerContextFactory', () => {
     });
 
     it('should skip provider initialization for Sealevel chains', async () => {
-      const getProviderStub = Sinon.stub();
-      const getProtocolStub = Sinon.stub().callsFake((chain: string) => {
-        if (chain === 'solana') return ProtocolType.Sealevel;
-        return ProtocolType.Ethereum;
-      });
-
-      const multiProvider = {
-        getProvider: getProviderStub,
-        getProtocol: getProtocolStub,
-        metadata: {
-          ethereum: {
-            name: 'ethereum',
-            chainId: 1,
-            protocol: ProtocolType.Ethereum,
-          },
-          solana: {
-            name: 'solana',
-            chainId: 'solana-mainnet',
-            protocol: ProtocolType.Sealevel,
-          },
+      const { multiProvider, getProviderStub } = createMockMultiProvider([
+        { name: 'ethereum', chainId: 1, protocol: ProtocolType.Ethereum },
+        {
+          name: 'solana',
+          chainId: 'solana-mainnet' as any,
+          protocol: ProtocolType.Sealevel,
         },
-      } as unknown as MultiProvider;
+      ]);
 
-      const mockMpp = {
-        extendChainMetadata: Sinon.stub().returnsThis(),
-      } as unknown as MultiProtocolProvider;
-
-      const warpCoreConfig: WarpCoreConfig = {
+      await callCreate(multiProvider, {
         tokens: [
-          {
-            chainName: 'ethereum',
-            addressOrDenom: TEST_ADDRESSES.ethereum,
-            standard: 'EvmHypCollateral',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
-          {
-            chainName: 'solana',
-            addressOrDenom: 'SolToken111',
-            standard: 'SealevelHypSynthetic',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
+          createToken('ethereum', TEST_ADDRESSES.ethereum, 'EvmHypCollateral'),
+          createToken('solana', 'SolToken111', 'SealevelHypSynthetic'),
         ],
         options: {},
-      } as any;
-
-      const registry = createMockRegistry();
-
-      await RebalancerContextFactory.create(
-        createMockConfig(),
-        multiProvider,
-        undefined,
-        mockMpp,
-        registry,
-        testLogger,
-        warpCoreConfig,
-      );
+      } as any);
 
       expect(getProviderStub.callCount).to.equal(1);
       expect(getProviderStub.firstCall.args[0]).to.equal('ethereum');
     });
 
     it('should call getProvider for all chains when all are EVM', async () => {
-      const getProviderStub = Sinon.stub();
-      const getProtocolStub = Sinon.stub().returns(ProtocolType.Ethereum);
+      const { multiProvider, getProviderStub } = createMockMultiProvider([
+        { name: 'ethereum', chainId: 1, protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', chainId: 42161, protocol: ProtocolType.Ethereum },
+      ]);
 
-      const multiProvider = {
-        getProvider: getProviderStub,
-        getProtocol: getProtocolStub,
-        metadata: {
-          ethereum: {
-            name: 'ethereum',
-            chainId: 1,
-            protocol: ProtocolType.Ethereum,
-          },
-          arbitrum: {
-            name: 'arbitrum',
-            chainId: 42161,
-            protocol: ProtocolType.Ethereum,
-          },
-        },
-      } as unknown as MultiProvider;
-
-      const mockMpp = {
-        extendChainMetadata: Sinon.stub().returnsThis(),
-      } as unknown as MultiProtocolProvider;
-
-      const warpCoreConfig: WarpCoreConfig = {
+      await callCreate(multiProvider, {
         tokens: [
-          {
-            chainName: 'ethereum',
-            addressOrDenom: TEST_ADDRESSES.ethereum,
-            standard: 'EvmHypCollateral',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
-          {
-            chainName: 'arbitrum',
-            addressOrDenom: TEST_ADDRESSES.arbitrum,
-            standard: 'EvmHypSynthetic',
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USDC',
-          },
+          createToken('ethereum', TEST_ADDRESSES.ethereum, 'EvmHypCollateral'),
+          createToken('arbitrum', TEST_ADDRESSES.arbitrum, 'EvmHypSynthetic'),
         ],
         options: {},
-      } as any;
-
-      const registry = createMockRegistry();
-
-      await RebalancerContextFactory.create(
-        createMockConfig(),
-        multiProvider,
-        undefined,
-        mockMpp,
-        registry,
-        testLogger,
-        warpCoreConfig,
-      );
+      } as any);
 
       expect(getProviderStub.callCount).to.equal(2);
       const providerChains = getProviderStub.getCalls().map((c) => c.args[0]);

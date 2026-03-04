@@ -124,11 +124,11 @@ export class RebalancerContextFactory {
     // Non-EVM chains (StarkNet, Sealevel, etc.) don't use ethers providers
     // and would crash if we tried to build one (e.g. non-numeric chainId).
     const warpChains = [
-      ...new Set(warpCoreConfig.tokens.map((t: any) => t.chainName)),
+      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
     for (const chain of warpChains) {
       if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        logger.info({ chain }, 'Skipping provider init for non-EVM chain');
+        logger.debug({ chain }, 'Skipping provider init for non-EVM chain');
         continue;
       }
       multiProvider.getProvider(chain);
