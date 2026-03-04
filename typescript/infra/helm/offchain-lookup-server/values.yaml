@@ -5,7 +5,7 @@ image:
   repository: ghcr.io/hyperlane-xyz/hyperlane-offchain-lookup-server
   # Modify this tag to deploy a new revision.
   # Images can be found here:
-  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-offchain-lookup-server
+  # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-offchain-lookup-server
   tag: c558a9f-20260304-105251
 
 secrets:

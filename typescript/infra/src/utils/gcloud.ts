@@ -387,15 +387,15 @@ function iamConditionsEqual(
 }
 
 async function checkDockerTagExists({
-  repo = 'abacus-labs-dev',
+  org = 'hyperlane-xyz',
   image,
   tag,
 }: {
-  repo?: string;
+  org?: string;
   image: string;
   tag: string;
 }): Promise<boolean> {
-  const url = `https://gcr.io/v2/${repo}/${image}/manifests/${tag}`;
+  const url = `https://ghcr.io/v2/${org}/${image}/manifests/${tag}`;
   const res = await fetch(url, { method: 'HEAD' });
   return res.status === 200;
 }
