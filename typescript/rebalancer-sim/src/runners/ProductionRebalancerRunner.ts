@@ -228,7 +228,6 @@ export class ProductionRebalancerRunner
     // Create service with mock action tracker
     this.service = new RebalancerService(
       multiProvider,
-      undefined,
       multiProtocolProvider,
       registry,
       rebalancerConfig,
