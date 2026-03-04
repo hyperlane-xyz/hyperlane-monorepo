@@ -206,9 +206,9 @@ jobs:
           has_rebalancer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/rebalancer/' && echo true || echo false)
 
           # Core CLI deps that trigger the smoke/full CLI e2e suite
-          # Peripheral deps (relayer, rebalancer, metrics, http-registry-server) have
-          # their own unit tests and targeted e2e flags above; merge queue runs full suite
-          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk)/|solidity/|starknet/)'
+          # Peripheral deps (relayer, rebalancer, metrics) have their own unit tests
+          # and targeted e2e flags above; merge queue runs full suite
+          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk|http-registry-server)/|solidity/|starknet/)'
           has_cli_changes=$(echo "$CHANGED_FILES" | grep -qE "$CLI_DEPS" && echo true || echo false)
 
           echo "has_cli_changes=$has_cli_changes" >> $GITHUB_OUTPUT
