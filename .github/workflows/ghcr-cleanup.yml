@@ -1,0 +1,56 @@
+name: Clean up old GHCR images
+
+on:
+  schedule:
+    # Run weekly on Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Preview deletions without executing'
+        required: false
+        default: 'true'
+
+jobs:
+  cleanup:
+    name: Delete old container images
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete old untagged images
+        uses: snok/container-retention-policy@v3.0.0
+        with:
+          account: hyperlane-xyz
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: >-
+            hyperlane-agent
+            hyperlane-monorepo
+            hyperlane-rebalancer
+            hyperlane-warp-monitor
+            hyperlane-key-funder
+            hyperlane-ts-relayer
+            hyperlane-offchain-lookup-server
+            hyperlane-cosmos-simapp
+          tag-selection: untagged
+          cut-off: 1w
+          dry-run: ${{ github.event.inputs.dry-run || 'false' }}
+
+      - name: Delete old PR images
+        uses: snok/container-retention-policy@v3.0.0
+        with:
+          account: hyperlane-xyz
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: >-
+            hyperlane-agent
+            hyperlane-monorepo
+            hyperlane-rebalancer
+            hyperlane-warp-monitor
+            hyperlane-key-funder
+            hyperlane-ts-relayer
+            hyperlane-offchain-lookup-server
+          image-tags: "pr-*"
+          tag-selection: tagged
+          cut-off: 4w
+          keep-n-most-recent: 5
+          dry-run: ${{ github.event.inputs.dry-run || 'false' }}
