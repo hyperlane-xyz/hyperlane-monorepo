@@ -4,6 +4,7 @@ import { fromZodError } from 'zod-validation-error';
 import type { ProtocolType } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
+import type { InventorySignerConfig } from '../core/InventoryRebalancer.js';
 import {
   type ExternalBridgesConfigSchema,
   type RebalancerConfigFileInput,
@@ -19,7 +20,9 @@ export class RebalancerConfig {
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig[],
     public readonly intentTTL: number,
-    public readonly inventorySigners?: Partial<Record<ProtocolType, string>>,
+    public readonly inventorySigners?: Partial<
+      Record<ProtocolType, InventorySignerConfig>
+    >,
     public readonly externalBridges?: ExternalBridgesConfig,
   ) {}
 
