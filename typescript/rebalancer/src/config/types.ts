@@ -4,6 +4,7 @@ export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
   CollateralDeficit = 'collateralDeficit',
+  EMAFlow = 'emaFlow',
 }
 
 // Weighted strategy config schema
@@ -79,6 +80,15 @@ const CollateralDeficitChainConfigSchema =
     buffer: z.string().or(z.number()),
   });
 
+const EMAFlowChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
+  emaFlow: z.object({
+    alpha: z.number().min(0).max(1),
+    windowSizeMs: z.number().positive(),
+    minSamplesForSignal: z.number().int().positive().default(3),
+    coldStartCycles: z.number().int().nonnegative().default(2),
+  }),
+});
+
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
   chains: z.record(z.string(), WeightedChainConfigSchema),
@@ -94,11 +104,18 @@ const CollateralDeficitStrategySchema = z.object({
   chains: z.record(z.string(), CollateralDeficitChainConfigSchema),
 });
 
+const EMAFlowStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.EMAFlow),
+  chains: z.record(z.string(), EMAFlowChainConfigSchema),
+});
+
 export type WeightedStrategy = z.infer<typeof WeightedStrategySchema>;
 export type MinAmountStrategy = z.infer<typeof MinAmountStrategySchema>;
 export type CollateralDeficitStrategy = z.infer<
   typeof CollateralDeficitStrategySchema
 >;
+
+export type EMAFlowStrategy = z.infer<typeof EMAFlowStrategySchema>;
 
 export type WeightedStrategyConfig = WeightedStrategy['chains'];
 export type MinAmountStrategyConfig = MinAmountStrategy['chains'];
@@ -109,6 +126,7 @@ export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   WeightedStrategySchema,
   MinAmountStrategySchema,
   CollateralDeficitStrategySchema,
+  EMAFlowStrategySchema,
 ]);
 
 export const RebalancerStrategySchema = z
