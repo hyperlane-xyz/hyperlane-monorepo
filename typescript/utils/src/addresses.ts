@@ -51,7 +51,7 @@ const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
 const ALEO_ZEROISH_ADDRESS_REGEX =
-  /^[a-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
+  /^(?:[a-z0-9_]+\.aleo\/)?aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
 const TRON_ZEROISH_ADDRESS_REGEX = /^T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb$/;
 
 export const ZERO_ADDRESS_HEX_32 =
@@ -294,6 +294,7 @@ export function normalizeAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.CosmosNative]: normalizeAddressCosmos,
       [ProtocolType.Starknet]: normalizeAddressStarknet,
       [ProtocolType.Radix]: normalizeAddressRadix,
+      [ProtocolType.Aleo]: normalizeAddressAleo,
       [ProtocolType.Tron]: normalizeAddressTron,
     },
     address,
@@ -520,9 +521,15 @@ export function addressToBytesAleo(address: Address): Uint8Array {
 
 export function addressToBytesTron(address: Address): Uint8Array {
   const decoded = bs58.decode(address);
-  const rawAddress = decoded.slice(1, -4);
-
-  return new Uint8Array(rawAddress);
+  const payload = decoded.slice(0, -4);
+  const checksum = decoded.slice(-4);
+  const hash1 = ethersUtils.arrayify(ethersUtils.sha256(payload));
+  const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));
+  assert(
+    Buffer.from(checksum).equals(new Uint8Array(hash2.slice(0, 4))),
+    'Invalid Tron address checksum',
+  );
+  return new Uint8Array(payload.slice(1)); // strip 0x41 prefix
 }
 
 export function addressToBytes(

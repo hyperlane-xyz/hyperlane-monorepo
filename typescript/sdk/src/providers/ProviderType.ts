@@ -127,10 +127,10 @@ type ProtocolTypesMapping = {
     receipt: AleoTransactionReceipt;
   };
   [ProtocolType.Tron]: {
-    transaction: TronTransaction;
+    transaction: EthersV5Transaction;
     provider: TronProvider;
     contract: null;
-    receipt: TronTransactionReceipt;
+    receipt: EthersV5TransactionReceipt;
   };
   [ProtocolType.Unknown]: {
     transaction: never;

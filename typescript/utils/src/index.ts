@@ -18,6 +18,7 @@ export {
   bytesToAddressStarknet,
   bytesToAddressRadix,
   bytesToAddressAleo,
+  bytesToAddressTron,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
