@@ -14,7 +14,10 @@ import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import {
+  IMultiProtocolSigner,
+  SignerSendTransactionOptions,
+} from '../types.js';
 
 /**
  * Interface for SVM transaction signers
@@ -109,7 +112,10 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   /**
    * Send and confirm a pre-built transaction (IMultiProtocolSigner interface)
    */
-  async sendAndConfirmTransaction(tx: SolanaWeb3Transaction): Promise<string> {
+  async sendAndConfirmTransaction(
+    tx: SolanaWeb3Transaction,
+    _options?: SignerSendTransactionOptions,
+  ): Promise<string> {
     return this.signAndConfirm(tx.transaction);
   }
 

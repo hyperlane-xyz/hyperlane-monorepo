@@ -6,7 +6,10 @@ import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import {
+  IMultiProtocolSigner,
+  SignerSendTransactionOptions,
+} from '../types.js';
 
 export class CosmosNativeMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.CosmosNative> {
   constructor(
@@ -56,6 +59,7 @@ export class CosmosNativeMultiProtocolSignerAdapter implements IMultiProtocolSig
 
   async sendAndConfirmTransaction(
     tx: CosmJsNativeTransaction,
+    _options?: SignerSendTransactionOptions,
   ): Promise<string> {
     await this.signer.simulate(
       this.accountAddress,

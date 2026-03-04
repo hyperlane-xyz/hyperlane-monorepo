@@ -8,7 +8,10 @@ import {
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { RadixTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import {
+  IMultiProtocolSigner,
+  SignerSendTransactionOptions,
+} from '../types.js';
 
 export class RadixMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Radix> {
   constructor(
@@ -37,7 +40,10 @@ export class RadixMultiProtocolSignerAdapter implements IMultiProtocolSigner<Pro
     return this.signer.getSignerAddress();
   }
 
-  async sendAndConfirmTransaction(tx: RadixTransaction): Promise<string> {
+  async sendAndConfirmTransaction(
+    tx: RadixTransaction,
+    _options?: SignerSendTransactionOptions,
+  ): Promise<string> {
     try {
       await this.signer.estimateTransactionFee({
         transaction: tx.transaction,
