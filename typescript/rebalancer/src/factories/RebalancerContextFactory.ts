@@ -11,7 +11,13 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  ProtocolType,
+  objMap,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -22,7 +28,10 @@ import {
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
-import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
+import {
+  InventoryRebalancer,
+  type InventorySignerConfig,
+} from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { RebalancerOrchestrator } from '../core/RebalancerOrchestrator.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
@@ -62,7 +71,6 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param inventoryMultiProvider - MultiProvider instance for inventory operations (optional)
    * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
@@ -72,7 +80,6 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
-    private readonly inventoryMultiProvider: MultiProvider | undefined,
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
@@ -84,7 +91,6 @@ export class RebalancerContextFactory {
   /**
    * @param config - The rebalancer config
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param inventoryMultiProvider - MultiProvider instance for inventory operations (optional)
    * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
@@ -92,7 +98,6 @@ export class RebalancerContextFactory {
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
-    inventoryMultiProvider: MultiProvider | undefined,
     multiProtocolProvider: MultiProtocolProvider | undefined,
     registry: IRegistry,
     logger: Logger,
@@ -163,7 +168,6 @@ export class RebalancerContextFactory {
       warpCore,
       tokensByChainName,
       multiProvider,
-      inventoryMultiProvider,
       extendedMultiProtocolProvider,
       registry,
       logger,
@@ -362,7 +366,7 @@ export class RebalancerContextFactory {
       bridges,
       rebalancerAddress,
       inventorySignerAddress:
-        this.config.inventorySigners?.[ProtocolType.Ethereum],
+        this.config.inventorySigners?.[ProtocolType.Ethereum]?.address,
       intentTTL: this.config.intentTTL,
     };
 
@@ -488,7 +492,8 @@ export class RebalancerContextFactory {
     );
     for (const protocol of requiredProtocols) {
       assert(
-        this.inventorySignerKeysByProtocol?.[protocol],
+        this.config.inventorySigners?.[protocol]?.key ??
+          this.inventorySignerKeysByProtocol?.[protocol],
         `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${inventoryChains.filter((c) => this.warpCore.multiProvider.getChainMetadata(c).protocol === protocol).join(', ')})`,
       );
     }
@@ -506,15 +511,30 @@ export class RebalancerContextFactory {
           'No external bridges configured, skipping inventory components',
         );
       }
+      const inventoryAddresses = Object.fromEntries(
+        Object.entries(inventorySigners).map(([protocol, cfg]) => [
+          protocol,
+          cfg.address,
+        ]),
+      ) as Partial<Record<ProtocolType, Address>>;
       const inventoryConfig: InventoryMonitorConfig = {
-        inventoryAddresses: inventorySigners,
+        inventoryAddresses,
         chains: inventoryChains,
       };
+      // Merge config addresses with runtime keys
+      const mergedSigners: Partial<
+        Record<ProtocolType, InventorySignerConfig>
+      > = {};
+      for (const [protocol, cfg] of Object.entries(inventorySigners)) {
+        const protocolKey = protocol as ProtocolType;
+        mergedSigners[protocolKey] = {
+          address: cfg.address,
+          key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocolKey],
+        };
+      }
       const inventoryRebalancer = new InventoryRebalancer(
         {
-          inventorySigners,
-          inventorySignerKeysByProtocol: this.inventorySignerKeysByProtocol,
-          inventoryMultiProvider: this.inventoryMultiProvider,
+          inventorySigners: mergedSigners,
           inventoryChains,
         },
         actionTracker,
@@ -531,18 +551,31 @@ export class RebalancerContextFactory {
     }
 
     // 3. Build inventory config
+    const inventoryAddresses = Object.fromEntries(
+      Object.entries(inventorySigners).map(([protocol, cfg]) => [
+        protocol,
+        cfg.address,
+      ]),
+    ) as Partial<Record<ProtocolType, Address>>;
     const inventoryConfig: InventoryMonitorConfig = {
-      inventoryAddresses: inventorySigners,
+      inventoryAddresses,
       chains: inventoryChains,
     };
 
     // 4. Create InventoryRebalancer
-    // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
+    // Merge config addresses with runtime keys
+    const mergedSigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
+      {};
+    for (const [protocol, cfg] of Object.entries(inventorySigners)) {
+      const protocolKey = protocol as ProtocolType;
+      mergedSigners[protocolKey] = {
+        address: cfg.address,
+        key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocolKey],
+      };
+    }
     const inventoryRebalancer = new InventoryRebalancer(
       {
-        inventorySigners,
-        inventorySignerKeysByProtocol: this.inventorySignerKeysByProtocol,
-        inventoryMultiProvider: this.inventoryMultiProvider,
+        inventorySigners: mergedSigners,
         inventoryChains,
       },
       actionTracker,
