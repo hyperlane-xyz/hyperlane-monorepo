@@ -5,6 +5,8 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { computeSealevelSourceHash } from './sealevel-source-hash.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -42,16 +44,22 @@ for (const [key, filename] of Object.entries(PROGRAMS)) {
   }
 }
 
+const sourceHash = computeSealevelSourceHash();
+console.log(`\n  Source hash: ${sourceHash}`);
+
 const entries = Object.entries(programBytes)
   .map(([key, bytes]) => `  ${key}: new Uint8Array([${bytes}]),`)
   .join('\n');
 
 const tsContent = `/**
  * Auto-generated program bytes from compiled .so binaries.
- * DO NOT EDIT — regenerate with: pnpm program:generate
- *
- * Generated: ${new Date().toISOString()}
+ * DO NOT EDIT — regenerate with:
+ *   pnpm -C typescript/svm-sdk program:build
+ *   pnpm -C typescript/svm-sdk program:generate
  */
+
+/** SHA-256 of Rust sealevel sources at generation time. Used for CI staleness detection. */
+export const SEALEVEL_SOURCE_HASH = '${sourceHash}';
 
 export const HYPERLANE_SVM_PROGRAM_BYTES = {
 ${entries}
