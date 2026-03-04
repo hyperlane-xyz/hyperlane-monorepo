@@ -43,15 +43,21 @@ gh workflow run rust-docker.yml --ref <branch> -f include_arm64=true
    gh run list --workflow=<workflow>.yml --limit=1 --json url --jq '.[].url'
    ```
 
-2. Watch it:
+2. Get the run ID (wait a few seconds after triggering for the run to appear):
 
    ```bash
-   gh run watch --workflow=<workflow>.yml
+   gh run list --workflow=<workflow>.yml --limit=1 --json databaseId,status,createdAt --jq '.[0]'
    ```
 
-3. The resulting image tag will be `<7-char-sha>-<YYYYMMDD>-<HHMMSS>`, e.g. `c558a9f-20260304-105241`.
+3. Watch it:
 
-4. Images are at `ghcr.io/hyperlane-xyz/<image-name>:<tag>`.
+   ```bash
+   gh run watch <run-id>
+   ```
+
+4. The resulting image tag will be `<7-char-sha>-<YYYYMMDD>-<HHMMSS>`, e.g. `c558a9f-20260304-105241`.
+
+5. Images are at `ghcr.io/hyperlane-xyz/<image-name>:<tag>`.
 
 ## Instructions
 
