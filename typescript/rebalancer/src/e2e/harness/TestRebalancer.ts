@@ -288,15 +288,9 @@ export class TestRebalancerBuilder {
     const registry = this.deploymentManager.getRegistry();
     const mpp = MultiProtocolProvider.fromMultiProvider(workingMultiProvider);
 
-    let inventoryMultiProvider: MultiProvider | undefined;
     let rebalancerConfig: RebalancerConfig;
     let warpCoreConfig: WarpCoreConfig;
-    let inventorySignerKeysByProtocol:
-      | Partial<Record<ProtocolType, string>>
-      | undefined;
     if (isErc20InventoryMode) {
-      inventoryMultiProvider =
-        await this.getInventoryMultiProvider(localProviders);
       const inventorySignerAddress = new ethers.Wallet(
         erc20InventoryModeConfig.inventorySignerKey,
       ).address;
@@ -305,18 +299,18 @@ export class TestRebalancerBuilder {
         ERC20_INVENTORY_MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
-        { [ProtocolType.Ethereum]: inventorySignerAddress },
+        {
+          [ProtocolType.Ethereum]: {
+            address: inventorySignerAddress,
+            key: erc20InventoryModeConfig.inventorySignerKey,
+          },
+        },
         { lifi: { integrator: 'test' } },
       );
       warpCoreConfig = buildErc20InventoryWarpRouteConfig(
         erc20InventoryModeConfig.erc20DeployedAddresses,
       );
-      inventorySignerKeysByProtocol = {
-        [ProtocolType.Ethereum]: erc20InventoryModeConfig.inventorySignerKey,
-      };
     } else if (isInventoryMode) {
-      inventoryMultiProvider =
-        await this.getInventoryMultiProvider(localProviders);
       const inventorySignerAddress = new ethers.Wallet(
         inventoryModeConfig.inventorySignerKey,
       ).address;
@@ -325,15 +319,17 @@ export class TestRebalancerBuilder {
         NATIVE_MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
-        { [ProtocolType.Ethereum]: inventorySignerAddress },
+        {
+          [ProtocolType.Ethereum]: {
+            address: inventorySignerAddress,
+            key: inventoryModeConfig.inventorySignerKey,
+          },
+        },
         { lifi: { integrator: 'test' } },
       );
       warpCoreConfig = buildNativeWarpRouteConfig(
         inventoryModeConfig.nativeDeployedAddresses,
       );
-      inventorySignerKeysByProtocol = {
-        [ProtocolType.Ethereum]: inventoryModeConfig.inventorySignerKey,
-      };
     } else {
       if (!('tokens' in deployedAddresses)) {
         throw new Error('Expected ERC20 deployed addresses with tokens field');
@@ -349,11 +345,10 @@ export class TestRebalancerBuilder {
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
       workingMultiProvider,
-      inventoryMultiProvider,
       mpp,
       registry,
       this.logger,
-      inventorySignerKeysByProtocol,
+      undefined,
       warpCoreConfig,
     );
 
@@ -715,37 +710,6 @@ export class TestRebalancerBuilder {
       throw new Error('Expected ERC20 deployed addresses with tokens field');
     }
     return deployedAddresses.monitoredRoute;
-  }
-
-  private async getInventoryMultiProvider(
-    localProviders: Map<string, ethers.providers.JsonRpcProvider>,
-  ): Promise<MultiProvider> {
-    const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
-    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
-    assert(
-      config,
-      'getInventoryMultiProvider requires inventoryConfig or erc20InventoryConfig',
-    );
-    const inventoryWallet = new ethers.Wallet(config.inventorySignerKey);
-
-    for (const chain of TEST_CHAINS) {
-      const provider = localProviders.get(chain);
-      if (!provider) {
-        throw new Error(
-          `Missing local provider for inventory chain ${chain} in getInventoryMultiProvider`,
-        );
-      }
-      inventoryMultiProvider.setSigner(
-        chain,
-        inventoryWallet.connect(provider),
-      );
-    }
-
-    this.logger.info(
-      'Created inventory MultiProvider with test inventory signer',
-    );
-
-    return inventoryMultiProvider;
   }
 
   private async getWorkingMultiProvider(): Promise<MultiProvider> {
