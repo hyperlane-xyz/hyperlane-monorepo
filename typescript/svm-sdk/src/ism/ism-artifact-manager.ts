@@ -15,7 +15,7 @@ import type {
   RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import type { SealevelSigner } from '../clients/signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type { SvmDeployedIsm } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
@@ -55,7 +55,7 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
 
   createWriter<T extends keyof RawIsmArtifactConfigs>(
     type: T,
-    signer: SealevelSigner,
+    signer: SvmSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], SvmDeployedIsm> {
     const writers: {
       [K in keyof RawIsmArtifactConfigs]?: () => ArtifactWriter<

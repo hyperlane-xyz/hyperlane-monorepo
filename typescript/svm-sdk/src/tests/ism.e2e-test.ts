@@ -5,7 +5,7 @@ import { after, before, describe, it } from 'mocha';
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
-import { SealevelSigner } from '../clients/signer.js';
+import { SvmSigner } from '../clients/signer.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import {
   SvmMessageIdMultisigIsmReader,
@@ -43,7 +43,7 @@ describe('SVM ISM E2E Tests', function () {
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
-  let signer: SealevelSigner;
+  let signer: SvmSigner;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -55,7 +55,7 @@ describe('SVM ISM E2E Tests', function () {
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
-    signer = await SealevelSigner.connectWithSigner(
+    signer = await SvmSigner.connectWithSigner(
       [solana.rpcUrl],
       TEST_PRIVATE_KEY,
     );
