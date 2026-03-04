@@ -15,7 +15,7 @@ import type {
   RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import type { SealevelSigner } from '../clients/signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
@@ -78,7 +78,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
 
   createWriter<T extends keyof RawHookArtifactConfigs>(
     type: T,
-    signer: SealevelSigner,
+    signer: SvmSigner,
   ): ArtifactWriter<
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
