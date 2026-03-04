@@ -78,6 +78,8 @@ import { buildBlockTagOverrides } from './utils.js';
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+type RawTupleQuote = { 0: string; 1: BigNumber };
+type RawTokenBridgeQuote = { token: string; amount: BigNumber };
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -316,14 +318,12 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
-      destination,
-      recipBytes32,
-      amount.toString(),
-    );
+    const [igpQuote, ...feeQuotes] = await this.contract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, amount.toString());
     const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
+    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: RawTupleQuote) => ({
       addressOrDenom: quote[0],
       amount: BigInt(quote[1].toString()),
     }));
@@ -554,13 +554,11 @@ export class EvmMovableCollateralAdapter
       this.getProvider(),
     );
 
-    const quotes = await bridgeContract.quoteTransferRemote(
-      domain,
-      addressToBytes32(recipient),
-      amount,
-    );
+    const quotes = await bridgeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](domain, addressToBytes32(recipient), amount);
 
-    return quotes.map((quote) => ({
+    return quotes.map((quote: RawTokenBridgeQuote) => ({
       igpQuote: {
         addressOrDenom:
           quote.token === ethersConstants.AddressZero ? undefined : quote.token,

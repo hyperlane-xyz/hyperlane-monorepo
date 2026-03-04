@@ -15,7 +15,8 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist",
-    "src"
+    "src",
+    "scenarios"
   ],
   "type": "module",
   "main": "./dist/index.js",
