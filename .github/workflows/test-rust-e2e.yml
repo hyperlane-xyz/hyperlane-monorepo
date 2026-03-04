@@ -150,9 +150,9 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/checkout-registry
 
-      - name: Run sccache-cache
+      - name: Setup sccache
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: ./.github/actions/setup-sccache
 
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
