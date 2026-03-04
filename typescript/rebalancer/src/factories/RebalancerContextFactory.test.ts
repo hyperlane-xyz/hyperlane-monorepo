@@ -2,9 +2,11 @@ import { expect } from 'chai';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
+import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import {
-  type MultiProtocolProvider,
+  MultiProtocolProvider,
   MultiProvider,
+  TokenStandard,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -20,19 +22,38 @@ import { RebalancerContextFactory } from './RebalancerContextFactory.js';
 
 const testLogger = pino({ level: 'silent' });
 
-function createMockRegistry() {
+function createMockRegistry(): IRegistry {
   return {
+    type: RegistryType.Partial,
+    uri: 'mock://registry',
+    getUri: Sinon.stub().returns('mock://registry'),
+    listRegistryContent: Sinon.stub().resolves({
+      chains: {},
+      deployments: { warpRoutes: {}, warpDeployConfig: {} },
+    }),
+    getChains: Sinon.stub().resolves([]),
+    getMetadata: Sinon.stub().resolves({}),
+    getChainMetadata: Sinon.stub().resolves(null),
     getAddresses: Sinon.stub().resolves({
       ethereum: { mailbox: TEST_ADDRESSES.ethereum },
       arbitrum: { mailbox: TEST_ADDRESSES.arbitrum },
       paradex: { mailbox: TEST_ADDRESSES.polygon },
     }),
-    getWarpRoute: Sinon.stub().resolves(null),
     getChainAddresses: Sinon.stub().resolves({
       mailbox: TEST_ADDRESSES.ethereum,
     }),
+    getChainLogoUri: Sinon.stub().resolves(null),
+    addChain: Sinon.stub().resolves(),
+    updateChain: Sinon.stub().resolves(),
+    removeChain: Sinon.stub().resolves(),
+    getWarpRoute: Sinon.stub().resolves(null),
+    getWarpRoutes: Sinon.stub().resolves({}),
+    addWarpRoute: Sinon.stub().resolves(),
+    addWarpRouteConfig: Sinon.stub().resolves(),
     getWarpDeployConfig: Sinon.stub().resolves({}),
-  } as any;
+    getWarpDeployConfigs: Sinon.stub().resolves({}),
+    merge: Sinon.stub().returnsThis(),
+  };
 }
 
 function createMockConfig(): RebalancerConfig {
@@ -60,15 +81,15 @@ function createMockConfig(): RebalancerConfig {
 }
 
 function createMockMpp() {
-  return {
-    extendChainMetadata: Sinon.stub().returnsThis(),
-  } as unknown as MultiProtocolProvider;
+  const mpp = Sinon.createStubInstance(MultiProtocolProvider);
+  mpp.extendChainMetadata.returnsThis();
+  return mpp;
 }
 
 function createToken(
   chainName: string,
   addressOrDenom: string,
-  standard: string,
+  standard: TokenStandard,
 ) {
   return {
     chainName,
@@ -82,33 +103,18 @@ function createToken(
 
 interface ChainDef {
   name: string;
-  chainId: number | string;
   protocol: ProtocolType;
 }
 
 function createMockMultiProvider(chains: ChainDef[]) {
-  const getProviderStub = Sinon.stub();
   const protocolMap = Object.fromEntries(
     chains.map((c) => [c.name, c.protocol]),
   );
-  const getProtocolStub = Sinon.stub().callsFake(
-    (chain: string) => protocolMap[chain],
-  );
-  const metadata = Object.fromEntries(
-    chains.map((c) => [
-      c.name,
-      { name: c.name, chainId: c.chainId, protocol: c.protocol },
-    ]),
-  );
 
-  return {
-    multiProvider: {
-      getProvider: getProviderStub,
-      getProtocol: getProtocolStub,
-      metadata,
-    } as unknown as MultiProvider,
-    getProviderStub,
-  };
+  const multiProvider = Sinon.createStubInstance(MultiProvider);
+  multiProvider.getProtocol.callsFake((chain) => protocolMap[String(chain)]);
+
+  return { multiProvider };
 }
 
 async function callCreate(
@@ -139,70 +145,91 @@ describe('RebalancerContextFactory', () => {
 
   describe('create() — non-EVM chain handling', () => {
     it('should skip provider initialization for StarkNet chains', async () => {
-      const { multiProvider, getProviderStub } = createMockMultiProvider([
-        { name: 'ethereum', chainId: 1, protocol: ProtocolType.Ethereum },
-        { name: 'arbitrum', chainId: 42161, protocol: ProtocolType.Ethereum },
-        {
-          name: 'paradex',
-          chainId: '0x505249564154455f534e5f50415241434c4541525f4d41494e4e4554',
-          protocol: ProtocolType.Starknet,
-        },
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+        { name: 'paradex', protocol: ProtocolType.Starknet },
       ]);
 
       await callCreate(multiProvider, {
         tokens: [
-          createToken('ethereum', TEST_ADDRESSES.ethereum, 'EvmHypCollateral'),
-          createToken('arbitrum', TEST_ADDRESSES.arbitrum, 'EvmHypSynthetic'),
-          createToken('paradex', '0xparadex', 'StarknetHypSynthetic'),
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+          createToken(
+            'paradex',
+            '0xparadex',
+            TokenStandard.StarknetHypSynthetic,
+          ),
         ],
-        options: {},
-      } as any);
+      });
 
-      expect(getProviderStub.callCount).to.equal(2);
-      const providerChains = getProviderStub.getCalls().map((c) => c.args[0]);
+      expect(multiProvider.getProvider.callCount).to.equal(2);
+      const providerChains = multiProvider.getProvider
+        .getCalls()
+        .map((c) => c.args[0]);
       expect(providerChains).to.include('ethereum');
       expect(providerChains).to.include('arbitrum');
       expect(providerChains).to.not.include('paradex');
     });
 
     it('should skip provider initialization for Sealevel chains', async () => {
-      const { multiProvider, getProviderStub } = createMockMultiProvider([
-        { name: 'ethereum', chainId: 1, protocol: ProtocolType.Ethereum },
-        {
-          name: 'solana',
-          chainId: 'solana-mainnet' as any,
-          protocol: ProtocolType.Sealevel,
-        },
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'solana', protocol: ProtocolType.Sealevel },
       ]);
 
       await callCreate(multiProvider, {
         tokens: [
-          createToken('ethereum', TEST_ADDRESSES.ethereum, 'EvmHypCollateral'),
-          createToken('solana', 'SolToken111', 'SealevelHypSynthetic'),
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'solana',
+            'SolToken111',
+            TokenStandard.SealevelHypSynthetic,
+          ),
         ],
-        options: {},
-      } as any);
+      });
 
-      expect(getProviderStub.callCount).to.equal(1);
-      expect(getProviderStub.firstCall.args[0]).to.equal('ethereum');
+      expect(multiProvider.getProvider.callCount).to.equal(1);
+      expect(multiProvider.getProvider.firstCall.args[0]).to.equal('ethereum');
     });
 
     it('should call getProvider for all chains when all are EVM', async () => {
-      const { multiProvider, getProviderStub } = createMockMultiProvider([
-        { name: 'ethereum', chainId: 1, protocol: ProtocolType.Ethereum },
-        { name: 'arbitrum', chainId: 42161, protocol: ProtocolType.Ethereum },
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
       ]);
 
       await callCreate(multiProvider, {
         tokens: [
-          createToken('ethereum', TEST_ADDRESSES.ethereum, 'EvmHypCollateral'),
-          createToken('arbitrum', TEST_ADDRESSES.arbitrum, 'EvmHypSynthetic'),
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypSynthetic,
+          ),
         ],
-        options: {},
-      } as any);
+      });
 
-      expect(getProviderStub.callCount).to.equal(2);
-      const providerChains = getProviderStub.getCalls().map((c) => c.args[0]);
+      expect(multiProvider.getProvider.callCount).to.equal(2);
+      const providerChains = multiProvider.getProvider
+        .getCalls()
+        .map((c) => c.args[0]);
       expect(providerChains).to.include('ethereum');
       expect(providerChains).to.include('arbitrum');
     });
