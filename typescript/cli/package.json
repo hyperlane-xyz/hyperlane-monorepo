@@ -61,6 +61,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/svm-sdk": "workspace:*",
     "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@hyperlane-xyz/utils": "workspace:*",

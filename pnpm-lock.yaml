@@ -844,6 +844,9 @@ importers:
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@hyperlane-xyz/svm-sdk':
+        specifier: workspace:*
+        version: link:../svm-sdk
       '@hyperlane-xyz/tron-sdk':
         specifier: workspace:*
         version: link:../tron-sdk
@@ -1140,6 +1143,9 @@ importers:
       '@hyperlane-xyz/radix-sdk':
         specifier: workspace:*
         version: link:../radix-sdk
+      '@hyperlane-xyz/svm-sdk':
+        specifier: workspace:*
+        version: link:../svm-sdk
       '@hyperlane-xyz/tron-sdk':
         specifier: workspace:*
         version: link:../tron-sdk
