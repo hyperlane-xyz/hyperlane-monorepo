@@ -124,7 +124,6 @@ export class RebalancerService {
   private orchestrator?: RebalancerOrchestrator;
   constructor(
     private readonly multiProvider: MultiProvider,
-    private readonly inventoryMultiProvider: MultiProvider | undefined,
     private readonly multiProtocolProvider: MultiProtocolProvider | undefined,
     private readonly registry: IRegistry,
     private readonly rebalancerConfig: RebalancerConfig,
@@ -152,7 +151,6 @@ export class RebalancerService {
     this.contextFactory = await RebalancerContextFactory.create(
       this.rebalancerConfig,
       this.multiProvider,
-      this.inventoryMultiProvider,
       this.multiProtocolProvider,
       this.registry,
       this.logger,
