@@ -1,0 +1,29 @@
+name: Setup sccache with retries
+description: Sets up sccache compilation cache with retry logic and graceful fallback
+
+runs:
+  using: composite
+  steps:
+    - name: Run sccache-cache (attempt 1)
+      id: sccache1
+      uses: mozilla-actions/sccache-action@v0.0.9
+      continue-on-error: true
+
+    - name: Retry sccache-cache (attempt 2)
+      id: sccache2
+      if: steps.sccache1.outcome != 'success'
+      uses: mozilla-actions/sccache-action@v0.0.9
+      continue-on-error: true
+
+    - name: Retry sccache-cache (attempt 3)
+      id: sccache3
+      if: steps.sccache1.outcome != 'success' && steps.sccache2.outcome != 'success'
+      uses: mozilla-actions/sccache-action@v0.0.9
+      continue-on-error: true
+
+    - name: Disable sccache wrapper on failure
+      if: steps.sccache1.outcome != 'success' && steps.sccache2.outcome != 'success' && steps.sccache3.outcome != 'success'
+      shell: bash
+      run: |
+        echo "::warning::sccache setup failed after 3 attempts, building without cache"
+        echo "RUSTC_WRAPPER=" >> $GITHUB_ENV
