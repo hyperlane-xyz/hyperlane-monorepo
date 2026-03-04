@@ -21,7 +21,7 @@ import { createRpc } from '../rpc.js';
 import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
 import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
 
-import { SealevelProvider } from './provider.js';
+import { SvmProvider } from './provider.js';
 
 const base58Encoder = getBase58Encoder();
 
@@ -54,8 +54,8 @@ function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   return keyBytes;
 }
 
-export class SealevelSigner
-  extends SealevelProvider
+export class SvmSigner
+  extends SvmProvider
   implements AltVM.ISigner<SvmTransaction, SvmReceipt>
 {
   readonly signer: TransactionSigner;
@@ -77,7 +77,7 @@ export class SealevelSigner
     privateKey: string,
     _extraParams?: Record<string, any>,
     rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
-  ): Promise<SealevelSigner> {
+  ): Promise<SvmSigner> {
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
     const keyBytes = parseKeyBytes(privateKey);
@@ -93,7 +93,7 @@ export class SealevelSigner
       );
     }
 
-    return new SealevelSigner(rpc, rpcUrls, keypair, rpcSubscriptions);
+    return new SvmSigner(rpc, rpcUrls, keypair, rpcSubscriptions);
   }
 
   getSignerAddress(): string {

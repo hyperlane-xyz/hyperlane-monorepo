@@ -21,13 +21,13 @@ import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 
-import { SealevelProvider } from './provider.js';
-import { SealevelSigner } from './signer.js';
+import { SvmProvider } from './provider.js';
+import { SvmSigner } from './signer.js';
 
-export class SealevelProtocolProvider implements ProtocolProvider {
+export class SvmProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
     const rpcUrls = this.getRpcUrls(chainMetadata);
-    return SealevelProvider.connect(rpcUrls, chainMetadata.chainId);
+    return SvmProvider.connect(rpcUrls, chainMetadata.chainId);
   }
 
   async createSigner(
@@ -35,7 +35,7 @@ export class SealevelProtocolProvider implements ProtocolProvider {
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
     const rpcUrls = this.getRpcUrls(chainMetadata);
-    return SealevelSigner.connectWithSigner(rpcUrls, config.privateKey);
+    return SvmSigner.connectWithSigner(rpcUrls, config.privateKey);
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(

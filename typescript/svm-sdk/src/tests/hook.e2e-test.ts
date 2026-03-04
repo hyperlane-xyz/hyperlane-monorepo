@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { SealevelSigner } from '../clients/signer.js';
+import { SvmSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import {
   type SvmIgpHookConfig,
@@ -46,7 +46,7 @@ describe('SVM Hook E2E Tests', function () {
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
-  let signer: SealevelSigner;
+  let signer: SvmSigner;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -58,7 +58,7 @@ describe('SVM Hook E2E Tests', function () {
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
-    signer = await SealevelSigner.connectWithSigner(
+    signer = await SvmSigner.connectWithSigner(
       [solana.rpcUrl],
       TEST_PRIVATE_KEY,
     );

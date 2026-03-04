@@ -21,7 +21,7 @@ import {
   getInitializeMultisigIsmMessageIdInstruction,
   getSetValidatorsAndThresholdInstruction,
 } from '../instructions/multisig-ism-message-id.js';
-import type { SealevelSigner } from '../clients/signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedIsm,
@@ -99,7 +99,7 @@ export class SvmMessageIdMultisigIsmWriter
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    private readonly svmSigner: SealevelSigner,
+    private readonly svmSigner: SvmSigner,
   ) {
     super(rpc);
   }

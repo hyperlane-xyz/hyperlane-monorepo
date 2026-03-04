@@ -8,7 +8,7 @@ import { createRpc } from '../rpc.js';
 import { DEFAULT_COMPUTE_UNITS } from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
-export class SealevelProvider implements AltVM.IProvider<SvmTransaction> {
+export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
   protected rpc: SvmRpc;
   protected rpcUrls: string[];
 
@@ -16,10 +16,10 @@ export class SealevelProvider implements AltVM.IProvider<SvmTransaction> {
     rpcUrls: string[],
     _chainId: string | number,
     _extraParams?: Record<string, any>,
-  ): Promise<SealevelProvider> {
+  ): Promise<SvmProvider> {
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
-    return new SealevelProvider(rpc, rpcUrls);
+    return new SvmProvider(rpc, rpcUrls);
   }
 
   constructor(rpc: SvmRpc, rpcUrls: string[]) {
