@@ -61,41 +61,42 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
 
   let errors = false;
   for (const { agent, tag } of imagesToCheck) {
-    if (tag) {
-      if (tag.startsWith('pr-')) {
-        console.log(
-          chalk.yellow(
-            `⚠ Agent ${chalk.bold(agent)} is using a PR image tag: ${chalk.bold(tag)}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
-          ),
-        );
-      }
-      const agentExists = await checkAgentImageExists(tag);
-      if (!agentExists) {
-        errors = true;
+    if (!tag) continue;
 
+    if (tag.startsWith('pr-')) {
+      console.log(
+        chalk.yellow(
+          `⚠ Agent ${chalk.bold(agent)} is using a PR image tag: ${chalk.bold(tag)}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
+        ),
+      );
+    }
+
+    const agentExists = await checkAgentImageExists(tag);
+    if (!agentExists) {
+      errors = true;
+
+      console.log(
+        chalk.red(
+          `Agent ${chalk.bold(agent)} is configured with an invalid Docker image tag: ${chalk.bold(tag)}.`,
+        ),
+      );
+
+      const monorepoExists = await checkMonorepoImageExists(tag);
+      if (monorepoExists) {
         console.log(
           chalk.red(
-            `Agent ${chalk.bold(agent)} is configured with an invalid Docker image tag: ${chalk.bold(tag)}.`,
-          ),
-        );
-
-        const monorepoExists = await checkMonorepoImageExists(tag);
-        if (monorepoExists) {
-          console.log(
-            chalk.red(
-              `You have accidentally configured ${chalk.bold(
-                agent,
-              )} with a monorepo image tag.`,
-            ),
-          );
-        }
-      } else {
-        console.log(
-          chalk.green(
-            `Agent ${chalk.bold(agent)} is configured with a valid Docker image tag: ${chalk.bold(tag)}.`,
+            `You have accidentally configured ${chalk.bold(
+              agent,
+            )} with a monorepo image tag.`,
           ),
         );
       }
+    } else {
+      console.log(
+        chalk.green(
+          `Agent ${chalk.bold(agent)} is configured with a valid Docker image tag: ${chalk.bold(tag)}.`,
+        ),
+      );
     }
   }
 
