@@ -956,7 +956,4 @@ export {
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
-export {
-  IMultiProtocolSigner,
-  SignerSendTransactionOptions,
-} from './signers/types.js';
+export { IMultiProtocolSigner } from './signers/types.js';

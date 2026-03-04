@@ -4,12 +4,10 @@ import { Account as StarknetAccount } from 'starknet';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { StarknetJsTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
-import {
-  IMultiProtocolSigner,
-  SignerSendTransactionOptions,
-} from '../types.js';
+import { IMultiProtocolSigner } from '../types.js';
 
 export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Starknet> {
   private readonly signer: StarknetAccount;
@@ -40,7 +38,7 @@ export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<
 
   async sendAndConfirmTransaction(
     tx: StarknetJsTransaction,
-    _options?: SignerSendTransactionOptions,
+    _options?: SendTransactionOptions,
   ): Promise<string> {
     const { entrypoint, calldata, contractAddress } = tx.transaction;
     assert(entrypoint, 'entrypoint is required for starknet transactions');

@@ -12,12 +12,10 @@ import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
-import {
-  IMultiProtocolSigner,
-  SignerSendTransactionOptions,
-} from '../types.js';
+import { IMultiProtocolSigner } from '../types.js';
 
 /**
  * Interface for SVM transaction signers
@@ -114,7 +112,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
    */
   async sendAndConfirmTransaction(
     tx: SolanaWeb3Transaction,
-    _options?: SignerSendTransactionOptions,
+    _options?: SendTransactionOptions,
   ): Promise<string> {
     return this.signAndConfirm(tx.transaction);
   }

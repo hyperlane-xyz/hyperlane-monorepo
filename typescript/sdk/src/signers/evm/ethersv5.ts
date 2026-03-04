@@ -6,13 +6,13 @@ import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import {
+  MultiProvider,
+  SendTransactionOptions,
+} from '../../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
-import {
-  IMultiProtocolSigner,
-  SignerSendTransactionOptions,
-} from '../types.js';
+import { IMultiProtocolSigner } from '../types.js';
 
 export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Ethereum> {
   private readonly multiProvider: MultiProvider;
@@ -54,15 +54,12 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
 
   async sendAndConfirmTransaction(
     tx: EthersV5Transaction,
-    options?: SignerSendTransactionOptions,
+    options?: SendTransactionOptions,
   ): Promise<string> {
-    const sendOptions = options?.waitConfirmations
-      ? { waitConfirmations: options.waitConfirmations }
-      : undefined;
     const res = await this.multiProvider.sendTransaction(
       this.chainName,
       tx.transaction,
-      sendOptions,
+      options,
     );
 
     return res.transactionHash;
