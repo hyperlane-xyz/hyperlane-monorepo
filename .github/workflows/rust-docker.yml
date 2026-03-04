@@ -1,4 +1,4 @@
-name: Build and Push Agent Image to GCR
+name: Build and Push Agent Image
 on:
   push:
     branches: [main]
@@ -44,6 +44,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
       pull-requests: write
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
@@ -90,6 +91,7 @@ jobs:
           # list of Docker images to use as base name for tags
           images: |
             gcr.io/abacus-labs-dev/hyperlane-agent
+            ghcr.io/hyperlane-xyz/hyperlane-agent
           # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
@@ -106,6 +108,12 @@ jobs:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Determine platforms
         id: determine-platforms
         run: |
@@ -122,6 +130,7 @@ jobs:
           context: .
           file: ./rust/Dockerfile
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
