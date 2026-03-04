@@ -15,7 +15,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -24,6 +24,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  AddressLookupTableOverride,
   IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
@@ -878,6 +879,10 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
+// TODO: add matching list entries once mainnet recipient addresses are known.
+// ALT: 8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z
+const addressLookupTableOverrides: AddressLookupTableOverride[] = [];
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -893,6 +898,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    addressLookupTableOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -939,6 +945,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    addressLookupTableOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -980,6 +987,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    addressLookupTableOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,

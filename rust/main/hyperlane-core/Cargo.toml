@@ -30,6 +30,7 @@ fixed-hash.workspace = true
 futures = { workspace = true, optional = true }
 getrandom.workspace = true
 hex.workspace = true
+regex = { workspace = true, optional = true }
 itertools.workspace = true
 num = { workspace = true, features = ["serde"] }
 num-derive.workspace = true
@@ -69,3 +70,4 @@ ethers = [
 ]
 solana = ["dep:solana-sdk"]
 async = ["tokio", "futures"]
+matching-list = ["dep:regex"]

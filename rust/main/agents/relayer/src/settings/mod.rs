@@ -27,6 +27,15 @@ use crate::{
     settings::matching_list::MatchingList,
 };
 
+/// Config for an ALT override entry
+#[derive(Debug, Clone)]
+pub struct AddressLookupTableOverrideConf {
+    /// Matching list to determine which messages use this ALT
+    pub matching_list: MatchingList,
+    /// Base58 string of the ALT address
+    pub alt_address: String,
+}
+
 pub mod matching_list;
 
 /// Settings for `Relayer`
@@ -74,6 +83,8 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
+    /// Per-message ALT overrides for Sealevel chains.
+    pub address_lookup_table_overrides: Vec<AddressLookupTableOverrideConf>,
 }
 
 /// Config for gas payment enforcement
@@ -370,6 +381,43 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let (raw_alt_overrides_path, raw_alt_overrides) = p
+            .get_opt_key("addressLookupTableOverrides")
+            .take_config_err_flat(&mut err)
+            .and_then(parse_json_array)
+            .unwrap_or_else(|| {
+                (
+                    (&p.cwp).add("address_lookup_table_overrides"),
+                    Value::Array(vec![]),
+                )
+            });
+
+        let alt_overrides_parser = ValueParser::new(raw_alt_overrides_path, &raw_alt_overrides);
+        let address_lookup_table_overrides = alt_overrides_parser
+            .into_array_iter()
+            .map(|itr| {
+                itr.filter_map(|entry| {
+                    let matching_list = entry
+                        .chain(&mut err)
+                        .get_key("matchingList")
+                        .and_then(parse_matching_list)
+                        .unwrap_or_default();
+
+                    let alt_address = entry
+                        .chain(&mut err)
+                        .get_key("addressLookupTable")
+                        .parse_string()
+                        .end();
+
+                    alt_address.map(|addr| AddressLookupTableOverrideConf {
+                        matching_list,
+                        alt_address: addr.to_owned(),
+                    })
+                })
+                .collect_vec()
+            })
+            .unwrap_or_default();
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -388,6 +436,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            address_lookup_table_overrides,
         })
     }
 }
@@ -412,7 +461,7 @@ fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
     }
 }
 
-fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
+pub(crate) fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
     let mut err = ConfigParsingError::default();
 
     let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);

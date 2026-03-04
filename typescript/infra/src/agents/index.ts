@@ -126,7 +126,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             maxBatchSize: batchConfig.maxBatchSize,
             bypassBatchSimulation: batchConfig.bypassBatchSimulation,
             ...(batchConfig.maxSubmitQueueLength
-              ? { maxSubmitQueueLength: batchConfig.maxSubmitQueueLength }
+              ? {
+                  maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
+                }
               : {}),
             priorityFeeOracle,
             transactionSubmitter,
@@ -208,6 +210,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       addressBlacklist: config.addressBlacklist,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
       ismCacheConfigs: config.ismCacheConfigs,
+      addressLookupTableOverrides: config.addressLookupTableOverrides,
     };
     const envConfig = objOmitKeys<RelayerConfig>(config, [
       ...Object.keys(configMapConfig),

@@ -15,6 +15,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  AddressLookupTableOverride,
   BaseRelayerConfig,
   MetricAppContext,
 } from '../../../src/config/agent/relayer.js';
@@ -22,6 +23,8 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
+
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { environment, ethereumChainNames } from './chains.js';
 import {
@@ -257,6 +260,19 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
+const addressLookupTableOverrides: AddressLookupTableOverride[] = [
+  {
+    matchingList: [
+      {
+        recipientAddress: addressToBytes32(
+          'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+        ),
+      },
+    ],
+    addressLookupTable: '4zybokQ8gLLPWUawXaw1JhrPZZsTaTGeaHZhLLb5nPhS',
+  },
+];
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   // Ignore kessel runner test recipients.
   // All 5 test recipients have the same address.
@@ -298,6 +314,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    addressLookupTableOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
@@ -343,6 +360,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    addressLookupTableOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
@@ -391,6 +409,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    addressLookupTableOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,

@@ -62,6 +62,11 @@ export interface RelayerBatchConfig {
   maxSubmitQueueLength?: ChainMap<number>;
 }
 
+export interface AddressLookupTableOverride {
+  matchingList: MatchingList;
+  addressLookupTable: string;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -72,6 +77,7 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;
+  addressLookupTableOverrides?: AddressLookupTableOverride[];
   dbBootstrap?: boolean;
   mixing?: RelayerMixingConfig;
   environmentVariableEndpointEnabled?: boolean;
@@ -87,7 +93,10 @@ export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // and are intended to derisk hitting max env var length limits.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
+  | 'addressBlacklist'
+  | 'gasPaymentEnforcement'
+  | 'ismCacheConfigs'
+  | 'addressLookupTableOverrides'
 >;
 // Config that will be embedded into relayer docker image because
 // of its large size.
@@ -174,6 +183,11 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     }
     if (baseConfig.ismCacheConfigs) {
       relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;
+    }
+    if (baseConfig.addressLookupTableOverrides) {
+      relayerConfig.addressLookupTableOverrides = JSON.stringify(
+        baseConfig.addressLookupTableOverrides,
+      );
     }
     relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
     relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
