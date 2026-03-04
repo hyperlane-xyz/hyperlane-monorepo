@@ -31,7 +31,6 @@ jobs:
             hyperlane-key-funder
             hyperlane-ts-relayer
             hyperlane-offchain-lookup-server
-            hyperlane-cosmos-simapp
           tag-selection: untagged
           cut-off: 1w
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}
