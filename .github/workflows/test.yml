@@ -141,6 +141,8 @@ jobs:
       has_aleo: ${{ steps.decide.outputs.has_aleo }}
       has_radix: ${{ steps.decide.outputs.has_radix }}
       has_tron: ${{ steps.decide.outputs.has_tron }}
+      has_relayer: ${{ steps.decide.outputs.has_relayer }}
+      has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -177,6 +179,8 @@ jobs:
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
+            echo "has_relayer=true" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -186,19 +190,25 @@ jobs:
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
+            echo "has_relayer=false" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Check VM-specific SDK changes
+          # VM-specific SDK changes
           has_radix=$(echo "$CHANGED_FILES" | grep -qE '^typescript/radix-sdk/' && echo true || echo false)
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
 
-          # CLI e2e changes = only packages in the CLI dependency tree + solidity + starknet
-          # CLI deps: cli, sdk, utils, deploy-sdk, provider-sdk, http-registry-server, rebalancer, relayer, metrics
-          # solidity/ = @hyperlane-xyz/core, starknet/ = @hyperlane-xyz/starknet-core (SDK dep)
-          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk|http-registry-server|metrics|rebalancer|relayer)/|solidity/|starknet/)'
+          # Package-specific changes (run only their targeted CLI e2e tests)
+          has_relayer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/relayer/' && echo true || echo false)
+          has_rebalancer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/rebalancer/' && echo true || echo false)
+
+          # Core CLI deps that trigger the smoke/full CLI e2e suite
+          # Peripheral deps (relayer, rebalancer, metrics, http-registry-server) have
+          # their own unit tests and targeted e2e flags above; merge queue runs full suite
+          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk)/|solidity/|starknet/)'
           has_cli_changes=$(echo "$CHANGED_FILES" | grep -qE "$CLI_DEPS" && echo true || echo false)
 
           echo "has_cli_changes=$has_cli_changes" >> $GITHUB_OUTPUT
@@ -206,9 +216,12 @@ jobs:
           echo "has_aleo=$has_aleo" >> $GITHUB_OUTPUT
           echo "has_cosmos=$has_cosmos" >> $GITHUB_OUTPUT
           echo "has_tron=$has_tron" >> $GITHUB_OUTPUT
+          echo "has_relayer=$has_relayer" >> $GITHUB_OUTPUT
+          echo "has_rebalancer=$has_rebalancer" >> $GITHUB_OUTPUT
 
           echo "CLI changes: $has_cli_changes"
           echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron"
+          echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
 
       - name: Decide what to run
         id: decide
@@ -229,6 +242,8 @@ jobs:
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_radix=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
+            echo "has_relayer=false" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -240,6 +255,8 @@ jobs:
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_radix=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
+            echo "has_relayer=true" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -250,6 +267,8 @@ jobs:
           echo "has_aleo=${{ steps.check-vm.outputs.has_aleo }}" >> $GITHUB_OUTPUT
           echo "has_radix=${{ steps.check-vm.outputs.has_radix }}" >> $GITHUB_OUTPUT
           echo "has_tron=${{ steps.check-vm.outputs.has_tron }}" >> $GITHUB_OUTPUT
+          echo "has_relayer=${{ steps.check-vm.outputs.has_relayer }}" >> $GITHUB_OUTPUT
+          echo "has_rebalancer=${{ steps.check-vm.outputs.has_rebalancer }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
@@ -378,6 +397,8 @@ jobs:
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
+      has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
 
   cli-e2e:
     runs-on: ubuntu-latest
