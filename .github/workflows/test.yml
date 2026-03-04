@@ -196,9 +196,9 @@ jobs:
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
 
           # CLI e2e changes = only packages in the CLI dependency tree + solidity + starknet
-          # CLI deps: cli, sdk, utils, deploy-sdk, provider-sdk, http-registry-server, rebalancer, relayer
+          # CLI deps: cli, sdk, utils, deploy-sdk, provider-sdk, http-registry-server, rebalancer, relayer, metrics
           # solidity/ = @hyperlane-xyz/core, starknet/ = @hyperlane-xyz/starknet-core (SDK dep)
-          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk|http-registry-server|rebalancer|relayer)/|solidity/|starknet/)'
+          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk|http-registry-server|metrics|rebalancer|relayer)/|solidity/|starknet/)'
           has_cli_changes=$(echo "$CHANGED_FILES" | grep -qE "$CLI_DEPS" && echo true || echo false)
 
           echo "has_cli_changes=$has_cli_changes" >> $GITHUB_OUTPUT
