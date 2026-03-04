@@ -1,7 +1,6 @@
 // Clients
-export { SvmProviderClient } from './clients/provider.js';
-export { SvmInstructionEnvelope } from './clients/protocol.js';
-export { SvmSignerClient } from './clients/signer.js';
+export { SealevelProvider } from './clients/provider.js';
+export type { SealevelSigner } from './clients/signer.js';
 
 // Types
 export type {
@@ -15,12 +14,10 @@ export type {
   SvmDeployedHook,
   SvmDeployedIgpHook,
 } from './types.js';
-export type { SvmSigner } from './signer.js';
 export type { SolanaRpcClient } from './rpc.js';
 
 // RPC + Signer
 export { createRpc } from './rpc.js';
-export { createSigner } from './signer.js';
 
 // Artifact managers
 export { SvmIsmArtifactManager } from './ism/ism-artifact-manager.js';

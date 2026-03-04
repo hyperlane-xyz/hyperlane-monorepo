@@ -1,6 +1,6 @@
 import type { Address } from '@solana/kit';
 
-import type { SvmSigner } from '../signer.js';
+import type { SealevelSigner } from '../clients/signer.js';
 import type { SvmProgramTarget, SvmReceipt, SvmRpc } from '../types.js';
 
 import {
@@ -16,7 +16,7 @@ export interface ResolvedProgram {
 
 export async function resolveProgram(
   target: SvmProgramTarget,
-  signer: SvmSigner,
+  signer: SealevelSigner,
   rpc: SvmRpc,
 ): Promise<ResolvedProgram> {
   if ('programId' in target) {

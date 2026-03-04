@@ -27,7 +27,7 @@ import {
   getSetGasOracleConfigsInstruction,
 } from '../instructions/igp.js';
 import { deriveIgpAccountPda, deriveOverheadIgpAccountPda } from '../pda.js';
-import type { SvmSigner } from '../signer.js';
+import type { SealevelSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedIgpHook,
@@ -130,7 +130,7 @@ export class SvmIgpHookWriter
   constructor(
     rpc: Rpc<SolanaRpcApi>,
     salt: Uint8Array,
-    private readonly svmSigner: SvmSigner,
+    private readonly svmSigner: SealevelSigner,
   ) {
     super(rpc, salt);
   }
