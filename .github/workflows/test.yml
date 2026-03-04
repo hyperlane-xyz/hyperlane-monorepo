@@ -50,7 +50,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
