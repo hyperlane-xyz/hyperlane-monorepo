@@ -2,7 +2,7 @@ environment: mainnet
 
 # General deployment configuration
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-offchain-lookup-server
+  repository: ghcr.io/hyperlane-xyz/hyperlane-offchain-lookup-server
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-offchain-lookup-server

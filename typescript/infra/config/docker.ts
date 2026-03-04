@@ -1,4 +1,4 @@
-const GCR_REGISTRY = 'gcr.io/abacus-labs-dev';
+const GHCR_REGISTRY = 'ghcr.io/hyperlane-xyz';
 
 export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
@@ -9,13 +9,13 @@ export const DockerImageNames = {
 } as const;
 
 type DockerImageReposType = {
-  [K in keyof typeof DockerImageNames]: `${typeof GCR_REGISTRY}/${(typeof DockerImageNames)[K]}`;
+  [K in keyof typeof DockerImageNames]: `${typeof GHCR_REGISTRY}/${(typeof DockerImageNames)[K]}`;
 };
 
 export const DockerImageRepos = Object.fromEntries(
   Object.entries(DockerImageNames).map(([key, name]) => [
     key,
-    `${GCR_REGISTRY}/${name}`,
+    `${GHCR_REGISTRY}/${name}`,
   ]),
 ) as DockerImageReposType;
 
