@@ -63,9 +63,9 @@ export function useTronWalletDetails() {
 
 export function useTronConnectFn(): () => void {
   const { connect, select } = useWallet();
-  return () => {
+  return async () => {
     select(TronLinkAdapterName);
-    connect();
+    await connect();
   };
 }
 
