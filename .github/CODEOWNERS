@@ -15,11 +15,11 @@ typescript/widgets @xaroz @xeno097
 ## Multi-VM SDK
 typescript/deploy-sdk @xeno097 @troykessler
 typescript/provider-sdk @xeno097 @troykessler
-typescript/aleo-sdk @troykessler @yjamin
-typescript/cosmos-sdk @troykessler @yjamin
-typescript/cosmos-types @troykessler @yjamin
-typescript/radix-sdk @troykessler @yjamin
-typescript/tron-sdk @troykessler @yjamin
+typescript/aleo-sdk @xeno097 @troykessler @yjamin
+typescript/cosmos-sdk @xeno097 @troykessler @yjamin
+typescript/cosmos-types @xeno097 @troykessler @yjamin
+typescript/radix-sdk @xeno097 @troykessler @yjamin
+typescript/tron-sdk @xeno097 @troykessler @yjamin
 
 ## CLI
 typescript/cli @yorhodes @xeno097
