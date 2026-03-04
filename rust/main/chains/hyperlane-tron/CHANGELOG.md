@@ -1,6 +1,6 @@
 ## [2.1.0] - 2026-03-04
 
-* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
 * feat(tron): contract indexer (#7829)
 * feat(tron): isms (#7830)
 * feat(tron): lander (#7846)

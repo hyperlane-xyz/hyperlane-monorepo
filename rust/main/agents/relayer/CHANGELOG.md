@@ -1,7 +1,7 @@
 ## [2.1.0] - 2026-03-04
 
 * feat(agents): add chain configuration metrics (#8185)
-* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
 * fix(agents): Fix flaky CI tests in lander and relayer (#7949)
 * fix: Relayer OOM fix (#7782)
 * fix: aleo metadata builder (#7954)

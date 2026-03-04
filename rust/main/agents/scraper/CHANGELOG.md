@@ -1,7 +1,7 @@
 ## [2.1.0] - 2026-03-04
 
 * feat(agents): add chain configuration metrics (#8185)
-* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
 * feat: Store Raw Message Dispatches (#7714)
 * fix(scraper): Optimize message_view query performance
 * fix(scraper): Reorder message unique index to support origin-only queries (#7945)

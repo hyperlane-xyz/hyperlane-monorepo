@@ -1,6 +1,6 @@
 ## [2.1.0] - 2026-03-04
 
-* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
 * fix(agents): skip block gas limit cap when RPC returns zero (#8152)
 * fix: use Plume mainnet in test instead of removed PlumeTestnet
 

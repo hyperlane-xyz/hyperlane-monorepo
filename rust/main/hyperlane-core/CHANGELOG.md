@@ -2,7 +2,7 @@
 
 * chore: enable modetestnet again (#8057)
 * feat(agents): add chain configuration metrics (#8185)
-* feat(tron): add ethereuem compatability & tron aws signer (#8222)
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
 * feat(tron): protocol type (#7827)
 * fix: aleo metadata builder (#7954)
 * fix: use correct decimals for Aleo wallet balance metric (#8097)
