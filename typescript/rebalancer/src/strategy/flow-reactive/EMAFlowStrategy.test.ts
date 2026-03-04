@@ -238,3 +238,15 @@ describe('EMAFlowStrategy', () => {
     ]);
   });
 });
+
+it('window filtering: returns no signals when getRecentTransfers returns empty (all records outside window)', () => {
+  const strategy = createStrategy({ minSamplesForSignal: 1, alpha: 1 });
+  // Simulate: all transfers are outside the window (getRecentTransfers returns [])
+  // flowHistory is empty because no recent transfers were returned
+  const emptyFlowHistory = new Map<ChainName, FlowRecord[]>([
+    [CHAIN1, []],
+    [CHAIN2, []],
+  ]);
+  const signals = strategy.computeFlowSignals(emptyFlowHistory);
+  expect(signals).to.deep.equal([]);
+});

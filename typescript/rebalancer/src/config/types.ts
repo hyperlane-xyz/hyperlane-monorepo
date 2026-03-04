@@ -117,6 +117,7 @@ export type CollateralDeficitStrategy = z.infer<
 >;
 
 export type EMAFlowStrategy = z.infer<typeof EMAFlowStrategySchema>;
+export type EMAFlowChainConfig = EMAFlowStrategy['chains'][string];
 
 export type WeightedStrategyConfig = WeightedStrategy['chains'];
 export type MinAmountStrategyConfig = MinAmountStrategy['chains'];
