@@ -28,11 +28,18 @@ async function main() {
 
   if (envConfig.keyFunderConfig?.docker.tag) {
     const tag = envConfig.keyFunderConfig.docker.tag;
+    if (tag.startsWith('pr-')) {
+      console.log(
+        chalk.yellow(
+          `⚠ Key funder is using a PR image tag: ${chalk.bold(tag)}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
+        ),
+      );
+    }
     const exists = await checkKeyfunderImageExists(tag);
     if (!exists) {
       console.log(
         chalk.red(
-          `Attempted to deploy key funder with image tag ${chalk.bold(tag)}, but it has not been published to GCR.`,
+          `Attempted to deploy key funder with image tag ${chalk.bold(tag)}, but it has not been published to the registry.`,
         ),
       );
       process.exit(1);

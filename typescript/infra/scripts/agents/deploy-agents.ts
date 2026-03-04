@@ -62,6 +62,13 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
   let errors = false;
   for (const { agent, tag } of imagesToCheck) {
     if (tag) {
+      if (tag.startsWith('pr-')) {
+        console.log(
+          chalk.yellow(
+            `⚠ Agent ${chalk.bold(agent)} is using a PR image tag: ${chalk.bold(tag)}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
+          ),
+        );
+      }
       const agentExists = await checkAgentImageExists(tag);
       if (!agentExists) {
         errors = true;
