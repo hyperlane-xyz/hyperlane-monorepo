@@ -49,7 +49,7 @@ jobs:
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs: [change-detection]
-    if: needs.change-detection.outputs.only_infra != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -134,7 +134,7 @@ jobs:
   change-detection:
     needs: [set-base-sha]
     outputs:
-      only_infra: ${{ steps.decide.outputs.only_infra }}
+      skip_ts: ${{ steps.decide.outputs.skip_ts }}
       run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
       ci_tier: ${{ steps.decide.outputs.ci_tier }}
       has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
@@ -152,13 +152,16 @@ jobs:
         id: context
         uses: ./.github/actions/ci-context-check
 
-      - name: Check if changes are only in non-app paths
-        id: check-only-infra
+      # skip_ts: no TypeScript code at all — skip all TS jobs
+      # Note: typescript/infra/ is NOT included because infra-test and agent-configs
+      # exist specifically to validate infra changes
+      - name: Check if changes are only in non-TS paths
+        id: check-skip-ts
         uses: ./.github/actions/check-path-changes
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: '(rust/|typescript/infra/|\.github/|typescript/docker-bake\.hcl)'
+          path_pattern: '(rust/|\.github/|typescript/docker-bake\.hcl)'
           path_pattern_only: 'true'
 
       - name: Categorize changes for CLI e2e and VM detection
@@ -218,7 +221,7 @@ jobs:
           fi
 
           if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
-            echo "only_infra=true" >> $GITHUB_OUTPUT
+            echo "skip_ts=true" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=false" >> $GITHUB_OUTPUT
             echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
@@ -229,7 +232,7 @@ jobs:
           fi
 
           if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
-            echo "only_infra=false" >> $GITHUB_OUTPUT
+            echo "skip_ts=false" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=true" >> $GITHUB_OUTPUT
             echo "ci_tier=full" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
@@ -239,7 +242,7 @@ jobs:
             exit 0
           fi
 
-          echo "only_infra=${{ steps.check-only-infra.outputs.only_changes }}" >> $GITHUB_OUTPUT
+          echo "skip_ts=${{ steps.check-skip-ts.outputs.only_changes }}" >> $GITHUB_OUTPUT
           echo "run_cli_e2e=${{ steps.check-vm.outputs.has_cli_changes }}" >> $GITHUB_OUTPUT
           echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
           echo "has_cosmos=${{ steps.check-vm.outputs.has_cosmos }}" >> $GITHUB_OUTPUT
@@ -251,7 +254,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     timeout-minutes: 20
-    if: needs.change-detection.outputs.only_infra != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -282,7 +285,7 @@ jobs:
   infra-test:
     runs-on: depot-ubuntu-24.04
     needs: [set-base-sha, change-detection]
-    if: needs.change-detection.outputs.only_infra != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
       BALANCE_CHANGES: false
@@ -334,7 +337,7 @@ jobs:
   cli-install-test-run:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
-    if: needs.change-detection.outputs.only_infra != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -427,7 +430,7 @@ jobs:
   agent-configs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
-    if: needs.change-detection.outputs.only_infra != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -458,4 +461,4 @@ jobs:
     uses: ./.github/workflows/test-env.yml
     secrets: inherit
     with:
-      only_infra: ${{ needs.change-detection.outputs.only_infra }}
+      skip_ts: ${{ needs.change-detection.outputs.skip_ts }}
