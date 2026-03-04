@@ -14,7 +14,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
-import type { SvmSigner } from '../signer.js';
+import type { SealevelSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedHook,
@@ -51,7 +51,7 @@ export class SvmMerkleTreeHookWriter
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    protected readonly _signer: SvmSigner,
+    protected readonly _signer: SealevelSigner,
   ) {
     super(rpc);
   }

@@ -18,7 +18,6 @@ import {
   type SvmTestIsmConfig,
 } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
-import { type SvmSigner, createSigner } from '../signer.js';
 import {
   TEST_PROGRAM_IDS,
   airdropSol,
@@ -44,8 +43,7 @@ describe('SVM ISM E2E Tests', function () {
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
-  let signer: SvmSigner & { address: string };
-  let sealevelSigner: SealevelSigner;
+  let signer: SealevelSigner;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -57,14 +55,13 @@ describe('SVM ISM E2E Tests', function () {
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
-    signer = await createSigner(TEST_PRIVATE_KEY, rpc);
-    sealevelSigner = await SealevelSigner.connectWithSigner(
+    signer = await SealevelSigner.connectWithSigner(
       [solana.rpcUrl],
       TEST_PRIVATE_KEY,
     );
 
-    console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, address(signer.address));
+    console.log(`Airdropping SOL to ${signer.getSignerAddress()}...`);
+    await airdropSol(rpc, address(signer.getSignerAddress()));
   });
 
   after(async () => {
@@ -221,10 +218,7 @@ describe('SVM ISM E2E Tests', function () {
     it('should create writers for different ISM types', () => {
       const manager = new SvmIsmArtifactManager(rpc);
 
-      const testIsmWriter = manager.createWriter(
-        IsmType.TEST_ISM,
-        sealevelSigner,
-      );
+      const testIsmWriter = manager.createWriter(IsmType.TEST_ISM, signer);
       expect(testIsmWriter).to.be.instanceOf(SvmTestIsmWriter);
     });
   });

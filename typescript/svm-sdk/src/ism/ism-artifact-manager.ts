@@ -57,16 +57,15 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
     signer: SealevelSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], SvmDeployedIsm> {
-    const svmSigner = signer.getSvmSigner();
     const writers: {
       [K in keyof RawIsmArtifactConfigs]?: () => ArtifactWriter<
         RawIsmArtifactConfigs[K],
         SvmDeployedIsm
       >;
     } = {
-      testIsm: () => new SvmTestIsmWriter(this.rpc, svmSigner),
+      testIsm: () => new SvmTestIsmWriter(this.rpc, signer),
       messageIdMultisigIsm: () =>
-        new SvmMessageIdMultisigIsmWriter(this.rpc, svmSigner),
+        new SvmMessageIdMultisigIsmWriter(this.rpc, signer),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported ISM type: ${type}`);

@@ -9,6 +9,5 @@ export * from './hook/index.js';
 export * from './ism/index.js';
 export * from './pda.js';
 export * from './rpc.js';
-export * from './signer.js';
 export * from './tx.js';
 export * from './types.js';
