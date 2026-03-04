@@ -395,8 +395,16 @@ async function checkDockerTagExists({
   image: string;
   tag: string;
 }): Promise<boolean> {
+  // GHCR requires a bearer token even for public images
+  const tokenRes = await fetch(
+    `https://ghcr.io/token?scope=repository:${org}/${image}:pull`,
+  );
+  const { token } = (await tokenRes.json()) as { token: string };
   const url = `https://ghcr.io/v2/${org}/${image}/manifests/${tag}`;
-  const res = await fetch(url, { method: 'HEAD' });
+  const res = await fetch(url, {
+    method: 'HEAD',
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.status === 200;
 }
 
