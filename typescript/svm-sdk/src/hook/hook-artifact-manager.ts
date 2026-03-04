@@ -1,6 +1,5 @@
 import {
   address as parseAddress,
-  type Address,
   type Rpc,
   type SolanaRpcApi,
 } from '@solana/kit';
@@ -12,11 +11,11 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedHookArtifact,
+  IRawHookArtifactManager,
   RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { assert } from '@hyperlane-xyz/utils';
 
-import type { SvmSigner } from '../signer.js';
+import type { SealevelSigner } from '../clients/signer.js';
 import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
@@ -33,12 +32,11 @@ import {
 
 export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 
-export class SvmHookArtifactManager {
+export class SvmHookArtifactManager implements IRawHookArtifactManager {
   private readonly salt: Uint8Array;
 
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
-    private readonly mailboxAddress: Address,
     context: string = DEFAULT_IGP_CONTEXT,
   ) {
     this.salt = deriveIgpSalt(context);
@@ -52,12 +50,9 @@ export class SvmHookArtifactManager {
       return this.createReader(this.altVmToTypeKey(hookType)).read(address);
     }
 
-    // detectHookType returns null for non-IGP addresses; the only other
-    // supported hook on SVM is the Merkle tree hook, which IS the mailbox.
-    assert(
-      addr === this.mailboxAddress,
-      `Unknown hook address ${address}: not an IGP program; expected the configured mailbox (${this.mailboxAddress}) for Merkle detection`,
-    );
+    // TODO: implement proper on-chain hook type detection for merkle tree hooks.
+    // Currently falls through to merkle tree for any non-IGP address since
+    // the merkle tree hook on SVM is the mailbox program itself.
     return this.createReader('merkleTreeHook').read(address);
   }
 
@@ -83,20 +78,21 @@ export class SvmHookArtifactManager {
 
   createWriter<T extends keyof RawHookArtifactConfigs>(
     type: T,
-    signer: SvmSigner,
+    signer: SealevelSigner,
   ): ArtifactWriter<
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
+    const svmSigner = signer.getSvmSigner();
     const writers: {
       [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
     } = {
-      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
+      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, svmSigner),
       interchainGasPaymaster: () =>
-        new SvmIgpHookWriter(this.rpc, this.salt, signer),
+        new SvmIgpHookWriter(this.rpc, this.salt, svmSigner),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);

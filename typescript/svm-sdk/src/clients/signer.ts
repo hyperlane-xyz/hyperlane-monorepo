@@ -38,6 +38,10 @@ export class SealevelSigner
     return new SealevelSigner(rpc, rpcUrls, signer, signer.address);
   }
 
+  getSvmSigner(): SvmSigner {
+    return this.svmSigner;
+  }
+
   getSignerAddress(): string {
     return this.signerAddress;
   }
