@@ -9,7 +9,7 @@ import {
   TokenStandard,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -112,7 +112,11 @@ function createMockMultiProvider(chains: ChainDef[]) {
   );
 
   const multiProvider = Sinon.createStubInstance(MultiProvider);
-  multiProvider.getProtocol.callsFake((chain) => protocolMap[String(chain)]);
+  multiProvider.getProtocol.callsFake((chain) => {
+    const protocol = protocolMap[String(chain)];
+    assert(protocol, `No protocol in mock for chain ${chain}`);
+    return protocol;
+  });
 
   return { multiProvider };
 }
