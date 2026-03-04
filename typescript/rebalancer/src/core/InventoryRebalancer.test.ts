@@ -52,13 +52,14 @@ describe('InventoryRebalancer E2E', () => {
   beforeEach(() => {
     // Config
     config = {
-      inventorySigners: { [ProtocolType.Ethereum]: INVENTORY_SIGNER },
-      inventorySignerKeysByProtocol: {
-        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      inventorySigners: {
+        [ProtocolType.Ethereum]: {
+          address: INVENTORY_SIGNER,
+          key: TEST_PRIVATE_KEY,
+        },
       },
       inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
-      // inventoryMultiProvider set below after multiProvider is initialized
-    } as unknown as InventoryRebalancerConfig;
+    };
 
     // Mock IActionTracker
     actionTracker = {
@@ -212,10 +213,12 @@ describe('InventoryRebalancer E2E', () => {
         transactionHash: '0xTransferRemoteTxHash',
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
       }),
+      setSigner: Sinon.stub(),
     };
 
-    // Assign inventoryMultiProvider AFTER multiProvider is initialized
-    config.inventoryMultiProvider = multiProvider;
+    // Wire toMultiProvider so EvmMultiProtocolSignerAdapter returns our mock multiProvider
+    warpCore.multiProvider.toMultiProvider =
+      Sinon.stub().returns(multiProvider);
 
     // Create InventoryRebalancer
     inventoryRebalancer = new InventoryRebalancer(
@@ -348,18 +351,16 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: 0n,
       });
 
-      const protocolSigner = {
-        sendAndConfirmTransaction: Sinon.stub().resolves(
-          'solana-transfer-hash',
-        ),
-      };
-      multiProvider.getSigner.returns(protocolSigner as any);
       multiProvider.sendTransaction.resetHistory();
       warpCore.getTransferRemoteTxs.resolves([
         {
           category: WarpTxCategory.Transfer,
-          type: ProviderType.SolanaWeb3,
-          transaction: { transaction: {} },
+          type: ProviderType.EthersV5,
+          transaction: {
+            to: '0xRouterAddress',
+            data: '0xTransferRemoteData',
+            value: 1000000n,
+          },
         },
       ]);
 
@@ -367,11 +368,10 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect(protocolSigner.sendAndConfirmTransaction.calledOnce).to.be.true;
-      expect(multiProvider.sendTransaction.called).to.be.false;
+      expect(multiProvider.sendTransaction.calledOnce).to.be.true;
 
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.txHash).to.equal('solana-transfer-hash');
+      expect(actionParams.txHash).to.equal('0xTransferRemoteTxHash');
     });
   });
 
@@ -663,12 +663,13 @@ describe('InventoryRebalancer E2E', () => {
     });
 
     it('throws when inventory signer key is missing', async () => {
-      // Config without inventorySignerKeysByProtocol
-      const configWithoutKeys = {
-        inventorySigners: { [ProtocolType.Ethereum]: INVENTORY_SIGNER },
+      // Config without signer keys (no key field)
+      const configWithoutKeys: InventoryRebalancerConfig = {
+        inventorySigners: {
+          [ProtocolType.Ethereum]: { address: INVENTORY_SIGNER },
+        },
         inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
-        inventoryMultiProvider: multiProvider,
-      } as unknown as InventoryRebalancerConfig;
+      };
 
       inventoryRebalancer = new InventoryRebalancer(
         configWithoutKeys,
