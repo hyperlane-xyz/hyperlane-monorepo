@@ -1,47 +1,28 @@
-name: Build and Push Cosmos Simapp Image
+name: Migrate aleo-tools image from GCR to GHCR
 on:
   workflow_dispatch:
-    inputs:
-      hyperlane_cosmos_branch:
-        description: 'Branch, ref, or tag to build'
-        default: 'v1.0.1'
-
-concurrency:
-  group: build-push-cosmos-simapp-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
-  build-and-push:
+  migrate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
       packages: write
-
     steps:
-      - uses: actions/checkout@v6
+      - name: Login to GCR
+        uses: docker/login-action@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          persist-credentials: false
-      - name: Set up Depot CLI
-        uses: depot/setup-action@v1
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCLOUD_SERVICE_KEY }}
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        uses: depot/build-push-action@v1
-        with:
-          project: 3cpjhx94qv
-          context: ./typescript/cosmos-sdk
-          file: ./typescript/cosmos-sdk/Dockerfile
-          push: true
-          provenance: false
-          tags: |
-            ghcr.io/hyperlane-xyz/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.1' }}
-          build-args: |
-            BRANCH_NAME=${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.1' }}
-          platforms: linux/amd64,linux/arm64
+      - name: Pull from GCR, push to GHCR
+        run: |
+          docker pull gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.0.1
+          docker tag gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.0.1 ghcr.io/hyperlane-xyz/hyperlane-aleo-tools:v1.0.1
+          docker push ghcr.io/hyperlane-xyz/hyperlane-aleo-tools:v1.0.1
