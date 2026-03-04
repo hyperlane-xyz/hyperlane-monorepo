@@ -19,7 +19,7 @@ jobs:
       packages: write
     steps:
       - name: Delete old untagged images
-        uses: snok/container-retention-policy@v3.0.0
+        uses: snok/container-retention-policy@v3
         with:
           account: hyperlane-xyz
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -36,7 +36,7 @@ jobs:
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}
 
       - name: Delete old PR images
-        uses: snok/container-retention-policy@v3.0.0
+        uses: snok/container-retention-policy@v3
         with:
           account: hyperlane-xyz
           token: ${{ secrets.GITHUB_TOKEN }}
