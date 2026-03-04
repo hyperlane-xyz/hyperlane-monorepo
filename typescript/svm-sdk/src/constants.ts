@@ -22,3 +22,7 @@ export const LOADER_V3_PROGRAM_ADDRESS =
 
 // Solana hard limit on account data size.
 export const MAX_ACCOUNT_DATA_SIZE = 10_485_760;
+
+// Fixed base fee per signature on Solana.
+// https://solana.com/docs/core/fees#base-fee
+export const LAMPORTS_PER_SIGNATURE = 5_000;
