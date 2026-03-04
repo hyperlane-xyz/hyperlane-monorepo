@@ -398,14 +398,18 @@ async function checkDockerTagExists({
   try {
     // GHCR requires a bearer token even for public images
     const tokenRes = await fetch(
-      `https://ghcr.io/token?scope=repository:${org}/${image}:pull`,
+      `https://ghcr.io/token?service=ghcr.io&scope=repository:${org}/${image}:pull`,
     );
     if (!tokenRes.ok) return false;
     const { token } = (await tokenRes.json()) as { token: string };
     const url = `https://ghcr.io/v2/${org}/${image}/manifests/${tag}`;
     const res = await fetch(url, {
       method: 'HEAD',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept:
+          'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json',
+      },
     });
     return res.status === 200;
   } catch {
