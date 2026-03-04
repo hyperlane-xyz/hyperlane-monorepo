@@ -50,6 +50,6 @@ jobs:
             hyperlane-offchain-lookup-server
           image-tags: "pr-*"
           tag-selection: tagged
-          cut-off: 4w
+          cut-off: 1w
           keep-n-most-recent: 5
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}
