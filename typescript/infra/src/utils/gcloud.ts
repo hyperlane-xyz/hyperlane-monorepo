@@ -414,6 +414,14 @@ export async function checkMonorepoImageExists(tag: string) {
   });
 }
 
+export function warnIfPrTag(component: string, tag: string) {
+  if (tag.startsWith('pr-')) {
+    rootLogger.warn(
+      `${component} is using a PR image tag: ${tag}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
+    );
+  }
+}
+
 export async function checkKeyfunderImageExists(tag: string) {
   return checkDockerTagExists({
     image: DockerImageNames.KEY_FUNDER,

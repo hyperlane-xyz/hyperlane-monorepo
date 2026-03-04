@@ -7,6 +7,7 @@ import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
   checkAgentImageExists,
   checkMonorepoImageExists,
+  warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
@@ -63,13 +64,7 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
   for (const { agent, tag } of imagesToCheck) {
     if (!tag) continue;
 
-    if (tag.startsWith('pr-')) {
-      console.log(
-        chalk.yellow(
-          `⚠ Agent ${chalk.bold(agent)} is using a PR image tag: ${chalk.bold(tag)}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
-        ),
-      );
-    }
+    warnIfPrTag(agent, tag);
 
     const agentExists = await checkAgentImageExists(tag);
     if (!agentExists) {
