@@ -11,10 +11,11 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedRawIsmArtifact,
+  IRawIsmArtifactManager,
   RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import type { SvmSigner } from '../signer.js';
+import type { SealevelSigner } from '../clients/signer.js';
 import type { SvmDeployedIsm } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
@@ -24,7 +25,7 @@ import {
 } from './multisig-ism.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
-export class SvmIsmArtifactManager {
+export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
   constructor(private readonly rpc: Rpc<SolanaRpcApi>) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
@@ -54,17 +55,18 @@ export class SvmIsmArtifactManager {
 
   createWriter<T extends keyof RawIsmArtifactConfigs>(
     type: T,
-    signer: SvmSigner,
+    signer: SealevelSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], SvmDeployedIsm> {
+    const svmSigner = signer.getSvmSigner();
     const writers: {
       [K in keyof RawIsmArtifactConfigs]?: () => ArtifactWriter<
         RawIsmArtifactConfigs[K],
         SvmDeployedIsm
       >;
     } = {
-      testIsm: () => new SvmTestIsmWriter(this.rpc, signer),
+      testIsm: () => new SvmTestIsmWriter(this.rpc, svmSigner),
       messageIdMultisigIsm: () =>
-        new SvmMessageIdMultisigIsmWriter(this.rpc, signer),
+        new SvmMessageIdMultisigIsmWriter(this.rpc, svmSigner),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported ISM type: ${type}`);
