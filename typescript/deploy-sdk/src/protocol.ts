@@ -32,6 +32,11 @@ export async function loadProtocolProviders(
         registerProtocol(protocol, () => new AleoProtocolProvider());
         break;
       }
+      case ProtocolType.Sealevel: {
+        const { SvmProtocolProvider } = await import('@hyperlane-xyz/svm-sdk');
+        registerProtocol(protocol, () => new SvmProtocolProvider());
+        break;
+      }
     }
   }
 }
