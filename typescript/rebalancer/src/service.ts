@@ -39,6 +39,8 @@ import {
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
+import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
+import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
@@ -129,72 +131,57 @@ async function main(): Promise<void> {
       '✅ Initialized MultiProvider with rebalancer signer',
     );
 
-    // Build inventory signer keys by protocol
-    const inventorySignerKeysByProtocol: Partial<Record<ProtocolType, string>> =
-      {};
+    // Build consolidated inventory signers with keys embedded
+    const inventorySigners: Partial<
+      Record<ProtocolType, InventorySignerConfig>
+    > = {};
 
-    // Create inventory MultiProvider if inventory key is provided
-    let inventoryMultiProvider: MultiProvider | undefined;
     if (inventoryPrivateKey) {
-      inventorySignerKeysByProtocol[ProtocolType.Ethereum] =
-        inventoryPrivateKey;
-      inventoryMultiProvider = new MultiProvider(chainMetadata, {
-        providers: multiProvider.providers,
-      });
-      const inventorySigner = new Wallet(inventoryPrivateKey);
-      inventoryMultiProvider.setSharedSigner(inventorySigner);
-
+      const inventoryAddress = new Wallet(inventoryPrivateKey).address;
       // Validate against config.inventorySigners.ethereum if present
-      const inventoryAddress = inventorySigner.address;
+      const configuredAddress =
+        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum]?.address;
       if (
-        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
-        rebalancerConfig.inventorySigners[
-          ProtocolType.Ethereum
-        ]!.toLowerCase() !== inventoryAddress.toLowerCase()
+        configuredAddress &&
+        configuredAddress.toLowerCase() !== inventoryAddress.toLowerCase()
       ) {
         throw new Error(
-          `inventorySigners.ethereum mismatch: config has ${rebalancerConfig.inventorySigners[ProtocolType.Ethereum]} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
+          `inventorySigners.ethereum mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
         );
       }
-      logger.info(
-        { inventoryAddress },
-        '✅ Initialized inventory MultiProvider',
-      );
+      inventorySigners[ProtocolType.Ethereum] = {
+        address: inventoryAddress,
+        key: inventoryPrivateKey,
+      };
+      logger.info({ inventoryAddress }, '✅ EVM inventory signer configured');
     }
 
     if (inventoryPrivateKeySolana) {
-      inventorySignerKeysByProtocol[ProtocolType.Sealevel] =
-        inventoryPrivateKeySolana;
-
-      // Validate Solana key against configured signer address
+      const keyBytes = parseSolanaPrivateKey(inventoryPrivateKeySolana);
+      const keypair = Keypair.fromSecretKey(keyBytes);
+      const derivedAddress = keypair.publicKey.toBase58();
+      // Validate against config.inventorySigners.sealevel if present
       const configuredSolanaAddress =
-        rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel];
-      if (configuredSolanaAddress) {
-        // Parse the private key (supports JSON array or comma-separated bytes)
-        let keyBytes: Uint8Array;
-        try {
-          const parsed = JSON.parse(inventoryPrivateKeySolana);
-          keyBytes = Uint8Array.from(parsed);
-        } catch {
-          keyBytes = Uint8Array.from(
-            inventoryPrivateKeySolana.split(',').map(Number),
-          );
-        }
-        const keypair = Keypair.fromSecretKey(keyBytes);
-        const derivedAddress = keypair.publicKey.toBase58();
-        if (derivedAddress !== configuredSolanaAddress) {
-          throw new Error(
-            `inventorySigners.sealevel mismatch: config has ${configuredSolanaAddress} but HYP_INVENTORY_KEY_SOLANA derives to ${derivedAddress}`,
-          );
-        }
-        logger.info(
-          { solanaAddress: derivedAddress },
-          '✅ Solana inventory signer validated',
+        rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel]?.address;
+      if (
+        configuredSolanaAddress &&
+        derivedAddress !== configuredSolanaAddress
+      ) {
+        throw new Error(
+          `inventorySigners.sealevel mismatch: config has ${configuredSolanaAddress} but HYP_INVENTORY_KEY_SOLANA derives to ${derivedAddress}`,
         );
       }
+      inventorySigners[ProtocolType.Sealevel] = {
+        address: derivedAddress,
+        key: inventoryPrivateKeySolana,
+      };
+      logger.info(
+        { solanaAddress: derivedAddress },
+        '✅ Solana inventory signer configured',
+      );
     }
 
-    // Fail fast if config references protocol-specific inventory signer but key is missing.
+    // Fail fast if config references protocol-specific inventory signer but key is missing
     if (
       rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
       !inventoryPrivateKey
@@ -202,7 +189,7 @@ async function main(): Promise<void> {
       logger.error(
         {
           inventorySigner:
-            rebalancerConfig.inventorySigners[ProtocolType.Ethereum],
+            rebalancerConfig.inventorySigners[ProtocolType.Ethereum]?.address,
         },
         'Config specifies inventorySigners.ethereum but HYP_INVENTORY_KEY is not set.',
       );
@@ -216,12 +203,24 @@ async function main(): Promise<void> {
       logger.error(
         {
           inventorySigner:
-            rebalancerConfig.inventorySigners[ProtocolType.Sealevel],
+            rebalancerConfig.inventorySigners[ProtocolType.Sealevel]?.address,
         },
         'Config specifies inventorySigners.sealevel but HYP_INVENTORY_KEY_SOLANA is not set.',
       );
       process.exit(1);
     }
+
+    // Merge runtime keys into config (creates new RebalancerConfig with keys embedded)
+    const mergedRebalancerConfig =
+      Object.keys(inventorySigners).length > 0
+        ? new RebalancerConfig(
+            rebalancerConfig.warpRouteId,
+            rebalancerConfig.strategyConfig,
+            rebalancerConfig.intentTTL,
+            inventorySigners,
+            rebalancerConfig.externalBridges,
+          )
+        : rebalancerConfig;
 
     // MultiProtocolProvider will be derived from multiProvider in factory
     const multiProtocolProvider = undefined;
@@ -229,10 +228,9 @@ async function main(): Promise<void> {
     // Create the rebalancer service
     const service = new RebalancerService(
       multiProvider,
-      inventoryMultiProvider,
       multiProtocolProvider,
       registry,
-      rebalancerConfig,
+      mergedRebalancerConfig,
       {
         mode: 'daemon',
         checkFrequency,
@@ -242,7 +240,6 @@ async function main(): Promise<void> {
         logger,
         version: VERSION,
       },
-      inventorySignerKeysByProtocol,
     );
 
     // Start the service
