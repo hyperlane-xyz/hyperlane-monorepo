@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
+import { SealevelSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import {
   type SvmIgpHookConfig,
@@ -47,6 +48,7 @@ describe('SVM Hook E2E Tests', function () {
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner & { address: string };
+  let sealevelSigner: SealevelSigner;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -59,6 +61,10 @@ describe('SVM Hook E2E Tests', function () {
 
     rpc = createRpc(solana.rpcUrl);
     signer = await createSigner(TEST_PRIVATE_KEY, rpc);
+    sealevelSigner = await SealevelSigner.connectWithSigner(
+      [solana.rpcUrl],
+      TEST_PRIVATE_KEY,
+    );
 
     console.log(`Airdropping SOL to ${signer.address}...`);
     await airdropSol(rpc, address(signer.address));
@@ -209,7 +215,7 @@ describe('SVM Hook E2E Tests', function () {
 
   describe('Hook Artifact Manager', () => {
     it('should detect hook type from address', async () => {
-      const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
+      const manager = new SvmHookArtifactManager(rpc);
 
       const merkleHookArtifact = await manager.readHook(
         TEST_PROGRAM_IDS.mailbox,
@@ -218,7 +224,7 @@ describe('SVM Hook E2E Tests', function () {
     });
 
     it('should create readers for different hook types', () => {
-      const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
+      const manager = new SvmHookArtifactManager(rpc);
 
       const merkleReader = manager.createReader(HookType.MERKLE_TREE);
       expect(merkleReader).to.be.instanceOf(SvmMerkleTreeHookReader);
@@ -228,14 +234,17 @@ describe('SVM Hook E2E Tests', function () {
     });
 
     it('should create writers for different hook types', () => {
-      const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
+      const manager = new SvmHookArtifactManager(rpc);
 
-      const merkleWriter = manager.createWriter(HookType.MERKLE_TREE, signer);
+      const merkleWriter = manager.createWriter(
+        HookType.MERKLE_TREE,
+        sealevelSigner,
+      );
       expect(merkleWriter).to.be.instanceOf(SvmMerkleTreeHookWriter);
 
       const igpWriter = manager.createWriter(
         HookType.INTERCHAIN_GAS_PAYMASTER,
-        signer,
+        sealevelSigner,
       );
       expect(igpWriter).to.be.instanceOf(SvmIgpHookWriter);
     });
