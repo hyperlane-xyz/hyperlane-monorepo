@@ -1,7 +1,7 @@
 import { address as parseAddress } from '@solana/kit';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { LAMPORTS_PER_SIGNATURE } from '../constants.js';
 import { createRpc } from '../rpc.js';
@@ -33,7 +33,8 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     try {
       await this.rpc.getSlot().send();
       return true;
-    } catch {
+    } catch (error) {
+      rootLogger.debug('SVM health check failed', { error });
       return false;
     }
   }

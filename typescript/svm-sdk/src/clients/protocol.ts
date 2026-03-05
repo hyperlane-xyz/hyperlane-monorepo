@@ -1,4 +1,4 @@
-import {
+import type {
   AltVM,
   ChainMetadataForAltVM,
   ITransactionSubmitter,
@@ -15,6 +15,7 @@ import type {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { address as parseAddress } from '@solana/kit';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -54,10 +55,14 @@ export class SvmProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    context?: { mailbox?: string },
   ): IRawHookArtifactManager {
+    assert(
+      context?.mailbox,
+      'Mailbox address is required for SVM hook artifact manager',
+    );
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmHookArtifactManager(rpc);
+    return new SvmHookArtifactManager(rpc, parseAddress(context.mailbox));
   }
 
   createWarpArtifactManager(
