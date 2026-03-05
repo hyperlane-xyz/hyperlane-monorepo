@@ -1,6 +1,6 @@
 import { Hex, Log } from 'viem';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import {
   assertIsContractAddress,
@@ -10,6 +10,50 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainNameOrId } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
+
+function toNumber(value: unknown, field: string): number {
+  if (typeof value === 'number') {
+    assert(!Number.isNaN(value), `${field} is NaN`);
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    const num = Number(value);
+    assert(
+      Number.isSafeInteger(num),
+      `${field} bigint value ${value} exceeds safe integer range`,
+    );
+    return num;
+  }
+  if (typeof value === 'string') {
+    assert(
+      /^0x[0-9a-fA-F]+$/.test(value) || /^[0-9]+$/.test(value),
+      `${field} string "${value}" is not a valid hex or decimal number`,
+    );
+    const num = value.startsWith('0x')
+      ? parseInt(value, 16)
+      : parseInt(value, 10);
+    assert(!Number.isNaN(num), `${field} parsed to NaN from "${value}"`);
+    assert(
+      Number.isSafeInteger(num),
+      `${field} string value "${value}" exceeds safe integer range`,
+    );
+    return num;
+  }
+  assert(false, `Unable to convert ${field} to number`);
+}
+
+function toString(value: unknown, field: string): string {
+  assert(typeof value === 'string', `Unable to convert ${field} to string`);
+  return value;
+}
+
+function toStringArray(value: unknown, field: string): string[] {
+  assert(
+    Array.isArray(value) && value.every((v) => typeof v === 'string'),
+    `Unable to convert ${field} to string[]`,
+  );
+  return value;
+}
 
 // calling getCode until the creation block is found
 export async function getContractCreationBlockFromRpc(
@@ -90,13 +134,13 @@ export async function getLogsFromRpc({
 
   return logs.map((rawLog): GetEventLogsResponse => {
     return {
-      address: rawLog.address,
-      blockNumber: rawLog.blockNumber,
-      data: rawLog.data,
-      logIndex: rawLog.logIndex,
-      topics: rawLog.topics,
-      transactionHash: rawLog.transactionHash,
-      transactionIndex: rawLog.transactionIndex,
+      address: toString(rawLog.address, 'address'),
+      blockNumber: toNumber(rawLog.blockNumber, 'blockNumber'),
+      data: toString(rawLog.data, 'data'),
+      logIndex: toNumber(rawLog.logIndex, 'logIndex'),
+      topics: toStringArray(rawLog.topics, 'topics'),
+      transactionHash: toString(rawLog.transactionHash, 'transactionHash'),
+      transactionIndex: toNumber(rawLog.transactionIndex, 'transactionIndex'),
     };
   });
 }
