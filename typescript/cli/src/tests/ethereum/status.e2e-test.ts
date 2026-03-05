@@ -1,4 +1,7 @@
 import { expect } from 'chai';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { $ } from 'zx';
 
 import { hyperlaneCoreDeploy } from './commands/core.js';
@@ -24,6 +27,18 @@ function extractMessageId(output: string): string {
   const match = output.match(/Message ID: (0x[a-fA-F0-9]+)/);
   if (!match) {
     throw new Error('Could not extract message ID from output');
+  }
+  return match[1];
+}
+
+/**
+ * Extracts the dispatch transaction hash from the send message output.
+ * The output contains a line like "Dispatch TX: 0x..."
+ */
+function extractDispatchTx(output: string): string {
+  const match = output.match(/Dispatch TX: (0x[a-fA-F0-9]+)/);
+  if (!match) {
+    throw new Error('Could not extract dispatch TX from output');
   }
   return match[1];
 }
@@ -149,6 +164,62 @@ describe('hyperlane status e2e tests', async function () {
           'Expected to prompt for key or timeout',
         ).to.be.true;
       }
+    });
+  });
+
+  describe('status with unreachable chain in registry', () => {
+    let tempDir: string;
+
+    before(() => {
+      // Create a temp registry overlay with an unreachable chain.
+      // 192.0.2.1 is RFC 5737 TEST-NET-1, guaranteed unreachable.
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'unreachable-reg-'));
+      const chainDir = path.join(tempDir, 'chains', 'unreachable-chain');
+      fs.mkdirSync(chainDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(chainDir, 'metadata.yaml'),
+        [
+          '---',
+          'chainId: 99999',
+          'domainId: 99999',
+          'name: unreachable-chain',
+          'protocol: ethereum',
+          'rpcUrls:',
+          '  - http: http://192.0.2.1:1',
+          'nativeToken:',
+          '  name: Ether',
+          '  symbol: ETH',
+          '  decimals: 18',
+        ].join('\n'),
+      );
+    });
+
+    after(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should succeed despite unreachable chain in registry', async () => {
+      // Send a message to get a dispatch tx hash
+      const sendResult = await hyperlaneSendMessage(
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+        { quick: true },
+      );
+      const dispatchTx = extractDispatchTx(sendResult.stdout);
+
+      // Run status with two registries: base + overlay with unreachable chain.
+      // Before the fix, the command would crash trying to connect to unreachable-chain.
+      const { exitCode } = await $`${localTestRunCmdPrefix()} hyperlane status \
+        --registry ${REGISTRY_PATH} \
+        --registry ${tempDir} \
+        --origin ${CHAIN_NAME_2} \
+        --dispatchTx ${dispatchTx} \
+        --relay \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+
+      expect(exitCode).to.equal(0);
     });
   });
 });
