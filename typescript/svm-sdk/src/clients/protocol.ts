@@ -16,7 +16,7 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/module';
 import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
-import { address, address as parseAddress } from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -75,18 +75,7 @@ export class SvmProtocolProvider implements ProtocolProvider {
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-
-    const { overheadIgpAccount, igpProgramId } =
-      SVM_CORE_ADDRESSES[chainMetadata.name] ?? {};
-
-    assert(
-      overheadIgpAccount && igpProgramId,
-      `IGP program id and overhead id are required for warp SVM deployments but none were found for chain ${chainMetadata.name}`,
-    );
-    return new SvmWarpArtifactManager(rpc, {
-      igpOverheadProgramId: address(overheadIgpAccount),
-      igpProgramId: parseAddress(igpProgramId),
-    });
+    return new SvmWarpArtifactManager(rpc);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
