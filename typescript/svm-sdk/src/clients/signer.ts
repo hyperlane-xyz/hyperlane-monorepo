@@ -1,8 +1,6 @@
 import {
   type KeyPairSigner,
   type ReadonlyUint8Array,
-  type RpcSubscriptions,
-  type SolanaRpcSubscriptionsApi,
   type TransactionSigner,
   addSignersToTransactionMessage,
   createKeyPairSignerFromBytes,
@@ -10,7 +8,6 @@ import {
   getBase58Encoder,
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
-  sendAndConfirmTransactionFactory,
   signTransactionMessageWithSigners,
 } from '@solana/kit';
 
@@ -59,24 +56,20 @@ export class SvmSigner
   implements AltVM.ISigner<SvmTransaction, SvmReceipt>
 {
   readonly signer: TransactionSigner;
-  private readonly rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
 
   private constructor(
     rpc: SvmRpc,
     rpcUrls: string[],
     signer: TransactionSigner,
-    rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
   ) {
     super(rpc, rpcUrls);
     this.signer = signer;
-    this.rpcSubscriptions = rpcSubscriptions;
   }
 
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
     _extraParams?: Record<string, any>,
-    rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
   ): Promise<SvmSigner> {
     assert(rpcUrls.length > 0, 'At least one RPC URL is required');
     const rpc = createRpc(rpcUrls[0]);
@@ -93,7 +86,7 @@ export class SvmSigner
       );
     }
 
-    return new SvmSigner(rpc, rpcUrls, keypair, rpcSubscriptions);
+    return new SvmSigner(rpc, rpcUrls, keypair);
   }
 
   getSignerAddress(): string {
@@ -140,22 +133,6 @@ export class SvmSigner
     const signedTx = await signTransactionMessageWithSigners(txMessage);
     const signature = getSignatureFromTransaction(signedTx);
 
-    if (this.rpcSubscriptions) {
-      const sendAndConfirm = sendAndConfirmTransactionFactory({
-        rpc: this.rpc,
-        rpcSubscriptions: this.rpcSubscriptions,
-      });
-      // buildTransactionMessage always uses blockhash lifetime.
-      // signTransactionMessageWithSigners widens the type to the lifetime union,
-      // so cast to the exact parameter type expected by sendAndConfirm.
-      await sendAndConfirm(signedTx as Parameters<typeof sendAndConfirm>[0], {
-        commitment: 'confirmed',
-      });
-      return { signature };
-    }
-
-    // Fallback: manual send + poll (no rpcSubscriptions provided).
-    // Prefer passing rpcSubscriptions for reliable confirmation semantics.
     const base64Tx = getBase64EncodedWireTransaction(signedTx);
     await this.rpc
       .sendTransaction(base64Tx, {
@@ -166,29 +143,31 @@ export class SvmSigner
 
     let confirmed = false;
     let slot: bigint = 0n;
-    const maxRetries = 120;
+    const maxRetries = 60;
+    let delay = 500;
     for (let i = 0; i < maxRetries && !confirmed; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(delay * 1.5, 4000);
       const status = await this.rpc.getSignatureStatuses([signature]).send();
       const result = status.value[0];
-      if (result && result.confirmationStatus) {
-        if (result.err) {
-          throw new Error(
-            `Transaction failed: ${signature}, err: ${JSON.stringify(result.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
-          );
-        }
-        if (
-          result.confirmationStatus === 'confirmed' ||
-          result.confirmationStatus === 'finalized'
-        ) {
-          confirmed = true;
-          slot = BigInt(result.slot);
-        }
+      if (result?.err) {
+        throw new Error(
+          `Transaction failed: ${signature}, err: ${JSON.stringify(result.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
+        );
+      }
+      if (
+        result?.confirmationStatus === 'confirmed' ||
+        result?.confirmationStatus === 'finalized'
+      ) {
+        confirmed = true;
+        slot = BigInt(result.slot);
       }
     }
 
     if (!confirmed) {
-      throw new Error(`Transaction not confirmed: ${signature}`);
+      throw new Error(
+        `Transaction not confirmed within polling timeout: ${signature}`,
+      );
     }
 
     return { signature, slot };
