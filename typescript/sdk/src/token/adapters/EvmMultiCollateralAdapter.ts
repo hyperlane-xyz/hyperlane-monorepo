@@ -1,4 +1,4 @@
-import { PopulatedTransaction } from 'ethers';
+import { TransactionRequest } from 'ethers';
 
 import {
   MultiCollateral,
@@ -19,6 +19,8 @@ import { ChainName } from '../../types.js';
 
 import { InterchainGasQuote } from './ITokenAdapter.js';
 import { EvmHypCollateralAdapter } from './EvmTokenAdapter.js';
+
+type PopulatedTransaction = TransactionRequest;
 
 /**
  * Adapter for MultiCollateral routers.
@@ -79,7 +81,7 @@ export class EvmHypMultiCollateralAdapter extends EvmHypCollateralAdapter {
       ? quote.igpQuote.amount.toString()
       : '0';
 
-    return this.multiCollateralContract.populateTransaction.transferRemoteTo(
+    return this.multiCollateralContract.transferRemoteTo.populateTransaction(
       params.destination,
       recipientBytes32,
       params.amount.toString(),

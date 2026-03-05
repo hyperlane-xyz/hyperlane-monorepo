@@ -1,4 +1,4 @@
-import { utils as ethersUtils } from 'ethers';
+import { getAddress, isAddress } from 'ethers';
 
 import {
   type TokenPriceGetter,
@@ -573,12 +573,10 @@ export class WarpMonitor {
     for (const token of warpCore.tokens) {
       const metadata = chainMetadata[token.chainName];
       if (!metadata) continue;
-      if (!ethersUtils.isAddress(token.addressOrDenom)) continue;
+      if (!isAddress(token.addressOrDenom)) continue;
 
       const domainId = metadata.domainId;
-      const routerAddress = ethersUtils
-        .getAddress(token.addressOrDenom)
-        .toLowerCase();
+      const routerAddress = getAddress(token.addressOrDenom).toLowerCase();
       const key = `${domainId}:${routerAddress}`;
       if (nodeByKey.has(key)) continue;
 

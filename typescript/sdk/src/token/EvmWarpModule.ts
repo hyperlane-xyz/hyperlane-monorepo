@@ -434,7 +434,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createEnrollMultiCollateralRoutersTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMultiCollateralTokenConfig(expectedConfig) ||
       !isMultiCollateralTokenConfig(actualConfig)
@@ -497,7 +497,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createUnenrollMultiCollateralRoutersTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMultiCollateralTokenConfig(expectedConfig) ||
       !isMultiCollateralTokenConfig(actualConfig)
