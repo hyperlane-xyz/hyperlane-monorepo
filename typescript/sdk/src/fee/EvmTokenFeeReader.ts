@@ -86,8 +86,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       tokenFee.maxFee(),
       tokenFee.halfAmount(),
     ]);
-    const maxFeeBn = BigInt(maxFee.toString());
-    const halfAmountBn = BigInt(halfAmount.toString());
+    const maxFeeBn = maxFee;
+    const halfAmountBn = halfAmount;
     const bps = convertToBps(maxFeeBn, halfAmountBn);
 
     return {
@@ -125,8 +125,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       routingFee.halfAmount(),
     ]);
 
-    const maxFeeBn = BigInt(maxFee.toString());
-    const halfAmountBn = BigInt(halfAmount.toString());
+    const maxFeeBn = maxFee;
+    const halfAmountBn = halfAmount;
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 

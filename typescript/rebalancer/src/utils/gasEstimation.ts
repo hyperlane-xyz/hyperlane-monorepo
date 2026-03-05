@@ -109,7 +109,7 @@ export async function estimateTransferRemoteGas(
       from: inventorySigner,
     });
 
-    const estimatedGas = BigInt(gasEstimate.toString());
+    const estimatedGas = gasEstimate;
 
     logger.debug(
       {

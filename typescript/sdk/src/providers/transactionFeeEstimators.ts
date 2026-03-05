@@ -61,7 +61,7 @@ export async function estimateTransactionFeeEthersV6({
   });
   return estimateTransactionFeeEthersV6ForGasUnits({
     provider: provider.provider,
-    gasUnits: BigInt(gasUnits.toString()),
+    gasUnits,
   });
 }
 
@@ -76,11 +76,9 @@ export async function estimateTransactionFeeEthersV6ForGasUnits({
   const feeData = await provider.getFeeData();
   return computeEvmTxFee(
     gasUnits,
-    feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : undefined,
-    feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : undefined,
-    feeData.maxPriorityFeePerGas
-      ? BigInt(feeData.maxPriorityFeePerGas.toString())
-      : undefined,
+    feeData.gasPrice ?? undefined,
+    feeData.maxFeePerGas ?? undefined,
+    feeData.maxPriorityFeePerGas ?? undefined,
   );
 }
 
