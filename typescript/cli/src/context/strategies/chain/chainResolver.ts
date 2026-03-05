@@ -159,7 +159,7 @@ async function resolveWarpSendChains(
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
       warpRouteId: argv.warpRouteId,
-      chains: filterChains,
+      chains: filterChains.length > 0 ? filterChains : undefined,
     });
     argv.context.warpCoreConfig = warpCoreConfig;
 
@@ -194,8 +194,10 @@ async function resolveWarpSendChains(
       : chainPath;
   hopOrigins.forEach((chain) => signerChains.add(chain));
 
-  // If recipient is omitted, EVM destinations default to destination signer addresses.
-  if (!normalizedRecipient) {
+  // EVM destinations need signers when: (a) no explicit recipient (we default
+  // to the destination signer address), or (b) self-relay is enabled (the
+  // relayer submits on the destination chain).
+  if (!normalizedRecipient || argv.relay) {
     for (let i = 1; i < chainPath.length; i += 1) {
       const destination = chainPath[i];
       if (isEVMLike(multiProvider.getProtocol(destination))) {
