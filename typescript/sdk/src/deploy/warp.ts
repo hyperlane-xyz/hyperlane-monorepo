@@ -50,7 +50,6 @@ import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
-import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -151,8 +150,7 @@ function shouldDeployConcurrently(
   // can race on nonce assignment and produce flaky/non-deterministic failures.
   return !chains.some(
     (chain) =>
-      multiProvider.getChainMetadata(chain).technicalStack ===
-      ChainTechnicalStack.Tron,
+      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Tron,
   );
 }
 
