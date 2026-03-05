@@ -15,8 +15,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   addressToBytes32,
+  isEVMLike,
   isValidAddressEvm,
   objMap,
   retryAsync,
@@ -196,9 +196,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       await awsUser.createIfNotExists();
       const awsKey = (await awsUser.createKeyIfNotExists(this)).keyConfig;
 
-      // AWS keys only work for Ethereum chains
+      // AWS keys only work for EVM-like chains
       for (const chainName of this.relayChains) {
-        if (getChain(chainName).protocol === ProtocolType.Ethereum) {
+        if (isEVMLike(getChain(chainName).protocol)) {
           chainSigners[chainName] = awsKey;
         }
       }

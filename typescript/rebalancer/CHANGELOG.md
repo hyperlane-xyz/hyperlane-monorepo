@@ -1,5 +1,70 @@
 # @hyperlane-xyz/rebalancer
 
+## 26.0.0
+
+### Patch Changes
+
+- 279b714: Provider initialization in `RebalancerContextFactory.create()` was restricted to EVM chains only. Non-EVM warp route chains (e.g. StarkNet, Sealevel) are now skipped, preventing crashes from ethers v5 rejecting non-numeric chainIds.
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/metrics@0.2.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.5.0
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/metrics@0.1.11
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/metrics@0.1.10
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+  - @hyperlane-xyz/core@11.0.1
+
+## 3.2.0
+
+### Minor Changes
+
+- b50aa7b: Added ERC20 inventory rebalancing support with collateral token approval handling and comprehensive e2e tests.
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [027eeac]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/metrics@0.1.9
+
 ## 3.1.1
 
 ### Patch Changes

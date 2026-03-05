@@ -49,6 +49,7 @@ COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY solidity/package.json ./solidity/
+COPY solidity/multicollateral/package.json ./solidity/multicollateral/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/utils",
-  "version": "25.3.2",
+  "version": "26.0.0",
   "description": "General utilities and types for the Hyperlane network",
   "keywords": [
     "Hyperlane",
@@ -60,6 +60,7 @@
     "@solana/web3.js": "catalog:",
     "bech32": "^2.0.0",
     "bignumber.js": "catalog:",
+    "bs58": "catalog:",
     "ethers": "catalog:",
     "lodash-es": "catalog:",
     "pino": "catalog:",
@@ -69,6 +70,7 @@
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/bs58": "catalog:",
     "@types/lodash-es": "catalog:",
     "@types/mocha": "catalog:",
     "@types/sinon": "catalog:",

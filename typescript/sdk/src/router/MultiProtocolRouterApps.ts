@@ -1,4 +1,4 @@
-import { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, Domain, ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -23,7 +23,7 @@ export class MultiProtocolRouterApp<
   ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
-    if (protocol === ProtocolType.Ethereum) return EvmRouterAdapter as any;
+    if (isEVMLike(protocol)) return EvmRouterAdapter as any;
     if (protocol === ProtocolType.Sealevel) return SealevelRouterAdapter as any;
     // TODO cosmos support here
     throw new Error(`No adapter for protocol ${protocol}`);
@@ -57,7 +57,7 @@ export class MultiProtocolGasRouterApp<
   ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
-    if (protocol === ProtocolType.Ethereum) return EvmGasRouterAdapter as any;
+    if (isEVMLike(protocol)) return EvmGasRouterAdapter as any;
     if (protocol === ProtocolType.Sealevel)
       return SealevelGasRouterAdapter as any;
     throw new Error(`No adapter for protocol ${protocol}`);

@@ -1,5 +1,59 @@
 # @hyperlane-xyz/metrics
 
+## 0.2.0
+
+### Minor Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [027eeac]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 0.1.8
 
 ### Patch Changes

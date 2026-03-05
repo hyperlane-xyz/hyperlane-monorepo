@@ -9,6 +9,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
+  isEVMLike,
   rootLogger,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -113,7 +114,11 @@ export class AgentGCPKey extends CloudAgentKey {
     // - is Sealvel then we use the protocol name instead of the chain name as all sealevel chains use the same key
     // - is none of the above, fallback to using the chain name in all other cases as other roles might require it
     let protocolOrChain: string | undefined;
-    if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
+    if (
+      this.role === Role.Deployer &&
+      protocolType &&
+      isEVMLike(protocolType)
+    ) {
       protocolOrChain = undefined;
     } else if (
       this.role === Role.Deployer &&
@@ -153,6 +158,7 @@ export class AgentGCPKey extends CloudAgentKey {
     this.logger.debug(`Getting address for protocol: ${protocol}`);
 
     switch (protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         return this.address;
       case ProtocolType.Sealevel:

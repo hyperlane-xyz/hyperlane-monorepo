@@ -75,6 +75,9 @@ describe('Warp Monitor Types', () => {
         checkFrequency: 30000,
         coingeckoApiKey: 'test-api-key',
         registryUri: 'https://github.com/hyperlane-xyz/hyperlane-registry',
+        explorerApiUrl: 'https://explorer4.hasura.app/v1/graphql',
+        explorerQueryLimit: 500,
+        inventoryAddress: '0x1234567890123456789012345678901234567890',
       };
 
       expect(config.warpRouteId).to.equal('ETH/ethereum-polygon');
@@ -82,6 +85,13 @@ describe('Warp Monitor Types', () => {
       expect(config.coingeckoApiKey).to.equal('test-api-key');
       expect(config.registryUri).to.equal(
         'https://github.com/hyperlane-xyz/hyperlane-registry',
+      );
+      expect(config.explorerApiUrl).to.equal(
+        'https://explorer4.hasura.app/v1/graphql',
+      );
+      expect(config.explorerQueryLimit).to.equal(500);
+      expect(config.inventoryAddress).to.equal(
+        '0x1234567890123456789012345678901234567890',
       );
     });
 
@@ -93,6 +103,9 @@ describe('Warp Monitor Types', () => {
 
       expect(config.coingeckoApiKey).to.be.undefined;
       expect(config.registryUri).to.be.undefined;
+      expect(config.explorerApiUrl).to.be.undefined;
+      expect(config.explorerQueryLimit).to.be.undefined;
+      expect(config.inventoryAddress).to.be.undefined;
     });
   });
 });

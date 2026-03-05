@@ -59,6 +59,13 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
   }
 
   /**
+   * Tron doesn't support ENS - return the name as-is.
+   */
+  async resolveName(name: string): Promise<string> {
+    return name;
+  }
+
+  /**
    * Return legacy gas pricing only - Tron doesn't support EIP-1559.
    */
   async getFeeData(): Promise<providers.FeeData> {

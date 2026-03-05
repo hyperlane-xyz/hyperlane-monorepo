@@ -1,35 +1,21 @@
-name: Build and Push Node Services Images to GCR
+name: Build and Push Node Services Images
 
 on:
   push:
     branches: [main]
     paths:
-      - 'typescript/**'
-      - 'solidity/**'
-      - 'starknet/**'
-      - 'scripts/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'package.json'
-      - 'patches/**'
-      - 'turbo.json'
-      - '.dockerignore'
-      - '.github/workflows/node-services-docker.yml'
-      - 'solidity/.foundryrc'
       - 'typescript/Dockerfile.node-service'
       - 'typescript/docker-bake.hcl'
+      - '.dockerignore'
+      - '.github/workflows/node-services-docker.yml'
+      - 'pnpm-lock.yaml'
   pull_request:
     paths:
-      - 'typescript/rebalancer/**'
-      - 'typescript/warp-monitor/**'
-      - 'typescript/ccip-server/**'
-      - 'typescript/keyfunder/**'
-      - 'typescript/relayer/**'
       - 'typescript/Dockerfile.node-service'
-      - 'pnpm-lock.yaml'
+      - 'typescript/docker-bake.hcl'
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
-      - 'typescript/docker-bake.hcl'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
     inputs:
       include_arm64:
@@ -42,29 +28,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-env:
-    runs-on: ubuntu-latest
-    outputs:
-      gcloud-service-key: ${{ steps.gcloud-service-key.outputs.defined }}
-    steps:
-      - id: gcloud-service-key
-        env:
-          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
-        if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
-        run: echo "defined=true" >> $GITHUB_OUTPUT
-
-  build-and-push-to-gcr:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+      packages: write
       pull-requests: write
-
-    needs: [check-env]
-    if: needs.check-env.outputs.gcloud-service-key == 'true'
 
     steps:
       - name: Generate GitHub App Token
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         id: generate-token
         uses: actions/create-github-app-token@v2
         with:
@@ -86,35 +60,33 @@ jobs:
           TAG_DATE=$(date +'%Y%m%d-%H%M%S')
           echo "TAG_SHA_DATE=${TAG_SHA}-${TAG_DATE}" >> $GITHUB_OUTPUT
 
-          # Determine primary tag based on event type
+          SANITIZED_REF=$(echo '${{ github.ref_name }}' | tr '/' '-')
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "TAG=${SANITIZED_REF}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "TAG=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           else
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "TAG=${SANITIZED_REF}" >> $GITHUB_OUTPUT
           fi
 
-          # Determine platforms
           if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
             echo "PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
           else
             echo "PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
           fi
 
-          # Get Foundry version
           FOUNDRY_VERSION=$(cat solidity/.foundryrc)
           echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_OUTPUT
 
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
 
-      - name: Login to GCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: gcr.io
-          username: _json_key
-          password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push all images
         id: build
@@ -128,7 +100,8 @@ jobs:
         with:
           project: 057xstl4t6
           files: typescript/docker-bake.hcl
-          push: true
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          provenance: false
 
       - name: Generate image tags output
         id: image-tags
@@ -136,9 +109,8 @@ jobs:
         run: |
           TAG="${{ steps.taggen.outputs.TAG }}"
           TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA_DATE }}"
-          REGISTRY="gcr.io/abacus-labs-dev"
+          REGISTRY="ghcr.io/hyperlane-xyz"
 
-          # Generate tags for comment action (SHA-date only)
           TAGS=$(cat << EOF
           ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
@@ -151,7 +123,6 @@ jobs:
           echo "$TAGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-          # Write job summary
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ## ⚙️ Node Service Docker Images
 
@@ -170,7 +141,7 @@ jobs:
           EOF
 
       - name: Comment image tags on PR
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
         uses: ./.github/actions/docker-image-comment
         with:
           comment_tag: typescript-docker-images

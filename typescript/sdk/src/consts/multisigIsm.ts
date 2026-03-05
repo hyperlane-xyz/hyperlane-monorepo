@@ -466,7 +466,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
-        alias: 'O-OPS',
+        alias: 'P-OPS Team',
       },
       {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',

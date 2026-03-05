@@ -1,6 +1,7 @@
 import { BigNumber, PopulatedTransaction, ethers, utils } from 'ethers';
 import { z } from 'zod';
 
+import { ZHash } from '../../metadata/customZodTypes.js';
 import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
@@ -545,13 +546,13 @@ export const PostCallsSchema = z.object({
   calls: z
     .array(
       z.object({
-        to: z.string(),
+        to: ZHash,
         data: z.string(),
         value: z.string().optional(),
       }),
     )
     .min(1),
-  relayers: z.array(z.string()),
+  relayers: z.array(ZHash),
   salt: z.string(),
   commitmentDispatchTx: z.string(),
   originDomain: z.number(),

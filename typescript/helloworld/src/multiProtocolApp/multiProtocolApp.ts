@@ -5,7 +5,7 @@ import {
   RouterAddress,
   TypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types.js';
 
@@ -18,7 +18,7 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   RouterAddress & { mailbox: Address }
 > {
   override protocolToAdapter(protocol: ProtocolType) {
-    if (protocol === ProtocolType.Ethereum) return EvmHelloWorldAdapter;
+    if (isEVMLike(protocol)) return EvmHelloWorldAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelHelloWorldAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
   }

@@ -1,10 +1,10 @@
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { createIsmWriter } from '@hyperlane-xyz/deploy-sdk';
 import {
-  createIsmWriter,
+  type IsmConfig as ProviderIsmConfig,
   ismConfigToArtifact,
-} from '@hyperlane-xyz/deploy-sdk';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { type IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+} from '@hyperlane-xyz/provider-sdk/ism';
+import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   ContractVerifier,
   EvmIsmModule,
@@ -15,7 +15,7 @@ import {
   extractIsmAndHookFactoryAddresses,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { type Address, assert, isEVMLike, mustGet } from '@hyperlane-xyz/utils';
 
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
@@ -99,7 +99,7 @@ export async function runIsmDeploy({
   const protocol = multiProvider.getProtocol(chain);
   let deployedAddress: Address;
 
-  if (protocol === ProtocolType.Ethereum) {
+  if (isEVMLike(protocol)) {
     deployedAddress = await deployEvmIsm({
       context,
       chain,

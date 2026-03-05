@@ -75,6 +75,7 @@ async function main() {
     return (
       metadata?.protocol !== undefined &&
       metadata.protocol !== ProtocolType.Ethereum &&
+      metadata.protocol !== ProtocolType.Tron &&
       metadata.protocol !== ProtocolType.Starknet &&
       metadata.protocol !== ProtocolType.Sealevel &&
       hasProtocol(metadata.protocol)

@@ -1,6 +1,7 @@
 packages:
   - 'solhint-plugin'
   - 'solidity'
+  - 'solidity/multicollateral'
   - 'typescript/*'
   - 'starknet'
 
@@ -61,6 +62,10 @@ catalog:
 
   # Tron
   tronweb: ^6.1.1
+  '@tronweb3/tronwallet-abstract-adapter': ^1.1.10
+  '@tronweb3/tronwallet-adapter-react-hooks': ^1.1.11
+  '@tronweb3/tronwallet-adapter-tronlink': ^1.1.13
+  '@tronweb3/tronwallet-adapters': ^1.2.21
 
   # AWS
   '@aws-sdk/client-s3': ^3.577.0
@@ -142,6 +147,7 @@ catalog:
   '@types/yargs': ^17.0.24
   '@types/ws': ^8.5.5
   '@types/uuid': ^10.0.0
+  '@types/bs58': ^5.0.0
 
   # Hardhat
   hardhat: ^2.22.2

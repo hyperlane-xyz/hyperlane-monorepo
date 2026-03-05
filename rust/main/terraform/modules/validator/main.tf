@@ -40,7 +40,7 @@ resource "aws_ecs_task_definition" "validator" {
   container_definitions = jsonencode([
     {
       name  = "validator",
-      image = "gcr.io/abacus-labs-dev/hyperlane-agent:${var.validator_image_version}",
+      image = "ghcr.io/hyperlane-xyz/hyperlane-agent:${var.validator_image_version}",
       user  = "1000:1000",
       secrets = [
         {

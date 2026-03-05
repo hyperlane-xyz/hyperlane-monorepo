@@ -12,7 +12,7 @@ import {
   type MultiProvider,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import { type Address, isEVMLike, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import {
@@ -243,7 +243,7 @@ const setValidatorInfo = async (
 
   for (const chain of chains) {
     // skip if chain is not an Ethereum chain
-    if (chainMetadata[chain].protocol !== ProtocolType.Ethereum) continue;
+    if (!isEVMLike(chainMetadata[chain].protocol)) continue;
 
     const chainAddresses = addresses[chain];
 
