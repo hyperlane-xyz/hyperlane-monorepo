@@ -243,10 +243,7 @@ async function resolveWarpSendChains(
   const { multiProvider } = argv.context;
 
   // Validate origin is EVM if specified
-  if (
-    argv.origin &&
-    multiProvider.getProtocol(argv.origin) !== ProtocolType.Ethereum
-  ) {
+  if (argv.origin && !isEVMLike(multiProvider.getProtocol(argv.origin))) {
     throw new Error(
       `'hyperlane warp send' requires an EVM origin chain. '${argv.origin}' is ${multiProvider.getProtocol(argv.origin)}`,
     );
@@ -278,8 +275,8 @@ async function resolveWarpSendChains(
     );
   }
 
-  return Array.from(selectedChains).filter(
-    (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  return Array.from(selectedChains).filter((chain) =>
+    isEVMLike(multiProvider.getProtocol(chain)),
   );
 }
 

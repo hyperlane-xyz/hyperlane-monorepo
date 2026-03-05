@@ -87,7 +87,7 @@ export async function sendTestTransfer({
   // Validate once up front to avoid partial multi-hop sends before failing.
   if (
     !normalizedRecipient &&
-    multiProvider.getProtocol(finalDestination) !== ProtocolType.Ethereum
+    !isEVMLike(multiProvider.getProtocol(finalDestination))
   ) {
     throw new Error(
       `Recipient address is required when sending to non-EVM destination '${finalDestination}'`,
@@ -96,10 +96,7 @@ export async function sendTestTransfer({
 
   // Include final destination in preflight if self-relaying to EVM
   const signerChains = new Set(hopOrigins);
-  if (
-    selfRelay &&
-    isEVMLike(multiProvider.getProtocol(finalDestination))
-  ) {
+  if (selfRelay && isEVMLike(multiProvider.getProtocol(finalDestination))) {
     signerChains.add(finalDestination);
   }
 
