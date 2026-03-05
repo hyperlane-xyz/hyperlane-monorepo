@@ -33,59 +33,39 @@ contract TronCreate2Test is Test {
     address constant EXPECTED_TRON_ADDRESS =
         0x2447B82A6E96d9d4Fb407235DBC9Faeb44902A8f;
 
-    function _isTronProfile() internal view returns (bool) {
-        string memory profile = vm.envOr("FOUNDRY_PROFILE", string("default"));
-        return keccak256(bytes(profile)) == keccak256(bytes("tron"));
-    }
-
     /**
      * @notice Test that Create2.computeAddress returns the expected Tron address (0x41 prefix)
-     * @dev In non-tron profiles, the default EVM 0xff prefix is expected.
+     * @dev This test should PASS when compiled with FOUNDRY_PROFILE=tron
+     *      and FAIL when compiled with default profile
      */
-    function test_computeAddress_usesTronPrefix() public view {
+    function test_computeAddress_usesTronPrefix() public pure {
         address computed = Create2.computeAddress(
             SALT,
             BYTECODE_HASH,
             DEPLOYER
         );
 
-        if (_isTronProfile()) {
-            assertEq(
-                computed,
-                EXPECTED_TRON_ADDRESS,
-                "Create2 should use 0x41 prefix for Tron"
-            );
-        } else {
-            assertEq(
-                computed,
-                EXPECTED_EVM_ADDRESS,
-                "Create2 should use 0xff prefix outside Tron"
-            );
-        }
+        assertEq(
+            computed,
+            EXPECTED_TRON_ADDRESS,
+            "Create2 should use 0x41 prefix for Tron"
+        );
     }
 
     /**
      * @notice Test that Create2.computeAddress does NOT return the EVM address
-     * @dev This only applies when running with the tron profile.
+     * @dev This confirms we're not using the standard 0xff prefix
      */
-    function test_computeAddress_notEvmPrefix() public view {
+    function test_computeAddress_notEvmPrefix() public pure {
         address computed = Create2.computeAddress(
             SALT,
             BYTECODE_HASH,
             DEPLOYER
         );
 
-        if (_isTronProfile()) {
-            assertTrue(
-                computed != EXPECTED_EVM_ADDRESS,
-                "Create2 should NOT use 0xff prefix for Tron"
-            );
-        } else {
-            assertEq(
-                computed,
-                EXPECTED_EVM_ADDRESS,
-                "Create2 should use 0xff prefix outside Tron"
-            );
-        }
+        assertTrue(
+            computed != EXPECTED_EVM_ADDRESS,
+            "Create2 should NOT use 0xff prefix for Tron"
+        );
     }
 }
