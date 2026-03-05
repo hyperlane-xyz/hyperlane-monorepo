@@ -71,7 +71,6 @@ mod test {
             &mut owner_account_data,
             &owner,
             false,
-            0,
         );
         assert_eq!(
             access_control.ensure_owner_signer(&owner_account_info),
@@ -87,7 +86,6 @@ mod test {
             &mut owner_account_data,
             &owner,
             false,
-            0,
         );
         assert_eq!(
             access_control.ensure_owner_signer(&owner_account_info),
@@ -104,7 +102,6 @@ mod test {
             &mut owner_account_data,
             &owner,
             false,
-            0,
         );
         assert_eq!(
             access_control.ensure_owner_signer(&owner_account_info),
@@ -128,7 +125,6 @@ mod test {
             &mut owner_account_data,
             &owner,
             false,
-            0,
         );
 
         let new_owner = Pubkey::new_unique();
@@ -154,7 +150,6 @@ mod test {
             &mut owner_account_data,
             &owner,
             false,
-            0,
         );
 
         // Ensure it can't transfer ownership because it's not a signer
@@ -172,7 +167,6 @@ mod test {
             &mut owner_account_data,
             &owner,
             false,
-            0,
         );
 
         // Transfer ownership to None

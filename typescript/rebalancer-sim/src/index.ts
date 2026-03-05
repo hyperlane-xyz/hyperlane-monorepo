@@ -6,9 +6,8 @@
  */
 
 // Core simulation classes
-export { BridgeMockController } from './BridgeMockController.js';
 export { KPICollector } from './KPICollector.js';
-export { MessageTracker } from './MessageTracker.js';
+export { MockInfrastructureController } from './MockInfrastructureController.js';
 export { RebalancerSimulationHarness } from './RebalancerSimulationHarness.js';
 export {
   deployMultiDomainSimulation,
@@ -24,6 +23,12 @@ export {
   loadScenario,
   loadScenarioFile,
 } from './ScenarioLoader.js';
+export {
+  saveSimulationResults,
+  type SaveSimulationResultsOptions,
+  type SaveSimulationResultsOutput,
+  type SimulationComparison,
+} from './ResultsExporter.js';
 
 // Rebalancer runners
 export { NoOpRebalancer } from './runners/NoOpRebalancer.js';

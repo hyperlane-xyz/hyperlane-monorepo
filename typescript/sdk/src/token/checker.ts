@@ -19,7 +19,7 @@ import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
-import { verifyScale } from '../utils/decimals.js';
+import { DEFAULT_SCALE, verifyScale } from '../utils/decimals.js';
 
 import { HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -356,7 +356,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           name: this.configMap[chn]?.name ?? 'unknown',
           symbol: this.configMap[chn]?.symbol ?? 'unknown',
           decimals: decimals as number,
-          scale: this.configMap[chn]?.scale ?? 1,
+          scale: this.configMap[chn]?.scale ?? DEFAULT_SCALE,
         },
       ]),
     );

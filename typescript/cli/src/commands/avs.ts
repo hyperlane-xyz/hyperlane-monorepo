@@ -1,7 +1,7 @@
 import { type CommandModule, type Options } from 'yargs';
 
 import { type ChainName } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { checkValidatorAvsSetup } from '../avs/check.js';
 import {
@@ -115,7 +115,7 @@ const checkCommand: CommandModuleWithWriteContext<{
 
     const chainMetadata = multiProvider.getChainMetadata(chain);
 
-    if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+    if (!isEVMLike(chainMetadata.protocol)) {
       errorRed(`\n❌ Validator AVS check only supports EVM chains. Exiting.`);
       process.exit(1);
     }

@@ -8,8 +8,8 @@ import {
   MerkleTreeHookConfig,
   MultisigIsmConfig,
   S3Validator,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Checkpoint,
@@ -44,8 +44,10 @@ interface MessageIdMultisigMetadata {
   checkpoint: Omit<Checkpoint, 'mailbox_domain'>;
 }
 
-interface MerkleRootMultisigMetadata
-  extends Omit<MessageIdMultisigMetadata, 'type'> {
+interface MerkleRootMultisigMetadata extends Omit<
+  MessageIdMultisigMetadata,
+  'type'
+> {
   type: typeof IsmType.MERKLE_ROOT_MULTISIG;
   proof: MerkleProof;
 }

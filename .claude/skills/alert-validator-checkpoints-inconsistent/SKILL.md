@@ -8,7 +8,6 @@ description: Debug validator checkpoint inconsistencies where some validators ar
 ## When to Use
 
 1. **Alert-based triggers:**
-
    - Alert mentions "checkpoint inconsistency", "validator inconsistent", or "validators behind"
    - Alert names like "Inconsistent latest checkpoints in validator set"
    - Alert names containing "checkpoint inconsistency" with a threshold (e.g., "> 20")

@@ -69,14 +69,14 @@ contract HypNativeMovableTest is Test {
             destinationDomain,
             MockMailbox(mailbox)
         );
-        router = new HypNative(1, mailbox);
+        router = new HypNative(1, 1, mailbox);
         // Initialize the router -> we are the admin
         router.initialize(address(0), address(0), address(this));
         router.enrollRemoteRouter(
             destinationDomain,
             bytes32(uint256(uint160(0)))
         );
-        vtb = new HypNative(1, mailbox);
+        vtb = new HypNative(1, 1, mailbox);
         vtb.enrollRemoteRouter(destinationDomain, bytes32(uint256(uint160(0))));
     }
 

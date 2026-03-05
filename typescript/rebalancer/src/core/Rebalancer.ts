@@ -16,20 +16,33 @@ import {
 import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
 import type {
-  IRebalancer,
+  IMovableCollateralRebalancer,
+  MovableCollateralExecutionResult,
   PreparedTransaction,
-  RebalanceExecutionResult,
-  RebalanceRoute,
+  RebalancerType,
 } from '../interfaces/IRebalancer.js';
+import { MovableCollateralRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
+import type { RebalanceIntent } from '../tracking/types.js';
 
-export class Rebalancer implements IRebalancer {
+// Internal types with intentId for tracking
+type InternalExecutionResult = MovableCollateralExecutionResult & {
+  intentId: string;
+};
+
+type InternalRoute = MovableCollateralRoute & { intentId: string };
+
+export class Rebalancer implements IMovableCollateralRebalancer {
+  public readonly rebalancerType: RebalancerType = 'movableCollateral';
   private readonly logger: Logger;
+
   constructor(
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly actionTracker: IActionTracker,
     logger: Logger,
     private readonly metrics?: Metrics,
   ) {
@@ -37,8 +50,8 @@ export class Rebalancer implements IRebalancer {
   }
 
   async rebalance(
-    routes: RebalanceRoute[],
-  ): Promise<RebalanceExecutionResult[]> {
+    routes: MovableCollateralRoute[],
+  ): Promise<MovableCollateralExecutionResult[]> {
     if (routes.length === 0) {
       this.logger.info('No routes to execute, exiting');
       return [];
@@ -46,20 +59,45 @@ export class Rebalancer implements IRebalancer {
 
     this.logger.info({ numberOfRoutes: routes.length }, 'Rebalance initiated');
 
-    const { preparedTransactions, preparationFailureResults } =
-      await this.prepareTransactions(routes);
+    const invalidRoutes = routes.filter((r) => !r.bridge);
+    if (invalidRoutes.length > 0) {
+      this.logger.error(
+        { count: invalidRoutes.length },
+        'Routes missing required bridge address',
+      );
+      return routes.map((r) => ({
+        route: r,
+        success: false,
+        error: r.bridge ? undefined : 'Missing required bridge address',
+        messageId: '', // Required by MovableCollateralExecutionResult, empty for validation failures
+      }));
+    }
 
-    let executionResults: RebalanceExecutionResult[] = [];
+    const intents = await this.createIntents(routes);
+
+    const internalRoutes: InternalRoute[] = routes.map((route, idx) => ({
+      ...route,
+      bridge: route.bridge!,
+      intentId: intents[idx].id,
+    }));
+
+    const { preparedTransactions, preparationFailureResults } =
+      await this.prepareTransactions(internalRoutes);
+
+    let executionResults: InternalExecutionResult[] = [];
 
     if (preparedTransactions.length > 0) {
       executionResults = await this.executeTransactions(preparedTransactions);
     }
 
-    // Combine preparation failures with execution results
-    const allResults = [...preparationFailureResults, ...executionResults];
+    const allInternalResults = [
+      ...preparationFailureResults,
+      ...executionResults,
+    ];
 
-    // Record metrics for successful transactions
-    const successfulResults = allResults.filter((r) => r.success);
+    await this.processResults(allInternalResults);
+
+    const successfulResults = allInternalResults.filter((r) => r.success);
     if (this.metrics && successfulResults.length > 0) {
       for (const result of successfulResults) {
         const token = this.tokensByChainName[result.route.origin];
@@ -72,22 +110,94 @@ export class Rebalancer implements IRebalancer {
       }
     }
 
-    const failures = allResults.filter((r) => !r.success);
+    const failures = allInternalResults.filter((r) => !r.success);
     if (failures.length > 0) {
       this.logger.error(
         { failureCount: failures.length, totalRoutes: routes.length },
         'Some rebalance operations failed.',
       );
     } else {
-      this.logger.info('✅ Rebalance successful');
+      this.logger.info('Rebalance successful');
     }
 
-    return allResults;
+    return this.toPublicResults(allInternalResults);
   }
 
-  private async prepareTransactions(routes: RebalanceRoute[]): Promise<{
+  private async createIntents(
+    routes: MovableCollateralRoute[],
+  ): Promise<RebalanceIntent[]> {
+    return Promise.all(
+      routes.map((route) =>
+        this.actionTracker.createRebalanceIntent({
+          origin: this.multiProvider.getDomainId(route.origin),
+          destination: this.multiProvider.getDomainId(route.destination),
+          amount: route.amount,
+          bridge: route.bridge,
+          executionMethod: 'movable_collateral',
+        }),
+      ),
+    );
+  }
+
+  private async processResults(
+    results: InternalExecutionResult[],
+  ): Promise<void> {
+    for (const result of results) {
+      const intentId = result.intentId;
+
+      if (result.success && result.messageId) {
+        await this.actionTracker.createRebalanceAction({
+          intentId,
+          origin: this.multiProvider.getDomainId(result.route.origin),
+          destination: this.multiProvider.getDomainId(result.route.destination),
+          amount: result.route.amount,
+          type: 'rebalance_message',
+          messageId: result.messageId,
+          txHash: result.txHash,
+        });
+
+        this.logger.info(
+          {
+            intentId,
+            messageId: result.messageId,
+            txHash: result.txHash,
+            origin: result.route.origin,
+            destination: result.route.destination,
+          },
+          'Rebalance action created successfully',
+        );
+      } else {
+        await this.actionTracker.failRebalanceIntent(intentId);
+
+        this.logger.warn(
+          {
+            intentId,
+            success: result.success,
+            error: result.error,
+            origin: result.route.origin,
+            destination: result.route.destination,
+          },
+          'Rebalance intent marked as failed',
+        );
+      }
+    }
+  }
+
+  private toPublicResults(
+    internalResults: InternalExecutionResult[],
+  ): MovableCollateralExecutionResult[] {
+    return internalResults.map((internal) => ({
+      route: internal.route,
+      success: internal.success,
+      error: internal.error,
+      messageId: internal.messageId || '', // Ensure messageId is always a string
+      txHash: internal.txHash,
+    }));
+  }
+
+  private async prepareTransactions(routes: InternalRoute[]): Promise<{
     preparedTransactions: PreparedTransaction[];
-    preparationFailureResults: RebalanceExecutionResult[];
+    preparationFailureResults: InternalExecutionResult[];
   }> {
     this.logger.info(
       { numRoutes: routes.length },
@@ -105,12 +215,14 @@ export class Rebalancer implements IRebalancer {
     );
 
     // Create failure results for tracking
-    const preparationFailureResults: RebalanceExecutionResult[] = [];
+    const preparationFailureResults: InternalExecutionResult[] = [];
     for (const [i, error] of rejected) {
       preparationFailureResults.push({
         route: routes[i],
+        intentId: routes[i].intentId,
         success: false,
         error: String(error),
+        messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
       });
     }
     // Also track null results (validation failures)
@@ -118,8 +230,10 @@ export class Rebalancer implements IRebalancer {
       if (isNullish(tx)) {
         preparationFailureResults.push({
           route: routes[i],
+          intentId: routes[i].intentId,
           success: false,
           error: 'Preparation returned null',
+          messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
         });
       }
     });
@@ -128,7 +242,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   private async prepareTransaction(
-    route: RebalanceRoute,
+    route: InternalRoute,
   ): Promise<PreparedTransaction | null> {
     const { origin, destination, amount } = route;
 
@@ -209,7 +323,7 @@ export class Rebalancer implements IRebalancer {
     return { populatedTx, route, originTokenAmount };
   }
 
-  private async validateRoute(route: RebalanceRoute): Promise<boolean> {
+  private async validateRoute(route: InternalRoute): Promise<boolean> {
     const { origin, destination, amount } = route;
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
@@ -322,13 +436,13 @@ export class Rebalancer implements IRebalancer {
 
   private async executeTransactions(
     transactions: PreparedTransaction[],
-  ): Promise<RebalanceExecutionResult[]> {
+  ): Promise<InternalExecutionResult[]> {
     this.logger.info(
       { numTransactions: transactions.length },
       'Estimating gas for all prepared transactions.',
     );
 
-    const results: RebalanceExecutionResult[] = [];
+    const results: InternalExecutionResult[] = [];
 
     // 1. Estimate gas for rebalance transactions
     const gasEstimateResults = await Promise.allSettled(
@@ -361,8 +475,10 @@ export class Rebalancer implements IRebalancer {
         );
         results.push({
           route: failedTransaction.route,
+          intentId: failedTransaction.route.intentId,
           success: false,
           error: `Gas estimation failed: ${String(result.reason)}`,
+          messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
         });
       }
     });
@@ -411,8 +527,10 @@ export class Rebalancer implements IRebalancer {
           } else {
             results.push({
               route: txResult.transaction.route,
+              intentId: txResult.transaction.route.intentId,
               success: false,
               error: `Transaction send failed: ${txResult.error}`,
+              messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
             });
             this.metrics?.recordActionAttempt(
               txResult.transaction.route,
@@ -533,7 +651,7 @@ export class Rebalancer implements IRebalancer {
   private buildResult(
     transaction: PreparedTransaction,
     receipt: providers.TransactionReceipt,
-  ): RebalanceExecutionResult {
+  ): InternalExecutionResult {
     const { origin, destination } = transaction.route;
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
 
@@ -544,14 +662,17 @@ export class Rebalancer implements IRebalancer {
       );
       return {
         route: transaction.route,
+        intentId: transaction.route.intentId,
         success: false,
         error: `Transaction confirmed but no Dispatch event found`,
+        messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
         txHash: receipt.transactionHash,
       };
     }
 
     return {
       route: transaction.route,
+      intentId: transaction.route.intentId,
       success: true,
       messageId: dispatchedMessages[0].id,
       txHash: receipt.transactionHash,

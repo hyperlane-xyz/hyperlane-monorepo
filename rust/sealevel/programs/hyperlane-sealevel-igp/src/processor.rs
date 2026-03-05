@@ -1,6 +1,6 @@
 //! Program state processor.
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use std::collections::HashMap;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -14,9 +14,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
     sysvar::Sysvar,
 };
+use solana_system_interface::{instruction as system_instruction, program as system_program};
 
 use access_control::AccessControl;
 use account_utils::{
@@ -97,7 +97,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     // Account 0: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != solana_program::system_program::id() {
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -215,7 +215,7 @@ fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
 
     // Account 0: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != solana_program::system_program::id() {
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -270,7 +270,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
     // Account 0: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != solana_program::system_program::id() {
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -419,7 +419,7 @@ fn quote_gas_payment(
 
     // Account 0: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != solana_program::system_program::id() {
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -455,7 +455,9 @@ fn quote_gas_payment(
 
     let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
-    set_return_data(&SimulationReturnData::new(required_payment).try_to_vec()?);
+    set_return_data(&borsh::to_vec(&SimulationReturnData::new(
+        required_payment,
+    ))?);
 
     Ok(())
 }
@@ -544,7 +546,7 @@ fn claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     // Account 0: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != solana_program::system_program::id() {
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -595,7 +597,7 @@ fn set_destination_gas_overheads(
 
     // Account 0: System program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &solana_program::system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -642,7 +644,7 @@ fn set_gas_oracle_configs(
     // Account 0: System program.
     // Required to invoke `system_instruction::transfer` in `store_with_rent_exempt_realloc`.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &solana_program::system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 

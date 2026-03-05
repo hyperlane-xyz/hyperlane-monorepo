@@ -11,10 +11,10 @@ import {
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   assert,
   difference,
   intersection,
+  isEVMLike,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -27,7 +27,11 @@ import {
   type CommandModuleWithWarpDeployContext,
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
-import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
+import {
+  runWarpRouteApply,
+  runWarpRouteCombine,
+  runWarpRouteDeploy,
+} from '../deploy/warp.js';
 import { runWarpRouteFees } from '../fees/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
@@ -77,6 +81,7 @@ export const warpCommand: CommandModule = {
     yargs
       .command(apply)
       .command(check)
+      .command(combine)
       .command(deploy)
       .command(fork)
       .command(getFees)
@@ -181,6 +186,51 @@ export const deploy: CommandModuleWithWarpDeployContext<SelectWarpRouteBuilder> 
       process.exit(0);
     },
   };
+
+const combine: CommandModuleWithWriteContext<{
+  routes: string;
+  'output-warp-route-id': string;
+}> = {
+  command: 'combine',
+  describe:
+    'Combine multiple MultiCollateral warp routes, updating deploy configs with cross-route enrolledRouters',
+  builder: {
+    routes: {
+      type: 'string',
+      description:
+        'Comma-separated warp route IDs to combine (e.g., "USDC/eth-arb,USDT/eth-arb")',
+      demandOption: true,
+    },
+    'output-warp-route-id': {
+      type: 'string',
+      description:
+        'Warp route ID for the merged WarpCoreConfig (e.g., MULTI/stableswap)',
+      demandOption: true,
+    },
+  },
+  handler: async ({ context, routes, 'output-warp-route-id': outputId }) => {
+    logCommandHeader('Hyperlane Warp Combine');
+
+    const routeIds = routes
+      .split(',')
+      .map((r) => r.trim())
+      .filter((r) => r.length > 0);
+    assert(
+      routeIds.length >= 2,
+      'At least 2 route IDs are required to combine',
+    );
+    assert(
+      outputId.trim().length > 0,
+      'Output warp route ID must be non-empty',
+    );
+    await runWarpRouteCombine({
+      context,
+      routeIds,
+      outputWarpRouteId: outputId,
+    });
+    process.exit(0);
+  },
+};
 
 export const init: CommandModuleWithContext<{
   advanced: boolean;
@@ -296,6 +346,8 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      sourceToken?: string;
+      destinationToken?: string;
     }
 > = {
   command: 'send',
@@ -322,6 +374,15 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'source-token': {
+      type: 'string',
+      description: 'Source token router address (for MultiCollateral routes)',
+    },
+    'destination-token': {
+      type: 'string',
+      description:
+        'Destination token router address (for MultiCollateral cross-stablecoin transfers)',
+    },
   },
   handler: async ({
     context,
@@ -337,6 +398,8 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    sourceToken,
+    destinationToken,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -366,10 +429,17 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
-    chains =
-      chains.length === 0
-        ? [...supportedChains]
-        : [...intersection(new Set(chains), supportedChains)];
+    // When origin & destination are explicitly provided, preserve duplicates
+    // for same-chain transfers (e.g., origin=anvil2, destination=anvil2).
+    // Only deduplicate when using --chains or auto-selecting from config.
+    if (origin && destination) {
+      chains = [origin, destination];
+    } else {
+      chains =
+        chains.length === 0
+          ? [...supportedChains]
+          : [...intersection(new Set(chains), supportedChains)];
+    }
 
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
@@ -388,6 +458,8 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      sourceToken,
+      destinationToken,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
@@ -479,10 +551,10 @@ export const check: CommandModuleWithContext<
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
     // Remove any non EVM chain configs to avoid the checker crashing
-    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
-      (config) =>
-        context.multiProvider.getProtocol(config.chainName) ===
-        ProtocolType.Ethereum,
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter((config) =>
+      isEVMLike(
+        context.multiProvider.getChainMetadata(config.chainName).protocol,
+      ),
     );
 
     // Get on-chain config
@@ -507,7 +579,7 @@ export const check: CommandModuleWithContext<
     expandedWarpDeployConfig = objFilter(
       expandedWarpDeployConfig,
       (chain, _config): _config is any =>
-        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        isEVMLike(context.multiProvider.getChainMetadata(chain).protocol),
     );
 
     await runWarpRouteCheck({
@@ -609,6 +681,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Create rebalancer service
       const service = new RebalancerService(
         context.multiProvider,
+        undefined,
         context.multiProtocolProvider,
         context.registry,
         rebalancerConfig,

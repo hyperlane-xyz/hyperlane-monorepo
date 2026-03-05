@@ -24,9 +24,9 @@ jobs:
           - TARGET: x86_64-unknown-linux-gnu
             OS: depot-ubuntu-24.04-8
           - TARGET: x86_64-apple-darwin
-            OS: depot-macos-latest
+            OS: depot-macos-15
           - TARGET: aarch64-apple-darwin
-            OS: depot-macos-latest
+            OS: depot-macos-15
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
@@ -55,7 +55,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin scraper --bin validator
         working-directory: ./rust/main
       - name: make executable
-        if: ${{ matrix.OS == 'depot-ubuntu-24.04-8' || matrix.OS == 'depot-macos-latest' }}
+        if: ${{ matrix.OS == 'depot-ubuntu-24.04-8' || matrix.OS == 'depot-macos-15' }}
         run: chmod ug+x,-w relayer scraper validator
         working-directory: rust/main/target/${{ matrix.TARGET }}/release
       - name: upload binaries

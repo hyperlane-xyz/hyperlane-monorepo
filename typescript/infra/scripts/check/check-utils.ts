@@ -33,7 +33,6 @@ import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js
 import { HyperlaneICAChecker } from '../../src/govern/HyperlaneICAChecker.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
-import { Role } from '../../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../../src/utils/fork.js';
 import { logViolationDetails } from '../../src/utils/violation.js';
 import {

@@ -10,9 +10,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
     sysvar::Sysvar,
 };
+use solana_system_interface::{instruction as system_instruction, program as system_program};
 
 use crate::{
     accounts::{
@@ -58,7 +58,7 @@ pub fn process_init(
     init: InitInstruction,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
-    let system_program_id = solana_program::system_program::id();
+    let system_program_id = system_program::ID;
 
     // Account 0: The payer.
     let payer_info = next_account_info(account_info_iter)?;
@@ -126,7 +126,7 @@ fn process_announce(
     announcement: AnnounceInstruction,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
-    let system_program_id = solana_program::system_program::id();
+    let system_program_id = system_program::ID;
 
     // Account 0: The payer.
     let payer_info = next_account_info(account_info_iter)?;
@@ -303,7 +303,7 @@ fn update_validator_storage_locations<'a>(
         )?;
     }
     if existing_serialized_size != new_serialized_size {
-        validator_storage_locations_info.realloc(new_serialized_size, false)?;
+        validator_storage_locations_info.resize(new_serialized_size)?;
     }
 
     // Store the updated validator_storage_locations.

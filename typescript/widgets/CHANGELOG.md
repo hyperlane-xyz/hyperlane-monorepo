@@ -1,5 +1,144 @@
 # @hyperlane-xyz/widgets
 
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/tron-sdk@22.0.0
+  - @hyperlane-xyz/aleo-sdk@26.0.0
+  - @hyperlane-xyz/cosmos-sdk@26.0.0
+  - @hyperlane-xyz/radix-sdk@26.0.0
+
+## 25.5.0
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/aleo-sdk@25.5.0
+  - @hyperlane-xyz/cosmos-sdk@25.5.0
+  - @hyperlane-xyz/radix-sdk@25.5.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/utils@25.5.0
+
+## 25.4.1
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/aleo-sdk@25.4.1
+  - @hyperlane-xyz/cosmos-sdk@25.4.1
+  - @hyperlane-xyz/radix-sdk@25.4.1
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+
+## 25.4.0
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/aleo-sdk@25.4.0
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/cosmos-sdk@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/radix-sdk@25.4.0
+
+## 25.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.2
+- @hyperlane-xyz/aleo-sdk@25.3.2
+- @hyperlane-xyz/cosmos-sdk@25.3.2
+- @hyperlane-xyz/radix-sdk@25.3.2
+- @hyperlane-xyz/utils@25.3.2
+- @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.1
+- @hyperlane-xyz/aleo-sdk@25.3.1
+- @hyperlane-xyz/cosmos-sdk@25.3.1
+- @hyperlane-xyz/radix-sdk@25.3.1
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/provider-sdk@1.3.5
+
+## 25.3.0
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/aleo-sdk@25.3.0
+  - @hyperlane-xyz/cosmos-sdk@25.3.0
+  - @hyperlane-xyz/radix-sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+
+## 25.2.0
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [6091a31]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/aleo-sdk@25.2.0
+  - @hyperlane-xyz/cosmos-sdk@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/radix-sdk@25.2.0
+
+## 25.1.0
+
+### Patch Changes
+
+- 9fb1e89: Added Aleo wallet popup that links to the Chrome extension store when Shield wallet is not installed.
+- Updated dependencies [b930534]
+- Updated dependencies [cbd400c]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/radix-sdk@25.1.0
+  - @hyperlane-xyz/aleo-sdk@25.1.0
+  - @hyperlane-xyz/cosmos-sdk@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
 ## 25.0.0
 
 ### Patch Changes
@@ -122,7 +261,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -1100,7 +1238,6 @@
 ### Minor Changes
 
 - f438d442a: Update widgets with components from explorer and warp ui
-
   - Add icons: Discord, Docs, Github, History, LinkedIn, Medium, Twitter, Wallet and Web
   - Add animation component: Fade component
   - Add components: DatetimeField and SelectField

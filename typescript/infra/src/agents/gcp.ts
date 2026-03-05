@@ -8,6 +8,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
+  isEVMLike,
   rootLogger,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -73,7 +74,7 @@ export class AgentGCPKey extends CloudAgentKey {
     try {
       await this.fetch();
       this.logger.debug('Key already exists');
-    } catch (err) {
+    } catch {
       this.logger.warn('Key does not exist, creating new key');
       await this.create();
     }
@@ -83,7 +84,7 @@ export class AgentGCPKey extends CloudAgentKey {
     try {
       await this.fetch();
       return true;
-    } catch (err) {
+    } catch {
       return false;
     }
   }
@@ -112,7 +113,11 @@ export class AgentGCPKey extends CloudAgentKey {
     // - is Sealvel then we use the protocol name instead of the chain name as all sealevel chains use the same key
     // - is none of the above, fallback to using the chain name in all other cases as other roles might require it
     let protocolOrChain: string | undefined;
-    if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
+    if (
+      this.role === Role.Deployer &&
+      protocolType &&
+      isEVMLike(protocolType)
+    ) {
       protocolOrChain = undefined;
     } else if (
       this.role === Role.Deployer &&
@@ -152,6 +157,7 @@ export class AgentGCPKey extends CloudAgentKey {
     this.logger.debug(`Getting address for protocol: ${protocol}`);
 
     switch (protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         return this.address;
       case ProtocolType.Sealevel:
@@ -245,7 +251,7 @@ export class AgentGCPKey extends CloudAgentKey {
       try {
         await this.fetch();
         this.logger.debug(`Found existing Starknet key: ${this.identifier}`);
-      } catch (error) {
+      } catch {
         this.logger.warn(
           `Cannot create Starknet key for ${this.chainName}. Please manually add it to GCP Secret Manager.`,
         );

@@ -1,0 +1,42 @@
+warpRouteId: ETH/viction
+
+inventorySigner: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+
+externalBridges:
+  lifi:
+    integrator: 'rebalancer'
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 25
+        tolerance: 5
+      bridgeMinAcceptedAmount: 1
+      executionType: inventory
+      externalBridge: lifi
+
+    base:
+      weighted:
+        weight: 25
+        tolerance: 5
+      bridgeMinAcceptedAmount: 1
+      executionType: inventory
+      externalBridge: lifi
+
+    ethereum:
+      weighted:
+        weight: 25
+        tolerance: 5
+      bridgeMinAcceptedAmount: 1
+      executionType: inventory
+      externalBridge: lifi
+
+    optimism:
+      weighted:
+        weight: 25
+        tolerance: 5
+      bridgeMinAcceptedAmount: 1
+      executionType: inventory
+      externalBridge: lifi

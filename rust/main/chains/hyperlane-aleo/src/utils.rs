@@ -1,6 +1,9 @@
-use hyperlane_core::{ChainResult, H256};
+use base64::Engine;
 use snarkvm::prelude::{Identifier, Network, Plaintext, ProgramID};
 use snarkvm_console_account::{Field, FromBytes, Itertools, ToBits, ToBytes};
+use sodiumbox::{public_key_from_bytes, seal};
+
+use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 
 use crate::{AleoHash, HyperlaneAleoError, MESSAGE_BODY_U128_WORDS};
 
@@ -79,6 +82,30 @@ pub(crate) fn bytes_to_u128_words(bytes: &[u8]) -> [u128; 16] {
         words[i] = u128::from_le_bytes(buf);
     }
     words
+}
+
+/// Encrypts a message using X25519 public key encryption (crypto_box_seal).
+pub(crate) fn encrypt_message(public_key_b64: &str, plaintext: &[u8]) -> ChainResult<String> {
+    // Decode the base64 X25519 public key (32 bytes)
+    let pk_bytes = base64::engine::general_purpose::STANDARD
+        .decode(public_key_b64)
+        .map_err(|_| {
+            ChainCommunicationError::from_other_str(&format!(
+                "Invalid base64 proving public key: {public_key_b64}",
+            ))
+        })?;
+    let pk_array: [u8; 32] = pk_bytes.try_into().map_err(|_| {
+        ChainCommunicationError::from_other_str(
+            "Invalid proving public key length: expected 32 bytes",
+        )
+    })?;
+    let public_key = public_key_from_bytes(&pk_array);
+
+    // crypto_box_seal: anonymous sealed box encryption
+    let ciphertext = seal(plaintext, &public_key);
+
+    // Return as RFC 4648 base64
+    Ok(base64::engine::general_purpose::STANDARD.encode(&ciphertext))
 }
 
 /// Macro: serialize any number of arguments into a Vec<String>.

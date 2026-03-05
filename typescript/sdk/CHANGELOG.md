@@ -1,5 +1,213 @@
 # @hyperlane-xyz/sdk
 
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Minor Changes
+
+- 43255a9: MultiCollateral warp route support was added across the SDK, CLI, and warp monitor.
+
+  SDK: WarpCore gained `transferRemoteTo` flows for multicollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles multicollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives multicollateral token config including on-chain scale. A new `EvmMultiCollateralAdapter` provides quote, approve, and transfer operations.
+
+  CLI: `warp deploy` and `warp extend` support multicollateral token types. A new `warp combine` command merges independent warp route configs into a single multicollateral route. `warp send` and `warp check` work with multicollateral routes.
+
+  Warp monitor: Pending-transfer and inventory metrics were added for multicollateral routes, with projected deficit scoped to collateralized routes only.
+
+- 763a264: An optional `options` parameter was added to `sendAndConfirmTransaction()` on `IMultiProtocolSigner`, reusing `SendTransactionOptions` from `MultiProvider`. The EVM adapter passes options (including `waitConfirmations`) directly through to `MultiProvider.sendTransaction()`. Other protocol adapters accept but ignore the parameter. This is a non-breaking change.
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/tron-sdk@22.0.0
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/aleo-sdk@26.0.0
+  - @hyperlane-xyz/cosmos-sdk@26.0.0
+  - @hyperlane-xyz/deploy-sdk@3.0.0
+  - @hyperlane-xyz/radix-sdk@26.0.0
+  - @hyperlane-xyz/starknet-core@26.0.0
+
+## 25.5.0
+
+### Minor Changes
+
+- c2304d3: Add EvmHypOwnerCollateral yield route standard to TOKEN_COLLATERALIZED_STANDARDS
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+### Patch Changes
+
+- cd1c28a: The xERC20 lockbox adapter was updated to resolve the wrapped token address directly from the lockbox contract instead of the inherited collateral adapter, fixing `getBridgedSupply()` failures on older lockbox deployments.
+- 69b48fa: The PostCallsSchema was tightened to validate `to` and `relayers` fields with ZHash regex, rejecting malicious input (empty strings, URLs, injection payloads) at parse time. A try/catch was added around `normalizeCalls` in `CallCommitmentsService` as defense-in-depth to return 400 instead of crashing the pod.
+- 048df98: Corrected validator alias from O-OPS to P-OPS Team in multisig ISM constants.
+- Updated dependencies [e197331]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/deploy-sdk@2.0.0
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/aleo-sdk@25.5.0
+  - @hyperlane-xyz/cosmos-sdk@25.5.0
+  - @hyperlane-xyz/radix-sdk@25.5.0
+  - @hyperlane-xyz/tron-sdk@21.1.5
+  - @hyperlane-xyz/starknet-core@25.5.0
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.4.1
+
+### Patch Changes
+
+- 5a7efbb: Fixed `getHypAdapter` to handle `EvmNative` tokens with warp connections by returning `EvmHypNativeAdapter`, enabling cross-chain transfers for mint/burn native gas tokens. Also fixed gas estimation in `WarpCore.getLocalTransferFee` to use a decimal-aware amount that survives on-chain truncation between chains with different decimals.
+  - @hyperlane-xyz/aleo-sdk@25.4.1
+  - @hyperlane-xyz/starknet-core@25.4.1
+  - @hyperlane-xyz/cosmos-sdk@25.4.1
+  - @hyperlane-xyz/radix-sdk@25.4.1
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/deploy-sdk@1.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+  - @hyperlane-xyz/tron-sdk@21.1.4
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.4.0
+
+### Minor Changes
+
+- d4a5026: SDK handles both old (`maxFeeBps()`) and new (`maxFeePpm()`) contract interfaces via version-gated calls.
+- 934d857: SDK converts bps config to ppm for deployment and ppm back to bps when reading.
+- 942bbfb: SDK support for `approveFeeTokenForHook`:
+  - Added `feeTokenApprovals` config field to `IcaRouterConfigSchema` for specifying fee token approvals at deploy time
+  - `InterchainAccountDeployer` now calls `approveFeeTokenForHook` for each configured approval after deployment
+  - `EvmIcaModule.update()` generates approval transactions for any missing fee token approvals
+
+- a3f7fd3: SDK integration for IncrementalDomainRoutingIsm: factory support, reader implementation, and proper delta handling in routingModuleDelta.
+
+### Patch Changes
+
+- 1f3a0e6: Added retry with exponential backoff in EvmEventLogsReader before falling back to paginated RPC, and cached deployment block lookups to avoid redundant explorer/RPC calls.
+- 2a6bd61: Added RadixHypCollateral, StarknetHypCollateral, and StarknetHypNative to TOKEN_COLLATERALIZED_STANDARDS, fixing missing collateral value metrics for Radix and Starknet warp routes.
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+- Updated dependencies [027eeac]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/aleo-sdk@25.4.0
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/cosmos-sdk@25.4.0
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/radix-sdk@25.4.0
+  - @hyperlane-xyz/deploy-sdk@1.4.0
+  - @hyperlane-xyz/tron-sdk@21.1.3
+  - @hyperlane-xyz/starknet-core@25.4.0
+
+## 25.3.2
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/tron-sdk@21.1.2
+  - @hyperlane-xyz/deploy-sdk@1.3.6
+  - @hyperlane-xyz/aleo-sdk@25.3.2
+  - @hyperlane-xyz/starknet-core@25.3.2
+  - @hyperlane-xyz/cosmos-sdk@25.3.2
+  - @hyperlane-xyz/radix-sdk@25.3.2
+  - @hyperlane-xyz/utils@25.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- Updated dependencies [7636bb4]
+  - @hyperlane-xyz/tron-sdk@21.1.1
+  - @hyperlane-xyz/deploy-sdk@1.3.5
+  - @hyperlane-xyz/aleo-sdk@25.3.1
+  - @hyperlane-xyz/starknet-core@25.3.1
+  - @hyperlane-xyz/cosmos-sdk@25.3.1
+  - @hyperlane-xyz/radix-sdk@25.3.1
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.3.0
+
+### Minor Changes
+
+- aea767c: Tron Virtual Machine (TVM) support added to the Hyperlane SDK. The new `@hyperlane-xyz/tron-sdk` package provides `TronJsonRpcProvider`, `TronWallet`, and `TronContractFactory` for interacting with Tron chains. The SDK deployers now automatically use Tron-compiled factories for Create2-affected contracts (ISM/hook factories, ICA router) when deploying to Tron chains.
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/tron-sdk@21.1.0
+  - @hyperlane-xyz/deploy-sdk@1.3.4
+  - @hyperlane-xyz/aleo-sdk@25.3.0
+  - @hyperlane-xyz/starknet-core@25.3.0
+  - @hyperlane-xyz/cosmos-sdk@25.3.0
+  - @hyperlane-xyz/radix-sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.2.0
+
+### Minor Changes
+
+- 18ec479: Allow custom_rpc_header to be set for starknet chains
+- 795d93e: Include gasCurrencyCoinGeckoId to coinGeckoId field created by Token.FromChainMetadataNativeToken
+
+### Patch Changes
+
+- 215dff0: Exported `onChainTypeToTokenFeeTypeMap` and `OnchainTokenFeeType` from SDK to support fee contract transaction reading in GovernTransactionReader.
+- d2f75a1: Added retry logic for Safe Transaction Service API calls to handle 429 rate limits during multi-chain operations. Fixed signer passthrough in EV5GnosisSafeTxSubmitter.create(). Extracted shared Safe init logic to reduce duplication between EV5GnosisSafeTxSubmitter and EV5GnosisSafeTxBuilder.
+- e143956: Added a 30-second minimum floor to the dynamic confirmation timeout in `MultiProvider.handleTx`, preventing unreasonably short timeouts on fast L2 chains with very small `estimateBlockTime` values.
+- c61d612: Added anvil RPC helper functions (setBalance, setStorageAt, mine, increaseTime, snapshot, revertToSnapshot, impersonateAccounts) for use in E2E test harnesses.
+- c2affe2: Added timeout protection to MultiProvider.handleTx() for numeric block confirmation waits. The existing timeoutMs option now applies to both numeric and block-tag confirmation paths, with a default of 5 minutes. This prevents indefinite hangs when ethers.js response.wait() fails to resolve.
+- Updated dependencies [360db52]
+- Updated dependencies [6091a31]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/aleo-sdk@25.2.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/cosmos-sdk@25.2.0
+  - @hyperlane-xyz/deploy-sdk@1.3.3
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/radix-sdk@25.2.0
+  - @hyperlane-xyz/starknet-core@25.2.0
+
+## 25.1.0
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+- a18d0e6: Fixed nonce collision in EvmTokenFeeModule by deploying sub-fee contracts sequentially instead of in parallel.
+- Updated dependencies [b930534]
+- Updated dependencies [cbd400c]
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/radix-sdk@25.1.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/aleo-sdk@25.1.0
+  - @hyperlane-xyz/cosmos-sdk@25.1.0
+  - @hyperlane-xyz/deploy-sdk@1.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.2
+  - @hyperlane-xyz/starknet-core@25.1.0
+
 ## 25.0.0
 
 ### Major Changes
@@ -32,7 +240,6 @@
   Added real-time validator signature status to MetadataBuilder. The builder now returns detailed information about which validators have signed a message, their checkpoint indices, and actual signatures. New exports: `ValidatorInfo`, `MetadataBuildResult`, `DerivedHookConfig`, and helper functions `isMetadataBuildable()`, `getSignedValidatorCount()`, `isQuorumMet()`.
 
   Performance optimizations:
-
   - EvmIsmReader routing ISM derivation reduced from ~5.7s to ~724ms via messageContext short-circuit
   - EvmHookReader RPC calls parallelized across all derivation methods
   - SmartProvider retry logic fixed to correctly identify permanent errors
@@ -76,7 +283,6 @@
 - 6ddef74: Fix warp check for Aleo.
 - 9aa93f4: Added optional `waitConfirmations` parameter to `sendTransaction()` and `handleTx()` methods in MultiProvider, which allowed callers to specify a custom number of confirmations or a block tag like "finalized" or "safe" to wait for before returning. Added `waitForBlockTag()` helper method that polled until the tagged block number reached the transaction's block number. Exported new `SendTransactionOptions` interface from SDK.
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
@@ -194,7 +400,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -504,7 +709,6 @@
 ### Minor Changes
 
 - 554ff1a66: Add M0 PortalLite token adapter support for bridging M tokens
-
   - Add new TokenStandard.EvmM0PortalLite for M0 Portal integration
   - Implement M0PortalLiteTokenAdapter for handling M0 token transfers
   - Support for M0's transferMLikeToken function to bridge wrapped M tokens (e.g., mUSD)
@@ -1863,7 +2067,6 @@
   **Breaking change**: Token Adapter `quoteGasPayment` method renamed to `quoteTransferRemoteGas` for clarity.
 - 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
 - 9681df08d: Enabled verification of contracts as part of the deployment flow.
-
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
   - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.

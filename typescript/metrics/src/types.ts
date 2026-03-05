@@ -68,8 +68,7 @@ export interface WarpRouteMetricLabels extends BaseWarpRouteMetricLabels {
 /**
  * Value at risk metric labels.
  */
-export interface WarpRouteValueAtRiskMetricLabels
-  extends BaseWarpRouteMetricLabels {
+export interface WarpRouteValueAtRiskMetricLabels extends BaseWarpRouteMetricLabels {
   collateral_chain_name: ChainName;
   collateral_token_standard: SupportedTokenStandards;
 }

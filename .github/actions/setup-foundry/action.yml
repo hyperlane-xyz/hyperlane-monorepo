@@ -10,15 +10,22 @@ runs:
       run: echo "version=$(cat solidity/.foundryrc)" >> $GITHUB_OUTPUT
 
     - name: Cache Foundry
+      id: foundry-cache
       uses: actions/cache@v5
       with:
         path: ~/.foundry
         key: foundry-${{ runner.os }}-${{ steps.foundry-version.outputs.version }}
 
     - name: Install Foundry
+      if: steps.foundry-cache.outputs.cache-hit != 'true'
       uses: foundry-rs/foundry-toolchain@v1
       with:
         version: ${{ steps.foundry-version.outputs.version }}
+
+    - name: Add Foundry to PATH (from cache)
+      if: steps.foundry-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: echo "$HOME/.foundry/bin" >> $GITHUB_PATH
 
     - name: Cache Soldeer dependencies
       uses: actions/cache@v5

@@ -208,7 +208,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       let warpCoreConfig;
       try {
         warpCoreConfig = getWarpCoreConfig(warpRouteId);
-      } catch (e) {
+      } catch {
         continue;
       }
 
@@ -259,8 +259,19 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     const provider = adapter.multiProvider.getSolanaWeb3Provider(
       token.chainName,
     );
-    const ataPayerBalanceLamports = await provider.getBalance(ataPayer);
-    const ataPayerBalance = ataPayerBalanceLamports / 1e9;
+    let ataPayerBalance: number;
+    try {
+      const ataPayerBalanceLamports = await provider.getBalance(ataPayer);
+      ataPayerBalance = ataPayerBalanceLamports / 1e9;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to fetch ATA payer balance for ${token.chainName} (${ataPayer.toBase58()}): ${error}. Skipping balance check.`,
+      );
+      if (!skipConfirmation) {
+        await confirm({ message: 'Continue without balance verification?' });
+      }
+      return;
+    }
 
     const desiredBalance =
       ataPayerAlertThreshold[token.chainName] * minAtaPayerBalanceFactor;

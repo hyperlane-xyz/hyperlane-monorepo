@@ -1,5 +1,189 @@
 # @hyperlane-xyz/infra
 
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [279b714]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/rebalancer@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/metrics@0.2.0
+  - @hyperlane-xyz/http-registry-server@26.0.0
+  - @hyperlane-xyz/keyfunder@0.1.7
+  - @hyperlane-xyz/relayer@1.1.7
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/deploy-sdk@3.0.0
+
+## 25.5.0
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/deploy-sdk@2.0.0
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/rebalancer@25.5.0
+  - @hyperlane-xyz/http-registry-server@25.5.0
+  - @hyperlane-xyz/keyfunder@0.1.6
+  - @hyperlane-xyz/metrics@0.1.11
+  - @hyperlane-xyz/relayer@1.1.6
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.4.1
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/http-registry-server@25.4.1
+  - @hyperlane-xyz/keyfunder@0.1.5
+  - @hyperlane-xyz/metrics@0.1.10
+  - @hyperlane-xyz/rebalancer@3.2.1
+  - @hyperlane-xyz/relayer@1.1.5
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/deploy-sdk@1.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.4.0
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [b50aa7b]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [027eeac]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/rebalancer@3.2.0
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/deploy-sdk@1.4.0
+  - @hyperlane-xyz/http-registry-server@25.4.0
+  - @hyperlane-xyz/keyfunder@0.1.4
+  - @hyperlane-xyz/metrics@0.1.9
+  - @hyperlane-xyz/relayer@1.1.4
+
+## 25.3.2
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/keyfunder@0.1.3
+  - @hyperlane-xyz/metrics@0.1.8
+  - @hyperlane-xyz/rebalancer@3.1.1
+  - @hyperlane-xyz/relayer@1.1.3
+  - @hyperlane-xyz/sdk@25.3.2
+  - @hyperlane-xyz/http-registry-server@25.3.2
+  - @hyperlane-xyz/deploy-sdk@1.3.6
+  - @hyperlane-xyz/utils@25.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- Updated dependencies [ff8c0f0]
+- Updated dependencies [aa6871b]
+  - @hyperlane-xyz/rebalancer@3.1.0
+  - @hyperlane-xyz/deploy-sdk@1.3.5
+  - @hyperlane-xyz/sdk@25.3.1
+  - @hyperlane-xyz/http-registry-server@25.3.1
+  - @hyperlane-xyz/keyfunder@0.1.2
+  - @hyperlane-xyz/metrics@0.1.7
+  - @hyperlane-xyz/relayer@1.1.2
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.3.0
+
+### Patch Changes
+
+- Updated dependencies [1970a32]
+- Updated dependencies [1970a32]
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/rebalancer@3.0.0
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/deploy-sdk@1.3.4
+  - @hyperlane-xyz/http-registry-server@25.3.0
+  - @hyperlane-xyz/keyfunder@0.1.1
+  - @hyperlane-xyz/metrics@0.1.6
+  - @hyperlane-xyz/relayer@1.1.1
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.2.0
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d668dcd]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [c61d612]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/keyfunder@0.1.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/rebalancer@2.0.0
+  - @hyperlane-xyz/relayer@1.1.0
+  - @hyperlane-xyz/http-registry-server@25.2.0
+  - @hyperlane-xyz/metrics@0.1.5
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/deploy-sdk@1.3.3
+  - @hyperlane-xyz/provider-sdk@1.3.3
+
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/http-registry-server@25.1.0
+  - @hyperlane-xyz/keyfunder@0.0.4
+  - @hyperlane-xyz/metrics@0.1.4
+  - @hyperlane-xyz/rebalancer@1.0.3
+  - @hyperlane-xyz/relayer@1.0.2
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/deploy-sdk@1.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
 ## 25.0.0
 
 ### Patch Changes
@@ -50,7 +234,6 @@
 ### Patch Changes
 
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
@@ -1552,7 +1735,6 @@
 
 - 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
 - 9681df08d: Enabled verification of contracts as part of the deployment flow.
-
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
   - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.

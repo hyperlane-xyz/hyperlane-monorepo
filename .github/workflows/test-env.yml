@@ -1,0 +1,68 @@
+name: test-env
+
+on:
+  workflow_call:
+    inputs:
+      skip_ts:
+        type: string
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  env-test-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.skip_ts != 'true'
+    env:
+      MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+      MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+      MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+      TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
+
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [mainnet3]
+        chain: [ethereum, arbitrum, optimism]
+        module: [core, igp]
+        include:
+          - environment: testnet4
+            chain: sepolia
+            module: core
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment with retries
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+          on_retry_command: |
+            echo "Test failed, waiting before retry..."
+
+  env-test:
+    runs-on: ubuntu-latest
+    needs: env-test-matrix
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check env-test matrix status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Env Test'
+          result: ${{ needs.env-test-matrix.result }}

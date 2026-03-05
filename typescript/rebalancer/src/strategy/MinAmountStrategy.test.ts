@@ -64,6 +64,7 @@ describe('MinAmountStrategy', () => {
       ).to.throw('At least two chains must be configured');
     });
 
+    // eslint-disable-next-line jest/expect-expect -- testing constructor doesn't throw
     it('should create a strategy with minAmount and target using absolute values', () => {
       new MinAmountStrategy(
         {
@@ -93,6 +94,7 @@ describe('MinAmountStrategy', () => {
       );
     });
 
+    // eslint-disable-next-line jest/expect-expect -- testing constructor doesn't throw
     it('should create a strategy with minAmount and target using relative values', () => {
       new MinAmountStrategy(
         {
@@ -408,6 +410,7 @@ describe('MinAmountStrategy', () => {
           destination: chain1,
           amount: BigInt(70e18),
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -465,12 +468,14 @@ describe('MinAmountStrategy', () => {
           destination: chain1,
           amount: BigInt(50e18),
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
         {
           origin: chain3,
           destination: chain2,
           amount: BigInt(25e18),
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -719,6 +724,7 @@ describe('MinAmountStrategy', () => {
           destination: chain1,
           amount: 100n,
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });

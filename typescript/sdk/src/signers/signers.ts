@@ -39,6 +39,7 @@ export async function getSignerForChain<TProtocol extends ProtocolType>(
   const protocol = accountConfig.protocol;
 
   switch (accountConfig.protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum:
       return new EvmMultiProtocolSignerAdapter(
         chainName,

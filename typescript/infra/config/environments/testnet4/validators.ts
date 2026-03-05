@@ -193,6 +193,17 @@ export const validatorChainConfig = (
       ),
     },
 
+    somniatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('somniatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb3b27a27bfa94002d344e9cf5217a0e3502e018b'],
+        },
+        'somniatestnet',
+      ),
+    },
+
     cotitestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('cotitestnet'),

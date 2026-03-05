@@ -375,6 +375,7 @@ describe('RegistryService', () => {
 
       // Should not throw
       await registryService.initialize();
+      expect(registryService).to.exist;
     });
 
     it('should log warning and fall back to polling on watch failure', async () => {

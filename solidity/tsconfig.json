@@ -9,7 +9,11 @@
     "hardhat.config.cts",
     "./dist",
     "zk-hardhat.config.cts",
+    "tron-hardhat.config.cts",
     "rootHardhatConfig.cts",
-    "./dependencies"
+    "./plugins",
+    "./dependencies",
+    "./artifacts-tron",
+    "./multicollateral"
   ]
 }

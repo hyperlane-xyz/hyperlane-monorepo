@@ -44,9 +44,10 @@ export function createHookReader(
  * Generic Hook Reader that can read any hook type by detecting its type.
  * Unlike ISMs, hooks don't have composite/nested types, so no recursive expansion needed.
  */
-export class HookReader
-  implements ArtifactReader<HookArtifactConfig, DeployedHookAddress>
-{
+export class HookReader implements ArtifactReader<
+  HookArtifactConfig,
+  DeployedHookAddress
+> {
   protected readonly logger: Logger = rootLogger.child({
     module: HookReader.name,
   });

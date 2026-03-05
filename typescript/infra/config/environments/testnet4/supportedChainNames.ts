@@ -20,6 +20,7 @@ export const testnet4SupportedChainNames = [
   'radixtestnet',
   'sepolia',
   'solanatestnet',
+  'somniatestnet',
   'sonicsvmtestnet',
   'starknetsepolia',
 ] as const;

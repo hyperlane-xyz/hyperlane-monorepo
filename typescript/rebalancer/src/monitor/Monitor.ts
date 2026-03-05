@@ -1,7 +1,12 @@
 import { type Logger } from 'pino';
 
-import { type Token, type WarpCore } from '@hyperlane-xyz/sdk';
-import { sleep } from '@hyperlane-xyz/utils';
+import {
+  type ChainMap,
+  type ChainName,
+  type Token,
+  type WarpCore,
+} from '@hyperlane-xyz/sdk';
+import { Address, sleep } from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -13,6 +18,14 @@ import {
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
+
+/**
+ * Configuration for the Monitor's inventory tracking.
+ */
+export interface InventoryMonitorConfig {
+  inventoryAddress: Address;
+  chains: ChainName[];
+}
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
@@ -33,6 +46,7 @@ export class Monitor implements IMonitor {
     private readonly checkFrequency: number,
     private readonly warpCore: WarpCore,
     private readonly logger: Logger,
+    private readonly inventoryConfig?: InventoryMonitorConfig,
   ) {}
 
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
@@ -121,6 +135,24 @@ export class Monitor implements IMonitor {
               token,
               bridgedSupply,
             });
+          }
+
+          const inventoryBalances = await this.fetchInventoryBalances();
+          if (Object.keys(inventoryBalances).length > 0) {
+            event.inventoryBalances = inventoryBalances;
+            this.logger.info(
+              {
+                chainsMonitored: Object.keys(inventoryBalances).length,
+                balances: Object.entries(inventoryBalances).map(
+                  ([chain, balance]) => ({
+                    chain,
+                    balance: balance.toString(),
+                    balanceEth: (Number(balance) / 1e18).toFixed(6),
+                  }),
+                ),
+              },
+              'Inventory balances fetched',
+            );
           }
 
           if (this.tokenInfoHandler) {
@@ -216,6 +248,53 @@ export class Monitor implements IMonitor {
     }
 
     return bridgedSupply;
+  }
+
+  private async fetchInventoryBalances(): Promise<ChainMap<bigint>> {
+    if (!this.inventoryConfig) return {};
+
+    const balances: ChainMap<bigint> = {};
+
+    const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
+      const token = this.warpCore.tokens.find((t) => t.chainName === chainName);
+      if (!token) {
+        this.logger.warn(
+          { chain: chainName },
+          'No token found for inventory chain',
+        );
+        return { chainName, balance: 0n };
+      }
+
+      try {
+        const adapter = token.getAdapter(this.warpCore.multiProvider);
+        const balance = await adapter.getBalance(
+          this.inventoryConfig!.inventoryAddress,
+        );
+        this.logger.debug(
+          {
+            chain: chainName,
+            token: token.addressOrDenom,
+            balance: balance.toString(),
+          },
+          'Read inventory balance',
+        );
+        return { chainName, balance };
+      } catch (error) {
+        this.logger.error(
+          { chain: chainName, error: (error as Error).message },
+          'Failed to read inventory balance',
+        );
+        return { chainName, balance: 0n };
+      }
+    });
+
+    const results = await Promise.all(readPromises);
+
+    for (const { chainName, balance } of results) {
+      balances[chainName] = balance;
+    }
+
+    return balances;
   }
 
   stop(): Promise<void> {

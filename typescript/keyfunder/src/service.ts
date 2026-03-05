@@ -3,8 +3,12 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { ChainMetadata, HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
-import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
+import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  applyRpcUrlOverridesFromEnv,
+  createServiceLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
 import { KeyFunder } from './core/KeyFunder.js';
@@ -50,7 +54,15 @@ async function main(): Promise<void> {
     logger.info({ registryUri }, 'Initialized registry');
 
     const chainMetadata = await registry.getMetadata();
-    applyRpcOverrides(chainMetadata, configuredChains);
+    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata, {
+      chainNames: configuredChains,
+    });
+    if (overriddenChains.length > 0) {
+      logger.info(
+        { chains: overriddenChains, count: overriddenChains.length },
+        'Applied RPC overrides from environment variables',
+      );
+    }
     logger.info(
       `Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
     );
@@ -110,25 +122,6 @@ async function main(): Promise<void> {
     const err = error as Error;
     logger.error({ error: err.message, stack: err.stack }, 'KeyFunder failed');
     process.exit(1);
-  }
-}
-
-function applyRpcOverrides(
-  chainMetadata: Record<string, Partial<ChainMetadata>>,
-  configuredChains: string[],
-): void {
-  for (const chain of configuredChains) {
-    const envVarName = `RPC_URL_${chain.toUpperCase().replace(/-/g, '_')}`;
-    const rpcUrl = process.env[envVarName];
-    if (rpcUrl && chainMetadata[chain]) {
-      rootLogger.debug(
-        { chain, envVarName },
-        'Using RPC from environment variable',
-      );
-      chainMetadata[chain].rpcUrls = [
-        { http: rpcUrl },
-      ] as ChainMetadata['rpcUrls'];
-    }
   }
 }
 

@@ -26,6 +26,7 @@ export async function readHookConfig({
 }): Promise<void> {
   const protocol = context.multiProvider.getProtocol(chain);
   switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const hookReader = new EvmHookReader(context.multiProvider, chain);
       const config = await hookReader.deriveHookConfig(address);

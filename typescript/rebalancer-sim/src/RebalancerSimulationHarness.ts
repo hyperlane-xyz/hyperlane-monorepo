@@ -240,15 +240,6 @@ export class RebalancerSimulationHarness {
   }
 
   /**
-   * Reset the simulation engine state (does not reset blockchain state)
-   */
-  reset(): void {
-    if (this.engine) {
-      this.engine.reset();
-    }
-  }
-
-  /**
    * Generate a markdown report from simulation results
    */
   static generateMarkdownReport(result: SimulationResult): string {

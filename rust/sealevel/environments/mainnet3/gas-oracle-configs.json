@@ -80,6 +80,14 @@
       },
       "overhead": 600000
     },
+    "citrea": {
+      "oracleConfig": {
+        "tokenExchangeRate": "10329714420580599480764",
+        "gasPrice": "7023092",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "eclipsemainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "34276610809535048",
@@ -152,6 +160,14 @@
       },
       "overhead": 166887
     },
+    "linea": {
+      "oracleConfig": {
+        "tokenExchangeRate": "345066084493745574699",
+        "gasPrice": "210239536",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "litchain": {
       "oracleConfig": {
         "tokenExchangeRate": "1815440169931555",
@@ -164,6 +180,14 @@
       "oracleConfig": {
         "tokenExchangeRate": "345066084493745574699",
         "gasPrice": "210239536",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "monad": {
+      "oracleConfig": {
+        "tokenExchangeRate": "2369217606797262",
+        "gasPrice": "30620460206002",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -183,6 +207,14 @@
         "tokenDecimals": 18
       },
       "overhead": 130000000
+    },
+    "plasma": {
+      "oracleConfig": {
+        "tokenExchangeRate": "16138777436865706",
+        "gasPrice": "4495169087752",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
     },
     "polygon": {
       "oracleConfig": {

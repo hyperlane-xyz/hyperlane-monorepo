@@ -37,7 +37,7 @@ contract DomainRoutingIsmTest is Test {
         assertEq(address(ism.module(domain)), address(_ism));
     }
 
-    function testRemove(uint32 domain) public {
+    function testRemove(uint32 domain) public virtual {
         vm.expectRevert();
         ism.remove(domain);
 

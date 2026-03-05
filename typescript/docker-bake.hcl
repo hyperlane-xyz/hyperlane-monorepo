@@ -27,7 +27,7 @@ variable "SERVICE_VERSION" {
 
 # Registry prefix for all images
 variable "REGISTRY" {
-  default = "gcr.io/abacus-labs-dev"
+  default = "ghcr.io/hyperlane-xyz"
 }
 
 # Default group builds all targets

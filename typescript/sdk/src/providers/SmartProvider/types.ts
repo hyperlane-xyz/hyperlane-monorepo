@@ -6,8 +6,10 @@ export type RpcConfigWithConnectionInfo = RpcUrl & {
   connection?: utils.ConnectionInfo;
 };
 
-export interface ChainMetadataWithRpcConnectionInfo
-  extends Omit<ChainMetadata, 'rpcUrls'> {
+export interface ChainMetadataWithRpcConnectionInfo extends Omit<
+  ChainMetadata,
+  'rpcUrls'
+> {
   rpcUrls: Array<RpcConfigWithConnectionInfo>;
 }
 

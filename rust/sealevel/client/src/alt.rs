@@ -3,7 +3,7 @@
 //! Creates ALTs containing common static accounts to reduce transaction size
 //! for message processing.
 
-use solana_address_lookup_table_program::instruction::{
+use solana_address_lookup_table_interface::instruction::{
     create_lookup_table, extend_lookup_table, freeze_lookup_table,
 };
 use solana_program::pubkey;
@@ -50,7 +50,7 @@ fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
     // 4. Extend ALT with common addresses
     // Programs called via CPI are in accounts array, so they're eligible!
     let addresses = vec![
-        solana_sdk::system_program::ID,
+        solana_system_interface::program::ID,
         inbox_pda,
         SPL_NOOP,
         TOKEN_PROGRAM,      // CPI'd by warp routes

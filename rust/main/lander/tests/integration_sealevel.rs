@@ -8,10 +8,10 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use mockall::mock;
 use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
     account::Account,
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     hash::Hash,
     instruction::Instruction as SealevelInstruction,
     message::{v0::Message as MessageV0, Message, VersionedMessage},
@@ -208,6 +208,15 @@ fn create_sealevel_client() -> MockClient {
         accounts: None,
         units_consumed: None,
         return_data: None,
+        replacement_blockhash: None,
+        inner_instructions: None,
+        fee: None,
+        loaded_accounts_data_size: None,
+        loaded_addresses: None,
+        post_balances: None,
+        post_token_balances: None,
+        pre_balances: None,
+        pre_token_balances: None,
     };
 
     let mut client = MockClient::new();
@@ -253,6 +262,7 @@ fn svm_block() -> UiConfirmedBlock {
         rewards: None,
         block_time: None,
         block_height: None,
+        num_reward_partitions: None,
     }
 }
 
@@ -275,6 +285,7 @@ fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
                 loaded_addresses: OptionSerializer::None,
                 return_data: OptionSerializer::None,
                 compute_units_consumed: OptionSerializer::None,
+                cost_units: OptionSerializer::None,
             }),
             version: None,
         },
