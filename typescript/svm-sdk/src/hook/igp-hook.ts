@@ -361,6 +361,9 @@ export class SvmIgpHookWriter
       programId,
       this.salt,
     );
+    if (!currentOverheadIgp) {
+      throw new Error('Overhead IGP account not initialized');
+    }
 
     const overheadConfigsToUpdate: GasOverheadConfig[] = [];
     for (const [domainStr, gas] of Object.entries(config.overhead)) {

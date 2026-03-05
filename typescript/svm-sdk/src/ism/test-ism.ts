@@ -67,6 +67,8 @@ export class SvmTestIsmWriter
   async create(
     artifact: ArtifactNew<TestIsmConfig>,
   ): Promise<[ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>, SvmReceipt[]]> {
+    // CAST: ArtifactWriter interface uses base TestIsmConfig, but SVM
+    // needs the extra `program` field from SvmTestIsmConfig.
     const config = artifact.config as SvmTestIsmConfig;
     const { programAddress, receipts } = await resolveProgram(
       config.program,

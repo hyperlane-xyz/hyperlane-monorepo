@@ -61,6 +61,8 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
       throw new Error(`Multisig ISM not initialized at program: ${programId}`);
     }
 
+    // TODO: The SVM multisig ISM stores validators/threshold per-domain rather
+    // than globally. Proper reading will be added in a future PR.
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
@@ -176,7 +178,8 @@ export class SvmMessageIdMultisigIsmWriter
     return this.getUpdateDomainTxs(artifact, programId);
   }
 
-  // TODO: update logic not yet implemented; always returns empty (no-op)
+  // TODO: The SVM multisig ISM requires per-domain diffing to compute updates.
+  // Proper update logic will be added in a future PR.
   private async getUpdateDomainTxs(
     _artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
     _programId: Address,

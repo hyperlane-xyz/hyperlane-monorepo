@@ -12,7 +12,7 @@ import {
   type ReadonlyUint8Array,
 } from '@solana/kit';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { MAX_ACCOUNT_DATA_SIZE } from '../constants.js';
 
@@ -215,21 +215,23 @@ export function ensureLength(
 export function readBigIntLE(bytes: Uint8Array): bigint {
   let result = 0n;
   for (let i = 0; i < bytes.length; i += 1) {
-    result |= BigInt(bytes[i]!) << (8n * BigInt(i));
+    const byte = bytes[i];
+    if (isNullish(byte)) continue;
+    result |= BigInt(byte) << (8n * BigInt(i));
   }
   return result;
 }
 
 export function writeBigIntLE(value: bigint, length: number): Uint8Array {
   if (value < 0n) throw new Error('Negative bigint not supported');
+  if (value >= 1n << BigInt(length * 8)) {
+    throw new Error(`Integer does not fit in ${length} bytes`);
+  }
   const out = new Uint8Array(length);
   let remaining = value;
   for (let i = 0; i < length; i += 1) {
     out[i] = Number(remaining & 0xffn);
     remaining >>= 8n;
-  }
-  if (remaining > 0n) {
-    throw new Error(`Integer does not fit in ${length} bytes`);
   }
   return out;
 }

@@ -160,16 +160,18 @@ function readAddress(cursor: ByteCursor): Address {
 }
 
 function readOptionAddress(cursor: ByteCursor): Address | null {
-  const hasValue = cursor.readU8() === 1;
-  return hasValue ? readAddress(cursor) : null;
+  const tag = cursor.readU8();
+  assert(tag === 0 || tag === 1, `Invalid option tag: ${tag}`);
+  return tag === 1 ? readAddress(cursor) : null;
 }
 
 function readOptionIgpConfig(cursor: ByteCursor): {
   programId: Address;
   igpType: InterchainGasPaymasterType;
 } | null {
-  const hasValue = cursor.readU8() === 1;
-  if (!hasValue) return null;
+  const tag = cursor.readU8();
+  assert(tag === 0 || tag === 1, `Invalid option tag: ${tag}`);
+  if (tag === 0) return null;
   const programId = readAddress(cursor);
   const igpKindByte = cursor.readU8();
   assert(

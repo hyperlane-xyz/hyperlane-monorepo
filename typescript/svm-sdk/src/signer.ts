@@ -1,6 +1,7 @@
 import {
   type Address,
   type KeyPairSigner,
+  type ReadonlyUint8Array,
   type RpcSubscriptions,
   type SolanaRpcSubscriptionsApi,
   type TransactionSigner,
@@ -26,7 +27,7 @@ export interface SvmSigner {
 
 const base58Encoder = getBase58Encoder();
 
-function parseKeyBytes(privateKey: string): Uint8Array {
+function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
   const stripped = strip0x(privateKey);
   if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
@@ -37,9 +38,9 @@ function parseKeyBytes(privateKey: string): Uint8Array {
   }
 
   // Try base58
-  let keyBytes: Uint8Array;
+  let keyBytes: ReadonlyUint8Array;
   try {
-    keyBytes = new Uint8Array(base58Encoder.encode(privateKey));
+    keyBytes = base58Encoder.encode(privateKey);
   } catch (err) {
     throw new Error(
       `Failed to parse private key. Expected hex (64 or 128 chars) or base58. ` +

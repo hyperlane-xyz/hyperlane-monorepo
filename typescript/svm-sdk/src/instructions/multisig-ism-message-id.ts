@@ -5,6 +5,7 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 import { getAddressCodec } from '@solana/kit';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 const ADDRESS_CODEC = getAddressCodec();
 
@@ -20,6 +21,7 @@ import {
   type H160,
   type ValidatorsAndThreshold,
 } from '../codecs/shared.js';
+import { isProgramInstructionDiscriminator } from './interfaces.js';
 import {
   buildInstruction,
   readonlyAccount,
@@ -83,8 +85,8 @@ export function decodeMultisigIsmMessageIdProgramInstruction(
 ): MultisigIsmMessageIdProgramInstruction | null {
   if (data.length < 9) return null;
   const cursor = new ByteCursor(data);
-  const discriminator = cursor.readBytes(8);
-  if (!discriminator.every((value) => value === 1)) return null;
+  cursor.readBytes(8);
+  if (!isProgramInstructionDiscriminator(data)) return null;
 
   const kind = cursor.readU8();
   switch (kind) {
@@ -193,10 +195,11 @@ export async function getTransferOwnershipInstruction(
 }
 
 function hexToBytes20(value: string): Uint8Array {
-  const hex = value.startsWith('0x') ? value.slice(2) : value;
-  if (hex.length !== 40) {
-    throw new Error(`Expected 20-byte hex validator, got ${value}`);
-  }
+  const hex = strip0x(value);
+  assert(
+    /^[0-9a-fA-F]{40}$/.test(hex),
+    `Expected 20-byte hex validator, got ${value}`,
+  );
   const out = new Uint8Array(20);
   for (let i = 0; i < 20; i += 1) {
     out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);

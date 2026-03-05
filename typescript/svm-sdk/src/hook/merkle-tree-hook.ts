@@ -61,6 +61,8 @@ export class SvmMerkleTreeHookWriter
   ): Promise<
     [ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>, SvmReceipt[]]
   > {
+    // CAST: ArtifactWriter interface uses base MerkleTreeHookConfig, but SVM
+    // needs the extra `program` field from SvmMerkleTreeHookConfig.
     const config = artifact.config as SvmMerkleTreeHookConfig;
     if (!('programId' in config.program)) {
       throw new Error(

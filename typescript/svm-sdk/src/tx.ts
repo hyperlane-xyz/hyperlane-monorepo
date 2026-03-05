@@ -82,10 +82,7 @@ export function buildTransactionMessage(params: {
     { blockhash: recentBlockhash, lastValidBlockHeight },
     withFeePayer,
   );
-  return appendTransactionMessageInstructions(
-    allInstructions as Instruction[],
-    withLifetime,
-  );
+  return appendTransactionMessageInstructions(allInstructions, withLifetime);
 }
 
 export function transactionToInstructions(

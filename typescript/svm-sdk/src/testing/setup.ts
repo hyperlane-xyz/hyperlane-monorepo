@@ -5,7 +5,7 @@ import * as fs from 'fs';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import type { PreloadedProgram } from './solana-container.js';
 
@@ -44,13 +44,15 @@ export const PROGRAM_BINARIES = {
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
 } as const;
 
+type PreloadableProgram = keyof typeof PROGRAM_BINARIES &
+  keyof typeof TEST_PROGRAM_IDS;
+
 export function getPreloadedPrograms(
-  programs: Array<keyof typeof PROGRAM_BINARIES>,
+  programs: Array<PreloadableProgram>,
   programsPath: string = DEFAULT_PROGRAMS_PATH,
 ): PreloadedProgram[] {
   return programs.map((program) => {
-    const programId =
-      TEST_PROGRAM_IDS[program as keyof typeof TEST_PROGRAM_IDS];
+    const programId = TEST_PROGRAM_IDS[program];
     assert(programId, `Program '${program}' not found in TEST_PROGRAM_IDS`);
     return {
       programId,
@@ -64,9 +66,9 @@ export async function airdropSol(
   address: Address,
   amount: bigint = 10_000_000_000n,
 ): Promise<void> {
-  const signature = await rpc
-    .requestAirdrop(address, brandLamports(amount))
-    .send();
+  const signature = await retryAsync(() =>
+    rpc.requestAirdrop(address, brandLamports(amount)).send(),
+  );
 
   let confirmed = false;
   for (let i = 0; i < 30 && !confirmed; i++) {

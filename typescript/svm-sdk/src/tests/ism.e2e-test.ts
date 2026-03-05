@@ -4,6 +4,7 @@ import { after, before, describe, it } from 'mocha';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import {
@@ -168,17 +169,17 @@ describe('SVM ISM E2E Tests', function () {
       expect(readResult.config.type).to.equal(IsmType.MESSAGE_ID_MULTISIG);
 
       const domain1 = await reader.readDomain(TEST_PROGRAM_IDS.multisigIsm, 1);
-      expect(domain1).to.not.be.null;
-      expect(domain1!.threshold).to.equal(2);
-      expect(domain1!.validators).to.have.length(3);
+      assert(domain1, 'expected domain1 to exist');
+      expect(domain1.threshold).to.equal(2);
+      expect(domain1.validators).to.have.length(3);
 
       const domain137 = await reader.readDomain(
         TEST_PROGRAM_IDS.multisigIsm,
         137,
       );
-      expect(domain137).to.not.be.null;
-      expect(domain137!.threshold).to.equal(1);
-      expect(domain137!.validators).to.have.length(2);
+      assert(domain137, 'expected domain137 to exist');
+      expect(domain137.threshold).to.equal(1);
+      expect(domain137.validators).to.have.length(2);
     });
   });
 

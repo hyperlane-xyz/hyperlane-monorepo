@@ -14,6 +14,8 @@ import {
   type TransactionSigner,
 } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { LOADER_V3_PROGRAM_ADDRESS } from '../constants.js';
 import { DEFAULT_WRITE_CHUNK_SIZE } from '../tx.js';
 import type { SvmReceipt } from '../types.js';
@@ -68,6 +70,7 @@ export async function createDeployProgramPlan(
   const bufferSigner = args.bufferSigner ?? (await generateKeyPairSigner());
 
   const chunkSize = args.writeChunkSize ?? DEFAULT_WRITE_CHUNK_SIZE;
+  assert(chunkSize > 0, 'writeChunkSize must be positive');
   const maxDataLen = args.maxDataLen ?? BigInt(args.programBytes.length * 2);
 
   const bufferSize = PROGRAM_DATA_HEADER_SIZE + args.programBytes.length;
@@ -150,6 +153,7 @@ export async function createUpgradeProgramPlan(
 ): Promise<DeployProgramPlan> {
   const bufferSigner = args.bufferSigner ?? (await generateKeyPairSigner());
   const chunkSize = args.writeChunkSize ?? DEFAULT_WRITE_CHUNK_SIZE;
+  assert(chunkSize > 0, 'writeChunkSize must be positive');
 
   const bufferSize = PROGRAM_DATA_HEADER_SIZE + args.newProgramBytes.length;
   const bufferRent = await args.getMinimumBalanceForRentExemption(bufferSize);

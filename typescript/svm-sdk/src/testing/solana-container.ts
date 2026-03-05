@@ -1,11 +1,18 @@
 // eslint-disable-next-line import/no-nodejs-modules
-import { type ChildProcess, execSync, spawn } from 'child_process';
+import {
+  type ChildProcess,
+  execFileSync,
+  execSync,
+  spawn,
+} from 'child_process';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as os from 'os';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
+
+import { isNullish } from '@hyperlane-xyz/utils';
 import {
   GenericContainer,
   type StartedTestContainer,
@@ -48,7 +55,7 @@ function meetsMinVersion(
 
 function getValidatorVersion(binaryPath: string): string | null {
   try {
-    const output = execSync(`"${binaryPath}" --version`, {
+    const output = execFileSync(binaryPath, ['--version'], {
       encoding: 'utf-8',
     });
     const match = output.match(/solana-test-validator\s+(\d+\.\d+\.\d+)/);
@@ -185,6 +192,9 @@ async function startLocalValidator(
   await new Promise<void>((resolve, reject) => {
     let output = '';
     const timeout = setTimeout(() => {
+      proc.kill();
+      proc.stdout?.removeAllListeners();
+      proc.stderr?.removeAllListeners();
       reject(new Error('Timeout waiting for validator to start'));
     }, 120_000);
 
@@ -217,17 +227,17 @@ async function startLocalValidator(
     mode: 'local',
     process: proc,
     async stop() {
-      if (!keepRunning && proc && !proc.killed) {
+      if (!keepRunning && proc && isNullish(proc.exitCode)) {
         proc.kill('SIGTERM');
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (!proc.killed) {
+        if (isNullish(proc.exitCode)) {
           proc.kill('SIGKILL');
         }
       }
       try {
         fs.rmSync(ledgerDir, { recursive: true, force: true });
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        console.warn('Failed to clean up ledger directory:', err);
       }
     },
   };
