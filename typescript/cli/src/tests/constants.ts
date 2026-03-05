@@ -123,6 +123,7 @@ export const BURN_ADDRESS_BY_PROTOCOL = {
     'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
   [ProtocolType.Aleo]:
     'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
+  // Solana System Program — used as the canonical null/zero address on SVM
   [ProtocolType.Sealevel]: '11111111111111111111111111111111',
 } as const satisfies ProtocolMap<string>;
 
