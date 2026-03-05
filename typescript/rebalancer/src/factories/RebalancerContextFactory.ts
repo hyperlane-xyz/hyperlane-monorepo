@@ -25,6 +25,7 @@ import {
   ExecutionType,
   ExternalBridgeType,
   getAllBridges,
+  getInventoryChainNames,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -426,53 +427,7 @@ export class RebalancerContextFactory {
       'Creating inventory components',
     );
 
-    const inventoryChains = Array.from(
-      new Set(
-        this.config.strategyConfig.flatMap((strategy) => {
-          const chainEntries = Object.entries(strategy.chains);
-          const topLevelInventoryChains = chainEntries
-            .filter(
-              ([, chainConfig]) =>
-                chainConfig.executionType === ExecutionType.Inventory,
-            )
-            .map(([chainName]) => chainName);
-
-          const overrideInventoryChains = chainEntries.flatMap(
-            ([, chainConfig]) => {
-              if (!chainConfig.override) {
-                return [];
-              }
-
-              const overrideEntries = Object.entries(chainConfig.override);
-
-              return overrideEntries
-                .filter(([, overrideConfig]) => {
-                  const overrideExecutionType =
-                    typeof overrideConfig === 'object' &&
-                    overrideConfig !== null &&
-                    'executionType' in overrideConfig
-                      ? (
-                          overrideConfig as {
-                            executionType?: ExecutionType;
-                          }
-                        ).executionType
-                      : undefined;
-
-                  return (
-                    (overrideExecutionType ??
-                      chainConfig.executionType ??
-                      ExecutionType.MovableCollateral) ===
-                    ExecutionType.Inventory
-                  );
-                })
-                .map(([destinationChain]) => destinationChain);
-            },
-          );
-
-          return [...topLevelInventoryChains, ...overrideInventoryChains];
-        }),
-      ),
-    );
+    const inventoryChains = getInventoryChainNames(this.config.strategyConfig);
 
     if (inventoryChains.length === 0) {
       this.logger.debug('No inventory chains configured');

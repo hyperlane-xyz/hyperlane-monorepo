@@ -513,20 +513,62 @@ export function getChainExecutionType(
 }
 
 /**
+ * Get the names of all chains that use inventory execution type.
+ * Includes both top-level inventory chains and override destination chains
+ * where the override sets executionType to inventory.
+ */
+export function getInventoryChainNames(strategies: StrategyConfig[]): string[] {
+  return Array.from(
+    new Set(
+      strategies.flatMap((strategy) => {
+        const chainEntries = Object.entries(strategy.chains);
+        const topLevelInventoryChains = chainEntries
+          .filter(
+            ([, chainConfig]) =>
+              chainConfig.executionType === ExecutionType.Inventory,
+          )
+          .map(([chainName]) => chainName);
+
+        const overrideInventoryChains = chainEntries.flatMap(
+          ([, chainConfig]) => {
+            if (!chainConfig.override) {
+              return [];
+            }
+
+            const overrideEntries = Object.entries(chainConfig.override);
+
+            return overrideEntries
+              .filter(([, overrideConfig]) => {
+                const overrideExecutionType =
+                  typeof overrideConfig === 'object' &&
+                  overrideConfig !== null &&
+                  'executionType' in overrideConfig
+                    ? (
+                        overrideConfig as {
+                          executionType?: ExecutionType;
+                        }
+                      ).executionType
+                    : undefined;
+
+                return (
+                  (overrideExecutionType ??
+                    chainConfig.executionType ??
+                    ExecutionType.MovableCollateral) === ExecutionType.Inventory
+                );
+              })
+              .map(([destinationChain]) => destinationChain);
+          },
+        );
+
+        return [...topLevelInventoryChains, ...overrideInventoryChains];
+      }),
+    ),
+  );
+}
+
+/**
  * Check if any chain in the strategies uses inventory execution type.
  */
 export function hasInventoryChains(strategies: StrategyConfig[]): boolean {
-  return strategies.some((strategy) =>
-    Object.values(strategy.chains).some((chainConfig) => {
-      if (chainConfig.executionType === ExecutionType.Inventory) return true;
-      if (!chainConfig.override) return false;
-      return Object.values(chainConfig.override).some((overrideConfig) => {
-        const merged = {
-          ...chainConfig,
-          ...(overrideConfig as Record<string, unknown>),
-        };
-        return merged.executionType === ExecutionType.Inventory;
-      });
-    }),
-  );
+  return getInventoryChainNames(strategies).length > 0;
 }
