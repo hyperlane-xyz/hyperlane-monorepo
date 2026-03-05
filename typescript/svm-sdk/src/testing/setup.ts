@@ -62,7 +62,7 @@ export const PROGRAM_BINARIES = {
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
 } as const;
 
-type PreloadableProgram = keyof typeof PROGRAM_BINARIES &
+export type PreloadableProgram = keyof typeof PROGRAM_BINARIES &
   keyof typeof TEST_PROGRAM_IDS;
 
 export function getPreloadedPrograms(

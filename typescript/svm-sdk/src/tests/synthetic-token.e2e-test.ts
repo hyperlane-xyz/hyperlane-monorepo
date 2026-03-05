@@ -18,7 +18,7 @@ import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
 import { deriveAtaPayerPda, deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import {
-  PROGRAM_BINARIES,
+  type PreloadableProgram,
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
   airdropSol,
@@ -36,7 +36,7 @@ import { defineWarpTokenTests } from './warp-token-suite.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-const PRELOADED_PROGRAMS: Array<keyof typeof PROGRAM_BINARIES> = [
+const PRELOADED_PROGRAMS: Array<PreloadableProgram> = [
   'mailbox',
   'igp',
   'testIsm',
