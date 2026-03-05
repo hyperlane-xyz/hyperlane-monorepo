@@ -200,7 +200,7 @@ export abstract class HyperlaneAppGovernor<
             ),
           );
           try {
-            // Process calls in batches up to max size of 100
+            // Process calls in batches up to max size of 120
             const maxBatchSize = 120;
             for (
               let i = 0;
@@ -208,18 +208,32 @@ export abstract class HyperlaneAppGovernor<
               i += maxBatchSize
             ) {
               const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
-              await multiSend.sendTransactions(
-                batch.map((call) => ({
-                  to: call.to,
-                  data: call.data,
-                  value: call.value,
-                })),
-              );
+              const sendBatch = () =>
+                multiSend.sendTransactions(
+                  batch.map((call) => ({
+                    to: call.to,
+                    data: call.data,
+                    value: call.value,
+                  })),
+                );
+              // Retry each batch individually for SAFE to avoid
+              // re-submitting already-successful batches on failure.
+              if (submissionType === SubmissionType.SAFE) {
+                await retryAsync(sendBatch, 10);
+              } else {
+                await sendBatch();
+              }
             }
-          } catch (error) {
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
             rootLogger.error(
-              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+              chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
+            // Re-throw for SAFE so the caller knows the submission failed.
+            // SIGNER/MANUAL log and continue to avoid aborting remaining submissions.
+            if (submissionType === SubmissionType.SAFE) {
+              throw error;
+            }
           }
         } else {
           rootLogger.info(
@@ -239,23 +253,32 @@ export abstract class HyperlaneAppGovernor<
 
     // Then propose transactions on safes for all governance types
     for (const governanceType of Object.values(GovernanceType)) {
+      // Avoid initializing Safe (which can trigger external key fetches)
+      // when there are no SAFE calls for this governance type.
+      const safeCalls = filterCalls(SubmissionType.SAFE, governanceType);
+      if (safeCalls.length === 0) continue;
+
       const safeOwner = getGovernanceSafes(governanceType)[chain];
-      if (safeOwner) {
-        // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
-        const safeMultiSend = await SafeMultiSend.initialize(
-          this.checker.multiProvider,
-          chain,
-          safeOwner,
+      assert(
+        safeOwner,
+        `No safe owner found for chain ${chain} with governance type ${governanceType}`,
+      );
+
+      // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
+      const safeMultiSend = await SafeMultiSend.initialize(
+        this.checker.multiProvider,
+        chain,
+        safeOwner,
+      );
+      try {
+        await sendCallsForType(
+          SubmissionType.SAFE,
+          safeMultiSend,
+          governanceType,
         );
-        await retryAsync(
-          () =>
-            sendCallsForType(
-              SubmissionType.SAFE,
-              safeMultiSend,
-              governanceType,
-            ),
-          10,
-        );
+      } catch {
+        // Error already logged inside sendCallsForType.
+        // Continue with remaining governance types rather than aborting.
       }
     }
 
