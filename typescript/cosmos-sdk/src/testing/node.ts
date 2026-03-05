@@ -5,7 +5,7 @@ import {
 } from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { retryAsync } from '@hyperlane-xyz/utils';
+import { pollAsync, retryAsync } from '@hyperlane-xyz/utils';
 
 type CometStatusResponse = {
   result?: {
@@ -18,7 +18,7 @@ type CometStatusResponse = {
 async function waitForCosmosRpcReady(rpcPort: number): Promise<void> {
   const statusUrl = `http://127.0.0.1:${rpcPort}/status`;
 
-  await retryAsync(
+  await pollAsync(
     async () => {
       const response = await fetch(statusUrl);
       if (!response.ok) {
@@ -37,8 +37,8 @@ async function waitForCosmosRpcReady(rpcPort: number): Promise<void> {
         );
       }
     },
-    30,
     1000,
+    30,
   );
 }
 
