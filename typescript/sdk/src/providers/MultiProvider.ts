@@ -209,7 +209,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const provider = this.tryGetProvider(chainName);
     if (!provider) return signer;
     const connected = signer.connect(provider);
-    this.signers[chainName] = connected;
+    // Only cache when not using a shared signer. In shared-signer mode,
+    // caching pins the signer to this provider; setProvider() skips
+    // reconnection when useSharedSigner is true, so the cached signer
+    // would go stale after a provider swap.
+    if (!this.useSharedSigner) {
+      this.signers[chainName] = connected;
+    }
     return connected;
   }
 
