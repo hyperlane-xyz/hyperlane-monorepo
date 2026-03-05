@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, isAddressEvm } from '@hyperlane-xyz/utils';
 
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
@@ -325,21 +325,9 @@ export const RebalancerConfigSchema = z
       }
     }
 
-    const hasInventoryChains = config.strategy.some((strategy) =>
-      Object.values(strategy.chains).some((chainConfig) => {
-        if (chainConfig.executionType === ExecutionType.Inventory) return true;
-        if (!chainConfig.override) return false;
-        return Object.values(chainConfig.override).some((overrideConfig) => {
-          const merged = {
-            ...chainConfig,
-            ...(overrideConfig as Record<string, unknown>),
-          };
-          return merged.executionType === ExecutionType.Inventory;
-        });
-      }),
-    );
+    const hasInventory = hasInventoryChains(config.strategy);
 
-    if (hasInventoryChains) {
+    if (hasInventory) {
       if (
         !config.inventorySigners ||
         !Object.keys(config.inventorySigners).length
@@ -358,10 +346,10 @@ export const RebalancerConfigSchema = z
           config.inventorySigners,
         )) {
           if (protocol === ProtocolType.Ethereum) {
-            if (!/^0x[0-9a-fA-F]{40}$/.test(signerConfig.address)) {
+            if (!isAddressEvm(signerConfig.address)) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `inventorySigners.${protocol} must be a valid EVM address (0x + 40 hex chars), got: ${signerConfig.address}`,
+                message: `inventorySigners.${protocol} must be a valid EVM address, got: ${signerConfig.address}`,
                 path: ['inventorySigners', protocol],
               });
             }
