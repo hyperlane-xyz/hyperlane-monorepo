@@ -58,7 +58,7 @@ before(async function () {
     await runTronNode({
       name: 'tron-local',
       chainId,
-      domainId: meta.domainId ?? chainId,
+      domainId: meta.domainId != null ? Number(meta.domainId) : chainId,
       port,
     });
   } else if (!useExternalNodes) {
