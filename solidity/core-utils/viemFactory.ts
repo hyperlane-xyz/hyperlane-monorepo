@@ -718,13 +718,18 @@ function getConstructorInputs(abi: Abi) {
   return ctor.inputs ?? [];
 }
 
+function normalizeAbiParametersArgs(
+  parameters: readonly AbiParameter[],
+  args: readonly unknown[],
+): unknown[] {
+  return args.map((arg, index) => normalizeAbiArgument(parameters[index], arg));
+}
+
 function normalizeFunctionArgs(
   fn: AbiFunction,
   fnArgs: readonly unknown[],
 ): unknown[] {
-  return fnArgs.map((arg, index) =>
-    normalizeAbiArgument(fn.inputs?.[index], arg),
-  );
+  return normalizeAbiParametersArgs(fn.inputs ?? [], fnArgs);
 }
 
 function getArrayElementParameter(
@@ -966,7 +971,10 @@ export function createInterface<TAbi extends Abi>(
       if (!bytecode || bytecode === '0x') return bytecode ?? ('0x' as Hex);
       const inputs = getConstructorInputs(abi);
       if (!inputs.length) return bytecode;
-      const encodedArgs = encodeAbiParameters(inputs, [...args]);
+      const encodedArgs = encodeAbiParameters(
+        inputs,
+        normalizeAbiParametersArgs(inputs, args),
+      );
       return concatHex([bytecode, encodedArgs]);
     },
     parseTransaction(tx: { data: string; value?: unknown }) {
