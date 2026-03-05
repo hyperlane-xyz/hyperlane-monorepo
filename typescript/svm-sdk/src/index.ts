@@ -1,6 +1,6 @@
 // Clients
-export { SealevelProvider } from './clients/provider.js';
-export type { SealevelSigner } from './clients/signer.js';
+export { SvmProvider } from './clients/provider.js';
+export type { SvmSigner } from './clients/signer.js';
 
 // Types
 export type {
