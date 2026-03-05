@@ -18,7 +18,7 @@ import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
-import {
+import type {
   DerivedIcaRouterConfig,
   FeeTokenApproval,
   IcaRouterConfig as InterchainAccountConfig,
