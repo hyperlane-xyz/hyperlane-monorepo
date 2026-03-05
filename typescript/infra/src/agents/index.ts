@@ -209,7 +209,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     values.hyperlane.chains = values.hyperlane.chains.map((chain) => {
       const overrides = processAltOverrides[chain.name];
       if (overrides && overrides.length > 0) {
-        return { ...chain, processAltOverrides: overrides };
+        return { ...chain, processAltOverrides: JSON.stringify(overrides) };
       }
       return chain;
     });

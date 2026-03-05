@@ -19,7 +19,8 @@ use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
 use super::{
-    parse_base_and_override_urls, parse_cosmos_gas_price, parse_matching_list, ValueParser,
+    parse_base_and_override_urls, parse_cosmos_gas_price, parse_json_array, parse_matching_list,
+    ValueParser,
 };
 
 #[allow(clippy::question_mark)] // TODO: `rustc` 1.80.1 clippy issue
@@ -372,13 +373,22 @@ fn parse_sealevel_process_alt_overrides(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
 ) -> Vec<ProcessAltOverride> {
-    let entries = chain
-        .chain(err)
-        .get_opt_key("processAltOverrides")
-        .into_array_iter();
+    let p = chain.chain(err).get_opt_key("processAltOverrides").end();
 
-    let Some(entries) = entries else {
+    let Some(p) = p else {
         return vec![];
+    };
+
+    let Some((cwp, val)) = parse_json_array(p) else {
+        return vec![];
+    };
+
+    let entries = match ValueParser::new(cwp, &val).into_array_iter() {
+        Ok(iter) => iter,
+        Err(e) => {
+            err.merge(e);
+            return vec![];
+        }
     };
 
     entries
