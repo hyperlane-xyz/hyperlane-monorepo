@@ -59,12 +59,15 @@ export class SvmProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawHookArtifactManager {
+    const mailbox =
+      context?.mailbox ?? SVM_CORE_ADDRESSES[chainMetadata.name]?.mailbox;
+
     assert(
-      context?.mailbox,
+      mailbox,
       'Mailbox address is required for SVM hook artifact manager',
     );
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmHookArtifactManager(rpc, parseAddress(context.mailbox));
+    return new SvmHookArtifactManager(rpc, parseAddress(mailbox));
   }
 
   createWarpArtifactManager(
