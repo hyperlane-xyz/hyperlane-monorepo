@@ -626,6 +626,10 @@ impl Mailbox for SealevelMailbox {
 /// Resolve which ALT to use for a given message.
 /// Checks per-message overrides first (first match wins), then falls back to
 /// the given fallback ALT.
+///
+/// Note: an empty `matchingList` (`[]` / `MatchingList(None)`) will never match
+/// because `msg_matches` is called with `default: false`. Use `[{}]` (a wildcard
+/// rule) if you want to match all messages.
 fn resolve_process_alt(
     overrides: &[ProcessAltOverride],
     fallback: Option<Pubkey>,

@@ -8,6 +8,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -22,8 +23,6 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
-
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { environment, ethereumChainNames } from './chains.js';
 import {

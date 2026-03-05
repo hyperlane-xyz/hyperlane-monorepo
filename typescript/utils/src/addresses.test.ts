@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   addressToBytes,
+  addressToBytes32,
   bytesToProtocolAddress,
   isAddressStarknet,
   isValidAddressStarknet,
@@ -130,6 +131,28 @@ describe('Address utilities', () => {
       const outOfBoundsAddress =
         '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
       expect(isAddressStarknet(outOfBoundsAddress)).to.be.false;
+    });
+  });
+
+  describe('addressToBytes32', () => {
+    it('Converts a base58 Solana address to bytes32 hex', () => {
+      // mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X
+      const solAddress = 'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X';
+      const result = addressToBytes32(solAddress);
+      expect(result).to.equal(
+        '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794',
+      );
+    });
+    it('Converts an EVM address to bytes32 hex', () => {
+      const result = addressToBytes32(ETH_NON_ZERO_ADDR);
+      expect(result).to.equal(
+        '0x0000000000000000000000000000000000000000000000000000000000000001',
+      );
+    });
+    it('Returns an already-bytes32 hex address unchanged', () => {
+      const bytes32 =
+        '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794';
+      expect(addressToBytes32(bytes32)).to.equal(bytes32);
     });
   });
 

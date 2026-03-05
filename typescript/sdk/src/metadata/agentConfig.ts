@@ -173,6 +173,14 @@ const AgentSealevelChainMetadataSchema = z.object({
       url: z.string().optional(),
     })
     .optional(),
+  processAltOverrides: z
+    .array(
+      z.object({
+        matchingList: MatchingListSchema,
+        addressLookupTable: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 export type AgentSealevelChainMetadata = z.infer<

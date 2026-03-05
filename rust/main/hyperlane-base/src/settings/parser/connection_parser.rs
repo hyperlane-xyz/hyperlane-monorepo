@@ -383,6 +383,8 @@ fn parse_sealevel_process_alt_overrides(
 
     entries
         .filter_map(|entry| {
+            // If matchingList is absent, defaults to MatchingList(None) which will
+            // never match any message (msg_matches is called with default: false).
             let matching_list = entry
                 .chain(err)
                 .get_opt_key("matchingList")
