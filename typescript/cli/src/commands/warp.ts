@@ -6,7 +6,6 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
-  type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -52,6 +51,7 @@ import {
   removeTrailingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { getOrderedWarpSendChains } from '../utils/warp-send.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,
@@ -354,7 +354,6 @@ const send: CommandModuleWithWriteContext<
       skipValidation?: boolean;
       sourceToken?: string;
       destinationToken?: string;
-      preResolvedWarpCoreConfig?: WarpCoreConfig;
     }
 > = {
   command: 'send',
@@ -407,14 +406,13 @@ const send: CommandModuleWithWriteContext<
     skipValidation,
     sourceToken,
     destinationToken,
-    preResolvedWarpCoreConfig,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter(Boolean)
       .filter((v, i, a) => a.indexOf(v) === i) as string[];
 
     const warpCoreConfig =
-      preResolvedWarpCoreConfig ??
+      context.warpCoreConfig ??
       (await getWarpCoreConfigOrExit({
         warpRouteId,
         context,
@@ -447,19 +445,10 @@ const send: CommandModuleWithWriteContext<
     if (origin && destination) {
       chains = [origin, destination];
     } else {
-      // Order EVM chains first so non-EVM chains are final destinations
-      const orderedDefaultChains = [
-        ...[...supportedChains]
-          .filter((chain) =>
-            isEVMLike(context.multiProvider.getProtocol(chain)),
-          )
-          .sort((a, b) => a.localeCompare(b)),
-        ...[...supportedChains]
-          .filter(
-            (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
-          )
-          .sort((a, b) => a.localeCompare(b)),
-      ];
+      const orderedDefaultChains = getOrderedWarpSendChains(
+        supportedChains,
+        context.multiProvider,
+      );
 
       chains =
         chains.length === 0
