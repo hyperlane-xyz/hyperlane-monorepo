@@ -1,5 +1,20 @@
 # @hyperlane-xyz/rebalancer
 
+## 26.0.0
+
+### Patch Changes
+
+- 279b714: Provider initialization in `RebalancerContextFactory.create()` was restricted to EVM chains only. Non-EVM warp route chains (e.g. StarkNet, Sealevel) are now skipped, preventing crashes from ethers v5 rejecting non-numeric chainIds.
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/metrics@0.2.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 25.5.0
 
 ### Patch Changes
