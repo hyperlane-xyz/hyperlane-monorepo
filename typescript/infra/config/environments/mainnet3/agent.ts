@@ -24,7 +24,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
-  AddressLookupTableOverride,
+  BaseRelayerConfig,
   IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
@@ -879,9 +879,20 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
-// TODO: add matching list entries once mainnet recipient addresses are known.
-// ALT: 8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z
-const addressLookupTableOverrides: AddressLookupTableOverride[] = [];
+const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
+  solanamainnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+          ),
+        },
+      ],
+      addressLookupTable: '8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z',
+    },
+  ],
+};
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -898,7 +909,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    addressLookupTableOverrides,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -945,7 +956,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    addressLookupTableOverrides,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -987,7 +998,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    addressLookupTableOverrides,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,

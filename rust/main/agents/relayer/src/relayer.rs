@@ -19,7 +19,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
@@ -168,10 +168,6 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized cache", "Relayer startup duration measurement");
 
         let db = DB::from_path(&settings.db)?;
-
-        // Inject per-message ALT overrides into Sealevel chain configs
-        let mut settings = settings;
-        Self::inject_alt_overrides(&mut settings);
 
         start_entity_init = Instant::now();
         let origins =
@@ -565,45 +561,6 @@ type PrepQueue = HashMap<
     >,
 >;
 impl Relayer {
-    /// Inject per-message ALT overrides into Sealevel chain connection configs.
-    fn inject_alt_overrides(settings: &mut RelayerSettings) {
-        use hyperlane_base::settings::ChainConnectionConf;
-        use hyperlane_sealevel::ProcessAltOverride;
-        use std::str::FromStr as _;
-
-        if settings.address_lookup_table_overrides.is_empty() {
-            return;
-        }
-
-        let overrides: Vec<ProcessAltOverride> = settings
-            .address_lookup_table_overrides
-            .iter()
-            .filter_map(|c| {
-                match solana_sdk::pubkey::Pubkey::from_str(&c.alt_address) {
-                    Ok(pubkey) => Some(ProcessAltOverride {
-                        matching_list: c.matching_list.clone(),
-                        alt_address: pubkey,
-                    }),
-                    Err(e) => {
-                        warn!(alt_address = %c.alt_address, error = %e, "Invalid ALT pubkey in addressLookupTableOverrides, skipping");
-                        None
-                    }
-                }
-            })
-            .collect();
-
-        for (_domain, chain_conf) in settings.base.chains.iter_mut() {
-            if let ChainConnectionConf::Sealevel(ref mut sealevel_conf) = chain_conf.connection {
-                sealevel_conf.process_alt_overrides = overrides.clone();
-            }
-        }
-
-        info!(
-            count = overrides.len(),
-            "Injected ALT overrides into Sealevel chain configs"
-        );
-    }
-
     async fn build_router(
         &self,
         prep_queues: PrepQueue,

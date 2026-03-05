@@ -3,13 +3,15 @@ use std::{ops::Add, str::FromStr};
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
+    ProcessAltOverride,
 };
 use solana_sdk::pubkey::Pubkey;
 use url::Url;
 
 use h_eth::TransactionOverrides;
 
-use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
+use hyperlane_core::config::{ConfigErrResultExt, ConfigResultExt, OpSubmissionConfig};
+use hyperlane_core::matching_list::MatchingList;
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use hyperlane_starknet as h_starknet;
@@ -319,6 +321,7 @@ fn build_sealevel_connection_conf(
     let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
     let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
+    let process_alt_overrides = parse_sealevel_process_alt_overrides(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -334,7 +337,7 @@ fn build_sealevel_connection_conf(
         priority_fee_oracle,
         transaction_submitter,
         mailbox_process_alt,
-        process_alt_overrides: vec![],
+        process_alt_overrides,
     }))
 }
 
@@ -362,6 +365,56 @@ fn parse_sealevel_mailbox_process_alt(
     } else {
         None
     }
+}
+
+fn parse_sealevel_process_alt_overrides(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Vec<ProcessAltOverride> {
+    let entries = chain
+        .chain(err)
+        .get_opt_key("processAltOverrides")
+        .into_array_iter();
+
+    let Some(entries) = entries else {
+        return vec![];
+    };
+
+    entries
+        .filter_map(|entry| {
+            // Parse matchingList as a JSON value, then deserialize into MatchingList
+            let matching_list_val = entry.chain(err).get_opt_key("matchingList").end();
+
+            let matching_list = if let Some(ml_parser) = matching_list_val {
+                ml_parser
+                    .parse_value::<MatchingList>("Expected matching list")
+                    .take_config_err(err)
+                    .unwrap_or_default()
+            } else {
+                MatchingList::default()
+            };
+
+            let alt_str = entry
+                .chain(err)
+                .get_key("addressLookupTable")
+                .parse_string()
+                .end();
+
+            alt_str.and_then(|s| match Pubkey::from_str(s) {
+                Ok(pubkey) => Some(ProcessAltOverride {
+                    matching_list,
+                    alt_address: pubkey,
+                }),
+                Err(e) => {
+                    err.push(
+                        (&entry.cwp).add("addressLookupTable"),
+                        eyre!("Invalid ALT pubkey: {e}"),
+                    );
+                    None
+                }
+            })
+        })
+        .collect()
 }
 
 fn parse_native_token(

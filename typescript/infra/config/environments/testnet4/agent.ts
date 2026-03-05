@@ -15,7 +15,6 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
-  AddressLookupTableOverride,
   BaseRelayerConfig,
   MetricAppContext,
 } from '../../../src/config/agent/relayer.js';
@@ -260,18 +259,20 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
-const addressLookupTableOverrides: AddressLookupTableOverride[] = [
-  {
-    matchingList: [
-      {
-        recipientAddress: addressToBytes32(
-          'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
-        ),
-      },
-    ],
-    addressLookupTable: '4zybokQ8gLLPWUawXaw1JhrPZZsTaTGeaHZhLLb5nPhS',
-  },
-];
+const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
+  solanatestnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+          ),
+        },
+      ],
+      addressLookupTable: '4zybokQ8gLLPWUawXaw1JhrPZZsTaTGeaHZhLLb5nPhS',
+    },
+  ],
+};
 
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   // Ignore kessel runner test recipients.
@@ -314,7 +315,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    addressLookupTableOverrides,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
@@ -360,7 +361,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    addressLookupTableOverrides,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
@@ -409,7 +410,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    addressLookupTableOverrides,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,

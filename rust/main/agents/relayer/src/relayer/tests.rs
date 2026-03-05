@@ -147,7 +147,6 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
-        address_lookup_table_overrides: vec![],
     }
 }
 

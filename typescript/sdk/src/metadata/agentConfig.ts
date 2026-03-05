@@ -397,11 +397,6 @@ const IsmCacheConfigSchema = z.object({
 });
 export type IsmCacheConfig = z.infer<typeof IsmCacheConfigSchema>;
 
-const AddressLookupTableOverrideSchema = z.object({
-  matchingList: MatchingListSchema,
-  addressLookupTable: z.string().min(1),
-});
-
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -473,12 +468,6 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe('Whether to enable IGP indexing'),
-  addressLookupTableOverrides: z
-    .union([z.array(AddressLookupTableOverrideSchema), z.string().min(1)])
-    .optional()
-    .describe(
-      'Per-message ALT overrides for Sealevel chains. First match wins, falls back to chain-level mailboxProcessAlt.',
-    ),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;

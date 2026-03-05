@@ -203,6 +203,17 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
 
+    // Inject per-chain processAltOverrides into Sealevel chain configs
+    const processAltOverrides =
+      this.config.relayerConfig.processAltOverrides ?? {};
+    values.hyperlane.chains = values.hyperlane.chains.map((chain) => {
+      const overrides = processAltOverrides[chain.name];
+      if (overrides && overrides.length > 0) {
+        return { ...chain, processAltOverrides: overrides };
+      }
+      return chain;
+    });
+
     const config = await this.config.buildConfig();
 
     // Divide the keys between the configmap and the env config.
@@ -210,7 +221,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       addressBlacklist: config.addressBlacklist,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
       ismCacheConfigs: config.ismCacheConfigs,
-      addressLookupTableOverrides: config.addressLookupTableOverrides,
     };
     const envConfig = objOmitKeys<RelayerConfig>(config, [
       ...Object.keys(configMapConfig),
