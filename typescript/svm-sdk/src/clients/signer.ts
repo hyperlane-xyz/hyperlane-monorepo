@@ -12,7 +12,7 @@ import {
 } from '@solana/kit';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
 import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
@@ -56,6 +56,7 @@ export class SvmSigner
   implements AltVM.ISigner<SvmTransaction, SvmReceipt>
 {
   readonly signer: TransactionSigner;
+  private readonly logger = rootLogger.child({ module: 'SvmSigner' });
 
   private constructor(
     rpc: SvmRpc,
@@ -148,19 +149,33 @@ export class SvmSigner
     for (let i = 0; i < maxRetries && !confirmed; i++) {
       await new Promise((resolve) => setTimeout(resolve, delay));
       delay = Math.min(delay * 1.5, 4000);
-      const status = await this.rpc.getSignatureStatuses([signature]).send();
-      const result = status.value[0];
-      if (result?.err) {
-        throw new Error(
-          `Transaction failed: ${signature}, err: ${JSON.stringify(result.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
-        );
-      }
-      if (
-        result?.confirmationStatus === 'confirmed' ||
-        result?.confirmationStatus === 'finalized'
-      ) {
-        confirmed = true;
-        slot = BigInt(result.slot);
+      try {
+        const status = await this.rpc
+          .getSignatureStatuses([signature], {
+            searchTransactionHistory: true,
+          })
+          .send();
+        const result = status.value[0];
+        if (result?.err) {
+          throw new Error(
+            `Transaction failed: ${signature}, err: ${JSON.stringify(result.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
+          );
+        }
+        if (
+          result?.confirmationStatus === 'confirmed' ||
+          result?.confirmationStatus === 'finalized'
+        ) {
+          confirmed = true;
+          slot = BigInt(result.slot);
+        }
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes('Transaction failed')
+        ) {
+          throw error;
+        }
+        this.logger.warn(`Polling attempt ${i + 1} failed`, { error });
       }
     }
 
