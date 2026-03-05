@@ -297,9 +297,7 @@ function extractErrorMessages(
   return messages;
 }
 
-const SEND_FALLBACK_BLOCKERS = [
-  /execution reverted/i,
-  /revert/i,
+const SEND_FALLBACK_HARD_BLOCKERS = [
   /insufficient funds/i,
   /nonce too low/i,
   /replacement transaction underpriced/i,
@@ -311,6 +309,8 @@ const SEND_FALLBACK_BLOCKERS = [
   /gas required exceeds allowance/i,
   /fee cap less than block base fee/i,
 ];
+
+const SEND_FALLBACK_SOFT_BLOCKERS = [/execution reverted/i, /revert/i];
 
 const SEND_FALLBACK_REASONS = [
   /is not a function/i,
@@ -342,19 +342,19 @@ const RECEIPT_RETRY_REASONS = [
   /not implemented/i,
 ];
 
+function matchesAnyPattern(messages: string[], patterns: readonly RegExp[]) {
+  return messages.some((message) =>
+    patterns.some((pattern) => pattern.test(message)),
+  );
+}
+
 function shouldFallbackSend(error: unknown): boolean {
   const messages = extractErrorMessages(error);
   if (!messages.length) return false;
-  if (
-    messages.some((message) =>
-      SEND_FALLBACK_BLOCKERS.some((pattern) => pattern.test(message)),
-    )
-  ) {
-    return false;
-  }
-  return messages.some((message) =>
-    SEND_FALLBACK_REASONS.some((pattern) => pattern.test(message)),
-  );
+  if (matchesAnyPattern(messages, SEND_FALLBACK_HARD_BLOCKERS)) return false;
+  if (matchesAnyPattern(messages, SEND_FALLBACK_REASONS)) return true;
+  if (matchesAnyPattern(messages, SEND_FALLBACK_SOFT_BLOCKERS)) return false;
+  return false;
 }
 
 function shouldRetryReceiptWithPositionalArgs(error: unknown): boolean {
@@ -872,6 +872,14 @@ function normalizeLogBlock(log: Record<string, unknown>) {
     return BigInt(blockNumber);
   }
   return blockNumber;
+}
+
+function asLogTopics(value: unknown): [Hex, ...Hex[]] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  if (!value.every((topic) => typeof topic === 'string' && isHex(topic))) {
+    return undefined;
+  }
+  return value as [Hex, ...Hex[]];
 }
 
 export function createInterface<TAbi extends Abi>(
@@ -1513,11 +1521,19 @@ export function createContractProxy<TAbi extends Abi>(
 
       return logs
         .map((log) => {
+          const blockNumber = normalizeLogBlock(log as Record<string, unknown>);
+          const logTopics = asLogTopics(log.topics);
+          if (!logTopics || typeof log.data !== 'string') {
+            return {
+              ...log,
+              blockNumber,
+            };
+          }
           try {
             const decoded = decodeEventLog({
               abi,
-              data: log.data,
-              topics: log.topics,
+              data: log.data as Hex,
+              topics: logTopics,
               strict: false,
             });
             return {
@@ -1525,12 +1541,12 @@ export function createContractProxy<TAbi extends Abi>(
               event: decoded.eventName,
               eventName: decoded.eventName,
               args: decoded.args,
-              blockNumber: normalizeLogBlock(log as Record<string, unknown>),
+              blockNumber,
             };
           } catch {
             return {
               ...log,
-              blockNumber: normalizeLogBlock(log as Record<string, unknown>),
+              blockNumber,
             };
           }
         })

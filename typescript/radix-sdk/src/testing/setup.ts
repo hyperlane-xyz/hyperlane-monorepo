@@ -15,6 +15,14 @@ export interface RadixContractArtifacts {
   packageDefinition: Uint8Array;
 }
 
+function shouldRetryPublishPackage(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    /NoValidCoreApiNodesAvailable/i.test(error.message) ||
+    /InternalServerError/i.test(error.message)
+  );
+}
+
 /**
  * Downloads a file from a URL and returns it as a Uint8Array
  */
@@ -79,10 +87,23 @@ export async function deployHyperlaneRadixPackage(
     `Funded test account on ${metadata.name} before publishing the hyperlane package`,
   );
 
-  const packageAddress = await signer.publishPackage({
-    code: hyperlanePackageArtifacts.code,
-    packageDefinition: hyperlanePackageArtifacts.packageDefinition,
-  });
+  const packageAddress = await retryAsync(
+    async () => {
+      try {
+        return await signer.publishPackage({
+          code: hyperlanePackageArtifacts.code,
+          packageDefinition: hyperlanePackageArtifacts.packageDefinition,
+        });
+      } catch (error) {
+        if (!shouldRetryPublishPackage(error)) {
+          (error as Error & { isRecoverable?: boolean }).isRecoverable = false;
+        }
+        throw error;
+      }
+    },
+    4,
+    3_000,
+  );
 
   rootLogger.info(`Deployed Hyperlane package to: ${packageAddress}`);
 
