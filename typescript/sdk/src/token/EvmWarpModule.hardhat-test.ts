@@ -230,7 +230,7 @@ describe('EvmWarpModule', async () => {
       [TokenType.multiCollateral]: {
         ...baseConfig,
         type: TokenType.multiCollateral,
-        token: token.address,
+        token: tokenAddress,
         allowedRebalancers,
       },
     };
@@ -918,7 +918,7 @@ describe('EvmWarpModule', async () => {
         config: {
           ...baseConfig,
           type: TokenType.multiCollateral,
-          token: token.address,
+          token: tokenAddress,
         } as HypTokenRouterConfig,
         addresses: {
           deployedTokenRoute: randomAddress(),
@@ -928,7 +928,7 @@ describe('EvmWarpModule', async () => {
       const actualConfig = {
         ...baseConfig,
         type: TokenType.multiCollateral,
-        token: token.address,
+        token: tokenAddress,
         enrolledRouters: {
           [destinationDomain]: [keepRouter, removeRouter],
         },
@@ -938,7 +938,7 @@ describe('EvmWarpModule', async () => {
       const expectedConfig = {
         ...baseConfig,
         type: TokenType.multiCollateral,
-        token: token.address,
+        token: tokenAddress,
         enrolledRouters: {
           [TestChainName.test2]: [keepRouterAddress.toUpperCase(), addRouter],
         },
