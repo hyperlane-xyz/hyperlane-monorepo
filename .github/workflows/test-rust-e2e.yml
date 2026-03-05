@@ -54,7 +54,7 @@ jobs:
             PARENT_SHA=$(git rev-parse HEAD^)
             CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml ./.github/workflows/test-rust-e2e.yml ./.github/actions/)
             # Filter out sealevel deployment config paths that don't affect build/tests
-            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)')
+            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -68,7 +68,7 @@ jobs:
             PR_NUMBER=${{ github.event.pull_request.number }}
             CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml" or . == ".github/workflows/test-rust-e2e.yml" or test("^\\.github/workflows/rust\\.") or startswith(".github/actions/"))')
             # Filter out sealevel deployment config paths that don't affect build/tests
-            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)')
+            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -83,7 +83,7 @@ jobs:
             HEAD_SHA="${{ github.event.merge_group.head_sha }}"
             CHANGES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- ./rust ./.github/workflows/test.yml ./.github/workflows/test-rust-e2e.yml ./.github/actions/)
             # Filter out sealevel deployment config paths that don't affect build/tests
-            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)')
+            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT

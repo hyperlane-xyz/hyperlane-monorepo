@@ -65,7 +65,7 @@ jobs:
           fi
 
           # Filter out sealevel deployment config paths that don't affect build/tests
-          RUST_CODE_CHANGES=$(echo "$CHANGED_FILES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)')
+          RUST_CODE_CHANGES=$(echo "$CHANGED_FILES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
           if echo "$RUST_CODE_CHANGES" | grep -qE '^(rust/|\.github/workflows/(rust\.|test\.yml|test-rust)|\.github/actions/)'; then
             echo "skip_rust=false" >> $GITHUB_OUTPUT
           else
