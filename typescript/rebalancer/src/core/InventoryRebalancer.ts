@@ -1028,18 +1028,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     origin: ChainName,
     txHash: string,
   ): Promise<string | undefined> {
-    const protocol = this.getProtocolForChain(origin);
     const receipt = await this.getTransactionReceipt(origin, txHash);
     if (!receipt) return undefined;
 
-    if (protocol === ProtocolType.Ethereum) {
-      return HyperlaneCore.getDispatchedMessages(receipt.receipt as any)[0]?.id;
+    if (receipt.type === ProviderType.EthersV5) {
+      return HyperlaneCore.getDispatchedMessages(receipt.receipt)[0]?.id;
     }
 
-    if (protocol === ProtocolType.Sealevel) {
-      const logs = (receipt.receipt as any).meta?.logMessages as
-        | string[]
-        | undefined;
+    if (receipt.type === ProviderType.SolanaWeb3) {
+      const logs = receipt.receipt.meta?.logMessages;
       if (!logs) return undefined;
       const parsed = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
       return parsed[0]?.messageId ? ensure0x(parsed[0].messageId) : undefined;

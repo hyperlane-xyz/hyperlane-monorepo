@@ -367,8 +367,11 @@ export class RebalancerContextFactory {
       routersByDomain,
       bridges,
       rebalancerAddress,
-      inventorySignerAddress:
-        this.config.inventorySigners?.[ProtocolType.Ethereum]?.address,
+      inventorySignerAddresses: this.config.inventorySigners
+        ? (Object.values(this.config.inventorySigners)
+            .map((s) => s.address)
+            .filter(Boolean) as Address[])
+        : undefined,
       intentTTL: this.config.intentTTL,
     };
 
