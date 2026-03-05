@@ -796,6 +796,8 @@ export {
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
+  isMultiCollateralTokenConfig,
+  MultiCollateralTokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
@@ -954,3 +956,4 @@ export {
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
+export { IMultiProtocolSigner } from './signers/types.js';

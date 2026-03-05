@@ -79,6 +79,18 @@ export const TRON_KEY_2 =
 // Export test stack for conditional logic in setup
 export const IS_TRON_TEST = TEST_STACK === 'tron';
 
+/**
+ * Returns key flags for CLI commands.
+ * For Tron tests, provides both ethereum and tron keys via dot notation
+ * so the CLI's SignerKeyProtocolMapSchema gets { ethereum: key, tron: key }.
+ */
+export function getKeyFlags(key: string): string[] {
+  if (IS_TRON_TEST) {
+    return ['--key.ethereum', key, '--key.tron', key];
+  }
+  return ['--key', key];
+}
+
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],

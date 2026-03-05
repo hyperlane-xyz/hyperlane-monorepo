@@ -4,6 +4,7 @@ import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
@@ -56,6 +57,7 @@ export class CosmosNativeMultiProtocolSignerAdapter implements IMultiProtocolSig
 
   async sendAndConfirmTransaction(
     tx: CosmJsNativeTransaction,
+    _options?: SendTransactionOptions,
   ): Promise<string> {
     await this.signer.simulate(
       this.accountAddress,

@@ -43,7 +43,10 @@ export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
   extractMessageIds(
     sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
-    if (sourceTx.type !== ProviderType.EthersV5) {
+    if (
+      sourceTx.type !== ProviderType.EthersV5 &&
+      sourceTx.type !== ProviderType.Tron
+    ) {
       throw new Error(
         `Unsupported provider type for EvmCoreAdapter ${sourceTx.type}`,
       );

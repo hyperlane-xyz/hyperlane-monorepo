@@ -11,10 +11,12 @@ import { providers } from 'ethers';
  * This provider handles these gaps by returning appropriate defaults.
  */
 export class TronJsonRpcProvider extends providers.JsonRpcProvider {
+  public host: string;
   constructor(url: string, network?: providers.Networkish) {
     // Ensure we're pointing to the /jsonrpc endpoint
     const jsonRpcUrl = url.endsWith('/jsonrpc') ? url : `${url}/jsonrpc`;
     super(jsonRpcUrl, network);
+    this.host = jsonRpcUrl;
   }
 
   /**
@@ -25,6 +27,13 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
     _blockTag?: providers.BlockTag,
   ): Promise<number> {
     return 0;
+  }
+
+  /**
+   * Tron doesn't support ENS - return the name as-is.
+   */
+  async resolveName(name: string): Promise<string> {
+    return name;
   }
 
   /**

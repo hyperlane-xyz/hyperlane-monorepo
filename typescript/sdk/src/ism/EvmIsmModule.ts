@@ -58,6 +58,7 @@ export class EvmIsmModule extends HyperlaneModule<
   IsmConfig,
   HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
 > {
+  static protocols = [ProtocolType.Ethereum, ProtocolType.Tron];
   protected readonly logger = rootLogger.child({ module: 'EvmIsmModule' });
   protected readonly reader: EvmIsmReader;
   protected readonly ismFactory: HyperlaneIsmFactory;

@@ -9,6 +9,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { Contexts } from '../../config/contexts.js';
 import { DockerImageRepos } from '../../config/docker.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
+import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
 import { getEnvAddresses } from '../../config/registry.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
@@ -263,7 +264,10 @@ export class KeyFunderHelmManager extends HelmManager {
           Record<Contexts, string>
         >;
       case Role.InventoryRebalancer:
-        return undefined;
+        return inventoryRebalancerAddresses as Record<
+          DeployEnvironment,
+          Record<Contexts, string>
+        >;
       default:
         return undefined;
     }

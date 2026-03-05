@@ -3,7 +3,12 @@ import { stringify as yamlStringify } from 'yaml';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import { type ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  addressToBytes32,
+  isEVMLike,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
 import { ensureEvmSignersForChains } from '../context/context.js';
@@ -75,14 +80,14 @@ export async function sendTestMessage({
 
   // Validate that origin and destination are EVM chains (in case passed via CLI flags)
   const originProtocol = multiProvider.getProtocol(origin);
-  if (originProtocol !== ProtocolType.Ethereum) {
+  if (!isEVMLike(originProtocol)) {
     throw new Error(
       `Origin chain '${origin}' uses protocol '${originProtocol}'. 'hyperlane send message' only supports EVM chains.`,
     );
   }
 
   const destProtocol = multiProvider.getProtocol(destination);
-  if (destProtocol !== ProtocolType.Ethereum) {
+  if (!isEVMLike(destProtocol)) {
     throw new Error(
       `Destination chain '${destination}' uses protocol '${destProtocol}'. 'hyperlane send message' only supports EVM chains.`,
     );

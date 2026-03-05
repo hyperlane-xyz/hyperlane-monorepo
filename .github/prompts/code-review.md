@@ -37,6 +37,19 @@ Review this pull request. Focus on:
 - **Past tense descriptions** - "Added support for X" not "Add support for X"
 - **Describe the why** - Focus on user impact, not implementation details
 
+## Type Cast Audit (MANDATORY PASS)
+
+**Do a dedicated pass over the diff looking for every `as` keyword and `any` type.** Flag each one. This is the most common source of bugs in this codebase.
+
+- **`as X`** — flag it. The fix is almost always to fix the function signature, add a type guard, or restructure the code
+- **`as unknown as X`** — always flag. This completely bypasses type checking
+- **`as any`** — always flag. Use `unknown` + type guards instead
+- **`as T['field']`**, **`as Partial<T>`**, **`as Record<string, any>`** — bandaid casts, flag them
+- **`: any`** — flag any parameter, variable, or return type annotated as `any`
+- **`!` (non-null assertion)** — flag unless the value is provably non-null on the preceding line
+
+The only acceptable cast is one with a `// CAST:` comment explaining why it's unavoidable.
+
 ## TypeScript/SDK Patterns
 
 - **Use `ChainMap<T>`** for per-chain configurations
@@ -44,16 +57,12 @@ Review this pull request. Focus on:
 - **Use `MultiProtocolProvider`** for cross-VM abstractions (EVM, Cosmos, Sealevel, etc.)
 - **Import types from SDK** - Don't redefine types that exist in `@hyperlane-xyz/sdk`
 - **Zod schemas** - Follow existing patterns in `typescript/sdk/src/` for config validation
-- **Avoid type casts** - Fix underlying types rather than using `as` assertions
-- **No `any` types** - Use `unknown` with type guards if type is truly unknown
-- **No unnecessary assertions** - `!` (non-null) and `as` often mask bugs; prefer proper null checks
 - **Prefer enums over literals** - Use `Status.Pending` not `'pending'`; enables refactoring and IDE support
 
 ## Common TypeScript Anti-Patterns
 
 - **`forEach` with assignment** - `arr.forEach(x => (obj[x] = val))` returns value; use `for-of` with block body
 - **`array.sort()` mutates** - Use `[...array].sort()` to avoid mutating input
-- **Double-cast `as unknown as X`** - Hides type mismatches; use single cast or fix types
 - **Placeholder strings in typed maps** - Don't use `map['placeholder']` when type expects `Address`
 - **Duplicate test names** - Two `it('does X')` in same file hides intent; make names distinct
 - **Stale test `describe()` strings** - Keep in sync with actual CLI flags/behavior

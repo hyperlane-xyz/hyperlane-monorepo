@@ -1,5 +1,18 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/tron-sdk@22.0.0
+  - @hyperlane-xyz/aleo-sdk@26.0.0
+  - @hyperlane-xyz/cosmos-sdk@26.0.0
+  - @hyperlane-xyz/radix-sdk@26.0.0
+
 ## 2.0.0
 
 ### Major Changes
