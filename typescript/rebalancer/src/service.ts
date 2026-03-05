@@ -10,9 +10,9 @@
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
  * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
- * - HYP_INVENTORY_KEY: Private key for inventory operations on EVM chains (optional)
+ * - HYP_INVENTORY_KEY_<PROTOCOL>: Private key for inventory operations per protocol (e.g., HYP_INVENTORY_KEY_ETHEREUM, HYP_INVENTORY_KEY_SEALEVEL)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
- * - HYP_INVENTORY_KEY_SOLANA: Private key for inventory operations on Solana chains (optional)
+ * - HYP_INVENTORY_KEY: Backward-compatible fallback for Ethereum inventory signer (optional, use HYP_INVENTORY_KEY_ETHEREUM preferentially)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
@@ -60,9 +60,24 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Optional inventory keys by protocol.
-  const inventoryPrivateKey = process.env.HYP_INVENTORY_KEY;
-  const inventoryPrivateKeySolana = process.env.HYP_INVENTORY_KEY_SOLANA;
+  // Build per-protocol private key map from env vars.
+  // Naming: HYP_INVENTORY_KEY_<UPPERCASE_PROTOCOL> (e.g., HYP_INVENTORY_KEY_ETHEREUM).
+  // HYP_INVENTORY_KEY (no suffix) is kept as backward-compatible fallback for Ethereum only.
+  const inventoryPrivateKeys: Partial<Record<ProtocolType, string>> = {};
+  for (const protocol of Object.values(ProtocolType)) {
+    const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
+    const val = process.env[envKey];
+    if (val) {
+      inventoryPrivateKeys[protocol] = val;
+    }
+  }
+  // Backward compat: HYP_INVENTORY_KEY (no suffix) as Ethereum fallback
+  if (
+    !inventoryPrivateKeys[ProtocolType.Ethereum] &&
+    process.env.HYP_INVENTORY_KEY
+  ) {
+    inventoryPrivateKeys[ProtocolType.Ethereum] = process.env.HYP_INVENTORY_KEY;
+  }
 
   // Parse optional environment variables
   let checkFrequency = 60_000;
@@ -136,78 +151,70 @@ async function main(): Promise<void> {
       Record<ProtocolType, InventorySignerConfig>
     > = {};
 
-    if (inventoryPrivateKey) {
-      const inventoryAddress = new Wallet(inventoryPrivateKey).address;
-      // Validate against config.inventorySigners.ethereum if present
-      const configuredAddress =
-        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum]?.address;
-      if (
-        configuredAddress &&
-        configuredAddress.toLowerCase() !== inventoryAddress.toLowerCase()
-      ) {
-        throw new Error(
-          `inventorySigners.ethereum mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
-        );
-      }
-      inventorySigners[ProtocolType.Ethereum] = {
-        address: inventoryAddress,
-        key: inventoryPrivateKey,
-      };
-      logger.info({ inventoryAddress }, '✅ EVM inventory signer configured');
-    }
+    for (const [protocol, privateKey] of Object.entries(inventoryPrivateKeys)) {
+      if (!privateKey) continue;
 
-    if (inventoryPrivateKeySolana) {
-      const keyBytes = parseSolanaPrivateKey(inventoryPrivateKeySolana);
-      const keypair = Keypair.fromSecretKey(keyBytes);
-      const derivedAddress = keypair.publicKey.toBase58();
-      // Validate against config.inventorySigners.sealevel if present
-      const configuredSolanaAddress =
-        rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel]?.address;
-      if (
-        configuredSolanaAddress &&
-        derivedAddress !== configuredSolanaAddress
-      ) {
-        throw new Error(
-          `inventorySigners.sealevel mismatch: config has ${configuredSolanaAddress} but HYP_INVENTORY_KEY_SOLANA derives to ${derivedAddress}`,
+      let derivedAddress: string;
+
+      if (protocol === ProtocolType.Ethereum) {
+        derivedAddress = new Wallet(privateKey).address;
+      } else if (protocol === ProtocolType.Sealevel) {
+        const keyBytes = parseSolanaPrivateKey(privateKey);
+        const keypair = Keypair.fromSecretKey(keyBytes);
+        derivedAddress = keypair.publicKey.toBase58();
+      } else {
+        logger.warn(
+          { protocol },
+          `Unsupported protocol for inventory signer derivation, skipping`,
         );
+        continue;
       }
-      inventorySigners[ProtocolType.Sealevel] = {
+
+      // Validate against config if present
+      const configuredAddress =
+        rebalancerConfig.inventorySigners?.[protocol as ProtocolType]?.address;
+      if (configuredAddress) {
+        const mismatch =
+          protocol === ProtocolType.Ethereum
+            ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
+            : configuredAddress !== derivedAddress;
+        if (mismatch) {
+          throw new Error(
+            `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
+          );
+        }
+      }
+
+      inventorySigners[protocol as ProtocolType] = {
         address: derivedAddress,
-        key: inventoryPrivateKeySolana,
+        key: privateKey,
       };
       logger.info(
-        { solanaAddress: derivedAddress },
-        '✅ Solana inventory signer configured',
+        { protocol, address: derivedAddress },
+        `✅ ${protocol} inventory signer configured`,
       );
     }
 
     // Fail fast if config references protocol-specific inventory signer but key is missing
-    if (
-      rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
-      !inventoryPrivateKey
-    ) {
-      logger.error(
-        {
-          inventorySigner:
-            rebalancerConfig.inventorySigners[ProtocolType.Ethereum]?.address,
-        },
-        'Config specifies inventorySigners.ethereum but HYP_INVENTORY_KEY is not set.',
-      );
-      process.exit(1);
-    }
-
-    if (
-      rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel] &&
-      !inventoryPrivateKeySolana
-    ) {
-      logger.error(
-        {
-          inventorySigner:
-            rebalancerConfig.inventorySigners[ProtocolType.Sealevel]?.address,
-        },
-        'Config specifies inventorySigners.sealevel but HYP_INVENTORY_KEY_SOLANA is not set.',
-      );
-      process.exit(1);
+    for (const protocol of Object.values(ProtocolType)) {
+      if (
+        rebalancerConfig.inventorySigners?.[protocol] &&
+        !inventoryPrivateKeys[protocol]
+      ) {
+        const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
+        const hint =
+          protocol === ProtocolType.Ethereum
+            ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
+            : envKey;
+        logger.error(
+          {
+            inventorySigner:
+              rebalancerConfig.inventorySigners[protocol]?.address,
+          },
+          `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
+        );
+        process.exit(1);
+      }
     }
 
     // Merge runtime keys into config (creates new RebalancerConfig with keys embedded)
