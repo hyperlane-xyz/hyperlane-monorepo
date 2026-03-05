@@ -657,32 +657,32 @@ mod tests {
         }
     }
 
-    // Note: serde field names for MatchingList are all lowercase (e.g. "recipientaddress", not "recipientAddress")
-    const ADDR_A: &str = "0x0000000000000000000000000000000000000000000000000000000000000001";
-    #[allow(dead_code)]
-    const ADDR_B: &str = "0x0000000000000000000000000000000000000000000000000000000000000002";
-
     fn h256_from_u8(v: u8) -> H256 {
         let mut bytes = [0u8; 32];
         bytes[31] = v;
         H256::from(bytes)
     }
 
+    fn h256_to_hex(h: H256) -> String {
+        format!("0x{h:x}")
+    }
+
     #[test]
     fn test_resolve_alt_override_match() {
         let alt_key = Pubkey::new_unique();
         let fallback_key = Pubkey::new_unique();
-        let recipient = h256_from_u8(1);
+        let recipient_a = h256_from_u8(1);
+        let recipient_a_hex = h256_to_hex(recipient_a);
 
         let overrides = vec![ProcessAltOverride {
             matching_list: serde_json::from_str::<MatchingList>(&format!(
-                r#"[{{"recipientaddress": "{ADDR_A}"}}]"#
+                r#"[{{"recipientaddress": "{recipient_a_hex}"}}]"#
             ))
             .unwrap(),
             alt_address: alt_key,
         }];
 
-        let msg = test_message(recipient);
+        let msg = test_message(recipient_a);
         let result = resolve_process_alt(&overrides, Some(fallback_key), &msg);
         assert_eq!(result, Some(alt_key));
     }
@@ -691,17 +691,20 @@ mod tests {
     fn test_resolve_alt_no_match_uses_fallback() {
         let alt_key = Pubkey::new_unique();
         let fallback_key = Pubkey::new_unique();
+        let recipient_a = h256_from_u8(1);
+        let recipient_a_hex = h256_to_hex(recipient_a);
+        let recipient_b = h256_from_u8(2);
 
         let overrides = vec![ProcessAltOverride {
             matching_list: serde_json::from_str::<MatchingList>(&format!(
-                r#"[{{"recipientaddress": "{ADDR_A}"}}]"#
+                r#"[{{"recipientaddress": "{recipient_a_hex}"}}]"#
             ))
             .unwrap(),
             alt_address: alt_key,
         }];
 
-        // ADDR_B recipient - should not match ADDR_A
-        let msg = test_message(h256_from_u8(2));
+        // recipient_b should not match recipient_a
+        let msg = test_message(recipient_b);
         let result = resolve_process_alt(&overrides, Some(fallback_key), &msg);
         assert_eq!(result, Some(fallback_key));
     }
@@ -715,11 +718,26 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_alt_empty_matching_list_does_not_match() {
+        let alt_key = Pubkey::new_unique();
+
+        // An empty matching list (no rules) should NOT match any message
+        let overrides = vec![ProcessAltOverride {
+            matching_list: serde_json::from_str::<MatchingList>(r#"[]"#).unwrap(),
+            alt_address: alt_key,
+        }];
+
+        let msg = test_message(h256_from_u8(1));
+        let result = resolve_process_alt(&overrides, None, &msg);
+        assert_eq!(result, None);
+    }
+
+    #[test]
     fn test_resolve_alt_first_match_wins() {
         let alt1 = Pubkey::new_unique();
         let alt2 = Pubkey::new_unique();
 
-        // Both overrides match any message (empty matching list = match all)
+        // Both overrides use a wildcard rule [{}] that matches any message
         let overrides = vec![
             ProcessAltOverride {
                 matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
@@ -738,6 +756,9 @@ mod tests {
 
     /// Integration test: builds a process payload for a real sepolia->solanatestnet message
     /// using a per-message ALT override and simulates the transaction.
+    ///
+    /// The message used here exceeds the Solana transaction size limit without an ALT,
+    /// so the configured ALT override is required for successful simulation.
     ///
     /// Requires:
     ///   SOLANA_TESTNET_RPC_URL - private RPC endpoint for solanatestnet
