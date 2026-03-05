@@ -128,10 +128,10 @@ async function callCreate(
   await RebalancerContextFactory.create(
     createMockConfig(),
     multiProvider,
-    undefined,
     createMockMpp(),
     createMockRegistry(),
     testLogger,
+    undefined,
     warpCoreConfig,
   );
 }
