@@ -344,7 +344,7 @@ async function executeDelivery({
   let transferReceipt: TypedTransactionReceipt | null = null;
   let evmTransferReceipt: TransactionReceipt | null = null;
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
+    if (tx.type === ProviderType.EthersV5 || tx.type === ProviderType.Tron) {
       const signer = multiProvider.getSigner(origin);
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
@@ -404,8 +404,9 @@ async function executeDelivery({
     selfRelay &&
     (!isEVMLike(originProtocol) || !isEVMLike(destinationProtocol))
   ) {
+    const nonEvmSide = !isEVMLike(originProtocol) ? origin : destination;
     log(
-      `Self-relay is only supported for EVM destinations. Skipping self-relay for ${destination}.`,
+      `Self-relay requires both origin and destination to be EVM-like. '${nonEvmSide}' is not. Skipping self-relay.`,
     );
     selfRelay = false;
   }
