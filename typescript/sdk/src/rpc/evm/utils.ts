@@ -13,7 +13,7 @@ import { GetEventLogsResponse } from './types.js';
 
 function toNumber(value: unknown, field: string): number {
   if (typeof value === 'number') {
-    assert(!Number.isNaN(value), `${field} is NaN`);
+    assert(Number.isSafeInteger(value), `${field} is not a safe integer: ${value}`);
     return value;
   }
   if (typeof value === 'bigint') {
