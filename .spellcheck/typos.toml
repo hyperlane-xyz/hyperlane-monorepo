@@ -76,6 +76,8 @@ ful = "ful"
 afe = "afe"
 # Short Rust variable names / destructuring
 ba = "ba"
+# "unparseable" is acceptable English (variant of "unparsable")
+unparseable = "unparseable"
 
 # External API field names that cannot be changed
 # Etherscan API uses "constructorArguements" (their typo)
