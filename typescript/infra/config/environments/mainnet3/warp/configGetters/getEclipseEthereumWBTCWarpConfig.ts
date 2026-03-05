@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -24,7 +24,7 @@ export const getEclipseEthereumWBTCWarpConfig = async (
     type: TokenType.synthetic,
     foreignDeployment: 'A7EGCDYFw5R7Jfm6cYtKvY8dmkrYMgwRCJFkyQwpHTYu',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: zeroAddress,
   };
 
   const ethereum: HypTokenRouterConfig = {
@@ -32,7 +32,7 @@ export const getEclipseEthereumWBTCWarpConfig = async (
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.WBTC,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: zeroAddress,
     proxyAdmin: {
       owner: regularSafes.ethereum,
     },

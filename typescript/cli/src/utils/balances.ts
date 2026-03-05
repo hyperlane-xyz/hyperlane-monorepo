@@ -1,6 +1,5 @@
 import { BigNumber as BN } from 'bignumber.js';
-import { BigNumber } from 'ethers';
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'viem';
 
 import {
   type AltVM,
@@ -17,11 +16,20 @@ import {
   type ChainName,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { type Address, assert, mustGet, toBigInt } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
 import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
+
+async function getProviderGasPrice(
+  provider: ReturnType<MultiProvider['getProvider']>,
+): Promise<bigint> {
+  const feeData = await provider.getFeeData();
+  const gasPrice = (feeData as Record<string, unknown>).gasPrice;
+  if (gasPrice !== undefined && gasPrice !== null) return toBigInt(gasPrice);
+  return toBigInt(await provider.send('eth_gasPrice', []));
+}
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
@@ -38,10 +46,10 @@ export async function nativeBalancesAreSufficient(
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
     let address: Address = '';
-    let requiredMinBalanceNativeDenom = BigNumber.from(0);
+    let requiredMinBalanceNativeDenom = 0n;
     let requiredMinBalance: string = '0';
 
-    let deployerBalanceNativeDenom = BigNumber.from(0);
+    let deployerBalanceNativeDenom = 0n;
     let deployerBalance: string = '0';
 
     switch (protocolType) {
@@ -49,17 +57,16 @@ export async function nativeBalancesAreSufficient(
         address = await multiProvider.getSignerAddress(chain);
 
         const provider = multiProvider.getProvider(chain);
-        const gasPrice = await provider.getGasPrice();
+        const gasPrice = await getProviderGasPrice(provider);
 
-        requiredMinBalanceNativeDenom = gasPrice.mul(
-          ETHEREUM_MINIMUM_GAS[minGas],
-        );
-        requiredMinBalance = formatUnits(
-          requiredMinBalanceNativeDenom.toString(),
-        );
+        requiredMinBalanceNativeDenom =
+          toBigInt(gasPrice) * BigInt(ETHEREUM_MINIMUM_GAS[minGas]);
+        requiredMinBalance = formatUnits(requiredMinBalanceNativeDenom, 18);
 
-        deployerBalanceNativeDenom = await provider.getBalance(address);
-        deployerBalance = formatUnits(deployerBalanceNativeDenom.toString());
+        deployerBalanceNativeDenom = toBigInt(
+          await provider.getBalance(address),
+        );
+        deployerBalance = formatUnits(deployerBalanceNativeDenom, 18);
         break;
       }
       default: {
@@ -80,7 +87,7 @@ export async function nativeBalancesAreSufficient(
         }
 
         const ALT_VM_GAS = getProtocolProvider(protocol).getMinGas();
-        requiredMinBalanceNativeDenom = BigNumber.from(
+        requiredMinBalanceNativeDenom = BigInt(
           new BN(gasPrice.amount)
             .times(ALT_VM_GAS[minGas].toString())
             .toFixed(0),
@@ -90,8 +97,11 @@ export async function nativeBalancesAreSufficient(
           nativeToken.decimals,
         );
 
-        deployerBalanceNativeDenom = BigNumber.from(
-          await signer.getBalance({ address, denom: nativeToken.denom }),
+        deployerBalanceNativeDenom = toBigInt(
+          await signer.getBalance({
+            address,
+            denom: nativeToken.denom,
+          }),
         );
         deployerBalance = formatUnits(
           deployerBalanceNativeDenom,
@@ -100,7 +110,7 @@ export async function nativeBalancesAreSufficient(
       }
     }
 
-    if (deployerBalanceNativeDenom.lt(requiredMinBalanceNativeDenom)) {
+    if (deployerBalanceNativeDenom < requiredMinBalanceNativeDenom) {
       logRed(
         `WARNING: ${address} has low balance on ${chain}. At least ${requiredMinBalance} ${symbol} recommended but found ${deployerBalance} ${symbol}`,
       );

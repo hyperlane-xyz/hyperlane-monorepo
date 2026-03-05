@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   AbstractCcipReadIsm__factory,
@@ -24,8 +24,6 @@ import {
   assert,
   concurrentMap,
   getLogLevel,
-  objMap,
-  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -76,6 +74,10 @@ export interface IsmReader {
     expectedModuleType: ModuleType,
   ): void;
 }
+
+type DomainLike = bigint | number | { toNumber(): number };
+type DomainArg = bigint | number | string;
+type ThresholdLike = bigint | number | { toNumber(): number };
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
@@ -142,8 +144,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         default:
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }
-    } catch (e: any) {
-      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${e}`;
+    } catch (e: unknown) {
+      const errorDetails = e instanceof Error ? e.message : String(e);
+      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${errorDetails}`;
       this.logger.debug(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -165,7 +168,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: IsmType.OFFCHAIN_LOOKUP,
-      urls,
+      urls: [...urls],
       owner,
     };
   }
@@ -179,15 +182,22 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     // Extend the inner isms
     switch (config.type) {
       case IsmType.FALLBACK_ROUTING:
-      case IsmType.ROUTING:
-        config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
+      case IsmType.ROUTING: {
+        const derivedDomains = await Promise.all(
+          Object.entries(config.domains).map(
+            async ([domain, ism]): Promise<[string, DerivedIsmConfig]> => [
+              domain,
+              await this.deriveIsmConfig(ism),
+            ],
+          ),
         );
+        config.domains = Object.fromEntries(derivedDomains);
         break;
+      }
       case IsmType.AGGREGATION:
       case IsmType.STORAGE_AGGREGATION:
         config.modules = await Promise.all(
-          config.modules.map(async (ism) => this.deriveIsmConfig(ism)),
+          config.modules.map((ism) => this.deriveIsmConfig(ism)),
         );
         break;
       case IsmType.AMOUNT_ROUTING:
@@ -275,7 +285,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return {
         type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
         isms: await this.deriveRemoteIsmConfigs(
-          domainIds,
+          [...domainIds],
           abstractRoutingIsm,
           icaRouter.isms,
           // The isms here are deployed on remote chains and can't be derived
@@ -293,7 +303,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const domains: DomainRoutingIsmConfig['domains'] =
       await this.deriveRemoteIsmConfigs(
-        domainIds,
+        [...domainIds],
         abstractRoutingIsm,
         defaultFallbackIsmInstance.module,
         true,
@@ -311,7 +321,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    // Check if it's an incremental routing ISM by looking for the unique error message in bytecode
+    // Incremental routing extends routing, so detect via unique revert string in bytecode.
     if (ismType === IsmType.ROUTING) {
       if (
         await contractHasString(
@@ -334,30 +344,34 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   }
 
   private async deriveRemoteIsmConfigs(
-    domainIds: ethers.BigNumber[],
+    domainIds: DomainLike[],
     contractInstance: AbstractRoutingIsm,
-    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    addressDeriveFunc: (domain: DomainArg) => Promise<string>,
     deriveConfig: true,
   ): Promise<ChainMap<IsmConfig>>;
   private async deriveRemoteIsmConfigs(
-    domainIds: ethers.BigNumber[],
+    domainIds: DomainLike[],
     contractInstance: AbstractRoutingIsm,
-    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    addressDeriveFunc: (domain: DomainArg) => Promise<string>,
     deriveConfig: false,
   ): Promise<ChainMap<string>>;
   private async deriveRemoteIsmConfigs(
-    domainIds: ethers.BigNumber[],
+    domainIds: DomainLike[],
     contractInstance: AbstractRoutingIsm,
-    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    addressDeriveFunc: (domain: DomainArg) => Promise<string>,
     deriveConfig: boolean,
   ): Promise<ChainMap<IsmConfig>> {
     const res = await concurrentMap(
       this.concurrency,
       domainIds,
       async (domainId): Promise<[string, IsmConfig] | undefined> => {
-        const chainName = this.multiProvider.tryGetChainName(
-          domainId.toNumber(),
-        );
+        const domainIdAsNumber =
+          typeof domainId === 'number'
+            ? domainId
+            : typeof domainId === 'bigint'
+              ? Number(domainId)
+              : domainId.toNumber();
+        const chainName = this.multiProvider.tryGetChainName(domainIdAsNumber);
         if (!chainName) {
           this.logger.warn(
             `Unknown domain ID ${domainId}, skipping domain configuration`,
@@ -366,7 +380,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         }
         const moduleAddress = this.messageContext
           ? await contractInstance.route(this.messageContext.message)
-          : await addressDeriveFunc(domainId);
+          : await addressDeriveFunc(domainId as DomainArg);
 
         return [
           chainName,
@@ -389,7 +403,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     let lowerIsm: Address;
     let upperIsm: Address;
-    let threshold: BigNumber;
+    let threshold: ThresholdLike;
     try {
       [lowerIsm, upperIsm, threshold] = await Promise.all([
         ism.lower(),
@@ -408,7 +422,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
         isms: {},
         address,
-        owner: ethers.constants.AddressZero,
+        owner: zeroAddress,
       };
     }
 
@@ -417,7 +431,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       lowerIsm: await this.deriveIsmConfig(lowerIsm),
       upperIsm: await this.deriveIsmConfig(upperIsm),
-      threshold: threshold.toNumber(),
+      threshold: typeof threshold === 'bigint' ? Number(threshold) : threshold,
     };
   }
 
@@ -428,13 +442,11 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
-    const [modules, threshold] = await ism.modulesAndThreshold(
-      ethers.constants.AddressZero,
-    );
+    const [modules, threshold] = await ism.modulesAndThreshold(zeroAddress);
 
     const ismConfigs = await concurrentMap(
       this.concurrency,
-      modules,
+      [...modules],
       async (module) => this.deriveIsmConfig(module),
     );
 
@@ -475,14 +487,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           : IsmType.STORAGE_MESSAGE_ID_MULTISIG;
     }
 
-    const [validators, threshold] = await ism.validatorsAndThreshold(
-      ethers.constants.AddressZero,
-    );
+    const [validators, threshold] =
+      await ism.validatorsAndThreshold(zeroAddress);
 
     return {
       address,
       type: ismType,
-      validators,
+      validators: [...validators],
       threshold,
     };
   }

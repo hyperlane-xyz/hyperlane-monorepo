@@ -1,5 +1,5 @@
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   RouterConfigWithoutOwner,
@@ -32,7 +32,7 @@ export async function getUSDTSTAGEWarpConfig(
       owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
       type: TokenType.collateral,
       token: tokens.ethereum.USDT,
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: zeroAddress,
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
@@ -42,7 +42,7 @@ export async function getUSDTSTAGEWarpConfig(
       owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
       type: TokenType.collateral,
       token: '0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb',
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: zeroAddress,
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
@@ -52,7 +52,7 @@ export async function getUSDTSTAGEWarpConfig(
       owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
       type: TokenType.collateral,
       token: tokens.arbitrum.USDT,
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: zeroAddress,
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
@@ -69,7 +69,7 @@ export async function getUSDTSTAGEWarpConfig(
       ...routerConfig.mode,
       owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
       type: TokenType.synthetic,
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: zeroAddress,
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,

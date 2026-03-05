@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
@@ -131,7 +130,11 @@ export function ethersBigNumberSerializer(key: string, value: any): any {
     value.type === 'BigNumber' &&
     value.hex
   ) {
-    return BigNumber.from(value.hex).toString();
+    try {
+      return BigInt(value.hex).toString();
+    } catch {
+      return value.hex;
+    }
   }
   if (typeof value === 'bigint') {
     return value.toString();

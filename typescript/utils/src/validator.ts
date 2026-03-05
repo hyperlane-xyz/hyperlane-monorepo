@@ -1,4 +1,14 @@
-import { ethers } from 'ethers';
+import {
+  Hex,
+  encodePacked,
+  isHex,
+  keccak256,
+  recoverMessageAddress,
+  serializeSignature,
+  toBytes,
+  toHex,
+} from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { eqAddress } from './addresses.js';
 import { domainHash } from './domains.js';
@@ -17,6 +27,12 @@ export interface ValidatorConfig {
   address: string;
   localDomain: number;
   mailbox: string;
+}
+
+function toYParity(v: number): 0 | 1 {
+  if (v === 0 || v === 1) return v;
+  if (v === 27 || v === 28) return (v - 27) as 0 | 1;
+  throw new Error(`Unsupported signature v value: ${v}`);
 }
 
 /**
@@ -51,27 +67,38 @@ export class BaseValidator {
       checkpoint.index,
       messageId,
     ];
-    return ethers.utils.solidityPack(types, values);
+    return encodePacked(types, values);
   }
 
   static messageHash(checkpoint: Checkpoint, messageId: HexString) {
     const message = this.message(checkpoint, messageId);
-    return ethers.utils.arrayify(ethers.utils.keccak256(message));
+    return toBytes(keccak256(message));
   }
 
   static recoverAddressFromCheckpoint(
     checkpoint: Checkpoint,
     signature: SignatureLike,
     messageId: HexString,
-  ): Address {
+  ): Promise<Address> {
     const msgHash = this.messageHash(checkpoint, messageId);
-    return ethers.utils.verifyMessage(msgHash, signature);
+    const normalizedSignature =
+      typeof signature === 'string'
+        ? (signature as Hex)
+        : serializeSignature({
+            r: signature.r as Hex,
+            s: signature.s as Hex,
+            yParity: toYParity(signature.v),
+          });
+    return recoverMessageAddress({
+      message: { raw: toHex(msgHash) },
+      signature: normalizedSignature,
+    });
   }
 
   static recoverAddressFromCheckpointWithId(
     { checkpoint, message_id }: CheckpointWithId,
     signature: SignatureLike,
-  ): Address {
+  ): Promise<Address> {
     return BaseValidator.recoverAddressFromCheckpoint(
       checkpoint,
       signature,
@@ -79,16 +106,19 @@ export class BaseValidator {
     );
   }
 
-  static recoverAddress({ value, signature }: S3CheckpointWithId): Address {
+  static recoverAddress({
+    value,
+    signature,
+  }: S3CheckpointWithId): Promise<Address> {
     return BaseValidator.recoverAddressFromCheckpointWithId(value, signature);
   }
 
-  matchesSigner(
+  async matchesSigner(
     checkpoint: Checkpoint,
     signature: SignatureLike,
     messageId: HexString,
-  ) {
-    const address = BaseValidator.recoverAddressFromCheckpoint(
+  ): Promise<boolean> {
+    const address = await BaseValidator.recoverAddressFromCheckpoint(
       checkpoint,
       signature,
       messageId,
@@ -132,14 +162,15 @@ export const createAnnounce = async (
       Buffer.from('HYPERLANE_ANNOUNCEMENT'),
     ]),
   );
-  const domainHash = ethers.utils.keccak256(domainHashBytes);
+  const domainHash = keccak256(domainHashBytes as Hex);
 
   const announcementDigestBytes = toHexString(
     Buffer.concat([fromHexString(domainHash), Buffer.from(storageLocation)]),
   );
-  const announcementDigest = ethers.utils.keccak256(announcementDigestBytes);
+  const announcementDigest = keccak256(announcementDigestBytes as Hex);
 
-  return new ethers.Wallet(validatorPrivKey).signMessage(
-    fromHexString(announcementDigest),
-  );
+  if (!isHex(validatorPrivKey))
+    throw new Error('Validator private key must be hex');
+  const account = privateKeyToAccount(validatorPrivKey);
+  return account.signMessage({ message: { raw: announcementDigest } });
 };

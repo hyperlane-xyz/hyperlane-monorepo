@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { type Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ERC20Test, Mailbox__factory } from '@hyperlane-xyz/core';
 import {
@@ -9,11 +9,13 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  HyperlaneSmartProvider,
   HookType,
+  LocalAccountViemSigner,
   TokenType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -37,7 +39,7 @@ import {
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
@@ -54,11 +56,11 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
       chainMetadata.rpcUrls[0].http,
     );
-
-    signer = new Wallet(ANVIL_KEY).connect(provider);
+    signer = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();
@@ -89,7 +91,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   // Reset config before each test to avoid test changes intertwining
   beforeEach(async function () {
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
@@ -115,7 +117,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
-      const hookAddress = await mailboxInstance.callStatic.defaultHook();
+      const hookAddress = await mailboxInstance.defaultHook();
 
       const warpDeployPath = combinedWarpCoreConfigPath.replace(
         '-config.yaml',
@@ -169,9 +171,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
-      const hookAddress = (
-        await mailboxInstance.callStatic.defaultHook()
-      ).toLowerCase();
+      const hookAddress = (await mailboxInstance.defaultHook()).toLowerCase();
 
       const warpDeployConfig = await deployAndExportWarpRoute();
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);

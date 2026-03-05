@@ -1,4 +1,3 @@
-import type { BigNumber } from 'ethers';
 import { Logger } from 'pino';
 
 import { GasRouter, Router } from '@hyperlane-xyz/core';
@@ -17,6 +16,8 @@ import {
 } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
+
+type GasQuote = Awaited<ReturnType<GasRouter['quoteGasPayment']>>;
 
 export abstract class RouterApp<
   Factories extends HyperlaneFactories,
@@ -45,13 +46,15 @@ export abstract class RouterApp<
   // check onchain for remote enrollments
   override async remoteChains(chainName: string): Promise<ChainName[]> {
     const router = this.router(this.contractsMap[chainName]);
-    const onchainRemoteChainNames = (await router.domains()).map((domain) => {
-      const chainName = this.multiProvider.tryGetChainName(domain);
-      if (chainName === null) {
-        throw new Error(`Chain name not found for domain: ${domain}`);
-      }
-      return chainName;
-    });
+    const onchainRemoteChainNames = (await router.domains()).map(
+      (domain: any) => {
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        if (chainName === null) {
+          throw new Error(`Chain name not found for domain: ${domain}`);
+        }
+        return chainName;
+      },
+    );
     return onchainRemoteChainNames;
   }
 
@@ -79,8 +82,8 @@ export abstract class GasRouterApp<
   async quoteGasPayment(
     origin: ChainName,
     destination: ChainName,
-  ): Promise<BigNumber> {
-    return this.getContracts(origin).router.quoteGasPayment(
+  ): Promise<GasQuote> {
+    return this.router(this.getContracts(origin)).quoteGasPayment(
       this.multiProvider.getDomainId(destination),
     );
   }

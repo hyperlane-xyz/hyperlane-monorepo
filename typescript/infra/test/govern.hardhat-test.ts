@@ -1,7 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
-import hre from 'hardhat';
 
 import {
   InterchainAccountRouter,
@@ -18,6 +15,7 @@ import {
   HyperlaneContractsMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  HardhatSignerWithAddress,
   IcaRouterConfig,
   InterchainAccount,
   InterchainAccountDeployer,
@@ -28,6 +26,7 @@ import {
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
+  getHardhatSigners,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
@@ -95,7 +94,7 @@ describe('ICA governance', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
 
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let multiProvider: MultiProvider;
   let accountConfig: AccountConfig;
   let coreApp: TestCoreApp;
@@ -109,9 +108,10 @@ describe('ICA governance', async () => {
   let governor: HyperlaneTestGovernor;
 
   before(async () => {
-    // @ts-ignore
-    [signer] = await hre.ethers.getSigners();
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    [signer] = await getHardhatSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({
+      signer: signer as any,
+    });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -149,7 +149,7 @@ describe('ICA governance', async () => {
 
     accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
-    const recipientF = new TestRecipient__factory(signer);
+    const recipientF = new TestRecipient__factory(signer as any);
     recipient = await recipientF.deploy();
 
     const contractsMap = {
@@ -186,7 +186,7 @@ describe('ICA governance', async () => {
         'setInterchainSecurityModule',
         [newIsm],
       ),
-      value: BigNumber.from(0),
+      value: 0n,
       description: 'Setting ISM on the test recipient',
     };
     governor.mockPushCall(remoteChain, call);
@@ -211,7 +211,7 @@ describe('ICA governance', async () => {
       data: recipient.interface.encodeFunctionData('transferOwnership', [
         signer.address,
       ]),
-      value: BigNumber.from(0),
+      value: 0n,
       description: 'Transfer ownership',
     };
     governor.mockPushCall(remoteChain, call);
@@ -222,6 +222,6 @@ describe('ICA governance', async () => {
 
     // assert
     actualOwner = await recipient.owner();
-    expect(actualOwner).to.equal(signer.address);
+    expect(eqAddress(actualOwner, signer.address)).to.be.true;
   });
 });

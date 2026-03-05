@@ -2,12 +2,15 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
+import { zeroAddress } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig } from '../types.js';
 
@@ -24,10 +27,10 @@ chai.use(chaiAsPromised);
 describe('EvmTimelockDeployer', async () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTimelockDeployer;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   const signerAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
   const otherSignerAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
-  let otherSigner: SignerWithAddress;
+  let otherSigner: HardhatSignerWithAddress;
 
   type TestCase = {
     title: string;
@@ -35,16 +38,16 @@ describe('EvmTimelockDeployer', async () => {
   };
 
   beforeEach(async () => {
-    [signer, otherSigner] = await hre.ethers.getSigners();
+    [signer, otherSigner] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     deployer = new EvmTimelockDeployer(multiProvider);
 
     assert(
-      signer.address === signerAddress,
+      eqAddress(signer.address, signerAddress),
       'Expected signer.address to be equal signerAddress',
     );
     assert(
-      otherSigner.address === otherSignerAddress,
+      eqAddress(otherSigner.address, otherSignerAddress),
       'Expected otherSigner.address address to be equal otherSignerAddress',
     );
   });
@@ -94,7 +97,9 @@ describe('EvmTimelockDeployer', async () => {
           multiProvider.getProvider(TestChainName.test2),
         );
 
-        expect(await timelock.getMinDelay()).to.equal(config.minimumDelay);
+        expect(await timelock.getMinDelay()).to.equal(
+          BigInt(config.minimumDelay),
+        );
 
         for (const proposer of config.proposers) {
           expect(await timelock.hasRole(PROPOSER_ROLE, proposer)).to.be.true;
@@ -167,9 +172,7 @@ describe('EvmTimelockDeployer', async () => {
     );
 
     // If the 0 address has the executor role anyone can execute
-    expect(
-      await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.constants.AddressZero),
-    ).to.be.true;
+    expect(await timelock.hasRole(EXECUTOR_ROLE, zeroAddress)).to.be.true;
 
     // Test that someone who does not have the executor role can execute proposed transactions
     expect(await timelock.hasRole(EXECUTOR_ROLE, otherSignerAddress)).to.be
@@ -205,7 +208,7 @@ describe('EvmTimelockDeployer', async () => {
     );
     await executeTx.wait();
 
-    expect(await timelock.getMinDelay()).to.equal(updatedDelay);
+    expect(await timelock.getMinDelay()).to.equal(BigInt(updatedDelay));
   });
 
   describe('canceller config', () => {

@@ -1,9 +1,9 @@
 import chalk from 'chalk';
-import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { formatUnits, parseUnits } from 'viem';
 import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger, toBigInt } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
@@ -115,14 +115,14 @@ async function fundVanguards() {
     const provider = multiProvider.getProvider(chain);
     const deployerBalance = await provider.getBalance(DEPLOYER);
     currentBalances[chain]['deployer'] = Number(
-      formatUnits(deployerBalance, TOKEN_DECIMALS),
+      formatUnits(toBigInt(deployerBalance), TOKEN_DECIMALS),
     ).toFixed(3); // Round to 3 decimal places
 
     for (const vanguard of VANGUARDS) {
       const address = VANGUARD_ADDRESSES[vanguard];
       const currentBalance = await provider.getBalance(address);
       currentBalances[chain][vanguard] = Number(
-        formatUnits(currentBalance, TOKEN_DECIMALS),
+        formatUnits(toBigInt(currentBalance), TOKEN_DECIMALS),
       ).toFixed(3); // Round to 3 decimal places
     }
   }
@@ -145,9 +145,9 @@ async function fundVanguards() {
             VANGUARD_FUNDING_CONFIGS[chain][vanguard],
             TOKEN_DECIMALS,
           );
-          const delta = desiredBalance.sub(currentBalance);
+          const delta = desiredBalance - toBigInt(currentBalance);
 
-          if (delta.gt(MIN_FUNDING_AMOUNT)) {
+          if (delta > MIN_FUNDING_AMOUNT) {
             topUpsNeeded[chain] = topUpsNeeded[chain] || [];
             topUpsNeeded[chain].push({
               chain,
@@ -206,13 +206,14 @@ async function fundVanguards() {
             // Convert balance to a BigNumber by using parseUnits
             const amount = parseUnits(topUpAmount, TOKEN_DECIMALS);
 
-            if (signerBalance.lt(amount)) {
+            const signerBalanceBigInt = toBigInt(signerBalance);
+            if (signerBalanceBigInt < amount) {
               rootLogger.warn(
                 chalk.bold.yellow(
                   `Insufficient balance for ${vanguard} on ${chain}. Required: ${formatUnits(
                     amount,
                     TOKEN_DECIMALS,
-                  )}, Available: ${formatUnits(signerBalance, TOKEN_DECIMALS)}`,
+                  )}, Available: ${formatUnits(signerBalanceBigInt, TOKEN_DECIMALS)}`,
                 ),
               );
               continue;

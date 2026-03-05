@@ -161,11 +161,18 @@ export class EvmIsmModule extends HyperlaneModule<
       normalizedCurrentConfig.type === IsmType.INCREMENTAL_ROUTING &&
       normalizedTargetConfig.type === IsmType.INCREMENTAL_ROUTING
     ) {
-      const hasUpdates =
-        calculateDomainRoutingDelta(
-          normalizedCurrentConfig,
-          normalizedTargetConfig,
-        ).domainsToUpdate.length > 0;
+      const commonDomains = intersection(
+        new Set(Object.keys(normalizedCurrentConfig.domains)),
+        new Set(Object.keys(normalizedTargetConfig.domains)),
+      );
+      const domainsToUpdate = Array.from(commonDomains).filter((origin) => {
+        return !deepEquals(
+          normalizedCurrentConfig.domains[origin],
+          normalizedTargetConfig.domains[origin],
+        );
+      });
+
+      const hasUpdates = domainsToUpdate.length > 0;
       if (hasUpdates) {
         const contract = await this.deploy({
           config: normalizedTargetConfig,
@@ -333,11 +340,14 @@ export class EvmIsmModule extends HyperlaneModule<
       });
 
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.set(domainId, ism.address);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Setting new ISM for origin ${origin}...`,
-        ...tx,
+        to: contract.address,
+        data: contract.interface.encodeFunctionData('set', [
+          domainId,
+          ism.address,
+        ]),
       });
     }
 
@@ -349,11 +359,11 @@ export class EvmIsmModule extends HyperlaneModule<
     // Unenroll domains
     for (const origin of knownUnenrolls) {
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.remove(domainId);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
-        ...tx,
+        to: contract.address,
+        data: contract.interface.encodeFunctionData('remove', [domainId]),
       });
     }
 

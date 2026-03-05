@@ -1,4 +1,5 @@
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'viem';
+import { toBigInt } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { Role } from '../src/roles.js';
@@ -73,7 +74,10 @@ async function main() {
               // Fetch balance
               if (address) {
                 const balance = await provider.getBalance(address);
-                const formattedBalance = formatUnits(balance, decimals);
+                const formattedBalance = formatUnits(
+                  toBigInt(balance),
+                  decimals,
+                );
                 return Number(formattedBalance).toFixed(3);
               }
               return null;

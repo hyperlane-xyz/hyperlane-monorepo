@@ -1,7 +1,5 @@
-import type { Interface } from '@ethersproject/abi';
-import type { BaseContract } from 'ethers';
-import { ethers } from 'ethers';
 import type { Request, Response } from 'express';
+import { recoverMessageAddress } from 'viem';
 import { z } from 'zod';
 
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
@@ -21,10 +19,19 @@ import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
  */
 export function createAbiHandler<
   Factory extends {
-    createInterface(): Interface;
-    connect(...args: any[]): BaseContract;
+    createInterface(): {
+      decodeFunctionData(
+        functionName: string,
+        data: string,
+      ): readonly unknown[];
+      getFunction(functionName: string): { inputs: readonly unknown[] };
+      encodeFunctionResult(
+        functionName: string,
+        values: readonly unknown[],
+      ): string;
+    };
   },
-  F extends keyof ReturnType<Factory['connect']>['functions'] & string,
+  F extends string,
 >(
   contractFactory: Factory,
   functionName: F,
@@ -83,16 +90,16 @@ export function createAbiHandler<
           { sender, data, verifyRelayerSignatureUrl },
           'Verifying relayer signature',
         );
-        relayer = ethers.utils.verifyMessage(
-          ethers.utils.arrayify(
-            offchainLookupRequestMessageHash(
+        relayer = await recoverMessageAddress({
+          message: {
+            raw: offchainLookupRequestMessageHash(
               sender,
               data,
               verifyRelayerSignatureUrl,
-            ),
-          ),
-          signature,
-        );
+            ) as `0x${string}`,
+          },
+          signature: signature as `0x${string}`,
+        });
       }
 
       const decoded = iface.decodeFunctionData(functionName, data);

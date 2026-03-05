@@ -1,6 +1,5 @@
-import { ethers } from 'ethers';
 import { Logger } from 'pino';
-import { Log, parseEventLogs } from 'viem';
+import { Log, keccak256, parseEventLogs, stringToHex } from 'viem';
 
 import {
   HypXERC20Lockbox__factory,
@@ -16,7 +15,7 @@ import { isContractAddress } from '../contracts/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId, EvmProvider } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
@@ -110,12 +109,17 @@ async function getConfigurationChangedLogsFromExplorerApi({
     provider.getBlockNumber(),
     provider.getTransactionReceipt(contractDeploymentTx.txHash),
   ]);
+  if (!deploymentTransactionReceipt?.blockNumber) {
+    throw new Error(
+      `No deployment receipt block number for xERC20 ${xERC20Address} on ${chain}`,
+    );
+  }
 
   return getLogsFromEtherscanLikeExplorerAPI(
     { apiUrl: explorerUrl, apiKey },
     {
       address: xERC20Address,
-      fromBlock: deploymentTransactionReceipt.blockNumber,
+      fromBlock: Number(deploymentTransactionReceipt.blockNumber),
       toBlock: currentBlockNumber,
       topic0: CONFIGURATION_CHANGED_EVENT_SELECTOR,
     },
@@ -134,7 +138,7 @@ type ConfigurationChangedLog = Log<
 
 async function getLockboxesFromLogs(
   logs: Log[],
-  provider: ethers.providers.Provider,
+  provider: EvmProvider,
   chain: ChainNameOrId,
   logger: Logger,
 ): Promise<XERC20TokenExtraBridgesLimits[]> {
@@ -175,7 +179,7 @@ async function getLockboxesFromLogs(
           provider,
         );
 
-        await maybeXERC20Lockbox.callStatic.XERC20();
+        await maybeXERC20Lockbox.XERC20();
         return log;
       } catch {
         logger.debug(
@@ -450,12 +454,14 @@ export async function deriveXERC20TokenType(
   const provider = multiProvider.getProvider(chain);
   const code = await provider.getCode(address);
   const normalizedCode = code.toLowerCase();
-  const setBufferCapSelector = ethers.utils
-    .id('setBufferCap(address,uint256)')
+  const setBufferCapSelector = keccak256(
+    stringToHex('setBufferCap(address,uint256)'),
+  )
     .slice(2, 10)
     .toLowerCase();
-  const setLimitsSelector = ethers.utils
-    .id('setLimits(address,uint256,uint256)')
+  const setLimitsSelector = keccak256(
+    stringToHex('setLimits(address,uint256,uint256)'),
+  )
     .slice(2, 10)
     .toLowerCase();
 

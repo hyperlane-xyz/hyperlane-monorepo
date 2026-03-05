@@ -1,20 +1,53 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import assert from 'node:assert/strict';
+
 import { expect } from 'chai';
-import hre from 'hardhat';
+import { stringToHex } from 'viem';
 
 import {
   ChainMap,
+  HardhatSignerWithAddress,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
+  getHardhatSigners,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
-import { HelloWorld } from '../types/index.js';
+import { HelloWorld } from '../app/helloWorldFactory.js';
+
+type NumberLike =
+  | number
+  | bigint
+  | string
+  | {
+      toNumber?: () => number;
+      toString?: () => string;
+    };
+
+const toNumberValue = (value: NumberLike): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(BigInt(value));
+  if (value?.toNumber) return value.toNumber();
+  if (value?.toString) return Number(BigInt(value.toString()));
+
+  throw new Error(`Cannot convert value to number: ${String(value)}`);
+};
+
+const waitForTransaction = async (tx: unknown): Promise<void> => {
+  if (
+    tx &&
+    typeof tx === 'object' &&
+    'wait' in tx &&
+    typeof tx.wait === 'function'
+  ) {
+    await tx.wait();
+  }
+};
 
 describe('HelloWorld', () => {
   const localChain = TestChainName.test1;
@@ -22,7 +55,7 @@ describe('HelloWorld', () => {
   let localDomain: number;
   let remoteDomain: number;
 
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let local: HelloWorld;
   let remote: HelloWorld;
   let multiProvider: MultiProvider;
@@ -30,7 +63,7 @@ describe('HelloWorld', () => {
   let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
@@ -52,54 +85,56 @@ describe('HelloWorld', () => {
     remote = contracts[remoteChain].router;
 
     // The all counts start empty
-    expect(await local.sent()).to.equal(0);
-    expect(await local.received()).to.equal(0);
-    expect(await remote.sent()).to.equal(0);
-    expect(await remote.received()).to.equal(0);
+    expect(toNumberValue(await local.sent())).to.equal(0);
+    expect(toNumberValue(await local.received())).to.equal(0);
+    expect(toNumberValue(await remote.sent())).to.equal(0);
+    expect(toNumberValue(await remote.received())).to.equal(0);
   });
 
   it('sends a message', async () => {
     const body = 'Hello';
     const payment = await local['quoteDispatch(uint32,bytes)'](
       remoteDomain,
-      Buffer.from(body),
+      stringToHex(body),
     );
-    await expect(
-      local.sendHelloWorld(remoteDomain, body, {
-        value: payment,
-      }),
-    ).to.emit(local, 'SentHelloWorld');
+    const tx = await local.sendHelloWorld(remoteDomain, body, {
+      value: payment,
+    });
+    await waitForTransaction(tx);
     // The sent counts are correct
-    expect(await local.sent()).to.equal(1);
-    expect(await local.sentTo(remoteDomain)).to.equal(1);
+    expect(toNumberValue(await local.sent())).to.equal(1);
+    expect(toNumberValue(await local.sentTo(remoteDomain))).to.equal(1);
     // The received counts are correct
-    expect(await local.received()).to.equal(0);
+    expect(toNumberValue(await local.received())).to.equal(0);
   });
 
   it('reverts if there is insufficient payment', async () => {
     const body = 'Hello';
-    await expect(
-      local.sendHelloWorld(remoteDomain, body, {
-        value: 0,
-      }),
-    ).to.be.revertedWith('ProtocolFee: insufficient protocol fee');
+    await assert.rejects(
+      () =>
+        local.sendHelloWorld(remoteDomain, body, {
+          value: 0n,
+        }),
+      /ProtocolFee: insufficient protocol fee/,
+    );
   });
 
   it('handles a message', async () => {
     const body = 'World';
     const payment = await local['quoteDispatch(uint32,bytes)'](
       remoteDomain,
-      Buffer.from(body),
+      stringToHex(body),
     );
-    await local.sendHelloWorld(remoteDomain, body, {
+    const tx = await local.sendHelloWorld(remoteDomain, body, {
       value: payment,
     });
+    await waitForTransaction(tx);
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);
     // The initial message has been dispatched.
-    expect(await local.sent()).to.equal(1);
+    expect(toNumberValue(await local.sent())).to.equal(1);
     // The initial message has been processed.
-    expect(await remote.received()).to.equal(1);
-    expect(await remote.receivedFrom(localDomain)).to.equal(1);
+    expect(toNumberValue(await remote.received())).to.equal(1);
+    expect(toNumberValue(await remote.receivedFrom(localDomain))).to.equal(1);
   });
 });

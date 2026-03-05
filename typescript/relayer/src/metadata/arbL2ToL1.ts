@@ -3,15 +3,17 @@ import {
   ChildToParentMessageReader,
   ChildToParentMessageStatus,
   ChildToParentTransactionEvent,
-  EventArgs,
 } from '@arbitrum/sdk';
-import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
-import { BigNumber, BytesLike, providers, utils } from 'ethers';
+import {
+  type Hex,
+  decodeAbiParameters,
+  encodeAbiParameters,
+  parseAbiParameters,
+} from 'viem';
 
 import {
   AbstractMessageIdAuthorizedIsm__factory,
   ArbSys__factory,
-  IOutbox__factory,
 } from '@hyperlane-xyz/core';
 import {
   ArbL2ToL1HookConfig,
@@ -20,7 +22,12 @@ import {
   IsmType,
   findMatchingLogEvents,
 } from '@hyperlane-xyz/sdk';
-import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  rootLogger,
+  toBigInt,
+} from '@hyperlane-xyz/utils';
 
 import type {
   ArbL2ToL1MetadataBuildResult,
@@ -28,13 +35,159 @@ import type {
   MetadataContext,
 } from './types.js';
 
-export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
-export type ArbL2ToL1Metadata = Omit<
-  NitroChildToParentTransactionEvent,
-  'hash'
-> & {
-  proof: BytesLike[]; // bytes32[16]
+export type ArbL2ToL1Metadata = {
+  proof: Hex[]; // bytes32[16]
+  position: bigint;
+  caller: Hex;
+  destination: Hex;
+  arbBlockNum: bigint;
+  ethBlockNum: bigint;
+  timestamp: bigint;
+  callvalue: bigint;
+  data: Hex;
 };
+
+const ARB_L2_TO_L1_METADATA_TYPES = parseAbiParameters(
+  'bytes32[] proof, uint256 position, address caller, address destination, uint256 arbBlockNum, uint256 ethBlockNum, uint256 timestamp, uint256 callvalue, bytes data',
+);
+
+const ARB_L2_TO_L1_METADATA_NO_CALLVALUE_TYPES = parseAbiParameters(
+  'bytes32[] proof, uint256 position, address caller, address destination, uint256 arbBlockNum, uint256 ethBlockNum, uint256 timestamp, bytes data',
+);
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function isHexString(value: string): value is Hex {
+  return value.startsWith('0x');
+}
+
+function toHex(value: unknown, field: string): Hex {
+  assert(
+    typeof value === 'string' && isHexString(value),
+    `Invalid ${field} value: ${String(value)}`,
+  );
+  return value;
+}
+
+type ArbitrumBigNumberish = {
+  toHexString: () => string;
+  toNumber: () => number;
+  toString: () => string;
+};
+type LogLike = { data: string; topics: readonly string[] };
+
+type ChildToParentReaderProvider = ConstructorParameters<
+  typeof ChildToParentMessageReader
+>[0];
+type ArbitrumBaseProvider = ConstructorParameters<typeof ArbitrumProvider>[0];
+
+function toChildToParentReaderProvider(
+  provider: unknown,
+): ChildToParentReaderProvider {
+  const candidate = provider as Record<string, unknown> | undefined;
+  assert(
+    !!candidate &&
+      typeof candidate.getBlockNumber === 'function' &&
+      typeof candidate.getNetwork === 'function',
+    'Destination provider does not satisfy ChildToParentMessageReader requirements',
+  );
+  return provider as ChildToParentReaderProvider;
+}
+
+function toArbitrumBaseProvider(provider: unknown): ArbitrumBaseProvider {
+  const candidate = provider as Record<string, unknown> | undefined;
+  assert(
+    !!candidate &&
+      typeof candidate.send === 'function' &&
+      typeof candidate.getNetwork === 'function',
+    'Origin provider does not satisfy ArbitrumProvider requirements',
+  );
+  return provider as ArbitrumBaseProvider;
+}
+
+function isLogLike(value: unknown): value is LogLike {
+  const record = asRecord(value);
+  if (!record) return false;
+
+  const topics = record.topics;
+  return (
+    typeof record.data === 'string' &&
+    Array.isArray(topics) &&
+    topics.every((topic) => typeof topic === 'string')
+  );
+}
+
+function toReaderNumeric(value: unknown): ArbitrumBigNumberish {
+  const numeric = toBigInt(value);
+  return {
+    toHexString: () => `0x${numeric.toString(16)}`,
+    toNumber: () => Number(numeric),
+    toString: () => numeric.toString(),
+  };
+}
+
+type L2ToL1TxArgs = {
+  caller: string;
+  destination: string;
+  hash: ArbitrumBigNumberish;
+  position: ArbitrumBigNumberish;
+  arbBlockNum: ArbitrumBigNumberish;
+  ethBlockNum: ArbitrumBigNumberish;
+  timestamp: ArbitrumBigNumberish;
+  callvalue: ArbitrumBigNumberish;
+  data: Hex;
+};
+
+function parseL2ToL1TxArgs(args: unknown): L2ToL1TxArgs {
+  if (Array.isArray(args)) {
+    const [
+      caller,
+      destination,
+      hash,
+      position,
+      arbBlockNum,
+      ethBlockNum,
+      timestamp,
+      callvalue,
+      data,
+    ] = args;
+    return {
+      caller: String(caller),
+      destination: String(destination),
+      hash: toReaderNumeric(hash),
+      position: toReaderNumeric(position),
+      arbBlockNum: toReaderNumeric(arbBlockNum),
+      ethBlockNum: toReaderNumeric(ethBlockNum),
+      timestamp: toReaderNumeric(timestamp),
+      callvalue: toReaderNumeric(callvalue),
+      data: toHex(data, 'data'),
+    };
+  }
+
+  const objArgs = asRecord(args);
+  assert(objArgs, 'Invalid L2ToL1Tx event args');
+  return {
+    caller: String(objArgs.caller),
+    destination: String(objArgs.destination),
+    hash: toReaderNumeric(objArgs.hash),
+    position: toReaderNumeric(objArgs.position),
+    arbBlockNum: toReaderNumeric(objArgs.arbBlockNum),
+    ethBlockNum: toReaderNumeric(objArgs.ethBlockNum),
+    timestamp: toReaderNumeric(objArgs.timestamp),
+    callvalue: toReaderNumeric(objArgs.callvalue),
+    data: toHex(objArgs.data, 'data'),
+  };
+}
+
+function toChildToParentTransactionEvent(
+  args: L2ToL1TxArgs,
+): ChildToParentTransactionEvent {
+  return { ...args } as ChildToParentTransactionEvent;
+}
 
 const ArbSys = ArbSys__factory.createInterface();
 
@@ -85,9 +238,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         bridgeStatus: 'confirmed',
         metadata: ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(arbMetadata),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Parse the error to determine bridge status
-      const errorMessage = error?.message ?? String(error);
+      const errorMessage =
+        error && typeof error === 'object' && 'message' in error
+          ? String(error.message)
+          : String(error);
 
       if (errorMessage.includes('Wait') && errorMessage.includes('blocks')) {
         // Extract blocks remaining from error message
@@ -122,12 +278,21 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
+    const rawDispatchLogs = context.dispatchTx.logs;
+    assert(
+      rawDispatchLogs,
+      `No logs found in dispatch tx for message ${context.message.id}`,
+    );
+    const parsedLogs = Array.from(rawDispatchLogs).filter(isLogLike);
     const matchingL2TxEvent = findMatchingLogEvents(
-      context.dispatchTx.logs,
+      parsedLogs,
       ArbSys,
       'L2ToL1Tx',
     ).find((log) => {
-      const calldata: string = log.args.data;
+      const logArgs = asRecord(log)?.args;
+      const calldata = Array.isArray(logArgs)
+        ? String(logArgs[8] ?? '')
+        : String(asRecord(logArgs)?.data ?? '');
       const messageIdHex = context.message.id.slice(2);
       return calldata && calldata.includes(messageIdHex);
     });
@@ -136,7 +301,8 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     this.logger.debug({ matchingL2TxEvent }, 'Found matching L2ToL1Tx event');
 
     if (matchingL2TxEvent) {
-      const [
+      const eventArgs = asRecord(matchingL2TxEvent)?.args;
+      const {
         caller,
         destination,
         hash,
@@ -146,8 +312,8 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         timestamp,
         callvalue,
         data,
-      ] = matchingL2TxEvent.args;
-      const l2ToL1TxEvent: ChildToParentTransactionEvent = {
+      } = parseL2ToL1TxArgs(eventArgs);
+      const l2ToL1TxEvent = toChildToParentTransactionEvent({
         caller,
         destination,
         hash,
@@ -157,10 +323,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         timestamp,
         callvalue,
         data,
-      };
+      });
 
       const reader = new ChildToParentMessageReader(
-        this.core.multiProvider.getProvider(context.hook.destinationChain),
+        toChildToParentReaderProvider(
+          this.core.multiProvider.getProvider(context.hook.destinationChain),
+        ),
         l2ToL1TxEvent,
       );
 
@@ -172,13 +340,16 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
           `Invalid chainId for ${originChainMetadata.name}: ${originChainMetadata.chainId}`,
         );
       }
-      const baseProvider = new providers.JsonRpcProvider(
-        originChainMetadata.rpcUrls[0].http,
+      const baseProvider = this.core.multiProvider.getProvider(
+        context.message.parsed.origin,
       );
-      const arbProvider = new ArbitrumProvider(baseProvider, {
-        name: originChainMetadata.name,
-        chainId: originChainMetadata.chainId,
-      });
+      const arbProvider = new ArbitrumProvider(
+        toArbitrumBaseProvider(baseProvider),
+        {
+          name: originChainMetadata.name,
+          chainId: originChainMetadata.chainId,
+        },
+      );
 
       const status = await this.getArbitrumBridgeStatus(reader, arbProvider);
       // need to wait for the challenge period to pass before relaying
@@ -200,7 +371,14 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       );
 
       const metadata: ArbL2ToL1Metadata = {
-        ...l2ToL1TxEvent,
+        caller: toHex(caller, 'caller'),
+        destination: toHex(destination, 'destination'),
+        position: toBigInt(position),
+        arbBlockNum: toBigInt(arbBlockNum),
+        ethBlockNum: toBigInt(ethBlockNum),
+        timestamp: toBigInt(timestamp),
+        callvalue: toBigInt(callvalue),
+        data,
         proof: outboxProof,
       };
 
@@ -216,16 +394,17 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   async getWaitingBlocksUntilReady(
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const firstBlock = await reader.getFirstExecutableBlock(provider);
     if (!firstBlock) {
       throw new Error('No first executable block found');
     }
-    const currentBlock = BigNumber.from(await provider.getBlockNumber());
-    if (currentBlock.gt(firstBlock)) {
+    const firstBlockBigInt = toBigInt(firstBlock);
+    const currentBlock = BigInt(await provider.getBlockNumber());
+    if (currentBlock > firstBlockBigInt) {
       throw new Error('First executable block is in the past');
     }
-    const waitingPeriod = firstBlock.sub(currentBlock);
+    const waitingPeriod = firstBlockBigInt - currentBlock;
 
     return waitingPeriod;
   }
@@ -240,53 +419,56 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   async getArbitrumOutboxProof(
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
-  ): Promise<string[]> {
-    const proof = (await reader.getOutboxProof(provider)) ?? [];
+  ): Promise<`0x${string}`[]> {
+    const proof = await reader.getOutboxProof(provider);
     if (!proof) {
       throw new Error('No outbox proof found');
     }
-    return 'proof' in proof ? proof.proof : proof;
+    const rawProof = Array.isArray(proof) ? proof : proof.proof;
+    return rawProof.map((value, index) => toHex(value, `proof[${index}]`));
   }
 
   static decode(
     metadata: string,
     _: MetadataContext<WithAddress<ArbL2ToL1IsmConfig>>,
   ): ArbL2ToL1Metadata {
-    const abiCoder = new utils.AbiCoder();
-    const outboxInterface = IOutbox__factory.createInterface();
-    const executeTransactionInputs =
-      outboxInterface.functions[
-        'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
-      ].inputs;
-    const executeTransactionTypes = executeTransactionInputs
-      .map((input) => input.type)
-      .filter((_, index, array) => index !== array.length - 2); // remove callvalue from types (because the ArbL2ToL1Ism doesn't allow it)
-    const decoded = abiCoder.decode(executeTransactionTypes, metadata);
+    const [
+      proof,
+      position,
+      caller,
+      destination,
+      arbBlockNum,
+      ethBlockNum,
+      timestamp,
+      data,
+    ] = decodeAbiParameters(
+      ARB_L2_TO_L1_METADATA_NO_CALLVALUE_TYPES,
+      toHex(metadata, 'metadata'),
+    );
 
-    return Object.fromEntries(
-      Object.keys({} as ArbL2ToL1Metadata).map((key, i) => [key, decoded[i]]),
-    ) as ArbL2ToL1Metadata;
+    return {
+      proof: proof.map((item, index) => toHex(item, `proof[${index}]`)),
+      position,
+      caller: toHex(caller, 'caller'),
+      destination: toHex(destination, 'destination'),
+      arbBlockNum,
+      ethBlockNum,
+      timestamp,
+      callvalue: 0n,
+      data: toHex(data, 'data'),
+    };
   }
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
-    const abiCoder = new utils.AbiCoder();
-    const outboxInterface = IOutbox__factory.createInterface();
-    const executeTransactionInputs =
-      outboxInterface.functions[
-        'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
-      ].inputs;
-    const executeTransactionTypes = executeTransactionInputs.map(
-      (input) => input.type,
-    );
-    return abiCoder.encode(executeTransactionTypes, [
+    return encodeAbiParameters(ARB_L2_TO_L1_METADATA_TYPES, [
       metadata.proof,
-      metadata.position,
+      toBigInt(metadata.position),
       metadata.caller,
       metadata.destination,
-      metadata.arbBlockNum,
-      metadata.ethBlockNum,
-      metadata.timestamp,
-      metadata.callvalue,
+      toBigInt(metadata.arbBlockNum),
+      toBigInt(metadata.ethBlockNum),
+      toBigInt(metadata.timestamp),
+      toBigInt(metadata.callvalue),
       metadata.data,
     ]);
   }

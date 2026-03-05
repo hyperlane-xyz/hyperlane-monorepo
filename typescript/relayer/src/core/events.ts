@@ -1,6 +1,8 @@
-import type { providers } from 'ethers';
+import type { DispatchedMessage, MultiProvider } from '@hyperlane-xyz/sdk';
 
-import type { DispatchedMessage } from '@hyperlane-xyz/sdk';
+type DispatchReceipt = Awaited<
+  ReturnType<ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']>
+>;
 
 /**
  * Relayer events, useful for metrics and monitoring
@@ -13,7 +15,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       durationMs: number;
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: DispatchReceipt;
     }
   | {
       type: 'messageFailed';
@@ -22,7 +24,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       error: Error;
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: DispatchReceipt;
     }
   | {
       type: 'messageSkipped';
@@ -31,7 +33,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       reason: 'whitelist' | 'already_delivered';
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: DispatchReceipt;
     }
   | {
       type: 'retry';

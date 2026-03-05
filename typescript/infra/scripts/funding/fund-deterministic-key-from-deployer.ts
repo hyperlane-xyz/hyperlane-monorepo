@@ -1,7 +1,6 @@
-import { BigNumber } from 'ethers';
 import { format } from 'util';
 
-import { promiseObjAll, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, promiseObjAll, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import {
@@ -68,14 +67,20 @@ async function main() {
       const provider = multiProvider.getProvider(chain);
       const overrides = multiProvider.getTransactionOverrides(chain);
       const actual = await provider.getBalance(address);
-      const gasPrice = BigNumber.from(
-        await (overrides.gasPrice ||
-          overrides.maxFeePerGas ||
-          provider.getGasPrice()),
+      const feeData = await provider.getFeeData();
+      const gasPriceValue =
+        overrides.gasPrice ||
+        overrides.maxFeePerGas ||
+        (feeData as Record<string, unknown>).gasPrice ||
+        (feeData as Record<string, unknown>).maxFeePerGas ||
+        (await provider.send('eth_gasPrice', []));
+      assert(gasPriceValue, `No gas price available on ${chain}`);
+      const gasPrice = BigInt(
+        (gasPriceValue as { toString(): string }).toString(),
       );
-      const desired = gasPrice.mul(argv.gasAmount!);
-      const value = desired.sub(actual);
-      if (value.gt(0)) {
+      const desired = gasPrice * BigInt(argv.gasAmount!);
+      const value = desired - BigInt(actual.toString());
+      if (value > 0n) {
         logger.info(
           `Funding ${address} on chain '${chain}' with ${value} native tokens`,
         );

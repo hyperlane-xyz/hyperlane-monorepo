@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 import { pino } from 'pino';
 
@@ -9,8 +8,12 @@ import {
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/rebalancer';
 import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
-import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  LocalAccountViemSigner,
+  MultiProtocolProvider,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import type { IRebalancerRunner, RebalancerSimConfig } from '../types.js';
 
@@ -170,28 +173,21 @@ export class ProductionRebalancerRunner
       logger: silentLogger,
     });
 
-    // Create provider and wallet
-    const provider = new ethers.providers.JsonRpcProvider(
-      this.config.deployment.anvilRpc,
-    );
-    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-    provider.pollingInterval = 100;
-    provider.polling = false;
-
-    const wallet = new ethers.Wallet(
-      this.config.deployment.rebalancerKey,
-      provider,
+    const wallet = new LocalAccountViemSigner(
+      ensure0x(this.config.deployment.rebalancerKey) as `0x${string}`,
     );
     multiProvider.setSharedSigner(wallet);
 
-    // Set fast polling interval and disable automatic polling on all internal providers
+    // Disable automatic polling on all internal providers
     for (const chainName of multiProvider.getKnownChainNames()) {
       const chainProvider = multiProvider.tryGetProvider(chainName);
       if (chainProvider && 'polling' in chainProvider) {
-        const jsonRpcProvider =
-          chainProvider as ethers.providers.JsonRpcProvider;
-        jsonRpcProvider.pollingInterval = 100;
-        jsonRpcProvider.polling = false;
+        (
+          chainProvider as { polling?: boolean; pollingInterval?: number }
+        ).polling = false;
+      }
+      if (chainProvider && 'pollingInterval' in chainProvider) {
+        (chainProvider as { pollingInterval?: number }).pollingInterval = 100;
       }
     }
 
@@ -203,8 +199,7 @@ export class ProductionRebalancerRunner
       try {
         const mppProvider = multiProtocolProvider.getProvider(chainName);
         if (mppProvider && 'polling' in mppProvider) {
-          (mppProvider as unknown as ethers.providers.JsonRpcProvider).polling =
-            false;
+          (mppProvider as { polling?: boolean }).polling = false;
         }
       } catch (error) {
         logger.debug(

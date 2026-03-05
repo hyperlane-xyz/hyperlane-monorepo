@@ -1,4 +1,4 @@
-import { ethers, utils } from 'ethers';
+import { encodePacked, keccak256, zeroAddress } from 'viem';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -52,13 +52,8 @@ const logger = rootLogger.child({ module: 'IsmUtils' });
 export function calculateDomainRoutingDelta(
   current: DomainRoutingIsmConfig,
   target: DomainRoutingIsmConfig,
-): {
-  domainsToEnroll: ChainName[];
-  domainsToUnenroll: ChainName[];
-  domainsToUpdate: ChainName[];
-} {
+): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
   const domainsToEnroll = [];
-  const domainsToUpdate = [];
   for (const origin of Object.keys(target.domains)) {
     if (!current.domains[origin]) {
       domainsToEnroll.push(origin);
@@ -67,10 +62,7 @@ export function calculateDomainRoutingDelta(
         current.domains[origin],
         target.domains[origin],
       );
-      if (!subModuleMatches) {
-        domainsToEnroll.push(origin);
-        domainsToUpdate.push(origin);
-      }
+      if (!subModuleMatches) domainsToEnroll.push(origin);
     }
   }
 
@@ -84,12 +76,9 @@ export function calculateDomainRoutingDelta(
     [] as ChainName[],
   );
 
-  domainsToUpdate.push(...domainsToUnenroll);
-
   return {
     domainsToEnroll,
     domainsToUnenroll,
-    domainsToUpdate,
   };
 }
 
@@ -118,9 +107,9 @@ export async function moduleCanCertainlyVerify(
     0,
     0,
     originDomainId,
-    ethers.constants.AddressZero,
+    zeroAddress,
     destinationDomainId,
-    ethers.constants.AddressZero,
+    zeroAddress,
     '0x',
   );
   const provider = multiProvider.getSignerOrProvider(destination);
@@ -212,12 +201,12 @@ export async function moduleCanCertainlyVerify(
         return verified >= destModule.threshold;
       }
       case IsmType.OP_STACK:
-        return destModule.nativeBridge !== ethers.constants.AddressZero;
+        return destModule.nativeBridge !== zeroAddress;
       case IsmType.TEST_ISM: {
         return true;
       }
       default:
-        throw new Error(`Unsupported module type: ${(destModule as any).type}`);
+        throw new Error(`Unsupported module type: ${destModule.type}`);
     }
   }
 }
@@ -236,7 +225,7 @@ export async function moduleMatchesConfig(
 
   // If the module address is zero, it can't match any object-based config.
   // The subsequent check of what moduleType it is will throw, so we fail here.
-  if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
+  if (eqAddress(moduleAddress, zeroAddress)) {
     return false;
   }
 
@@ -255,9 +244,7 @@ export async function moduleMatchesConfig(
       const storageMerkleRootMultisigIsm =
         AbstractStorageMultisigIsm__factory.connect(moduleAddress, provider);
       const [validators, threshold] =
-        await storageMerkleRootMultisigIsm.validatorsAndThreshold(
-          ethers.constants.AddressZero,
-        );
+        await storageMerkleRootMultisigIsm.validatorsAndThreshold(zeroAddress);
       matches = deepEquals(
         normalizeConfig({ validators, threshold }),
         normalizeConfig({
@@ -314,13 +301,12 @@ export async function moduleMatchesConfig(
           ),
         ),
       );
-      matches &&= threshold.eq(config.threshold);
+      matches &&= threshold === BigInt(config.threshold);
       matches &&= subModuleMatchesConfig.every(Boolean);
 
       break;
     }
     case IsmType.FALLBACK_ROUTING:
-    case IsmType.INCREMENTAL_ROUTING:
     case IsmType.ROUTING: {
       // A RoutingIsm matches if:
       //   1. The set of domains in the config equals those on-chain
@@ -490,8 +476,7 @@ export async function routingModuleDelta(
 ): Promise<RoutingIsmDelta> {
   if (
     config.type === IsmType.FALLBACK_ROUTING ||
-    config.type === IsmType.ROUTING ||
-    config.type === IsmType.INCREMENTAL_ROUTING
+    config.type === IsmType.ROUTING
   ) {
     return domainRoutingModuleDelta(
       destination,
@@ -520,8 +505,8 @@ async function domainRoutingModuleDelta(
   const provider = multiProvider.getProvider(destination);
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
-  const deployedDomains = (await routingIsm.domains()).map((domain) =>
-    domain.toNumber(),
+  const deployedDomains = (await routingIsm.domains()).map((domain: any) =>
+    Number(domain),
   );
 
   const delta: RoutingIsmDelta = {
@@ -551,12 +536,9 @@ async function domainRoutingModuleDelta(
   );
 
   // check for exclusion of domains in the config
-  // Note: Incremental routing ISMs don't support domain removal, so skip unenroll
-  if (config.type !== IsmType.INCREMENTAL_ROUTING) {
-    delta.domainsToUnenroll = deployedDomains.filter(
-      (domain) => !Object.values(safeConfigDomains).includes(domain),
-    );
-  }
+  delta.domainsToUnenroll = deployedDomains.filter(
+    (domain: any) => !Object.values(safeConfigDomains).includes(domain),
+  );
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(ismByDomainName)) {
     const originDomain = safeConfigDomains[origin];
@@ -612,10 +594,10 @@ export function collectValidators(
       validators = [...domainValidators];
     }
   } else if (config.type === IsmType.AGGREGATION) {
-    const aggregatedValidators = config.modules.map((c) =>
+    const aggregatedValidators = config.modules.map((c: any) =>
       collectValidators(origin, c),
     );
-    aggregatedValidators.forEach((set) => {
+    aggregatedValidators.forEach((set: any) => {
       validators = validators.concat([...set]);
     });
   } else if (
@@ -676,8 +658,15 @@ export function offchainLookupRequestMessageHash(
   callData: string,
   urlTemplate: string,
 ): string {
-  return utils.solidityKeccak256(
-    ['string', 'address', 'bytes', 'string'],
-    ['HYPERLANE_OFFCHAINLOOKUP', sender, callData, urlTemplate],
+  return keccak256(
+    encodePacked(
+      ['string', 'address', 'bytes', 'string'],
+      [
+        'HYPERLANE_OFFCHAINLOOKUP',
+        sender as `0x${string}`,
+        callData as `0x${string}`,
+        urlTemplate,
+      ],
+    ),
   );
 }

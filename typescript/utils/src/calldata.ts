@@ -1,11 +1,13 @@
-import type { Contract } from 'ethers';
+import { Abi, encodeFunctionData } from 'viem';
 
-export function formatCallData<
-  C extends Contract,
-  I extends Parameters<C['interface']['encodeFunctionData']>,
->(destinationContract: C, functionName: I[0], functionArgs: I[1]): string {
-  return destinationContract.interface.encodeFunctionData(
+export function formatCallData<C extends { abi: Abi }>(
+  destinationContract: C,
+  functionName: string,
+  functionArgs: readonly unknown[],
+): string {
+  return encodeFunctionData({
+    abi: destinationContract.abi,
     functionName,
-    functionArgs,
-  );
+    args: functionArgs as readonly unknown[],
+  });
 }

@@ -1,7 +1,6 @@
-import { providers } from 'ethers';
 import type { Logger } from 'pino';
 
-import { HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   bytes32ToAddress,
   messageId,
@@ -11,6 +10,18 @@ import {
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 
+type EvmProvider = ReturnType<MultiProvider['getProvider']>;
+type DispatchEvent = {
+  args?: {
+    sender?: unknown;
+    message?: unknown;
+  };
+  transactionHash?: unknown;
+  log?: {
+    transactionHash?: unknown;
+  };
+};
+
 export class ForkIndexer {
   private lastScannedBlock: Map<string, number> = new Map();
   private seenMessageIds: Set<string> = new Set();
@@ -19,7 +30,7 @@ export class ForkIndexer {
   private rebalanceActions: ExplorerMessage[] = [];
 
   constructor(
-    private readonly providers: Map<string, providers.JsonRpcProvider>,
+    private readonly providers: Map<string, EvmProvider>,
     private readonly core: HyperlaneCore,
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
@@ -53,7 +64,7 @@ export class ForkIndexer {
       return; // No-op: nothing to scan yet
     }
 
-    for (const [chain] of this.providers) {
+    for (const [chain, provider] of this.providers) {
       const currentBlock = confirmedBlockTags[chain];
       if (currentBlock === undefined) {
         throw new Error(`Missing confirmed block tag for chain ${chain}`);
@@ -77,7 +88,11 @@ export class ForkIndexer {
 
       const mailbox = this.core.getContracts(chain).mailbox;
       const events = await mailbox.queryFilter(
-        mailbox.filters.Dispatch(),
+        {
+          address: mailbox.address,
+          eventName: 'Dispatch',
+          args: [] as const,
+        },
         lastBlock + 1,
         currentBlockNumber,
       );
@@ -93,7 +108,18 @@ export class ForkIndexer {
       );
 
       for (const event of events) {
-        const parsed = parseMessage(event.args.message);
+        const dispatchEvent = event as DispatchEvent;
+        const sender = dispatchEvent.args?.sender;
+        const message = dispatchEvent.args?.message;
+        if (typeof sender !== 'string' || typeof message !== 'string') {
+          this.logger.warn(
+            { chain, event },
+            'Skipping malformed Dispatch event',
+          );
+          continue;
+        }
+
+        const parsed = parseMessage(message);
 
         const destChain = this.core.multiProvider.tryGetChainName(
           parsed.destination,
@@ -102,8 +128,14 @@ export class ForkIndexer {
           continue;
         }
 
-        const receipt = await event.getTransactionReceipt();
-        const msgId = messageId(event.args.message);
+        const txHash = this.getTransactionHash(dispatchEvent);
+        if (!txHash) {
+          this.logger.warn({ chain, event }, 'Dispatch event missing tx hash');
+          continue;
+        }
+
+        const receipt = await provider.getTransactionReceipt(txHash);
+        const msgId = messageId(message);
 
         if (this.seenMessageIds.has(msgId)) {
           continue;
@@ -117,7 +149,7 @@ export class ForkIndexer {
           recipient: bytes32ToAddress(parsed.recipient),
           origin_tx_hash: receipt.transactionHash,
           origin_tx_sender: receipt.from,
-          origin_tx_recipient: event.args.sender,
+          origin_tx_recipient: sender,
           is_delivered: false,
           message_body: parsed.body,
           send_occurred_at: null,
@@ -138,5 +170,15 @@ export class ForkIndexer {
 
       this.lastScannedBlock.set(chain, currentBlockNumber);
     }
+  }
+
+  private getTransactionHash(event: DispatchEvent): string | undefined {
+    if (typeof event.transactionHash === 'string') {
+      return event.transactionHash;
+    }
+    if (typeof event.log?.transactionHash === 'string') {
+      return event.log.transactionHash;
+    }
+    return undefined;
   }
 }

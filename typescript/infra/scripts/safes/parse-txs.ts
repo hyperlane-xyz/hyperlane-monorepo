@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
 import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
@@ -79,7 +78,7 @@ async function main() {
         const tx: AnnotatedEV5Transaction = {
           to: safeTx.to,
           data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
+          value: BigInt(safeTx.value),
         };
 
         try {

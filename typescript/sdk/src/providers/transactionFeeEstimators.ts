@@ -5,6 +5,7 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import { isAddress, isHex } from 'viem';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -19,8 +20,8 @@ import {
   CosmJsTransaction,
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
-  EthersV5Provider,
-  EthersV5Transaction,
+  EvmProvider,
+  EvmTransaction,
   ProviderType,
   RadixProvider,
   RadixTransaction,
@@ -40,13 +41,25 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
-export async function estimateTransactionFeeEthersV5({
+export async function estimateTransactionFeeEvm({
   transaction,
   provider,
   sender,
 }: {
-  transaction: EthersV5Transaction;
-  provider: EthersV5Provider;
+  transaction: EvmTransaction;
+  provider: EvmProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return estimateTransactionFeeEvmLike({ transaction, provider, sender });
+}
+
+async function estimateTransactionFeeEvmLike({
+  transaction,
+  provider,
+  sender,
+}: {
+  transaction: EvmTransaction;
+  provider: EvmProvider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
   const ethersProvider = provider.provider;
@@ -54,18 +67,18 @@ export async function estimateTransactionFeeEthersV5({
     ...transaction.transaction,
     from: sender,
   });
-  return estimateTransactionFeeEthersV5ForGasUnits({
+  return estimateTransactionFeeEvmForGasUnits({
     provider: ethersProvider,
     gasUnits: BigInt(gasUnits.toString()),
   });
 }
 
 // Separating out inner function to allow WarpCore to reuse logic
-export async function estimateTransactionFeeEthersV5ForGasUnits({
+export async function estimateTransactionFeeEvmForGasUnits({
   provider,
   gasUnits,
 }: {
-  provider: EthersV5Provider['provider'];
+  provider: EvmProvider['provider'];
   gasUnits: bigint;
 }): Promise<TransactionFeeEstimate> {
   const feeData = await provider.getFeeData();
@@ -79,6 +92,13 @@ export async function estimateTransactionFeeEthersV5ForGasUnits({
   );
 }
 
+// TODO: Investigate removing this legacy alias once callers no longer use it.
+export const estimateTransactionFeeEthersV5 = estimateTransactionFeeEvm;
+
+// TODO: Investigate removing this legacy alias once callers no longer use it.
+export const estimateTransactionFeeEthersV5ForGasUnits =
+  estimateTransactionFeeEvmForGasUnits;
+
 export async function estimateTransactionFeeViem({
   transaction,
   provider,
@@ -88,11 +108,24 @@ export async function estimateTransactionFeeViem({
   provider: ViemProvider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  const gasUnits = await provider.provider.estimateGas({
-    ...transaction.transaction,
-    blockNumber: undefined,
-    account: sender as `0x${string}`,
-  } as any); // Cast to silence overly-protective type enforcement from viem here
+  assertViemAddress(sender, 'sender');
+  const tx = transaction.transaction as ViemTransaction['transaction'] & {
+    data?: string;
+    gasLimit?: number | bigint;
+  };
+  const to = tx.to ?? undefined;
+  if (to) assertViemAddress(to, 'transaction.to');
+  const data = tx.input ?? tx.data ?? undefined;
+  if (data) assertViemHex(data, 'transaction.input');
+  const request = {
+    account: sender,
+    to,
+    data,
+    value: tx.value,
+    nonce: tx.nonce,
+    gas: tx.gas ?? tx.gasLimit,
+  };
+  const gasUnits = await provider.provider.estimateGas(request);
   const feeData = await provider.provider.estimateFeesPerGas();
   return computeEvmTxFee(
     gasUnits,
@@ -121,6 +154,20 @@ function computeEvmTxFee(
     gasPrice: estGasPrice,
     fee: gasUnits * estGasPrice,
   };
+}
+
+function assertViemAddress(
+  value: string,
+  fieldName: string,
+): asserts value is `0x${string}` {
+  assert(isAddress(value), `Invalid EVM address in ${fieldName}: ${value}`);
+}
+
+function assertViemHex(
+  value: string,
+  fieldName: string,
+): asserts value is `0x${string}` {
+  assert(isHex(value), `Invalid hex in ${fieldName}: ${value}`);
 }
 
 export async function estimateTransactionFeeSolanaWeb3({
@@ -305,10 +352,10 @@ export function estimateTransactionFee({
   senderPubKey?: HexString;
 }): Promise<TransactionFeeEstimate> {
   if (
-    transaction.type === ProviderType.EthersV5 &&
-    provider.type === ProviderType.EthersV5
+    transaction.type === ProviderType.Evm &&
+    provider.type === ProviderType.Evm
   ) {
-    return estimateTransactionFeeEthersV5({ transaction, provider, sender });
+    return estimateTransactionFeeEvmLike({ transaction, provider, sender });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem

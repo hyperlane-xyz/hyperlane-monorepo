@@ -1,7 +1,5 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 
 import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
 
@@ -13,7 +11,9 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
+  HyperlaneSmartProvider,
   type LinearFeeConfig,
+  LocalAccountViemSigner,
   type TokenFeeConfig,
   type TokenFeeConfigInput,
   TokenFeeType,
@@ -31,6 +31,7 @@ import {
   normalizeAddressEvm,
   objMap,
   pick,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -51,16 +52,28 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  IS_TRON_TEST,
   REGISTRY_PATH,
-  TRON_KEY_1,
-  TRON_KEY_2,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
+
+function toBigIntValue(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
 
 function extractInputOnlyFields(config: TokenFeeConfigInput): any {
   if (!config) return config;
@@ -96,15 +109,18 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let chain4DomainId: number;
 
   let ownerAddress: Address;
-  let walletChain2: Wallet;
-  let providerChain2: JsonRpcProvider;
+  let walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
+  let providerChain2: HyperlaneSmartProvider;
 
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    providerChain2 = IS_TRON_TEST
-      ? new TronJsonRpcProvider(chain2Metadata.rpcUrls[0].http)
-      : new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-    walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
+    providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
+    walletChain2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain2,
+    );
     ownerAddress = walletChain2.address;
 
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
@@ -113,14 +129,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const chain4Metadata: ChainMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
     chain4DomainId = chain4Metadata.domainId;
 
-    // Use different deployer keys on Tron to avoid "Dup transaction" errors
-    // when deploying identical core bytecodes in parallel to the same node.
-    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
-    const chain4Key = IS_TRON_TEST ? TRON_KEY_2 : ANVIL_KEY;
+    // Deploy core contracts to populate the registry
     await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
-      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, chain4Key),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
   });
 
@@ -184,14 +197,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
 
       for (const bridge of bridges) {
-        const allowance = await tokenChain2.callStatic.allowance(
+        const allowance = await tokenChain2.allowance(
           chain2TokenConfig.addressOrDenom!,
           bridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(toBigIntValue(allowance) === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
-          await movableToken.callStatic.allowedBridges(chain3DomainId);
+          await movableToken.allowedBridges(chain3DomainId);
         expect(allowedBridgesOnDomain.length).to.eql(bridges.length);
         expect(
           new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
@@ -257,14 +270,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
 
       for (const domain of [chain3DomainId, chain4DomainId]) {
-        const allowance = await tokenChain2.callStatic.allowance(
+        const allowance = await tokenChain2.allowance(
           chain2TokenConfig.addressOrDenom!,
           allowedBridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(toBigIntValue(allowance) === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
-          await movableToken.callStatic.allowedBridges(domain);
+          await movableToken.allowedBridges(domain);
         expect(allowedBridgesOnDomain.length).to.eql(1);
         expect(
           new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
@@ -349,9 +362,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
         )
       )[CHAIN_NAME_2];
 
-      expect(
-        (collateralConfig.tokenFee as TokenFeeConfig | undefined)?.token,
-      ).to.equal(tokenChain2.address);
+      const configuredFeeToken = (
+        collateralConfig.tokenFee as TokenFeeConfig | undefined
+      )?.token;
+      assert(configuredFeeToken, 'Expected token fee token to be defined');
+      expect(normalizeAddressEvm(configuredFeeToken)).to.equal(
+        normalizeAddressEvm(tokenChain2.address),
+      );
     });
 
     for (const tokenFee of [
@@ -451,9 +468,16 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(syntheticConfig.tokenFee).to.exist;
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
       // For synthetic tokens, fee token should be resolved to the router address
-      expect(
-        (syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token,
-      ).to.equal(syntheticTokenConfig.addressOrDenom);
+      const configuredSyntheticFeeToken = (
+        syntheticConfig.tokenFee as TokenFeeConfig | undefined
+      )?.token;
+      assert(
+        configuredSyntheticFeeToken,
+        'Expected synthetic token fee token to be defined',
+      );
+      expect(normalizeAddressEvm(configuredSyntheticFeeToken)).to.equal(
+        normalizeAddressEvm(syntheticTokenConfig.addressOrDenom),
+      );
     });
 
     it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {
@@ -557,14 +581,16 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const onChainEverclearBridgeAdapterAddress =
         await movableToken.everclearAdapter();
-      expect(onChainEverclearBridgeAdapterAddress).to.equal(
-        everclearBridgeAdapterMock.address,
-      );
+      expect(
+        normalizeAddressEvm(onChainEverclearBridgeAdapterAddress),
+      ).to.equal(normalizeAddressEvm(everclearBridgeAdapterMock.address));
 
       const [fee, deadline, signature] =
         await movableToken.feeParams(chain3DomainId);
-      expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
-      expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+      expect(Number(toBigIntValue(deadline))).to.equal(
+        expectedFeeSettings.deadline,
+      );
+      expect(Number(toBigIntValue(fee))).to.equal(expectedFeeSettings.fee);
       expect(signature).to.equal(expectedFeeSettings.signature);
 
       const outputAssetAddress =

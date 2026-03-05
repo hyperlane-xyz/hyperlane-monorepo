@@ -27,7 +27,7 @@ export const getValidatorStorageLocations = async (
   validatorAnnounce: ValidatorAnnounce,
   validators: string[],
   chainName?: string,
-): Promise<string[][] | undefined> => {
+): Promise<readonly (readonly string[])[] | undefined> => {
   try {
     return await validatorAnnounce.getAnnouncedStorageLocations(validators);
   } catch (err) {

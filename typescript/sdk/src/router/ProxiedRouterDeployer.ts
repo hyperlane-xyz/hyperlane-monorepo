@@ -21,6 +21,12 @@ import {
   proxiedFactories,
 } from './types.js';
 
+type ContractInitializeArgs<TContract> = TContract extends {
+  initialize: (...args: infer TArgs) => unknown;
+}
+  ? TArgs
+  : readonly unknown[];
+
 export abstract class ProxiedRouterDeployer<
   Config extends ProxiedRouterConfig,
   Factories extends HyperlaneFactories,
@@ -75,9 +81,7 @@ export abstract class ProxiedRouterDeployer<
     chain: ChainName,
     config: Config,
   ): Promise<
-    Parameters<
-      Awaited<ReturnType<Factories[RouterKey]['deploy']>>['initialize']
-    >
+    ContractInitializeArgs<Awaited<ReturnType<Factories[RouterKey]['deploy']>>>
   >;
 
   async deployContracts(

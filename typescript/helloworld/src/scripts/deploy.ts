@@ -1,8 +1,7 @@
-import { Wallet } from 'ethers';
-
 import { chainAddresses } from '@hyperlane-xyz/registry';
 import {
   HyperlaneCore,
+  LocalAccountViemSigner,
   MultiProvider,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
@@ -12,7 +11,9 @@ import { HelloWorldDeployer } from '../deploy/deploy.js';
 
 async function main() {
   console.info('Getting signer');
-  const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
+  const signer = new LocalAccountViemSigner(
+    'SET KEY HERE OR CREATE YOUR OWN SIGNER' as `0x${string}`,
+  );
 
   console.info('Preparing utilities');
   const multiProvider = new MultiProvider(prodConfigs);

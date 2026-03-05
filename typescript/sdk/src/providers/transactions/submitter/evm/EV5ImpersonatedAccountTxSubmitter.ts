@@ -1,4 +1,3 @@
-import { TransactionReceipt } from '@ethersproject/providers';
 import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -13,6 +12,8 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitterProps } from './types.js';
+
+type TxReceipt = Awaited<ReturnType<MultiProvider['sendTransaction']>>;
 
 export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
@@ -29,10 +30,9 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
     super(multiProvider, props);
   }
 
-  public async submit(
-    ...txs: AnnotatedEV5Transaction[]
-  ): Promise<TransactionReceipt[]> {
-    // It is assumed that this Submitter will be used by setting the registry url to the anvil endpoint
+  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<TxReceipt[]> {
+    // It is assumed that this submitter will be used by setting the registry
+    // url to the anvil endpoint.
     const anvilEndpoint = this.multiProvider.getChainMetadata(this.props.chain)
       ?.rpcUrls[0].http;
     const impersonatedAccount = await impersonateAccount(

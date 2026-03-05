@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/types.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -134,10 +135,10 @@ export const Route = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Route>, I>>(base?: I): Route {
-    return Route.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<Route>): Route {
+    return Route.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<Route>, I>>(object: I): Route {
+  fromPartial(object: DeepPartial<Route>): Route {
     const message = createBaseRoute();
     message.ism = object.ism ?? '';
     message.domain = object.domain ?? 0;
@@ -228,12 +229,10 @@ export const RoutingISM = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RoutingISM>, I>>(base?: I): RoutingISM {
-    return RoutingISM.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<RoutingISM>): RoutingISM {
+    return RoutingISM.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<RoutingISM>, I>>(
-    object: I,
-  ): RoutingISM {
+  fromPartial(object: DeepPartial<RoutingISM>): RoutingISM {
     const message = createBaseRoutingISM();
     message.id = object.id ?? '';
     message.owner = object.owner ?? '';
@@ -344,14 +343,10 @@ export const MessageIdMultisigISM = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MessageIdMultisigISM>, I>>(
-    base?: I,
-  ): MessageIdMultisigISM {
-    return MessageIdMultisigISM.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MessageIdMultisigISM>): MessageIdMultisigISM {
+    return MessageIdMultisigISM.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MessageIdMultisigISM>, I>>(
-    object: I,
-  ): MessageIdMultisigISM {
+  fromPartial(object: DeepPartial<MessageIdMultisigISM>): MessageIdMultisigISM {
     const message = createBaseMessageIdMultisigISM();
     message.id = object.id ?? '';
     message.owner = object.owner ?? '';
@@ -463,13 +458,11 @@ export const MerkleRootMultisigISM = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MerkleRootMultisigISM>, I>>(
-    base?: I,
-  ): MerkleRootMultisigISM {
-    return MerkleRootMultisigISM.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MerkleRootMultisigISM>): MerkleRootMultisigISM {
+    return MerkleRootMultisigISM.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MerkleRootMultisigISM>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MerkleRootMultisigISM>,
   ): MerkleRootMultisigISM {
     const message = createBaseMerkleRootMultisigISM();
     message.id = object.id ?? '';
@@ -547,10 +540,10 @@ export const NoopISM = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<NoopISM>, I>>(base?: I): NoopISM {
-    return NoopISM.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<NoopISM>): NoopISM {
+    return NoopISM.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<NoopISM>, I>>(object: I): NoopISM {
+  fromPartial(object: DeepPartial<NoopISM>): NoopISM {
     const message = createBaseNoopISM();
     message.id = object.id ?? '';
     message.owner = object.owner ?? '';
@@ -576,13 +569,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

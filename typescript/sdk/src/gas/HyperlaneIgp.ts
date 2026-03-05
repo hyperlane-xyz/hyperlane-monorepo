@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -10,6 +8,16 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { IgpFactories, igpFactories } from './contracts.js';
+
+type InterchainGasPaymasterContract = Awaited<
+  ReturnType<InterchainGasPaymaster__factory['deploy']>
+>;
+type GasAmount = Parameters<
+  InterchainGasPaymasterContract['quoteGasPayment']
+>[1];
+type GasPaymentQuote = Awaited<
+  ReturnType<InterchainGasPaymasterContract['quoteGasPayment']>
+>;
 
 export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   static fromAddressesMap(
@@ -40,8 +48,8 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   quoteGasPayment(
     origin: ChainName,
     destination: ChainName,
-    gasAmount: BigNumber,
-  ): Promise<BigNumber> {
+    gasAmount: GasAmount,
+  ): Promise<GasPaymentQuote> {
     const igp = this.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIgp(
       origin,
@@ -67,8 +75,8 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   quoteGasPaymentForDefaultIsmIgp(
     origin: ChainName,
     destination: ChainName,
-    gasAmount: BigNumber,
-  ): Promise<BigNumber> {
+    gasAmount: GasAmount,
+  ): Promise<GasPaymentQuote> {
     const igp = this.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIgp(
       origin,
@@ -94,15 +102,15 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   protected quoteGasPaymentForIgp(
     origin: ChainName,
     destination: ChainName,
-    gasAmount: BigNumber,
+    gasAmount: GasAmount,
     interchainGasPaymasterAddress: Address,
-  ): Promise<BigNumber> {
+  ): Promise<GasPaymentQuote> {
     const originProvider = this.multiProvider.getProvider(origin);
     const igp = InterchainGasPaymaster__factory.connect(
       interchainGasPaymasterAddress,
       originProvider,
     );
     const domainId = this.multiProvider.getDomainId(destination);
-    return igp['quoteGasPayment(uint32,uint256)'](domainId, gasAmount);
+    return igp.quoteGasPayment(domainId, gasAmount);
   }
 }

@@ -1,4 +1,3 @@
-import { BytesLike, ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -39,15 +38,26 @@ class CCTPAttestationService {
     this.serviceName = serviceName;
   }
 
+  private static sliceHexData(
+    message: string,
+    fieldIndex: number,
+    fieldOffset: number,
+  ): `0x${string}` {
+    const normalized = message.startsWith('0x') ? message.slice(2) : message;
+    const start = fieldIndex * 2;
+    const end = (fieldIndex + fieldOffset) * 2;
+    return `0x${normalized.slice(start, end)}`;
+  }
+
   _getFieldFromMessage(
     message: string,
     fieldIndex: number,
     fieldOffset: number,
-  ): BytesLike {
-    return ethers.utils.hexDataSlice(
+  ): `0x${string}` {
+    return CCTPAttestationService.sliceHexData(
       message,
       fieldIndex,
-      fieldIndex + fieldOffset,
+      fieldOffset,
     );
   }
 
@@ -55,18 +65,24 @@ class CCTPAttestationService {
   _getCCTPVersionFromMessage(message: string): bigint {
     const versionIndex = 0;
     const versionOffset = 4;
-    return ethers.BigNumber.from(
+    return BigInt(
       this._getFieldFromMessage(message, versionIndex, versionOffset),
-    ).toBigInt();
+    );
   }
 
   // Index and offset values retrieved from CctpMessageV2.sol
   _getSourceDomainFromMessage(message: string): number {
     const sourceDomainIndex = 4;
     const sourceDomainOffset = 4;
-    return ethers.BigNumber.from(
-      this._getFieldFromMessage(message, sourceDomainIndex, sourceDomainOffset),
-    ).toNumber();
+    return Number(
+      BigInt(
+        this._getFieldFromMessage(
+          message,
+          sourceDomainIndex,
+          sourceDomainOffset,
+        ),
+      ),
+    );
   }
 
   _getAttestationUrlV1(cctpMessage: string, transactionHash: string): string {

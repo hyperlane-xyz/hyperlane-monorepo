@@ -3,7 +3,7 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { input } from '@inquirer/prompts';
 // @ts-ignore
 import asn1 from 'asn1.js';
-import { ethers } from 'ethers';
+import { keccak256 } from 'viem';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -134,7 +134,7 @@ function getEthereumAddress(publicKey: Buffer): string {
   // more info: https://www.oreilly.com/library/view/mastering-ethereum/9781491971932/ch04.html
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
-  const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
+  const address = keccak256(pubKeyBuffer); // keccak256 hash of publicKey
   return `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
 }
 

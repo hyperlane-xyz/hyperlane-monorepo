@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -100,7 +100,7 @@ export const getVictionETHWarpConfig = async (
       symbol: 'ETH',
       decimals: 18,
       gas: 50_000,
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: zeroAddress,
     },
   ]);
 

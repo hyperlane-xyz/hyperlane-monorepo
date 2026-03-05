@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -12,7 +12,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
+const ISM_CONFIG = zeroAddress; // Default ISM
 
 export const getEthereumInkUSDCConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

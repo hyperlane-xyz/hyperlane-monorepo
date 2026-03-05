@@ -1,11 +1,10 @@
-import type { providers } from 'ethers';
-
 import type {
   ChainName,
   DerivedHookConfig,
   DerivedIsmConfig,
   DispatchedMessage,
   IsmType,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import type { Address, SignatureLike } from '@hyperlane-xyz/utils';
 
@@ -27,7 +26,13 @@ export interface MetadataContext<
   HookContext = DerivedHookConfig,
 > {
   message: DispatchedMessage;
-  dispatchTx: providers.TransactionReceipt;
+  dispatchTx: NonNullable<
+    Awaited<
+      ReturnType<
+        ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']
+      >
+    >
+  >;
   ism: IsmContext;
   hook: HookContext;
 }
@@ -102,8 +107,8 @@ export interface AggregationMetadataBuildResult extends BaseMetadataBuildResult 
 export interface RoutingMetadataBuildResult extends BaseMetadataBuildResult {
   type:
     | typeof IsmType.ROUTING
-    | typeof IsmType.FALLBACK_ROUTING
     | typeof IsmType.INCREMENTAL_ROUTING
+    | typeof IsmType.FALLBACK_ROUTING
     | typeof IsmType.AMOUNT_ROUTING
     | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING;
   /** Origin chain that determined routing */

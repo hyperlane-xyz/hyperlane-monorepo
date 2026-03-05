@@ -1,7 +1,7 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 import { type StartedTestContainer } from 'testcontainers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   createSignerWithPrivateKey,
@@ -22,6 +22,7 @@ import {
   type Address,
   ProtocolType,
   addressToBytes32,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -49,6 +50,21 @@ import { assertWarpRouteConfig } from '../../utils.js';
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
+
+// AltVM readers key remoteRouters by chain name; EVM readers by domain ID.
+// Try both until the inconsistency is addressed in a follow-up PR.
+function getUnsupportedChainRouterAddress(
+  config: DerivedWarpRouteDeployConfig,
+  chainName: string,
+): string | undefined {
+  const routers = config[chainName].remoteRouters ?? {};
+  return (
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name]
+      ?.address ??
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId]
+      ?.address
+  );
+}
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -108,7 +124,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
     cosmosNativeDeployerAddress = cosmosWallet.getSignerAddress();
 
-    evmDeployerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
+    evmDeployerAddress = privateKeyToAccount(
+      ensure0x(HYP_KEY_BY_PROTOCOL.ethereum),
+    ).address;
 
     [cosmosNativeChain1CoreAddress, evmChain1CoreCoreAddress] =
       await Promise.all([
@@ -262,17 +280,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chainName,
         );
 
-        // AltVM readers key remoteRouters by chain name; EVM readers by domain ID.
-        // Try both until the inconsistency is addressed in a follow-up PR.
-        const maybeUnsupportedChainRouterAddress =
-          (config[chainName].remoteRouters ?? {})[
-            TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name
-          ]?.address ??
-          (config[chainName].remoteRouters ?? {})[
-            TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-          ]?.address;
-
-        expect(maybeUnsupportedChainRouterAddress).to.eql(
+        const unsupportedRouterAddress = getUnsupportedChainRouterAddress(
+          config,
+          chainName,
+        );
+        expect(
+          unsupportedRouterAddress,
+          `Expected unsupported chain router to be enrolled for ${chainName}`,
+        ).to.not.be.undefined;
+        expect(unsupportedRouterAddress).to.eql(
           addressToBytes32(unsupportedChainAddress),
         );
       }

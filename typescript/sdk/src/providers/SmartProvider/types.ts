@@ -1,9 +1,13 @@
-import type { utils } from 'ethers';
-
 import { ChainMetadata, RpcUrl } from '../../metadata/chainMetadataTypes.js';
 
+export type ConnectionInfo = {
+  url?: string;
+  headers?: Record<string, string>;
+  [key: string]: unknown;
+};
+
 export type RpcConfigWithConnectionInfo = RpcUrl & {
-  connection?: utils.ConnectionInfo;
+  connection?: ConnectionInfo;
 };
 
 export interface ChainMetadataWithRpcConnectionInfo extends Omit<
@@ -25,7 +29,7 @@ export interface ProviderPerformResultBase {
 
 export interface ProviderSuccessResult extends ProviderPerformResultBase {
   status: ProviderStatus.Success;
-  value: any;
+  value: unknown;
 }
 
 export interface ProviderErrorResult extends ProviderPerformResultBase {

@@ -1,5 +1,3 @@
-import { providers } from 'ethers';
-
 import { Mailbox__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -14,7 +12,7 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { ChainNameOrId, DeployedOwnableConfig, EvmProvider } from '../types.js';
 
 import { CoreConfig, DerivedCoreConfig } from './types.js';
 
@@ -26,7 +24,7 @@ interface CoreReader {
 }
 
 export class EvmCoreReader implements CoreReader {
-  public readonly provider: providers.Provider;
+  public readonly provider: EvmProvider;
   public readonly evmHookReader: EvmHookReader;
   public readonly evmIsmReader: EvmIsmReader;
   public readonly evmIcaRouterReader: EvmIcaRouterReader;

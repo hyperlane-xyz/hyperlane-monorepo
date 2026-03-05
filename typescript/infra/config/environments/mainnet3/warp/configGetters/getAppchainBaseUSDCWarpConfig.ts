@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -21,7 +21,7 @@ const safeOwners: ChainMap<Address> = {
 export const getAppChainBaseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero; // Use the default ISM
+  const ISM_CONFIG: IsmConfig = zeroAddress; // Use the default ISM
 
   const appchain: HypTokenRouterConfig = {
     mailbox: routerConfig.appchain.mailbox,

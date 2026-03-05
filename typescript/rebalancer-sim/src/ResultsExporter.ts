@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ethers } from 'ethers';
+import { formatEther } from 'viem';
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { ScenarioFile, SimulationResult } from './types.js';
@@ -113,12 +113,10 @@ export function saveSimulationResults(
   vizConfig.initialCollateral = {};
   for (const chain of scenarioFile.chains) {
     const base = parseFloat(
-      ethers.utils.formatEther(scenarioFile.defaultInitialCollateral),
+      formatEther(BigInt(scenarioFile.defaultInitialCollateral)),
     );
     const extra = scenarioFile.initialImbalance?.[chain]
-      ? parseFloat(
-          ethers.utils.formatEther(scenarioFile.initialImbalance[chain]),
-        )
+      ? parseFloat(formatEther(BigInt(scenarioFile.initialImbalance[chain])))
       : 0;
     vizConfig.initialCollateral[chain] = (base + extra).toString();
   }

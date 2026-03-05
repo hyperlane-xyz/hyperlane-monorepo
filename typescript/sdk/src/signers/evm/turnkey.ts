@@ -1,21 +1,46 @@
-import { ethers } from 'ethers';
+import { createAccountWithAddress } from '@turnkey/viem';
+import { Hex } from 'viem';
+import { LocalAccount } from 'viem/accounts';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
+import type {
+  EvmBigNumberish,
+  EvmGasAmount,
+  EvmProviderLike,
+  EvmTransactionReceiptLike,
+  EvmTransactionLike,
+  EvmTransactionResponseLike,
+} from '../../providers/evmTypes.js';
 
 import {
   TurnkeyClientManager,
   TurnkeyConfig,
   logTurnkeyError,
-  validateTurnkeyActivityCompleted,
 } from '../turnkeyClient.js';
 
+import {
+  TypedDataDomainLike,
+  TypedDataTypesLike,
+  TypedDataValueLike,
+  getTypedDataPrimaryType,
+  ViemProviderLike,
+  ViemTransactionRequestLike,
+  toBigIntValue,
+  toSerializableViemTransaction,
+  toSignableMessage,
+} from './types.js';
+
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
+
+export type TurnkeyViemTransactionRequest = ViemTransactionRequestLike & {
+  data?: Hex;
+};
 
 /**
  * Turnkey signer for EVM transactions
  * Uses Turnkey's secure enclaves to sign transactions without exposing private keys
- * This is a custom ethers v5-compatible Signer that uses Turnkey SDK directly
- * Uses composition to access Turnkey functionality while extending ethers.Signer
+ * This is a custom EVM signer that uses Turnkey SDK directly.
+ * Uses composition to access Turnkey functionality.
  *
  * @example
  * ```typescript
@@ -27,25 +52,49 @@ const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
  *   publicKey: '0x...', // Ethereum address
  * };
  *
- * const provider = new ethers.providers.JsonRpcProvider('...');
- * const signer = new TurnkeyEvmSigner(config, provider);
+ * const provider = multiProvider.getProvider('ethereum');
+ * const signer = new TurnkeyViemSigner(config, provider);
  *
  * // Use with MultiProvider
  * multiProvider.setSigner('ethereum', signer);
  * ```
  */
-export class TurnkeyEvmSigner extends ethers.Signer {
+export class TurnkeyViemSigner {
   private readonly manager: TurnkeyClientManager;
+  private readonly account: LocalAccount;
   public readonly address: string;
-  public readonly provider: ethers.providers.Provider | undefined;
+  public readonly provider: ViemProviderLike | undefined;
 
-  constructor(config: TurnkeyConfig, provider?: ethers.providers.Provider) {
-    super();
+  constructor(config: TurnkeyConfig, provider?: ViemProviderLike) {
     this.manager = new TurnkeyClientManager(config);
     this.address = config.publicKey;
     this.provider = provider;
+    this.account = createAccountWithAddress({
+      client: this.manager.getClient(),
+      organizationId: config.organizationId,
+      signWith: config.privateKeyId,
+      ethereumAddress: this.address,
+    });
 
     logger.debug(`Initialized Turnkey EVM signer for key: ${this.address}`);
+  }
+
+  private toViemProviderLike(
+    provider: ViemProviderLike | EvmProviderLike,
+  ): ViemProviderLike {
+    const candidate = provider as Record<string, unknown>;
+    if (
+      typeof candidate.estimateGas !== 'function' ||
+      typeof candidate.getFeeData !== 'function' ||
+      typeof candidate.getNetwork !== 'function' ||
+      typeof candidate.getTransactionCount !== 'function' ||
+      typeof candidate.sendTransaction !== 'function'
+    ) {
+      throw new Error(
+        'Provider does not satisfy TurnkeyViemSigner requirements',
+      );
+    }
+    return provider as ViemProviderLike;
   }
 
   /**
@@ -59,7 +108,9 @@ export class TurnkeyEvmSigner extends ethers.Signer {
    * Get an ethers Signer connected to the provided provider
    * This returns a new instance with the provider connected
    */
-  async getSigner(provider: ethers.providers.Provider): Promise<ethers.Signer> {
+  async getSigner(
+    provider: ViemProviderLike | EvmProviderLike,
+  ): Promise<TurnkeyViemSigner> {
     logger.debug('Creating Turnkey EVM signer for transaction');
     return this.connect(provider);
   }
@@ -67,8 +118,11 @@ export class TurnkeyEvmSigner extends ethers.Signer {
   /**
    * Connect this signer to a provider (creates new instance with proper configuration)
    */
-  connect(provider: ethers.providers.Provider): TurnkeyEvmSigner {
-    return new TurnkeyEvmSigner(this.manager.getConfig(), provider);
+  connect(provider: ViemProviderLike | EvmProviderLike): TurnkeyViemSigner {
+    return new TurnkeyViemSigner(
+      this.manager.getConfig(),
+      this.toViemProviderLike(provider),
+    );
   }
 
   /**
@@ -82,7 +136,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
    * Sign a transaction using Turnkey
    */
   async signTransaction(
-    transaction: ethers.providers.TransactionRequest,
+    transaction: TurnkeyViemTransactionRequest,
   ): Promise<string> {
     if (!this.provider) {
       throw new Error('Provider required to sign transaction');
@@ -94,46 +148,12 @@ export class TurnkeyEvmSigner extends ethers.Signer {
     });
 
     try {
-      // Populate the transaction (fill in nonce, gasPrice, etc.)
-      const populatedTx = await ethers.utils.resolveProperties(
-        await this.populateTransaction(transaction),
+      const populatedTx = await this.populateTransaction(transaction);
+      const signedTx = await this.account.signTransaction(
+        toSerializableViemTransaction(populatedTx),
       );
-
-      // Remove 'from' field for serialization
-      const { from: _, ...txToSerialize } = populatedTx;
-
-      // For EIP-1559 transactions, explicitly set type: 2 and remove gasPrice
-      if (txToSerialize.maxFeePerGas || txToSerialize.maxPriorityFeePerGas) {
-        txToSerialize.type = 2;
-        delete txToSerialize.gasPrice;
-      }
-
-      const unsignedTx = ethers.utils.serializeTransaction(
-        txToSerialize as ethers.utils.UnsignedTransaction,
-      );
-
-      // Remove 0x prefix for Turnkey API (it expects raw hex)
-      const unsignedTxHex = unsignedTx.startsWith('0x')
-        ? unsignedTx.slice(2)
-        : unsignedTx;
-
-      // Sign using Turnkey's signTransaction API
-      const { activity } = await this.manager.getClient().signTransaction({
-        signWith: this.address,
-        type: 'TRANSACTION_TYPE_ETHEREUM',
-        unsignedTransaction: unsignedTxHex,
-      });
-
-      validateTurnkeyActivityCompleted(activity, 'Transaction signing');
-
-      const signedTx =
-        activity.result?.signTransactionResult?.signedTransaction;
-      if (!signedTx) {
-        throw new Error('No signed transaction returned from Turnkey');
-      }
 
       logger.debug('Transaction signed successfully');
-      // Ensure the signed transaction has 0x prefix
       return signedTx.startsWith('0x') ? signedTx : `0x${signedTx}`;
     } catch (error) {
       logTurnkeyError('Failed to sign transaction with Turnkey', error);
@@ -144,57 +164,127 @@ export class TurnkeyEvmSigner extends ethers.Signer {
   /**
    * Sign a message using Turnkey
    */
-  async signMessage(message: string | ethers.utils.Bytes): Promise<string> {
+  async signMessage(message: string | Uint8Array): Promise<string> {
     logger.debug('Signing message with Turnkey');
 
     try {
-      const messageBytes =
-        typeof message === 'string'
-          ? ethers.utils.toUtf8Bytes(message)
-          : message;
-      const messageHash = ethers.utils.hashMessage(messageBytes);
-
-      // Sign raw payload using Turnkey
-      const { activity, r, s, v } = await this.manager
-        .getClient()
-        .signRawPayload({
-          signWith: this.address,
-          payload: messageHash.slice(2), // Remove 0x prefix
-          encoding: 'PAYLOAD_ENCODING_HEXADECIMAL',
-          hashFunction: 'HASH_FUNCTION_NO_OP',
-        });
-
-      validateTurnkeyActivityCompleted(activity, 'Message signing');
-
-      // Validate signature components
-      if (!r || !s || !v) {
-        throw new Error('Missing signature components from Turnkey');
-      }
-
-      const hexPattern = /^0x[0-9a-fA-F]+$/;
-      if (!hexPattern.test(r) || !hexPattern.test(s)) {
-        throw new Error('Invalid signature format from Turnkey');
-      }
-
-      const vNum = parseInt(v, 16);
-      if (isNaN(vNum)) {
-        throw new Error(`Invalid v value from Turnkey: ${v}`);
-      }
-
-      // Reconstruct the signature from r, s, v
-      return ethers.utils.joinSignature({ r, s, v: vNum });
+      const signature = await this.account.signMessage({
+        message: toSignableMessage(message),
+      });
+      logger.debug('Message signed successfully');
+      return signature;
     } catch (error) {
       logTurnkeyError('Failed to sign message with Turnkey', error);
       throw error;
     }
   }
 
+  async signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<string> {
+    const primaryType = getTypedDataPrimaryType(types);
+    const signRequest: Parameters<typeof this.account.signTypedData>[0] = {
+      domain: domain as Parameters<
+        typeof this.account.signTypedData
+      >[0]['domain'],
+      types: types as Parameters<typeof this.account.signTypedData>[0]['types'],
+      primaryType: primaryType as Parameters<
+        typeof this.account.signTypedData
+      >[0]['primaryType'],
+      message: value as Parameters<
+        typeof this.account.signTypedData
+      >[0]['message'],
+    };
+    return this.account.signTypedData(signRequest);
+  }
+
+  async _signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<string> {
+    return this.signTypedData(domain, types, value);
+  }
+
+  async estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount> {
+    if (!this.provider) throw new Error('Provider required to estimate gas');
+    const estimate = await this.provider.estimateGas(
+      transaction as TurnkeyViemTransactionRequest,
+    );
+    const asBigInt = toBigIntValue(estimate);
+    if (asBigInt !== undefined) return asBigInt;
+    return estimate as { toString(): string };
+  }
+
+  async getBalance(): Promise<EvmBigNumberish> {
+    if (!this.provider) throw new Error('Provider required to get balance');
+    if (typeof this.provider.getBalance === 'function') {
+      const balance = await this.provider.getBalance(this.address);
+      if (
+        typeof balance === 'string' ||
+        typeof balance === 'number' ||
+        typeof balance === 'bigint'
+      ) {
+        return balance;
+      }
+      if (
+        balance &&
+        typeof (balance as { toString?: unknown }).toString === 'function'
+      ) {
+        return balance as { toString(): string };
+      }
+      throw new Error('Unable to convert balance');
+    }
+    if (typeof this.provider.send === 'function') {
+      const balance = await this.provider.send('eth_getBalance', [
+        this.address,
+        'latest',
+      ]);
+      if (
+        typeof balance === 'string' ||
+        typeof balance === 'number' ||
+        typeof balance === 'bigint'
+      ) {
+        return balance;
+      }
+      if (
+        balance &&
+        typeof (balance as { toString?: unknown }).toString === 'function'
+      ) {
+        return balance as { toString(): string };
+      }
+      throw new Error('Unable to convert balance');
+    }
+    throw new Error('Provider does not support getBalance');
+  }
+
+  async sendTransaction(
+    tx: EvmTransactionLike,
+  ): Promise<EvmTransactionResponseLike> {
+    if (!this.provider)
+      throw new Error('Provider required to send transaction');
+    const signedTransaction = await this.signTransaction(
+      tx as TurnkeyViemTransactionRequest,
+    );
+    const response = await this.provider.sendTransaction(signedTransaction);
+    return {
+      ...response,
+      hash: response.hash,
+      wait: async (confirmations?: number) =>
+        (await response.wait(
+          confirmations,
+        )) as EvmTransactionReceiptLike | null,
+    };
+  }
+
   /**
    * Populate a transaction with default values (nonce, gas, etc.)
    */
   async populateTransaction(
-    transaction: ethers.providers.TransactionRequest,
-  ): Promise<ethers.providers.TransactionRequest> {
+    transaction: TurnkeyViemTransactionRequest,
+  ): Promise<TurnkeyViemTransactionRequest> {
     if (!this.provider) {
       throw new Error('Provider required to populate transaction');
     }
@@ -218,10 +308,11 @@ export class TurnkeyEvmSigner extends ethers.Signer {
     if (tx.gasPrice == null && tx.maxFeePerGas == null) {
       const feeData = await this.provider.getFeeData();
       if (feeData.maxFeePerGas) {
-        tx.maxFeePerGas = feeData.maxFeePerGas;
-        tx.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas || undefined;
+        tx.maxFeePerGas = toBigIntValue(feeData.maxFeePerGas);
+        tx.maxPriorityFeePerGas =
+          toBigIntValue(feeData.maxPriorityFeePerGas) || undefined;
       } else {
-        tx.gasPrice = feeData.gasPrice || undefined;
+        tx.gasPrice = toBigIntValue(feeData.gasPrice) || undefined;
       }
     }
 
@@ -231,11 +322,13 @@ export class TurnkeyEvmSigner extends ethers.Signer {
       tx.chainId = network.chainId;
     }
 
-    // Estimate gas if not set
-    if (tx.gasLimit == null) {
-      tx.gasLimit = await this.provider.estimateGas(tx);
+    if (tx.gas == null && tx.gasLimit == null) {
+      tx.gas = toBigIntValue(await this.provider.estimateGas(tx));
+    } else if (tx.gas == null && tx.gasLimit != null) {
+      tx.gas = toBigIntValue(tx.gasLimit);
     }
 
+    delete tx.gasLimit;
     return tx;
   }
 }

@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { expect } from 'chai';
-import { Signer } from 'ethers';
 import hre from 'hardhat';
+import { parseEther } from 'viem';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -11,6 +11,11 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import {
+  getHardhatSigners,
+  getImpersonatedHardhatSigner,
+} from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import {
   randomAddress,
   randomIsmConfig,
@@ -34,14 +39,14 @@ describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: DomainRoutingIsmConfig;
   let mailboxAddress: Address;
-  let fundingAccount: Signer;
+  let fundingAccount: HardhatSignerWithAddress;
 
   const chain = TestChainName.test4;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
   before(async () => {
-    const [signer, funder] = await hre.ethers.getSigners();
+    const [signer, funder] = await getHardhatSigners();
     fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
@@ -74,7 +79,7 @@ describe('EvmIsmModule', async () => {
 
   beforeEach(async () => {
     // Reset the MultiProvider for each test
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     // example routing config
@@ -91,13 +96,13 @@ describe('EvmIsmModule', async () => {
 
   // Helper method for create a new multiprovider with an impersonated account
   async function impersonateAccount(account: Address): Promise<MultiProvider> {
-    await hre.ethers.provider.send('hardhat_impersonateAccount', [account]);
+    await hre.network.provider.send('hardhat_impersonateAccount', [account]);
     await fundingAccount.sendTransaction({
       to: account,
-      value: hre.ethers.utils.parseEther('1.0'),
+      value: parseEther('1.0'),
     });
     return MultiProvider.createTestMultiProvider({
-      signer: hre.ethers.provider.getSigner(account),
+      signer: await getImpersonatedHardhatSigner(account),
     });
   }
 

@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/v1/events.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -171,13 +172,13 @@ export const EventCreateSyntheticToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateSyntheticToken>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventCreateSyntheticToken>,
   ): EventCreateSyntheticToken {
-    return EventCreateSyntheticToken.fromPartial(base ?? ({} as any));
+    return EventCreateSyntheticToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateSyntheticToken>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventCreateSyntheticToken>,
   ): EventCreateSyntheticToken {
     const message = createBaseEventCreateSyntheticToken();
     message.token_id = object.token_id ?? '';
@@ -292,13 +293,13 @@ export const EventCreateCollateralToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateCollateralToken>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventCreateCollateralToken>,
   ): EventCreateCollateralToken {
-    return EventCreateCollateralToken.fromPartial(base ?? ({} as any));
+    return EventCreateCollateralToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateCollateralToken>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventCreateCollateralToken>,
   ): EventCreateCollateralToken {
     const message = createBaseEventCreateCollateralToken();
     message.token_id = object.token_id ?? '';
@@ -430,14 +431,10 @@ export const EventSetToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSetToken>, I>>(
-    base?: I,
-  ): EventSetToken {
-    return EventSetToken.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventSetToken>): EventSetToken {
+    return EventSetToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSetToken>, I>>(
-    object: I,
-  ): EventSetToken {
+  fromPartial(object: DeepPartial<EventSetToken>): EventSetToken {
     const message = createBaseEventSetToken();
     message.token_id = object.token_id ?? '';
     message.owner = object.owner ?? '';
@@ -572,13 +569,11 @@ export const EventEnrollRemoteRouter = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventEnrollRemoteRouter>, I>>(
-    base?: I,
-  ): EventEnrollRemoteRouter {
-    return EventEnrollRemoteRouter.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventEnrollRemoteRouter>): EventEnrollRemoteRouter {
+    return EventEnrollRemoteRouter.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventEnrollRemoteRouter>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventEnrollRemoteRouter>,
   ): EventEnrollRemoteRouter {
     const message = createBaseEventEnrollRemoteRouter();
     message.token_id = object.token_id ?? '';
@@ -678,13 +673,11 @@ export const EventUnrollRemoteRouter = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventUnrollRemoteRouter>, I>>(
-    base?: I,
-  ): EventUnrollRemoteRouter {
-    return EventUnrollRemoteRouter.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventUnrollRemoteRouter>): EventUnrollRemoteRouter {
+    return EventUnrollRemoteRouter.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventUnrollRemoteRouter>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventUnrollRemoteRouter>,
   ): EventUnrollRemoteRouter {
     const message = createBaseEventUnrollRemoteRouter();
     message.token_id = object.token_id ?? '';
@@ -818,13 +811,11 @@ export const EventSendRemoteTransfer = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSendRemoteTransfer>, I>>(
-    base?: I,
-  ): EventSendRemoteTransfer {
-    return EventSendRemoteTransfer.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventSendRemoteTransfer>): EventSendRemoteTransfer {
+    return EventSendRemoteTransfer.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSendRemoteTransfer>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventSendRemoteTransfer>,
   ): EventSendRemoteTransfer {
     const message = createBaseEventSendRemoteTransfer();
     message.token_id = object.token_id ?? '';
@@ -960,13 +951,13 @@ export const EventReceiveRemoteTransfer = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventReceiveRemoteTransfer>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventReceiveRemoteTransfer>,
   ): EventReceiveRemoteTransfer {
-    return EventReceiveRemoteTransfer.fromPartial(base ?? ({} as any));
+    return EventReceiveRemoteTransfer.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventReceiveRemoteTransfer>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventReceiveRemoteTransfer>,
   ): EventReceiveRemoteTransfer {
     const message = createBaseEventReceiveRemoteTransfer();
     message.token_id = object.token_id ?? '';
@@ -996,13 +987,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

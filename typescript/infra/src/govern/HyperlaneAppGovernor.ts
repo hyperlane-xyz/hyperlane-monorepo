@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
 import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
@@ -26,6 +25,7 @@ import {
   objMap,
   retryAsync,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
@@ -240,23 +240,24 @@ export abstract class HyperlaneAppGovernor<
     // Then propose transactions on safes for all governance types
     for (const governanceType of Object.values(GovernanceType)) {
       const safeOwner = getGovernanceSafes(governanceType)[chain];
-      if (safeOwner) {
-        // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
-        const safeMultiSend = await SafeMultiSend.initialize(
-          this.checker.multiProvider,
-          chain,
-          safeOwner,
-        );
-        await retryAsync(
-          () =>
-            sendCallsForType(
-              SubmissionType.SAFE,
-              safeMultiSend,
-              governanceType,
-            ),
-          10,
-        );
-      }
+      if (!safeOwner) continue;
+
+      // Avoid initializing Safe (which can trigger external key fetches)
+      // when there are no SAFE calls for this governance type.
+      const safeCalls = filterCalls(SubmissionType.SAFE, governanceType);
+      if (safeCalls.length === 0) continue;
+
+      // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
+      const safeMultiSend = await SafeMultiSend.initialize(
+        this.checker.multiProvider,
+        chain,
+        safeOwner,
+      );
+      await retryAsync(
+        () =>
+          sendCallsForType(SubmissionType.SAFE, safeMultiSend, governanceType),
+        10,
+      );
     }
 
     // Then finally submit remaining calls manually
@@ -277,7 +278,8 @@ export abstract class HyperlaneAppGovernor<
       (existingCall) =>
         existingCall.to === call.to &&
         existingCall.data === call.data &&
-        existingCall.value?.eq(call.value || 0),
+        BigInt((existingCall.value ?? 0).toString()) ===
+          BigInt((call.value ?? 0).toString()),
     );
     if (!isDuplicate) {
       this.calls[chain].push(call);
@@ -472,7 +474,7 @@ export abstract class HyperlaneAppGovernor<
     });
 
     const hookMetadata = formatStandardHookMetadata({
-      gasLimit: gasLimit.toBigInt(),
+      gasLimit,
       refundAddress,
     });
 
@@ -503,9 +505,12 @@ export abstract class HyperlaneAppGovernor<
     // If the call to the remote ICA is valid, infer the submission type
     const { description, expandedDescription } = call;
     const encodedCall: AnnotatedCallData = {
-      to: callRemote.to,
-      data: callRemote.data,
-      value: callRemote.value,
+      to: String(callRemote.to),
+      data: String(callRemote.data),
+      value:
+        callRemote.value === undefined || callRemote.value === null
+          ? undefined
+          : toBigInt(callRemote.value),
       description,
       expandedDescription,
       governanceType,
@@ -663,15 +668,17 @@ export abstract class HyperlaneAppGovernor<
   private async checkSubmitterBalance(
     chain: ChainName,
     submitterAddress: Address,
-    requiredValue: BigNumber,
+    requiredValue: NonNullable<AnnotatedCallData['value']>,
   ): Promise<void> {
     const submitterBalance = await this.checker.multiProvider
       .getProvider(chain)
       .getBalance(submitterAddress);
-    if (submitterBalance.lt(requiredValue)) {
+    const submitterBalanceBigInt = BigInt(submitterBalance.toString());
+    const requiredValueBigInt = BigInt(requiredValue.toString());
+    if (submitterBalanceBigInt < requiredValueBigInt) {
       rootLogger.warn(
         chalk.yellow(
-          `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance: ${submitterBalance}, Balance required: ${requiredValue}`,
+          `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance: ${submitterBalanceBigInt}, Balance required: ${requiredValueBigInt}`,
         ),
       );
     }
@@ -686,7 +693,7 @@ export abstract class HyperlaneAppGovernor<
           'transferOwnership',
           [violation.expected],
         ),
-        value: BigNumber.from(0),
+        value: 0n,
         description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
       },
     };
@@ -708,7 +715,7 @@ export abstract class HyperlaneAppGovernor<
             violation.proxyAddress,
             violation.expected,
           ]),
-          value: BigNumber.from(0),
+          value: 0n,
           description: `Change proxyAdmin of transparent proxy ${violation.proxyAddress} from ${violation.actual} to ${violation.expected}`,
         },
       };

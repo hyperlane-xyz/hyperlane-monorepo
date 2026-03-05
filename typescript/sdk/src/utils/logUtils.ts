@@ -1,11 +1,16 @@
-import { ethers } from 'ethers';
 import { Log } from 'viem';
 
+type LogLike = { data: string; topics: readonly string[] };
+type ParsedLog = { name: string };
+type LogParser = {
+  parseLog(log: LogLike | Log<bigint, number, false>): ParsedLog;
+};
+
 export function findMatchingLogEvents(
-  logs: (ethers.providers.Log | Log<bigint, number, false>)[],
-  iface: ethers.utils.Interface,
+  logs: (LogLike | Log<bigint, number, false>)[],
+  iface: LogParser,
   eventName: string,
-): ethers.utils.LogDescription[] {
+): ParsedLog[] {
   return logs
     .map((log) => {
       try {
@@ -14,8 +19,5 @@ export function findMatchingLogEvents(
         return undefined;
       }
     })
-    .filter(
-      (log): log is ethers.utils.LogDescription =>
-        !!log && log.name === eventName,
-    );
+    .filter((log): log is ParsedLog => !!log && log.name === eventName);
 }

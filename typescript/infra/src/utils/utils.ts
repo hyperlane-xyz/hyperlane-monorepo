@@ -1,9 +1,9 @@
 // @ts-ignore
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';
-import { ethers } from 'ethers';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { keccak256 } from 'viem';
 
 import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
@@ -43,7 +43,7 @@ export function getEthereumAddress(publicKey: Buffer): string {
   // more info: https://www.oreilly.com/library/view/mastering-ethereum/9781491971932/ch04.html
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
-  const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
+  const address = keccak256(pubKeyBuffer); // keccak256 hash of publicKey
   const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
   return EthAddr;
 }
@@ -189,12 +189,12 @@ const OXFMT_EXTENSIONS = new Set([
 ]);
 
 export async function formatFile(filepath: string): Promise<void> {
-  const ext = filepath.slice(filepath.lastIndexOf('.'));
-  const formatter = OXFMT_EXTENSIONS.has(ext)
-    ? `npx oxfmt --write "${filepath}"`
-    : `npx prettier --write "${filepath}"`;
-
   try {
+    const ext = filepath.slice(filepath.lastIndexOf('.'));
+    const formatter = OXFMT_EXTENSIONS.has(ext)
+      ? `npx oxfmt --write "${filepath}"`
+      : `npx prettier --write "${filepath}"`;
+
     const monorepoRoot = getMonorepoRoot();
     await execCmd(formatter, {
       cwd: monorepoRoot,

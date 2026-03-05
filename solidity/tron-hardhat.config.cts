@@ -1,8 +1,7 @@
-import "./plugins/hardhat-tron-solc.cjs";
-import "@nomicfoundation/hardhat-foundry";
-import "@nomiclabs/hardhat-ethers";
-import "@typechain/hardhat";
-import "hardhat-ignore-warnings";
+import './plugins/hardhat-tron-solc.cjs';
+import '@nomicfoundation/hardhat-foundry';
+import '@nomicfoundation/hardhat-viem';
+import 'hardhat-ignore-warnings';
 
 import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
 
@@ -12,9 +11,7 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
  * Uses tron-solc compiler (via hardhat-tron-solc plugin) with
  * @nomicfoundation/hardhat-foundry for remapping support.
  *
- * Produces both (self-contained within solidity package):
- * - Raw ABI artifacts in ./artifacts-tron/ (for AltVM clients)
- * - TypeChain factories in ./artifacts-tron/typechain/ (for ethers deployers)
+ * Produces raw ABI artifacts in ./artifacts-tron/ for downstream Tron clients.
  */
 module.exports = {
   ...rootHardhatConfig,
@@ -22,11 +19,5 @@ module.exports = {
     sources: "./contracts",
     artifacts: "./artifacts-tron",
     cache: "./cache-tron",
-  },
-  typechain: {
-    outDir: "./artifacts-tron/typechain",
-    target: "ethers-v5",
-    alwaysGenerateOverloads: true,
-    node16Modules: true,
   },
 };

@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { maxUint256, zeroAddress } from 'viem';
 
 import {
   BaseFee__factory,
@@ -132,7 +132,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       await Promise.all(
         routingDestinations.map(async (destination) => {
           const subFeeAddress = await routingFee.feeContracts(destination);
-          if (subFeeAddress === constants.AddressZero) return;
+          if (subFeeAddress === zeroAddress) return;
           const chainName = this.multiProvider.getChainName(destination);
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
@@ -160,8 +160,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     }
 
     const maxFee =
-      BigInt(constants.MaxUint256.toString()) /
-      ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
+      BigInt(maxUint256.toString()) / ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
     const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
 
     return {

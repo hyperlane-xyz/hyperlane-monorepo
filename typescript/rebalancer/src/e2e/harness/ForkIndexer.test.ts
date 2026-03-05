@@ -11,12 +11,16 @@ const testLogger = pino({ level: 'silent' });
 // Test addresses
 const ROUTER_ADDRESS_1 = '0x1111111111111111111111111111111111111111';
 const ROUTER_ADDRESS_2 = '0x2222222222222222222222222222222222222222';
+const MAILBOX_ADDRESS_1 = '0x3333333333333333333333333333333333333333';
+const MAILBOX_ADDRESS_2 = '0x4444444444444444444444444444444444444444';
 const REBALANCER_ADDRESS = '0xReBA1ancer000000000000000000000000000000';
 const USER_ADDRESS = '0xUser000000000000000000000000000000000000';
 
 // Domain IDs
 const DOMAIN_1 = 1;
 const DOMAIN_2 = 2;
+let txReceiptByHash: Map<string, { transactionHash: string; from: string }> =
+  new Map();
 
 /**
  * Creates a properly formatted Hyperlane message for testing
@@ -33,7 +37,7 @@ function createTestMessage(
 }
 
 /**
- * Creates a mock Dispatch event matching ethers event structure
+ * Creates a mock Dispatch event matching viem queryFilter structure
  */
 function createMockDispatchEvent(
   sender: string,
@@ -41,15 +45,16 @@ function createMockDispatchEvent(
   txFrom: string,
   txHash = '0xtxhash123',
 ): any {
+  txReceiptByHash.set(txHash, {
+    transactionHash: txHash,
+    from: txFrom,
+  });
   return {
     args: {
       sender,
       message,
     },
-    getTransactionReceipt: sinon.stub().resolves({
-      transactionHash: txHash,
-      from: txFrom,
-    }),
+    transactionHash: txHash,
   };
 }
 
@@ -63,11 +68,26 @@ describe('ForkIndexer', () => {
   let indexer: ForkIndexer;
 
   beforeEach(() => {
+    txReceiptByHash = new Map();
     provider1Stub = {
       getBlockNumber: sinon.stub(),
+      getTransactionReceipt: sinon.stub().callsFake(async (txHash: string) => {
+        const receipt = txReceiptByHash.get(txHash);
+        if (!receipt) {
+          throw new Error(`No mock receipt for tx hash ${txHash}`);
+        }
+        return receipt;
+      }),
     };
     provider2Stub = {
       getBlockNumber: sinon.stub(),
+      getTransactionReceipt: sinon.stub().callsFake(async (txHash: string) => {
+        const receipt = txReceiptByHash.get(txHash);
+        if (!receipt) {
+          throw new Error(`No mock receipt for tx hash ${txHash}`);
+        }
+        return receipt;
+      }),
     };
 
     providers = new Map([
@@ -76,12 +96,14 @@ describe('ForkIndexer', () => {
     ]);
 
     mailboxStub1 = {
+      address: MAILBOX_ADDRESS_1,
       queryFilter: sinon.stub().resolves([]),
       filters: {
         Dispatch: sinon.stub().returns('DispatchFilter'),
       },
     };
     mailboxStub2 = {
+      address: MAILBOX_ADDRESS_2,
       queryFilter: sinon.stub().resolves([]),
       filters: {
         Dispatch: sinon.stub().returns('DispatchFilter'),
@@ -151,7 +173,11 @@ describe('ForkIndexer', () => {
       expect(mailboxStub1.queryFilter.calledOnce).to.be.true;
       const [filter, fromBlock, toBlock] =
         mailboxStub1.queryFilter.firstCall.args;
-      expect(filter).to.equal('DispatchFilter');
+      expect(filter).to.deep.equal({
+        address: MAILBOX_ADDRESS_1,
+        eventName: 'Dispatch',
+        args: [],
+      });
       expect(fromBlock).to.equal(101); // lastScannedBlock + 1
       expect(toBlock).to.equal(150);
 

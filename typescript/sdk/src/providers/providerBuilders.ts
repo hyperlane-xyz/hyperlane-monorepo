@@ -1,15 +1,12 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
-import { providers } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
-import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -19,7 +16,7 @@ import {
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
-  EthersV5Provider,
+  EvmProvider,
   KnownProtocolType,
   ProviderType,
   RadixProvider,
@@ -45,18 +42,18 @@ const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
   baseRetryDelayMs: 250,
 };
 
-export function defaultEthersV5ProviderBuilder(
+export function defaultEvmProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
   retryOverride?: ProviderRetryOptions,
-): EthersV5Provider {
+): EvmProvider {
   const provider = new HyperlaneSmartProvider(
     network,
     rpcUrls,
     undefined,
     retryOverride || DEFAULT_RETRY_OPTIONS,
   );
-  return { type: ProviderType.EthersV5, provider };
+  return { type: ProviderType.Evm, provider };
 }
 
 export function defaultViemProviderBuilder(
@@ -95,7 +92,7 @@ export function defaultSolProviderBuilder(
 export function defaultFuelProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): EthersV5Provider {
+): EvmProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   throw new Error('TODO fuel support');
 }
@@ -150,11 +147,16 @@ export function defaultStarknetJsProviderBuilder(
 
 export function defaultZKSyncProviderBuilder(
   rpcUrls: RpcUrl[],
-  network: providers.Networkish,
+  network: number | string,
+  retryOverride?: ProviderRetryOptions,
 ): ZKSyncProvider {
   assert(rpcUrls.length, 'No RPC URLs provided');
-  const url = rpcUrls[0].http;
-  const provider = new ZKProvider(url, network);
+  const provider = new HyperlaneSmartProvider(
+    network,
+    rpcUrls,
+    undefined,
+    retryOverride || DEFAULT_RETRY_OPTIONS,
+  );
   return { type: ProviderType.ZkSync, provider };
 }
 
@@ -183,30 +185,33 @@ export function defaultAleoProviderBuilder(
 }
 
 /**
- * Returns an ethers-compatible TronJsonRpcProvider for use in MultiProvider.
- * This handles Tron's missing eth_getTransactionCount and returns the raw provider.
+ * Returns a SmartProvider-based Tron provider for use in MultiProvider.
  */
 export function defaultTronEthersProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: number | string,
-): providers.Provider {
+  network: number | string,
+): HyperlaneSmartProvider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  return new TronJsonRpcProvider(rpcUrls[0].http);
+  return defaultEvmProviderBuilder(rpcUrls, network)
+    .provider as HyperlaneSmartProvider;
 }
 
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): providers.Provider {
-  return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
+): HyperlaneSmartProvider {
+  return defaultEvmProviderBuilder(rpcUrls, _network)
+    .provider as HyperlaneSmartProvider;
 }
 
 export function defaultZKProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): ZKProvider {
-  return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
+  retryOverride?: ProviderRetryOptions,
+): HyperlaneSmartProvider {
+  return defaultZKSyncProviderBuilder(rpcUrls, _network, retryOverride)
+    .provider as HyperlaneSmartProvider;
 }
 
 export type ProviderBuilderMap = Record<
@@ -214,8 +219,8 @@ export type ProviderBuilderMap = Record<
   ProviderBuilderFn<TypedProvider>
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
-  [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
-  [ProviderType.GnosisTxBuilder]: defaultEthersV5ProviderBuilder,
+  [ProviderType.Evm]: defaultEvmProviderBuilder,
+  [ProviderType.GnosisTxBuilder]: defaultEvmProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
@@ -231,7 +236,7 @@ export const protocolToDefaultProviderBuilder: Record<
   KnownProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
-  [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
+  [ProtocolType.Ethereum]: defaultViemProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,

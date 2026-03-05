@@ -1,15 +1,15 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { ethers } from 'ethers';
 import hre from 'hardhat';
+import { keccak256, parseEther, stringToHex } from 'viem';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
@@ -17,20 +17,23 @@ import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
 chai.use(chaiAsPromised);
 
 describe('RPC Utils', () => {
-  let contractOwner: SignerWithAddress;
-  let tokenRecipient1: SignerWithAddress;
-  let tokenRecipient2: SignerWithAddress;
-  let providerChainTest1: JsonRpcProvider;
+  type EvmProvider = NonNullable<HardhatSignerWithAddress['provider']>;
+  let contractOwner: HardhatSignerWithAddress;
+  let tokenRecipient1: HardhatSignerWithAddress;
+  let tokenRecipient2: HardhatSignerWithAddress;
+  let providerChainTest1: EvmProvider;
   let multiProvider: MultiProvider;
   let testContract: ERC20Test;
   let erc20Factory: ERC20Test__factory;
   let deploymentBlockNumber: number;
 
-  const transferTopic = ethers.utils.id('Transfer(address,address,uint256)');
+  const transferTopic = keccak256(
+    stringToHex('Transfer(address,address,uint256)'),
+  );
 
   beforeEach(async () => {
     [contractOwner, tokenRecipient1, tokenRecipient2] =
-      await hre.ethers.getSigners();
+      await getHardhatSigners();
 
     assert(
       contractOwner.provider,
@@ -42,7 +45,7 @@ describe('RPC Utils', () => {
       signer: contractOwner,
       provider: contractOwner.provider,
     });
-    providerChainTest1 = contractOwner.provider as JsonRpcProvider;
+    providerChainTest1 = contractOwner.provider as EvmProvider;
 
     // Get contract factory for ERC20Test
     erc20Factory = new ERC20Test__factory(contractOwner);
@@ -52,16 +55,20 @@ describe('RPC Utils', () => {
     testContract = await erc20Factory.deploy(
       'TestToken',
       'TST',
-      ethers.utils.parseEther('1000000'),
+      parseEther('1000000'),
       18,
     );
 
     await testContract.deployed();
+    const deploymentReceipt = await testContract.deployTransaction.wait();
+    const deploymentBlock =
+      testContract.deployTransaction.blockNumber ??
+      deploymentReceipt?.blockNumber;
     assert(
-      testContract.deployTransaction.blockNumber,
+      deploymentBlock !== undefined,
       'Expected the Contract deployment block number to be defined',
     );
-    deploymentBlockNumber = testContract.deployTransaction.blockNumber;
+    deploymentBlockNumber = Number(BigInt(deploymentBlock.toString()));
   }
 
   async function mineRandomNumberOfBlocks() {
@@ -116,13 +123,13 @@ describe('RPC Utils', () => {
       // Emit some Transfer events
       const tx1 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        parseEther('100'),
       );
       await tx1.wait();
 
       const tx2 = await testContract.transfer(
         tokenRecipient2.address,
-        ethers.utils.parseEther('200'),
+        parseEther('200'),
       );
       await tx2.wait();
 
@@ -149,7 +156,7 @@ describe('RPC Utils', () => {
       // Emit event in first block
       const tx1 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        parseEther('100'),
       );
       await tx1.wait();
       const firstEventBlock = await providerChainTest1.getBlockNumber();
@@ -159,7 +166,7 @@ describe('RPC Utils', () => {
       // Emit event in later block
       const tx2 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('200'),
+        parseEther('200'),
       );
       await tx2.wait();
 
@@ -180,9 +187,7 @@ describe('RPC Utils', () => {
     it('should work when a custom range parameter is provided', async () => {
       const numberOfEventsToEmit = randomInt(1, 47);
       for (let i = 0; i < numberOfEventsToEmit; i++) {
-        const tx = await testContract.mint(
-          ethers.utils.parseEther(`${(i + 1) * 100}`),
-        );
+        const tx = await testContract.mint(parseEther(`${(i + 1) * 100}`));
         await tx.wait();
       }
 
@@ -205,11 +210,13 @@ describe('RPC Utils', () => {
       // Emitting an event just to be sure that filtering works as expected
       const tx1 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        parseEther('100'),
       );
       await tx1.wait();
 
-      const nonExistentTopic = ethers.utils.id('NonExistentEvent(uint256)');
+      const nonExistentTopic = keccak256(
+        stringToHex('NonExistentEvent(uint256)'),
+      );
       const logs = await getLogsFromRpc({
         chain: TestChainName.test1,
         contractAddress: testContract.address,

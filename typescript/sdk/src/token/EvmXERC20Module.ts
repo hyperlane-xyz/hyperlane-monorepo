@@ -1,5 +1,3 @@
-import { PopulatedTransaction } from 'ethers';
-
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -30,7 +28,32 @@ import {
   EvmXERC20VSAdapter,
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
+import {
+  isAddressReaderContract,
+  normalizeAddressResult,
+  readAddressWithCall,
+} from './ethCall.js';
 import { XERC20Type } from './types.js';
+
+type PopulatedTransaction = Awaited<
+  ReturnType<EvmXERC20VSAdapter['populateAddBridgeTx']>
+>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function hasLegacyXERC20Method(
+  value: unknown,
+): value is { XERC20: () => Promise<unknown> } {
+  return isRecord(value) && typeof value.XERC20 === 'function';
+}
+
+function hasXERC20Method(
+  value: unknown,
+): value is { xERC20: () => Promise<unknown> } {
+  return isRecord(value) && typeof value.xERC20 === 'function';
+}
 
 /**
  * Configuration for XERC20 limits management
@@ -369,7 +392,27 @@ export class EvmXERC20Module extends HyperlaneModule<
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await lockbox.callStatic.XERC20();
+      const lockboxCandidate: unknown = lockbox;
+      if (isAddressReaderContract(lockboxCandidate)) {
+        xERC20Address = await readAddressWithCall(
+          provider,
+          lockboxCandidate,
+          'XERC20',
+          'Provider does not support call for XERC20 lookup',
+        );
+      } else if (hasLegacyXERC20Method(lockboxCandidate)) {
+        xERC20Address = normalizeAddressResult(
+          await lockboxCandidate.XERC20(),
+          'XERC20',
+        );
+      } else if (hasXERC20Method(lockboxCandidate)) {
+        xERC20Address = normalizeAddressResult(
+          await lockboxCandidate.xERC20(),
+          'xERC20',
+        );
+      } else {
+        assert(false, 'Provider does not support call for XERC20 lookup');
+      }
     }
 
     const limits: XERC20LimitsMap = {};

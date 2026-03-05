@@ -1,11 +1,12 @@
 import { confirm, input, password, select } from '@inquirer/prompts';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 import { stringify as yamlStringify } from 'yaml';
 
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
+  ensure0x,
   isAddress,
   isPrivateKeyEvm,
 } from '@hyperlane-xyz/utils';
@@ -91,7 +92,8 @@ export async function createStrategyConfig({
       });
 
       submitter.userAddress = isEthereum
-        ? await new Wallet(submitter.privateKey).getAddress()
+        ? privateKeyToAccount(ensure0x(submitter.privateKey) as `0x${string}`)
+            .address
         : await input({
             message: 'Enter the user address for JSON-RPC submission:',
           });

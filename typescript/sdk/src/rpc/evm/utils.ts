@@ -11,6 +11,33 @@ import { ChainNameOrId } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
 
+function toNumber(value: unknown, field: string): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return Number(BigInt(value));
+    return Number(value);
+  }
+  if (typeof value === 'object' && value && 'toString' in value) {
+    const raw = value.toString();
+    if (raw.startsWith('0x')) return Number(BigInt(raw));
+    return Number(raw);
+  }
+  throw new Error(`Unable to convert ${field} to number`);
+}
+
+function toString(value: unknown, field: string): string {
+  if (typeof value === 'string') return value;
+  throw new Error(`Unable to convert ${field} to string`);
+}
+
+function toStringArray(value: unknown, field: string): string[] {
+  if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+    return value;
+  }
+  throw new Error(`Unable to convert ${field} to string[]`);
+}
+
 // calling getCode until the creation block is found
 export async function getContractCreationBlockFromRpc(
   chain: ChainNameOrId,
@@ -90,13 +117,13 @@ export async function getLogsFromRpc({
 
   return logs.map((rawLog): GetEventLogsResponse => {
     return {
-      address: rawLog.address,
-      blockNumber: rawLog.blockNumber,
-      data: rawLog.data,
-      logIndex: rawLog.logIndex,
-      topics: rawLog.topics,
-      transactionHash: rawLog.transactionHash,
-      transactionIndex: rawLog.transactionIndex,
+      address: toString(rawLog.address, 'address'),
+      blockNumber: toNumber(rawLog.blockNumber, 'blockNumber'),
+      data: toString(rawLog.data, 'data'),
+      logIndex: toNumber(rawLog.logIndex, 'logIndex'),
+      topics: toStringArray(rawLog.topics, 'topics'),
+      transactionHash: toString(rawLog.transactionHash, 'transactionHash'),
+      transactionIndex: toNumber(rawLog.transactionIndex, 'transactionIndex'),
     };
   });
 }

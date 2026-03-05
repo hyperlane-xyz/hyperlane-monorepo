@@ -1,9 +1,7 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { ethers } from 'ethers';
 import hre from 'hardhat';
+import { pad, parseEther, stringToHex } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { assert, deepCopy, normalizeAddressEvm } from '@hyperlane-xyz/utils';
@@ -17,6 +15,8 @@ import {
 import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import { ZBytes32String } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig, TimelockTx } from '../types.js';
 
@@ -26,21 +26,25 @@ import { EMPTY_BYTES_32 } from './constants.js';
 
 chai.use(chaiAsPromised);
 
+const bytes32FromString = (value: string) =>
+  pad(stringToHex(value), { size: 32 });
+
 describe(EvmTimelockReader.name, () => {
-  let contractOwner: SignerWithAddress;
-  let proposer: SignerWithAddress;
-  let executor: SignerWithAddress;
-  let providerChainTest1: JsonRpcProvider;
+  type EvmProvider = NonNullable<HardhatSignerWithAddress['provider']>;
+  let contractOwner: HardhatSignerWithAddress;
+  let proposer: HardhatSignerWithAddress;
+  let executor: HardhatSignerWithAddress;
+  let providerChainTest1: EvmProvider;
   let multiProvider: MultiProvider;
   let timelockDeployer: EvmTimelockDeployer;
   let timelockReader: EvmTimelockReader;
   let timelockAddress: string;
 
   beforeEach(async () => {
-    [contractOwner, proposer, executor] = await hre.ethers.getSigners();
+    [contractOwner, proposer, executor] = await getHardhatSigners();
 
     assert(contractOwner.provider, 'Provider should be available');
-    providerChainTest1 = contractOwner.provider as JsonRpcProvider;
+    providerChainTest1 = contractOwner.provider as EvmProvider;
 
     // Initialize MultiProvider with test chain
     const testChain1Clone: ChainMetadata = deepCopy(test1);
@@ -70,9 +74,13 @@ describe(EvmTimelockReader.name, () => {
     );
 
     timelockAddress = TimelockController.address;
+    const deploymentReceipt = await TimelockController.deployTransaction.wait();
+    const deploymentBlock =
+      TimelockController.deployTransaction.blockNumber ??
+      deploymentReceipt?.blockNumber;
 
     assert(
-      TimelockController.deployTransaction.blockNumber,
+      deploymentBlock !== undefined,
       'Expected the Timelock deployment block number to be defined',
     );
 
@@ -137,13 +145,13 @@ describe(EvmTimelockReader.name, () => {
             data: [
               {
                 to: randomAddress(),
-                value: ethers.utils.parseEther('1'),
+                value: parseEther('1'),
                 data: '0x1234',
               },
             ],
             delay: 0,
             predecessor: EMPTY_BYTES_32,
-            salt: ethers.utils.formatBytes32String('test-salt'),
+            salt: bytes32FromString('test-salt'),
           },
         },
         {
@@ -152,18 +160,18 @@ describe(EvmTimelockReader.name, () => {
             data: [
               {
                 to: randomAddress(),
-                value: ethers.utils.parseEther('1'),
+                value: parseEther('1'),
                 data: '0x1234',
               },
               {
                 to: randomAddress(),
-                value: ethers.utils.parseEther('2'),
+                value: parseEther('2'),
                 data: '0x5678',
               },
             ],
             delay: 0,
             predecessor: EMPTY_BYTES_32,
-            salt: ethers.utils.formatBytes32String('batch-salt'),
+            salt: bytes32FromString('batch-salt'),
           },
         },
         {
@@ -173,7 +181,7 @@ describe(EvmTimelockReader.name, () => {
             data: [
               {
                 to: randomAddress(),
-                value: ethers.BigNumber.from(0),
+                value: 0n,
                 data: '0x',
               },
             ],
@@ -218,7 +226,7 @@ describe(EvmTimelockReader.name, () => {
               normalizeAddressEvm(timelockTx.data[i].to),
             );
             assert(
-              scheduledTx.data[i].value,
+              scheduledTx.data[i].value !== undefined,
               'Expected value to be defined when reading from Timelock',
             );
             expect(scheduledTx.data[i].value?.toString()).to.equal(
@@ -254,13 +262,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancel-test'),
+              salt: bytes32FromString('cancel-test'),
             },
           ],
         },
@@ -271,25 +279,25 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancel-1'),
+              salt: bytes32FromString('cancel-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x5678',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancel-2'),
+              salt: bytes32FromString('cancel-2'),
             },
           ],
         },
@@ -366,13 +374,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('execute-test'),
+              salt: bytes32FromString('execute-test'),
             },
           ],
         },
@@ -383,25 +391,25 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('execute-1'),
+              salt: bytes32FromString('execute-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('execute-2'),
+              salt: bytes32FromString('execute-2'),
             },
           ],
         },
@@ -489,13 +497,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('ready-test'),
+              salt: bytes32FromString('ready-test'),
             },
           ],
           expectedReadyCount: 1,
@@ -507,13 +515,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 3600,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('not-ready'),
+              salt: bytes32FromString('not-ready'),
             },
           ],
           expectedReadyCount: 0,
@@ -525,25 +533,25 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('ready-1'),
+              salt: bytes32FromString('ready-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 3600,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('not-ready-1'),
+              salt: bytes32FromString('not-ready-1'),
             },
           ],
           expectedReadyCount: 1,
@@ -617,13 +625,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('pending-test'),
+              salt: bytes32FromString('pending-test'),
             },
           ],
           expectedPendingCount: 1,
@@ -635,13 +643,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancelled-pending'),
+              salt: bytes32FromString('cancelled-pending'),
             },
           ],
           cancelledTxIndexes: [0],
@@ -654,13 +662,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('executed-pending'),
+              salt: bytes32FromString('executed-pending'),
             },
           ],
           executedTxIndexes: [0],
@@ -674,37 +682,37 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('pending-1'),
+              salt: bytes32FromString('pending-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x5678',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancelled-pending-1'),
+              salt: bytes32FromString('cancelled-pending-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('executed-pending-1'),
+              salt: bytes32FromString('executed-pending-1'),
             },
           ],
           cancelledTxIndexes: [1],
@@ -831,13 +839,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('executable'),
+              salt: bytes32FromString('executable'),
             },
           ],
           expectedExecutableCount: 1,
@@ -849,13 +857,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancelled'),
+              salt: bytes32FromString('cancelled'),
             },
           ],
           cancelledTxIndexes: [0],
@@ -868,13 +876,13 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('executed'),
+              salt: bytes32FromString('executed'),
             },
           ],
           executedTxIndexes: [0],
@@ -888,37 +896,37 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x1234',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('executable-1'),
+              salt: bytes32FromString('executable-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x5678',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('cancelled-1'),
+              salt: bytes32FromString('cancelled-1'),
             },
             {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: 0n,
                   data: '0x',
                 },
               ],
               delay: 0,
               predecessor: EMPTY_BYTES_32,
-              salt: ethers.utils.formatBytes32String('executed-1'),
+              salt: bytes32FromString('executed-1'),
             },
           ],
           cancelledTxIndexes: [1],

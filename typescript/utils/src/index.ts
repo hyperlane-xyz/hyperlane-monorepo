@@ -101,9 +101,12 @@ export {
   bigToFixed,
   fixedToBig,
   isBigNumberish,
+  isBigIntCoercible,
   isZeroish,
   mulBigAndFixed,
+  toBigInt,
 } from './big-numbers.js';
+export type { BigIntCoercible } from './big-numbers.js';
 export { formatCallData } from './calldata.js';
 export {
   isCheckpoint,

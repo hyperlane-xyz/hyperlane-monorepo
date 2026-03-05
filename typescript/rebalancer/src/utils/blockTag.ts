@@ -23,15 +23,27 @@ export async function getConfirmedBlockTag(
 ): Promise<ConfirmedBlockTag> {
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
+    const rpcUrl = metadata.rpcUrls?.[0]?.http ?? '';
+    const isLocalRpc =
+      chainName.startsWith('anvil') ||
+      rpcUrl.includes('localhost') ||
+      rpcUrl.includes('127.0.0.1');
+    const provider = multiProvider.getViemProvider(chainName);
+    const latestBlock = await provider.getBlockNumber();
+
+    // Local test chains should not lag behind by reorgPeriod when asserting
+    // per-cycle state transitions in e2e tests.
+    if (isLocalRpc) {
+      return Number(latestBlock);
+    }
+
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
 
     if (typeof reorgPeriod === 'string') {
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
-    const provider = multiProvider.getEthersV5Provider(chainName);
-    const latestBlock = await provider.getBlockNumber();
-    return Math.max(0, latestBlock - reorgPeriod);
+    return Math.max(0, Number(latestBlock) - reorgPeriod);
   } catch (error) {
     logger?.warn(
       { chain: chainName, error: (error as Error).message },

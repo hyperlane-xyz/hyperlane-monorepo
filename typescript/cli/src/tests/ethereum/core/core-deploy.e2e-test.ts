@@ -1,14 +1,15 @@
 import { expect } from 'chai';
-import { type Signer, Wallet, ethers } from 'ethers';
 
 import {
   type ChainMetadata,
   type CoreConfig,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   HookType,
   type ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -40,25 +41,20 @@ describe('hyperlane core deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_2,
   );
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let initialOwnerAddress: Address;
-  // Owner address from the core config file (may differ from deployer)
-  let configOwnerAddress: Address;
 
   before(async () => {
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
       chainMetadata.rpcUrls[0].http,
     );
-
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_KEY));
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
-
-    const coreInputConfig: CoreConfig = readYamlOrJson(CORE_CONFIG_PATH);
-    configOwnerAddress = coreInputConfig.owner;
   });
 
   describe('hyperlane core deploy', () => {
@@ -93,8 +89,8 @@ describe('hyperlane core deploy e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
-      expect(coreConfig.owner).to.equal(configOwnerAddress);
-      expect(coreConfig.proxyAdmin?.owner).to.equal(configOwnerAddress);
+      expect(coreConfig.owner).to.equal(initialOwnerAddress);
+      expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
       // Assuming that the ProtocolFeeHook is used for deployment
       const requiredHookConfig = coreConfig.requiredHook as Exclude<
         CoreConfig['requiredHook'],
@@ -102,7 +98,7 @@ describe('hyperlane core deploy e2e tests', async function () {
       >;
       expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
       expect((requiredHookConfig as ProtocolFeeHookConfig).owner).to.equal(
-        configOwnerAddress,
+        initialOwnerAddress,
       );
     });
   });
@@ -218,16 +214,16 @@ describe('hyperlane core deploy e2e tests', async function () {
   });
 
   describe('hyperlane core deploy --yes --key ...', () => {
-    it('should create a core deployment with the config owner as the mailbox owner', async () => {
+    it('should create a core deployment with the signer as the mailbox owner', async () => {
       await hyperlaneCore.deploy(ANVIL_KEY);
 
       const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
-      expect(coreConfig.owner).to.equal(configOwnerAddress);
+      expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
       // Assuming that the ProtocolFeeHook is used for deployment
       expect((coreConfig.requiredHook as ProtocolFeeHookConfig).owner).to.equal(
-        configOwnerAddress,
+        initialOwnerAddress,
       );
     });
 
@@ -251,7 +247,7 @@ describe('hyperlane core deploy e2e tests', async function () {
       // Assuming that the ProtocolFeeHook is used for deployment
       expect(
         (updatedConfig.requiredHook as ProtocolFeeHookConfig).owner,
-      ).to.equal(configOwnerAddress);
+      ).to.equal(initialOwnerAddress);
     });
 
     it('should create a core deployment with ProxyAdmin owner of the mailbox set to the address in the config', async () => {
@@ -268,12 +264,12 @@ describe('hyperlane core deploy e2e tests', async function () {
       // Verify that the owner has been set correctly without modifying any other owner values
       const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
 
-      expect(updatedConfig.owner).to.equal(configOwnerAddress);
+      expect(updatedConfig.owner).to.equal(initialOwnerAddress);
       expect(updatedConfig.proxyAdmin?.owner.toLowerCase()).to.equal(newOwner);
       // Assuming that the ProtocolFeeHook is used for deployment
       expect(
         (updatedConfig.requiredHook as ProtocolFeeHookConfig).owner,
-      ).to.equal(configOwnerAddress);
+      ).to.equal(initialOwnerAddress);
     });
   });
 });

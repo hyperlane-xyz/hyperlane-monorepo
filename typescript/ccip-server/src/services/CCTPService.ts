@@ -1,6 +1,6 @@
-import { ethers } from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
+import { keccak256 } from 'viem';
 import { z } from 'zod';
 
 import {
@@ -8,7 +8,7 @@ import {
   IMessageTransmitter__factory,
 } from '@hyperlane-xyz/core';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { parseMessage } from '@hyperlane-xyz/utils';
+import { assert, parseMessage } from '@hyperlane-xyz/utils';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
 import {
@@ -29,6 +29,29 @@ const EnvSchema = z.object({
   CCTP_ATTESTATION_URL: z.string().url(),
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
 });
+
+type ReceiptLog = { data: string; topics: readonly string[] };
+type TransactionReceiptLike = {
+  transactionHash?: string | null;
+  logs?: readonly unknown[] | unknown[] | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function isReceiptLog(value: unknown): value is ReceiptLog {
+  const record = asRecord(value);
+  if (!record) return false;
+  const topics = record.topics;
+  return (
+    typeof record.data === 'string' &&
+    Array.isArray(topics) &&
+    topics.every((topic) => typeof topic === 'string')
+  );
+}
 
 class CCTPService extends BaseService {
   // External Services
@@ -85,7 +108,7 @@ class CCTPService extends BaseService {
   }
 
   async getCCTPMessageFromReceipt(
-    receipt: ethers.providers.TransactionReceipt,
+    receipt: TransactionReceiptLike,
     messageId: string,
     logger: Logger,
   ) {
@@ -99,15 +122,14 @@ class CCTPService extends BaseService {
     const iface = IMessageTransmitter__factory.createInterface();
     const event = iface.events['MessageSent(bytes)'];
 
-    for (const receiptLog of receipt.logs) {
+    for (const receiptLog of (receipt.logs ?? []).filter(isReceiptLog)) {
       try {
         const parsedLog = iface.parseLog(receiptLog);
-        if (parsedLog.name === event.name) {
-          logger.info(
-            { cctpMessage: parsedLog.args.message },
-            'Found CCTP MessageSent event',
-          );
-          return parsedLog.args.message;
+        const parsedArgs = asRecord(parsedLog.args);
+        const message = parsedArgs?.message;
+        if (parsedLog.name === event.name && typeof message === 'string') {
+          logger.info({ cctpMessage: message }, 'Found CCTP MessageSent event');
+          return message;
         }
       } catch (_err) {
         // This log is not from the events in our ABI
@@ -138,7 +160,7 @@ class CCTPService extends BaseService {
       'Processing CCTP attestation request',
     );
 
-    const messageId: string = ethers.utils.keccak256(message);
+    const messageId: string = keccak256(message as `0x${string}`);
     log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
     const txHash =
@@ -158,6 +180,7 @@ class CCTPService extends BaseService {
     const receipt = await this.multiProvider
       .getProvider(parsedMessage.origin)
       .getTransactionReceipt(txHash);
+    assert(receipt, `Transaction not yet mined: ${txHash}`);
     const cctpMessage = await this.getCCTPMessageFromReceipt(
       receipt,
       messageId,

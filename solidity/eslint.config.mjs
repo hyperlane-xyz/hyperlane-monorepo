@@ -1,4 +1,4 @@
-import MonorepoDefaults from '../eslint.config.mjs';
+import MonorepoDefaults from "../eslint.config.mjs";
 
 export default [
   ...MonorepoDefaults,
@@ -7,12 +7,15 @@ export default [
       '**/lib/**/*',
       '**/test/**/*',
       '**/dist/**/*',
-      '**/lib/**/*',
-      '**/typechain/**/*',
-      '**/multicollateral/**/*',
+      '**/artifacts/**/*',
+      '**/artifacts-tron/**/*',
       '**/dependencies/**/*',
+      '**/multicollateral/**/*',
+      'core-utils/generated/**/*',
+      'core-utils/typechain/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
+      'generate-contract-factories.mjs',
     ],
   },
 ];

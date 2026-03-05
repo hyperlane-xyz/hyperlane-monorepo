@@ -45,8 +45,7 @@
     "@radixdlt/babylon-gateway-api-sdk": "catalog:",
     "@radixdlt/radix-engine-toolkit": "^1.0.5",
     "bignumber.js": "catalog:",
-    "decimal.js": "^10.4.3",
-    "ethers": "catalog:"
+    "decimal.js": "^10.4.3"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

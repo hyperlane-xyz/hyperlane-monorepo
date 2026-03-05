@@ -1,12 +1,11 @@
-import { providers } from 'ethers';
 import { LevelWithSilentOrString } from 'pino';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
-import { ChainNameOrId } from '../types.js';
+import type { ChainNameOrId, EvmProvider } from '../types.js';
 
 export class HyperlaneReader {
-  provider: providers.Provider;
+  provider: EvmProvider;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -21,8 +20,8 @@ export class HyperlaneReader {
    * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
    */
   protected setSmartProviderLogLevel(level: LevelWithSilentOrString): void {
-    if ('setLogLevel' in this.provider) {
-      (this.provider as HyperlaneSmartProvider).setLogLevel(level);
+    if (this.provider instanceof HyperlaneSmartProvider) {
+      this.provider.setLogLevel(level);
     }
   }
 }

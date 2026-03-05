@@ -1,12 +1,27 @@
 import { expect } from 'chai';
-import { errors as EthersError, providers } from 'ethers';
 
-import { AllProviderMethods, IProviderMethods } from './ProviderMethods.js';
+import {
+  AllProviderMethods,
+  IProviderMethods,
+  ProviderMethod,
+} from './ProviderMethods.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 
+const EthersError = {
+  CALL_EXCEPTION: 'CALL_EXCEPTION',
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  NONCE_EXPIRED: 'NONCE_EXPIRED',
+  REPLACEMENT_UNDERPRICED: 'REPLACEMENT_UNDERPRICED',
+  SERVER_ERROR: 'SERVER_ERROR',
+  TIMEOUT: 'TIMEOUT',
+  TRANSACTION_REPLACED: 'TRANSACTION_REPLACED',
+  UNPREDICTABLE_GAS_LIMIT: 'UNPREDICTABLE_GAS_LIMIT',
+} as const;
+
 // Dummy provider for testing
-class MockProvider extends providers.BaseProvider implements IProviderMethods {
+class MockProvider implements IProviderMethods {
   public readonly supportedMethods = AllProviderMethods;
   public called = false;
   public thrownError?: Error;
@@ -34,9 +49,7 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
     private readonly errorToThrow?: Error,
     private readonly successValue?: any,
     private readonly responseDelayMs = 0,
-  ) {
-    super({ name: 'test', chainId: 1 });
-  }
+  ) {}
 
   getBaseUrl(): string {
     return this.baseUrl;
@@ -55,11 +68,6 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
     }
 
     return this.successValue ?? 'success';
-  }
-
-  // Required BaseProvider methods - minimal implementations
-  async detectNetwork() {
-    return { name: 'test', chainId: 1 };
   }
 }
 
@@ -673,6 +681,89 @@ describe('SmartProvider', () => {
         expect(provider1.thrownError).to.equal(callExceptionJsonRpcCode3);
         expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
       }
+    });
+  });
+
+  describe('getFeeData', () => {
+    it('falls back to default priority fee when maxPriorityFee call fails', async () => {
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [],
+      );
+      const stubProvider = provider as any;
+      stubProvider.getGasPrice = async () => 100n;
+      stubProvider.getBlock = async () => ({
+        number: 1,
+        baseFeePerGas: '0x64',
+      });
+      stubProvider.perform = async (method: string) => {
+        if (method === ProviderMethod.MaxPriorityFeePerGas) {
+          throw new Error('Method not supported');
+        }
+        throw new Error(`Unexpected method: ${method}`);
+      };
+
+      const feeData = await provider.getFeeData();
+      expect(feeData.gasPrice).to.equal(100n);
+      expect(feeData.lastBaseFeePerGas).to.equal(100n);
+      expect(feeData.maxPriorityFeePerGas).to.equal(1_500_000_000n);
+      expect(feeData.maxFeePerGas).to.equal(1_500_000_200n);
+    });
+
+    it('returns legacy-style fee data when baseFee is unavailable', async () => {
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [],
+      );
+      const stubProvider = provider as any;
+      stubProvider.getGasPrice = async () => 42n;
+      stubProvider.getBlock = async () => ({ number: 1 });
+
+      const feeData = await provider.getFeeData();
+      expect(feeData.gasPrice).to.equal(42n);
+      expect(feeData.lastBaseFeePerGas).to.equal(undefined);
+      expect(feeData.maxPriorityFeePerGas).to.equal(undefined);
+      expect(feeData.maxFeePerGas).to.equal(undefined);
+    });
+  });
+
+  describe('getTransactionReceipt', () => {
+    it('normalizes hex status and index fields', async () => {
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://provider' }],
+        [],
+      );
+      const stubProvider = provider as any;
+      stubProvider.perform = async (method: string) => {
+        if (method !== ProviderMethod.GetTransactionReceipt) {
+          throw new Error(`Unexpected method: ${method}`);
+        }
+        return {
+          blockNumber: '0xa',
+          status: '0x1',
+          transactionIndex: '0x2',
+          logs: [
+            {
+              blockNumber: '0xa',
+              logIndex: '0x0',
+              transactionIndex: '0x2',
+            },
+          ],
+        };
+      };
+
+      const receipt = await provider.getTransactionReceipt(
+        '0x1234567890123456789012345678901234567890123456789012345678901234',
+      );
+
+      expect(receipt).to.not.equal(null);
+      expect((receipt as any).blockNumber).to.equal(10);
+      expect((receipt as any).status).to.equal(1);
+      expect((receipt as any).transactionIndex).to.equal(2);
+      expect((receipt as any).logs[0].logIndex).to.equal(0);
     });
   });
 });

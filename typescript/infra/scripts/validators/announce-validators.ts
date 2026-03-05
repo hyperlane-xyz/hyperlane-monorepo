@@ -1,7 +1,7 @@
 import chalk from 'chalk';
-import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
+import { Hex, serializeSignature } from 'viem';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
@@ -130,7 +130,12 @@ async function main() {
       );
       const announced = announcedLocations[0].includes(location);
       if (!announced) {
-        const signature = ethers.utils.joinSignature(announcement.signature);
+        const { r, s, v } = announcement.signature;
+        const signature = serializeSignature({
+          r: r as Hex,
+          s: s as Hex,
+          v: BigInt(v),
+        });
         console.log(
           chalk.bold(
             `[${chain}] Announcing ${address} checkpoints at ${location}`,

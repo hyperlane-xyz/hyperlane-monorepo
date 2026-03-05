@@ -10,7 +10,7 @@ import {
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -18,6 +18,8 @@ import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
@@ -27,7 +29,7 @@ describe('EvmCoreModule', async () => {
   const CHAIN = TestChainName.test4;
   const DELAY = 1892391283182;
   let config: CoreConfig;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let multiProvider: MultiProvider;
   let evmCoreModule: EvmCoreModule;
   let proxyAdminContract: any;
@@ -41,7 +43,7 @@ describe('EvmCoreModule', async () => {
     }
   }
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     config = {
       ...testCoreConfig([CHAIN])[CHAIN],
@@ -120,7 +122,9 @@ describe('EvmCoreModule', async () => {
     });
 
     it('should set proxyAdmin owner to deployer', async () => {
-      expect(await proxyAdminContract.owner()).to.equal(signer.address);
+      expect(
+        eqAddress(await proxyAdminContract.owner(), signer.address),
+      ).to.equal(true);
     });
 
     it('should deploy mailbox', async () => {
@@ -134,7 +138,9 @@ describe('EvmCoreModule', async () => {
     });
 
     it('should set mailbox owner to config owner', async () => {
-      expect(await mailboxContract.owner()).to.equal(config.owner);
+      expect(eqAddress(await mailboxContract.owner(), config.owner)).to.equal(
+        true,
+      );
     });
 
     it('should deploy mailbox default Ism', async () => {
@@ -157,17 +163,23 @@ describe('EvmCoreModule', async () => {
 
     it('should deploy validatorAnnounce', async () => {
       expect(evmCoreModule.serialize().validatorAnnounce).to.exist;
-      expect(await validatorAnnounceContract.owner()).to.equal(signer.address);
+      expect(
+        eqAddress(await validatorAnnounceContract.owner(), signer.address),
+      ).to.equal(true);
     });
 
     it('should deploy testRecipient', async () => {
       expect(evmCoreModule.serialize().testRecipient).to.exist;
-      expect(await testRecipientContract.owner()).to.equal(signer.address);
+      expect(
+        eqAddress(await testRecipientContract.owner(), signer.address),
+      ).to.equal(true);
     });
 
     it('should deploy timelock if upgrade is set', async () => {
       expect(evmCoreModule.serialize().timelockController).to.exist;
-      expect(await timelockControllerContract.getMinDelay()).to.equal(DELAY);
+      expect(await timelockControllerContract.getMinDelay()).to.equal(
+        BigInt(DELAY),
+      );
     });
   });
 
@@ -270,7 +282,7 @@ describe('EvmCoreModule', async () => {
       });
       const newOwner = randomAddress();
       let latestConfig = normalizeConfig(await evmCoreModule.read());
-      expect(latestConfig.owner).to.not.equal(newOwner);
+      expect(eqAddress(latestConfig.owner, newOwner)).to.equal(false);
 
       await sendTxs(
         await evmCoreModule.update({
@@ -280,7 +292,7 @@ describe('EvmCoreModule', async () => {
       );
 
       latestConfig = normalizeConfig(await evmCoreModule.read());
-      expect(latestConfig.owner).to.equal(newOwner);
+      expect(eqAddress(latestConfig.owner, newOwner)).to.equal(true);
 
       // No op if the same owner
       const txs = await evmCoreModule.update({

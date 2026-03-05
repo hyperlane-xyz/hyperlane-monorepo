@@ -3,10 +3,10 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/post_dispatch/v1/genesis.proto
+
 /* eslint-disable */
 import Long from 'long';
 import _m0 from 'protobufjs/minimal.js';
-
 import {
   GasOracle,
   InterchainGasPaymaster,
@@ -159,14 +159,10 @@ export const GenesisState = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisState>, I>>(
-    base?: I,
-  ): GenesisState {
-    return GenesisState.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<GenesisState>): GenesisState {
+    return GenesisState.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(
-    object: I,
-  ): GenesisState {
+  fromPartial(object: DeepPartial<GenesisState>): GenesisState {
     const message = createBaseGenesisState();
     message.igps =
       object.igps?.map((e) => InterchainGasPaymaster.fromPartial(e)) || [];
@@ -291,14 +287,14 @@ export const GenesisDestinationGasConfigWrapper = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisDestinationGasConfigWrapper>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<GenesisDestinationGasConfigWrapper>,
   ): GenesisDestinationGasConfigWrapper {
-    return GenesisDestinationGasConfigWrapper.fromPartial(base ?? ({} as any));
+    return GenesisDestinationGasConfigWrapper.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<GenesisDestinationGasConfigWrapper>, I>,
-  >(object: I): GenesisDestinationGasConfigWrapper {
+  fromPartial(
+    object: DeepPartial<GenesisDestinationGasConfigWrapper>,
+  ): GenesisDestinationGasConfigWrapper {
     const message = createBaseGenesisDestinationGasConfigWrapper();
     message.remote_domain = object.remote_domain ?? 0;
     message.gas_oracle =
@@ -329,13 +325,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function longToString(long: Long) {
   return long.toString();

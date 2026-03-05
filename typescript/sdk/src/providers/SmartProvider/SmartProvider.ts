@@ -1,5 +1,5 @@
-import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { Logger, pino } from 'pino';
+import { Hex, isHex, keccak256 } from 'viem';
 
 import {
   isObjEmpty,
@@ -22,6 +22,7 @@ import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
+  ConnectionInfo,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
@@ -29,14 +30,96 @@ import {
   SmartProviderOptions,
 } from './types.js';
 import { parseCustomRpcHeaders } from '../../utils/provider.js';
+import {
+  type TypedDataDomainLike,
+  type TypedDataValueLike,
+  type TypedDataTypesLike,
+  getTypedDataPrimaryType,
+} from '../../utils/typedData.js';
+import type {
+  EvmProviderLike,
+  EvmSignerLike,
+  EvmTransactionLike,
+  EvmTransactionReceiptLike,
+  EvmTransactionResponseLike,
+} from '../evmTypes.js';
+
+type Networkish = number | string | { chainId: number; name?: string };
+type SmartProviderSigner = EvmSignerLike & {
+  address?: string;
+  provider: HyperlaneSmartProvider;
+  signMessage(message: string | Uint8Array): Promise<string>;
+  signTypedData(typedData: {
+    domain: TypedDataDomainLike;
+    types: TypedDataTypesLike;
+    primaryType: string;
+    message: TypedDataValueLike;
+  }): Promise<string>;
+  _signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<string>;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  const code = asRecord(error)?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+function getErrorReason(error: unknown): string | undefined {
+  const reason = asRecord(error)?.reason;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+function getErrorData(error: unknown): unknown {
+  return asRecord(error)?.data;
+}
+
+function getNestedError(error: unknown): Record<string, unknown> | null {
+  return asRecord(asRecord(error)?.error);
+}
+
+function getErrorMessage(error: unknown): string | undefined {
+  const message = asRecord(error)?.message;
+  return typeof message === 'string' ? message : undefined;
+}
+
+function isRpcBlockchainErrorCode(
+  code: unknown,
+): code is (typeof RPC_BLOCKCHAIN_ERRORS)[number] {
+  return (
+    typeof code === 'string' &&
+    (RPC_BLOCKCHAIN_ERRORS as readonly string[]).includes(code)
+  );
+}
+
+function isRpcServerErrorCode(
+  code: unknown,
+): code is (typeof RPC_SERVER_ERRORS)[number] {
+  return (
+    typeof code === 'string' &&
+    (RPC_SERVER_ERRORS as readonly string[]).includes(code)
+  );
+}
+
+function toErrorCause(error: unknown): Error | undefined {
+  return error instanceof Error ? error : undefined;
+}
 
 function buildRpcConnections(
   rawUrl: string,
-  existingConnection?: utils.ConnectionInfo,
+  existingConnection?: ConnectionInfo,
 ): {
   url: string;
-  connection?: utils.ConnectionInfo;
-  redactedConnection?: utils.ConnectionInfo;
+  connection?: ConnectionInfo;
+  redactedConnection?: ConnectionInfo;
 } {
   const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
   if (isObjEmpty(headers)) {
@@ -76,6 +159,22 @@ export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 }
 
+const EthersError = {
+  CALL_EXCEPTION: 'CALL_EXCEPTION',
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
+  INVALID_ARGUMENT: 'INVALID_ARGUMENT',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  NONCE_EXPIRED: 'NONCE_EXPIRED',
+  NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
+  REPLACEMENT_UNDERPRICED: 'REPLACEMENT_UNDERPRICED',
+  SERVER_ERROR: 'SERVER_ERROR',
+  TIMEOUT: 'TIMEOUT',
+  TRANSACTION_REPLACED: 'TRANSACTION_REPLACED',
+  UNPREDICTABLE_GAS_LIMIT: 'UNPREDICTABLE_GAS_LIMIT',
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
+  UNSUPPORTED_OPERATION: 'UNSUPPORTED_OPERATION',
+} as const;
+
 // This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
 const RPC_SERVER_ERRORS = [
   EthersError.SERVER_ERROR,
@@ -99,6 +198,7 @@ const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 const DEFAULT_PHASE2_WAIT_MULTIPLIER = 20;
+const DEFAULT_PRIORITY_FEE_WEI = 1_500_000_000n;
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
@@ -114,10 +214,7 @@ export class BlockchainError extends Error {
   }
 }
 
-export class HyperlaneSmartProvider
-  extends providers.BaseProvider
-  implements IProviderMethods
-{
+export class HyperlaneSmartProvider implements IProviderMethods {
   protected logger: Logger;
 
   // TODO also support blockscout here
@@ -125,14 +222,19 @@ export class HyperlaneSmartProvider
   public readonly rpcProviders: HyperlaneJsonRpcProvider[];
   public readonly supportedMethods: ProviderMethod[];
   public requestCount = 0;
+  public readonly network: {
+    chainId: number;
+    name: string;
+    ensAddress?: string;
+  };
 
   constructor(
-    network: providers.Networkish,
+    network: Networkish,
     rpcUrls?: RpcUrl[],
     blockExplorers?: BlockExplorer[],
     public readonly options?: SmartProviderOptions,
   ) {
-    super(network);
+    this.network = normalizeNetworkish(network);
     const supportedMethods = new Set<ProviderMethod>();
 
     this.logger = rootLogger.child({
@@ -151,7 +253,7 @@ export class HyperlaneSmartProvider
           ) {
             const newProvider = new HyperlaneEtherscanProvider(
               explorerConfig,
-              network,
+              this.network,
             );
             newProvider.supportedMethods.forEach((m) =>
               supportedMethods.add(m),
@@ -180,7 +282,7 @@ export class HyperlaneSmartProvider
         };
         const newProvider = new HyperlaneJsonRpcProvider(
           configWithRedactedHeaders,
-          network,
+          this.network,
           undefined,
           connection,
         );
@@ -198,40 +300,6 @@ export class HyperlaneSmartProvider
     this.logger.level = level;
   }
 
-  async getPriorityFee(): Promise<BigNumber> {
-    try {
-      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
-    } catch {
-      return BigNumber.from('1500000000');
-    }
-  }
-
-  async getFeeData(): Promise<providers.FeeData> {
-    // override hardcoded getFeedata
-    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
-    const { block, gasPrice } = await utils.resolveProperties({
-      block: this.getBlock('latest'),
-      gasPrice: this.getGasPrice().catch(() => {
-        return null;
-      }),
-    });
-
-    let lastBaseFeePerGas: BigNumber | null = null,
-      maxFeePerGas: BigNumber | null = null,
-      maxPriorityFeePerGas: BigNumber | null = null;
-
-    if (block?.baseFeePerGas) {
-      // We may want to compute this more accurately in the future,
-      // using the formula "check if the base fee is correct".
-      // See: https://eips.ethereum.org/EIPS/eip-1559
-      lastBaseFeePerGas = block.baseFeePerGas;
-      maxPriorityFeePerGas = await this.getPriorityFee();
-      maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
-    }
-
-    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
-  }
-
   static fromChainMetadata(
     chainMetadata: ChainMetadataWithRpcConnectionInfo,
     options?: SmartProviderOptions,
@@ -246,7 +314,7 @@ export class HyperlaneSmartProvider
   }
 
   static fromRpcUrl(
-    network: providers.Networkish,
+    network: Networkish,
     rpcUrl: string,
     options?: SmartProviderOptions,
   ): HyperlaneSmartProvider {
@@ -258,14 +326,398 @@ export class HyperlaneSmartProvider
     );
   }
 
-  async detectNetwork(): Promise<providers.Network> {
+  async detectNetwork(): Promise<{ chainId: number; name: string }> {
     // For simplicity, efficiency, and better compat with new networks, this assumes
     // the provided RPC urls are correct and returns static data here instead of
     // querying each sub-provider for network info
     return this.network;
   }
 
-  async perform(method: string, params: { [name: string]: any }): Promise<any> {
+  async getNetwork(): Promise<{ chainId: number; name: string }> {
+    return this.detectNetwork();
+  }
+
+  async send<T = unknown>(method: string, params: unknown[]): Promise<T> {
+    if (!this.rpcProviders.length)
+      throw new Error('No RPC providers available');
+
+    const errors: unknown[] = [];
+    for (const [providerIndex, provider] of this.rpcProviders.entries()) {
+      try {
+        return (await provider.send(method, params)) as T;
+      } catch (error) {
+        errors.push(error);
+        this.logger.debug(
+          {
+            chainId: this.network.chainId,
+            error,
+            method,
+            providerIndex,
+            rpcUrl: provider.getBaseUrl(),
+          },
+          'Error from provider while sending raw JSON-RPC method',
+        );
+      }
+    }
+
+    const CombinedError = this.getCombinedProviderError(
+      errors,
+      `All RPC providers failed on chain ${
+        this.network.name
+      } for method ${method} and params ${jsonStringifyForLogs(params, 2)}`,
+    );
+    throw new CombinedError();
+  }
+
+  async getBlockNumber(): Promise<number> {
+    const result = await this.perform(ProviderMethod.GetBlockNumber, {});
+    return rpcHexToNumber(result);
+  }
+
+  async getBlock(
+    blockTag: string | number = 'latest',
+  ): Promise<Record<string, unknown> & { number: number }> {
+    const result = (await this.perform(ProviderMethod.GetBlock, {
+      blockTag,
+      includeTransactions: false,
+    })) as Record<string, unknown> | null;
+    if (!result) throw new Error(`Block ${String(blockTag)} not found`);
+    const number = rpcHexToNumber(result.number);
+    return {
+      ...result,
+      number,
+    };
+  }
+
+  async getBalance(
+    address: string,
+    blockTag: string | number = 'latest',
+  ): Promise<bigint> {
+    const result = await this.perform(ProviderMethod.GetBalance, {
+      address,
+      blockTag,
+    });
+    return rpcHexToBigInt(result);
+  }
+
+  async getGasPrice(): Promise<bigint> {
+    const result = await this.perform(ProviderMethod.GetGasPrice, {});
+    return rpcHexToBigInt(result);
+  }
+
+  async getPriorityFee(): Promise<bigint> {
+    try {
+      const result = await this.perform(
+        ProviderMethod.MaxPriorityFeePerGas,
+        {},
+      );
+      return rpcHexToBigInt(result);
+    } catch {
+      return DEFAULT_PRIORITY_FEE_WEI;
+    }
+  }
+
+  async getFeeData(): Promise<{
+    gasPrice?: bigint;
+    lastBaseFeePerGas?: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
+  }> {
+    const [block, gasPrice] = await Promise.all([
+      this.getBlock('latest').catch(() => null),
+      this.getGasPrice().catch(() => undefined),
+    ]);
+
+    const baseFeePerGas = rpcHexToBigIntOrUndefined(
+      asRecord(block)?.baseFeePerGas,
+    );
+    if (baseFeePerGas === undefined) {
+      return { gasPrice };
+    }
+
+    const maxPriorityFeePerGas = await this.getPriorityFee();
+    return {
+      gasPrice,
+      lastBaseFeePerGas: baseFeePerGas,
+      maxFeePerGas: baseFeePerGas * 2n + maxPriorityFeePerGas,
+      maxPriorityFeePerGas,
+    };
+  }
+
+  async getCode(
+    address: string,
+    blockTag: string | number = 'latest',
+  ): Promise<string> {
+    return (await this.perform(ProviderMethod.GetCode, {
+      address,
+      blockTag,
+    })) as string;
+  }
+
+  async getStorageAt(
+    address: string,
+    position: string,
+    blockTag: string | number = 'latest',
+  ): Promise<string> {
+    return (await this.perform(ProviderMethod.GetStorageAt, {
+      address,
+      position,
+      blockTag,
+    })) as string;
+  }
+
+  async getTransactionCount(
+    address: string,
+    blockTag: string | number = 'latest',
+  ): Promise<number> {
+    const result = await this.perform(ProviderMethod.GetTransactionCount, {
+      address,
+      blockTag,
+    });
+    return rpcHexToNumber(result);
+  }
+
+  async getLogs(
+    filter: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
+    return (await this.perform(ProviderMethod.GetLogs, {
+      filter,
+    })) as Record<string, unknown>[];
+  }
+
+  async getTransaction(
+    transactionHash: string,
+  ): Promise<Record<string, unknown> | null> {
+    return (await this.perform(ProviderMethod.GetTransaction, {
+      transactionHash,
+    })) as Record<string, unknown> | null;
+  }
+
+  async getTransactionReceipt(
+    transactionHash: string,
+  ): Promise<EvmTransactionReceiptLike | null> {
+    const result = (await this.perform(ProviderMethod.GetTransactionReceipt, {
+      transactionHash,
+    })) as EvmTransactionReceiptLike | null;
+    if (!result) return null;
+    const status = normalizeReceiptStatus(result.status);
+    const transactionIndex = rpcHexToNumberOrUndefined(result.transactionIndex);
+    const logs = Array.isArray(result.logs)
+      ? result.logs.map(normalizeReceiptLog)
+      : result.logs;
+    return {
+      ...result,
+      blockNumber: rpcHexToNumber(result.blockNumber),
+      ...(status !== undefined ? { status } : {}),
+      ...(transactionIndex !== undefined ? { transactionIndex } : {}),
+      ...(logs !== undefined ? { logs } : {}),
+    };
+  }
+
+  async estimateGas(transaction: Record<string, unknown>): Promise<bigint> {
+    const result = await this.perform(ProviderMethod.EstimateGas, {
+      transaction,
+    });
+    return rpcHexToBigInt(result);
+  }
+
+  async call(
+    transaction: Record<string, unknown>,
+    blockTag: string | number = 'latest',
+  ): Promise<string> {
+    return (await this.perform(ProviderMethod.Call, {
+      transaction,
+      blockTag,
+    })) as string;
+  }
+
+  async sendTransaction(
+    signedTransaction: string,
+  ): Promise<EvmTransactionResponseLike> {
+    let hash: string;
+    try {
+      hash = (await this.perform(ProviderMethod.SendTransaction, {
+        signedTransaction,
+      })) as string;
+    } catch (error) {
+      const recoveredHash = await this.recoverSentTransactionHash(
+        error,
+        signedTransaction,
+      );
+      if (!recoveredHash) throw error;
+      hash = recoveredHash;
+    }
+    return {
+      hash,
+      wait: (confirmations = 1) =>
+        this.waitForTransactionReceipt(hash, confirmations),
+    };
+  }
+
+  protected async recoverSentTransactionHash(
+    error: unknown,
+    signedTransaction: string,
+  ): Promise<string | null> {
+    if (!isLikelyDuplicateBroadcastError(error)) {
+      return null;
+    }
+
+    const recoveredHash =
+      getTransactionHashFromSignedTransaction(signedTransaction);
+    if (!recoveredHash) {
+      return null;
+    }
+
+    const [receipt, tx] = await Promise.all([
+      this.getTransactionReceipt(recoveredHash).catch(() => null),
+      this.perform(ProviderMethod.GetTransaction, {
+        transactionHash: recoveredHash,
+      }).catch(() => null),
+    ]);
+
+    if (!receipt && !tx) {
+      return null;
+    }
+
+    this.logger.debug(
+      {
+        chainId: this.network.chainId,
+        error,
+        transactionHash: recoveredHash,
+      },
+      'Recovered transaction hash after duplicate broadcast error',
+    );
+    return recoveredHash;
+  }
+
+  async waitForTransactionReceipt(
+    hash: string,
+    confirmations = 1,
+    timeoutMs = 120_000,
+  ): Promise<EvmTransactionReceiptLike> {
+    const started = Date.now();
+    let receipt = await this.getTransactionReceipt(hash);
+    while (!receipt) {
+      if (Date.now() - started > timeoutMs) {
+        throw new Error(`Timeout waiting for transaction ${hash}`);
+      }
+      await sleep(500);
+      receipt = await this.getTransactionReceipt(hash);
+    }
+    if (confirmations <= 1) return receipt;
+
+    const txBlockNumber = rpcHexToNumber(receipt.blockNumber);
+    while (Date.now() - started <= timeoutMs) {
+      const latestBlock = await this.getBlock('latest');
+      if (latestBlock.number >= txBlockNumber + confirmations - 1) {
+        return (await this.getTransactionReceipt(hash)) || receipt;
+      }
+      await sleep(500);
+    }
+    throw new Error(
+      `Timeout waiting for ${confirmations} confirmations for transaction ${hash}`,
+    );
+  }
+
+  private async resolveSignerAddress(
+    addressOrIndex: string | number = 0,
+  ): Promise<string> {
+    if (typeof addressOrIndex === 'string') return addressOrIndex;
+    if (!Number.isInteger(addressOrIndex) || addressOrIndex < 0) {
+      throw new Error(`Invalid signer index: ${addressOrIndex}`);
+    }
+
+    const accounts = await this.send<unknown>('eth_accounts', []);
+    if (!Array.isArray(accounts)) {
+      throw new Error('Invalid eth_accounts response');
+    }
+
+    const account = accounts[addressOrIndex];
+    if (typeof account !== 'string') {
+      throw new Error(`No account found at index ${addressOrIndex}`);
+    }
+    return account;
+  }
+
+  getSigner(addressOrIndex: string | number = 0): SmartProviderSigner {
+    const configuredAddress =
+      typeof addressOrIndex === 'string' ? addressOrIndex : undefined;
+    let resolvedAddress = configuredAddress;
+    const getSignerAddress = async () => {
+      if (resolvedAddress) return resolvedAddress;
+      resolvedAddress = await this.resolveSignerAddress(addressOrIndex);
+      return resolvedAddress;
+    };
+
+    const signer: SmartProviderSigner = {
+      provider: this,
+      connect: (newProvider: EvmProviderLike) => {
+        return newProvider.getSigner(addressOrIndex);
+      },
+      getAddress: async () => {
+        return getSignerAddress();
+      },
+      getBalance: async () => {
+        return this.getBalance(await getSignerAddress());
+      },
+      estimateGas: async (tx: EvmTransactionLike) => {
+        return this.estimateGas({ ...tx, from: await getSignerAddress() });
+      },
+      sendTransaction: async (tx: EvmTransactionLike) => {
+        const from = await getSignerAddress();
+        const hash = await this.send<string>('eth_sendTransaction', [
+          normalizeRpcTx({ ...tx, from }),
+        ]);
+        return {
+          hash,
+          wait: (confirmations = 1) =>
+            this.waitForTransactionReceipt(hash, confirmations),
+        };
+      },
+      signMessage: async (message: string | Uint8Array) => {
+        const from = await getSignerAddress();
+        const data =
+          typeof message === 'string'
+            ? message.startsWith('0x')
+              ? message
+              : `0x${Buffer.from(message, 'utf8').toString('hex')}`
+            : `0x${Buffer.from(message).toString('hex')}`;
+        return this.send<string>('personal_sign', [data, from]);
+      },
+      signTypedData: async (typedData: {
+        domain: TypedDataDomainLike;
+        types: TypedDataTypesLike;
+        primaryType: string;
+        message: TypedDataValueLike;
+      }) => {
+        const payload = jsonStringifyWithBigInt(typedData);
+        return this.send<string>('eth_signTypedData_v4', [
+          await getSignerAddress(),
+          payload,
+        ]);
+      },
+      _signTypedData: async (
+        domain: TypedDataDomainLike,
+        types: TypedDataTypesLike,
+        value: TypedDataValueLike,
+      ) => {
+        const primaryType = getTypedDataPrimaryType(types);
+        return signer.signTypedData({
+          domain,
+          types,
+          primaryType,
+          message: value,
+        });
+      },
+    };
+    if (configuredAddress) signer.address = configuredAddress;
+    return signer;
+  }
+
+  async perform(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
@@ -315,7 +767,7 @@ export class HyperlaneSmartProvider
   }
 
   isExplorerProvider(p: HyperlaneProvider): p is HyperlaneEtherscanProvider {
-    return this.explorerProviders.includes(p as any);
+    return this.explorerProviders.some((provider) => provider === p);
   }
 
   /**
@@ -326,10 +778,10 @@ export class HyperlaneSmartProvider
    */
   protected async performWithFallback(
     method: string,
-    params: { [name: string]: any },
+    params: Record<string, unknown>,
     providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
     reqId: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     let pIndex = 0;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
     const providerResultErrors: unknown[] = [];
@@ -365,7 +817,7 @@ export class HyperlaneSmartProvider
       const providerMetadata = {
         providerIndex: pIndex,
         rpcUrl: provider.getBaseUrl(),
-        method: `${method}(${JSON.stringify(params)})`,
+        method: `${method}(${jsonStringifyForLogs(params)})`,
         chainId: this.network.chainId,
       };
 
@@ -389,14 +841,15 @@ export class HyperlaneSmartProvider
           // 2. Real revert without data - permanent (has nested error.error.code === 3 from JSON-RPC)
           // 3. Empty return data decode failure - permanent (no nested error, ethers failed to decode "0x")
           // 4. Actual RPC issue - transient (has nested error but not code 3)
-          const errorCode = (result.error as any)?.code;
-          const revertData = (result.error as any)?.data;
-          const hasRevertData = !!revertData && revertData !== '0x';
-          const nestedError = (result.error as any)?.error;
+          const errorCode = getErrorCode(result.error);
+          const revertData = getErrorData(result.error);
+          const hasRevertData =
+            typeof revertData === 'string' && revertData !== '0x';
+          const nestedError = getNestedError(result.error);
           // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
           // Check both nested levels as ethers wraps errors in error.error.code structure
           const jsonRpcErrorCode =
-            nestedError?.error?.code ?? nestedError?.code;
+            asRecord(nestedError?.error)?.code ?? nestedError?.code;
           const isJsonRpcRevert = jsonRpcErrorCode === 3;
           // No nested error means ethers failed to decode empty return data - this is permanent
           const isEmptyReturnDecodeFailure =
@@ -409,8 +862,7 @@ export class HyperlaneSmartProvider
             !isJsonRpcRevert &&
             !isEmptyReturnDecodeFailure;
           const isPermanentBlockchainError =
-            RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
-            !isCallExceptionWithoutData;
+            isRpcBlockchainErrorCode(errorCode) && !isCallExceptionWithoutData;
 
           if (isPermanentBlockchainError) {
             this.logger.debug(
@@ -452,7 +904,7 @@ export class HyperlaneSmartProvider
         providerResultErrors,
         `All providers failed on chain ${
           this.network.name
-        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        } for method ${method} and params ${jsonStringifyForLogs(params, 2)}`,
       );
       throw new CombinedError();
     }
@@ -480,7 +932,7 @@ export class HyperlaneSmartProvider
           [result.error, ...providerResultErrors],
           `All providers failed on chain ${
             this.network.name
-          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          } for method ${method} and params ${jsonStringifyForLogs(params, 2)}`,
         );
         throw new CombinedError();
       }
@@ -494,7 +946,7 @@ export class HyperlaneSmartProvider
     provider: HyperlaneProvider,
     pIndex: number,
     method: string,
-    params: any,
+    params: Record<string, unknown>,
     reqId: number,
   ): Promise<ProviderPerformResult> {
     try {
@@ -549,7 +1001,7 @@ export class HyperlaneSmartProvider
   }
 
   protected getCombinedProviderError(
-    errors: any[],
+    errors: unknown[],
     fallbackMsg: string,
   ): new () => Error {
     this.logger.debug(fallbackMsg);
@@ -566,43 +1018,57 @@ export class HyperlaneSmartProvider
     // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
     // Also, no nested error means ethers failed to decode empty return data - also permanent
     const rpcBlockchainError = errors.find((e) => {
-      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
-      if (e.code !== EthersError.CALL_EXCEPTION) return true;
+      const errorCode = getErrorCode(e);
+      if (!isRpcBlockchainErrorCode(errorCode)) return false;
+      if (errorCode !== EthersError.CALL_EXCEPTION) return true;
       // For CALL_EXCEPTION, check if it's a real revert or decode failure
-      const hasRevertData = !!e.data && e.data !== '0x';
+      const revertData = getErrorData(e);
+      const hasRevertData =
+        typeof revertData === 'string' && revertData !== '0x';
       // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
       // Also check shallower level as error nesting varies
-      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
+      const nestedError = getNestedError(e);
+      const jsonRpcErrorCode =
+        asRecord(nestedError?.error)?.code ?? nestedError?.code;
       const isJsonRpcRevert = jsonRpcErrorCode === 3;
       // No nested error means ethers failed to decode empty return data - permanent
-      const isEmptyReturnDecodeFailure = !e.error;
+      const isEmptyReturnDecodeFailure = !nestedError;
       return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
     });
 
     const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
+      isRpcServerErrorCode(getErrorCode(e)),
     );
 
     const timedOutError = errors.find(
-      (e) => e.status === ProviderStatus.Timeout,
+      (e) => asRecord(e)?.status === ProviderStatus.Timeout,
     );
 
     if (rpcBlockchainError) {
       // All blockchain errors are non-retryable and take priority
       return class extends BlockchainError {
         constructor() {
-          super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
-            cause: rpcBlockchainError,
-          });
+          super(
+            getErrorReason(rpcBlockchainError) ??
+              getErrorCode(rpcBlockchainError) ??
+              fallbackMsg,
+            {
+              cause: toErrorCause(rpcBlockchainError),
+            },
+          );
         }
       };
     } else if (rpcServerError) {
       return class extends Error {
         constructor() {
+          const serverMessage = getErrorMessage(getNestedError(rpcServerError));
+          const serverCode = getErrorCode(rpcServerError);
           super(
-            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-              getSmartProviderErrorMessage(rpcServerError.code),
-            { cause: rpcServerError },
+            serverMessage ?? // Server errors sometimes will not have an error.message
+              getSmartProviderErrorMessage(
+                serverCode ?? EthersError.UNKNOWN_ERROR,
+              ),
+            { cause: toErrorCause(rpcServerError) },
           );
         }
       };
@@ -618,9 +1084,9 @@ export class HyperlaneSmartProvider
       this.logger.warn(
         {
           errors: errors.map((e) => ({
-            code: e?.code,
-            message: e?.message,
-            name: e?.name,
+            code: asRecord(e)?.code,
+            message: asRecord(e)?.message,
+            name: asRecord(e)?.name,
           })),
         },
         'Unhandled error case in combined provider error handler',
@@ -636,13 +1102,177 @@ export class HyperlaneSmartProvider
 
 function chainMetadataToProviderNetwork(
   chainMetadata: ChainMetadata | ChainMetadataWithRpcConnectionInfo,
-): providers.Network {
+): { chainId: number; name: string; ensAddress?: string } {
   return {
     name: chainMetadata.name,
     chainId: chainMetadata.chainId as number,
     // @ts-ignore add ensAddress to ChainMetadata
     ensAddress: chainMetadata.ensAddress,
   };
+}
+
+function normalizeNetworkish(network: Networkish): {
+  chainId: number;
+  name: string;
+  ensAddress?: string;
+} {
+  if (typeof network === 'number') {
+    return { chainId: network, name: String(network) };
+  }
+  if (typeof network === 'string') {
+    const chainId = Number(network);
+    return {
+      chainId: Number.isFinite(chainId) ? chainId : 0,
+      name: network,
+    };
+  }
+  return {
+    chainId: network.chainId,
+    name: network.name || String(network.chainId),
+  };
+}
+
+function rpcHexToBigInt(value: unknown): bigint {
+  return rpcHexToBigIntOrUndefined(value) ?? 0n;
+}
+
+function rpcHexToBigIntOrUndefined(value: unknown): bigint | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return BigInt(value);
+    return BigInt(value || '0');
+  }
+  return undefined;
+}
+
+function rpcHexToNumber(value: unknown): number {
+  return rpcHexToNumberOrUndefined(value) ?? 0;
+}
+
+function rpcHexToNumberOrUndefined(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return Number(BigInt(value));
+    const parsed = Number(value || 0);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function normalizeReceiptStatus(status: unknown): number | undefined {
+  if (status === 'success') return 1;
+  if (status === 'reverted') return 0;
+  return rpcHexToNumberOrUndefined(status);
+}
+
+function normalizeReceiptLog(log: unknown): unknown {
+  const parsed = asRecord(log);
+  if (!parsed) return log;
+
+  const blockNumber = rpcHexToNumberOrUndefined(parsed.blockNumber);
+  const logIndex = rpcHexToNumberOrUndefined(parsed.logIndex);
+  const transactionIndex = rpcHexToNumberOrUndefined(parsed.transactionIndex);
+
+  return {
+    ...parsed,
+    ...(blockNumber !== undefined ? { blockNumber } : {}),
+    ...(logIndex !== undefined ? { logIndex } : {}),
+    ...(transactionIndex !== undefined ? { transactionIndex } : {}),
+  };
+}
+
+function normalizeRpcTx(tx: Record<string, unknown>): Record<string, unknown> {
+  const request = { ...tx };
+  const normalized: Record<string, unknown> = {
+    ...request,
+    gas: toRpcQuantity(request.gas ?? request.gasLimit),
+    gasPrice: toRpcQuantity(request.gasPrice),
+    maxFeePerGas: toRpcQuantity(request.maxFeePerGas),
+    maxPriorityFeePerGas: toRpcQuantity(request.maxPriorityFeePerGas),
+    nonce: toRpcQuantity(request.nonce),
+    value: toRpcQuantity(request.value),
+  };
+  if (!normalized.gas) delete normalized.gas;
+  if (!normalized.gasPrice) delete normalized.gasPrice;
+  if (!normalized.maxFeePerGas) delete normalized.maxFeePerGas;
+  if (!normalized.maxPriorityFeePerGas) delete normalized.maxPriorityFeePerGas;
+  if (!normalized.nonce) delete normalized.nonce;
+  if (!normalized.value) delete normalized.value;
+  return normalized;
+}
+
+function toRpcQuantity(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return value;
+    return `0x${BigInt(value).toString(16)}`;
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return `0x${BigInt(value).toString(16)}`;
+  }
+  if (typeof value === 'object' && value && 'toString' in value) {
+    return `0x${BigInt(value.toString()).toString(16)}`;
+  }
+  return undefined;
+}
+
+function jsonStringifyForLogs(value: unknown, space?: number): string {
+  try {
+    return JSON.stringify(value, jsonStringifyBigIntReplacer, space);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function jsonStringifyWithBigInt(value: unknown): string {
+  return JSON.stringify(value, jsonStringifyBigIntReplacer);
+}
+
+function jsonStringifyBigIntReplacer(_key: string, item: unknown) {
+  if (typeof item === 'bigint') return item.toString();
+  return item;
+}
+
+function isLikelyDuplicateBroadcastError(error: unknown): boolean {
+  const messages = extractErrorMessages(error).map((m) => m.toLowerCase());
+  return messages.some((message) =>
+    [
+      'nonce too low',
+      'already known',
+      'known transaction',
+      'already imported',
+    ].some((needle) => message.includes(needle)),
+  );
+}
+
+function extractErrorMessages(error: unknown): string[] {
+  if (!error || typeof error !== 'object') return [];
+
+  const e = error as {
+    message?: unknown;
+    reason?: unknown;
+    error?: { message?: unknown; error?: { message?: unknown } };
+  };
+
+  const messages = [
+    e.message,
+    e.reason,
+    e.error?.message,
+    e.error?.error?.message,
+  ].filter((message): message is string => typeof message === 'string');
+
+  return Array.from(new Set(messages));
+}
+
+function getTransactionHashFromSignedTransaction(
+  signedTransaction: string,
+): string | null {
+  if (!isHex(signedTransaction)) return null;
+  return keccak256(signedTransaction as Hex);
 }
 
 function timeoutResult(staggerDelay: number, multiplier = 1) {

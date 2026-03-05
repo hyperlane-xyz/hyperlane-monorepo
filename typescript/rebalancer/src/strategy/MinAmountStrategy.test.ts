@@ -1,6 +1,6 @@
-import { AddressZero } from '@ethersproject/constants';
 import { expect } from 'chai';
 import { pino } from 'pino';
+import { zeroAddress } from 'viem';
 
 import {
   type ChainMap,
@@ -16,6 +16,7 @@ import { extractBridgeConfigs } from '../test/helpers.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 
 const testLogger = pino({ level: 'silent' });
+const AddressZero = zeroAddress;
 
 describe('MinAmountStrategy', () => {
   let chain1: ChainName;

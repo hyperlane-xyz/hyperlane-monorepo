@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 import { pino } from 'pino';
 
@@ -6,6 +5,12 @@ import {
   ERC20Test__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
+import {
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import type {
   DeployedDomain,
@@ -15,7 +20,8 @@ import type {
 
 // Track the current SimpleRunner instance for cleanup
 let currentSimpleRunner: SimpleRunner | null = null;
-let currentSimpleProvider: ethers.providers.JsonRpcProvider | null = null;
+let currentSimpleProvider: ReturnType<MultiProvider['getProvider']> | null =
+  null;
 
 /**
  * Global cleanup function - call between test runs to ensure clean state
@@ -32,7 +38,6 @@ export async function cleanupSimpleRunner(): Promise<void> {
   }
 
   if (currentSimpleProvider) {
-    currentSimpleProvider.removeAllListeners();
     currentSimpleProvider = null;
   }
 
@@ -52,29 +57,25 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
   private running = false;
   private activeOperations = 0;
   private pollingTimer?: NodeJS.Timeout;
-  private provider?: ethers.providers.JsonRpcProvider;
-  private deployer?: ethers.Wallet;
+  private provider?: ReturnType<MultiProvider['getProvider']>;
+  private deployer?: LocalAccountViemSigner;
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
     await cleanupSimpleRunner();
 
     this.config = config;
-    this.provider = new ethers.providers.JsonRpcProvider(
+    this.provider = HyperlaneSmartProvider.fromRpcUrl(
+      31337,
       config.deployment.anvilRpc,
     );
-    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-    this.provider.pollingInterval = 100;
-    // Disable automatic polling to reduce RPC contention in simulation
-    this.provider.polling = false;
     // Track for cleanup
     currentSimpleProvider = this.provider;
 
     // Use separate rebalancer key to avoid nonce conflicts with transfer execution
-    this.deployer = new ethers.Wallet(
-      config.deployment.rebalancerKey,
-      this.provider,
-    );
+    this.deployer = new LocalAccountViemSigner(
+      ensure0x(config.deployment.rebalancerKey) as `0x${string}`,
+    ).connect(this.provider);
   }
 
   async start(): Promise<void> {
@@ -120,7 +121,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
           this.provider,
         );
         const balance = await token.balanceOf(domain.warpToken);
-        balances[chainName] = balance.toBigInt();
+        balances[chainName] = balance;
       }
 
       // Calculate total and target balances per strategy
@@ -248,7 +249,11 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
       const target = BigInt(chainConfig.minAmount.target);
 
       if (balance < min) {
-        belowMin.push({ chain: chainName, deficit: target - balance, target });
+        belowMin.push({
+          chain: chainName,
+          deficit: target - balance,
+          target,
+        });
       } else if (balance > target * BigInt(2)) {
         aboveTarget.push({ chain: chainName, excess: balance - target });
       }
@@ -317,7 +322,12 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
       });
 
       this.logger.info(
-        { fromChain, toChain, amount: amount.toString(), txHash: tx.hash },
+        {
+          fromChain,
+          toChain,
+          amount: amount.toString(),
+          txHash: tx.hash,
+        },
         'Rebalance completed',
       );
     } catch (error) {
@@ -351,7 +361,6 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
 
     // Clean up provider
     if (this.provider) {
-      this.provider.removeAllListeners();
       if (currentSimpleProvider === this.provider) {
         currentSimpleProvider = null;
       }

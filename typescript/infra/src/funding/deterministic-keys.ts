@@ -1,9 +1,11 @@
-import { Wallet, utils } from 'ethers';
+import { hexToBytes } from 'viem';
+import { HDKey, hdKeyToAccount } from 'viem/accounts';
 
 import { Contexts } from '../../config/contexts.js';
 import { AgentGCPKey } from '../agents/gcp.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 // Keys that are derived from the deployer key, mainly to have deterministic addresses on every chain
 // The order here matters so don't mix it up
@@ -29,9 +31,10 @@ export const getDeterministicKey = async (
     Role.Deployer,
   );
   await deployerKey.fetch();
-  const seed = utils.HDNode.fromSeed(deployerKey.privateKey);
-  const derivedKey = seed.derivePath(
-    `m/44'/60'/0'/${deterministicKeyRole}/${DeterministicKeyRoleNonces[deterministicKeyRole]}`,
+  const hdKey = HDKey.fromMasterSeed(
+    hexToBytes(ensure0x(deployerKey.privateKey) as `0x${string}`),
   );
-  return new Wallet(derivedKey.privateKey);
+  return hdKeyToAccount(hdKey, {
+    path: `m/44'/60'/0'/${deterministicKeyRole}/${DeterministicKeyRoleNonces[deterministicKeyRole]}`,
+  });
 };

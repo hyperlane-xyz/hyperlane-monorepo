@@ -1,12 +1,13 @@
 import { expect } from 'chai';
-import { type Signer, Wallet, ethers } from 'ethers';
 
 import {
   type ChainMetadata,
   type CoreConfig,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   type ProtocolFeeHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -31,17 +32,17 @@ describe('hyperlane core read e2e tests', async function () {
     CORE_READ_CONFIG_PATH_2,
   );
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let initialOwnerAddress: Address;
 
   before(async () => {
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
       chainMetadata.rpcUrls[0].http,
     );
-
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_KEY));
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();

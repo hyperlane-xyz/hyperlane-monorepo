@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import http from 'http';
 import path from 'path';
 import { $ } from 'zx';
@@ -22,14 +21,13 @@ import {
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   ChainTechnicalStack,
-  type MultiProvider,
+  LocalAccountViemSigner,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
-
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
+import { type Address, assert, ensure0x, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -187,9 +185,13 @@ function setSignerForChain(
 ): void {
   const { technicalStack, rpcUrls } = multiProvider.getChainMetadata(chain);
   if (technicalStack === ChainTechnicalStack.Tron) {
-    multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrls[0].http));
+    const rpcUrl = rpcUrls[0].http;
+    const tronBaseUrl = rpcUrl.endsWith('/jsonrpc')
+      ? rpcUrl.slice(0, -'/jsonrpc'.length)
+      : rpcUrl;
+    multiProvider.setSigner(chain, new TronWallet(privateKey, tronBaseUrl));
   } else {
-    multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+    multiProvider.setSigner(chain, new LocalAccountViemSigner(privateKey));
   }
 }
 
@@ -206,14 +208,14 @@ export async function deployToken(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
-  return multiProvider.handleDeploy(chain, new ERC20Test__factory(), [
-    name,
-    symbol.toLocaleUpperCase(),
-    '100000000000000000000',
-    decimals,
-  ]);
+  const token = await new ERC20Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
+  await token.deployed();
+
+  return token;
 }
 
 export async function deployFiatToken(
@@ -228,14 +230,14 @@ export async function deployFiatToken(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
-  return multiProvider.handleDeploy(chain, new FiatTokenTest__factory(), [
-    name,
-    symbol.toLocaleUpperCase(),
-    '100000000000000000000',
-    decimals,
-  ]);
+  const token = await new FiatTokenTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
+  await token.deployed();
+
+  return token;
 }
 
 export async function deploy4626Vault(
@@ -248,13 +250,14 @@ export async function deploy4626Vault(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
-  return multiProvider.handleDeploy(chain, new ERC4626Test__factory(), [
-    tokenAddress,
-    'VAULT',
-    'VAULT',
-  ]);
+  const vault = await new ERC4626Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(tokenAddress, 'VAULT', 'VAULT');
+  await vault.deployed();
+
+  return vault;
 }
 
 export async function deployXERC20VSToken(
@@ -268,14 +271,19 @@ export async function deployXERC20VSToken(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
-  return multiProvider.handleDeploy(chain, new XERC20VSTest__factory(), [
+  const token = await new XERC20VSTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(
     'token',
     symbol.toLocaleUpperCase(),
     '100000000000000000000',
     decimals,
-  ]);
+  );
+  await token.deployed();
+
+  return token;
 }
 
 export async function deployXERC20LockboxToken(
@@ -288,7 +296,7 @@ export async function deployXERC20LockboxToken(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
     await Promise.all([
@@ -298,12 +306,17 @@ export async function deployXERC20LockboxToken(
       token.totalSupply(),
     ]);
 
-  return multiProvider.handleDeploy(chain, new XERC20LockboxTest__factory(), [
+  const lockboxToken = await new XERC20LockboxTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(
     tokenName,
     tokenSymbol.toLocaleUpperCase(),
     tokenTotalSupply,
     tokenDecimals,
-  ]);
+  );
+  await lockboxToken.deployed();
+
+  return lockboxToken;
 }
 
 export async function deployTestOffchainLookupISM(
@@ -317,13 +330,12 @@ export async function deployTestOffchainLookupISM(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
-  const testIsm = await multiProvider.handleDeploy(
-    chain,
-    new TestCcipReadIsm__factory(),
-    [urls],
-  );
+  const testIsm = await new TestCcipReadIsm__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(urls);
+  await testIsm.deployed();
 
   return AbstractCcipReadIsm__factory.connect(
     testIsm.address,
@@ -341,13 +353,14 @@ export async function deployEverclearBridgeAdapter(
     key: privateKey,
   });
 
-  setSignerForChain(multiProvider, chain, privateKey);
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
-  return multiProvider.handleDeploy(
-    chain,
-    new MockEverclearAdapter__factory(),
-    [],
-  );
+  const adapter = await new MockEverclearAdapter__factory(
+    multiProvider.getSigner(chain),
+  ).deploy();
+  await adapter.deployed();
+
+  return adapter;
 }
 
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command

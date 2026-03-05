@@ -46,12 +46,26 @@ export class StarknetCoreAdapter
     let parsedEvents: ParsedEvents = [];
     sourceTx.receipt.match({
       success: (txR) => {
+        const txRecord = txR as Record<string, unknown>;
+        const blockHash =
+          typeof txRecord.block_hash === 'string'
+            ? txRecord.block_hash
+            : undefined;
+        const blockNumber =
+          typeof txRecord.block_number === 'number'
+            ? txRecord.block_number
+            : undefined;
+        const transactionHash =
+          typeof txRecord.transaction_hash === 'string'
+            ? txRecord.transaction_hash
+            : undefined;
+        if (!blockHash || blockNumber === undefined || !transactionHash) return;
         const emittedEvents =
           (txR as InvokeTransactionReceiptResponse).events?.map((event) => {
             return {
-              block_hash: (txR as any).block_hash,
-              block_number: (txR as any).block_number,
-              transaction_hash: (txR as any).transaction_hash,
+              block_hash: blockHash,
+              block_number: blockNumber,
+              transaction_hash: transactionHash,
               ...event,
             };
           }) || [];

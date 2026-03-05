@@ -16,6 +16,8 @@ import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { RouterConfig } from '../../router/types.js';
 import { ChainMap } from '../../types.js';
 
@@ -32,7 +34,7 @@ describe.skip('InterchainQueryRouter', async () => {
   const remoteDomain = test2.domainId!;
 
   let contracts: HyperlaneContractsMap<InterchainQueryFactories>;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let local: InterchainQueryRouter;
   let remote: InterchainQueryRouter;
   let multiProvider: MultiProvider;
@@ -41,7 +43,7 @@ describe.skip('InterchainQueryRouter', async () => {
   let testQuery: TestQuery;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

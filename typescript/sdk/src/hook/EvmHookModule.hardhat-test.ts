@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { Signer } from 'ethers';
 import hre from 'hardhat';
+import { parseEther } from 'viem';
 
 import {
   Address,
@@ -19,6 +19,11 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import {
+  getHardhatSigners,
+  getImpersonatedHardhatSigner,
+} from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import {
   DEFAULT_TOKEN_DECIMALS,
   hookTypesToFilter,
@@ -50,14 +55,14 @@ describe('EvmHookModule', async () => {
 
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
-  let signer: Signer;
-  let funder: Signer;
+  let signer: HardhatSignerWithAddress;
+  let funder: HardhatSignerWithAddress;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
 
   before(async () => {
-    [signer, funder] = await hre.ethers.getSigners();
+    [signer, funder] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -117,13 +122,13 @@ describe('EvmHookModule', async () => {
 
   // Helper method for create a new multiprovider with an impersonated account
   async function impersonateAccount(account: Address): Promise<MultiProvider> {
-    await hre.ethers.provider.send('hardhat_impersonateAccount', [account]);
+    await hre.network.provider.send('hardhat_impersonateAccount', [account]);
     await funder.sendTransaction({
       to: account,
-      value: hre.ethers.utils.parseEther('1.0'),
+      value: parseEther('1.0'),
     });
     return MultiProvider.createTestMultiProvider({
-      signer: hre.ethers.provider.getSigner(account),
+      signer: await getImpersonatedHardhatSigner(account),
     });
   }
 

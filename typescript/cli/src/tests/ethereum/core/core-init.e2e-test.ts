@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   type CoreConfig,
@@ -11,6 +11,7 @@ import {
 import {
   type Address,
   ProtocolType,
+  ensure0x,
   normalizeAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -107,7 +108,7 @@ describe('hyperlane core init e2e tests', async function () {
 
   describe('HYP_KEY=... hyperlane core init', () => {
     it('should successfully generate the core contract deployment config when confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
+      const owner = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
         {
@@ -129,7 +130,7 @@ describe('hyperlane core init e2e tests', async function () {
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
+      const owner = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
       const feeHookOwner = normalizeAddress(randomAddress());
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
@@ -164,7 +165,7 @@ describe('hyperlane core init e2e tests', async function () {
 
   describe('hyperlane core init --key ...', () => {
     it('should successfully generate the core contract deployment config when confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
+      const owner = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
         {
@@ -186,7 +187,7 @@ describe('hyperlane core init e2e tests', async function () {
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
+      const owner = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
       const feeHookOwner = normalizeAddress(randomAddress());
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,

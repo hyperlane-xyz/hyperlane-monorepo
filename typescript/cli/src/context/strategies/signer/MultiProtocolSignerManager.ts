@@ -1,4 +1,3 @@
-import { type BigNumber, type Signer } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -30,6 +29,11 @@ export interface MultiProtocolSignerOptions {
   logger?: Logger;
   key?: SignerKeyProtocolMap;
 }
+
+type EvmSigner = ReturnType<IMultiProtocolSignerManager['getEVMSigner']>;
+type SignerBalance = Awaited<
+  ReturnType<IMultiProtocolSignerManager['getBalance']>
+>;
 
 function getSignerCompatibleChains(
   multiProtocolProvider: MultiProtocolProvider,
@@ -132,7 +136,9 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     );
 
     for (const chain of evmChains) {
-      multiProvider.setSigner(chain, this.getEVMSigner(chain));
+      const signer = this.getEVMSigner(chain);
+      const provider = multiProvider.getProvider(chain);
+      multiProvider.setSigner(chain, signer.connect(provider));
     }
 
     return multiProvider;
@@ -193,13 +199,13 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     return maybeSigner as T;
   }
 
-  getEVMSigner(chain: ChainName): Signer {
+  getEVMSigner(chain: ChainName): EvmSigner {
     const protocolType = this.multiProtocolProvider.getProtocol(chain);
     assert(
       protocolType === ProtocolType.Ethereum,
       `Chain ${chain} is not an Ethereum chain`,
     );
-    return this.getSpecificSigner<Signer>(chain);
+    return this.getSpecificSigner<EvmSigner>(chain);
   }
 
   async getSignerAddress(chain: ChainName): Promise<Address> {
@@ -222,16 +228,18 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     address: Address;
     chain: ChainName;
     denom?: string;
-  }): Promise<BigNumber> {
+  }): Promise<SignerBalance> {
     const metadata = this.multiProtocolProvider.getChainMetadata(params.chain);
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
         try {
-          const provider = this.multiProtocolProvider.getEthersV5Provider(
+          const provider = this.multiProtocolProvider.getViemProvider(
             params.chain,
           );
-          const balance = await provider.getBalance(params.address);
+          const balance = await provider.getBalance({
+            address: params.address as `0x${string}`,
+          });
           return balance;
         } catch (err) {
           throw new Error(

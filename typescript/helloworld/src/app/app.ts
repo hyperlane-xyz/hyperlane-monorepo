@@ -1,20 +1,52 @@
-import { BigNumber, ethers } from 'ethers';
+import { toBytes } from 'viem';
 
+import type { Router } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  type HyperlaneCore as HyperlaneCoreType,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneCore,
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
-
-import { HelloWorld } from '../types/index.js';
+import {
+  Address,
+  addBufferToGasLimit,
+  rootLogger,
+  toBigInt,
+} from '@hyperlane-xyz/utils';
 
 import { HelloWorldFactories } from './contracts.js';
 import { StatCounts } from './types.js';
+
+type SourceReceipt = Parameters<
+  HyperlaneCoreType['waitForMessageProcessed']
+>[0];
+
+type BigNumberishLike =
+  | bigint
+  | number
+  | string
+  | {
+      toNumber?: () => number;
+      toBigInt?: () => bigint;
+    };
+
+const hasToNumber = (
+  value: BigNumberishLike,
+): value is { toNumber: () => number } =>
+  !!value &&
+  typeof value === 'object' &&
+  'toNumber' in value &&
+  typeof value.toNumber === 'function';
+
+const toNumberValue = (value: BigNumberishLike): number => {
+  if (typeof value === 'number') return value;
+  if (hasToNumber(value)) return value.toNumber();
+  return Number(toBigInt(value));
+};
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
@@ -31,16 +63,16 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
-    return contracts.router;
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): Router {
+    return contracts.router as unknown as Router;
   }
 
   async sendHelloWorld(
     from: ChainName,
     to: ChainName,
     message: string,
-    value: BigNumber,
-  ): Promise<ethers.ContractReceipt> {
+    value: bigint,
+  ): Promise<SourceReceipt> {
     const sender = this.getContracts(from).router;
     const toDomain = this.multiProvider.getDomainId(to);
     const { blocks, transactionOverrides } =
@@ -53,11 +85,12 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       { ...transactionOverrides, value },
     );
 
-    const quote = await sender.quoteDispatch(toDomain, message);
+    const quote = await sender.quoteDispatch(toDomain, toBytes(message));
+    const totalValue = toBigInt(quote) + value;
     const tx = await sender.sendHelloWorld(toDomain, message, {
       gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,
-      value: value.add(quote),
+      value: totalValue,
     });
     this.logger.info('Sending hello message', {
       from,
@@ -69,14 +102,12 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   }
 
   async waitForMessageReceipt(
-    receipt: ethers.ContractReceipt,
-  ): Promise<ethers.ContractReceipt[]> {
+    receipt: SourceReceipt,
+  ): Promise<SourceReceipt[]> {
     return this.core.waitForMessageProcessing(receipt);
   }
 
-  async waitForMessageProcessed(
-    receipt: ethers.ContractReceipt,
-  ): Promise<void> {
+  async waitForMessageProcessed(receipt: SourceReceipt): Promise<void> {
     return this.core.waitForMessageProcessed(receipt);
   }
 
@@ -88,7 +119,10 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       this.multiProvider.getDomainId(from),
     );
 
-    return { sent: sent.toNumber(), received: received.toNumber() };
+    return {
+      sent: toNumberValue(sent),
+      received: toNumberValue(received),
+    };
   }
 
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {

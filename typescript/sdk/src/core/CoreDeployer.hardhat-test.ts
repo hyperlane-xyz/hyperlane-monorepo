@@ -1,10 +1,14 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import '@nomiclabs/hardhat-waffle';
 import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -18,6 +22,8 @@ import {
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { ChainMap } from '../types.js';
 
 import { EvmCoreReader } from './EvmCoreReader.js';
@@ -35,10 +41,10 @@ describe('core', async () => {
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
   let ismFactory: HyperlaneIsmFactory;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
@@ -76,7 +82,7 @@ describe('core', async () => {
         requiredHook: config.defaultHook,
       }));
 
-      const [signer] = await hre.ethers.getSigners();
+      const [signer] = await getHardhatSigners();
       const nonceBefore = await signer.getTransactionCount();
 
       const updatedContracts = await deployer.deploy(updatedConfig);
@@ -113,7 +119,7 @@ describe('core', async () => {
         },
       );
 
-      const [signer] = await hre.ethers.getSigners();
+      const [signer] = await getHardhatSigners();
       const nonceBefore = await signer.getTransactionCount();
 
       await deployer.deploy(updatedConfig);
@@ -202,7 +208,20 @@ describe('core', async () => {
           const defaultHookTest = coreConfig[chainName]
             .defaultHook as DerivedHookConfig;
 
-          expect(defaultHookOnchain).to.deep.equal(defaultHookTest);
+          const { owner: onchainOwner, ...defaultHookOnchainWithoutOwner } =
+            defaultHookOnchain as Record<string, unknown>;
+          const { owner: testOwner, ...defaultHookTestWithoutOwner } =
+            defaultHookTest as Record<string, unknown>;
+
+          if (onchainOwner && testOwner) {
+            expect(eqAddress(String(onchainOwner), String(testOwner))).to.equal(
+              true,
+            );
+          }
+
+          expect(defaultHookOnchainWithoutOwner).to.deep.equal(
+            defaultHookTestWithoutOwner,
+          );
         }),
       );
     });
@@ -219,7 +238,20 @@ describe('core', async () => {
             coreConfigOnChain.requiredHook as DerivedHookConfig;
           const requiredHookTest = coreConfig[chainName].requiredHook;
 
-          expect(requiredHookOnchain).to.deep.equal(requiredHookTest);
+          const { owner: onchainOwner, ...requiredHookOnchainWithoutOwner } =
+            requiredHookOnchain as Record<string, unknown>;
+          const { owner: testOwner, ...requiredHookTestWithoutOwner } =
+            requiredHookTest as Record<string, unknown>;
+
+          if (onchainOwner && testOwner) {
+            expect(eqAddress(String(onchainOwner), String(testOwner))).to.equal(
+              true,
+            );
+          }
+
+          expect(requiredHookOnchainWithoutOwner).to.deep.equal(
+            requiredHookTestWithoutOwner,
+          );
         }),
       );
     });

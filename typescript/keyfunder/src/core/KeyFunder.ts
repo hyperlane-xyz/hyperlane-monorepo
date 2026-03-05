@@ -1,7 +1,8 @@
-import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
+import { formatEther, parseEther } from 'viem';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { toBigInt } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
@@ -10,8 +11,8 @@ import type {
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
 
-const MIN_DELTA_NUMERATOR = BigNumber.from(6);
-const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
+const MIN_DELTA_NUMERATOR = 6n;
+const MIN_DELTA_DENOMINATOR = 10n;
 
 const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
 
@@ -122,7 +123,7 @@ export class KeyFunder {
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
     const funderBalance = await signer.getBalance();
-    const balanceInEther = parseFloat(ethers.utils.formatEther(funderBalance));
+    const balanceInEther = parseFloat(formatEther(toBigInt(funderBalance)));
     this.options.metrics?.recordUnifiedWalletBalance(
       chain,
       funderAddress,
@@ -171,32 +172,35 @@ export class KeyFunder {
       return;
     }
 
-    const logger = this.options.logger.child({ chain, operation: 'igp-claim' });
+    const logger = this.options.logger.child({
+      chain,
+      operation: 'igp-claim',
+    });
     const provider = this.multiProvider.getProvider(chain);
     const igpContract =
       this.options.igp.getContracts(chain).interchainGasPaymaster;
-    const igpBalance = await provider.getBalance(igpContract.address);
-    const claimThreshold = ethers.utils.parseEther(igpConfig.claimThreshold);
+    const igpBalance = toBigInt(await provider.getBalance(igpContract.address));
+    const claimThreshold = parseEther(igpConfig.claimThreshold);
 
     this.options.metrics?.recordIgpBalance(
       chain,
-      parseFloat(ethers.utils.formatEther(igpBalance)),
+      parseFloat(formatEther(igpBalance)),
     );
 
     logger.info(
       {
-        igpBalance: ethers.utils.formatEther(igpBalance),
-        claimThreshold: ethers.utils.formatEther(claimThreshold),
+        igpBalance: formatEther(igpBalance),
+        claimThreshold: formatEther(claimThreshold),
       },
       'Checking IGP balance',
     );
 
-    if (igpBalance.gt(claimThreshold)) {
+    if (igpBalance > claimThreshold) {
       logger.info('IGP balance exceeds threshold, claiming');
-      await this.multiProvider.sendTransaction(
-        chain,
-        await igpContract.populateTransaction.claim(),
-      );
+      await this.multiProvider.sendTransaction(chain, {
+        to: igpContract.address,
+        data: igpContract.interface.encodeFunctionData('claim'),
+      });
       logger.info('IGP claim completed');
     }
   }
@@ -217,57 +221,57 @@ export class KeyFunder {
       role: key.role,
     });
 
-    const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
+    const desiredBalance = parseEther(key.desiredBalance);
     const fundingAmount = await this.calculateFundingAmount(
       chain,
       key.address,
       desiredBalance,
     );
 
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
+    const currentBalance = toBigInt(
+      await this.multiProvider.getProvider(chain).getBalance(key.address),
+    );
 
     this.options.metrics?.recordWalletBalance(
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(currentBalance)),
+      parseFloat(formatEther(currentBalance)),
     );
 
-    if (fundingAmount.eq(0)) {
+    if (fundingAmount === 0n) {
       logger.debug(
-        { currentBalance: ethers.utils.formatEther(currentBalance) },
+        { currentBalance: formatEther(currentBalance) },
         'Key balance sufficient, skipping',
       );
       return;
     }
 
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+    const funderBalance = toBigInt(
+      await this.multiProvider.getSigner(chain).getBalance(),
+    );
 
-    if (funderBalance.lt(fundingAmount)) {
+    if (funderBalance < fundingAmount) {
       logger.error(
         {
-          funderBalance: ethers.utils.formatEther(funderBalance),
-          requiredAmount: ethers.utils.formatEther(fundingAmount),
+          funderBalance: formatEther(funderBalance),
+          requiredAmount: formatEther(fundingAmount),
         },
         'Funder balance insufficient to cover funding amount',
       );
       throw new Error(
-        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
+        `Insufficient funder balance on ${chain}: has ${formatEther(funderBalance)}, needs ${formatEther(fundingAmount)}`,
       );
     }
 
     logger.info(
       {
-        amount: ethers.utils.formatEther(fundingAmount),
-        currentBalance: ethers.utils.formatEther(currentBalance),
-        desiredBalance: ethers.utils.formatEther(desiredBalance),
+        amount: formatEther(fundingAmount),
+        currentBalance: formatEther(currentBalance),
+        desiredBalance: formatEther(desiredBalance),
         funderAddress,
-        funderBalance: ethers.utils.formatEther(funderBalance),
+        funderBalance: formatEther(funderBalance),
       },
       'Funding key',
     );
@@ -281,14 +285,22 @@ export class KeyFunder {
       chain,
       key.address,
       key.role,
-      parseFloat(ethers.utils.formatEther(fundingAmount)),
+      parseFloat(formatEther(fundingAmount)),
     );
+
+    const fundingTxHash =
+      tx.transactionHash ??
+      (tx as { hash?: string | undefined }).hash ??
+      undefined;
+    if (!fundingTxHash) {
+      throw new Error(`Funding transaction hash missing on ${chain}`);
+    }
 
     logger.info(
       {
-        txHash: tx.transactionHash,
+        txHash: fundingTxHash,
         txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-          hash: tx.transactionHash,
+          hash: fundingTxHash,
         }),
       },
       'Funding transaction completed',
@@ -298,19 +310,18 @@ export class KeyFunder {
   private async calculateFundingAmount(
     chain: string,
     address: string,
-    desiredBalance: BigNumber,
-  ): Promise<BigNumber> {
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(address);
-    if (currentBalance.gte(desiredBalance)) {
-      return BigNumber.from(0);
+    desiredBalance: bigint,
+  ): Promise<bigint> {
+    const currentBalance = toBigInt(
+      await this.multiProvider.getProvider(chain).getBalance(address),
+    );
+    if (currentBalance >= desiredBalance) {
+      return 0n;
     }
-    const delta = desiredBalance.sub(currentBalance);
-    const minDelta = desiredBalance
-      .mul(MIN_DELTA_NUMERATOR)
-      .div(MIN_DELTA_DENOMINATOR);
-    return delta.gt(minDelta) ? delta : BigNumber.from(0);
+    const delta = desiredBalance - currentBalance;
+    const minDelta =
+      (desiredBalance * MIN_DELTA_NUMERATOR) / MIN_DELTA_DENOMINATOR;
+    return delta > minDelta ? delta : 0n;
   }
 
   private async sweepExcessFunds(
@@ -330,7 +341,7 @@ export class KeyFunder {
       );
     }
 
-    const threshold = ethers.utils.parseEther(sweepConfig.threshold);
+    const threshold = parseEther(sweepConfig.threshold);
     const targetBalance = calculateMultipliedBalance(
       threshold,
       sweepConfig.targetMultiplier,
@@ -340,25 +351,25 @@ export class KeyFunder {
       sweepConfig.triggerMultiplier,
     );
 
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+    const funderBalance = toBigInt(
+      await this.multiProvider.getSigner(chain).getBalance(),
+    );
 
     logger.info(
       {
-        funderBalance: ethers.utils.formatEther(funderBalance),
-        triggerThreshold: ethers.utils.formatEther(triggerThreshold),
-        targetBalance: ethers.utils.formatEther(targetBalance),
+        funderBalance: formatEther(funderBalance),
+        triggerThreshold: formatEther(triggerThreshold),
+        targetBalance: formatEther(targetBalance),
       },
       'Checking sweep conditions',
     );
 
-    if (funderBalance.gt(triggerThreshold)) {
-      const sweepAmount = funderBalance.sub(targetBalance);
+    if (funderBalance > triggerThreshold) {
+      const sweepAmount = funderBalance - targetBalance;
 
       logger.info(
         {
-          sweepAmount: ethers.utils.formatEther(sweepAmount),
+          sweepAmount: formatEther(sweepAmount),
           sweepAddress: sweepConfig.address,
         },
         'Sweeping excess funds',
@@ -371,14 +382,22 @@ export class KeyFunder {
 
       this.options.metrics?.recordSweepAmount(
         chain,
-        parseFloat(ethers.utils.formatEther(sweepAmount)),
+        parseFloat(formatEther(sweepAmount)),
       );
+
+      const sweepTxHash =
+        tx.transactionHash ??
+        (tx as { hash?: string | undefined }).hash ??
+        undefined;
+      if (!sweepTxHash) {
+        throw new Error(`Sweep transaction hash missing on ${chain}`);
+      }
 
       logger.info(
         {
-          txHash: tx.transactionHash,
+          txHash: sweepTxHash,
           txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-            hash: tx.transactionHash,
+            hash: sweepTxHash,
           }),
         },
         'Sweep completed',
@@ -394,10 +413,10 @@ export class KeyFunder {
  * e.g., 1 ETH * 1.555 = 1.55 ETH (not 1.56 ETH)
  */
 export function calculateMultipliedBalance(
-  base: BigNumber,
+  base: bigint,
   multiplier: number,
-): BigNumber {
-  return base.mul(Math.floor(multiplier * 100)).div(100);
+): bigint {
+  return (base * BigInt(Math.floor(multiplier * 100))) / 100n;
 }
 
 function createTimeoutPromise(

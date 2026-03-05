@@ -1,4 +1,9 @@
-import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
+import {
+  parseSignature,
+  serializeSignature,
+  type Hex,
+  type Signature,
+} from 'viem';
 
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import {
@@ -56,6 +61,59 @@ const MerkleTreeInterface = MerkleTreeHook__factory.createInterface();
 
 const SIGNATURE_LENGTH = 65;
 
+type DecodedMultisigPrefix =
+  | ReturnType<typeof MultisigMetadataBuilder.decodeProofPrefix>
+  | ReturnType<typeof MultisigMetadataBuilder.decodeSimplePrefix>;
+
+type AddressedLog = {
+  address: string;
+  data: string;
+  topics: readonly string[];
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function toHex(value: string): Hex {
+  return ensure0x(value) as Hex;
+}
+
+function isAddressedLog(log: unknown): log is AddressedLog {
+  const record = asRecord(log);
+  if (!record) return false;
+  return (
+    typeof record.address === 'string' &&
+    typeof record.data === 'string' &&
+    Array.isArray(record.topics)
+  );
+}
+
+function toViemSignature(signature: SignatureLike): Signature {
+  if (typeof signature === 'string') {
+    return parseSignature(toHex(signature));
+  }
+
+  const yParity =
+    signature.v === 27 || signature.v === 28
+      ? signature.v - 27
+      : signature.v % 2;
+  return {
+    r: signature.r,
+    s: signature.s,
+    yParity,
+  };
+}
+
+function toCheckpointIndex(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(value);
+  throw new Error(`Invalid checkpoint index: ${String(value)}`);
+}
+
 export type MultisigMetadata =
   | MessageIdMultisigMetadata
   | MerkleRootMultisigMetadata;
@@ -103,13 +161,16 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
+      const normalizedStorageLocations = storageLocations.map((locations) => [
+        ...locations,
+      ]);
 
       this.logger.debug({ storageLocations }, 'Fetched storage locations');
 
       // Use mapAllSettled to handle partial failures gracefully
       // Some validators may not have announced storage locations or may have invalid ones
       const { fulfilled, rejected } = await mapAllSettled(
-        storageLocations,
+        normalizedStorageLocations,
         async (locations, index) => {
           const latestLocation = locations.slice(-1)[0];
           if (!latestLocation) {
@@ -339,12 +400,21 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     );
 
     const merkleTree = context.hook.address;
+    const rawDispatchLogs = context.dispatchTx.logs;
+    assert(
+      rawDispatchLogs,
+      `No logs found in dispatch tx for message ${context.message.id}`,
+    );
+    const dispatchLogs = Array.from(rawDispatchLogs).filter(isAddressedLog);
 
     // Find the merkle tree insertion event for this message
-    const matchingInsertion = context.dispatchTx.logs
+    const matchingInsertion = dispatchLogs
       .filter((log) => eqAddressEvm(log.address, merkleTree))
       .map((log) => MerkleTreeInterface.parseLog(log))
-      .find((event) => event.args.messageId === context.message.id);
+      .find((event: { args: unknown }) => {
+        const args = asRecord(event.args);
+        return args?.messageId === context.message.id;
+      });
 
     assert(
       matchingInsertion,
@@ -352,7 +422,9 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     );
     this.logger.debug({ matchingInsertion }, 'Found matching insertion event');
 
-    const checkpointIndex = matchingInsertion.args.index;
+    const checkpointIndex = toCheckpointIndex(
+      asRecord(matchingInsertion.args)?.index,
+    );
 
     // Get detailed validator status
     const { validatorInfos, checkpoint } = await this.getValidatorInfos(
@@ -427,7 +499,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
   static decodeSimplePrefix(metadata: string): {
     signatureOffset: number;
-    type: IsmType;
+    type: typeof IsmType.MESSAGE_ID_MULTISIG;
     checkpoint: {
       root: string;
       index: number;
@@ -466,7 +538,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
   static decodeProofPrefix(metadata: string): {
     signatureOffset: number;
-    type: IsmType;
+    type: typeof IsmType.MERKLE_ROOT_MULTISIG;
     checkpoint: {
       root: string;
       index: number;
@@ -479,7 +551,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     const messageIndex = buf.readUint32BE(32);
     const signedMessageId = toHexString(buf.subarray(36, 68));
     const branchEncoded = buf.subarray(68, 1092).toString('hex');
-    const branch = chunk(branchEncoded, 32 * 2).map((v) => ensure0x(v));
+    const branch = chunk(branchEncoded, 32 * 2).map((v) => toHex(v));
     const signedIndex = buf.readUint32BE(1092);
     const checkpoint = {
       root: '',
@@ -488,7 +560,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     };
     const proof: MerkleProof = {
       branch,
-      leaf: signedMessageId,
+      leaf: toHex(signedMessageId),
       index: signedIndex,
     };
     return {
@@ -506,7 +578,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
         : this.encodeProofPrefix(metadata);
 
     metadata.signatures.forEach((signature) => {
-      const encodedSignature = joinSignature(signature);
+      const encodedSignature = serializeSignature(toViemSignature(signature));
       assert(
         fromHexString(encodedSignature).byteLength === SIGNATURE_LENGTH,
         'Invalid signature length',
@@ -521,7 +593,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     metadata: string,
     offset: number,
     index: number,
-  ): SignatureLike | undefined {
+  ): Hex | undefined {
     const buf = fromHexString(metadata);
     const start = offset + index * SIGNATURE_LENGTH;
     const end = start + SIGNATURE_LENGTH;
@@ -529,7 +601,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       return undefined;
     }
 
-    return toHexString(buf.subarray(start, end));
+    return toHex(toHexString(buf.subarray(start, end)));
   }
 
   static decode(
@@ -540,7 +612,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       | typeof IsmType.STORAGE_MERKLE_ROOT_MULTISIG
       | typeof IsmType.STORAGE_MESSAGE_ID_MULTISIG,
   ): MultisigMetadata {
-    const prefix: any =
+    const prefix: DecodedMultisigPrefix =
       type === IsmType.MERKLE_ROOT_MULTISIG ||
       type === IsmType.STORAGE_MERKLE_ROOT_MULTISIG
         ? this.decodeProofPrefix(metadata)
@@ -550,15 +622,22 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     const signatures: SignatureLike[] = [];
     for (let i = 0; this.signatureAt(metadata, offset, i); i++) {
-      const { r, s, v } = splitSignature(
-        this.signatureAt(metadata, offset, i)!,
-      );
+      const parsed = parseSignature(this.signatureAt(metadata, offset, i)!);
+      const v = 'v' in parsed ? Number(parsed.v) : Number(parsed.yParity) + 27;
+      const { r, s } = parsed;
       signatures.push({ r, s, v });
+    }
+
+    if ('proof' in values) {
+      return {
+        signatures,
+        ...values,
+      } satisfies MerkleRootMultisigMetadata;
     }
 
     return {
       signatures,
       ...values,
-    };
+    } satisfies MessageIdMultisigMetadata;
   }
 }

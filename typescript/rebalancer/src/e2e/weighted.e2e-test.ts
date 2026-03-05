@@ -1,12 +1,13 @@
 import { expect } from 'chai';
-import { BigNumber, providers } from 'ethers';
 
 import {
   HyperlaneCore,
+  LocalAccountViemSigner,
   MultiProvider,
   revertToSnapshot,
   snapshot,
 } from '@hyperlane-xyz/sdk';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   RebalancerStrategyOptions,
@@ -19,8 +20,10 @@ import {
   TEST_CHAINS,
 } from './fixtures/routes.js';
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
-import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
-import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
+import {
+  type LocalDeploymentContext,
+  LocalDeploymentManager,
+} from './harness/LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
@@ -28,18 +31,17 @@ import { tryRelayMessage } from './harness/TransferHelper.js';
 describe('WeightedStrategy E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: Erc20LocalDeploymentManager;
+  let deploymentManager: LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
   let weightedStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    deploymentManager = new Erc20LocalDeploymentManager();
-    const ctx: LocalDeploymentContext<DeployedAddresses> =
-      await deploymentManager.start();
+    deploymentManager = new LocalDeploymentManager();
+    const ctx: LocalDeploymentContext = await deploymentManager.start();
     multiProvider = ctx.multiProvider;
     localProviders = ctx.providers;
     deployedAddresses = ctx.deployedAddresses;
@@ -257,8 +259,8 @@ describe('WeightedStrategy E2E', function () {
     );
     expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
 
-    const inflightAmount = BigNumber.from(inflightToBase!.amount);
-    expect(inflightAmount.gt(0), 'Inflight amount should be positive').to.be
+    const inflightAmount = BigInt(inflightToBase!.amount);
+    expect(inflightAmount > 0n, 'Inflight amount should be positive').to.be
       .true;
 
     // ===== CYCLE 2: Execute again - should account for inflight =====
@@ -282,9 +284,7 @@ describe('WeightedStrategy E2E', function () {
 
     if (newActionsToBase.length > 0) {
       // If action was created, should be much smaller than original 1000 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToBase[0].amount,
-      ).toBigInt();
+      const proposedAmount = BigInt(newActionsToBase[0].amount);
       expect(
         proposedAmount < 500000000n,
         `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,

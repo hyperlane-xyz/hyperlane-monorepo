@@ -1,7 +1,21 @@
 import type { ChainMap } from '@hyperlane-xyz/sdk';
-import { Address, ParsedMessage, bytes32ToAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ParsedMessage,
+  bytes32ToAddress,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 export type MessageWhitelist = ChainMap<Set<Address>>;
+
+function hasAddress(addresses: Set<Address>, address: Address): boolean {
+  for (const candidate of addresses) {
+    if (eqAddress(candidate, address)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // message must have origin and destination chains in the whitelist
 // if whitelist has non-empty address set for chain, message must have sender and recipient in the set
@@ -15,7 +29,7 @@ export function messageMatchesWhitelist(
   }
 
   const sender = bytes32ToAddress(message.sender);
-  if (originAddresses.size !== 0 && !originAddresses.has(sender)) {
+  if (originAddresses.size !== 0 && !hasAddress(originAddresses, sender)) {
     return false;
   }
 
@@ -26,7 +40,10 @@ export function messageMatchesWhitelist(
   }
 
   const recipient = bytes32ToAddress(message.recipient);
-  if (destinationAddresses.size !== 0 && !destinationAddresses.has(recipient)) {
+  if (
+    destinationAddresses.size !== 0 &&
+    !hasAddress(destinationAddresses, recipient)
+  ) {
     return false;
   }
 

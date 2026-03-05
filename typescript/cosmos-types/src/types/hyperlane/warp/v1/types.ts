@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/v1/types.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -121,10 +122,10 @@ export const Params = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Params>, I>>(base?: I): Params {
-    return Params.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<Params>): Params {
+    return Params.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<Params>, I>>(_: I): Params {
+  fromPartial(_: DeepPartial<Params>): Params {
     const message = createBaseParams();
     return message;
   },
@@ -283,10 +284,10 @@ export const HypToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<HypToken>, I>>(base?: I): HypToken {
-    return HypToken.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<HypToken>): HypToken {
+    return HypToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<HypToken>, I>>(object: I): HypToken {
+  fromPartial(object: DeepPartial<HypToken>): HypToken {
     const message = createBaseHypToken();
     message.id = object.id ?? '';
     message.owner = object.owner ?? '';
@@ -385,14 +386,10 @@ export const RemoteRouter = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RemoteRouter>, I>>(
-    base?: I,
-  ): RemoteRouter {
-    return RemoteRouter.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<RemoteRouter>): RemoteRouter {
+    return RemoteRouter.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<RemoteRouter>, I>>(
-    object: I,
-  ): RemoteRouter {
+  fromPartial(object: DeepPartial<RemoteRouter>): RemoteRouter {
     const message = createBaseRemoteRouter();
     message.receiver_domain = object.receiver_domain ?? 0;
     message.receiver_contract = object.receiver_contract ?? '';
@@ -419,13 +416,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

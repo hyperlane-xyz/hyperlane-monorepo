@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -537,7 +537,7 @@ function generateHookConfig(
   amountRoutingThreshold: number,
 ): HookConfig {
   if (!isCCIPChain(origin)) {
-    return ethers.constants.AddressZero;
+    return zeroAddress;
   }
 
   const entries = deploymentChains

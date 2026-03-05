@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import {
   CairoOption,
   CairoOptionVariant,
@@ -44,6 +43,9 @@ import {
 
 const stringFromDecimalNumber = (num: bigint | number) =>
   shortString.decodeShortString(ensure0x(num.toString(16)));
+
+const toBigIntNumberish = (value: Numberish): bigint =>
+  BigInt(value.toString());
 
 export class StarknetTokenAdapter
   extends BaseStarknetAdapter
@@ -134,9 +136,7 @@ export class StarknetTokenAdapter
     const contract = await this.getContractInstance();
 
     const allowance = await contract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < toBigIntNumberish(weiAmountOrId);
   }
 
   async isRevokeApprovalRequired(
@@ -214,9 +214,7 @@ class BaseStarknetHypTokenAdapter
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.contract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < toBigIntNumberish(weiAmountOrId);
   }
 
   async isRevokeApprovalRequired(
@@ -416,9 +414,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.nativeContract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < toBigIntNumberish(weiAmountOrId);
   }
 
   async populateApproveTx({
@@ -484,9 +480,7 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.feeTokenContract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < toBigIntNumberish(weiAmountOrId);
   }
 
   async populateApproveTx({

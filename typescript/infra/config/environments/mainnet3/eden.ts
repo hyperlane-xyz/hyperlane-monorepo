@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { parseUnits } from 'viem';
 
 import {
   AggregationIsmConfig,
@@ -127,8 +127,8 @@ export function getEdenCoreConfig(
 
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
-    maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(),
-    protocolFee: BigNumber.from(0).toString(),
+    maxProtocolFee: parseUnits('1', 9).toString(),
+    protocolFee: 0n.toString(),
     beneficiary: owner.owner,
     ...owner,
   };

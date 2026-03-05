@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: cosmos/app/v1alpha1/module.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -186,14 +187,10 @@ export const ModuleDescriptor = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ModuleDescriptor>, I>>(
-    base?: I,
-  ): ModuleDescriptor {
-    return ModuleDescriptor.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<ModuleDescriptor>): ModuleDescriptor {
+    return ModuleDescriptor.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<ModuleDescriptor>, I>>(
-    object: I,
-  ): ModuleDescriptor {
+  fromPartial(object: DeepPartial<ModuleDescriptor>): ModuleDescriptor {
     const message = createBaseModuleDescriptor();
     message.go_import = object.go_import ?? '';
     message.use_package =
@@ -271,14 +268,10 @@ export const PackageReference = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<PackageReference>, I>>(
-    base?: I,
-  ): PackageReference {
-    return PackageReference.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<PackageReference>): PackageReference {
+    return PackageReference.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<PackageReference>, I>>(
-    object: I,
-  ): PackageReference {
+  fromPartial(object: DeepPartial<PackageReference>): PackageReference {
     const message = createBasePackageReference();
     message.name = object.name ?? '';
     message.revision = object.revision ?? 0;
@@ -339,14 +332,10 @@ export const MigrateFromInfo = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MigrateFromInfo>, I>>(
-    base?: I,
-  ): MigrateFromInfo {
-    return MigrateFromInfo.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MigrateFromInfo>): MigrateFromInfo {
+    return MigrateFromInfo.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MigrateFromInfo>, I>>(
-    object: I,
-  ): MigrateFromInfo {
+  fromPartial(object: DeepPartial<MigrateFromInfo>): MigrateFromInfo {
     const message = createBaseMigrateFromInfo();
     message.module = object.module ?? '';
     return message;
@@ -371,13 +360,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

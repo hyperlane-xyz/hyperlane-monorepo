@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/v1/tx.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -185,14 +186,10 @@ export const MsgCreateMailbox = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateMailbox>, I>>(
-    base?: I,
-  ): MsgCreateMailbox {
-    return MsgCreateMailbox.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateMailbox>): MsgCreateMailbox {
+    return MsgCreateMailbox.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateMailbox>, I>>(
-    object: I,
-  ): MsgCreateMailbox {
+  fromPartial(object: DeepPartial<MsgCreateMailbox>): MsgCreateMailbox {
     const message = createBaseMsgCreateMailbox();
     message.owner = object.owner ?? '';
     message.local_domain = object.local_domain ?? 0;
@@ -257,13 +254,13 @@ export const MsgCreateMailboxResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateMailboxResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateMailboxResponse>,
   ): MsgCreateMailboxResponse {
-    return MsgCreateMailboxResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateMailboxResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateMailboxResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateMailboxResponse>,
   ): MsgCreateMailboxResponse {
     const message = createBaseMsgCreateMailboxResponse();
     message.id = object.id ?? '';
@@ -428,14 +425,10 @@ export const MsgSetMailbox = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetMailbox>, I>>(
-    base?: I,
-  ): MsgSetMailbox {
-    return MsgSetMailbox.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetMailbox>): MsgSetMailbox {
+    return MsgSetMailbox.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetMailbox>, I>>(
-    object: I,
-  ): MsgSetMailbox {
+  fromPartial(object: DeepPartial<MsgSetMailbox>): MsgSetMailbox {
     const message = createBaseMsgSetMailbox();
     message.owner = object.owner ?? '';
     message.mailbox_id = object.mailbox_id ?? '';
@@ -489,14 +482,10 @@ export const MsgSetMailboxResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetMailboxResponse>, I>>(
-    base?: I,
-  ): MsgSetMailboxResponse {
-    return MsgSetMailboxResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetMailboxResponse>): MsgSetMailboxResponse {
+    return MsgSetMailboxResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetMailboxResponse>, I>>(
-    _: I,
-  ): MsgSetMailboxResponse {
+  fromPartial(_: DeepPartial<MsgSetMailboxResponse>): MsgSetMailboxResponse {
     const message = createBaseMsgSetMailboxResponse();
     return message;
   },
@@ -601,14 +590,10 @@ export const MsgProcessMessage = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgProcessMessage>, I>>(
-    base?: I,
-  ): MsgProcessMessage {
-    return MsgProcessMessage.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgProcessMessage>): MsgProcessMessage {
+    return MsgProcessMessage.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgProcessMessage>, I>>(
-    object: I,
-  ): MsgProcessMessage {
+  fromPartial(object: DeepPartial<MsgProcessMessage>): MsgProcessMessage {
     const message = createBaseMsgProcessMessage();
     message.mailbox_id = object.mailbox_id ?? '';
     message.relayer = object.relayer ?? '';
@@ -659,13 +644,13 @@ export const MsgProcessMessageResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgProcessMessageResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgProcessMessageResponse>,
   ): MsgProcessMessageResponse {
-    return MsgProcessMessageResponse.fromPartial(base ?? ({} as any));
+    return MsgProcessMessageResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgProcessMessageResponse>, I>>(
-    _: I,
+  fromPartial(
+    _: DeepPartial<MsgProcessMessageResponse>,
   ): MsgProcessMessageResponse {
     const message = createBaseMsgProcessMessageResponse();
     return message;
@@ -748,13 +733,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

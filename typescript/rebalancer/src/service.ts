@@ -23,14 +23,13 @@
  *   node dist/service.js
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
-import { Wallet } from 'ethers';
-
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { LocalAccountViemSigner, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  ensure0x,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -118,7 +117,9 @@ async function main(): Promise<void> {
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
-    const rebalancerSigner = new Wallet(rebalancerPrivateKey);
+    const rebalancerSigner = new LocalAccountViemSigner(
+      ensure0x(rebalancerPrivateKey) as `0x${string}`,
+    );
     multiProvider.setSharedSigner(rebalancerSigner);
     logger.info(
       { rebalancerAddress: rebalancerSigner.address },
@@ -131,7 +132,9 @@ async function main(): Promise<void> {
       inventoryMultiProvider = new MultiProvider(chainMetadata, {
         providers: multiProvider.providers,
       });
-      const inventorySigner = new Wallet(inventoryPrivateKey);
+      const inventorySigner = new LocalAccountViemSigner(
+        ensure0x(inventoryPrivateKey) as `0x${string}`,
+      );
       inventoryMultiProvider.setSharedSigner(inventorySigner);
 
       // Validate against config.inventorySigner if present

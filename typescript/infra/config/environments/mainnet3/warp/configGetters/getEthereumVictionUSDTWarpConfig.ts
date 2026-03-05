@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   ChainMap,
@@ -24,7 +24,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
     symbol: 'USDT',
     decimals: 6,
     gas: 75_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: zeroAddress,
   };
 
   const ethereum: HypTokenRouterConfig = {
@@ -34,7 +34,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
     token: tokens.ethereum.USDT,
     decimals: 6,
     gas: 65_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: zeroAddress,
     hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
   };
 

@@ -1,9 +1,5 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
-import hre from 'hardhat';
 import sinon from 'sinon';
 
 import {
@@ -29,10 +25,12 @@ import {
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  HardhatSignerWithAddress,
   MultiProvider,
   ProxyFactoryFactories,
   TestCoreDeployer,
   TestRecipientDeployer,
+  getHardhatSigners,
   testChains,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -61,7 +59,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
   let testRecipients: Record<ChainName, TestRecipient>;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
-  let relayer: SignerWithAddress;
+  let relayer: HardhatSignerWithAddress;
   let metadataBuilder: ArbL2ToL1MetadataBuilder;
   let context: MetadataContext<
     WithAddress<ArbL2ToL1IsmConfig>,
@@ -77,7 +75,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
   }
 
   before(async () => {
-    [relayer] = await hre.ethers.getSigners();
+    [relayer] = await getHardhatSigners();
     const multiProvider = MultiProvider.createTestMultiProvider({
       signer: relayer,
     });
@@ -218,8 +216,8 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       // stub waiting period to 10 blocks
       sinon
         .stub(metadataBuilder, 'getWaitingBlocksUntilReady')
-        .callsFake(async (): Promise<BigNumber> => {
-          return BigNumber.from(10); // test waiting period
+        .callsFake(async (): Promise<bigint> => {
+          return 10n; // test waiting period
         });
 
       result = await metadataBuilder.build(context);
@@ -245,7 +243,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         calldata.arbBlockNum,
         calldata.ethBlockNum,
         calldata.timestamp,
-        BigNumber.from(0), // msg.value
+        0n, // msg.value
         calldata.data,
       );
       result = await metadataBuilder.build(context);

@@ -1,7 +1,7 @@
 import input from '@inquirer/input';
 import { Separator, checkbox, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';
-import { ethers } from 'ethers';
+import { createPublicClient, http } from 'viem';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
@@ -540,17 +540,17 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
     return true;
   }
 
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const provider = createPublicClient({ transport: http(url) });
   const expectedChainId = chainMetadata.chainId;
 
   try {
-    const [blockNumber, providerNetwork] = await timeout(
-      Promise.all([provider.getBlockNumber(), provider.getNetwork()]),
+    const [blockNumber, providerChainId] = await timeout(
+      Promise.all([provider.getBlockNumber(), provider.getChainId()]),
       5000,
     );
-    if (providerNetwork.chainId !== expectedChainId) {
+    if (providerChainId !== expectedChainId) {
       throw new Error(
-        `Expected chainId ${expectedChainId}, got ${providerNetwork.chainId}`,
+        `Expected chainId ${expectedChainId}, got ${providerChainId}`,
       );
     }
     console.log(

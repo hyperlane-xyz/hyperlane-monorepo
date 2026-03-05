@@ -1,4 +1,4 @@
-import { Contract, utils } from 'ethers';
+import { Hex, keccak256 } from 'viem';
 
 import {
   Ownable,
@@ -33,6 +33,8 @@ import {
   TimelockControllerViolation,
   ViolationType,
 } from './types.js';
+
+type ContractWithAddress = { address: Address };
 
 export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
@@ -108,7 +110,7 @@ export abstract class HyperlaneAppChecker<
 
     const contracts = objFilter(
       this.app.getContracts(chain),
-      (_name, contract: Contract): contract is Contract =>
+      (_name, contract: ContractWithAddress): contract is ContractWithAddress =>
         !isZeroishAddress(contract.address),
     );
     await promiseObjAll(
@@ -174,7 +176,7 @@ export abstract class HyperlaneAppChecker<
       this.multiProvider.getProvider(chain),
     );
 
-    const minDelay = (await timelockController.getMinDelay()).toNumber();
+    const minDelay = Number(await timelockController.getMinDelay());
 
     if (minDelay !== upgradeConfig.timelock.delay) {
       const violation: TimelockControllerViolation = {
@@ -241,8 +243,8 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const provider = this.multiProvider.getProvider(chain);
     const bytecode = await provider.getCode(address);
-    const bytecodeHash = utils.keccak256(
-      modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
+    const bytecodeHash = keccak256(
+      modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)) as Hex,
     );
     if (!expectedBytecodeHashes.includes(bytecodeHash)) {
       this.addViolation({

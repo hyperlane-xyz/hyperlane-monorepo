@@ -1,6 +1,4 @@
-import { BigNumber } from 'ethers';
-
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress, toBigInt } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -100,11 +98,15 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         remoteId,
         0,
       );
-      if (!existingOverhead.eq(expectedOverhead)) {
+      const existingOverheadValue = toBigInt(
+        existingOverhead,
+        `Cannot convert gas overhead to bigint for ${local} -> ${remote}`,
+      );
+      const expectedOverheadValue = BigInt(expectedOverhead);
+      if (existingOverheadValue !== expectedOverheadValue) {
         const remoteChain = remote as ChainName;
-        overheadViolation.actual[remoteChain] = existingOverhead;
-        overheadViolation.expected[remoteChain] =
-          BigNumber.from(expectedOverhead);
+        overheadViolation.actual[remoteChain] = existingOverheadValue;
+        overheadViolation.expected[remoteChain] = expectedOverheadValue;
       }
     }
 
@@ -143,7 +145,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         continue;
       }
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
-      const actualGasOracle = destinationGasConfigs.gasOracle;
+      const actualGasOracle = destinationGasConfigs[0];
       const expectedGasOracle = coreContracts.storageGasOracle.address;
 
       if (!eqAddress(actualGasOracle, expectedGasOracle)) {

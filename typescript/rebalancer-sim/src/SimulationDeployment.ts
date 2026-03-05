@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Hex, pad, zeroAddress } from 'viem';
 
 import {
   ERC20Test__factory,
@@ -6,7 +6,13 @@ import {
   MockMailbox__factory,
   MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
+import {
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
+import { ensure0x, toBigInt } from '@hyperlane-xyz/utils';
 
 import {
   ANVIL_BRIDGE_CONTROLLER_KEY,
@@ -21,6 +27,17 @@ import {
 // Collateral multiplication factor: 100x the initial balance
 // 1x for warp liquidity, 99x for deployer to execute test transfers
 const COLLATERAL_MULTIPLIER = 100;
+
+type MockMailboxContract = Awaited<ReturnType<MockMailbox__factory['deploy']>>;
+type CollateralTokenContract = Awaited<
+  ReturnType<ERC20Test__factory['deploy']>
+>;
+type WarpTokenContract = Awaited<
+  ReturnType<HypERC20Collateral__factory['deploy']>
+>;
+type BridgeContract = Awaited<
+  ReturnType<MockValueTransferBridge__factory['deploy']>
+>;
 
 /**
  * Deploys a multi-domain simulation environment on a single anvil instance.
@@ -50,34 +67,33 @@ export async function deployMultiDomainSimulation(
     options.mailboxProcessorKey || ANVIL_MAILBOX_PROCESSOR_KEY;
 
   // Create fresh provider with no caching
-  const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
-  // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-  provider.pollingInterval = 100;
-  // Disable automatic polling - we don't need event subscriptions during deployment
-  provider.polling = false;
+  const provider: ReturnType<MultiProvider['getProvider']> =
+    HyperlaneSmartProvider.fromRpcUrl(31337, anvilRpc);
 
-  const deployer = new ethers.Wallet(deployerKey, provider);
+  const deployer = new LocalAccountViemSigner(
+    ensure0x(deployerKey) as `0x${string}`,
+  ).connect(provider);
   const deployerAddress = await deployer.getAddress();
-  const rebalancerWallet = new ethers.Wallet(rebalancerKey, provider);
+  const rebalancerWallet = new LocalAccountViemSigner(
+    ensure0x(rebalancerKey) as `0x${string}`,
+  ).connect(provider);
   const rebalancerAddress = await rebalancerWallet.getAddress();
-  const bridgeControllerWallet = new ethers.Wallet(
-    bridgeControllerKey,
-    provider,
-  );
+  const bridgeControllerWallet = new LocalAccountViemSigner(
+    ensure0x(bridgeControllerKey) as `0x${string}`,
+  ).connect(provider);
   const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
-  const mailboxProcessorWallet = new ethers.Wallet(
-    mailboxProcessorKey,
-    provider,
-  );
+  const mailboxProcessorWallet = new LocalAccountViemSigner(
+    ensure0x(mailboxProcessorKey) as `0x${string}`,
+  ).connect(provider);
   const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
 
   // Step 1: Deploy MockMailboxes for each domain
-  const mailboxes: Record<number, ethers.Contract> = {};
+  const mailboxes: Record<number, MockMailboxContract> = {};
   for (const chain of chains) {
     const mailbox = await new MockMailbox__factory(deployer).deploy(
       chain.domainId,
     );
-    await mailbox.deployed();
+    await mailbox.deployed?.();
     mailboxes[chain.domainId] = mailbox;
   }
 
@@ -95,38 +111,36 @@ export async function deployMultiDomainSimulation(
   }
 
   // Step 3: Deploy collateral tokens for each domain
-  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(
-    COLLATERAL_MULTIPLIER,
-  );
-  const collateralTokens: Record<number, ethers.Contract> = {};
+  const totalMint =
+    toBigInt(initialCollateralBalance) * BigInt(COLLATERAL_MULTIPLIER);
+  const collateralTokens: Record<number, CollateralTokenContract> = {};
   for (const chain of chains) {
     const token = await new ERC20Test__factory(deployer).deploy(
       tokenName,
       tokenSymbol,
-      totalMint.toString(),
+      totalMint,
       tokenDecimals,
     );
-    await token.deployed();
+    await token.deployed?.();
     collateralTokens[chain.domainId] = token;
   }
 
   // Step 4: Deploy HypERC20Collateral warp tokens for each domain
-  const warpTokens: Record<number, ethers.Contract> = {};
+  const warpTokens: Record<number, WarpTokenContract> = {};
   for (const chain of chains) {
-    const scaleNumerator = ethers.BigNumber.from(10).pow(tokenDecimals);
-    const scaleDenominator = ethers.BigNumber.from(1);
+    const scale = 10n ** BigInt(tokenDecimals);
     const warpToken = await new HypERC20Collateral__factory(deployer).deploy(
       collateralTokens[chain.domainId].address,
-      scaleNumerator,
-      scaleDenominator,
+      scale,
+      1n,
       mailboxes[chain.domainId].address,
     );
-    await warpToken.deployed();
+    await warpToken.deployed?.();
 
     // Initialize the warp token
     await warpToken.initialize(
-      ethers.constants.AddressZero, // hook
-      ethers.constants.AddressZero, // ISM
+      zeroAddress, // hook
+      zeroAddress, // ISM
       deployerAddress, // owner
     );
 
@@ -143,7 +157,9 @@ export async function deployMultiDomainSimulation(
       if (chain.domainId !== otherChain.domainId) {
         remoteDomains.push(otherChain.domainId);
         remoteRouters.push(
-          ethers.utils.hexZeroPad(warpTokens[otherChain.domainId].address, 32),
+          pad(warpTokens[otherChain.domainId].address as Hex, {
+            size: 32,
+          }),
         );
       }
     }
@@ -153,18 +169,18 @@ export async function deployMultiDomainSimulation(
   }
 
   // Step 6: Deploy MockValueTransferBridge for each domain (now extends Router)
-  const bridges: Record<number, ethers.Contract> = {};
+  const bridges: Record<number, BridgeContract> = {};
   for (const chain of chains) {
     const bridge = await new MockValueTransferBridge__factory(deployer).deploy(
       collateralTokens[chain.domainId].address,
       mailboxes[chain.domainId].address,
     );
-    await bridge.deployed();
+    await bridge.deployed?.();
 
     // Initialize the bridge (Router requires initialization)
     await bridge.initialize(
-      ethers.constants.AddressZero, // hook
-      ethers.constants.AddressZero, // ISM
+      zeroAddress, // hook
+      zeroAddress, // ISM
       deployerAddress, // owner
     );
 
@@ -181,7 +197,9 @@ export async function deployMultiDomainSimulation(
       if (chain.domainId !== otherChain.domainId) {
         remoteDomains.push(otherChain.domainId);
         remoteRouters.push(
-          ethers.utils.hexZeroPad(bridges[otherChain.domainId].address, 32),
+          pad(bridges[otherChain.domainId].address as Hex, {
+            size: 32,
+          }),
         );
       }
     }
@@ -222,9 +240,6 @@ export async function deployMultiDomainSimulation(
   // CRITICAL: Clean up the deployment provider to prevent accumulation
   // Each deployment creates a provider with 100ms polling that was never cleaned up
   // After multiple test runs, these accumulate and overwhelm anvil
-  provider.removeAllListeners();
-  provider.polling = false;
-
   // Build result
   const domains: Record<string, DeployedDomain> = {};
   for (const chain of chains) {
@@ -284,11 +299,11 @@ export function createSimulationChainMetadata(
  * Gets the current collateral balance for a warp token
  */
 export async function getWarpTokenBalance(
-  provider: ethers.providers.JsonRpcProvider,
+  provider: ReturnType<MultiProvider['getProvider']>,
   warpTokenAddress: Address,
   collateralTokenAddress: Address,
 ): Promise<bigint> {
   const token = ERC20Test__factory.connect(collateralTokenAddress, provider);
   const balance = await token.balanceOf(warpTokenAddress);
-  return balance.toBigInt();
+  return toBigInt(balance);
 }

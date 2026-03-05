@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -142,7 +142,7 @@ describe('hyperlane warp apply owner update tests', async function () {
       updatedWarpCorePath,
     );
     expect(extendAddress).to.be.exist;
-    expect(extendAddress).to.not.equal(ethers.constants.AddressZero);
+    expect(extendAddress).to.not.equal(zeroAddress);
   });
 
   it('should apply changes to a warp route with a custom warp route id', async () => {

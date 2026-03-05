@@ -1,6 +1,6 @@
 {
-  "*.js": ["oxlint", "oxfmt --write"],
-  "*.ts": ["oxlint", "oxfmt --write"],
+  "*.js": ["oxlint", "oxfmt --no-error-on-unmatched-pattern --write"],
+  "*.ts": ["oxlint", "oxfmt --no-error-on-unmatched-pattern --write"],
   "*.md": "oxfmt --no-error-on-unmatched-pattern --write",
   "*.sol": "prettier --write",
   "*.json": "oxfmt --no-error-on-unmatched-pattern --write"

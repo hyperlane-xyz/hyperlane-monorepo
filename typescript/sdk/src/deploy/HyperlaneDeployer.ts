@@ -1,12 +1,12 @@
-import { Contract, PopulatedTransaction, ethers } from 'ethers';
 import { Logger } from 'pino';
+import { zeroAddress } from 'viem';
 
 import {
   ITransparentUpgradeableProxy,
-  MailboxClient,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
+  RunnerLike,
   TimelockController,
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
@@ -24,6 +24,7 @@ import {
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import {
+  HyperlaneContractFactory,
   HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
@@ -40,7 +41,7 @@ import {
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
-import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import { ChainMap, ChainName, EvmSigner, OwnableConfig } from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
@@ -60,6 +61,86 @@ import {
   getContractVerificationInputForZKSync,
   shouldAddVerificationInput,
 } from './verify/utils.js';
+
+type PopulatedTransaction = Awaited<
+  Parameters<MultiProvider['sendTransaction']>[1]
+>;
+type TxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
+type ContractLike = {
+  address: Address;
+  signer?: EvmSigner | RunnerLike;
+  interface: {
+    encodeFunctionData(
+      functionName: string,
+      values?: readonly unknown[],
+    ): string;
+    encodeDeploy(values?: readonly unknown[]): string;
+  };
+  attach(address: Address): ContractLike;
+  connect(signerOrProvider: unknown): ContractLike;
+  [key: string]: any;
+};
+
+type ContractInitializeArgs<TContract> = TContract extends {
+  initialize: (...args: infer TArgs) => unknown;
+}
+  ? TArgs
+  : readonly unknown[];
+
+type FunctionDataEncoderLike = {
+  address: Address;
+  interface: {
+    encodeFunctionData(
+      functionName: string,
+      values?: readonly unknown[],
+    ): string;
+  };
+};
+
+type OwnableLike = {
+  owner(): Promise<Address>;
+};
+
+type MailboxClientLike = FunctionDataEncoderLike &
+  OwnableLike & {
+    hook(): Promise<Address>;
+    interchainSecurityModule(): Promise<Address>;
+  };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && (typeof value === 'object' || typeof value === 'function')
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getFactoryBytecode(factory: HyperlaneContractFactory): string {
+  const instanceBytecode = asRecord(factory)?.bytecode;
+  if (typeof instanceBytecode === 'string') {
+    return instanceBytecode;
+  }
+
+  const constructorBytecode = asRecord(
+    asRecord(factory)?.constructor,
+  )?.bytecode;
+  if (typeof constructorBytecode === 'string') {
+    return constructorBytecode;
+  }
+
+  throw new Error('Factory bytecode is required for contract verification');
+}
+
+function buildContractTransaction(
+  contract: FunctionDataEncoderLike,
+  functionName: string,
+  values: readonly unknown[] = [],
+  overrides: Record<string, unknown> = {},
+): PopulatedTransaction {
+  return {
+    to: contract.address,
+    data: contract.interface.encodeFunctionData(functionName, values),
+    ...overrides,
+  } as PopulatedTransaction;
+}
 
 export interface DeployerOptions {
   logger?: Logger;
@@ -121,14 +202,6 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    const metadata = this.multiProvider.getChainMetadata(chain);
-
-    // Skip verification for Tron chains (not supported yet)
-    if (metadata.technicalStack === ChainTechnicalStack.Tron) {
-      logger.debug(`Skipping contract verification for Tron chain ${chain}`);
-      return;
-    }
-
     const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
     if (!explorerApi) {
       logger.warn(
@@ -253,15 +326,15 @@ export abstract class HyperlaneDeployer<
 
   protected async runIfOwner<T>(
     chain: ChainName,
-    ownable: Ownable,
+    ownable: OwnableLike,
     fn: () => Promise<T>,
   ): Promise<T | undefined> {
-    return this.runIf(chain, await ownable.callStatic.owner(), fn, 'owner');
+    return this.runIf(chain, await ownable.owner(), fn, 'owner');
   }
 
   protected async runIfAdmin<T>(
     chain: ChainName,
-    proxy: Contract,
+    proxy: ContractLike,
     signerAdminFn: () => Promise<T>,
     proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
   ): Promise<T | undefined> {
@@ -284,7 +357,7 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async configureIsm<C extends Ownable>(
+  protected async configureIsm<C extends OwnableLike>(
     chain: ChainName,
     contract: C,
     config: IsmConfig,
@@ -334,7 +407,7 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async configureHook<C extends Ownable>(
+  protected async configureHook<C extends OwnableLike>(
     chain: ChainName,
     contract: C,
     config: HookConfig,
@@ -367,7 +440,7 @@ export abstract class HyperlaneDeployer<
 
   protected async configureClient(
     local: ChainName,
-    client: MailboxClient,
+    client: MailboxClientLike,
     config: MailboxClientConfig,
   ): Promise<void> {
     this.logger.debug(
@@ -379,7 +452,8 @@ export abstract class HyperlaneDeployer<
         client,
         config.hook,
         (_client) => _client.hook(),
-        (_client, _hook) => _client.populateTransaction.setHook(_hook),
+        async (_client, _hook) =>
+          buildContractTransaction(_client, 'setHook', [_hook]),
       );
     }
 
@@ -389,8 +463,10 @@ export abstract class HyperlaneDeployer<
         client,
         config.interchainSecurityModule,
         (_client) => _client.interchainSecurityModule(),
-        (_client, _module) =>
-          _client.populateTransaction.setInterchainSecurityModule(_module),
+        async (_client, _module) =>
+          buildContractTransaction(_client, 'setInterchainSecurityModule', [
+            _module,
+          ]),
       );
     }
 
@@ -401,15 +477,15 @@ export abstract class HyperlaneDeployer<
     return 'initialize';
   }
 
-  public async deployContractFromFactory<F extends ethers.ContractFactory>(
+  public async deployContractFromFactory(
     chain: ChainName,
-    factory: F,
+    factory: HyperlaneContractFactory,
     contractName: string,
-    constructorArgs: Parameters<F['deploy']>,
-    initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
+    constructorArgs: readonly unknown[],
+    initializeArgs?: readonly unknown[],
     shouldRecover = true,
     implementationAddress?: Address,
-  ): Promise<ReturnType<F['deploy']>> {
+  ): Promise<any> {
     if (this.cachingEnabled && shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
@@ -438,12 +514,12 @@ export abstract class HyperlaneDeployer<
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
-    const contract = await this.multiProvider.handleDeploy(
+    const contract = (await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
       artifact,
-    );
+    )) as ContractLike & { deployTransaction?: { data: string } };
 
     if (initializeArgs) {
       if (
@@ -493,7 +569,7 @@ export abstract class HyperlaneDeployer<
       verificationInput = await getContractVerificationInputForZKSync({
         name: contractName,
         contract,
-        constructorArgs: constructorArgs,
+        constructorArgs: [...constructorArgs],
         artifact: artifact,
         expectedimplementation: implementationAddress,
       });
@@ -501,7 +577,7 @@ export abstract class HyperlaneDeployer<
       verificationInput = getContractVerificationInput({
         name: contractName,
         contract,
-        bytecode: factory.bytecode,
+        bytecode: getFactoryBytecode(factory),
         expectedimplementation: implementationAddress,
       });
     }
@@ -537,8 +613,8 @@ export abstract class HyperlaneDeployer<
     contractKey: K,
     contractName: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<
-      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    initializeArgs?: ContractInitializeArgs<
+      Awaited<ReturnType<Factories[K]['deploy']>>
     >,
     shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
@@ -558,8 +634,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     contractKey: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<
-      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    initializeArgs?: ContractInitializeArgs<
+      Awaited<ReturnType<Factories[K]['deploy']>>
     >,
     shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
@@ -605,13 +681,13 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected async upgradeAndInitialize<C extends ethers.Contract>(
+  protected async upgradeAndInitialize<C extends ContractLike>(
     chain: ChainName,
     proxy: ITransparentUpgradeableProxy,
     implementation: C,
     initializeArgs: Parameters<C['initialize']>,
   ): Promise<void> {
-    const current = await proxy.callStatic.implementation();
+    const current = await proxy.implementation();
     if (eqAddress(implementation.address, current)) {
       this.logger.debug(`Implementation set correctly, skipping upgrade`);
       return;
@@ -644,11 +720,11 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected async deployProxy<C extends ethers.Contract>(
+  protected async deployProxy<C extends ContractLike>(
     chain: ChainName,
     implementation: C,
     proxyAdmin: string,
-    initializeArgs?: Parameters<C['initialize']>,
+    initializeArgs?: ContractInitializeArgs<C>,
     contractName?: string,
   ): Promise<C> {
     const isProxied = await isProxy(
@@ -693,7 +769,7 @@ export abstract class HyperlaneDeployer<
         timelockConfig.delay,
         [timelockConfig.roles.proposer],
         [timelockConfig.roles.executor],
-        ethers.constants.AddressZero,
+        zeroAddress,
       ],
       TimelockZkArtifact,
     );
@@ -710,11 +786,11 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses[chain][contractName] = address;
   }
 
-  readCache<F extends ethers.ContractFactory>(
+  readCache(
     chain: ChainName,
-    factory: F,
+    factory: HyperlaneContractFactory,
     contractName: string,
-  ): Awaited<ReturnType<F['deploy']>> | undefined {
+  ): any | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
     if (cachedAddress && !isZeroishAddress(cachedAddress)) {
       this.logger.debug(
@@ -722,19 +798,17 @@ export abstract class HyperlaneDeployer<
       );
       return factory
         .attach(cachedAddress)
-        .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
-        ReturnType<F['deploy']>
-      >;
+        .connect(this.multiProvider.getSignerOrProvider(chain));
     }
     return undefined;
   }
 
-  async recoverVerificationArtifacts<C extends ethers.Contract>(
+  async recoverVerificationArtifacts<C extends ContractLike>(
     chain: ChainName,
     contractName: string,
     cachedContract: C,
-    constructorArgs: Parameters<C['deploy']>,
-    initializeArgs?: Parameters<C['initialize']>,
+    constructorArgs: readonly unknown[],
+    initializeArgs?: readonly unknown[],
   ): Promise<ContractVerificationInput[]> {
     const provider = this.multiProvider.getProvider(chain);
     const isProxied = await isProxy(provider, cachedContract.address);
@@ -786,7 +860,7 @@ export abstract class HyperlaneDeployer<
     contractName: string,
     proxyAdmin: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
+    initializeArgs?: ContractInitializeArgs<HyperlaneContracts<Factories>[K]>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     // Try to initialize the implementation even though it may not be necessary
     const implementation = await this.deployContractWithName(
@@ -829,8 +903,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     config: OwnableConfig,
     ownables: Partial<Record<string, Ownable>>,
-  ): Promise<ethers.ContractReceipt[]> {
-    const receipts: ethers.ContractReceipt[] = [];
+  ): Promise<TxReceipt[]> {
+    const receipts: TxReceipt[] = [];
     for (const [contractName, ownable] of Object.entries<Ownable | undefined>(
       ownables,
     )) {
@@ -862,6 +936,6 @@ export abstract class HyperlaneDeployer<
       }
     }
 
-    return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
+    return receipts.filter((x) => !!x) as TxReceipt[];
   }
 }

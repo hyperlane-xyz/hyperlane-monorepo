@@ -2,7 +2,7 @@ export default [
   {
     ignores: [
       '**/dist/**/*',
-      '**/typechain/**/*',
+      '**/generated/**/*',
       '**/artifacts/**/*',
       '**/cache/**/*',
       '**/forge-cache/**/*',

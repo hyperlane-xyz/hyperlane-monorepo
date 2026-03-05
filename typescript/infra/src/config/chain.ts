@@ -1,5 +1,3 @@
-import { providers } from 'ethers';
-
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -71,7 +69,7 @@ export const defaultRetry: ProviderRetryOptions = {
 
 export async function fetchProvider(
   chainName: ChainName,
-): Promise<providers.Provider> {
+): Promise<HyperlaneSmartProvider> {
   const chainMetadata = getChain(chainName);
   if (!chainMetadata) {
     throw Error(`Unsupported chain: ${chainName}`);

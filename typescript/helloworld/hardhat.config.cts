@@ -1,6 +1,4 @@
-import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
-import '@typechain/hardhat';
+import '@nomicfoundation/hardhat-viem';
 import 'hardhat-gas-reporter';
 import 'solidity-coverage';
 
@@ -13,12 +11,5 @@ module.exports = {
   },
   gasReporter: {
     currency: 'USD',
-  },
-  typechain: {
-    outDir: './src/types',
-    target: 'ethers-v5',
-    alwaysGenerateOverloads: true,
-    node16Modules: true,
-    tsNocheck: true,
   },
 };

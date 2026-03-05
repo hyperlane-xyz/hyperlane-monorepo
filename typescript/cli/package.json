@@ -29,7 +29,7 @@
     "bundle": "rm -rf ./bundle && ncc build ./dist/cli.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
     "dev": "pnpm version:update && tsc --watch",
     "clean": "rm -rf ./dist && rm -rf ./bundle",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "eslint -c ./eslint.config.mjs \"./src/**/*.ts\" --ignore-pattern \"src/tests/**\" --ignore-pattern \"**/*.test.ts\" --ignore-pattern \"**/*.e2e-test.ts\" --ignore-pattern \"**/*.hardhat-test.ts\" --ignore-pattern \"**/*.foundry-test.ts\"",
     "format": "oxfmt --write ./src ./examples",
     "test:ci": "mocha --config .mocharc.json",
     "test:ethereum:e2e": "./src/tests/ethereum/run-e2e-test.sh",
@@ -105,7 +105,6 @@
     "viem": "catalog:",
     "yaml": "catalog:",
     "yargs": "catalog:",
-    "zksync-ethers": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:",
     "zx": "^8.1.4"

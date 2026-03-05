@@ -1,6 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import '@nomiclabs/hardhat-waffle';
-import hre from 'hardhat';
 import sinon from 'sinon';
 
 import {
@@ -18,6 +15,7 @@ import {
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  HardhatSignerWithAddress,
   MerkleTreeHookConfig,
   MultiProvider,
   ProxyFactoryFactories,
@@ -25,6 +23,7 @@ import {
   TestRecipientDeployer,
   randomDeployableIsmConfig,
   testChains,
+  getHardhatSigners,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -58,12 +57,12 @@ describe('BaseMetadataBuilder', () => {
   let testRecipients: Record<ChainName, TestRecipient>;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
-  let relayer: SignerWithAddress;
-  let validators: SignerWithAddress[];
+  let relayer: HardhatSignerWithAddress;
+  let validators: HardhatSignerWithAddress[];
   let metadataBuilder: BaseMetadataBuilder;
 
   before(async () => {
-    [relayer, ...validators] = await hre.ethers.getSigners();
+    [relayer, ...validators] = await getHardhatSigners();
     const multiProvider = MultiProvider.createTestMultiProvider({
       signer: relayer,
     });

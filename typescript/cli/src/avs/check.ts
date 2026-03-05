@@ -1,5 +1,3 @@
-import { type Wallet } from 'ethers';
-
 import {
   ECDSAStakeRegistry__factory,
   IDelegationManager__factory,
@@ -50,6 +48,25 @@ interface ValidatorInfo {
   chains: ChainMap<ChainInfo>;
 }
 
+type LogLike = { data: string; topics: readonly string[] };
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function isLogLike(value: unknown): value is LogLike {
+  const record = asRecord(value);
+  if (!record) return false;
+  const topics = record.topics;
+  return (
+    typeof record.data === 'string' &&
+    Array.isArray(topics) &&
+    topics.every((topic) => typeof topic === 'string')
+  );
+}
+
 export const checkValidatorAvsSetup = async (
   chain: string,
   context: CommandContext,
@@ -66,7 +83,9 @@ export const checkValidatorAvsSetup = async (
 
   const topLevelErrors: string[] = [];
 
-  let operatorWallet: Wallet | undefined;
+  let operatorWallet:
+    | Awaited<ReturnType<typeof readOperatorFromEncryptedJson>>
+    | undefined;
   if (operatorKeyPath) {
     operatorWallet = await readOperatorFromEncryptedJson(operatorKeyPath);
   }
@@ -126,7 +145,11 @@ const getAvsOperators = async (
     return avsOperators;
   }
 
-  const filter = ecdsaStakeRegistry.filters.SigningKeyUpdate(null, null);
+  const filter = {
+    address: ecdsaStakeRegistry.address,
+    eventName: 'SigningKeyUpdate',
+    args: [null, null],
+  };
   const provider = multiProvider.getProvider(chain);
   const latestBlock = await provider.getBlockNumber();
   const blockLimit = 50000; // 50k blocks per query
@@ -142,8 +165,13 @@ const getAvsOperators = async (
     );
 
     logs.forEach((event) => {
-      const operatorKey = event.args.operator;
-      const signingKey = event.args.newSigningKey;
+      const args = asRecord(asRecord(event)?.args);
+      if (!args) return;
+      const operatorKey = args.operator;
+      const signingKey = args.newSigningKey;
+      if (typeof operatorKey !== 'string' || typeof signingKey !== 'string') {
+        return;
+      }
 
       if (avsOperators[signingKey]) {
         avsOperators[signingKey].operatorAddress = operatorKey;
@@ -173,10 +201,11 @@ const getAVSMetadataURI = async (
     multiProvider.getProvider(chain),
   );
 
-  const filter = delegationManager.filters.OperatorMetadataURIUpdated(
-    operatorAddress,
-    null,
-  );
+  const filter = {
+    address: delegationManager.address,
+    eventName: 'OperatorMetadataURIUpdated',
+    args: [operatorAddress, null],
+  };
 
   const provider = multiProvider.getProvider(chain);
   const latestBlock = await provider.getBlockNumber();
@@ -192,8 +221,12 @@ const getAVSMetadataURI = async (
     );
 
     if (logs.length > 0) {
-      const event = delegationManager.interface.parseLog(logs[0]);
-      return event.args.metadataURI;
+      const firstLog = logs.find(isLogLike);
+      if (firstLog) {
+        const event = delegationManager.interface.parseLog(firstLog);
+        const metadataURI = asRecord(event.args)?.metadataURI;
+        if (typeof metadataURI === 'string') return metadataURI;
+      }
     }
 
     fromBlock = toBlock + 1;

@@ -1,4 +1,3 @@
-import type { BigNumber, Signer, ethers } from 'ethers';
 import { z } from 'zod';
 
 import type { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -20,7 +19,14 @@ export type ProtocolMap<Value> = Partial<Record<ProtocolType, Value>>;
 
 export type ChainNameOrId = ChainName | Domain;
 
-export type Connection = ethers.providers.Provider | ethers.Signer;
+export type EvmProvider = ReturnType<MultiProvider['getProvider']>;
+export type EvmSigner = ReturnType<MultiProvider['getSigner']>;
+
+// Backwards-compatible aliases while downstream code migrates to EvmProvider/EvmSigner.
+export type MultiProviderEvmProvider = EvmProvider;
+export type MultiProviderEvmSigner = EvmSigner;
+
+export type Connection = EvmProvider | EvmSigner;
 
 export const OwnableSchema = z.object({
   owner: ZHash,
@@ -45,18 +51,18 @@ export const PausableSchema = OwnableSchema.extend({
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
 export type TypedSigner<T extends ProtocolType> =
-  | Signer
+  | EvmSigner
   | AltVM.ISigner<ProtocolTransaction<T>, ProtocolReceipt<T>>;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;
 
-  getEVMSigner(chain: ChainName): Signer;
+  getEVMSigner(chain: ChainName): EvmSigner;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {
     address: Address;
     chain: ChainName;
     denom?: string;
-  }): Promise<BigNumber>;
+  }): Promise<Awaited<ReturnType<EvmProvider['getBalance']>>>;
 }

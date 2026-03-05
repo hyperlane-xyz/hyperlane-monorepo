@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Hex, decodeAbiParameters, keccak256, parseAbiParameters } from 'viem';
 
 import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -18,6 +18,7 @@ const logger = rootLogger.child({ module: 'MockInfrastructureController' });
 const MESSAGE_BODY_OFFSET = 77;
 /** Warp tokens scale amounts by 10^decimals; simulation uses 18 decimals */
 const WARP_TOKEN_SCALE = BigInt(1e18);
+const MESSAGE_AMOUNT_ARGS = parseAbiParameters('bytes32, uint256');
 
 /** Pending message awaiting delayed delivery */
 interface PendingMessage {
@@ -37,7 +38,7 @@ interface PendingMessage {
 }
 
 /**
- * MockInfrastructureController listens for Dispatch events on all Mailboxes,
+ * MockInfrastructureController polls Dispatch events on all Mailboxes,
  * classifies messages by sender (warp vs bridge), and delivers them with
  * configurable delays by calling process('0x', message) on the destination mailbox.
  *
@@ -48,6 +49,8 @@ export class MockInfrastructureController {
   private pendingMessages: PendingMessage[] = [];
   private isRunning = false;
   private processLoopPromise?: Promise<void>;
+  private lastScannedBlocks: Map<string, number> = new Map();
+  private seenMessageIds: Set<string> = new Set();
 
   constructor(
     private readonly core: HyperlaneCore,
@@ -74,33 +77,17 @@ export class MockInfrastructureController {
   }
 
   /**
-   * Start listening for Dispatch events and processing messages
+   * Start polling Dispatch events and processing messages
    */
   async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Listen for Dispatch events on all mailboxes
+    // Initialize block cursors for polling.
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
-      const mailbox = this.core.getContracts(chainName).mailbox;
-      mailbox.on(
-        mailbox.filters.Dispatch(),
-        (
-          sender: string,
-          destination: number,
-          _recipient: string,
-          message: string,
-        ) => {
-          this.onDispatch(chainName, sender, destination, message).catch(
-            (error: unknown) => {
-              logger.error(
-                { origin: chainName, error },
-                'Unhandled error in onDispatch',
-              );
-            },
-          );
-        },
-      );
+      const provider = this.core.multiProvider.getProvider(chainName);
+      const blockNumber = this.toBlockNumber(await provider.getBlockNumber());
+      this.lastScannedBlocks.set(chainName, blockNumber);
     }
 
     // Start processing loop
@@ -139,7 +126,11 @@ export class MockInfrastructureController {
 
     if (!isWarp && !isBridge) {
       logger.warn(
-        { sender, warp: originDomain.warpToken, bridge: originDomain.bridge },
+        {
+          sender,
+          warp: originDomain.warpToken,
+          bridge: originDomain.bridge,
+        },
         'Unknown sender in Dispatch event',
       );
       return;
@@ -148,16 +139,15 @@ export class MockInfrastructureController {
     const type = isWarp ? 'user-transfer' : 'bridge-transfer';
 
     // Compute real messageId
-    const messageId = ethers.utils.keccak256(message);
+    const messageId = keccak256(message as Hex);
 
     const body = '0x' + message.slice(2 + MESSAGE_BODY_OFFSET * 2);
     let amount = 0n;
     try {
-      const decoded = ethers.utils.defaultAbiCoder.decode(
-        ['bytes32', 'uint256'],
-        body,
+      const [, scaledAmount] = decodeAbiParameters(
+        MESSAGE_AMOUNT_ARGS,
+        body as Hex,
       );
-      const scaledAmount = decoded[1].toBigInt();
       // Warp tokens use scale = 10^decimals, bridge Router uses scale = 1 (no scaling)
       amount =
         type === 'user-transfer'
@@ -225,6 +215,8 @@ export class MockInfrastructureController {
    */
   private async processLoop(): Promise<void> {
     while (this.isRunning) {
+      await this.syncDispatchEvents();
+
       const now = Date.now();
       const ready = this.pendingMessages.filter((m) => m.deliveryTime <= now);
 
@@ -235,7 +227,16 @@ export class MockInfrastructureController {
 
         // Static call pre-check
         try {
-          await mailbox.callStatic.process('0x', msg.message);
+          const destinationProvider = this.core.multiProvider.getProvider(
+            msg.destination,
+          );
+          await destinationProvider.call({
+            to: mailbox.address,
+            data: mailbox.interface.encodeFunctionData('process', [
+              '0x',
+              msg.message,
+            ]),
+          });
         } catch (error) {
           logger.debug(
             {
@@ -277,7 +278,11 @@ export class MockInfrastructureController {
           msg.attempts++;
           msg.deliveryTime = now + 200;
           logger.debug(
-            { messageId: msg.messageId, dest: msg.destination, error },
+            {
+              messageId: msg.messageId,
+              dest: msg.destination,
+              error,
+            },
             'Delivery tx failed, will retry',
           );
         }
@@ -297,10 +302,6 @@ export class MockInfrastructureController {
     if (this.processLoopPromise) {
       await this.processLoopPromise;
       this.processLoopPromise = undefined;
-    }
-
-    for (const chainName of this.core.multiProvider.getKnownChainNames()) {
-      this.core.getContracts(chainName).mailbox.removeAllListeners();
     }
   }
 
@@ -342,5 +343,119 @@ export class MockInfrastructureController {
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+  }
+
+  private async syncDispatchEvents(): Promise<void> {
+    for (const chainName of this.core.multiProvider.getKnownChainNames()) {
+      try {
+        const provider = this.core.multiProvider.getProvider(chainName);
+        const currentBlock = this.toBlockNumber(
+          await provider.getBlockNumber(),
+        );
+        const lastScanned =
+          this.lastScannedBlocks.get(chainName) ?? currentBlock;
+
+        if (lastScanned >= currentBlock) {
+          continue;
+        }
+
+        const mailbox = this.core.getContracts(chainName).mailbox;
+        const events = await mailbox.queryFilter(
+          {
+            address: mailbox.address,
+            eventName: 'Dispatch',
+            args: [] as const,
+          },
+          lastScanned + 1,
+          currentBlock,
+        );
+
+        for (const event of events) {
+          const dispatch = this.extractDispatchEvent(event);
+          if (!dispatch) {
+            logger.debug(
+              { chainName, event },
+              'Skipping malformed Dispatch event',
+            );
+            continue;
+          }
+
+          const messageId = keccak256(dispatch.message as Hex);
+          if (this.seenMessageIds.has(messageId)) {
+            continue;
+          }
+          this.seenMessageIds.add(messageId);
+
+          await this.onDispatch(
+            chainName,
+            dispatch.sender,
+            dispatch.destination,
+            dispatch.message,
+          );
+        }
+
+        this.lastScannedBlocks.set(chainName, currentBlock);
+      } catch (error: unknown) {
+        logger.debug({ chainName, error }, 'Dispatch polling failed');
+      }
+    }
+  }
+
+  private extractDispatchEvent(
+    event: unknown,
+  ): { sender: string; destination: number; message: string } | undefined {
+    if (!event || typeof event !== 'object') {
+      return undefined;
+    }
+    const args = (event as { args?: unknown }).args;
+    if (!args || typeof args !== 'object') {
+      return undefined;
+    }
+
+    const sender = (args as { sender?: unknown }).sender;
+    const destination = (args as { destination?: unknown }).destination;
+    const message = (args as { message?: unknown }).message;
+
+    if (typeof sender !== 'string' || typeof message !== 'string') {
+      return undefined;
+    }
+
+    const normalizedDestination = this.toDomainId(destination);
+    if (normalizedDestination === undefined) {
+      return undefined;
+    }
+
+    return {
+      sender,
+      destination: normalizedDestination,
+      message,
+    };
+  }
+
+  private toDomainId(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isInteger(value)) {
+      return value;
+    }
+    if (typeof value === 'bigint') {
+      return Number(value);
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isInteger(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  }
+
+  private toBlockNumber(value: unknown): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'bigint') {
+      return Number(value);
+    }
+    if (typeof value === 'string') {
+      return Number(value);
+    }
+    throw new Error(`Unexpected block number type: ${typeof value}`);
   }
 }

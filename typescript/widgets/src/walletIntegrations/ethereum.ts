@@ -37,6 +37,19 @@ import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/ethereum' });
 
+function toEvmLikeTransaction(
+  transaction: Record<string, unknown>,
+): Record<string, unknown> {
+  const request = { ...transaction };
+  if (request.data === undefined && typeof request.input === 'string') {
+    request.data = request.input;
+  }
+  if (request.gasLimit === undefined && request.gas !== undefined) {
+    request.gasLimit = request.gas;
+  }
+  return request;
+}
+
 export function useEthereumAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
@@ -170,7 +183,7 @@ export function useEthereumTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      if (tx.type !== ProviderType.EthersV5)
+      if (tx.type !== ProviderType.Evm && tx.type !== ProviderType.Viem)
         throw new Error(`Unsupported tx type: ${tx.type}`);
 
       // If the active chain is different from tx origin chain, try to switch network first
@@ -188,7 +201,9 @@ export function useEthereumTransactionFns(
       );
 
       logger.debug(`Sending tx on chain ${chainName}`);
-      const wagmiTx = ethers5TxToWagmiTx(tx.transaction);
+      const wagmiTx = ethers5TxToWagmiTx(
+        toEvmLikeTransaction(tx.transaction as Record<string, unknown>),
+      );
       const hash = await sendTransaction(config, {
         chainId,
         ...wagmiTx,

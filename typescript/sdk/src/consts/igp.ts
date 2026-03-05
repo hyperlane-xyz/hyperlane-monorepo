@@ -1,24 +1,24 @@
-import { BigNumber, ethers } from 'ethers';
+import { parseUnits } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM = 10;
 
-export const TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM = ethers.utils.parseUnits(
+export const TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM = parseUnits(
   '1',
   TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
 );
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL = 19;
 
-export const TOKEN_EXCHANGE_RATE_SCALE_SEALEVEL = ethers.utils.parseUnits(
+export const TOKEN_EXCHANGE_RATE_SCALE_SEALEVEL = parseUnits(
   '1',
   TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL,
 );
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS = 10;
 
-export const TOKEN_EXCHANGE_RATE_SCALE_COSMOS = ethers.utils.parseUnits(
+export const TOKEN_EXCHANGE_RATE_SCALE_COSMOS = parseUnits(
   '1',
   TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS,
 );
@@ -55,6 +55,6 @@ export function getProtocolExchangeRateDecimals(
 
 export function getProtocolExchangeRateScale(
   protocolType: ProtocolType,
-): BigNumber {
-  return BigNumber.from(10).pow(getProtocolExchangeRateDecimals(protocolType));
+): bigint {
+  return 10n ** BigInt(getProtocolExchangeRateDecimals(protocolType));
 }

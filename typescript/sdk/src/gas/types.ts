@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import { z } from 'zod';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
@@ -7,6 +6,8 @@ import type { Address } from '@hyperlane-xyz/utils';
 import type { CheckerViolation } from '../deploy/types.js';
 import { IgpSchema } from '../hook/types.js';
 import { ChainMap } from '../types.js';
+
+type GasOverheadValue = bigint;
 
 export type IgpConfig = z.infer<typeof IgpSchema>;
 
@@ -38,6 +39,6 @@ export interface IgpGasOraclesViolation extends IgpViolation {
 export interface IgpOverheadViolation extends IgpViolation {
   subType: IgpViolationType.Overhead;
   contract: InterchainGasPaymaster;
-  actual: ChainMap<BigNumber>;
-  expected: ChainMap<BigNumber>;
+  actual: ChainMap<GasOverheadValue>;
+  expected: ChainMap<GasOverheadValue>;
 }

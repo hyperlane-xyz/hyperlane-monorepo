@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 import { fromError } from 'zod-validation-error';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
@@ -98,7 +98,7 @@ async function getStartBlocks(
       const mailbox = core.getContracts(chain).mailbox;
       try {
         const deployedBlock = await mailbox.deployedBlock();
-        return deployedBlock.toNumber();
+        return Number(deployedBlock);
       } catch {
         errorRed(
           `❌ Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
@@ -124,8 +124,7 @@ async function handleMissingInterchainGasPaymaster(
       );
 
       if (useZeroIgpAddress) {
-        chainAddresses[chain].interchainGasPaymaster =
-          ethers.constants.AddressZero;
+        chainAddresses[chain].interchainGasPaymaster = zeroAddress;
       }
     }
   }

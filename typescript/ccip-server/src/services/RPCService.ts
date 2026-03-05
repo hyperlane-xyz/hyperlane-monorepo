@@ -1,4 +1,13 @@
-import { ethers } from 'ethers';
+import {
+  type Address,
+  type BlockTag,
+  type Hex,
+  type PublicClient,
+  createPublicClient,
+  http,
+  isAddress,
+  isHex,
+} from 'viem';
 
 type ProofResultStorageProof = {
   key: string;
@@ -16,10 +25,36 @@ type ProofResult = {
   storageHash: string;
 };
 
+function assertAddress(value: string): asserts value is Address {
+  if (!isAddress(value)) throw new Error(`Invalid address: ${value}`);
+}
+
+function assertHex(value: string, fieldName: string): asserts value is Hex {
+  if (!isHex(value)) throw new Error(`Invalid ${fieldName}: ${value}`);
+}
+
+function isBlockTag(value: string): value is BlockTag {
+  return (
+    value === 'latest' ||
+    value === 'earliest' ||
+    value === 'pending' ||
+    value === 'safe' ||
+    value === 'finalized'
+  );
+}
+
+function toBlockRef(value: string): Hex | BlockTag {
+  if (isBlockTag(value)) return value;
+  assertHex(value, 'block');
+  return value;
+}
+
 class RPCService {
-  provider: ethers.providers.JsonRpcProvider;
+  private readonly client: PublicClient;
   constructor(private readonly providerAddress: string) {
-    this.provider = new ethers.providers.JsonRpcProvider(this.providerAddress);
+    this.client = createPublicClient({
+      transport: http(this.providerAddress),
+    });
   }
 
   /**
@@ -34,13 +69,18 @@ class RPCService {
     storageKeys: string[],
     block: string,
   ): Promise<ProofResult> {
-    const results = await this.provider.send('eth_getProof', [
-      address,
-      storageKeys,
-      block,
-    ]);
+    assertAddress(address);
+    const hexStorageKeys = storageKeys.map((key) => {
+      assertHex(key, 'storage key');
+      return key;
+    });
+    const blockRef = toBlockRef(block);
+    const results = await this.client.request({
+      method: 'eth_getProof',
+      params: [address, hexStorageKeys, blockRef],
+    });
 
-    return results;
+    return results as ProofResult;
   }
 }
 

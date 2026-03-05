@@ -11,7 +11,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { Address, LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
@@ -33,6 +33,31 @@ import {
   isSyntheticTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
+
+type AddressReaderContract = {
+  address: string;
+  interface: {
+    encodeFunctionData(functionName: string, args?: readonly unknown[]): string;
+    decodeFunctionResult(functionName: string, data: `0x${string}`): unknown;
+  };
+};
+
+async function readAddressWithCall(
+  provider: { call(args: { to: string; data: string }): Promise<unknown> },
+  contract: AddressReaderContract,
+  functionName: string,
+): Promise<Address> {
+  const result = await provider.call({
+    to: contract.address,
+    data: contract.interface.encodeFunctionData(functionName),
+  });
+  return String(
+    contract.interface.decodeFunctionResult(
+      functionName,
+      result as `0x${string}`,
+    ),
+  ) as Address;
+}
 
 export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20Factories & ProxiedFactories,
@@ -86,10 +111,12 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           expectedConfig.token,
           provider,
         );
-        collateralToken = ERC20__factory.connect(
-          await lockbox.callStatic['XERC20()'](),
+        const xerc20Address = await readAddressWithCall(
           provider,
+          lockbox,
+          'XERC20',
         );
+        collateralToken = ERC20__factory.connect(xerc20Address, provider);
         contracts['collateralToken'] = Ownable__factory.connect(
           collateralToken.address,
           provider,
@@ -129,7 +156,12 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       ];
 
       for (const check of checks) {
-        const actual = await token[check.method]();
+        const actual =
+          check.method === 'name'
+            ? await token.name()
+            : check.method === 'symbol'
+              ? await token.symbol()
+              : await token.decimals();
         const expected = config[check.method];
         if (expected !== undefined && actual !== expected) {
           const violation: TokenMismatchViolation = {
@@ -268,10 +300,11 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       const provider = this.multiProvider.getProvider(chain);
 
       if (expectedConfig.type === TokenType.XERC20Lockbox) {
-        const collateralTokenAddress = await IXERC20Lockbox__factory.connect(
-          expectedConfig.token,
+        const collateralTokenAddress = await readAddressWithCall(
           provider,
-        ).callStatic.ERC20();
+          IXERC20Lockbox__factory.connect(expectedConfig.token, provider),
+          'ERC20',
+        );
         collateralToken = ERC20__factory.connect(
           collateralTokenAddress,
           provider,
@@ -280,10 +313,11 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         expectedConfig.type === TokenType.collateralVault ||
         expectedConfig.type === TokenType.collateralVaultRebase
       ) {
-        const collateralTokenAddress = await IERC4626__factory.connect(
-          expectedConfig.token,
+        const collateralTokenAddress = await readAddressWithCall(
           provider,
-        ).callStatic.asset();
+          IERC4626__factory.connect(expectedConfig.token, provider),
+          'asset',
+        );
         collateralToken = ERC20__factory.connect(
           collateralTokenAddress,
           provider,

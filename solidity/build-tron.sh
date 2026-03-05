@@ -3,7 +3,9 @@ set -e
 cd "$(dirname "$0")"
 
 # Ensure deterministic tron outputs for caching and downstream package imports.
-rm -rf ./cache-tron ./artifacts-tron ./dist/tron/typechain
+# Hardhat tron compile writes cache/artifacts-tron, while forge tron profile
+# writes forge-cache-tron/out-tron.
+rm -rf ./cache-tron ./artifacts-tron ./forge-cache-tron ./out-tron
 
 # Soldeer dependencies are already installed by the turbo deps:soldeer task
 # (build:tron depends on build, which depends on deps:soldeer).
@@ -47,14 +49,6 @@ node patch-isContract.mjs $ISCONTRACT_FILES
 
 # Compile with tron-solc
 NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
-
-# Compile generated tron typechain TS into JS for package consumers.
-pnpm exec tsc --project tsconfig.tron-typechain.json
-
-# Fix ethers v5/v6 compat: replace `import { utils } from "ethers"` with
-# direct `Interface` import from `@ethersproject/abi` to avoid webpack
-# resolution failures in downstream apps using barrel optimization.
-node fix-typechain-ethers.mjs ./dist/tron/typechain/factories
 
 # trap will restore files
 trap - EXIT

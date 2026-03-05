@@ -1,4 +1,3 @@
-import { ethers, providers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -33,6 +32,14 @@ import { messageMatchesWhitelist } from './whitelist.js';
 
 type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
+type DispatchReceipt = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']
+    >
+  >
+>;
+type DeliveryReceipt = Awaited<ReturnType<HyperlaneCore['deliver']>>;
 
 export class HyperlaneRelayer {
   protected multiProvider: MultiProvider;
@@ -167,9 +174,9 @@ export class HyperlaneRelayer {
   }
 
   async relayAll(
-    dispatchTx: providers.TransactionReceipt,
+    dispatchTx: DispatchReceipt,
     messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
-  ): Promise<ChainMap<ethers.ContractReceipt[]>> {
+  ): Promise<ChainMap<DeliveryReceipt[]>> {
     const destinationMap: ChainMap<DispatchedMessage[]> = {};
     messages.forEach((message) => {
       destinationMap[message.parsed.destination] ??= [];
@@ -179,7 +186,7 @@ export class HyperlaneRelayer {
     // parallelize relaying to different destinations
     return promiseObjAll(
       objMap(destinationMap, async (_destination, messages) => {
-        const receipts: ethers.ContractReceipt[] = [];
+        const receipts: DeliveryReceipt[] = [];
         // serially relay messages to the same destination
         for (const message of messages) {
           try {
@@ -199,10 +206,10 @@ export class HyperlaneRelayer {
   }
 
   async relayMessage(
-    dispatchTx: providers.TransactionReceipt,
+    dispatchTx: DispatchReceipt,
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<DeliveryReceipt> {
     const originChain = this.core.getOrigin(message);
     const destinationChain = this.core.getDestination(message);
 
@@ -357,6 +364,10 @@ export class HyperlaneRelayer {
         const dispatchReceipt = await this.multiProvider
           .getProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
+        assert(
+          dispatchReceipt,
+          `No dispatch receipt found for tx ${dispatchTx} on ${originChain}`,
+        );
 
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
       } catch {
@@ -406,7 +417,7 @@ export class HyperlaneRelayer {
         attempts: 0,
         lastAttempt: Date.now(),
         message: message.message,
-        dispatchTx: event.transactionHash,
+        dispatchTx: event.transactionHash ?? '',
       });
     }, this.whitelistChains());
 

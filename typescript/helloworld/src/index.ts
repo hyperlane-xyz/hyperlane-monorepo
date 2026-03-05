@@ -3,8 +3,11 @@ export { HelloWorldFactories, helloWorldFactories } from './app/contracts.js';
 export { HelloWorldChecker } from './deploy/check.js';
 export { HelloWorldConfig } from './deploy/config.js';
 export { HelloWorldDeployer } from './deploy/deploy.js';
+export {
+  HelloWorld__factory,
+  type HelloWorld,
+} from './app/helloWorldFactory.js';
 export { EvmHelloWorldAdapter } from './multiProtocolApp/evmAdapter.js';
 export { HelloMultiProtocolApp } from './multiProtocolApp/multiProtocolApp.js';
 export { SealevelHelloWorldAdapter } from './multiProtocolApp/sealevelAdapter.js';
 export { IHelloWorldAdapter } from './multiProtocolApp/types.js';
-export * as types from './types/index.js';

@@ -1,4 +1,4 @@
-import { ethers, utils as ethersUtils } from 'ethers';
+import { encodeAbiParameters, zeroAddress } from 'viem';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
 import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
@@ -163,9 +163,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
           this.ismFactory.multiProvider,
           chain,
         );
-        let actualConfig: string | DerivedIsmConfig =
-          ethers.constants.AddressZero;
-        if (actualIsmAddress !== ethers.constants.AddressZero) {
+        let actualConfig: string | DerivedIsmConfig = zeroAddress;
+        if (actualIsmAddress !== zeroAddress) {
           actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
         }
 
@@ -194,7 +193,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       mailbox.address,
     );
 
-    if (implementation === ethers.constants.AddressZero) {
+    if (implementation === zeroAddress) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
         subType: MailboxViolationType.NotProxied,
@@ -221,9 +220,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
           // are just done via an offset guard
           bytecode
             .replaceAll(
-              ethersUtils.defaultAbiCoder
-                .encode(['uint32'], [localDomain])
-                .slice(2),
+              encodeAbiParameters(
+                [{ name: 'domain', type: 'uint32' }],
+                [Number(localDomain)],
+              ).slice(2),
               (match, offset) => (offset > 8000 ? match : ''),
             )
             // We persist the block number in the bytecode now too, so we have to strip it
@@ -269,7 +269,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
     [...validators].forEach((validator) => {
-      const matches = announcedValidators.filter((x) =>
+      const matches = announcedValidators.filter((x: string) =>
         eqAddress(x, validator),
       );
       if (matches.length == 0) {

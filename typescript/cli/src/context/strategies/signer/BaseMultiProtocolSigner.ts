@@ -1,7 +1,7 @@
 import { password } from '@inquirer/prompts';
-import { type Signer } from 'ethers';
 
 import {
+  type IMultiProtocolSignerManager,
   type MultiProtocolProvider,
   type TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
@@ -9,7 +9,9 @@ import { type Address } from '@hyperlane-xyz/utils';
 
 import { type ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
-export type TypedSigner = Signer;
+export type TypedSigner = ReturnType<
+  IMultiProtocolSignerManager['getEVMSigner']
+>;
 
 export type SignerConfig = Omit<
   Extract<

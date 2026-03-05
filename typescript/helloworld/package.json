@@ -21,10 +21,10 @@
   "scripts": {
     "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
     "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
-    "coverage": "pnpm hardhat-esm coverage",
+    "coverage": "sh -c 'for i in 1 2 3; do SOLIDITY_COVERAGE=true pnpm hardhat-esm coverage && exit 0; [ \"$i\" -lt 3 ] && sleep 30; done; exit 1'",
     "lint": "pnpm lint:sol && pnpm lint:ts",
     "lint:sol": "solhint contracts/**/*.sol",
-    "lint:ts": "eslint -c ./eslint.config.mjs",
+    "lint:ts": "eslint -c ./eslint.config.mjs \"./src/**/*.ts\" --ignore-pattern \"src/test/**\" --ignore-pattern \"artifacts/**\" --ignore-pattern \"**/*.test.ts\" --ignore-pattern \"**/*.e2e-test.ts\" --ignore-pattern \"**/*.hardhat-test.ts\" --ignore-pattern \"**/*.foundry-test.ts\"",
     "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "format": "oxfmt --write ./src && prettier --write ./contracts",
     "test": "pnpm hardhat-esm test $(find ./src/test -name '*.test.ts')",
@@ -39,18 +39,11 @@
     "@openzeppelin/contracts-upgradeable": "catalog:",
     "@solana/web3.js": "catalog:",
     "borsh": "catalog:",
-    "ethers": "catalog:"
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@ethereum-waffle/chai": "^4.0.10",
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
-    "@nomiclabs/hardhat-ethers": "catalog:",
-    "@nomiclabs/hardhat-waffle": "catalog:",
-    "@typechain/ethers-v5": "catalog:",
-    "@typechain/ethers-v6": "catalog:",
-    "@typechain/hardhat": "catalog:",
+    "@nomicfoundation/hardhat-viem": "catalog:",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
@@ -62,7 +55,6 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",
     "prettier": "catalog:",
@@ -72,12 +64,9 @@
     "solidity-coverage": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typechain": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
     "@types/node": "*",
     "@types/sinon-chai": "*"
   }

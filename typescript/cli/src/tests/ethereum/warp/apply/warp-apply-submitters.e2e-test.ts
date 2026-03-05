@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { type Signer, Wallet, ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   InterchainAccountRouter__factory,
@@ -13,6 +13,8 @@ import {
   type ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   type DerivedCoreConfig,
+  HyperlaneSmartProvider,
+  LocalAccountViemSigner,
   type SubmissionStrategy,
   TokenType,
   TxSubmitterType,
@@ -23,6 +25,7 @@ import {
   type Domain,
   ProtocolType,
   assert,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
@@ -57,8 +60,8 @@ describe('hyperlane warp apply with submitters', async function () {
     coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
   });
 
-  let chain2Signer: Signer;
-  let chain3Signer: Signer;
+  let chain2Signer: ReturnType<LocalAccountViemSigner['connect']>;
+  let chain3Signer: ReturnType<LocalAccountViemSigner['connect']>;
   let chain3Addresses: ChainAddresses = {};
   let chain2Addresses: ChainAddresses = {};
   let initialOwnerAddress: Address;
@@ -149,15 +152,19 @@ describe('hyperlane warp apply with submitters', async function () {
     const chain3Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
 
-    const chain2Provider = new ethers.providers.JsonRpcProvider(
+    const chain2Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
       chain2Metadata.rpcUrl,
     );
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
+    const chain3Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
       chain3Metadata.rpcUrl,
     );
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
+    const wallet = new LocalAccountViemSigner(
+      ensure0x(HYP_KEY_BY_PROTOCOL.ethereum),
+    );
     chain2Signer = wallet.connect(chain2Provider);
 
     chain3Signer = wallet.connect(chain3Provider);
@@ -173,12 +180,12 @@ describe('hyperlane warp apply with submitters', async function () {
       chain2Signer,
     );
 
-    chain3IcaAddress = await chain2IcaRouter.callStatic[
+    chain3IcaAddress = await chain2IcaRouter[
       'getRemoteInterchainAccount(address,address,address)'
     ](
       initialOwnerAddress,
       chain3Addresses.interchainAccountRouter,
-      ethers.constants.AddressZero,
+      zeroAddress,
     );
 
     // Deploy the timelock and set both the owner address and the ICA
@@ -189,7 +196,7 @@ describe('hyperlane warp apply with submitters', async function () {
         0,
         [initialOwnerAddress, chain3IcaAddress],
         [initialOwnerAddress, chain3IcaAddress],
-        ethers.constants.AddressZero,
+        zeroAddress,
       );
 
     // Deploy a mock SAFE so that the SDK can check that a contract exists
