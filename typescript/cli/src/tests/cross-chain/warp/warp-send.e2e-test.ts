@@ -74,6 +74,18 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
     TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
   ];
+
+  // Non-EVM destinations require an explicit --recipient. Map each chain to
+  // its deployer address so warp send doesn't reject the transfer.
+  const recipientByChain: Record<string, string> = {
+    [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]:
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL[ProtocolType.Ethereum],
+    [TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1]:
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL[ProtocolType.CosmosNative],
+    [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1]:
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL[ProtocolType.Radix],
+  };
+
   const WARP_CORE_PATH = getWarpCoreConfigPath(TEST_TOKEN_SYMBOL, warpChains);
   const WARP_DEPLOY_PATH = getWarpDeployConfigPath(
     TEST_TOKEN_SYMBOL,
@@ -243,6 +255,9 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
         warpRouteId: WARP_ROUTE_ID,
         amount: 1,
         quick: true,
+        // Non-EVM destinations require an explicit recipient. Use the deployer
+        // address for that protocol so the send transaction goes through.
+        recipient: recipientByChain[testCase.destination],
         // Skip validation since these tests only verify send transactions succeed,
         // not full delivery flow. Collateral/balance checks would fail without
         // cross-VM message delivery which the CLI relayer doesn't support yet.
