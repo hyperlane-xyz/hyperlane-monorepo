@@ -692,22 +692,23 @@ function resolveFunctionCall(
     overrideMatches.length === 1 ? overrideMatches : matches;
   if (disambiguationPool.length === 1) return disambiguationPool[0];
 
-  try {
-    const resolved = getAbiItem({
-      abi: disambiguationPool.map(({ fn }) => fn),
-      args: disambiguationPool[0].fnArgs,
-      name: functionName,
-    });
-    if (resolved && resolved.type === 'function') {
-      const signature = getFunctionSignature(resolved);
-      const match = disambiguationPool.find(
-        ({ fn }) => getFunctionSignature(fn) === signature,
+  const disambiguatedMatches = disambiguationPool.filter((candidate) => {
+    try {
+      const resolved = getAbiItem({
+        abi: disambiguationPool.map(({ fn }) => fn),
+        args: candidate.fnArgs,
+        name: functionName,
+      });
+      return (
+        !!resolved &&
+        resolved.type === 'function' &&
+        getFunctionSignature(resolved) === getFunctionSignature(candidate.fn)
       );
-      if (match) return match;
+    } catch {
+      return false;
     }
-  } catch {
-    // ignore and fall back to explicit ambiguity error below
-  }
+  });
+  if (disambiguatedMatches.length === 1) return disambiguatedMatches[0];
 
   throw new Error(`Ambiguous function ${functionName}; use full signature`);
 }
@@ -1397,6 +1398,7 @@ function normalizeFunctionsReadResult(
   result: unknown,
   outputCount: number,
 ): unknown {
+  if (outputCount === 0) return [];
   if (outputCount === 1) return [result];
   return result;
 }
