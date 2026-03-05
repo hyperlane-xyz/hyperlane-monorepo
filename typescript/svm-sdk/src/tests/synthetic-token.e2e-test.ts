@@ -9,13 +9,12 @@ import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
-  DEFAULT_IGP_CONTEXT,
+  DEFAULT_IGP_SALT,
   SvmIgpHookWriter,
-  deriveIgpSalt,
   type SvmIgpHookConfig,
 } from '../hook/igp-hook.js';
 import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
-import { deriveAtaPayerPda, deriveOverheadIgpAccountPda } from '../pda.js';
+import { deriveAtaPayerPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import {
   type PreloadableProgram,
@@ -50,7 +49,6 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
   let signer: SvmSigner;
   let mailboxAddress: Address;
   let igpProgramId: Address;
-  let overheadIgpAccountAddress: Address;
   let testIsmAddress: Address;
   let writer: SvmSyntheticTokenWriter;
 
@@ -69,7 +67,6 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
     mailboxAddress = TEST_PROGRAM_IDS.mailbox;
     igpProgramId = TEST_PROGRAM_IDS.igp;
 
-    const igpSalt = deriveIgpSalt(DEFAULT_IGP_CONTEXT);
     const igpConfig: SvmIgpHookConfig = {
       type: 'interchainGasPaymaster',
       owner: signer.getSignerAddress(),
@@ -81,17 +78,11 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       },
       program: { programId: igpProgramId },
     };
-    const igpWriter = new SvmIgpHookWriter(rpc, igpSalt, signer);
+    const igpWriter = new SvmIgpHookWriter(rpc, DEFAULT_IGP_SALT, signer);
     await igpWriter.create({
       artifactState: ArtifactState.NEW,
       config: igpConfig,
     });
-
-    const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
-      igpProgramId,
-      igpSalt,
-    );
-    overheadIgpAccountAddress = overheadIgpPda;
 
     testIsmAddress = TEST_PROGRAM_IDS.testIsm;
     const ismConfig: SvmTestIsmConfig = {
@@ -107,8 +98,6 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
     writer = new SvmSyntheticTokenWriter(
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenSynthetic },
-        igpProgramId,
-        igpOverheadProgramId: overheadIgpAccountAddress,
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
       },
       rpc,
@@ -140,7 +129,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
           destinationGas: {},
           ...overrides,
         }),
-        overheadIgpAccountAddress,
+        igpProgramId,
         testIsmAddress,
         signer,
         rpc,

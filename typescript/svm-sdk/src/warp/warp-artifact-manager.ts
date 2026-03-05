@@ -12,7 +12,7 @@ import type {
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
-import { SvmSigner } from '../clients/signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import {
   SvmCollateralTokenReader,
@@ -23,16 +23,11 @@ import {
   SvmSyntheticTokenReader,
   SvmSyntheticTokenWriter,
 } from './synthetic-token.js';
-import { SvmWarpTokenConfig } from './types.js';
 import { detectWarpTokenType } from './warp-query.js';
 
 export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
-    private readonly config: Pick<
-      SvmWarpTokenConfig,
-      'igpOverheadProgramId' | 'igpProgramId'
-    >,
     private readonly ataPayerFundingAmount: bigint = 100_000_000n,
   ) {}
 
@@ -76,8 +71,6 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       native: () =>
         new SvmNativeTokenWriter(
           {
-            igpProgramId: this.config.igpProgramId,
-            igpOverheadProgramId: this.config.igpOverheadProgramId,
             program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
           },
@@ -87,8 +80,6 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       synthetic: () =>
         new SvmSyntheticTokenWriter(
           {
-            igpProgramId: this.config.igpProgramId,
-            igpOverheadProgramId: this.config.igpOverheadProgramId,
             program: {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenSynthetic,
             },
@@ -100,8 +91,6 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       collateral: () =>
         new SvmCollateralTokenWriter(
           {
-            igpProgramId: this.config.igpProgramId,
-            igpOverheadProgramId: this.config.igpOverheadProgramId,
             program: {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral,
             },
@@ -116,6 +105,6 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   }
 
   supportsHookUpdates(): boolean {
-    return false;
+    return true;
   }
 }

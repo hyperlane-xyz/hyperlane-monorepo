@@ -203,7 +203,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       hook: token.interchainGasPaymaster
         ? {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: token.interchainGasPaymaster.igpType.account },
+            deployed: { address: token.interchainGasPaymaster.programId },
           }
         : undefined,
       remoteRouters,
@@ -262,9 +262,8 @@ export class SvmSyntheticTokenWriter
     const { address: ataPayerPda } = await deriveAtaPayerPda(programAddress);
 
     assertLocalDecimals(tokenConfig.decimals);
-    const initData = buildBaseInitData(
+    const initData = await buildBaseInitData(
       tokenConfig,
-      this.config.igpProgramId,
       tokenConfig.decimals,
       scaleToRemoteDecimals(tokenConfig.decimals, tokenConfig.scale),
     );
@@ -396,7 +395,6 @@ export class SvmSyntheticTokenWriter
       artifact.config,
       programId,
       parseAddress(current.config.owner),
-      this.config.igpProgramId,
       this.rpc,
       `synthetic token ${programId}`,
     );

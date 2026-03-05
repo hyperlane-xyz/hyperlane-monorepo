@@ -13,7 +13,7 @@ import type {
 import { address as parseAddress } from '@solana/kit';
 import { SvmSigner } from '../clients/signer.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
-import { createRpc } from '../rpc.js';
+import type { createRpc } from '../rpc.js';
 import { airdropSol } from '../testing/setup.js';
 
 /**
@@ -27,7 +27,7 @@ export type WarpConfigOverrides = Partial<
 export interface WarpTestContext {
   writer: ArtifactWriter<RawWarpArtifactConfig, DeployedWarpAddress>;
   makeConfig(overrides?: WarpConfigOverrides): RawWarpArtifactConfig;
-  overheadIgpAccountAddress: Address;
+  igpProgramId: Address;
   testIsmAddress: Address;
   signer: SvmSigner;
   rpc: ReturnType<typeof createRpc>;
@@ -77,13 +77,12 @@ export function defineWarpTokenTests(
   });
 
   it('should deploy with IGP and ISM configured and read them back', async () => {
-    const { writer, makeConfig, overheadIgpAccountAddress, testIsmAddress } =
-      getContext();
+    const { writer, makeConfig, igpProgramId, testIsmAddress } = getContext();
     const [deployed] = await writer.create({
       config: makeConfig({
         hook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: overheadIgpAccountAddress },
+          deployed: { address: igpProgramId },
         },
         interchainSecurityModule: {
           artifactState: ArtifactState.UNDERIVED,
@@ -94,9 +93,7 @@ export function defineWarpTokenTests(
     deployedWithIgpAndIsmId = deployed.deployed.address;
 
     const token = await writer.read(deployedWithIgpAndIsmId);
-    expect(token.config.hook?.deployed?.address).to.equal(
-      overheadIgpAccountAddress,
-    );
+    expect(token.config.hook?.deployed?.address).to.equal(igpProgramId);
     expect(token.config.interchainSecurityModule?.deployed?.address).to.equal(
       testIsmAddress,
     );
@@ -139,7 +136,7 @@ export function defineWarpTokenTests(
   });
 
   it('should add IGP via update()', async () => {
-    const { writer, makeConfig, overheadIgpAccountAddress } = getContext();
+    const { writer, makeConfig, igpProgramId } = getContext();
     const current = await writer.read(deployedProgramId);
     expect(current.config.hook).to.be.undefined;
 
@@ -148,7 +145,7 @@ export function defineWarpTokenTests(
       config: makeConfig({
         hook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: overheadIgpAccountAddress },
+          deployed: { address: igpProgramId },
         },
       }),
     });
@@ -157,9 +154,7 @@ export function defineWarpTokenTests(
     await executeUpdateTxs(updateTxs);
 
     const updated = await writer.read(deployedProgramId);
-    expect(updated.config.hook?.deployed?.address).to.equal(
-      overheadIgpAccountAddress,
-    );
+    expect(updated.config.hook?.deployed?.address).to.equal(igpProgramId);
   });
 
   it('should add ISM via update()', async () => {

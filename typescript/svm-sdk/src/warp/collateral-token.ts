@@ -96,7 +96,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       hook: token.interchainGasPaymaster
         ? {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: token.interchainGasPaymaster.igpType.account },
+            deployed: { address: token.interchainGasPaymaster.programId },
           }
         : undefined,
       remoteRouters,
@@ -161,9 +161,8 @@ export class SvmCollateralTokenWriter
     const localDecimals = getMintDecimals(mintRawData);
     assertLocalDecimals(localDecimals);
 
-    const initData = buildBaseInitData(
+    const initData = await buildBaseInitData(
       tokenConfig,
-      this.config.igpProgramId,
       localDecimals,
       scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
     );
@@ -238,7 +237,6 @@ export class SvmCollateralTokenWriter
       artifact.config,
       programId,
       parseAddress(current.config.owner),
-      this.config.igpProgramId,
       this.rpc,
       `collateral token ${programId}`,
     );

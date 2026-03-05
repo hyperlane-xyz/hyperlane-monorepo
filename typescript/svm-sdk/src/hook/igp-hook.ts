@@ -51,7 +51,8 @@ export function deriveIgpSalt(context: string): Uint8Array {
   return keccak_256(new TextEncoder().encode(context));
 }
 
-export const DEFAULT_IGP_CONTEXT = 'hyperlane_igp';
+/** Zero salt — matches mainnet IGP deployments (H256::zero() in Rust). */
+export const DEFAULT_IGP_SALT = new Uint8Array(32);
 
 export class SvmIgpHookReader implements ArtifactReader<
   IgpHookConfig,

@@ -25,12 +25,14 @@ import {
   getTokenTransferOwnershipInstruction,
   type TokenInitInstructionData,
 } from '../instructions/token.js';
+import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
+import { deriveAtaPayerPda, deriveOverheadIgpAccountPda } from '../pda.js';
 import {
   buildInstruction,
   writableAccount,
   writableSignerAddress,
 } from '../instructions/utils.js';
-import { deriveAtaPayerPda } from '../pda.js';
+
 import type {
   AnnotatedSvmTransaction,
   SvmInstruction,
@@ -91,30 +93,39 @@ export function remoteDecimalsToScale(
  * Builds the TokenInitInstructionData shared by all warp token types.
  * The caller is responsible for passing the token-type-specific decimals.
  */
-export function buildBaseInitData(
+export async function buildBaseInitData(
   config: Pick<
     RawWarpArtifactConfig,
     'mailbox' | 'interchainSecurityModule' | 'hook'
   >,
-  igpProgramId: Address,
   decimals: number,
   remoteDecimals: number,
-): TokenInitInstructionData {
-  const igpAccountAddress = config.hook?.deployed?.address;
+): Promise<TokenInitInstructionData> {
+  const igpProgramId = config.hook?.deployed?.address;
+  let interchainGasPaymaster: TokenInitInstructionData['interchainGasPaymaster'] =
+    null;
+  if (igpProgramId) {
+    const programId = parseAddress(igpProgramId);
+    const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
+      programId,
+      DEFAULT_IGP_SALT,
+    );
+
+    interchainGasPaymaster = {
+      programId,
+      igp: {
+        kind: InterchainGasPaymasterTypeKind.OverheadIgp,
+        account: overheadIgpPda,
+      },
+    };
+  }
+
   return {
     mailbox: parseAddress(config.mailbox),
     interchainSecurityModule: config.interchainSecurityModule?.deployed?.address
       ? parseAddress(config.interchainSecurityModule.deployed.address)
       : null,
-    interchainGasPaymaster: igpAccountAddress
-      ? {
-          programId: igpProgramId,
-          igp: {
-            kind: InterchainGasPaymasterTypeKind.OverheadIgp,
-            account: parseAddress(igpAccountAddress),
-          },
-        }
-      : null,
+    interchainGasPaymaster,
     decimals,
     remoteDecimals,
   };
@@ -233,7 +244,6 @@ export async function computeWarpTokenUpdateInstructions(
   expected: RawWarpArtifactConfig,
   programId: Address,
   ownerAddress: Address,
-  igpProgramId: Address,
   rpc: SvmRpc,
   label: string,
 ): Promise<AnnotatedSvmTransaction[]> {
@@ -257,17 +267,23 @@ export async function computeWarpTokenUpdateInstructions(
   const currentHook = current.hook?.deployed?.address;
   const expectedHook = expected.hook?.deployed?.address;
   if (!eqOptionalAddress(currentHook, expectedHook, eqAddressSol)) {
-    const igpValue: Parameters<
+    let igpValue: Parameters<
       typeof getTokenSetInterchainGasPaymasterInstruction
-    >[2] = expectedHook
-      ? [
-          igpProgramId,
-          {
-            kind: InterchainGasPaymasterTypeKind.OverheadIgp,
-            account: parseAddress(expectedHook),
-          },
-        ]
-      : null;
+    >[2] = null;
+    if (expectedHook) {
+      const expectedHookAddress = parseAddress(expectedHook);
+      const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
+        expectedHookAddress,
+        DEFAULT_IGP_SALT,
+      );
+      igpValue = [
+        expectedHookAddress,
+        {
+          kind: InterchainGasPaymasterTypeKind.OverheadIgp,
+          account: overheadIgpPda,
+        },
+      ];
+    }
     configInstructions.push(
       await getTokenSetInterchainGasPaymasterInstruction(
         programId,

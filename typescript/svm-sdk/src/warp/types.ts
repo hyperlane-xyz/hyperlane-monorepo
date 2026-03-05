@@ -1,5 +1,3 @@
-import type { Address } from '@solana/kit';
-
 import type { SvmProgramTarget } from '../types.js';
 
 /**
@@ -9,9 +7,6 @@ import type { SvmProgramTarget } from '../types.js';
 export type SvmWarpTokenConfig = Readonly<{
   /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
   program: SvmProgramTarget;
-  /** The IGP program used as the default hook (needed for create and update). */
-  igpProgramId: Address;
-  igpOverheadProgramId: Address;
   /**
    * Lamports to ensure the ATA payer PDA holds after deployment.
    * Required for synthetic and collateral tokens to pay for recipient ATA

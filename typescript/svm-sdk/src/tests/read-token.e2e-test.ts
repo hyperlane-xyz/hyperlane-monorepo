@@ -1,4 +1,3 @@
-import { address } from '@solana/kit';
 import { before, describe, it } from 'mocha';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
@@ -14,12 +13,7 @@ describe('SVM Warp Token read E2E Tests', function () {
 
   before(async () => {
     rpc = createRpc('https://api.mainnet-beta.solana.com');
-    artifactManager = new SvmWarpArtifactManager(rpc, {
-      igpProgramId: address('BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv'),
-      igpOverheadProgramId: address(
-        'AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF',
-      ),
-    });
+    artifactManager = new SvmWarpArtifactManager(rpc);
   });
 
   for (const testCase of [
