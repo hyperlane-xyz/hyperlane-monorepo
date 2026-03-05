@@ -12,6 +12,7 @@ import {
   getStatus,
   config as lifiConfig,
 } from '@lifi/sdk';
+import bs58 from 'bs58';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
@@ -28,6 +29,7 @@ import type {
   ExternalBridgeConfig,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
+import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 /**
  * LiFi API base URL for REST endpoints.
@@ -68,6 +70,19 @@ function getViemChain(chainId: number, rpcUrl?: string): Chain {
       default: { http: rpcUrl ? [rpcUrl] : [] },
     },
   } as Chain;
+}
+
+function toBase58SolanaKey(rawKey: string): string {
+  const trimmedKey = rawKey.trim();
+  if (!trimmedKey.startsWith('[') && !trimmedKey.includes(',')) {
+    try {
+      bs58.decode(trimmedKey);
+      return trimmedKey;
+    } catch {}
+  }
+
+  const bytes = parseSolanaPrivateKey(trimmedKey);
+  return bs58.encode(bytes);
 }
 
 /**
@@ -176,9 +191,10 @@ export class LiFiBridge implements IExternalBridge {
           break;
         }
         case ProtocolType.Sealevel: {
+          const base58Key = toBase58SolanaKey(key);
           providers.push(
             Solana({
-              getWalletAdapter: async () => new KeypairWalletAdapter(key),
+              getWalletAdapter: async () => new KeypairWalletAdapter(base58Key),
             }),
           );
           break;

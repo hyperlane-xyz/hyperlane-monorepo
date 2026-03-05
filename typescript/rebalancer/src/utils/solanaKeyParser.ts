@@ -1,7 +1,8 @@
 import { Keypair } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 const SOLANA_KEY_ERROR_MESSAGE =
-  'Invalid Solana private key format. Expected JSON byte array or comma-separated bytes (32 or 64 bytes). Set HYP_INVENTORY_KEY_SEALEVEL env var.';
+  'Invalid Solana private key format. Expected JSON byte array, comma-separated bytes, or base58 key (32 or 64 bytes). Set HYP_INVENTORY_KEY_SEALEVEL env var.';
 
 function throwInvalidSolanaKey(reason: string): never {
   throw new Error(`${SOLANA_KEY_ERROR_MESSAGE} ${reason}`);
@@ -25,9 +26,9 @@ function toSecretKey(bytes: number[]): Uint8Array {
 
 /**
  * Parses a Solana private key from various formats.
- * Supports JSON array format and comma-separated byte values.
+ * Supports JSON array format, comma-separated byte values, and base58 values.
  *
- * @param rawKey - Raw private key string in JSON array or comma-separated format
+ * @param rawKey - Raw private key string in JSON array, comma-separated, or base58 format
  * @returns Uint8Array representation of the private key
  * @throws Error if the key format is invalid
  */
@@ -61,10 +62,7 @@ export function parseSolanaPrivateKey(rawKey: string): Uint8Array {
       return toSecretKey(bytes);
     }
 
-    const shouldParseAsCommaSeparated =
-      trimmed.includes(',') || /^[-+]?\d+(?:\.\d+)?$/.test(trimmed);
-
-    if (shouldParseAsCommaSeparated) {
+    if (trimmed.includes(',')) {
       const bytes = trimmed.split(',').map((segment, index) => {
         const segmentTrimmed = segment.trim();
         if (segmentTrimmed === '') {
@@ -95,6 +93,12 @@ export function parseSolanaPrivateKey(rawKey: string): Uint8Array {
 
       return toSecretKey(bytes);
     }
+
+    try {
+      const decoded = bs58.decode(trimmed);
+      const bytes = Array.from(decoded);
+      return toSecretKey(bytes);
+    } catch {}
   } catch (error) {
     if (
       error instanceof Error &&
@@ -106,6 +110,6 @@ export function parseSolanaPrivateKey(rawKey: string): Uint8Array {
   }
 
   throwInvalidSolanaKey(
-    'Failed to match supported format (JSON array or comma-separated bytes).',
+    'Failed to match supported format (JSON array, comma-separated bytes, or base58 key).',
   );
 }
