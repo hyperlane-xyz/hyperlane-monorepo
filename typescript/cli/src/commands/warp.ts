@@ -450,17 +450,13 @@ const send: CommandModuleWithWriteContext<
       // Order EVM chains first so non-EVM chains are final destinations
       const orderedDefaultChains = [
         ...[...supportedChains]
-          .filter(
-            (chain) =>
-              context.multiProvider.getProtocol(chain) ===
-              ProtocolType.Ethereum,
+          .filter((chain) =>
+            isEVMLike(context.multiProvider.getProtocol(chain)),
           )
           .sort((a, b) => a.localeCompare(b)),
         ...[...supportedChains]
           .filter(
-            (chain) =>
-              context.multiProvider.getProtocol(chain) !==
-              ProtocolType.Ethereum,
+            (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
           )
           .sort((a, b) => a.localeCompare(b)),
       ];
@@ -472,6 +468,16 @@ const send: CommandModuleWithWriteContext<
     }
 
     if (roundTrip) {
+      // Round-trip requires all chains to be EVM-like since non-EVM chains
+      // become intermediate origins in the reversed path.
+      const nonEvmChains = chains.filter(
+        (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
+      );
+      assert(
+        nonEvmChains.length === 0,
+        `--round-trip is not supported with non-EVM chains (${nonEvmChains.join(', ')}). ` +
+          `Non-EVM chains cannot be intermediate hop origins.`,
+      );
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
       const reversed = [...chains].reverse().slice(1, chains.length + 1);
       chains = [...chains, ...reversed];
