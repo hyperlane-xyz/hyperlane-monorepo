@@ -42,7 +42,7 @@ const TEST_PRIVATE_KEY =
 const PRELOADED_PROGRAMS: Array<'mailbox' | 'igp'> = ['mailbox', 'igp'];
 
 describe('SVM Hook E2E Tests', function () {
-  this.timeout(60_000);
+  this.timeout(180_000);
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;

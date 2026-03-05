@@ -136,8 +136,11 @@ export class SvmMessageIdMultisigIsmWriter
       const domainInstructions = await Promise.all(
         Object.entries(config.domains).map(
           async ([domainStr, domainConfig]) => {
-            const domain = parseInt(domainStr, 10);
-            assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+            const domain = Number(domainStr);
+            assert(
+              Number.isInteger(domain) && domain >= 0,
+              `Invalid domain: '${domainStr}'`,
+            );
             return getSetValidatorsAndThresholdInstruction({
               programAddress,
               owner: this.svmSigner.signer,

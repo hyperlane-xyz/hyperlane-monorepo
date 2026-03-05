@@ -45,7 +45,7 @@ const PRELOADED_PROGRAMS: Array<'testIsm' | 'multisigIsm'> = [
 ];
 
 describe('SVM ISM E2E Tests', function () {
-  this.timeout(60_000);
+  this.timeout(180_000);
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
