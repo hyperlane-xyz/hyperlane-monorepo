@@ -1,9 +1,9 @@
 import { TronWeb } from 'tronweb';
+import { TransactionRequest, hexlify, toBigInt } from 'ethers';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { IABI } from './types.js';
-import { BigNumber, providers } from 'ethers';
 
 export const TRON_EMPTY_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 export const TRON_EMPTY_MESSAGE =
@@ -114,20 +114,21 @@ export function toTronHex(address: string): string {
 
 export async function convertEthersToTronTransaction(
   tronWeb: Readonly<TronWeb>,
-  tx: providers.TransactionRequest,
+  tx: TransactionRequest,
   sender: string,
 ): Promise<any> {
   assert(tx.to, 'Transaction must have a destination address');
+  assert(typeof tx.to === 'string', 'Transaction destination must be a string');
   // Contract call - use 'input' option for raw ABI-encoded calldata
   const tronHexTo = toTronHex(tx.to);
-  const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
+  const callValue = tx.value ? toSafeNumber(toBigInt(tx.value), 'value') : 0;
 
   const result = await tronWeb.transactionBuilder.triggerSmartContract(
     tronHexTo,
     '', // Empty functionSelector since we pass raw encoded data via input
     {
       callValue,
-      input: tx.data ? strip0x(tx.data.toString()) : undefined,
+      input: tx.data ? strip0x(hexlify(tx.data)) : undefined,
     },
     [],
     sender,
@@ -137,4 +138,13 @@ export async function convertEthersToTronTransaction(
     `triggerSmartContract failed: ${result.result?.message}`,
   );
   return result.transaction;
+}
+
+function toSafeNumber(value: bigint, field: string): number {
+  assert(value >= 0n, `${field} must be non-negative`);
+  assert(
+    value <= BigInt(Number.MAX_SAFE_INTEGER),
+    `${field} exceeds Number.MAX_SAFE_INTEGER`,
+  );
+  return Number(value);
 }
