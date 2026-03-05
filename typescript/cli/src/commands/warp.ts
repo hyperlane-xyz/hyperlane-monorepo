@@ -352,6 +352,8 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      sourceToken?: string;
+      destinationToken?: string;
     }
 > = {
   command: 'send',
@@ -403,6 +405,8 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    sourceToken,
+    destinationToken,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter((v): v is string => Boolean(v))
@@ -480,6 +484,8 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      sourceToken,
+      destinationToken,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
