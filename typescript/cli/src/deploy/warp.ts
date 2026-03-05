@@ -1220,7 +1220,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const additionalSubmitterFactories: any = {
     [ProtocolType.Tron]: {
       file: (_multiProvider: MultiProvider, metadata: any) => {
-        return new EV5FileSubmitter(metadata);
+        return new EvmFileSubmitter(metadata);
       },
     },
     [ProtocolType.Ethereum]: {
