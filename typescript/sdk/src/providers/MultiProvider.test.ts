@@ -249,4 +249,38 @@ describe('MultiProvider', () => {
       waitForBlockTagStub.restore();
     });
   });
+
+  describe('tryGetSigner', () => {
+    it('should cache the connected signer for subsequent calls', () => {
+      const chainMetadata = {
+        [TestChainName.test1]: test1,
+        [TestChainName.test2]: test2,
+      };
+      const mp = new MultiProvider(chainMetadata);
+
+      let connectCallCount = 0;
+      const mockProvider = {} as any;
+      const mockConnectedSigner = { provider: mockProvider } as any;
+      const mockSigner = {
+        provider: undefined,
+        connect: sinon.stub().callsFake(() => {
+          connectCallCount += 1;
+          return mockConnectedSigner;
+        }),
+      } as any;
+
+      mp.signers[TestChainName.test1] = mockSigner;
+      mp.providers[TestChainName.test1] = mockProvider;
+
+      // First call should connect and cache
+      const result1 = mp.tryGetSigner(TestChainName.test1);
+      expect(result1).to.equal(mockConnectedSigner);
+      expect(connectCallCount).to.equal(1);
+
+      // Second call should return cached signer without calling connect again
+      const result2 = mp.tryGetSigner(TestChainName.test1);
+      expect(result2).to.equal(mockConnectedSigner);
+      expect(connectCallCount).to.equal(1);
+    });
+  });
 });
