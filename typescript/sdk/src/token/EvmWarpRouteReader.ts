@@ -1192,6 +1192,19 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async fetchScale(address: Address): Promise<TokenMetadata['scale']> {
+    const tokenRouter = TokenRouter__factory.connect(address, this.provider);
+    const [numerator, denominator] = await Promise.all([
+      tokenRouter.scaleNumerator(),
+      tokenRouter.scaleDenominator(),
+    ]);
+
+    return {
+      numerator: BigInt(numerator.toString()),
+      denominator: BigInt(denominator.toString()),
+    };
+  }
+
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
     const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
     const [name, symbol, decimals] = await Promise.all([

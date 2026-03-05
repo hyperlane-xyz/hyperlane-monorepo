@@ -1,5 +1,3 @@
-import { utils as ethersUtils } from 'ethers';
-
 import {
   type TokenPriceGetter,
   getExtraLockboxBalance,
@@ -24,6 +22,8 @@ import {
 import {
   ProtocolType,
   applyRpcUrlOverridesFromEnv,
+  isAddressEvm,
+  normalizeAddressEvm,
   objMap,
   objMerge,
   sleep,
@@ -573,12 +573,10 @@ export class WarpMonitor {
     for (const token of warpCore.tokens) {
       const metadata = chainMetadata[token.chainName];
       if (!metadata) continue;
-      if (!ethersUtils.isAddress(token.addressOrDenom)) continue;
+      if (!isAddressEvm(token.addressOrDenom)) continue;
 
       const domainId = metadata.domainId;
-      const routerAddress = ethersUtils
-        .getAddress(token.addressOrDenom)
-        .toLowerCase();
+      const routerAddress = normalizeAddressEvm(token.addressOrDenom);
       const key = `${domainId}:${routerAddress}`;
       if (nodeByKey.has(key)) continue;
 

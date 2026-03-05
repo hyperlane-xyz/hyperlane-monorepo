@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import { test1 } from '../../consts/testChains.js';
@@ -31,9 +30,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
 
   it('computes token fee as (quoted token out - input amount) + external fee', async () => {
     const quoteTransferRemoteTo = sinon.stub().resolves([
-      { amount: BigNumber.from('1000'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('25'), token: COLLATERAL_ADDRESS },
+      { amount: 1000n, token: COLLATERAL_ADDRESS },
+      { amount: 1500n, token: COLLATERAL_ADDRESS },
+      { amount: 25n, token: COLLATERAL_ADDRESS },
     ] as any);
     (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
 
@@ -51,9 +50,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
 
   it('returns zero token fee when output equals input and external fee is zero', async () => {
     const quoteTransferRemoteTo = sinon.stub().resolves([
-      { amount: BigNumber.from('7'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('123456'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('0'), token: COLLATERAL_ADDRESS },
+      { amount: 7n, token: COLLATERAL_ADDRESS },
+      { amount: 123456n, token: COLLATERAL_ADDRESS },
+      { amount: 0n, token: COLLATERAL_ADDRESS },
     ] as any);
     (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
 
@@ -72,9 +71,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
   it('sets igp quote token when gas quote is non-native', async () => {
     const GAS_TOKEN = '0x5555555555555555555555555555555555555555';
     const quoteTransferRemoteTo = sinon.stub().resolves([
-      { amount: BigNumber.from('777'), token: GAS_TOKEN },
-      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
+      { amount: 777n, token: GAS_TOKEN },
+      { amount: 1500n, token: COLLATERAL_ADDRESS },
+      { amount: 10n, token: COLLATERAL_ADDRESS },
     ] as any);
     (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
 
@@ -92,63 +91,63 @@ describe('EvmHypMultiCollateralAdapter', () => {
   it('does not send native value when gas quote token is non-native', async () => {
     const GAS_TOKEN = '0x6666666666666666666666666666666666666666';
     const quoteTransferRemoteTo = sinon.stub().resolves([
-      { amount: BigNumber.from('50'), token: GAS_TOKEN },
-      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
+      { amount: 50n, token: GAS_TOKEN },
+      { amount: 1500n, token: COLLATERAL_ADDRESS },
+      { amount: 10n, token: COLLATERAL_ADDRESS },
     ] as any);
-    const transferRemoteTo = sinon.stub().resolves({});
+    const encodeFunctionData = sinon.stub().returns('0x1234');
     (adapter as any).multiCollateralContract = {
+      address: ROUTER_ADDRESS,
       quoteTransferRemoteTo,
-      populateTransaction: { transferRemoteTo },
+      interface: { encodeFunctionData },
     };
 
-    await adapter.populateTransferRemoteToTx({
+    const tx = await adapter.populateTransferRemoteToTx({
       destination: DESTINATION_DOMAIN,
       recipient: RECIPIENT,
       amount: 1000n,
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(transferRemoteTo.calledOnce).to.equal(true);
-    const callArgs = transferRemoteTo.getCall(0).args;
-    expect(callArgs[4].value).to.equal('0');
+    expect(encodeFunctionData.calledOnce).to.equal(true);
+    expect(tx.value).to.equal('0');
   });
 
   it('sends native value when gas quote token is native', async () => {
     const quoteTransferRemoteTo = sinon.stub().resolves([
       {
-        amount: BigNumber.from('88'),
+        amount: 88n,
         token: '0x0000000000000000000000000000000000000000',
       },
-      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
+      { amount: 1500n, token: COLLATERAL_ADDRESS },
+      { amount: 10n, token: COLLATERAL_ADDRESS },
     ] as any);
-    const transferRemoteTo = sinon.stub().resolves({});
+    const encodeFunctionData = sinon.stub().returns('0x1234');
     (adapter as any).multiCollateralContract = {
+      address: ROUTER_ADDRESS,
       quoteTransferRemoteTo,
-      populateTransaction: { transferRemoteTo },
+      interface: { encodeFunctionData },
     };
 
-    await adapter.populateTransferRemoteToTx({
+    const tx = await adapter.populateTransferRemoteToTx({
       destination: DESTINATION_DOMAIN,
       recipient: RECIPIENT,
       amount: 1000n,
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(transferRemoteTo.calledOnce).to.equal(true);
-    const callArgs = transferRemoteTo.getCall(0).args;
-    expect(callArgs[4].value).to.equal('88');
+    expect(encodeFunctionData.calledOnce).to.equal(true);
+    expect(tx.value).to.equal('88');
   });
 
   it('throws when quote denominations mismatch', async () => {
     const quoteTransferRemoteTo = sinon.stub().resolves([
       {
-        amount: BigNumber.from('88'),
+        amount: 88n,
         token: '0x0000000000000000000000000000000000000000',
       },
-      { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
-      { amount: BigNumber.from('10'), token: TARGET_ROUTER },
+      { amount: 1500n, token: COLLATERAL_ADDRESS },
+      { amount: 10n, token: TARGET_ROUTER },
     ] as any);
     (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
 
