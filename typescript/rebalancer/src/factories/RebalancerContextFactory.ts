@@ -26,6 +26,7 @@ import {
   ExternalBridgeType,
   getAllBridges,
   getInventoryChainNames,
+  getInventoryOriginChainNames,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -428,15 +429,20 @@ export class RebalancerContextFactory {
     );
 
     const inventoryChains = getInventoryChainNames(this.config.strategyConfig);
+    const inventoryOriginChains = getInventoryOriginChainNames(
+      this.config.strategyConfig,
+    );
+    const allRelevantInventoryChains = Array.from(
+      new Set([...inventoryChains, ...inventoryOriginChains]),
+    );
 
     if (inventoryChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
     }
 
-    // Validate that every protocol used by inventory chains has a signer key
     const requiredProtocols = new Set(
-      inventoryChains.map((chain) => {
+      allRelevantInventoryChains.map((chain) => {
         const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
         assert(
           metadata?.protocol,
@@ -446,10 +452,15 @@ export class RebalancerContextFactory {
       }),
     );
     for (const protocol of requiredProtocols) {
+      const chainsForProtocol = allRelevantInventoryChains.filter(
+        (chain) =>
+          this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
+          protocol,
+      );
       assert(
         this.config.inventorySigners?.[protocol]?.key ??
           this.inventorySignerKeysByProtocol?.[protocol],
-        `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${inventoryChains.filter((c) => this.warpCore.multiProvider.getChainMetadata(c).protocol === protocol).join(', ')})`,
+        `Missing inventory signer key for protocol ${protocol} (required by inventory execution chains: ${chainsForProtocol.join(', ')})`,
       );
     }
 

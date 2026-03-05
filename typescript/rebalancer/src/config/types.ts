@@ -566,6 +566,47 @@ export function getInventoryChainNames(strategies: StrategyConfig[]): string[] {
   );
 }
 
+export function getInventoryOriginChainNames(
+  strategies: StrategyConfig[],
+): string[] {
+  return Array.from(
+    new Set(
+      strategies.flatMap((strategy) => {
+        return Object.entries(strategy.chains).flatMap(
+          ([originChainName, chainConfig]) => {
+            if (!chainConfig.override) {
+              return [];
+            }
+
+            const hasInventoryOverride = Object.values(
+              chainConfig.override,
+            ).some((overrideConfig) => {
+              const overrideExecutionType =
+                typeof overrideConfig === 'object' &&
+                overrideConfig !== null &&
+                'executionType' in overrideConfig
+                  ? (
+                      overrideConfig as {
+                        executionType?: ExecutionType;
+                      }
+                    ).executionType
+                  : undefined;
+
+              return (
+                (overrideExecutionType ??
+                  chainConfig.executionType ??
+                  ExecutionType.MovableCollateral) === ExecutionType.Inventory
+              );
+            });
+
+            return hasInventoryOverride ? [originChainName] : [];
+          },
+        );
+      }),
+    ),
+  );
+}
+
 /**
  * Check if any chain in the strategies uses inventory execution type.
  */
