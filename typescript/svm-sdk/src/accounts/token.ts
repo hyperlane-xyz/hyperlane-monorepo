@@ -6,14 +6,14 @@ import {
   decodeAccountData,
   decodeDiscriminatorPrefixed,
 } from '../codecs/account-data.js';
-import { type ByteCursor } from '../codecs/binary.js';
+import { ByteCursor } from '../codecs/binary.js';
 import {
   decodeMapU32GasOracle,
   decodeMapU32H256,
   decodeMapU32U64,
   type GasOracle,
-  InterchainGasPaymasterTypeKind,
   type InterchainGasPaymasterType,
+  InterchainGasPaymasterTypeKind,
 } from '../codecs/shared.js';
 
 const IGP_PROGRAM_DATA_DISCRIMINATOR = ascii8('PRGMDATA');
