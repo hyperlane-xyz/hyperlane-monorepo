@@ -33,7 +33,9 @@ export interface TronTransactionResponse {
   value: bigint;
   chainId: bigint;
   tronTransaction: TronTransaction;
-  wait: (confirmations?: number) => ReturnType<TronJsonRpcProvider['waitForTransaction']>;
+  wait: (
+    confirmations?: number,
+  ) => ReturnType<TronJsonRpcProvider['waitForTransaction']>;
 }
 
 const TRON_TX_COUNTER_KEY = '__hyperlane_tron_tx_counter__';
@@ -352,7 +354,11 @@ export class TronTransactionBuilder extends TronWeb {
       );
     }
     if (tx.data && tx.data !== '0x') {
-      return this.buildContractCall(tx, toSafeNumber(feeLimit, 'feeLimit'), callValue);
+      return this.buildContractCall(
+        tx,
+        toSafeNumber(feeLimit, 'feeLimit'),
+        callValue,
+      );
     }
     return this.buildTransfer(tx.to as string, callValue);
   }
