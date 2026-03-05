@@ -1427,7 +1427,7 @@ export function createContractProxy<TAbi extends Abi>(
         overrides,
       );
       return options.wrapReadResultInArray
-        ? normalizeFunctionsReadResult(readResult, fn.outputs.length)
+        ? normalizeFunctionsReadResult(readResult, (fn.outputs ?? []).length)
         : readResult;
     }
 

@@ -3,7 +3,9 @@ set -e
 cd "$(dirname "$0")"
 
 # Ensure deterministic tron outputs for caching and downstream package imports.
-rm -rf ./cache-tron ./artifacts-tron
+# Hardhat tron compile writes cache/artifacts-tron, while forge tron profile
+# writes forge-cache-tron/out-tron.
+rm -rf ./cache-tron ./artifacts-tron ./forge-cache-tron ./out-tron
 
 # Soldeer dependencies are already installed by the turbo deps:soldeer task
 # (build:tron depends on build, which depends on deps:soldeer).
