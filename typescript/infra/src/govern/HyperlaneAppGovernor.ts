@@ -225,15 +225,15 @@ export abstract class HyperlaneAppGovernor<
               }
             }
           } catch (error: unknown) {
+            // Re-throw for SAFE so the outer catch (with more context) handles logging.
+            // SIGNER/MANUAL log here and continue to avoid aborting remaining submissions.
+            if (submissionType === SubmissionType.SAFE) {
+              throw error;
+            }
             const msg = error instanceof Error ? error.message : String(error);
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
-            // Re-throw for SAFE so the caller knows the submission failed.
-            // SIGNER/MANUAL log and continue to avoid aborting remaining submissions.
-            if (submissionType === SubmissionType.SAFE) {
-              throw error;
-            }
           }
         } else {
           rootLogger.info(
