@@ -34,38 +34,61 @@ contract TronCreate2Test is Test {
         0x2447B82A6E96d9d4Fb407235DBC9Faeb44902A8f;
 
     /**
-     * @notice Test that Create2.computeAddress returns the expected Tron address (0x41 prefix)
-     * @dev This test should PASS when compiled with FOUNDRY_PROFILE=tron
-     *      and FAIL when compiled with default profile
+     * @notice Detect whether we are running under the Tron foundry profile.
+     * @dev Checks if the FOUNDRY_PROFILE env var equals 'tron'.
      */
-    function test_computeAddress_usesTronPrefix() public pure {
-        address computed = Create2.computeAddress(
-            SALT,
-            BYTECODE_HASH,
-            DEPLOYER
-        );
-
-        assertEq(
-            computed,
-            EXPECTED_TRON_ADDRESS,
-            "Create2 should use 0x41 prefix for Tron"
-        );
+    function _isTronProfile() internal view returns (bool) {
+        // vm.envOr returns the fallback when the env var is unset
+        string memory profile = vm.envOr("FOUNDRY_PROFILE", string("default"));
+        return keccak256(bytes(profile)) == keccak256(bytes("tron"));
     }
 
     /**
-     * @notice Test that Create2.computeAddress does NOT return the EVM address
-     * @dev This confirms we're not using the standard 0xff prefix
+     * @notice Test that Create2.computeAddress returns the expected address for the active profile.
+     * @dev With FOUNDRY_PROFILE=tron the 0x41 prefix is used; otherwise 0xff.
      */
-    function test_computeAddress_notEvmPrefix() public pure {
+    function test_computeAddress_usesTronPrefix() public view {
         address computed = Create2.computeAddress(
             SALT,
             BYTECODE_HASH,
             DEPLOYER
         );
 
-        assertTrue(
-            computed != EXPECTED_EVM_ADDRESS,
-            "Create2 should NOT use 0xff prefix for Tron"
+        if (_isTronProfile()) {
+            assertEq(
+                computed,
+                EXPECTED_TRON_ADDRESS,
+                "Create2 should use 0x41 prefix for Tron"
+            );
+        } else {
+            assertEq(
+                computed,
+                EXPECTED_EVM_ADDRESS,
+                "Create2 should use 0xff prefix for EVM"
+            );
+        }
+    }
+
+    /**
+     * @notice Test that Create2.computeAddress does NOT return the wrong-profile address.
+     */
+    function test_computeAddress_notEvmPrefix() public view {
+        address computed = Create2.computeAddress(
+            SALT,
+            BYTECODE_HASH,
+            DEPLOYER
         );
+
+        if (_isTronProfile()) {
+            assertTrue(
+                computed != EXPECTED_EVM_ADDRESS,
+                "Create2 should NOT use 0xff prefix for Tron"
+            );
+        } else {
+            assertTrue(
+                computed != EXPECTED_TRON_ADDRESS,
+                "Create2 should NOT use 0x41 prefix for EVM"
+            );
+        }
     }
 }
