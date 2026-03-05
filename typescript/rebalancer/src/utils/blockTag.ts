@@ -30,7 +30,6 @@ export async function getConfirmedBlockTag(
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
-<<<<<<< HEAD
     const provider = multiProvider.getEthersV6Provider(chainName);
     let latestBlock: number;
     if (provider instanceof JsonRpcApiProvider) {
