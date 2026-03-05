@@ -66,7 +66,7 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: IsmType.MESSAGE_ID_MULTISIG as 'messageIdMultisigIsm',
+        type: IsmType.MESSAGE_ID_MULTISIG,
         validators: [],
         threshold: 0,
       },
@@ -86,7 +86,7 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
     if (domainData === null) return null;
     return {
       validators: validatorBytesToHex(
-        domainData.validatorsAndThreshold.validators as Uint8Array[],
+        domainData.validatorsAndThreshold.validators,
       ),
       threshold: domainData.validatorsAndThreshold.threshold,
     };

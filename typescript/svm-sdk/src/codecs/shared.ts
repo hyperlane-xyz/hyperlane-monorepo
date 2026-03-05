@@ -1,4 +1,5 @@
 import type { Address, ReadonlyUint8Array } from '@solana/kit';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   addCodecSizePrefix,
@@ -292,6 +293,11 @@ export function decodeInterchainGasPaymasterType(
   cursor: ByteCursor,
 ): InterchainGasPaymasterType {
   const decoded = cursor.readWithDecoder(INTERCHAIN_GAS_PAYMASTER_TYPE_DECODER);
+  assert(
+    decoded.kind === InterchainGasPaymasterTypeKind.Igp ||
+      decoded.kind === InterchainGasPaymasterTypeKind.OverheadIgp,
+    `Unknown InterchainGasPaymasterType kind: ${decoded.kind}`,
+  );
   return {
     kind: decoded.kind,
     account: decoded.account,

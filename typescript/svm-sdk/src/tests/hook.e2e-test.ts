@@ -3,7 +3,11 @@ import { expect } from 'chai';
 import { after, before, describe, it } from 'mocha';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import {
@@ -17,6 +21,7 @@ import {
   SvmMerkleTreeHookReader,
   SvmMerkleTreeHookWriter,
 } from '../hook/merkle-tree-hook.js';
+import type { SvmDeployedHook } from '../types.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
@@ -70,7 +75,7 @@ describe('SVM Hook E2E Tests', function () {
       const writer = new SvmMerkleTreeHookWriter(rpc, signer);
 
       const config: SvmMerkleTreeHookConfig = {
-        type: HookType.MERKLE_TREE as 'merkleTreeHook',
+        type: HookType.MERKLE_TREE,
         program: { programId: TEST_PROGRAM_IDS.mailbox },
       };
       const [deployed, receipts] = await writer.create({
@@ -94,14 +99,15 @@ describe('SVM Hook E2E Tests', function () {
     it('should return empty transactions for update', async () => {
       const writer = new SvmMerkleTreeHookWriter(rpc, signer);
 
-      const artifact = {
-        artifactState: ArtifactState.DEPLOYED,
-        config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
-        deployed: {
-          address: TEST_PROGRAM_IDS.mailbox,
-          programId: TEST_PROGRAM_IDS.mailbox,
-        },
-      };
+      const artifact: ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook> =
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: { type: HookType.MERKLE_TREE },
+          deployed: {
+            address: TEST_PROGRAM_IDS.mailbox,
+            programId: TEST_PROGRAM_IDS.mailbox,
+          },
+        };
 
       const updateTxs = await writer.update(artifact);
       expect(updateTxs).to.have.length(0);
@@ -114,7 +120,7 @@ describe('SVM Hook E2E Tests', function () {
       const writer = new SvmIgpHookWriter(rpc, salt, signer);
 
       const igpConfig: SvmIgpHookConfig = {
-        type: HookType.INTERCHAIN_GAS_PAYMASTER as 'interchainGasPaymaster',
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
         program: { programId: TEST_PROGRAM_IDS.igp },
         owner: signer.address,
         beneficiary: signer.address,
@@ -158,7 +164,7 @@ describe('SVM Hook E2E Tests', function () {
       const writer = new SvmIgpHookWriter(rpc, salt, signer);
 
       const updateConfig: SvmIgpHookConfig = {
-        type: HookType.INTERCHAIN_GAS_PAYMASTER as 'interchainGasPaymaster',
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
         program: { programId: TEST_PROGRAM_IDS.igp },
         owner: signer.address,
         beneficiary: signer.address,

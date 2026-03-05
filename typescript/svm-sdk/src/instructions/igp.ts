@@ -29,6 +29,7 @@ import {
   readonlyAccount,
   readonlySigner,
   writableAccount,
+  writableSigner,
 } from './utils.js';
 import {
   deriveIgpAccountPda,
@@ -208,7 +209,7 @@ export async function getInitIgpProgramInstruction(
     programAddress,
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
-      readonlySigner(payer),
+      writableSigner(payer),
       writableAccount(programData),
     ],
     encodeIgpProgramInstruction({ kind: 'init' }),
@@ -228,7 +229,7 @@ export async function getInitIgpInstruction(
     programAddress,
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
-      readonlySigner(payer),
+      writableSigner(payer),
       writableAccount(igpAccount),
     ],
     encodeIgpProgramInstruction({ kind: 'initIgp', value }),
@@ -248,7 +249,7 @@ export async function getInitOverheadIgpInstruction(
     programAddress,
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
-      readonlySigner(payer),
+      writableSigner(payer),
       writableAccount(overheadIgpAccount),
     ],
     encodeIgpProgramInstruction({ kind: 'initOverheadIgp', value }),

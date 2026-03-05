@@ -104,7 +104,7 @@ export class SvmIgpHookReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: HookType.INTERCHAIN_GAS_PAYMASTER as 'interchainGasPaymaster',
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
         // FIXME: address provider sdk type in a separate pr
         owner: owner ?? ZERO_ADDRESS_HEX_32,
         beneficiary,
@@ -114,7 +114,7 @@ export class SvmIgpHookReader implements ArtifactReader<
         oracleConfig,
       },
       deployed: {
-        address: igpPda,
+        address: programId,
         programId,
         igpPda,
         overheadIgpPda: overheadIgp ? overheadIgpPda : undefined,
@@ -179,9 +179,8 @@ export class SvmIgpHookWriter
       });
       receipts.push(initReceipt);
 
-      // TODO: re-fetch after init does not assert non-null; silent init failures
-      // will cause the gas oracle setup below to proceed against a null account.
       igp = await fetchIgpAccount(this.rpc, programId, this.salt);
+      assert(igp, 'IGP account not found after init');
     }
 
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);

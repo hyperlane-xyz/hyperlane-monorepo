@@ -39,7 +39,7 @@ export class SvmMerkleTreeHookReader implements ArtifactReader<
     const programId = parseAddress(address);
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
+      config: { type: HookType.MERKLE_TREE },
       deployed: { address: programId, programId },
     };
   }
@@ -74,7 +74,7 @@ export class SvmMerkleTreeHookWriter
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
+        config: { type: HookType.MERKLE_TREE },
         deployed: { address: programId, programId },
       },
       [],

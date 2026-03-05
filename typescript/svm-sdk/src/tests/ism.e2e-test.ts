@@ -3,7 +3,11 @@ import { expect } from 'chai';
 import { after, before, describe, it } from 'mocha';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -17,6 +21,7 @@ import {
   SvmTestIsmWriter,
   type SvmTestIsmConfig,
 } from '../ism/test-ism.js';
+import type { SvmDeployedIsm } from '../types.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
@@ -75,7 +80,7 @@ describe('SVM ISM E2E Tests', function () {
       let deployed, receipts;
       try {
         const config: SvmTestIsmConfig = {
-          type: IsmType.TEST_ISM as 'testIsm',
+          type: IsmType.TEST_ISM,
           program: { programId: TEST_PROGRAM_IDS.testIsm },
         };
         [deployed, receipts] = await writer.create({
@@ -111,9 +116,9 @@ describe('SVM ISM E2E Tests', function () {
     it('should return empty transactions for update', async () => {
       const writer = new SvmTestIsmWriter(rpc, signer);
 
-      const artifact = {
+      const artifact: ArtifactDeployed<TestIsmConfig, SvmDeployedIsm> = {
         artifactState: ArtifactState.DEPLOYED,
-        config: { type: IsmType.TEST_ISM as 'testIsm' },
+        config: { type: IsmType.TEST_ISM },
         deployed: {
           address: TEST_PROGRAM_IDS.testIsm,
           programId: TEST_PROGRAM_IDS.testIsm,
@@ -130,7 +135,7 @@ describe('SVM ISM E2E Tests', function () {
       const writer = new SvmMessageIdMultisigIsmWriter(rpc, signer);
 
       const config: SvmMultisigIsmConfig = {
-        type: IsmType.MESSAGE_ID_MULTISIG as 'messageIdMultisigIsm',
+        type: IsmType.MESSAGE_ID_MULTISIG,
         validators: [],
         threshold: 0,
         program: { programId: TEST_PROGRAM_IDS.multisigIsm },

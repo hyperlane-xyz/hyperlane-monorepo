@@ -47,7 +47,7 @@ export class SvmTestIsmReader implements ArtifactReader<
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { type: IsmType.TEST_ISM as 'testIsm' },
+      config: { type: IsmType.TEST_ISM },
       deployed: { address: programId, programId },
     };
   }
@@ -91,7 +91,7 @@ export class SvmTestIsmWriter
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: { type: IsmType.TEST_ISM as 'testIsm' },
+        config: { type: IsmType.TEST_ISM },
         deployed: { address: programAddress, programId: programAddress },
       },
       receipts,

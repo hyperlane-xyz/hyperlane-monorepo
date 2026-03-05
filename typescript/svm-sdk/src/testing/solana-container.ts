@@ -300,10 +300,15 @@ async function startDockerValidator(
     builder = builder.withPlatform(effectivePlatform);
   }
 
-  for (const [hostDir, containerDir] of hostDirToContainerDir) {
-    builder = builder.withBindMounts([
-      { source: hostDir, target: containerDir, mode: 'ro' },
-    ]);
+  const bindMounts = [...hostDirToContainerDir.entries()].map(
+    ([hostDir, containerDir]) => ({
+      source: hostDir,
+      target: containerDir,
+      mode: 'ro' as const,
+    }),
+  );
+  if (bindMounts.length > 0) {
+    builder = builder.withBindMounts(bindMounts);
   }
 
   const container = await builder.start();
