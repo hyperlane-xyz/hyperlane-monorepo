@@ -10,6 +10,7 @@ import {
   assert,
   eqAddress,
   hexOrBase58ToHex,
+  isEVMLike,
   objFilter,
   objMap,
   pick,
@@ -160,21 +161,19 @@ export function attachContractsMapAndGetForeignDeployments<
   foreignDeployments: ChainMap<Address>;
 } {
   const contractsMap = attachContractsMap(
-    filterChainMapToProtocol(
-      addressesMap,
-      ProtocolType.Ethereum,
-      metadataManager,
-    ),
+    objFilter(addressesMap, (c, _addrs): _addrs is HyperlaneAddresses<F> => {
+      const protocol = metadataManager.tryGetChainMetadata(c)?.protocol;
+      return !!protocol && isEVMLike(protocol);
+    }),
     factories,
   );
 
   // TODO: This function shouldn't need to be aware of application types like collateral / synthetic / native etc. Ideally this should work for any app, not just warp routes. is it safe to assume this is always an object containing 1 key/value pair, and that the value will always be an address?
   const foreignDeployments = objMap(
-    filterChainMapExcludeProtocol(
-      addressesMap,
-      ProtocolType.Ethereum,
-      metadataManager,
-    ),
+    objFilter(addressesMap, (c, _addrs): _addrs is any => {
+      const protocol = metadataManager.tryGetChainMetadata(c)?.protocol;
+      return !!protocol && !isEVMLike(protocol);
+    }),
     (chain, addresses) => {
       const router =
         addresses.router ||
@@ -192,8 +191,9 @@ export function attachContractsMapAndGetForeignDeployments<
       }
 
       switch (protocolType) {
+        case ProtocolType.Tron:
         case ProtocolType.Ethereum:
-          throw new Error('Ethereum chain should not have foreign deployments');
+          throw new Error('EVM-like chain should not have foreign deployments');
 
         case ProtocolType.Cosmos:
         case ProtocolType.CosmosNative:
@@ -272,11 +272,11 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
-  // Filter out non-Ethereum chains from the addressesMap
+  // Filter out non-EVM-like chains from the addressesMap
   const ethereumAddressesMap = objFilter(
     addressesMap,
     (chain, _): _ is HyperlaneAddresses<F> =>
-      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+      isEVMLike(multiProvider.getProtocol(chain)),
   );
 
   // Attaches contracts for each Ethereum chain for which we have a complete set of addresses

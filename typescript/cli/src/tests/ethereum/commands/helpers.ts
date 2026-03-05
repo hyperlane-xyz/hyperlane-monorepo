@@ -21,13 +21,17 @@ import {
 } from '@hyperlane-xyz/core';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  ChainTechnicalStack,
   type MultiProvider,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  inCIMode,
+} from '@hyperlane-xyz/utils';
 
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 
@@ -185,8 +189,8 @@ function setSignerForChain(
   chain: string,
   privateKey: string,
 ): void {
-  const { technicalStack, rpcUrls } = multiProvider.getChainMetadata(chain);
-  if (technicalStack === ChainTechnicalStack.Tron) {
+  const { protocol, rpcUrls } = multiProvider.getChainMetadata(chain);
+  if (protocol === ProtocolType.Tron) {
     multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrls[0].http));
   } else {
     multiProvider.setSigner(chain, new ethers.Wallet(privateKey));

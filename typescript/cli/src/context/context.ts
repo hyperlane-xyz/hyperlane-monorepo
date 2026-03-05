@@ -17,7 +17,12 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  isEVMLike,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -67,8 +72,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * Load and create AltVM Providers
    */
   const altVmChains = chains.filter(
-    (chain) =>
-      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(argv.context.multiProvider.getProtocol(chain)),
   );
 
   try {
@@ -161,6 +165,7 @@ export async function getContext({
 
   const supportedProtocols = [
     ProtocolType.Ethereum,
+    ProtocolType.Tron,
     ProtocolType.CosmosNative,
     ProtocolType.Radix,
     ProtocolType.Aleo,
@@ -317,9 +322,8 @@ export async function ensureEvmSignersForChains(
   chains: ChainName[],
 ): Promise<void> {
   // Filter to only EVM chains
-  const evmChains = chains.filter(
-    (chain) =>
-      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmChains = chains.filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
   );
 
   // Find chains that are missing signers

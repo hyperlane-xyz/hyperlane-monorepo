@@ -101,6 +101,7 @@ export class EvmHookModule extends HyperlaneModule<
   HookConfig,
   HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
 > {
+  static protocols = [ProtocolType.Ethereum, ProtocolType.Tron];
   protected readonly logger = rootLogger.child({ module: 'EvmHookModule' });
   protected readonly reader: EvmHookReader;
   // "ISM" Factory has aggregation hook factories too

@@ -77,6 +77,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   TokenFeeConfigInput,
   TokenFeeModuleAddresses
 > {
+  static protocols = [ProtocolType.Ethereum, ProtocolType.Tron];
   protected readonly logger = rootLogger.child({ module: 'EvmTokenFeeModule' });
   protected readonly deployer: EvmTokenFeeDeployer;
   protected readonly reader: EvmTokenFeeReader;
