@@ -228,12 +228,7 @@ export async function executeWarpDeploy(
           Object.keys(protocolSpecificConfig),
         );
         const deployer = warpDeployConfig.isNft
-          ? new HypERC721Deployer(
-              multiProvider,
-              undefined,
-              undefined,
-              concurrentDeploy,
-            )
+          ? new HypERC721Deployer(multiProvider)
           : new HypERC20Deployer(
               multiProvider,
               undefined,
