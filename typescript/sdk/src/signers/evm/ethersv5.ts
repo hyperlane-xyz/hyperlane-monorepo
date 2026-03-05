@@ -6,7 +6,10 @@ import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import {
+  MultiProvider,
+  SendTransactionOptions,
+} from '../../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
@@ -20,7 +23,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     multiProtocolProvider: MultiProtocolProvider,
   ) {
     const multiProvider = multiProtocolProvider.toMultiProvider();
-    const { technicalStack, rpcUrls } =
+    const { protocol, technicalStack, rpcUrls } =
       multiProvider.getChainMetadata(chainName);
 
     assert(
@@ -31,7 +34,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     let wallet: Wallet;
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       wallet = new ZkSyncWallet(privateKey);
-    } else if (technicalStack === ChainTechnicalStack.Tron) {
+    } else if (protocol === ProtocolType.Tron) {
       assert(
         rpcUrls.length > 0,
         `No RPC URLs configured for Tron chain ${chainName}`,
@@ -49,10 +52,14 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     return this.multiProvider.getSignerAddress(this.chainName);
   }
 
-  async sendAndConfirmTransaction(tx: EthersV5Transaction): Promise<string> {
+  async sendAndConfirmTransaction(
+    tx: EthersV5Transaction,
+    options?: SendTransactionOptions,
+  ): Promise<string> {
     const res = await this.multiProvider.sendTransaction(
       this.chainName,
       tx.transaction,
+      options,
     );
 
     return res.transactionHash;

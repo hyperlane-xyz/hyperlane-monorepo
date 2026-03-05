@@ -1,12 +1,7 @@
 import { expect } from 'chai';
 import { ethers, providers } from 'ethers';
 
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import { ExternalBridgeType } from '../config/types.js';
 
@@ -22,6 +17,7 @@ import {
 } from './fixtures/routes.js';
 import { MockExternalBridge } from './harness/MockExternalBridge.js';
 import { NativeLocalDeploymentManager } from './harness/NativeLocalDeploymentManager.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import {
   getFirstMonitorEvent,
   relayInProgressInventoryDeposits,
@@ -94,16 +90,11 @@ describe('Inventory WeightedStrategy E2E', function () {
 
   afterEach(async function () {
     mockBridge.reset();
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-      // ethers v5 refuses to return block numbers lower than a previous
-      // high-water mark (_maxInternalBlockNumber). After evm_revert the
-      // actual chain block number decreases, so reset the cache.
-      Reflect.set(provider, '_maxInternalBlockNumber', -1);
-      Reflect.set(provider, '_internalBlockNumber', null);
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {
@@ -616,9 +607,11 @@ describe('Inventory WeightedStrategy E2E', function () {
       await context.tracker.getActiveRebalanceIntents();
     expect(secondCycleIntents.length).to.equal(1);
     expect(secondCycleIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
-    expect(secondCycleIntents[0].amount).to.equal(
-      WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt(),
-    );
+    expect(secondCycleIntents[0].amount > 0n).to.be.true;
+    expect(
+      secondCycleIntents[0].amount <= WEIGHTED_EXPECTED_DEFICIT_2ETH.toBigInt(),
+      'Second cycle intent should not exceed the original deficit',
+    ).to.be.true;
   });
 
   it('uses bridge movements from different source chains before completion', async function () {

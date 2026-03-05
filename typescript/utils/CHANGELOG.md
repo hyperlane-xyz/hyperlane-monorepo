@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- 06aacac: Fix aleo empty program prefix
+
+## 25.5.0
+
 ## 25.4.1
 
 ## 25.4.0

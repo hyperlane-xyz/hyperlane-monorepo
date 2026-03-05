@@ -3,9 +3,7 @@ name: test-env
 on:
   workflow_call:
     inputs:
-      only_rust:
-        type: string
-      only_docker:
+      skip_ts:
         type: string
 
 env:
@@ -17,7 +15,7 @@ env:
 jobs:
   env-test-matrix:
     runs-on: depot-ubuntu-24.04
-    if: inputs.only_rust != 'true' && inputs.only_docker != 'true'
+    if: inputs.skip_ts != 'true'
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}

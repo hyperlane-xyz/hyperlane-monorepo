@@ -17,6 +17,7 @@ import {
   ProtocolType,
   addBufferToGasLimit,
   eqAddress,
+  isEVMLike,
   isZeroishAddress,
   rootLogger,
   runWithTimeout,
@@ -124,7 +125,7 @@ export abstract class HyperlaneDeployer<
     const metadata = this.multiProvider.getChainMetadata(chain);
 
     // Skip verification for Tron chains (not supported yet)
-    if (metadata.technicalStack === ChainTechnicalStack.Tron) {
+    if (metadata.protocol === ProtocolType.Tron) {
       logger.debug(`Skipping contract verification for Tron chain ${chain}`);
       return;
     }
@@ -154,10 +155,8 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
-    const ethereumConfigChains = configChains.filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
+    const ethereumConfigChains = configChains.filter((chain) =>
+      isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
     );
 
     const targetChains = this.multiProvider.intersect(

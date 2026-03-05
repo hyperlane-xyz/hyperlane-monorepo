@@ -232,6 +232,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     }
 
     switch (metadata.protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         if (
           ![

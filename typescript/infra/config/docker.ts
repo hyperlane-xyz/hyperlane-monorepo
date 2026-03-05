@@ -1,4 +1,4 @@
-const GCR_REGISTRY = 'gcr.io/abacus-labs-dev';
+const GHCR_REGISTRY = 'ghcr.io/hyperlane-xyz';
 
 export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
@@ -9,13 +9,13 @@ export const DockerImageNames = {
 } as const;
 
 type DockerImageReposType = {
-  [K in keyof typeof DockerImageNames]: `${typeof GCR_REGISTRY}/${(typeof DockerImageNames)[K]}`;
+  [K in keyof typeof DockerImageNames]: `${typeof GHCR_REGISTRY}/${(typeof DockerImageNames)[K]}`;
 };
 
 export const DockerImageRepos = Object.fromEntries(
   Object.entries(DockerImageNames).map(([key, name]) => [
     key,
-    `${GCR_REGISTRY}/${name}`,
+    `${GHCR_REGISTRY}/${name}`,
   ]),
 ) as DockerImageReposType;
 
@@ -39,26 +39,26 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '4aabed7-20260226-151632',
-  relayerRC: '4aabed7-20260226-151632',
-  validator: 'a52b9e6-20260122-173915',
-  validatorRC: 'a52b9e6-20260122-173915',
-  scraper: 'bb96c74-20260129-145233',
+  relayer: 'c558a9f-20260304-105241',
+  relayerRC: 'c558a9f-20260304-105241',
+  validator: 'c558a9f-20260304-105241',
+  validatorRC: 'c558a9f-20260304-105241',
+  scraper: 'c558a9f-20260304-105241',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
-  keyFunder: '34d6708-20260223-230356',
-  warpMonitor: 'ccd638d-20260217-182840',
-  rebalancer: '46cbc4a-20260223-211659',
+  keyFunder: 'c558a9f-20260304-105251',
+  warpMonitor: 'c558a9f-20260304-105251',
+  rebalancer: 'c558a9f-20260304-105251',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '4aabed7-20260226-151632',
-  relayerRC: '4aabed7-20260226-151632',
-  validator: 'cc5e978-20260217-190624',
-  validatorRC: 'cc5e978-20260217-190624',
-  scraper: 'cc5e978-20260217-190624',
+  relayer: 'c558a9f-20260304-105241',
+  relayerRC: 'c558a9f-20260304-105241',
+  validator: 'c558a9f-20260304-105241',
+  validatorRC: 'c558a9f-20260304-105241',
+  scraper: 'c558a9f-20260304-105241',
   // standalone services
-  keyFunder: '34d6708-20260223-230356',
+  keyFunder: 'c558a9f-20260304-105251',
 };

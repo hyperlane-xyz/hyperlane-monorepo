@@ -53,6 +53,8 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             PARENT_SHA=$(git rev-parse HEAD^)
             CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml ./.github/workflows/test-rust-e2e.yml ./.github/actions/)
+            # Filter out sealevel deployment config paths that don't affect build/tests
+            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -64,7 +66,9 @@ jobs:
           elif [[ "${{ inputs.event_name }}" == "pull_request" ]]; then
             # For PRs, use GitHub CLI to check changes
             PR_NUMBER=${{ github.event.pull_request.number }}
-            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or startswith(".github/workflows/") or startswith(".github/actions/"))')
+            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml" or . == ".github/workflows/test-rust-e2e.yml" or test("^\\.github/workflows/rust\\.") or startswith(".github/actions/"))')
+            # Filter out sealevel deployment config paths that don't affect build/tests
+            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -78,6 +82,8 @@ jobs:
             BASE_SHA="${{ github.event.merge_group.base_sha }}"
             HEAD_SHA="${{ github.event.merge_group.head_sha }}"
             CHANGES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- ./rust ./.github/workflows/test.yml ./.github/workflows/test-rust-e2e.yml ./.github/actions/)
+            # Filter out sealevel deployment config paths that don't affect build/tests
+            CHANGES=$(echo "$CHANGES" | grep -vE '^rust/sealevel/(environments/(mainnet3|testnet4)/|\.vscode/)' || true)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -150,9 +156,9 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/checkout-registry
 
-      - name: Run sccache-cache
+      - name: Setup sccache
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: ./.github/actions/setup-sccache
 
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}

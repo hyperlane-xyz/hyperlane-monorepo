@@ -18,6 +18,7 @@ import {
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   addBufferToGasLimit,
   pick,
   rootLogger,
@@ -120,7 +121,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls, technicalStack } = metadata;
+    const { name, chainId, rpcUrls, protocol, technicalStack } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
@@ -136,7 +137,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
-      } else if (technicalStack === ChainTechnicalStack.Tron) {
+      } else if (protocol === ProtocolType.Tron) {
         this.providers[name] = defaultTronEthersProviderBuilder(
           rpcUrls,
           chainId,
@@ -362,7 +363,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
     const metadata = this.getChainMetadata(chainNameOrId);
-    const { technicalStack } = metadata;
+    const { protocol, technicalStack } = metadata;
 
     let contract: Contract;
     let estimatedGas: BigNumber;
@@ -382,7 +383,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // will wait for the deploy tx to be confirmed before returning
     } else {
       const resolved =
-        technicalStack === ChainTechnicalStack.Tron
+        protocol === ProtocolType.Tron
           ? await this.resolveTronFactory(factory)
           : factory;
       const contractFactory = resolved.connect(signer);
