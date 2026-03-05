@@ -1,12 +1,7 @@
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { TronWeb } from 'tronweb';
 
-import {
-  assert,
-  pollAsync,
-  retryAsync,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { pollAsync, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { TronJsonRpcProvider } from '../ethers/TronJsonRpcProvider.js';
 
@@ -87,7 +82,6 @@ export async function runTronNode(
 
   // Enable instamine mode for faster tests
   await enableInstamine(chainMetadata.port);
-  await waitForTronRpcReadiness(chainMetadata.port);
 
   return { container, privateKeys };
 }
@@ -125,16 +119,6 @@ export async function enableInstamine(port: number): Promise<void> {
   rootLogger.info('Enabled instamine mode');
 }
 
-function isAccountsJson(obj: unknown): obj is { privateKeys: string[] } {
-  if (!obj || typeof obj !== 'object' || !('privateKeys' in obj)) return false;
-  const keys = (obj as { privateKeys: unknown }).privateKeys;
-  return (
-    Array.isArray(keys) &&
-    keys.length > 0 &&
-    keys.every((k): k is string => typeof k === 'string' && k.length > 0)
-  );
-}
-
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
@@ -163,86 +147,35 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
       const provider = new TronJsonRpcProvider(tronUrl);
       const tronweb = new TronWeb({ fullHost: tronUrl });
 
-      try {
-        const [blockNumber, block, latestBlock, gasPrice] = await withTimeout(
-          Promise.all([
-            provider.getBlockNumber(),
-            tronweb.trx.getCurrentBlock(),
-            provider.getBlock('latest'),
-            provider.getGasPrice(),
-          ]),
-          5000,
-        );
-        if (blockNumber === 0) {
-          throw new Error('Block number is 0, node not ready');
-        }
-        if (!block.blockID) {
-          throw new Error('HTTP API returned invalid block data');
-        }
-        if (!latestBlock) {
-          throw new Error('eth_getBlockByNumber returned empty block');
-        }
-        if (gasPrice.lt(0)) {
-          throw new Error('eth_gasPrice returned invalid value');
-        }
-
-        // Wait for TRE to fund accounts (happens after node starts mining)
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 5000);
-        let resp: Response;
-        try {
-          resp = await fetch(`${tronUrl}/admin/accounts-json`, {
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(timer);
-        }
-        if (!resp.ok) {
-          throw new Error(
-            `accounts-json request failed with status ${resp.status}`,
-          );
-        }
-        const data: unknown = await resp.json();
-        assert(isAccountsJson(data), 'No funded accounts yet');
-        privateKeys = data.privateKeys;
-
-        rootLogger.info(
-          `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
-        );
-      } finally {
-        provider.removeAllListeners();
+      const [blockNumber, block] = await withTimeout(
+        Promise.all([provider.getBlockNumber(), tronweb.trx.getCurrentBlock()]),
+        5000,
+      );
+      if (blockNumber === 0) {
+        throw new Error('Block number is 0, node not ready');
       }
+      if (!block.blockID) {
+        throw new Error('HTTP API returned invalid block data');
+      }
+
+      // Wait for TRE to fund accounts (happens after node starts mining)
+      const resp = await withTimeout(
+        fetch(`${tronUrl}/admin/accounts-json`),
+        5000,
+      );
+      const data = (await resp.json()) as { privateKeys: string[] };
+      if (!data.privateKeys?.length) {
+        throw new Error('No funded accounts yet');
+      }
+      privateKeys = data.privateKeys;
+
+      rootLogger.info(
+        `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
+      );
     },
     1000,
     60,
   );
 
   return privateKeys;
-}
-
-async function waitForTronRpcReadiness(port: number): Promise<void> {
-  const tronUrl = `http://127.0.0.1:${port}`;
-
-  await pollAsync(
-    async () => {
-      const provider = new TronJsonRpcProvider(tronUrl);
-      try {
-        const [latestBlock, gasPrice] = await withTimeout(
-          Promise.all([provider.getBlock('latest'), provider.getGasPrice()]),
-          5000,
-        );
-
-        if (!latestBlock) {
-          throw new Error('eth_getBlockByNumber returned empty block');
-        }
-        if (gasPrice.lt(0)) {
-          throw new Error('eth_gasPrice returned invalid value');
-        }
-      } finally {
-        provider.removeAllListeners();
-      }
-    },
-    1000,
-    30,
-  );
 }
