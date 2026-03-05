@@ -10,8 +10,7 @@ use url::Url;
 
 use h_eth::TransactionOverrides;
 
-use hyperlane_core::config::{ConfigErrResultExt, ConfigResultExt, OpSubmissionConfig};
-use hyperlane_core::matching_list::MatchingList;
+use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use hyperlane_starknet as h_starknet;
@@ -19,7 +18,9 @@ use hyperlane_starknet as h_starknet;
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
-use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
+use super::{
+    parse_base_and_override_urls, parse_cosmos_gas_price, parse_matching_list, ValueParser,
+};
 
 #[allow(clippy::question_mark)] // TODO: `rustc` 1.80.1 clippy issue
 pub fn build_ethereum_connection_conf(
@@ -382,17 +383,11 @@ fn parse_sealevel_process_alt_overrides(
 
     entries
         .filter_map(|entry| {
-            // Parse matchingList as a JSON value, then deserialize into MatchingList
-            let matching_list_val = entry.chain(err).get_opt_key("matchingList").end();
-
-            let matching_list = if let Some(ml_parser) = matching_list_val {
-                ml_parser
-                    .parse_value::<MatchingList>("Expected matching list")
-                    .take_config_err(err)
-                    .unwrap_or_default()
-            } else {
-                MatchingList::default()
-            };
+            let matching_list = entry
+                .chain(err)
+                .get_opt_key("matchingList")
+                .and_then(parse_matching_list)
+                .unwrap_or_default();
 
             let alt_str = entry
                 .chain(err)
