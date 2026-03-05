@@ -21,18 +21,17 @@ import {
 export async function getSetUpgradeAuthorityInstruction(
   programAddress: Address,
   currentAuthority: Address,
-  newAuthority: Address,
+  newAuthority: Address | null,
 ): Promise<SvmInstruction> {
   const programDataAddress = await deriveProgramDataAddress(programAddress);
   // SetAuthority discriminant: u32le(4)
   const data = new Uint8Array([4, 0, 0, 0]);
-  return buildInstruction(
-    LOADER_V3_PROGRAM_ADDRESS,
-    [
-      writableAccount(programDataAddress),
-      readonlySignerAddress(currentAuthority),
-      readonlyAccount(newAuthority),
-    ],
-    data,
-  );
+  const accounts = [
+    writableAccount(programDataAddress),
+    readonlySignerAddress(currentAuthority),
+  ];
+  if (newAuthority) {
+    accounts.push(readonlyAccount(newAuthority));
+  }
+  return buildInstruction(LOADER_V3_PROGRAM_ADDRESS, accounts, data);
 }

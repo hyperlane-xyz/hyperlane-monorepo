@@ -69,9 +69,14 @@ export function scaleToRemoteDecimals(
   scale?: number,
 ): number {
   if (!scale || scale === 1) return localDecimals;
-  const exp = Math.round(Math.log10(scale));
+  let exp = 0;
+  let remaining = scale;
+  while (remaining > 1 && remaining % 10 === 0) {
+    remaining /= 10;
+    exp++;
+  }
   assert(
-    Math.pow(10, exp) === scale,
+    remaining === 1,
     `scale must be an exact power of 10 (e.g. 1e9), got ${scale}`,
   );
   return localDecimals + exp;
@@ -131,6 +136,7 @@ export async function buildBaseInitData(
   };
 }
 
+// Solana txs are capped at 1232 bytes (https://solana.com/docs/core/transactions#transaction-size).
 // Each router entry is 37 bytes in the EnrollRemoteRouters instruction data.
 // With ~322 bytes of fixed tx overhead the 1232-byte limit allows at most 24
 // routers per tx. Use 20 to stay comfortably within that bound.
@@ -300,7 +306,9 @@ export async function computeWarpTokenUpdateInstructions(
     });
   }
 
-  // 2. Router diff — routers and gas configs as independent batched streams
+  // 2. Router diff — the same domain set (toUnenroll/toEnroll) drives both
+  //    router and gas config changes, batched independently because gas config
+  //    instructions are smaller and allow more entries per tx.
   const diff = computeRemoteRoutersUpdates(
     {
       remoteRouters: current.remoteRouters,
@@ -414,19 +422,25 @@ export async function computeWarpTokenUpdateInstructions(
     programId,
   );
   if (
-    currentUpgradeAuthority !== null &&
-    expectedOwnerAddress !== null &&
-    !eqAddressSol(currentUpgradeAuthority, parseAddress(expectedOwnerAddress))
+    !eqOptionalAddress(
+      currentUpgradeAuthority ?? undefined,
+      expectedOwnerAddress ?? undefined,
+      eqAddressSol,
+    )
   ) {
+    assert(
+      currentUpgradeAuthority,
+      'Cannot transfer upgrade authority: no current authority',
+    );
     txs.push({
       instructions: [
         await getSetUpgradeAuthorityInstruction(
           programId,
           currentUpgradeAuthority,
-          parseAddress(expectedOwnerAddress),
+          expectedOwnerAddress ? parseAddress(expectedOwnerAddress) : null,
         ),
       ],
-      annotation: `Update ${label}: transfer upgrade authority`,
+      annotation: `Update ${label}: ${expectedOwnerAddress ? 'transfer' : 'renounce'} upgrade authority`,
     });
   }
 

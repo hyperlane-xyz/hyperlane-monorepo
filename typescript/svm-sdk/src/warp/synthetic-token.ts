@@ -326,22 +326,18 @@ export class SvmSyntheticTokenWriter
       tokenConfig.metadataUri,
     );
 
-    receipts.push(
-      await this.svmSigner.send({
-        instructions: [fundMintIx, initMetadataIx],
-        skipPreflight: true,
-      }),
-    );
-
     // Transfer mint authority to mintPda so the program owns minting.
+    // Bundled with metadata init to avoid leaving the deployer as mint
+    // authority if a separate authority-transfer tx were to fail.
     const setAuthorityIx = createSetAuthorityInstruction(
       mintPda,
       this.svmSigner.signer,
       mintPda,
     );
+
     receipts.push(
       await this.svmSigner.send({
-        instructions: [setAuthorityIx],
+        instructions: [fundMintIx, initMetadataIx, setAuthorityIx],
         skipPreflight: true,
       }),
     );

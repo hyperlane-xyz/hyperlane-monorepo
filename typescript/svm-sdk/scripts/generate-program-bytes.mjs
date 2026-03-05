@@ -39,8 +39,8 @@ for (const [key, filename] of Object.entries(PROGRAMS)) {
     programBytes[key] = Array.from(bytes);
     console.log(`  ✅ ${key}: ${bytes.length.toLocaleString()} bytes`);
   } catch {
-    console.warn(`  ⚠️  ${key}: not found — will be empty Uint8Array`);
-    programBytes[key] = [];
+    console.error(`  ❌ ${key}: required .so file not found at ${path}`);
+    process.exit(1);
   }
 }
 
