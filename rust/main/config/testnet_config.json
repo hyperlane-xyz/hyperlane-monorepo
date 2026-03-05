@@ -1596,8 +1596,8 @@
         "name": "Tron",
         "symbol": "TRX"
       },
-      "protocol": "ethereum",
-      "technicalStack": "tron",
+      "protocol": "tron",
+      "technicalStack": "other",
       "rpcUrls": [
         {
           "http": "https://api.shasta.trongrid.io/jsonrpc"

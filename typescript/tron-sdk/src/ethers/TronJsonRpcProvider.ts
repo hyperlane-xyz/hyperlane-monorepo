@@ -18,20 +18,20 @@ const DEFAULT_BASE_RETRY_MS = 250;
  * (e.g. TronGrid rate limiting).
  */
 export class TronJsonRpcProvider extends providers.JsonRpcProvider {
-  public url: string;
+  public host: string;
   private maxRetries: number;
   private baseRetryMs: number;
 
   constructor(
-    url: string,
+    host: string,
     network?: providers.Networkish,
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryMs = DEFAULT_BASE_RETRY_MS,
   ) {
     // Ensure we're pointing to the /jsonrpc endpoint
-    const jsonRpcUrl = url.endsWith('/jsonrpc') ? url : `${url}/jsonrpc`;
+    const jsonRpcUrl = host.endsWith('/jsonrpc') ? host : `${host}/jsonrpc`;
     super(jsonRpcUrl, network);
-    this.url = url;
+    this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;
   }

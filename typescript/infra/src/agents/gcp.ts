@@ -303,7 +303,7 @@ export class AgentGCPKey extends CloudAgentKey {
     }
 
     if (provider instanceof TronJsonRpcProvider) {
-      return new TronWallet(this.privateKey, provider.url);
+      return new TronWallet(this.privateKey, provider.host);
     }
     return new Wallet(this.privateKey, provider);
   }
