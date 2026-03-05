@@ -2,16 +2,11 @@ import search from '@inquirer/search';
 
 import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
+  filterWarpCoreConfigMapByChains,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
-  filterWarpCoreConfigMapByChains,
 } from '@hyperlane-xyz/sdk';
-import {
-  assert,
-  intersection,
-  objFilter,
-  setEquality,
-} from '@hyperlane-xyz/utils';
+import { assert, intersection, setEquality } from '@hyperlane-xyz/utils';
 
 import {
   readWarpCoreConfig,
@@ -255,10 +250,11 @@ export function filterWarpConfigsToMatchingChains(
       ).join(', ')}\n`,
     );
 
-    const filteredWarpDeployConfig = objFilter(
-      warpDeployConfig,
-      (chain: string, _v): _v is any => matchingChains.has(chain),
-    );
+    const filteredWarpDeployConfig = Object.fromEntries(
+      Object.entries(warpDeployConfig).filter(([chain]) =>
+        matchingChains.has(chain),
+      ),
+    ) as WarpRouteDeployConfigMailboxRequired;
     const filteredWarpCoreConfig = {
       ...warpCoreConfig,
       tokens: warpCoreConfig.tokens.filter((token: { chainName: string }) =>
