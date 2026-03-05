@@ -52,6 +52,7 @@ export interface BaseWarpConfig {
   hook?: HookConfig | string;
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
+  scale?: number;
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
@@ -64,6 +65,7 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
@@ -82,6 +84,7 @@ export interface BaseDerivedWarpConfig {
   hook: DerivedHookConfig | string;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
+  scale?: number;
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
@@ -364,6 +367,7 @@ export function warpConfigToArtifact(
           name: config.name,
           symbol: config.symbol,
           decimals: config.decimals,
+          metadataUri: config.metadataUri,
         },
       };
 
