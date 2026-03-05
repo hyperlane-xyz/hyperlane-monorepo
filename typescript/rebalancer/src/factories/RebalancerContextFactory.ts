@@ -432,17 +432,17 @@ export class RebalancerContextFactory {
     const inventoryOriginChains = getInventoryOriginChainNames(
       this.config.strategyConfig,
     );
-    const allRelevantInventoryChains = Array.from(
+    const allRelevantChains = Array.from(
       new Set([...inventoryChains, ...inventoryOriginChains]),
     );
 
-    if (inventoryChains.length === 0) {
+    if (allRelevantChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
     }
 
     const requiredProtocols = new Set(
-      allRelevantInventoryChains.map((chain) => {
+      allRelevantChains.map((chain) => {
         const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
         assert(
           metadata?.protocol,
@@ -452,7 +452,7 @@ export class RebalancerContextFactory {
       }),
     );
     for (const protocol of requiredProtocols) {
-      const chainsForProtocol = allRelevantInventoryChains.filter(
+      const chainsForProtocol = allRelevantChains.filter(
         (chain) =>
           this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
           protocol,
@@ -460,7 +460,7 @@ export class RebalancerContextFactory {
       assert(
         this.config.inventorySigners?.[protocol]?.key ??
           this.inventorySignerKeysByProtocol?.[protocol],
-        `Missing inventory signer key for protocol ${protocol} (required by inventory execution chains: ${chainsForProtocol.join(', ')})`,
+        `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
       );
     }
 
