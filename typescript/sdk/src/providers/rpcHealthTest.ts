@@ -50,7 +50,7 @@ export async function isRpcHealthy(
   else if (provider.type === ProviderType.Aleo)
     return isAleoProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.Tron)
-    return isEthersV5ProviderHealthy(provider.provider, metadata);
+    return isEthersV6ProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,

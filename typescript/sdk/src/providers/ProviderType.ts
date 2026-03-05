@@ -128,10 +128,10 @@ type ProtocolTypesMapping = {
     receipt: AleoTransactionReceipt;
   };
   [ProtocolType.Tron]: {
-    transaction: EthersV5Transaction;
+    transaction: TronTransaction;
     provider: TronProvider;
     contract: null;
-    receipt: EthersV5TransactionReceipt;
+    receipt: TronTransactionReceipt;
   };
   [ProtocolType.Unknown]: {
     transaction: never;
@@ -235,9 +235,9 @@ export interface AleoProvider extends TypedProviderBase<AleoSDKProvider> {
   provider: AleoSDKProvider;
 }
 
-export interface TronProvider extends TypedProviderBase<EV5Providers.Provider> {
+export interface TronProvider extends TypedProviderBase<EthersProvider> {
   type: ProviderType.Tron;
-  provider: EV5Providers.Provider;
+  provider: EthersProvider;
 }
 
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
@@ -372,9 +372,9 @@ export interface ZKSyncTransaction extends TypedTransactionBase<zkSyncTypes.Tran
   transaction: zkSyncTypes.TransactionRequest;
 }
 
-export interface TronTransaction extends TypedTransactionBase<EV5Transaction> {
+export interface TronTransaction extends TypedTransactionBase<EthersTransaction> {
   type: ProviderType.Tron;
-  transaction: EV5Transaction;
+  transaction: EthersTransaction;
 }
 
 export type TypedTransaction =
@@ -409,7 +409,7 @@ export type AnnotatedZKSyncTransaction =
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
-export type AnnotatedTronTransaction = Annotated<EV5Transaction>;
+export type AnnotatedTronTransaction = Annotated<EthersTransaction>;
 
 export type TypedAnnotatedTransaction =
   | AnnotatedEvmTransaction
@@ -482,9 +482,9 @@ export interface AleoTransactionReceipt extends TypedTransactionReceiptBase<Aleo
   receipt: AleoSDKReceipt;
 }
 
-export interface TronTransactionReceipt extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
+export interface TronTransactionReceipt extends TypedTransactionReceiptBase<EthersTransactionReceipt> {
   type: ProviderType.Tron;
-  receipt: EV5Providers.TransactionReceipt;
+  receipt: EthersTransactionReceipt;
 }
 
 export type TypedTransactionReceipt =
