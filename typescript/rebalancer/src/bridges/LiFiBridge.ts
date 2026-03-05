@@ -12,6 +12,7 @@ import {
   getStatus,
   config as lifiConfig,
 } from '@lifi/sdk';
+import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
@@ -88,10 +89,20 @@ export class LiFiBridge implements IExternalBridge {
   readonly logger: Logger;
   private initialized = false;
   private readonly config: ExternalBridgeConfig;
+  private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
 
   constructor(config: ExternalBridgeConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
+    // Build chainId -> metadata map for O(1) lookups
+    this.chainMetadataByChainId = new Map();
+    if (config.chainMetadata) {
+      for (const metadata of Object.values(config.chainMetadata)) {
+        if (metadata.chainId !== undefined) {
+          this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
+        }
+      }
+    }
   }
 
   getNativeTokenAddress(): string {
@@ -118,23 +129,76 @@ export class LiFiBridge implements IExternalBridge {
    * Iterates metadata to find matching chainId and returns first HTTP RPC URL.
    */
   private getRpcUrlForChainId(chainId: number): string | undefined {
-    if (!this.config.chainMetadata) return undefined;
-    for (const metadata of Object.values(this.config.chainMetadata)) {
-      if (metadata.chainId === chainId && metadata.rpcUrls?.length) {
-        return metadata.rpcUrls[0].http;
-      }
-    }
-    return undefined;
+    return this.chainMetadataByChainId.get(chainId)?.rpcUrls?.[0]?.http;
   }
 
   private getProtocolTypeForChainId(chainId: number): ProtocolType | undefined {
-    if (!this.config.chainMetadata) return undefined;
-    for (const metadata of Object.values(this.config.chainMetadata)) {
-      if (metadata.chainId === chainId) {
-        return metadata.protocol;
+    return this.chainMetadataByChainId.get(chainId)?.protocol;
+  }
+
+  /**
+   * Configure LiFi SDK providers from the given private keys.
+   * Sets up wallet/signer for each protocol type present in the keys map.
+   */
+  private configureLiFiProviders(
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    fromChain: number,
+    fromRpcUrl: string | undefined,
+  ): void {
+    const providers: Parameters<typeof lifiConfig.setProviders>[0] = [];
+    for (const [protocol, key] of Object.entries(privateKeys)) {
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          const account = privateKeyToAccount(ensure0x(key) as `0x${string}`);
+          const chain = getViemChain(fromChain, fromRpcUrl);
+          const walletClient = createWalletClient({
+            account,
+            chain,
+            transport: http(fromRpcUrl),
+          });
+          providers.push(
+            EVM({
+              getWalletClient: async () => walletClient,
+              switchChain: async (requiredChainId: number) => {
+                const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
+                const requiredChain = getViemChain(
+                  requiredChainId,
+                  switchRpcUrl,
+                );
+                return createWalletClient({
+                  account,
+                  chain: requiredChain,
+                  transport: http(switchRpcUrl),
+                });
+              },
+            }),
+          );
+          break;
+        }
+        case ProtocolType.Sealevel: {
+          providers.push(
+            Solana({
+              getWalletAdapter: async () => new KeypairWalletAdapter(key),
+            }),
+          );
+          break;
+        }
+        default:
+          throw new Error(
+            `Unsupported protocol type '${protocol}' for LiFi provider`,
+          );
       }
     }
-    return undefined;
+
+    lifiConfig.setProviders(providers);
+
+    this.logger.debug(
+      {
+        fromChain,
+        protocols: Object.keys(privateKeys),
+      },
+      'Configured LiFi providers for route execution',
+    );
   }
 
   /**
@@ -337,12 +401,11 @@ export class LiFiBridge implements IExternalBridge {
    * Handles approvals, transaction signing, and execution automatically.
    *
    * @param quote - Quote obtained from quote()
-   * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
+   * @param privateKeys - Private keys keyed by protocol type for signing transactions
    */
   async execute(
     quote: BridgeQuote<LiFiStep>,
-    privateKey: string,
-    solanaPrivateKey?: string,
+    privateKeys: Partial<Record<ProtocolType, string>>,
   ): Promise<BridgeTransferResult> {
     this.initialize();
 
@@ -354,6 +417,10 @@ export class LiFiBridge implements IExternalBridge {
     const fromChain = route.fromChainId;
     const toChain = route.toChainId;
     const fromProtocol = this.getProtocolTypeForChainId(fromChain);
+    assert(
+      privateKeys[fromProtocol ?? ProtocolType.Ethereum],
+      `Missing private key for source chain protocol ${fromProtocol ?? ProtocolType.Ethereum}`,
+    );
 
     this.logger.info(
       {
@@ -366,47 +433,14 @@ export class LiFiBridge implements IExternalBridge {
       'Executing LiFi bridge transfer',
     );
 
-    const account = privateKeyToAccount(ensure0x(privateKey) as `0x${string}`);
-    const rpcUrl = this.getRpcUrlForChainId(fromChain);
-    const chain = getViemChain(fromChain, rpcUrl);
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
-    });
-    const evmProvider = EVM({
-      getWalletClient: async () => walletClient,
-      switchChain: async (requiredChainId: number) => {
-        const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
-        const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
-        return createWalletClient({
-          account,
-          chain: requiredChain,
-          transport: http(switchRpcUrl),
-        });
-      },
-    });
+    const fromRpcUrl = this.getRpcUrlForChainId(fromChain);
 
-    const providers: Parameters<typeof lifiConfig.setProviders>[0] = [
-      evmProvider,
-    ];
-    if (solanaPrivateKey) {
-      providers.push(
-        Solana({
-          getWalletAdapter: async () =>
-            new KeypairWalletAdapter(solanaPrivateKey),
-        }),
-      );
-    }
-
-    lifiConfig.setProviders(providers);
+    this.configureLiFiProviders(privateKeys, fromChain, fromRpcUrl);
 
     this.logger.debug(
       {
         fromChain,
-        protocol: fromProtocol ?? ProtocolType.Ethereum,
-        hasEvmProvider: true,
-        hasSolanaProvider: !!solanaPrivateKey,
+        protocols: Object.keys(privateKeys),
       },
       'Configured LiFi providers for route execution',
     );

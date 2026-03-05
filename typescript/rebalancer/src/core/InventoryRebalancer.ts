@@ -230,16 +230,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     return signerConfig.address;
   }
 
-  private getInventorySignerKey(chainName: ChainName): string {
-    const protocol = this.getProtocolForChain(chainName);
-    const signerConfig = this.config.inventorySigners[protocol];
-    assert(
-      signerConfig?.key,
-      `Missing inventory signer key for protocol ${protocol} (chain ${chainName})`,
-    );
-    return signerConfig.key;
-  }
-
   /**
    * Set inventory balances from external source.
    * Called before each rebalance cycle to update internal state.
@@ -1386,11 +1376,21 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Received LiFi quote for inventory movement',
       );
 
-      const result = await externalBridge.execute(
-        quote,
-        this.getInventorySignerKey(sourceChain),
-        this.config.inventorySigners[ProtocolType.Sealevel]?.key,
+      // Build private keys map from all available inventory signers
+      const privateKeys: Partial<Record<ProtocolType, string>> = {};
+      for (const [protocol, cfg] of Object.entries(
+        this.config.inventorySigners,
+      )) {
+        if (cfg?.key) {
+          privateKeys[protocol as ProtocolType] = cfg.key;
+        }
+      }
+      const sourceProtocol = this.getProtocolForChain(sourceChain);
+      assert(
+        privateKeys[sourceProtocol],
+        `Missing inventory signer key for protocol ${sourceProtocol} (chain ${sourceChain})`,
       );
+      const result = await externalBridge.execute(quote, privateKeys);
 
       this.logger.info(
         {
