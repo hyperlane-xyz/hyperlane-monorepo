@@ -51,6 +51,21 @@ chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
+// AltVM readers key remoteRouters by chain name; EVM readers by domain ID.
+// Try both until the inconsistency is addressed in a follow-up PR.
+function getUnsupportedChainRouterAddress(
+  config: DerivedWarpRouteDeployConfig,
+  chainName: string,
+): string | undefined {
+  const routers = config[chainName].remoteRouters ?? {};
+  return (
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name]
+      ?.address ??
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId]
+      ?.address
+  );
+}
+
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
@@ -265,11 +280,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chainName,
         );
 
+        const unsupportedRouterAddress = getUnsupportedChainRouterAddress(
+          config,
+          chainName,
+        );
         expect(
-          (config[chainName].remoteRouters ?? {})[
-            TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-          ].address,
-        ).to.eql(addressToBytes32(unsupportedChainAddress));
+          unsupportedRouterAddress,
+          `Expected unsupported chain router to be enrolled for ${chainName}`,
+        ).to.not.be.undefined;
+        expect(unsupportedRouterAddress).to.eql(
+          addressToBytes32(unsupportedChainAddress),
+        );
       }
 
       const warpCoreConfig: WarpCoreConfig = readYamlOrJson(WARP_CORE_PATH);
