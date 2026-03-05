@@ -25,6 +25,7 @@ import {
   assert,
   isEVMLike,
   mustGet,
+  objFilter,
   objMap,
   parseWarpRouteMessage,
   sleep,
@@ -264,7 +265,13 @@ async function executeDelivery({
 
   const chainAddresses = await registry.getAddresses();
 
-  const mailboxes = objMap(chainAddresses, (_, { mailbox }) => ({ mailbox }));
+  const mailboxes = objMap(
+    objFilter(
+      chainAddresses,
+      (_, addresses): addresses is typeof addresses => !!addresses?.mailbox,
+    ),
+    (_, { mailbox }) => ({ mailbox }),
+  );
   const warpMultiProvider =
     multiProtocolProvider.extendChainMetadata(mailboxes);
 
