@@ -4,7 +4,7 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -17,6 +17,7 @@ import {
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
+  isMultiCollateralTokenConfig,
   isNativeTokenConfig,
   isTokenMetadata,
   isXERC20TokenConfig,
@@ -41,7 +42,7 @@ export async function deriveTokenMetadata(
       metadataMap.set(chain, TokenMetadataSchema.parse(config));
     }
 
-    if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+    if (!isEVMLike(multiProvider.getProtocol(chain))) {
       continue;
     }
 
@@ -63,6 +64,7 @@ export async function deriveTokenMetadata(
 
     if (
       isCollateralTokenConfig(config) ||
+      isMultiCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)

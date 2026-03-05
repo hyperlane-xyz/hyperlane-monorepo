@@ -118,6 +118,8 @@ export const RebalancerStrategySchema = z
 export const DEFAULT_INTENT_TTL_S = 604800; // 7 days
 export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
 
+export const DEFAULT_MOVEMENT_STALENESS_MS = 30 * 60 * 1_000; // 30 minutes
+
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),
   defaultSlippage: z.number().optional(),

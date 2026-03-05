@@ -49,8 +49,8 @@ jobs:
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs: [change-detection]
-    if: needs.change-detection.outputs.only_rust != 'true'
-    timeout-minutes: 5
+    if: needs.change-detection.outputs.skip_ts != 'true'
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -135,13 +135,14 @@ jobs:
     needs: [set-base-sha]
     outputs:
       skip_ts: ${{ steps.decide.outputs.skip_ts }}
-      only_rust: ${{ steps.decide.outputs.only_rust }}
-      only_docker: ${{ steps.decide.outputs.only_docker }}
       run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
+      ci_tier: ${{ steps.decide.outputs.ci_tier }}
       has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
       has_aleo: ${{ steps.decide.outputs.has_aleo }}
       has_radix: ${{ steps.decide.outputs.has_radix }}
       has_tron: ${{ steps.decide.outputs.has_tron }}
+      has_relayer: ${{ steps.decide.outputs.has_relayer }}
+      has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -153,34 +154,19 @@ jobs:
         id: context
         uses: ./.github/actions/ci-context-check
 
-      - name: Check if changes are only in rust/ or typescript/infra/
+      # skip_ts: no TypeScript code at all — skip all TS jobs
+      # Note: typescript/infra/ is NOT included because infra-test and agent-configs
+      # exist specifically to validate infra changes
+      - name: Check if changes are only in non-TS paths
         id: check-skip-ts
         uses: ./.github/actions/check-path-changes
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: '(rust/|typescript/infra/)'
+          path_pattern: '(rust/|\.github/|typescript/docker-bake\.hcl)'
           path_pattern_only: 'true'
 
-      - name: Check if changes are only in rust/
-        id: check-only-rust
-        uses: ./.github/actions/check-path-changes
-        with:
-          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
-          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: 'rust/'
-          path_pattern_only: 'true'
-
-      - name: Check if changes are only docker tag updates
-        id: check-only-docker
-        uses: ./.github/actions/check-path-changes
-        with:
-          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
-          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: 'typescript/infra/config/docker.ts'
-          path_pattern_only: 'true'
-
-      - name: Categorize changes per VM
+      - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
         run: |
           BASE_SHA="${{ needs.set-base-sha.outputs.base_sha }}"
@@ -188,85 +174,107 @@ jobs:
 
           if ! CHANGED_FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" 2>/dev/null); then
             # Can't determine changes — run everything
-            echo "has_shared=true" >> $GITHUB_OUTPUT
+            echo "has_cli_changes=true" >> $GITHUB_OUTPUT
             echo "has_radix=true" >> $GITHUB_OUTPUT
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
+            echo "has_relayer=true" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           if [[ -z "$CHANGED_FILES" ]]; then
-            echo "has_shared=true" >> $GITHUB_OUTPUT
+            echo "has_cli_changes=true" >> $GITHUB_OUTPUT
             echo "has_radix=false" >> $GITHUB_OUTPUT
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
+            echo "has_relayer=false" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Check VM-specific SDK changes
+          # VM-specific SDK changes
           has_radix=$(echo "$CHANGED_FILES" | grep -qE '^typescript/radix-sdk/' && echo true || echo false)
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
 
-          # Shared changes = anything NOT in rust/, typescript/infra/, or VM-specific SDKs
-          SHARED_CHANGES=$(echo "$CHANGED_FILES" | grep -vE '^(rust/|typescript/(infra|radix-sdk|aleo-sdk|cosmos-sdk|cosmos-types|tron-sdk)/)' || true)
-          has_shared=$([[ -n "$SHARED_CHANGES" ]] && echo true || echo false)
+          # Package-specific changes (run only their targeted CLI e2e tests)
+          has_relayer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/relayer/' && echo true || echo false)
+          has_rebalancer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/rebalancer/' && echo true || echo false)
 
-          echo "has_shared=$has_shared" >> $GITHUB_OUTPUT
+          # Core CLI deps that trigger the smoke/full CLI e2e suite
+          # Peripheral deps (relayer, rebalancer, metrics, http-registry-server) have
+          # their own unit tests; merge queue runs full suite
+          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk)/|solidity/|starknet/)'
+          has_cli_changes=$(echo "$CHANGED_FILES" | grep -qE "$CLI_DEPS" && echo true || echo false)
+
+          echo "has_cli_changes=$has_cli_changes" >> $GITHUB_OUTPUT
           echo "has_radix=$has_radix" >> $GITHUB_OUTPUT
           echo "has_aleo=$has_aleo" >> $GITHUB_OUTPUT
           echo "has_cosmos=$has_cosmos" >> $GITHUB_OUTPUT
           echo "has_tron=$has_tron" >> $GITHUB_OUTPUT
+          echo "has_relayer=$has_relayer" >> $GITHUB_OUTPUT
+          echo "has_rebalancer=$has_rebalancer" >> $GITHUB_OUTPUT
 
-          echo "Shared changes: $has_shared"
+          echo "CLI changes: $has_cli_changes"
           echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron"
+          echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
 
-      - name: Decide whether to skip TS jobs
+      - name: Decide what to run
         id: decide
         run: |
           echo "Context: ${{ steps.context.outputs.reason }}"
 
+          # Determine CI tier: full for merge queue, smoke for PRs
+          CI_TIER="smoke"
+          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            CI_TIER="full"
+          fi
+
           if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
             echo "skip_ts=true" >> $GITHUB_OUTPUT
-            echo "only_rust=true" >> $GITHUB_OUTPUT
-            echo "only_docker=false" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=false" >> $GITHUB_OUTPUT
+            echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_radix=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
+            echo "has_relayer=false" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
             echo "skip_ts=false" >> $GITHUB_OUTPUT
-            echo "only_rust=false" >> $GITHUB_OUTPUT
-            echo "only_docker=false" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=true" >> $GITHUB_OUTPUT
+            echo "ci_tier=full" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_radix=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
+            echo "has_relayer=true" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           echo "skip_ts=${{ steps.check-skip-ts.outputs.only_changes }}" >> $GITHUB_OUTPUT
-          echo "only_rust=${{ steps.check-only-rust.outputs.only_changes }}" >> $GITHUB_OUTPUT
-          echo "only_docker=${{ steps.check-only-docker.outputs.only_changes }}" >> $GITHUB_OUTPUT
-          echo "run_cli_e2e=${{ steps.check-vm.outputs.has_shared }}" >> $GITHUB_OUTPUT
+          echo "run_cli_e2e=${{ steps.check-vm.outputs.has_cli_changes }}" >> $GITHUB_OUTPUT
+          echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
           echo "has_cosmos=${{ steps.check-vm.outputs.has_cosmos }}" >> $GITHUB_OUTPUT
           echo "has_aleo=${{ steps.check-vm.outputs.has_aleo }}" >> $GITHUB_OUTPUT
           echo "has_radix=${{ steps.check-vm.outputs.has_radix }}" >> $GITHUB_OUTPUT
           echo "has_tron=${{ steps.check-vm.outputs.has_tron }}" >> $GITHUB_OUTPUT
+          echo "has_relayer=${{ steps.check-vm.outputs.has_relayer }}" >> $GITHUB_OUTPUT
+          echo "has_rebalancer=${{ steps.check-vm.outputs.has_rebalancer }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     timeout-minutes: 20
-    if: needs.change-detection.outputs.only_rust != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -297,7 +305,7 @@ jobs:
   infra-test:
     runs-on: depot-ubuntu-24.04
     needs: [set-base-sha, change-detection]
-    if: needs.change-detection.outputs.only_rust != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
       BALANCE_CHANGES: false
@@ -384,10 +392,13 @@ jobs:
     secrets: inherit
     with:
       run_cli_e2e: ${{ needs.change-detection.outputs.run_cli_e2e }}
+      ci_tier: ${{ needs.change-detection.outputs.ci_tier }}
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
+      has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
 
   cli-e2e:
     runs-on: ubuntu-latest
@@ -441,7 +452,7 @@ jobs:
   agent-configs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
-    if: needs.change-detection.outputs.only_rust != 'true' && needs.change-detection.outputs.only_docker != 'true'
+    if: needs.change-detection.outputs.skip_ts != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -472,5 +483,4 @@ jobs:
     uses: ./.github/workflows/test-env.yml
     secrets: inherit
     with:
-      only_rust: ${{ needs.change-detection.outputs.only_rust }}
-      only_docker: ${{ needs.change-detection.outputs.only_docker }}
+      skip_ts: ${{ needs.change-detection.outputs.skip_ts }}

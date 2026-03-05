@@ -4,4 +4,5 @@ export {
   TronTransaction,
   TronTransactionResponse,
   TronWallet,
+  TronTransactionBuilder,
 } from './TronWallet.js';

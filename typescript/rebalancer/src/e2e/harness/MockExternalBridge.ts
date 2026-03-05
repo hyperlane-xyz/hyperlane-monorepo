@@ -105,6 +105,7 @@ export class MockExternalBridge implements IExternalBridge {
       gasCosts,
       feeCosts: 0n,
       route,
+      requestParams: params,
     };
   }
 

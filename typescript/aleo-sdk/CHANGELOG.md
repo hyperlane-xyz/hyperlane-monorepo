@@ -1,5 +1,33 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+
+## 25.5.0
+
+### Patch Changes
+
+- e197331: Added WarpTokenReader and WarpTokenWriter for artifact API-based warp token operations.
+
+  New exports:
+  - createWarpTokenReader: Factory for reading warp tokens
+  - createWarpTokenWriter: Factory for creating/updating warp tokens
+  - WarpTokenReader: Artifact for reading warp tokens with nested ISM/hook expansion
+  - WarpTokenWriter: Artifact for deploying and updating warp tokens
+
+  Protocol providers now support createWarpArtifactManager method.
+
+- Updated dependencies [e197331]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/utils@25.5.0
+
 ## 25.4.1
 
 ### Patch Changes

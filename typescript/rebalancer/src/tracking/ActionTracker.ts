@@ -5,6 +5,7 @@ import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_MOVEMENT_STALENESS_MS } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
@@ -589,17 +590,50 @@ export class ActionTracker implements IActionTracker {
       const actions = await this.getActionsForIntent(intent.id);
 
       // Check for in-flight inventory_movement actions
-      // Skip intents that have a bridge in progress - wait for it to complete
-      const hasInflightMovement = actions.some(
+      // Skip intents with active bridge movement(s). Movements still `pending` on
+      // the bridge are kept alive regardless of age. Non-pending movements are only
+      // failed after they've been in a non-pending state for the staleness window
+      // (nonPendingSince), preventing premature failure from transient not_found polls.
+      // `undefined` status (pre-deploy data) falls back to createdAt for staleness.
+      const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
+      const now = Date.now();
+      const staleMovements = inflightMovements.filter((a) => {
+        if (a.lastBridgeStatus === 'pending') return false;
+        // Use nonPendingSince when available; fall back to createdAt for
+        // pre-deploy data that lacks the field.
+        const nonPendingStart = a.nonPendingSince ?? a.createdAt;
+        return now - nonPendingStart >= DEFAULT_MOVEMENT_STALENESS_MS;
+      });
+      const staleMovementIds = new Set(staleMovements.map((a) => a.id));
 
-      if (hasInflightMovement) {
+      const hasBlockingInflightMovement = inflightMovements.some(
+        (a) => !staleMovementIds.has(a.id),
+      );
+
+      if (hasBlockingInflightMovement) {
         this.logger.debug(
           { intentId: intent.id },
           'Skipping partial intent - has in-flight inventory movement',
         );
         continue;
+      }
+
+      // Fail stale movements so the intent can proceed
+      for (const movement of staleMovements) {
+        await this.failRebalanceAction(movement.id);
+        this.logger.warn(
+          {
+            actionId: movement.id,
+            age: now - movement.createdAt,
+            nonPendingDuration:
+              now - (movement.nonPendingSince ?? movement.createdAt),
+            intentId: intent.id,
+            lastBridgeStatus: movement.lastBridgeStatus,
+          },
+          'Failing stale inventory movement to unblock intent',
+        );
       }
 
       // Compute amounts from action states
@@ -716,6 +750,10 @@ export class ActionTracker implements IActionTracker {
             'Inventory movement failed',
           );
         } else if (status.status === 'pending') {
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'pending',
+            nonPendingSince: undefined,
+          });
           this.logger.debug(
             {
               actionId: action.id,
@@ -724,8 +762,19 @@ export class ActionTracker implements IActionTracker {
             },
             'Inventory movement still pending',
           );
+        } else if (status.status === 'not_found') {
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'not_found',
+            nonPendingSince: action.nonPendingSince ?? Date.now(),
+          });
+          this.logger.debug(
+            {
+              actionId: action.id,
+              txHash: action.txHash,
+            },
+            'Inventory movement not found',
+          );
         }
-        // status === 'not_found' - wait for next cycle
       } catch (error) {
         this.logger.debug(
           {

@@ -11,7 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, toWei } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -119,12 +119,18 @@ export class RebalancerContextFactory {
       );
     }
 
-    // Force-initialize providers for all warp route chains
-    // This ensures fromMultiProvider() snapshots actual provider instances
+    // Force-initialize providers for EVM warp route chains only.
+    // This ensures fromMultiProvider() snapshots actual provider instances.
+    // Non-EVM chains (StarkNet, Sealevel, etc.) don't use ethers providers
+    // and would crash if we tried to build one (e.g. non-numeric chainId).
     const warpChains = [
-      ...new Set(warpCoreConfig.tokens.map((t: any) => t.chainName)),
+      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
     for (const chain of warpChains) {
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        logger.debug({ chain }, 'Skipping provider init for non-EVM chain');
+        continue;
+      }
       multiProvider.getProvider(chain);
     }
 

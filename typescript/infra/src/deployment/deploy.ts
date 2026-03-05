@@ -10,7 +10,7 @@ import {
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
+  isEVMLike,
   objFilter,
   objMerge,
   runWithTimeout,
@@ -179,9 +179,8 @@ export async function baseDeploy<
   concurrentDeploy: boolean,
 ): Promise<HyperlaneContractsMap<Factories>> {
   const configChains = Object.keys(configMap);
-  const ethereumConfigChains = configChains.filter(
-    (chain) =>
-      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum,
+  const ethereumConfigChains = configChains.filter((chain) =>
+    isEVMLike(multiProvider.getChainMetadata(chain).protocol),
   );
 
   const targetChains = multiProvider.intersect(
