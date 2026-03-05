@@ -15,7 +15,7 @@ export async function runCosmosNode({
   const container = await retryAsync(
     () =>
       new GenericContainer(
-        'gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:v1.0.1',
+        'ghcr.io/hyperlane-xyz/hyperlane-cosmos-simapp:v1.0.1',
       )
         .withExposedPorts(
           {

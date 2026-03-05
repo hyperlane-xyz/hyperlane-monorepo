@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-key-funder
+  repository: ghcr.io/hyperlane-xyz/hyperlane-key-funder
   tag: latest
 hyperlane:
   runEnv: testnet4
