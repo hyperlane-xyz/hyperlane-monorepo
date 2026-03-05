@@ -168,6 +168,17 @@ async function resolveWarpSendChains(
     chainPath.push(...getOrderedWarpSendChains(supportedChains, multiProvider));
   }
 
+  // Cache warpCoreConfig on context so the handler doesn't re-fetch it.
+  // This ensures signers and execution use the same resolved config.
+  if (!argv.context.warpCoreConfig && argv.warpRouteId) {
+    const filterChains = chainPath.length > 0 ? chainPath : undefined;
+    argv.context.warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains,
+    });
+  }
+
   const signerChains = new Set<ChainName>();
   const normalizedRecipient =
     typeof argv.recipient === 'string' && argv.recipient.trim().length > 0
