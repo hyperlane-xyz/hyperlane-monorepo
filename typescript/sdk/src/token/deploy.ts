@@ -88,6 +88,11 @@ const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
 const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
 
+function getEvmContractAddress(contract: { target?: unknown }): Address {
+  assert(typeof contract.target === 'string', 'Missing contract target');
+  return contract.target as Address;
+}
+
 export const TOKEN_INITIALIZE_SIGNATURE = (
   contractName: HypERC20contracts[DeployableTokenType],
 ) => {
@@ -641,7 +646,9 @@ abstract class TokenDeployer<
           return;
         }
 
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = getEvmContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const mc = MultiCollateral__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
