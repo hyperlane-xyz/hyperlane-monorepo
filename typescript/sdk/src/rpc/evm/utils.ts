@@ -19,7 +19,7 @@ function toNumber(value: unknown, field: string): number {
   if (typeof value === 'bigint') {
     const num = Number(value);
     assert(
-      BigInt(num) === value,
+      Number.isFinite(num) && BigInt(num) === value,
       `${field} bigint value ${value} exceeds safe integer range`,
     );
     return num;
