@@ -23,6 +23,7 @@ import {
 import {
   ProtocolType,
   assert,
+  isEVMLike,
   mustGet,
   objMap,
   parseWarpRouteMessage,
@@ -44,6 +45,7 @@ export const WarpSendLogs = {
 
 const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
   ProtocolType.Ethereum,
+  ProtocolType.Tron,
   ProtocolType.Sealevel,
   ProtocolType.Cosmos,
   ProtocolType.CosmosNative,
@@ -136,7 +138,7 @@ export async function sendTestTransfer({
     const hopDest = chains[i + 1];
     if (
       i < chains.length - 2 &&
-      multiProvider.getProtocol(hopDest) !== ProtocolType.Ethereum
+      !isEVMLike(multiProvider.getProtocol(hopDest))
     ) {
       throw new Error(
         `Non-EVM chain '${hopDest}' cannot be an intermediate hop. ` +
@@ -240,14 +242,13 @@ async function executeDelivery({
   const originProtocol = multiProvider.getProtocol(origin);
   const destinationProtocol = multiProvider.getProtocol(destination);
 
-  const signerAddress =
-    originProtocol === ProtocolType.Ethereum
-      ? await multiProvider.getSigner(origin).getAddress()
-      : mustGet(altVmSigners, origin).getSignerAddress();
+  const signerAddress = isEVMLike(originProtocol)
+    ? await multiProvider.getSigner(origin).getAddress()
+    : mustGet(altVmSigners, origin).getSignerAddress();
   const normalizedRecipient =
     recipient && recipient.trim().length > 0 ? recipient.trim() : undefined;
 
-  if (!normalizedRecipient && destinationProtocol !== ProtocolType.Ethereum) {
+  if (!normalizedRecipient && !isEVMLike(destinationProtocol)) {
     throw new Error(
       `Recipient address is required when sending to non-EVM destination '${destination}'`,
     );
@@ -401,8 +402,7 @@ async function executeDelivery({
 
   if (
     selfRelay &&
-    (originProtocol !== ProtocolType.Ethereum ||
-      destinationProtocol !== ProtocolType.Ethereum)
+    (!isEVMLike(originProtocol) || !isEVMLike(destinationProtocol))
   ) {
     log(
       `Self-relay is only supported for EVM destinations. Skipping self-relay for ${destination}.`,
@@ -425,7 +425,7 @@ async function executeDelivery({
   if (skipWaitForDelivery) return;
 
   const timeoutMs = timeoutSec * 1000;
-  if (destinationProtocol === ProtocolType.Ethereum) {
+  if (isEVMLike(destinationProtocol)) {
     const delayMs = 10000;
     const maxAttempts = Math.ceil(timeoutMs / delayMs);
     await core.waitForMessagesProcessed(
