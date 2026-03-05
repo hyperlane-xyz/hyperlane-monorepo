@@ -259,25 +259,30 @@ export abstract class HyperlaneAppGovernor<
       if (safeCalls.length === 0) continue;
 
       const safeOwner = getGovernanceSafes(governanceType)[chain];
-      assert(
-        safeOwner,
-        `No safe owner found for chain ${chain} with governance type ${governanceType}`,
-      );
-
-      // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
-      const safeMultiSend = await SafeMultiSend.initialize(
-        this.checker.multiProvider,
-        chain,
-        safeOwner,
-      );
       try {
+        assert(
+          safeOwner,
+          `No safe owner found for chain ${chain} with governance type ${governanceType}`,
+        );
+
+        // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
+        const safeMultiSend = await SafeMultiSend.initialize(
+          this.checker.multiProvider,
+          chain,
+          safeOwner,
+        );
         await sendCallsForType(
           SubmissionType.SAFE,
           safeMultiSend,
           governanceType,
         );
-      } catch {
-        // Error already logged inside sendCallsForType.
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        rootLogger.error(
+          chalk.red(
+            `Error processing SAFE calls for governance type ${governanceType} on ${chain}: ${msg}`,
+          ),
+        );
         // Continue with remaining governance types rather than aborting.
       }
     }
