@@ -2042,6 +2042,9 @@ importers:
       bignumber.js:
         specifier: 'catalog:'
         version: 9.3.1
+      bs58:
+        specifier: 'catalog:'
+        version: 6.0.0
       ethers:
         specifier: 'catalog:'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)

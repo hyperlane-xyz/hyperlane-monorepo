@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { Keypair } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 import { parseSolanaPrivateKey } from './solanaKeyParser.js';
 
@@ -79,5 +80,24 @@ describe('parseSolanaPrivateKey', () => {
     expect(() => parseSolanaPrivateKey('not-a-key')).to.throw(
       'HYP_INVENTORY_KEY_SEALEVEL',
     );
+  });
+
+  it('parses valid base58-encoded 64-byte key', () => {
+    const bytes = Array.from({ length: 64 }, (_, i) => i);
+    const base58Key = bs58.encode(Uint8Array.from(bytes));
+    const parsed = parseSolanaPrivateKey(base58Key);
+
+    expect(Array.from(parsed)).to.deep.equal(bytes);
+    expect(parsed).to.have.length(64);
+  });
+
+  it('parses valid base58-encoded 32-byte seed and expands to 64 bytes', () => {
+    const seed = Array.from({ length: 32 }, (_, i) => i + 1);
+    const base58Seed = bs58.encode(Uint8Array.from(seed));
+    const parsed = parseSolanaPrivateKey(base58Seed);
+    const expected = Keypair.fromSeed(Uint8Array.from(seed)).secretKey;
+
+    expect(parsed).to.have.length(64);
+    expect(Array.from(parsed)).to.deep.equal(Array.from(expected));
   });
 });
