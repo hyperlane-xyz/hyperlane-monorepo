@@ -26,22 +26,19 @@ export async function getFirstMonitorEvent(
     let settled = false;
 
     async function finalize(
-      cb: (v: any) => void,
-      value: any,
+      cb: (v: unknown) => void,
+      value: unknown,
       timer: ReturnType<typeof setTimeout>,
     ) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      cb(value);
       try {
         await monitor.stop();
-      } catch (stopError: unknown) {
-        reject(
-          stopError instanceof Error ? stopError : new Error(String(stopError)),
-        );
-        return;
+      } catch {
+        // stop errors are non-fatal — the event/error has already been delivered
       }
-      cb(value);
     }
 
     const timeout = setTimeout(() => {
