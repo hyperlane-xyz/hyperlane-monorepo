@@ -19,7 +19,7 @@ import {
 
 import {
   addressBytes,
-  ByteCursor,
+  type ByteCursor,
   ensureLength,
   mapU32,
   u64le,

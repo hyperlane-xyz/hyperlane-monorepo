@@ -236,8 +236,8 @@ async function startLocalValidator(
       }
       try {
         fs.rmSync(ledgerDir, { recursive: true, force: true });
-      } catch (err) {
-        console.warn('Failed to clean up ledger directory:', err);
+      } catch {
+        // Best-effort cleanup — ledger dir may already be removed
       }
     },
   };

@@ -8,7 +8,7 @@ import {
   type HandleInstruction,
   type VerifyInstruction,
 } from '../codecs/shared.js';
-import { ReadonlyUint8Array } from '@solana/kit';
+import { type ReadonlyUint8Array } from '@solana/kit';
 
 // Kept verbose for grep/disambiguation across similarly named interface discriminators.
 export const INTERCHAIN_SECURITY_MODULE_INTERFACE_DISCRIMINATORS = {

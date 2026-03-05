@@ -6,7 +6,7 @@ import {
   decodeAccountData,
   decodeDiscriminatorPrefixed,
 } from '../codecs/account-data.js';
-import { ByteCursor } from '../codecs/binary.js';
+import { type ByteCursor } from '../codecs/binary.js';
 import {
   decodeMapU32GasOracle,
   decodeMapU32H256,
