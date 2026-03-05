@@ -1,6 +1,7 @@
 warpRouteId: USDC/eclipsemainnet
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  sealevel: '5seKh2p3B8Kq9nAE7X4svfX9uLt81wWAiDJuLK1XNgXf'
 externalBridges:
   lifi:
     integrator: rebalancer
@@ -93,22 +94,3 @@ strategy:
         tolerance: 5
       executionType: inventory
       externalBridge: lifi
-      override:
-        ethereum:
-          executionType: inventory
-          externalBridge: lifi
-        base:
-          executionType: inventory
-          externalBridge: lifi
-        arbitrum:
-          executionType: inventory
-          externalBridge: lifi
-        optimism:
-          executionType: inventory
-          externalBridge: lifi
-        polygon:
-          executionType: inventory
-          externalBridge: lifi
-        unichain:
-          executionType: inventory
-          externalBridge: lifi
