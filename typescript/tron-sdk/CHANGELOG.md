@@ -1,5 +1,19 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 21.1.5
 
 ### Patch Changes
