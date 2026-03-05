@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 
@@ -87,12 +88,11 @@ export interface IExternalBridge {
   /**
    * Execute a bridge transfer using a previously obtained quote.
    * @param quote - Quote obtained from quote()
-   * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
+   * @param privateKeys - Private keys keyed by ProtocolType (e.g., { [ProtocolType.Ethereum]: '0x...' })
    */
   execute(
     quote: BridgeQuote,
-    privateKey: string,
-    solanaPrivateKey?: string,
+    privateKeys: Partial<Record<ProtocolType, string>>,
   ): Promise<BridgeTransferResult>;
 
   /**
