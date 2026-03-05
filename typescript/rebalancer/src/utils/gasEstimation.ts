@@ -211,9 +211,11 @@ export async function calculateTransferCosts(
       ? (gasQuote.tokenFeeQuote?.amount ?? 0n)
       : 0n;
 
-  // Skip gas estimation for non-EVM chains (e.g., Solana)
-  // EVM chains use getFeeData() to calculate gas costs; non-EVM chains
-  // don't have equivalent gas pricing models, so we return 0 for gasCost.
+  // Skip gas estimation for non-EVM chains (e.g., Solana).
+  // Non-EVM chains have negligible base fees (~5000 lamports ~$0.0001 on Solana)
+  // compared to EVM gas costs ($0.50-$50/tx). The IGP (Interchain Gas Paymaster)
+  // reservation dominates the cost, not chain-specific gas. Thus gasCost=0 is a
+  // safe approximation for non-EVM origin chains.
   const originProtocol = multiProvider.getProtocol(originChain);
   if (originProtocol !== ProtocolType.Ethereum) {
     return {
