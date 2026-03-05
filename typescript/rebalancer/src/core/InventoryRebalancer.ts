@@ -8,6 +8,7 @@ import {
   type MultiProvider,
   Token,
   ProviderType,
+  SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
   TokenAmount,
   type WarpTypedTransaction,
@@ -16,7 +17,12 @@ import {
   getSignerForChain,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  ensure0x,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -1045,11 +1051,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         | string[]
         | undefined;
       if (!logs) return undefined;
-      const regex = /Dispatched message to (.*), ID (.*)/;
-      const dispatchLog = logs.find((log) => regex.test(log));
-      if (!dispatchLog) return undefined;
-      const [, _destination, messageId] = regex.exec(dispatchLog) ?? [];
-      return messageId ? `0x${messageId.replace(/^0x/, '')}` : undefined;
+      const parsed = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
+      return parsed[0]?.messageId ? ensure0x(parsed[0].messageId) : undefined;
     }
 
     return undefined;
