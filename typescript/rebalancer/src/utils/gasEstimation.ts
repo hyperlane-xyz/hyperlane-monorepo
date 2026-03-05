@@ -218,16 +218,25 @@ export async function calculateTransferCosts(
   // safe approximation for non-EVM origin chains.
   const originProtocol = multiProvider.getProtocol(originChain);
   if (originProtocol !== ProtocolType.Ethereum) {
+    const totalCost = igpCost + tokenFeeCost;
+    let maxTransferable: bigint;
+    if (availableInventory <= totalCost) {
+      maxTransferable = 0n;
+    } else {
+      const maxAfterReservation = availableInventory - totalCost;
+      maxTransferable =
+        maxAfterReservation < requestedAmount
+          ? maxAfterReservation
+          : requestedAmount;
+    }
+    const minViableTransfer = totalCost * MIN_VIABLE_COST_MULTIPLIER;
     return {
       igpCost,
       gasCost: 0n,
       tokenFeeCost,
-      totalCost: igpCost + tokenFeeCost,
-      maxTransferable:
-        availableInventory < requestedAmount
-          ? availableInventory
-          : requestedAmount,
-      minViableTransfer: 0n,
+      totalCost,
+      maxTransferable,
+      minViableTransfer,
       gasQuote,
     };
   }
