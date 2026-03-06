@@ -7,6 +7,7 @@ use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, instrument};
 
 use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
+use crate::settings::matching_list::MatchingListExt;
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 

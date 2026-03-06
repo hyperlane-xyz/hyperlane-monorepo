@@ -62,6 +62,11 @@ export interface RelayerBatchConfig {
   maxSubmitQueueLength?: ChainMap<number>;
 }
 
+export interface AddressLookupTableOverride {
+  matchingList: MatchingList;
+  addressLookupTable: string;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -72,6 +77,7 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;
+  processAltOverrides?: ChainMap<AddressLookupTableOverride[]>;
   dbBootstrap?: boolean;
   mixing?: RelayerMixingConfig;
   environmentVariableEndpointEnabled?: boolean;
