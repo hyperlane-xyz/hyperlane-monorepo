@@ -68,7 +68,7 @@ class EnumerableDomainMapping {
   }
 
   // Reset state for each file
-  SourceUnit(ctx) {
+  SourceUnit(_ctx) {
     this.contractEnumerableSupport = new Map();
   }
 
