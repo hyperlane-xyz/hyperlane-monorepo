@@ -4,6 +4,8 @@ import os from 'os';
 import path from 'path';
 import { $ } from 'zx';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { hyperlaneCoreDeploy } from './commands/core.js';
 import {
   hyperlaneSendMessage,
@@ -36,10 +38,8 @@ function extractMessageId(output: string): string {
  * The output contains a line like "Dispatch TX: 0x..."
  */
 function extractDispatchTx(output: string): string {
-  const match = output.match(/Dispatch TX: (0x[a-fA-F0-9]+)/);
-  if (!match) {
-    throw new Error('Could not extract dispatch TX from output');
-  }
+  const match = output.match(/Dispatch TX: (0x[a-fA-F0-9]{64})/);
+  assert(match, 'Could not extract dispatch TX from output');
   return match[1];
 }
 
