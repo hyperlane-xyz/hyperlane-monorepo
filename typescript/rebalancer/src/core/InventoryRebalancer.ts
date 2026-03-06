@@ -1021,7 +1021,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const signerConfig = this.config.inventorySigners[protocol];
       return { protocol, privateKey: key, address: signerConfig!.address };
     }
-    return { protocol, privateKey: key };
+    return { protocol, privateKey: ensure0x(key) };
   }
 
   protected async extractDispatchedMessageId(
