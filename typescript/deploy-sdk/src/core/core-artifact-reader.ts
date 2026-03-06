@@ -16,11 +16,8 @@ import {
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
-import {
-  IsmReader,
-  createIsmReader,
-  ismArtifactToDerivedConfig,
-} from '../ism/generic-ism.js';
+import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
+import { ismArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
 /**
  * Core Artifact Reader - composite artifact reader that orchestrates mailbox, ISM, and hook readers.
@@ -36,9 +33,10 @@ import {
  * The raw mailbox reader returns UNDERIVED ISM/hook references (just addresses).
  * This composite reader expands them into full DEPLOYED artifacts with complete configs.
  */
-export class CoreArtifactReader
-  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
-{
+export class CoreArtifactReader implements ArtifactReader<
+  MailboxOnChain,
+  DeployedMailboxAddress
+> {
   protected readonly logger: Logger = rootLogger.child({
     module: CoreArtifactReader.name,
   });
