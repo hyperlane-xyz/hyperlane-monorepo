@@ -32,3 +32,17 @@ export const GetCallRemoteSettingsSchema = z.object({
 /* For InterchainAccount::getCallRemote() */
 
 export type GetCallRemoteSettings = z.infer<typeof GetCallRemoteSettingsSchema>;
+
+/* For InterchainAccount::getCallRemoteCommitReveal() */
+export const GetCallRemoteCommitRevealSettingsSchema = z.object({
+  chain: ZChainName,
+  destination: ZChainName,
+  commitment: ZHash,
+  config: AccountConfigSchema,
+  gasLimit: ZUWei.optional(),
+});
+/* For InterchainAccount::getCallRemoteCommitReveal() */
+
+export type GetCallRemoteCommitRevealSettings = z.infer<
+  typeof GetCallRemoteCommitRevealSettingsSchema
+>;
