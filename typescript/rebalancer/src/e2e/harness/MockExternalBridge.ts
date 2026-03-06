@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -224,16 +224,59 @@ export class MockExternalBridge implements IExternalBridge {
           relayWallet.address,
           toBeHex(parseEther('100')),
         ]);
-        const relaySigner = new NonceManager(relayWallet);
-        relayMultiProvider.setSigner(chain, relaySigner);
+        relayMultiProvider.setSigner(chain, relayWallet);
       }
 
       const relayCore = HyperlaneCore.fromAddressesMap(
         coreAddresses,
         relayMultiProvider,
       );
-      const relayer = new HyperlaneRelayer({ core: relayCore });
-      const receipts = await relayer.relayAll(dispatchTxReceipt);
+      const dispatchedMessages =
+        HyperlaneCore.getDispatchedMessages(dispatchTxReceipt);
+      assert(
+        dispatchedMessages.length === 1,
+        `Expected exactly 1 dispatched message, got ${dispatchedMessages.length} for tx ${txHash}`,
+      );
+      const dispatchedMessage = dispatchedMessages[0];
+      const receivedAmount = await this.getTransferredAmount(
+        provider,
+        dispatchTxReceipt,
+      );
+
+      const getDeliveredStatus =
+        async (): Promise<BridgeTransferStatus | null> => {
+          const isDelivered = await relayCore.isDelivered(dispatchedMessage);
+          if (!isDelivered) return null;
+          const processedReceipt =
+            await relayCore.getProcessedReceipt(dispatchedMessage);
+          const receivingTxHash =
+            (processedReceipt as { hash?: string; transactionHash?: string })
+              .hash ??
+            (processedReceipt as { transactionHash?: string }).transactionHash;
+          assert(
+            receivingTxHash,
+            `Missing processed receipt tx hash for message ${dispatchedMessage.id}`,
+          );
+          return {
+            status: 'complete',
+            receivingTxHash,
+            receivedAmount,
+          };
+        };
+
+      const deliveredBeforeRelay = await getDeliveredStatus();
+      if (deliveredBeforeRelay) {
+        return deliveredBeforeRelay;
+      }
+
+      const receipts = await retryAsync(
+        async () => {
+          const relayer = new HyperlaneRelayer({ core: relayCore });
+          return relayer.relayAll(dispatchTxReceipt);
+        },
+        3,
+        250,
+      );
 
       const destinationDomain =
         relayCore.multiProvider.getDomainId(toChainName);
@@ -243,13 +286,13 @@ export class MockExternalBridge implements IExternalBridge {
         receipts[destinationDomain];
 
       if (!destinationReceipts || destinationReceipts.length === 0) {
+        const deliveredAfterRelay = await getDeliveredStatus();
+        if (deliveredAfterRelay) {
+          return deliveredAfterRelay;
+        }
         return { status: 'not_found' };
       }
 
-      const receivedAmount = await this.getTransferredAmount(
-        provider,
-        dispatchTxReceipt,
-      );
       const receivingTxHash =
         (destinationReceipts[0] as { hash?: string; transactionHash?: string })
           .hash ??
