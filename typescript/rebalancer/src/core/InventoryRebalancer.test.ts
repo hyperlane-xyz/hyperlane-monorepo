@@ -4,6 +4,8 @@ import { Wallet } from 'ethers';
 import { pino } from 'pino';
 import Sinon, { type SinonStubbedInstance } from 'sinon';
 
+import { Mailbox__factory } from '@hyperlane-xyz/core';
+
 import {
   type ChainName,
   type MultiProvider,
@@ -12,7 +14,7 @@ import {
   WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, formatMessage, messageId } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -42,6 +44,7 @@ describe('InventoryRebalancer E2E', () => {
   // Test constants
   const ARBITRUM_CHAIN = 'arbitrum' as ChainName;
   const SOLANA_CHAIN = 'solanamainnet' as ChainName;
+  const TRON_CHAIN = 'tronmainnet' as ChainName;
   const ARBITRUM_DOMAIN = 42161;
   const SOLANA_DOMAIN = 1399811149;
   const TEST_PRIVATE_KEY =
@@ -276,6 +279,102 @@ describe('InventoryRebalancer E2E', () => {
 
     return intent;
   }
+
+  describe('Tron chain support', () => {
+    const tronMetadata = {
+      protocol: ProtocolType.Ethereum,
+      technicalStack: 'tron',
+      rpcUrls: [{ http: 'http://tron-node:9090' }],
+      blocks: { reorgPeriod: 1 },
+    };
+
+    beforeEach(() => {
+      warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => {
+        if (chain === TRON_CHAIN) return tronMetadata;
+        return {
+          name: chain,
+          protocol: ProtocolType.Ethereum,
+        };
+      });
+    });
+
+    it('buildSignerAccountConfig routes Tron to Ethereum signer config', () => {
+      const protocol = (inventoryRebalancer as any).getProtocolForChain(
+        TRON_CHAIN,
+      );
+      const signerConfig = (
+        inventoryRebalancer as any
+      ).buildSignerAccountConfig(
+        protocol,
+        TEST_PRIVATE_KEY.replace('0x', ''),
+        TRON_CHAIN,
+      );
+
+      expect(signerConfig).to.deep.equal({
+        protocol: ProtocolType.Ethereum,
+        privateKey: TEST_PRIVATE_KEY,
+      });
+    });
+
+    it('getProtocolForChain returns ethereum protocol for Tron technical stack', () => {
+      const protocol = (inventoryRebalancer as any).getProtocolForChain(
+        TRON_CHAIN,
+      );
+
+      expect(protocol).to.equal(ProtocolType.Ethereum);
+    });
+
+    it('getInventorySignerAddress returns EVM signer for Tron chains', () => {
+      const signerAddress = (
+        inventoryRebalancer as any
+      ).getInventorySignerAddress(TRON_CHAIN);
+
+      expect(signerAddress).to.equal(INVENTORY_SIGNER);
+    });
+
+    it('extractDispatchedMessageId parses ethers receipt dispatch logs for Tron chains', async () => {
+      const txHash = '0xtronDispatchTxHash';
+      const sender = '0x1111111111111111111111111111111111111111';
+      const recipient =
+        '0x0000000000000000000000002222222222222222222222222222222222222222';
+      const message = formatMessage(
+        3,
+        1,
+        ARBITRUM_DOMAIN,
+        sender,
+        SOLANA_DOMAIN,
+        recipient,
+        '0xdeadbeef',
+      );
+
+      const mailbox = Mailbox__factory.createInterface();
+      const encodedDispatch = mailbox.encodeEventLog(
+        mailbox.getEvent('Dispatch'),
+        [sender, SOLANA_DOMAIN, recipient, message],
+      );
+
+      warpCore.multiProvider.getEthersV5Provider.returns({
+        getTransactionReceipt: Sinon.stub()
+          .withArgs(txHash)
+          .resolves({
+            transactionHash: txHash,
+            logs: [
+              {
+                address: '0x0000000000000000000000000000000000000001',
+                topics: encodedDispatch.topics,
+                data: encodedDispatch.data,
+              },
+            ],
+          }),
+      });
+
+      const dispatchedMessageId = await (
+        inventoryRebalancer as any
+      ).extractDispatchedMessageId(TRON_CHAIN, txHash);
+
+      expect(dispatchedMessageId).to.equal(messageId(message));
+    });
+  });
 
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
     // NOTE: Strategy route is arbitrum (surplus) → solana (deficit)
