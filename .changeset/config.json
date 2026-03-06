@@ -16,6 +16,7 @@
       "@hyperlane-xyz/http-registry-server",
       "@hyperlane-xyz/infra",
       "@hyperlane-xyz/radix-sdk",
+      "@hyperlane-xyz/svm-sdk",
       "@hyperlane-xyz/rebalancer",
       "@hyperlane-xyz/sdk",
       "@hyperlane-xyz/tsconfig",

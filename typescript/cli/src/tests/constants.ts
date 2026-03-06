@@ -78,6 +78,8 @@ export const HYP_KEY_BY_PROTOCOL = {
   [ProtocolType.Radix]:
     '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
   [ProtocolType.Aleo]: TEST_ALEO_PRIVATE_KEY,
+  [ProtocolType.Sealevel]:
+    '0x0000000000000000000000000000000000000000000000000000000000000001',
 } as const satisfies ProtocolMap<string>;
 
 type ProtocolChainMap<
@@ -96,6 +98,7 @@ export const HYP_DEPLOYER_ADDRESS_BY_PROTOCOL = {
     'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3',
   [ProtocolType.Aleo]:
     'aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px',
+  [ProtocolType.Sealevel]: '6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt',
 } as const satisfies ProtocolMap<string>;
 
 export const BURN_ADDRESS_BY_PROTOCOL = {
@@ -120,6 +123,8 @@ export const BURN_ADDRESS_BY_PROTOCOL = {
     'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
   [ProtocolType.Aleo]:
     'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
+  // Solana System Program — used as the canonical null/zero address on SVM
+  [ProtocolType.Sealevel]: '11111111111111111111111111111111',
 } as const satisfies ProtocolMap<string>;
 
 type CoreDeploymentPath<TChainName extends string> =

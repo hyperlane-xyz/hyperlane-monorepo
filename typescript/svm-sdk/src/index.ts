@@ -1,6 +1,7 @@
 // Clients
 export { SvmProvider } from './clients/provider.js';
 export type { SvmSigner } from './clients/signer.js';
+export { SvmProtocolProvider } from './clients/protocol.js';
 
 // Types
 export type {
