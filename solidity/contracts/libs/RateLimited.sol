@@ -89,7 +89,7 @@ contract RateLimited is OwnableUpgradeable {
             // If within the window, refill the capacity
             uint256 replenishedLevel = filledLevel + calculateRefilledAmount();
 
-            // Only return _capacity, in the case where newCurrentCapcacity overflows
+            // Only return _capacity, in the case where newCurrentCapacity overflows
             return replenishedLevel > _capacity ? _capacity : replenishedLevel;
         }
     }
