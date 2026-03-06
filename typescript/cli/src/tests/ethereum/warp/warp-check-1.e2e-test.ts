@@ -30,7 +30,6 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
 } from '../consts.js';
 
@@ -59,23 +58,24 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
   });
 
-  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    // currently warp deploy is not writing the deploy config to the registry
-    // should remove this once the deploy config is written to the registry
-    writeYamlOrJson(
-      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-      warpConfig,
-    );
-
+  async function deployAndExportWarpRoute(): Promise<{
+    warpConfig: WarpRouteDeployConfig;
+    warpRouteId: string;
+  }> {
     const currentWarpId = createWarpRouteConfigId(
       await token.symbol(),
       CHAIN_NAME_3,
     );
 
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
+    const registryDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-deploy.yaml',
+    );
+    writeYamlOrJson(registryDeployPath, warpConfig);
 
-    return warpConfig;
+    await hyperlaneWarpDeploy(currentWarpId);
+
+    return { warpConfig, warpRouteId: currentWarpId };
   }
 
   // Reset config before each test to avoid test changes intertwining
@@ -101,7 +101,6 @@ describe('hyperlane warp check e2e tests', async function () {
     (ismType) => ismType !== IsmType.OFFCHAIN_LOOKUP,
   )) {
     it(`should find owner differences between the local config and the on chain config for ism of type ${ismType}`, async function () {
-      // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
       warpConfig[CHAIN_NAME_3].interchainSecurityModule =
         ismType === IsmType.PAUSABLE
           ? {
@@ -110,7 +109,7 @@ describe('hyperlane warp check e2e tests', async function () {
               paused: true,
             }
           : randomIsmConfig(0, 2, ismType);
-      await deployAndExportWarpRoute();
+      const { warpRouteId } = await deployAndExportWarpRoute();
 
       const mutatedWarpConfig = deepCopy(warpConfig);
 
@@ -122,14 +121,18 @@ describe('hyperlane warp check e2e tests', async function () {
       const wrongOwner = randomAddress();
       assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
       ismConfig.owner = wrongOwner;
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
+
+      const registryDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
+      );
+      writeYamlOrJson(registryDeployPath, mutatedWarpConfig);
 
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId,
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
