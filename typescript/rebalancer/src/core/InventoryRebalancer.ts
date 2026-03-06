@@ -1014,14 +1014,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     chain: ChainName,
   ): MultiProtocolSignerSignerAccountInfo {
     void chain;
-    if (protocol === ProtocolType.Sealevel) {
-      return { protocol, privateKey: parseSolanaPrivateKey(key) };
+    switch (protocol) {
+      case ProtocolType.Ethereum:
+        return { protocol, privateKey: ensure0x(key) };
+      case ProtocolType.Sealevel:
+        return { protocol, privateKey: parseSolanaPrivateKey(key) };
+      default:
+        throw new Error(
+          `Unsupported protocol ${protocol} for inventory signer`,
+        );
     }
-    if (protocol === ProtocolType.Starknet) {
-      const signerConfig = this.config.inventorySigners[protocol];
-      return { protocol, privateKey: key, address: signerConfig!.address };
-    }
-    return { protocol, privateKey: ensure0x(key) };
   }
 
   protected async extractDispatchedMessageId(
