@@ -1,3 +1,4 @@
+import type { Keypair } from '@solana/web3.js';
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
@@ -16,6 +17,8 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   customHook?: Address;
+  /** Optional extra signers for Sealevel transactions (e.g., randomWallet Keypair for dispatch PDA) */
+  extraSigners?: Keypair[];
 }
 
 export interface QuoteTransferRemoteParams {
