@@ -149,8 +149,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // - There's no collateral to deposit/withdraw
     this.validateCollateralBackedTokens();
 
+    const redactedInventorySigners = Object.fromEntries(
+      Object.entries(config.inventorySigners).map(
+        ([protocol, signerConfig]) => [
+          protocol,
+          signerConfig ? { address: signerConfig.address } : signerConfig,
+        ],
+      ),
+    );
+
     this.logger.info(
-      { inventorySigners: config.inventorySigners },
+      { inventorySigners: redactedInventorySigners },
       'InventoryRebalancer initialized',
     );
   }
