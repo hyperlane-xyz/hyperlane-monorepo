@@ -1,4 +1,5 @@
 import {
+  AccountRole,
   type TransactionMessageBytesBase64,
   compileTransactionMessage,
   createTransactionMessage,
@@ -71,7 +72,27 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<SvmTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
-    const numSigners = 1 + (req.transaction.additionalSigners?.length ?? 0);
+    const signerAddresses = new Set<string>();
+
+    // Collect signers from instruction account metas
+    for (const ix of req.transaction.instructions) {
+      if (ix.accounts) {
+        for (const account of ix.accounts) {
+          if (account.role >= AccountRole.READONLY_SIGNER) {
+            signerAddresses.add(account.address);
+          }
+        }
+      }
+    }
+
+    // Collect additional signers
+    for (const signer of req.transaction.additionalSigners ?? []) {
+      signerAddresses.add(signer.address);
+    }
+
+    // +1 for fee payer (may already be in the set, but overcount to be safe)
+    const numSigners = signerAddresses.size + 1;
+
     const gasPrice = await this.queryBaseFeePerSignature();
     const fee = BigInt(numSigners) * BigInt(gasPrice);
     const gasUnits = BigInt(
