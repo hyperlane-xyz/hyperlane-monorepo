@@ -322,7 +322,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             ctx.payer_pubkey,
                             init,
                         )
-                        .unwrap(),
+                        .expect("Failed to create init instruction"),
                     )
                     .add(
                         spl_token_2022::extension::metadata_pointer::instruction::initialize(
@@ -331,7 +331,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             Some(ctx.payer_pubkey),
                             Some(mint_account),
                         )
-                        .unwrap(),
+                        .expect("Failed to create metadata pointer instruction"),
                     )
                     .add(
                         spl_token_2022::instruction::initialize_mint2(
@@ -341,7 +341,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             None,
                             decimals,
                         )
-                        .unwrap(),
+                        .expect("Failed to create initialize_mint2 instruction"),
                     )
             }
             TokenType::Collateral(collateral_info) => {
