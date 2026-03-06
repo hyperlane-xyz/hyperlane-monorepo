@@ -216,7 +216,10 @@ export class RebalancerContextFactory {
     );
   }
 
-  public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
+  public async createStrategy(
+    metrics?: Metrics,
+    actionTracker?: IActionTracker,
+  ): Promise<IStrategy> {
     const strategyTypes = this.config.strategyConfig.map(
       (s) => s.rebalanceStrategy,
     );
@@ -263,6 +266,7 @@ export class RebalancerContextFactory {
       this.logger,
       metrics,
       minAmountsByChain,
+      actionTracker,
     );
   }
 

@@ -77,6 +77,7 @@ describe('InventoryRebalancer E2E', () => {
       completeRebalanceAction: Sinon.stub(),
       failRebalanceAction: Sinon.stub(),
       logStoreContents: Sinon.stub(),
+      getRecentTransfers: Sinon.stub().resolves([]),
     } as SinonStubbedInstance<IActionTracker>;
 
     // Default: No active (partial) inventory intents
