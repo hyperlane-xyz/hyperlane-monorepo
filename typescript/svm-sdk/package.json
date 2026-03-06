@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/svm-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Hand-crafted Solana/SVM client for Hyperlane Sealevel programs",
   "keywords": [

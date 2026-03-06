@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 26.0.1
+
+### Patch Changes
+
+- 98ac676: The `status` command resolved all EVM chains instead of only the origin/destination chains, causing crashes when unrelated chains had bad RPCs. Chain resolution was narrowed to only explicitly provided chains, with destination chains from the dispatch tx getting signers lazily via `ensureEvmSignersForChains`.
+
 ## 26.0.0
 
 ### Major Changes

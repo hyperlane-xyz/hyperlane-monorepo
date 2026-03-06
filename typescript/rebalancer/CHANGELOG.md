@@ -1,5 +1,19 @@
 # @hyperlane-xyz/rebalancer
 
+## 26.0.1
+
+### Patch Changes
+
+- 354668e: SnapshotHelper was extracted for shared e2e snapshot reset with timeout/retry logic. blockTag was changed to use raw eth_blockNumber RPC to bypass stale provider cache. TestHelpers race condition in getFirstMonitorEvent() was fixed with a settled flag.
+- Updated dependencies [f2620a1]
+- Updated dependencies [8a6f742]
+- Updated dependencies [aee625c]
+  - @hyperlane-xyz/sdk@26.0.1
+  - @hyperlane-xyz/metrics@0.2.1
+  - @hyperlane-xyz/utils@26.0.1
+  - @hyperlane-xyz/provider-sdk@3.0.1
+  - @hyperlane-xyz/core@11.0.1
+
 ## 26.0.0
 
 ### Patch Changes

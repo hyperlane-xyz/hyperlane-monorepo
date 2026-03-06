@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 26.0.1
+
+### Patch Changes
+
+- f2620a1: Defensive null guards were added to RPC log field parsing, EvmEventLogsReader, and xerc20 receipt handling. fork.sh was hardened with variable quoting, stale anvil cleanup, and IGP-only --asDeployer. CLI e2e setup was updated with metadata-driven Tron config and private key normalization. Pre-existing lint warnings were fixed.
+- 8a6f742: MultiProvider was updated to cache connected signers for stable instance identity and route setProviders() through setProvider() for consistent signer reconnection. ISM factory now simulates deploy address via eth_call when getAddress() returns incorrect results. Defensive null assertions were added across MultiProvider methods. HyperlaneCore onDispatch errors are now caught and logged separately.
+- aee625c: SmartProvider was updated to skip retry and stagger fanout for SendTransaction to prevent nonce errors from duplicate submissions. SendTransaction now breaks out of the provider fallback loop on any error. GetGasPrice and GetTransactionCount were excluded from etherscan routing.
+- Updated dependencies [4a816e3]
+  - @hyperlane-xyz/tron-sdk@22.1.0
+  - @hyperlane-xyz/deploy-sdk@3.0.1
+  - @hyperlane-xyz/aleo-sdk@26.0.1
+  - @hyperlane-xyz/starknet-core@26.0.1
+  - @hyperlane-xyz/cosmos-sdk@26.0.1
+  - @hyperlane-xyz/radix-sdk@26.0.1
+  - @hyperlane-xyz/utils@26.0.1
+  - @hyperlane-xyz/provider-sdk@3.0.1
+  - @hyperlane-xyz/core@11.0.1
+
 ## 26.0.0
 
 ### Major Changes
