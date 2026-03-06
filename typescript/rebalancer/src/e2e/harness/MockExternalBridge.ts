@@ -215,16 +215,19 @@ export class MockExternalBridge implements IExternalBridge {
       );
       const { result: relayMultiProvider } =
         this.multiProvider.intersect(relayChains);
+      const trustedRelayerAddress = new Wallet(ANVIL_TEST_PRIVATE_KEY).address;
       for (const chain of relayChains) {
         const relayProvider = relayMultiProvider.getProvider(
           chain,
         ) as JsonRpcProvider;
-        const relayWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY, relayProvider);
         await relayProvider.send('anvil_setBalance', [
-          relayWallet.address,
+          trustedRelayerAddress,
           toBeHex(parseEther('100')),
         ]);
-        relayMultiProvider.setSigner(chain, relayWallet);
+        relayMultiProvider.setSigner(
+          chain,
+          await relayProvider.getSigner(trustedRelayerAddress),
+        );
       }
 
       const relayCore = HyperlaneCore.fromAddressesMap(
