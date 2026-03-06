@@ -1,6 +1,8 @@
 import {
+  type Blockhash,
   type KeyPairSigner,
   type ReadonlyUint8Array,
+  type Signature,
   type TransactionSigner,
   addSignersToTransactionMessage,
   createKeyPairSignerFromBytes,
@@ -111,36 +113,63 @@ export class SvmSigner
     };
   }
 
-  async send(tx: SvmTransaction): Promise<SvmReceipt> {
-    const { value: latestBlockhash } = await this.rpc
-      .getLatestBlockhash()
-      .send();
+  /**
+   * Builds, signs, and sends a transaction with a finalized blockhash.
+   * Retries on blockhash-not-found errors from the RPC.
+   */
+  private async signAndSend(
+    tx: SvmTransaction,
+    maxAttempts = 3,
+  ): Promise<{ signature: Signature; blockhash: Blockhash }> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const { value: latestBlockhash } = await this.rpc
+        .getLatestBlockhash({ commitment: 'finalized' })
+        .send();
 
-    let txMessage = buildTransactionMessage({
-      instructions: tx.instructions,
-      feePayer: this.signer,
-      recentBlockhash: latestBlockhash.blockhash,
-      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-      computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
-    });
+      let txMessage = buildTransactionMessage({
+        instructions: tx.instructions,
+        feePayer: this.signer,
+        recentBlockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
+      });
 
-    if (tx.additionalSigners?.length) {
-      txMessage = addSignersToTransactionMessage(
-        tx.additionalSigners,
-        txMessage,
-      );
+      if (tx.additionalSigners?.length) {
+        txMessage = addSignersToTransactionMessage(
+          tx.additionalSigners,
+          txMessage,
+        );
+      }
+
+      const signedTx = await signTransactionMessageWithSigners(txMessage);
+      const signature = getSignatureFromTransaction(signedTx);
+
+      try {
+        const base64Tx = getBase64EncodedWireTransaction(signedTx);
+        await this.rpc
+          .sendTransaction(base64Tx, {
+            encoding: 'base64',
+            skipPreflight: tx.skipPreflight ?? false,
+          })
+          .send();
+
+        return { signature, blockhash: latestBlockhash.blockhash };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes('Blockhash not found') && attempt < maxAttempts - 1) {
+          this.logger.warn(
+            `Blockhash not found on send attempt ${attempt + 1}, retrying with fresh blockhash`,
+          );
+          continue;
+        }
+        throw error;
+      }
     }
+    throw new Error('signAndSend: all attempts exhausted');
+  }
 
-    const signedTx = await signTransactionMessageWithSigners(txMessage);
-    const signature = getSignatureFromTransaction(signedTx);
-
-    const base64Tx = getBase64EncodedWireTransaction(signedTx);
-    await this.rpc
-      .sendTransaction(base64Tx, {
-        encoding: 'base64',
-        skipPreflight: tx.skipPreflight ?? false,
-      })
-      .send();
+  async send(tx: SvmTransaction): Promise<SvmReceipt> {
+    let { signature, blockhash } = await this.signAndSend(tx);
 
     let confirmed = false;
     let slot: bigint = 0n;
@@ -150,11 +179,17 @@ export class SvmSigner
       await new Promise((resolve) => setTimeout(resolve, delay));
       delay = Math.min(delay * 1.5, 4000);
       try {
-        const status = await this.rpc
-          .getSignatureStatuses([signature], {
-            searchTransactionHistory: true,
-          })
+        // Check if blockhash expired and resubmit if needed
+        const { value: isValid } = await this.rpc
+          .isBlockhashValid(blockhash, { commitment: 'processed' })
           .send();
+        if (!isValid) {
+          this.logger.warn('Blockhash expired, resubmitting transaction');
+          ({ signature, blockhash } = await this.signAndSend(tx));
+          continue;
+        }
+
+        const status = await this.rpc.getSignatureStatuses([signature]).send();
         const result = status.value[0];
         if (result?.err) {
           throw new Error(
