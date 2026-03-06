@@ -58,7 +58,7 @@ export class KeypairSvmTransactionSigner implements SvmTransactionSigner {
   }
 
   async signTransaction(transaction: Transaction): Promise<Transaction> {
-    transaction.sign(this.keypair);
+    transaction.partialSign(this.keypair);
     return transaction;
   }
 }
@@ -114,7 +114,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     tx: SolanaWeb3Transaction,
     _options?: SendTransactionOptions,
   ): Promise<string> {
-    return this.signAndConfirm(tx.transaction);
+    return this.signAndConfirm(tx.transaction, tx.extraSigners);
   }
 
   // ============ Private Methods ============
@@ -157,12 +157,24 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   /**
    * Sign and confirm transaction with blockhash resubmit on expiry
    */
-  private async signAndConfirm(transaction: Transaction): Promise<string> {
+  private async signAndConfirm(
+    transaction: Transaction,
+    extraSigners?: Keypair[],
+  ): Promise<string> {
     // Get initial blockhash
     const { blockhash, lastValidBlockHeight } =
       await this.svmProvider.getLatestBlockhash(this.config.commitment);
 
     transaction.recentBlockhash = blockhash;
+
+    // Sign with extra signers first (e.g., randomWallet for Sealevel transferRemote).
+    // Uses partialSign to avoid clearing any existing signatures.
+    // This re-signs with the fresh blockhash, overwriting the adapter's pre-sign.
+    for (const signer of extraSigners ?? []) {
+      transaction.partialSign(signer);
+    }
+
+    // Sign with main signer (uses partialSign via KeypairSvmTransactionSigner)
     const signedTx = await this.signer.signTransaction(transaction);
 
     // Send initial transaction
@@ -173,6 +185,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       signature,
       signedTx,
       lastValidBlockHeight,
+      extraSigners,
     );
 
     return result;
@@ -185,6 +198,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     initialSignature: string,
     transaction: Transaction,
     lastValidBlockHeight: number,
+    extraSigners?: Keypair[],
   ): Promise<string> {
     let signature = initialSignature;
     let attempts = 0;
@@ -200,6 +214,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
           signature,
           transaction,
           currentLastValidBlockHeight,
+          extraSigners,
         );
         if (resubmitResult) {
           signature = resubmitResult.signature;
@@ -247,6 +262,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     signature: string,
     transaction: Transaction,
     lastValidBlockHeight: number,
+    extraSigners?: Keypair[],
   ): Promise<{ signature: string; lastValidBlockHeight: number } | null> {
     if (!this.config.enableBlockhashResubmit) {
       return null;
@@ -266,6 +282,12 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       await this.svmProvider.getLatestBlockhash(this.config.commitment);
 
     transaction.recentBlockhash = blockhash;
+
+    // Re-sign extra signers with new blockhash
+    for (const signer of extraSigners ?? []) {
+      transaction.partialSign(signer);
+    }
+
     const signedTx = await this.signer.signTransaction(transaction);
 
     const newSignature = await this.sendRawTransaction(signedTx);

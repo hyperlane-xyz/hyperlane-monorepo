@@ -7,6 +7,7 @@ import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
 import type {
   Connection,
+  Keypair,
   Transaction as SolTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
 } from '@solana/web3.js';
@@ -322,6 +323,7 @@ export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
 export interface SolanaWeb3Transaction extends TypedTransactionBase<SolTransaction> {
   type: ProviderType.SolanaWeb3;
   transaction: SolTransaction;
+  extraSigners?: Keypair[];
 }
 
 export interface CosmJsTransaction extends TypedTransactionBase<CmTransaction> {
