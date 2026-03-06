@@ -51,17 +51,23 @@ class TokenPriceCache {
   }
 
   fetch(id: string): number {
+    const price = this.tryFetch(id);
+    if (price !== undefined) return price;
     const entry = this.cache.get(id);
-    if (!entry) {
-      throw new Error(`no entry found for ${id} in token price cache`);
-    }
+    throw new Error(
+      entry
+        ? `evicted entry found for ${id} in token price cache`
+        : `no entry found for ${id} in token price cache`,
+    );
+  }
+
+  tryFetch(id: string): number | undefined {
+    const entry = this.cache.get(id);
+    if (!entry) return undefined;
     const evictionTime = new Date(
       entry.timestamp.getTime() + 1000 * this.evictionSeconds,
     );
-    const now = new Date();
-    if (now > evictionTime) {
-      throw new Error(`evicted entry found for ${id} in token price cache`);
-    }
+    if (new Date() > evictionTime) return undefined;
     return entry.price;
   }
 }
@@ -159,10 +165,15 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
         prices.forEach((price, i) => this.cache.put(toQuery[i], price));
       } catch (err) {
         rootLogger.warn(err, 'Failed to fetch token prices');
-        return undefined;
+        // Fall through to return stale-but-not-evicted cached values below
       }
     }
-    return ids.map((id) => this.cache.fetch(id));
+    // Return cached prices if every id has a non-evicted entry,
+    // otherwise return undefined (same as the previous error path).
+    const results = ids.map((id) => this.cache.tryFetch(id));
+    return results.every((r) => r !== undefined)
+      ? (results as number[])
+      : undefined;
   }
 
   public async fetchPriceDataByContractAddress(
