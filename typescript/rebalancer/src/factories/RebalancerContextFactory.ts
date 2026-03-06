@@ -689,10 +689,33 @@ export class RebalancerContextFactory {
           this.config.strategyConfig,
           chainName,
         );
-        return (
-          chainConfig?.executionType === ExecutionType.MovableCollateral ||
-          chainConfig?.executionType === undefined
-        ); // Default is movableCollateral
+        if (
+          (chainConfig?.executionType ?? ExecutionType.MovableCollateral) ===
+          ExecutionType.MovableCollateral
+        ) {
+          return true;
+        }
+
+        if (!chainConfig?.override) {
+          return false;
+        }
+
+        return Object.values(chainConfig.override).some((overrideConfig) => {
+          const overrideExecutionType =
+            typeof overrideConfig === 'object' &&
+            overrideConfig !== null &&
+            'executionType' in overrideConfig
+              ? (overrideConfig as { executionType?: ExecutionType })
+                  .executionType
+              : undefined;
+
+          return (
+            (overrideExecutionType ??
+              chainConfig.executionType ??
+              ExecutionType.MovableCollateral) ===
+            ExecutionType.MovableCollateral
+          );
+        });
       },
     );
   }
