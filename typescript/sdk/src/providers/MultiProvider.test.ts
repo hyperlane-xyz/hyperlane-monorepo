@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ContractFactory } from 'ethers';
+import { ContractFactory, Wallet } from 'ethers';
 
 import {
   Mailbox__factory,
@@ -66,6 +66,23 @@ describe('MultiProvider Tron factory resolution', () => {
 });
 
 describe('MultiProvider', () => {
+  it('caches auto-connected signer instance', () => {
+    const chainMetadata = {
+      [TestChainName.test1]: test1,
+      [TestChainName.test2]: test2,
+    };
+    const mp = new MultiProvider(chainMetadata);
+    const signer = Wallet.createRandom();
+
+    mp.setSigner(TestChainName.test1, signer);
+
+    const connected1 = mp.getSigner(TestChainName.test1);
+    const connected2 = mp.getSigner(TestChainName.test1);
+
+    expect(connected1.provider).to.not.equal(null);
+    expect(connected2).to.equal(connected1);
+  });
+
   describe('handleTx', () => {
     let multiProvider: MultiProvider;
 
@@ -274,12 +291,14 @@ describe('MultiProvider', () => {
 
       // First call should connect and cache
       const result1 = mp.tryGetSigner(TestChainName.test1);
-      expect(result1).to.equal(mockConnectedSigner);
+      expect(result1).to.not.equal(mockConnectedSigner);
+      expect(result1?.provider).to.equal(mockProvider);
       expect(connectCallCount).to.equal(1);
 
       // Second call should return cached signer without calling connect again
       const result2 = mp.tryGetSigner(TestChainName.test1);
-      expect(result2).to.equal(mockConnectedSigner);
+      expect(result2).to.equal(result1);
+      expect(result2?.provider).to.equal(mockProvider);
       expect(connectCallCount).to.equal(1);
     });
 

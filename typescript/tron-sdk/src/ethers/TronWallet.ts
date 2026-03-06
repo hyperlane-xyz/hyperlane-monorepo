@@ -1,11 +1,19 @@
-import { BigNumber, Wallet, ethers, providers } from 'ethers';
-import { keccak256 as ethersKeccak256 } from 'ethers/lib/utils.js';
+import {
+  BlockTag,
+  Provider,
+  TransactionRequest,
+  TransactionResponse,
+  Wallet,
+  getAddress,
+  hexlify,
+  keccak256,
+  toBigInt,
+} from 'ethers';
 import { TronWeb, Types } from 'tronweb';
 
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, pollAsync, strip0x } from '@hyperlane-xyz/utils';
 
 import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
-import { TransactionRequest } from '@ethersproject/providers';
 
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
@@ -13,12 +21,54 @@ export type TronTransaction =
   | Types.Transaction
   | Types.SignedTransaction;
 
-/**
- * Extended transaction response that includes Tron-specific fields.
- */
-export interface TronTransactionResponse extends providers.TransactionResponse {
-  /** Raw TronWeb transaction object */
+export interface TronTransactionResponse {
+  hash: string;
+  confirmations: number;
+  from: string;
+  to?: string | null;
+  nonce: number;
+  gasLimit: bigint;
+  gasPrice: bigint;
+  data: string;
+  value: bigint;
+  chainId: bigint;
   tronTransaction: TronTransaction;
+  wait: (
+    confirmations?: number,
+  ) => ReturnType<TronJsonRpcProvider['waitForTransaction']>;
+}
+
+const TRON_TX_COUNTER_KEY = '__hyperlane_tron_tx_counter__';
+
+function nextTronTxExtension(): number {
+  const globalState = globalThis as typeof globalThis & {
+    [TRON_TX_COUNTER_KEY]?: number;
+  };
+  const next = (globalState[TRON_TX_COUNTER_KEY] ?? 0) + 1;
+  globalState[TRON_TX_COUNTER_KEY] = next;
+  return next;
+}
+
+function decodeTronErrorMessage(message: unknown): string | undefined {
+  if (typeof message !== 'string' || message.length === 0) return undefined;
+  const raw = message.startsWith('0x') ? message.slice(2) : message;
+  if (!/^[0-9a-fA-F]+$/.test(raw) || raw.length % 2 !== 0) {
+    return message;
+  }
+  try {
+    return Buffer.from(raw, 'hex').toString('utf8');
+  } catch {
+    return message;
+  }
+}
+
+function isContractAddressCollision(message: string | undefined): boolean {
+  return (
+    !!message &&
+    message.includes(
+      'Trying to create a contract with existing contract address',
+    )
+  );
 }
 
 /**
@@ -35,19 +85,11 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  * gasLimit to Tron's feeLimit using: feeLimit = gasLimit × gasPrice.
  */
 export class TronWallet extends Wallet {
-  /**
-   * Static counter to ensure unique txIDs across all wallet instances.
-   * Must be static because connect() creates new instances, and Tron txIDs
-   * are derived from transaction content + expiration. Without a shared counter,
-   * two instances could generate identical txIDs in the same block.
-   */
-  private static txCounter = 0;
-
   private readonly tronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
   private tronAddressHex: string;
-  private txBuilder: TronTransactionBuilder;
+  private readonly tronTransactions = new Map<string, TronTransaction>();
 
   constructor(privateKey: string, tronUrl: string) {
     tronUrl = tronUrl.endsWith('/jsonrpc') ? tronUrl.slice(0, -8) : tronUrl;
@@ -63,59 +105,171 @@ export class TronWallet extends Wallet {
     this.tronAddress = derivedAddress;
     this.tronAddressHex = this.tronWeb.address.toHex(this.tronAddress);
     this.tronWeb.setAddress(this.tronAddress);
-
-    this.txBuilder = new TronTransactionBuilder(tronUrl, this.tronAddress);
   }
 
   /**
    * Override connect to preserve TronWallet type.
    * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
    */
-  connect(_provider: providers.Provider): TronWallet {
+  override connect(_provider: Provider | null): Wallet {
     return new TronWallet(this.privateKey, this.tronUrl);
+  }
+
+  /** Convert ethers 0x address to Tron 41-prefixed hex */
+  private toTronHex(address: string): string {
+    if (address.startsWith('41') && address.length === 42) {
+      return address.toLowerCase();
+    }
+    if (address.startsWith('0x') && address.length === 42) {
+      return `41${strip0x(address).toLowerCase()}`;
+    }
+    return this.tronWeb.address.toHex(address).toLowerCase();
   }
 
   /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
   toEvmAddress(tronAddress: string): string {
     const hex = this.tronWeb.address.toHex(tronAddress);
     const rawAddress = ensure0x(hex.slice(2)).toLowerCase();
-    return ethers.utils.getAddress(rawAddress);
+    return getAddress(rawAddress);
   }
 
   /** Tron doesn't use nonces */
-  async getTransactionCount(_blockTag?: providers.BlockTag): Promise<number> {
+  async getTransactionCount(_blockTag?: BlockTag): Promise<number> {
     return 0;
   }
 
-  async sendTransaction(
-    transaction: providers.TransactionRequest,
-  ): Promise<TronTransactionResponse> {
+  getTronTransaction(hash: string): TronTransaction | undefined {
+    return this.tronTransactions.get(hash.toLowerCase());
+  }
+
+  override async sendTransaction(
+    transaction: TransactionRequest,
+  ): Promise<TransactionResponse> {
     // Populate transaction (estimates gas and gas price if not set)
     const tx = await this.populateTransaction(transaction);
-    assert(tx.gasLimit, 'gasLimit is required');
-    assert(tx.gasPrice, 'gasPrice is required');
+    const provider = this.provider;
+    assert(provider, 'TronWallet provider is not configured');
+    const normalizedData = tx.data ? hexlify(tx.data) : '0x';
+    const hasNoCalldata = normalizedData === '0x' || normalizedData === '0x00';
+    const isSimpleTransfer = !!tx.to && hasNoCalldata;
+    const rawGasLimit =
+      tx.gasLimit ??
+      (isSimpleTransfer
+        ? 21_000n
+        : await provider.estimateGas(tx as TransactionRequest));
+    const gasLimit =
+      isSimpleTransfer && toBigInt(rawGasLimit || 0n) === 0n
+        ? 21_000n
+        : rawGasLimit;
+    const feeData = tx.gasPrice ? null : await provider.getFeeData();
+    const gasPrice = tx.gasPrice ?? feeData?.gasPrice;
+    assert(gasLimit, 'gasLimit is required');
+    assert(gasPrice, 'gasPrice is required');
 
-    let tronTx = await this.txBuilder.buildTransaction(tx);
-    // Ensure unique txID by extending expiration with a counter.
+    // Convert gasLimit to feeLimit in SUN (1 TRX = 1,000,000 SUN)
+    const gasPriceBigInt = toBigInt(gasPrice);
+    const gasLimitBigInt = toBigInt(gasLimit);
+    let feeLimit = (gasLimitBigInt * gasPriceBigInt * 15n) / 10n; // Add 50% buffer to avoid "Out of energy"
+    feeLimit = feeLimit > 1_000_000_000n ? 1_000_000_000n : feeLimit; // Tron max fee is 1000 TRX
+    feeLimit = feeLimit <= 0n ? 1_000_000_000n : feeLimit;
+    const rawValue = tx.value ?? transaction.value ?? 0n;
+    const callValue = toSafeNumber(toBigInt(rawValue), 'value');
+    const feeLimitNumber = toSafeNumber(feeLimit, 'feeLimit');
+    const gasLimitNumber = toSafeNumber(gasLimitBigInt, 'gasLimit');
+
+    let tronTx: TronTransaction;
+
+    if (!tx.to) {
+      // Contract deployment
+      assert(tx.data, 'Deployment transaction must have data');
+      tronTx = await this.tronWeb.transactionBuilder.createSmartContract(
+        {
+          abi: [],
+          bytecode: strip0x(hexlify(tx.data)),
+          feeLimit: feeLimitNumber,
+          callValue,
+          originEnergyLimit: gasLimitNumber,
+        },
+        this.tronAddress,
+      );
+    } else if (tx.data && tx.data !== '0x') {
+      // Contract call - use 'input' option for raw ABI-encoded calldata
+      assert(typeof tx.to === 'string', 'Transaction target must be a string');
+      const tronHexTo = this.toTronHex(tx.to);
+      const result = await this.tronWeb.transactionBuilder.triggerSmartContract(
+        tronHexTo,
+        '', // Empty functionSelector since we pass raw encoded data via input
+        {
+          feeLimit: feeLimitNumber,
+          callValue,
+          input: strip0x(hexlify(tx.data)),
+        },
+        [],
+        this.tronAddress,
+      );
+      assert(
+        result.result?.result,
+        `triggerSmartContract failed: ${result.result?.message}`,
+      );
+      tronTx = result.transaction;
+    } else {
+      // Simple TRX transfer
+      assert(typeof tx.to === 'string', 'Transfer target must be a string');
+      const recipient = this.tronWeb.address.fromHex(this.toTronHex(tx.to));
+      tronTx = await this.tronWeb.transactionBuilder.sendTrx(
+        recipient,
+        callValue,
+        this.tronAddress,
+      );
+    }
+
+    // Ensure unique txID by extending memo with a counter.
     // Tron has no nonces, so identical txs in the same block produce the same txID.
     tronTx = await this.makeUnique(tronTx);
 
-    // Sign and broadcast
-    const signedTx = await this.tronWeb.trx.sign(tronTx);
-    const broadcastResult = await this.tronWeb.trx.sendRawTransaction(signedTx);
-    assert(
-      broadcastResult.result,
-      `Broadcast failed: ${broadcastResult.message}`,
-    );
+    // Sign and broadcast. Retry contract deployments when another process
+    // races and generates the same contract address on the shared local node.
+    for (let attempt = 0; ; attempt += 1) {
+      // tronWeb.trx.sign mutates the transaction object by appending
+      // signatures, so sign a clone to keep tronTx reusable across retries.
+      const signedTx = await this.tronWeb.trx.sign(
+        structuredClone(tronTx as Types.Transaction),
+      );
+      const broadcastResult =
+        await this.tronWeb.trx.sendRawTransaction(signedTx);
 
-    return this.txBuilder.getTransactionResponse(tx, tronTx);
+      if (broadcastResult.result) break;
+
+      const decodedMessage = decodeTronErrorMessage(broadcastResult.message);
+      if (attempt < 5 && isContractAddressCollision(decodedMessage)) {
+        tronTx = await this.makeUnique(tronTx);
+        continue;
+      }
+
+      assert(broadcastResult.result, `Broadcast failed: ${decodedMessage}`);
+    }
+
+    const txHash = ensure0x(tronTx.txID);
+    this.tronTransactions.set(txHash.toLowerCase(), tronTx);
+
+    return pollAsync(
+      async () => {
+        const response = await provider.getTransaction(txHash);
+        assert(response, `Transaction ${txHash} not available yet`);
+        return response;
+      },
+      100,
+      100,
+    );
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
-    const counter = ++TronWallet.txCounter;
+    // Use a process-global counter so uniqueness survives duplicated module
+    // instances in bundled test/runtime environments.
+    const extension = nextTronTxExtension();
     // Use data (memo field) instead of extension to avoid TronWeb's
     // time-based validation which fails when node clock drifts.
-    const data = '0x' + counter.toString(16).padStart(8, '0');
+    const data = `0x${extension.toString(16).padStart(8, '0')}`;
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
@@ -127,9 +281,7 @@ export class TronWallet extends Wallet {
     // For deployments, recompute contract_address from the new txID.
     // genContractAddress = '41' + keccak256(txID + ownerHex)[24:]
     if ('contract_address' in tronTx) {
-      const hash = ethersKeccak256(
-        Buffer.from(altered.txID + this.tronAddressHex, 'hex'),
-      );
+      const hash = keccak256(ensure0x(altered.txID + this.tronAddressHex));
       (altered as any).contract_address = '41' + hash.substring(2).slice(24);
     }
 
@@ -158,90 +310,102 @@ export class TronTransactionBuilder extends TronWeb {
     txHash?: string,
   ): TronTransactionResponse {
     const originalTxHash = ensure0x(tronTx.txID);
-    const gasPrice = evmTx.gasPrice
-      ? BigNumber.from(evmTx.gasPrice)
-      : BigNumber.from(0);
-    const gasLimit = evmTx.gasLimit
-      ? BigNumber.from(evmTx.gasLimit)
-      : BigNumber.from(0);
+    const gasPrice = evmTx.gasPrice ? toBigInt(evmTx.gasPrice) : 0n;
+    const gasLimit = evmTx.gasLimit ? toBigInt(evmTx.gasLimit) : 0n;
+    const chainId =
+      evmTx.chainId !== undefined && evmTx.chainId !== null
+        ? toBigInt(evmTx.chainId)
+        : 0n;
 
     return {
       hash: txHash ?? originalTxHash,
       confirmations: 0,
-      from: ethers.utils.getAddress(
-        ensure0x(this.tronAddressHex.slice(2)).toLowerCase(),
-      ),
-      to: evmTx.to ?? undefined,
+      from: getAddress(ensure0x(this.tronAddressHex.slice(2)).toLowerCase()),
+      to: (evmTx.to as string | undefined) ?? undefined,
       nonce: 0,
       gasLimit,
       gasPrice,
-      data: evmTx.data?.toString() ?? '0x',
-      value: BigNumber.from(evmTx.value ?? 0),
-      chainId: evmTx.chainId!,
+      data: evmTx.data ? hexlify(evmTx.data) : '0x',
+      value: evmTx.value ? toBigInt(evmTx.value) : 0n,
+      chainId,
       tronTransaction: tronTx,
       wait: (confirmations?: number) =>
-        this.provider!.waitForTransaction(
+        this.provider.waitForTransaction(
           txHash ? ensure0x(txHash) : originalTxHash,
           confirmations,
         ),
     };
   }
 
-  async buildTransaction(
-    tx: providers.TransactionRequest,
-  ): Promise<TronTransaction> {
-    const gasPrice = tx.gasPrice
-      ? BigNumber.from(tx.gasPrice)
-      : BigNumber.from(0);
-    const gasLimit = tx.gasLimit
-      ? BigNumber.from(tx.gasLimit)
-      : BigNumber.from(0);
-    let feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5;
-    feeLimit = Math.min(feeLimit, 1000000000);
-    feeLimit = feeLimit <= 0 ? 1000000000 : feeLimit;
-    const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
+  async buildTransaction(tx: TransactionRequest): Promise<TronTransaction> {
+    const gasPrice = tx.gasPrice ? toBigInt(tx.gasPrice) : 0n;
+    const gasLimit = tx.gasLimit ? toBigInt(tx.gasLimit) : 0n;
+    let feeLimit = (gasLimit * gasPrice * 15n) / 10n;
+    feeLimit = feeLimit > 1_000_000_000n ? 1_000_000_000n : feeLimit;
+    feeLimit = feeLimit <= 0n ? 1_000_000_000n : feeLimit;
+    const callValue = tx.value ? toSafeNumber(toBigInt(tx.value), 'value') : 0;
 
     if (!tx.to) {
-      return this.buildDeployment(tx, feeLimit, callValue, gasLimit);
-    } else if (tx.data && tx.data !== '0x') {
-      return this.buildContractCall(tx, feeLimit, callValue);
-    } else {
-      return this.buildTransfer(tx.to, callValue);
+      return this.buildDeployment(
+        tx,
+        toSafeNumber(feeLimit, 'feeLimit'),
+        callValue,
+        toSafeNumber(gasLimit, 'gasLimit'),
+      );
     }
+    if (tx.data && tx.data !== '0x') {
+      return this.buildContractCall(
+        tx,
+        toSafeNumber(feeLimit, 'feeLimit'),
+        callValue,
+      );
+    }
+    return this.buildTransfer(tx.to as string, callValue);
+  }
+
+  private toTronHex(address: string): string {
+    if (address.startsWith('41') && address.length === 42) {
+      return address.toLowerCase();
+    }
+    if (address.startsWith('0x') && address.length === 42) {
+      return `41${strip0x(address).toLowerCase()}`;
+    }
+    return this.address.toHex(address).toLowerCase();
   }
 
   private async buildDeployment(
-    tx: providers.TransactionRequest,
+    tx: TransactionRequest,
     feeLimit: number,
     callValue: number,
-    gasLimit: BigNumber,
+    gasLimit: number,
   ): Promise<TronTransaction> {
     assert(tx.data, 'Deployment transaction must have data');
     return this.transactionBuilder.createSmartContract(
       {
         abi: [],
-        bytecode: strip0x(tx.data.toString()),
+        bytecode: strip0x(hexlify(tx.data)),
         feeLimit,
         callValue,
-        originEnergyLimit: gasLimit.toNumber(),
+        originEnergyLimit: gasLimit,
       },
       this.tronAddress,
     );
   }
 
   private async buildContractCall(
-    tx: providers.TransactionRequest,
+    tx: TransactionRequest,
     feeLimit: number,
     callValue: number,
   ): Promise<TronTransaction> {
-    const tronHexTo = '41' + strip0x(tx.to!).toLowerCase();
+    assert(typeof tx.to === 'string', 'Contract call target must be a string');
+    assert(tx.data, 'Contract call must include calldata');
     const result = await this.transactionBuilder.triggerSmartContract(
-      tronHexTo,
+      this.toTronHex(tx.to),
       '',
       {
         feeLimit,
         callValue,
-        input: strip0x(tx.data!.toString()),
+        input: strip0x(hexlify(tx.data)),
       },
       [],
       this.tronAddress,
@@ -257,11 +421,19 @@ export class TronTransactionBuilder extends TronWeb {
     to: string,
     callValue: number,
   ): Promise<TronTransaction> {
-    const tronHexTo = '41' + strip0x(to).toLowerCase();
     return this.transactionBuilder.sendTrx(
-      tronHexTo,
+      this.toTronHex(to),
       callValue,
       this.tronAddress,
     );
   }
+}
+
+function toSafeNumber(value: bigint, field: string): number {
+  assert(value >= 0n, `${field} must be non-negative`);
+  assert(
+    value <= BigInt(Number.MAX_SAFE_INTEGER),
+    `${field} exceeds Number.MAX_SAFE_INTEGER`,
+  );
+  return Number(value);
 }

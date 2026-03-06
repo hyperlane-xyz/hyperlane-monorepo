@@ -101,6 +101,7 @@ describe('hyperlane warp init e2e tests', async function () {
 
     it('should generate a warp deploy config with a 2 chains warp route (collateral->synthetic)', async function () {
       const erc20Token = await deployToken(ANVIL_KEY, CHAIN_NAME_2, 6);
+      const erc20TokenAddress = await erc20Token.getAddress();
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         ...SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
@@ -115,7 +116,7 @@ describe('hyperlane warp init e2e tests', async function () {
         {
           check: (currentOutput: string) =>
             currentOutput.includes('Enter the existing token address on chain'),
-          input: `${erc20Token.address}${KeyBoardKeys.ENTER}`,
+          input: `${erc20TokenAddress}${KeyBoardKeys.ENTER}`,
         },
         // Other chain token config
         CONFIRM_DETECTED_OWNER_STEP,
@@ -139,7 +140,7 @@ describe('hyperlane warp init e2e tests', async function () {
       const chain2TokenConfig = warpConfig[CHAIN_NAME_2];
       expect(chain2TokenConfig.owner).equal(initialOwnerAddress);
       expect(chain2TokenConfig.type).equal(TokenType.collateral);
-      expect((chain2TokenConfig as any).token).equal(erc20Token.address);
+      expect((chain2TokenConfig as any).token).equal(erc20TokenAddress);
 
       expect(warpConfig[CHAIN_NAME_3]).not.to.be.undefined;
 

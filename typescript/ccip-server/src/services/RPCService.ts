@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 
 type ProofResultStorageProof = {
   key: string;
@@ -17,9 +17,9 @@ type ProofResult = {
 };
 
 class RPCService {
-  provider: ethers.providers.JsonRpcProvider;
+  provider: JsonRpcProvider;
   constructor(private readonly providerAddress: string) {
-    this.provider = new ethers.providers.JsonRpcProvider(this.providerAddress);
+    this.provider = new JsonRpcProvider(this.providerAddress);
   }
 
   /**

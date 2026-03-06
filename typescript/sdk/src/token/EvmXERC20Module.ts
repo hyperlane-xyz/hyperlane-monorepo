@@ -1,4 +1,4 @@
-import { PopulatedTransaction } from 'ethers';
+import { TransactionRequest } from 'ethers';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
@@ -15,7 +15,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 
 import {
@@ -31,6 +31,8 @@ import {
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
 import { XERC20Type } from './types.js';
+
+type PopulatedTransaction = TransactionRequest;
 
 /**
  * Configuration for XERC20 limits management
@@ -102,7 +104,7 @@ export class EvmXERC20Module extends HyperlaneModule<
    */
   async update(
     expectedConfig: XERC20ModuleConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     const actualConfig = await this.read();
 
     assert(
@@ -110,7 +112,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       `XERC20 type mismatch: expected ${expectedConfig.type} but on-chain is ${actualConfig.type}`,
     );
 
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const transactions: AnnotatedEvmTransaction[] = [];
 
     const { missingBridges, extraBridges, limitMismatches } =
       this.detectDriftFromConfigs(expectedConfig, actualConfig);
@@ -220,10 +222,10 @@ export class EvmXERC20Module extends HyperlaneModule<
   async generateSetLimitsTxs(
     bridge: Address,
     limits: XERC20Limits,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     const xERC20Address = this.args.addresses.xERC20;
     const chainId = this.multiProvider.getEvmChainId(this.chainName);
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const transactions: AnnotatedEvmTransaction[] = [];
 
     if (limits.type === XERC20Type.Standard) {
       const adapter = new EvmXERC20Adapter(
@@ -273,7 +275,7 @@ export class EvmXERC20Module extends HyperlaneModule<
   async generateAddBridgeTxs(
     bridge: Address,
     limits: XERC20Limits,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (limits.type === XERC20Type.Standard) {
       return this.generateSetLimitsTxs(bridge, limits);
     }
@@ -301,7 +303,7 @@ export class EvmXERC20Module extends HyperlaneModule<
    */
   async generateRemoveBridgeTxs(
     bridge: Address,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     const xERC20Address = this.args.addresses.xERC20;
     const chainId = this.multiProvider.getEvmChainId(this.chainName);
 
@@ -319,7 +321,7 @@ export class EvmXERC20Module extends HyperlaneModule<
     tx: PopulatedTransaction,
     chainId: number,
     to: Address,
-  ): AnnotatedEV5Transaction {
+  ): AnnotatedEvmTransaction {
     return {
       ...tx,
       chainId,
@@ -369,7 +371,7 @@ export class EvmXERC20Module extends HyperlaneModule<
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await lockbox.callStatic.XERC20();
+      xERC20Address = await lockbox.XERC20.staticCall();
     }
 
     const limits: XERC20LimitsMap = {};

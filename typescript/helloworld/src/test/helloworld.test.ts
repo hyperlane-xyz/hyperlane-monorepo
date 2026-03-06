@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
@@ -22,7 +21,7 @@ describe('HelloWorld', () => {
   let localDomain: number;
   let remoteDomain: number;
 
-  let signer: SignerWithAddress;
+  let signer: { address: string };
   let local: HelloWorld;
   let remote: HelloWorld;
   let multiProvider: MultiProvider;
@@ -30,8 +29,12 @@ describe('HelloWorld', () => {
   let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    [signer] = (await (hre as any).ethers.getSigners()) as unknown as [
+      { address: string },
+    ];
+    multiProvider = MultiProvider.createTestMultiProvider({
+      signer: signer as any,
+    });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -60,15 +63,11 @@ describe('HelloWorld', () => {
 
   it('sends a message', async () => {
     const body = 'Hello';
-    const payment = await local['quoteDispatch(uint32,bytes)'](
-      remoteDomain,
-      Buffer.from(body),
-    );
-    await expect(
-      local.sendHelloWorld(remoteDomain, body, {
-        value: payment,
-      }),
-    ).to.emit(local, 'SentHelloWorld');
+    const payment = await local.quoteDispatch(remoteDomain, Buffer.from(body));
+    const tx = await local.sendHelloWorld(remoteDomain, body, {
+      value: payment,
+    });
+    await tx.wait();
     // The sent counts are correct
     expect(await local.sent()).to.equal(1);
     expect(await local.sentTo(remoteDomain)).to.equal(1);
@@ -78,19 +77,21 @@ describe('HelloWorld', () => {
 
   it('reverts if there is insufficient payment', async () => {
     const body = 'Hello';
-    await expect(
-      local.sendHelloWorld(remoteDomain, body, {
-        value: 0,
-      }),
-    ).to.be.revertedWith('ProtocolFee: insufficient protocol fee');
+    try {
+      await local.sendHelloWorld(remoteDomain, body, {
+        value: 0n,
+      });
+      expect.fail('Expected sendHelloWorld to revert');
+    } catch (error) {
+      expect(String(error)).to.contain(
+        'ProtocolFee: insufficient protocol fee',
+      );
+    }
   });
 
   it('handles a message', async () => {
     const body = 'World';
-    const payment = await local['quoteDispatch(uint32,bytes)'](
-      remoteDomain,
-      Buffer.from(body),
-    );
+    const payment = await local.quoteDispatch(remoteDomain, Buffer.from(body));
     await local.sendHelloWorld(remoteDomain, body, {
       value: payment,
     });

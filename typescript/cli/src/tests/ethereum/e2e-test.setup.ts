@@ -10,13 +10,15 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 import { runEvmNode, runTronNode } from '../nodes.js';
+import { readYamlOrJson } from '../../utils/files.js';
 
 import {
   CHAIN_2_METADATA_PATH,
   IS_TRON_TEST,
   REGISTRY_PATH as OLD_REGISTRY_PATH,
 } from './consts.js';
-import { readYamlOrJson } from '../../utils/files.js';
+
+const SKIP_EVM_TESTCONTAINERS = process.env.SKIP_EVM_TESTCONTAINERS === '1';
 
 before(async function () {
   // Use longer timeout for Tron (node startup is slower)
@@ -63,11 +65,13 @@ before(async function () {
     });
   } else if (!useExternalNodes) {
     // Separate Anvil nodes for each chain
-    await Promise.all([
-      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
-      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
-      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4),
-    ]);
+    if (!SKIP_EVM_TESTCONTAINERS) {
+      await Promise.all([
+        runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
+        runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
+        runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4),
+      ]);
+    }
   }
 
   // Clean up existing chain addresses

@@ -171,12 +171,11 @@ export class ProductionRebalancerRunner
     });
 
     // Create provider and wallet
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = new ethers.JsonRpcProvider(
       this.config.deployment.anvilRpc,
     );
     // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
     provider.pollingInterval = 100;
-    provider.polling = false;
 
     const wallet = new ethers.Wallet(
       this.config.deployment.rebalancerKey,
@@ -184,28 +183,13 @@ export class ProductionRebalancerRunner
     );
     multiProvider.setSharedSigner(wallet);
 
-    // Set fast polling interval and disable automatic polling on all internal providers
-    for (const chainName of multiProvider.getKnownChainNames()) {
-      const chainProvider = multiProvider.tryGetProvider(chainName);
-      if (chainProvider && 'polling' in chainProvider) {
-        const jsonRpcProvider =
-          chainProvider as ethers.providers.JsonRpcProvider;
-        jsonRpcProvider.pollingInterval = 100;
-        jsonRpcProvider.polling = false;
-      }
-    }
-
     // Create MultiProtocolProvider
     const multiProtocolProvider =
       MultiProtocolProvider.fromMultiProvider(multiProvider);
 
     for (const chainName of multiProtocolProvider.getKnownChainNames()) {
       try {
-        const mppProvider = multiProtocolProvider.getProvider(chainName);
-        if (mppProvider && 'polling' in mppProvider) {
-          (mppProvider as unknown as ethers.providers.JsonRpcProvider).polling =
-            false;
-        }
+        multiProtocolProvider.getProvider(chainName);
       } catch (error) {
         logger.debug(
           { chainName, error },

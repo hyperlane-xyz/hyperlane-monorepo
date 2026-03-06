@@ -1,8 +1,8 @@
-import { BigNumber, ethers } from 'ethers';
+import { toUtf8Bytes } from 'ethers';
 
 import {
   ChainName,
-  EthersV5Transaction,
+  EthersV6Transaction,
   EvmRouterAdapter,
   MultiProtocolProvider,
   ProviderType,
@@ -30,19 +30,17 @@ export class EvmHelloWorldAdapter
     message: string,
     value: string,
     sender: Address,
-  ): Promise<EthersV5Transaction> {
+  ): Promise<EthersV6Transaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
     const { transactionOverrides } = this.multiProvider.getChainMetadata(
       this.chainName,
     );
 
-    const quote = await contract.callStatic.quoteDispatch(
-      toDomain,
-      ethers.utils.toUtf8Bytes(message),
-    );
+    const quote = await contract.quoteDispatch(toDomain, toUtf8Bytes(message));
+    const totalValue = BigInt(value) + quote;
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
-    const estimated = await contract.estimateGas.sendHelloWorld(
+    const estimated = await contract.sendHelloWorld.estimateGas(
       toDomain,
       message,
       {
@@ -51,27 +49,27 @@ export class EvmHelloWorldAdapter
         // with funds to be specified when estimating gas for a transaction
         // that provides non-zero `value`.
         from: sender,
-        value: BigNumber.from(value).add(quote),
+        value: totalValue,
       },
     );
 
-    const tx = await contract.populateTransaction.sendHelloWorld(
+    const tx = await contract.sendHelloWorld.populateTransaction(
       toDomain,
       message,
       {
         gasLimit: addBufferToGasLimit(estimated),
         ...transactionOverrides,
-        value: BigNumber.from(value).add(quote),
+        value: totalValue,
       },
     );
-    return { transaction: tx, type: ProviderType.EthersV5 };
+    return { transaction: tx, type: ProviderType.EthersV6 };
   }
 
   async sentStat(destination: ChainName): Promise<number> {
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const originContract = this.getConnectedContract();
     const sent = await originContract.sentTo(destinationDomain);
-    return sent.toNumber();
+    return Number(sent);
   }
 
   override getConnectedContract(): HelloWorld {

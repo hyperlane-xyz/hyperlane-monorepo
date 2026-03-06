@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   CheckerViolation,
@@ -43,13 +43,13 @@ export class ProxiedRouterGovernor<
     return {
       chain: violation.chain,
       call: {
-        to: violation.contract.address,
+        to: violation.contract.target as string,
         data: violation.contract.interface.encodeFunctionData(
           'setInterchainSecurityModule',
           [violation.expected],
         ),
-        value: BigNumber.from(0),
-        description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
+        value: ethers.toBigInt(0),
+        description: `Set ISM of ${violation.contract.target as string} to ${violation.expected}`,
       },
     };
   }
@@ -69,13 +69,13 @@ export class ProxiedRouterGovernor<
     return {
       chain: violation.chain,
       call: {
-        to: violation.contract.address,
+        to: violation.contract.target as string,
         data: violation.contract.interface.encodeFunctionData(
           'enrollRemoteRouters',
           [expectedDomains, expectedAddresses],
         ),
-        value: BigNumber.from(0),
-        description: `Updating routers in ${violation.contract.address} for ${expectedDomains.length} remote chains`,
+        value: ethers.toBigInt(0),
+        description: `Updating routers in ${violation.contract.target as string} for ${expectedDomains.length} remote chains`,
         expandedDescription: `Updating routers for chains ${Object.keys(
           violation.routerDiff,
         ).join(', ')}:\n${stringifyObject(violation.routerDiff)}`,

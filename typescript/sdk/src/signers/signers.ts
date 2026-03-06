@@ -4,7 +4,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainName } from '../types.js';
 
 import { CosmosNativeMultiProtocolSignerAdapter } from './cosmos/cosmjs.js';
-import { EvmMultiProtocolSignerAdapter } from './evm/ethersv5.js';
+import { EvmMultiProtocolSignerAdapter } from './evm/ethersv6.js';
 import { RadixMultiProtocolSignerAdapter } from './radix/radix-toolkit.js';
 import { StarknetMultiProtocolSignerAdapter } from './starknet/starknetjs.js';
 import {

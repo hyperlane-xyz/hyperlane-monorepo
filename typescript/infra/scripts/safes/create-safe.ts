@@ -1,5 +1,5 @@
 import Safe, { SafeAccountConfig } from '@safe-global/protocol-kit';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -48,7 +48,7 @@ async function main() {
   await multiProvider.sendTransaction(chain, {
     to,
     data,
-    value: BigNumber.from(value),
+    value: ethers.toBigInt(value),
   });
 
   const safeAddress = await safe.getAddress();

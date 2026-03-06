@@ -1,4 +1,4 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -8,13 +8,13 @@ import {
   stopImpersonatingAccount,
 } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { AnnotatedEvmTransaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
-import { EV5ImpersonatedAccountTxSubmitterProps } from './types.js';
+import { EvmJsonRpcTxSubmitter } from './EvmJsonRpcTxSubmitter.js';
+import { EvmImpersonatedAccountTxSubmitterProps } from './types.js';
 
-export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
+export class EvmImpersonatedAccountTxSubmitter extends EvmJsonRpcTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.IMPERSONATED_ACCOUNT;
 
@@ -24,13 +24,13 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
 
   constructor(
     multiProvider: MultiProvider,
-    public readonly props: EV5ImpersonatedAccountTxSubmitterProps,
+    public readonly props: EvmImpersonatedAccountTxSubmitterProps,
   ) {
     super(multiProvider, props);
   }
 
   public async submit(
-    ...txs: AnnotatedEV5Transaction[]
+    ...txs: AnnotatedEvmTransaction[]
   ): Promise<TransactionReceipt[]> {
     // It is assumed that this Submitter will be used by setting the registry url to the anvil endpoint
     const anvilEndpoint = this.multiProvider.getChainMetadata(this.props.chain)

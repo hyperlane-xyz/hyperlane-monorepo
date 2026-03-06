@@ -1,10 +1,5 @@
-import { BigNumber, BytesLike, Overrides, utils } from 'ethers';
-import {
-  Contract,
-  ContractFactory,
-  Wallet,
-  types as zksyncTypes,
-} from 'zksync-ethers';
+import { BytesLike, Overrides, hexlify } from 'ethers';
+import { ContractFactory, Wallet, types as zksyncTypes } from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
@@ -51,10 +46,10 @@ export class ZKSyncDeployer {
   public async estimateDeployFee(
     artifact: ZKSyncArtifact,
     constructorArguments: any[],
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const gas = await this.estimateDeployGas(artifact, constructorArguments);
     const gasPrice = await this.zkWallet.provider.getGasPrice();
-    return gas.mul(gasPrice);
+    return gas * gasPrice;
   }
 
   /**
@@ -68,7 +63,7 @@ export class ZKSyncDeployer {
   public async estimateDeployGas(
     artifact: ZKSyncArtifact,
     constructorArguments: any[],
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const factoryDeps = await this.extractFactoryDeps(artifact);
 
     const factory = new ContractFactory(
@@ -79,14 +74,22 @@ export class ZKSyncDeployer {
     );
 
     // Encode deploy transaction so it can be estimated.
-    const deployTx = factory.getDeployTransaction(...constructorArguments, {
+    const deployTx = await factory.getDeployTransaction(
+      ...constructorArguments,
+      {
+        customData: {
+          factoryDeps,
+        },
+      },
+    );
+
+    return this.zkWallet.provider.estimateGas({
+      ...deployTx,
+      from: this.zkWallet.address,
       customData: {
         factoryDeps,
       },
     });
-    deployTx.from = this.zkWallet.address;
-
-    return this.zkWallet.provider.estimateGas(deployTx);
   }
 
   /**
@@ -106,10 +109,10 @@ export class ZKSyncDeployer {
     constructorArguments: any[] = [],
     overrides?: Overrides,
     additionalFactoryDeps?: BytesLike[],
-  ): Promise<Contract> {
+  ): Promise<Awaited<ReturnType<ContractFactory['deploy']>>> {
     const baseDeps = await this.extractFactoryDeps(artifact);
     const additionalDeps = additionalFactoryDeps
-      ? additionalFactoryDeps.map((val) => utils.hexlify(val))
+      ? additionalFactoryDeps.map((val) => hexlify(val))
       : [];
     const factoryDeps = [...baseDeps, ...additionalDeps];
 
@@ -130,9 +133,6 @@ export class ZKSyncDeployer {
         factoryDeps,
       },
     });
-
-    await contract.deployed();
-
     return contract;
   }
 

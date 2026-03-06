@@ -149,7 +149,7 @@ async function main() {
     Object.entries(deployedTimelocks).forEach(
       ([chain, { TimelockController }]) => {
         results[chain] = {
-          address: TimelockController.address,
+          address: TimelockController.target as string,
           status: '✅',
         };
       },

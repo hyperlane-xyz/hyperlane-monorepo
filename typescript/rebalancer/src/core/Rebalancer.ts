@@ -1,4 +1,4 @@
-import { type PopulatedTransaction, type providers } from 'ethers';
+import type { TransactionReceipt } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -9,6 +9,7 @@ import {
   EvmMovableCollateralAdapter,
   HyperlaneCore,
   type InterchainGasQuote,
+  isNonceDriftError,
   type MultiProvider,
   type Token,
   type WarpCore,
@@ -298,7 +299,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     }
 
     // 3. Populate transaction
-    let populatedTx: PopulatedTransaction;
+    let populatedTx: PreparedTransaction['populatedTx'];
     try {
       populatedTx = await originHypAdapter.populateRebalanceTx(
         destinationChainMeta.domainId,
@@ -516,7 +517,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     // 5. Collect successful sends and record send failures
     const successfulSends: Array<{
       transaction: PreparedTransaction;
-      receipt: providers.TransactionReceipt;
+      receipt: TransactionReceipt;
     }> = [];
 
     chainSendResults.forEach((chainResult) => {
@@ -571,7 +572,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     Array<
       | {
           transaction: PreparedTransaction;
-          receipt: providers.TransactionReceipt;
+          receipt: TransactionReceipt;
         }
       | { transaction: PreparedTransaction; error: string }
     >
@@ -579,10 +580,18 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     const results: Array<
       | {
           transaction: PreparedTransaction;
-          receipt: providers.TransactionReceipt;
+          receipt: TransactionReceipt;
         }
       | { transaction: PreparedTransaction; error: string }
     > = [];
+
+    const signer = this.multiProvider.getSigner(origin);
+    const signerAddress = await signer.getAddress();
+    const provider = this.multiProvider.getProvider(origin);
+    let nextNonce = await provider.getTransactionCount(
+      signerAddress,
+      'pending',
+    );
 
     // Send sequentially to avoid nonce contention
     for (const transaction of transactions) {
@@ -604,15 +613,51 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Sending rebalance transaction and waiting for reorgPeriod confirmations.',
         );
 
-        const receipt = await this.multiProvider.sendTransaction(
-          origin,
-          transaction.populatedTx,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
+        let receipt: TransactionReceipt | undefined;
+        let nonceToUse = nextNonce;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            receipt = await this.multiProvider.sendTransaction(
+              origin,
+              {
+                ...transaction.populatedTx,
+                nonce: nonceToUse,
+              },
+              {
+                waitConfirmations: reorgPeriod as
+                  | number
+                  | EthJsonRpcBlockParameterTag,
+              },
+            );
+            nextNonce = nonceToUse + 1;
+            break;
+          } catch (error) {
+            if (attempt === 0 && isNonceDriftError(error)) {
+              const refreshedNonce = await provider.getTransactionCount(
+                signerAddress,
+                'pending',
+              );
+              this.logger.warn(
+                {
+                  origin,
+                  signerAddress,
+                  attemptedNonce: nonceToUse,
+                  refreshedNonce,
+                },
+                'Nonce drift detected, refreshing pending nonce and retrying route once.',
+              );
+              nonceToUse = refreshedNonce;
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (!receipt) {
+          throw new Error(
+            'Transaction send failed: missing receipt after retries',
+          );
+        }
 
         this.logger.info(
           {
@@ -620,7 +665,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
             destination: transaction.route.destination,
             amount: decimalFormattedAmount,
             tokenName,
-            txHash: receipt.transactionHash,
+            txHash: receipt.hash,
           },
           'Rebalance transaction confirmed at reorgPeriod depth.',
         );
@@ -650,14 +695,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
    */
   private buildResult(
     transaction: PreparedTransaction,
-    receipt: providers.TransactionReceipt,
+    receipt: TransactionReceipt,
   ): InternalExecutionResult {
     const { origin, destination } = transaction.route;
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
 
     if (dispatchedMessages.length === 0) {
       this.logger.error(
-        { origin, destination, txHash: receipt.transactionHash },
+        { origin, destination, txHash: receipt.hash },
         'No Dispatch event found in confirmed rebalance receipt',
       );
       return {
@@ -666,7 +711,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         success: false,
         error: `Transaction confirmed but no Dispatch event found`,
         messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
-        txHash: receipt.transactionHash,
+        txHash: receipt.hash,
       };
     }
 
@@ -675,7 +720,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       intentId: transaction.route.intentId,
       success: true,
       messageId: dispatchedMessages[0].id,
-      txHash: receipt.transactionHash,
+      txHash: receipt.hash,
     };
   }
 

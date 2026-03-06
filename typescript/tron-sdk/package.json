@@ -37,8 +37,6 @@
     "coverage": "c8 pnpm test"
   },
   "dependencies": {
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",

@@ -44,7 +44,7 @@ describe('RebalancerConfig', () => {
                 weight: 100,
                 tolerance: 0,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
             chain2: {
@@ -52,7 +52,7 @@ describe('RebalancerConfig', () => {
                 weight: 100,
                 tolerance: 0,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
           },
@@ -87,7 +87,7 @@ describe('RebalancerConfig', () => {
                 weight: 100n,
                 tolerance: 0n,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1_000,
             },
             chain2: {
@@ -95,7 +95,7 @@ describe('RebalancerConfig', () => {
                 weight: 100n,
                 tolerance: 0n,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1_000,
             },
           },
@@ -141,7 +141,7 @@ describe('RebalancerConfig', () => {
                 target: 0.3,
                 type: RebalancerMinAmountType.Relative,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
             chain2: {
@@ -150,7 +150,7 @@ describe('RebalancerConfig', () => {
                 target: 0.3,
                 type: RebalancerMinAmountType.Relative,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
           },
@@ -181,7 +181,7 @@ describe('RebalancerConfig', () => {
                 target: 140000,
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
             chain2: {
@@ -190,7 +190,7 @@ describe('RebalancerConfig', () => {
                 target: 140000,
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
           },
@@ -222,7 +222,7 @@ describe('RebalancerConfig', () => {
                   target: 1100,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
                 override: {
                   chain2: {
@@ -236,7 +236,7 @@ describe('RebalancerConfig', () => {
                   target: 2200,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               chain3: {
@@ -245,7 +245,7 @@ describe('RebalancerConfig', () => {
                   target: 3300,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -283,7 +283,7 @@ describe('RebalancerConfig', () => {
                   target: 1100,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
                 override: {
                   chain2: {
@@ -300,7 +300,7 @@ describe('RebalancerConfig', () => {
                   target: 2200,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -328,7 +328,7 @@ describe('RebalancerConfig', () => {
                   target: 1100,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
                 override: {
                   chain1: {
@@ -342,7 +342,7 @@ describe('RebalancerConfig', () => {
                   target: 2200,
                   type: RebalancerMinAmountType.Absolute,
                 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -359,7 +359,7 @@ describe('RebalancerConfig', () => {
 
     it('should allow multiple chain overrides', () => {
       getStrategyArray(data)[0].chains.chain1 = {
-        bridge: ethers.constants.AddressZero,
+        bridge: ethers.ZeroAddress,
         bridgeMinAcceptedAmount: 3000,
         bridgeLockTime: 1,
         weighted: {
@@ -377,7 +377,7 @@ describe('RebalancerConfig', () => {
       };
 
       getStrategyArray(data)[0].chains.chain2 = {
-        bridge: ethers.constants.AddressZero,
+        bridge: ethers.ZeroAddress,
         bridgeMinAcceptedAmount: 5000,
         bridgeLockTime: 1,
         weighted: {
@@ -387,7 +387,7 @@ describe('RebalancerConfig', () => {
       };
 
       getStrategyArray(data)[0].chains.chain3 = {
-        bridge: ethers.constants.AddressZero,
+        bridge: ethers.ZeroAddress,
         bridgeMinAcceptedAmount: 6000,
         bridgeLockTime: 1,
         weighted: {
@@ -427,12 +427,12 @@ describe('RebalancerConfig', () => {
             chains: {
               chain1: {
                 weighted: { weight: 100, tolerance: 0 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               chain2: {
                 weighted: { weight: 100, tolerance: 0 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -442,12 +442,12 @@ describe('RebalancerConfig', () => {
             chains: {
               chain1: {
                 buffer: 1000,
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               chain2: {
                 buffer: 1000,
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -471,12 +471,12 @@ describe('RebalancerConfig', () => {
             chains: {
               chain1: {
                 buffer: 1000,
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               chain2: {
                 buffer: 1000,
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -486,12 +486,12 @@ describe('RebalancerConfig', () => {
             chains: {
               chain1: {
                 weighted: { weight: 100, tolerance: 0 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               chain2: {
                 weighted: { weight: 100, tolerance: 0 },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },

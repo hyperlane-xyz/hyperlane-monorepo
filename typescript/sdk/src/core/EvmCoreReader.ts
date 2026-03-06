@@ -1,5 +1,3 @@
-import { providers } from 'ethers';
-
 import { Mailbox__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -26,7 +24,7 @@ interface CoreReader {
 }
 
 export class EvmCoreReader implements CoreReader {
-  public readonly provider: providers.Provider;
+  public readonly provider: any;
   public readonly evmHookReader: EvmHookReader;
   public readonly evmIsmReader: EvmIsmReader;
   public readonly evmIcaRouterReader: EvmIcaRouterReader;
@@ -65,7 +63,7 @@ export class EvmCoreReader implements CoreReader {
         mailboxInstance.defaultIsm(),
         mailboxInstance.defaultHook(),
         mailboxInstance.requiredHook(),
-        proxyAdmin(this.provider, mailboxInstance.address),
+        proxyAdmin(this.provider, mailboxInstance.target as Address),
       ]);
 
     // Parallelize each configuration request

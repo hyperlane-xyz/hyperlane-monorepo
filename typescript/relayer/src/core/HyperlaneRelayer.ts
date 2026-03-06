@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { type TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -28,6 +28,7 @@ import { BaseMetadataBuilder } from '../metadata/builder.js';
 import { isMetadataBuildable } from '../metadata/types.js';
 
 import { RelayerCache } from './cache.js';
+import { DispatchReceipt, toDispatchReceipt } from './dispatchReceipt.js';
 import { RelayerObserver } from './events.js';
 import { messageMatchesWhitelist } from './whitelist.js';
 
@@ -167,9 +168,9 @@ export class HyperlaneRelayer {
   }
 
   async relayAll(
-    dispatchTx: providers.TransactionReceipt,
+    dispatchTx: DispatchReceipt,
     messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
-  ): Promise<ChainMap<ethers.ContractReceipt[]>> {
+  ): Promise<ChainMap<TransactionReceipt[]>> {
     const destinationMap: ChainMap<DispatchedMessage[]> = {};
     messages.forEach((message) => {
       destinationMap[message.parsed.destination] ??= [];
@@ -179,7 +180,7 @@ export class HyperlaneRelayer {
     // parallelize relaying to different destinations
     return promiseObjAll(
       objMap(destinationMap, async (_destination, messages) => {
-        const receipts: ethers.ContractReceipt[] = [];
+        const receipts: TransactionReceipt[] = [];
         // serially relay messages to the same destination
         for (const message of messages) {
           try {
@@ -199,10 +200,10 @@ export class HyperlaneRelayer {
   }
 
   async relayMessage(
-    dispatchTx: providers.TransactionReceipt,
+    dispatchTx: DispatchReceipt,
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const originChain = this.core.getOrigin(message);
     const destinationChain = this.core.getDestination(message);
 
@@ -357,8 +358,16 @@ export class HyperlaneRelayer {
         const dispatchReceipt = await this.multiProvider
           .getProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
+        assert(
+          dispatchReceipt,
+          `Dispatch receipt not found for tx ${dispatchTx}`,
+        );
 
-        await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
+        await this.relayMessage(
+          toDispatchReceipt(dispatchReceipt),
+          undefined,
+          dispatchMsg,
+        );
       } catch (error) {
         const newAttempts = attempts + 1;
         this.logger.error(
@@ -386,30 +395,42 @@ export class HyperlaneRelayer {
     return this.whitelist ? Object.keys(this.whitelist) : undefined;
   }
 
-  start(): void {
+  async start(): Promise<void> {
     assert(!this.stopRelayingHandler, 'Relayer already started');
 
     this.backlog = this.cache?.backlog ?? [];
 
-    const { removeHandler } = this.core.onDispatch(async (message, event) => {
-      if (
-        this.whitelist &&
-        !messageMatchesWhitelist(this.whitelist, message.parsed)
-      ) {
-        this.logger.debug(
-          { message, whitelist: this.whitelist },
-          `Skipping message ${message.id} not matching whitelist`,
-        );
-        return;
-      }
+    const { removeHandler } = await this.core.onDispatch(
+      async (message, event) => {
+        if (
+          this.whitelist &&
+          !messageMatchesWhitelist(this.whitelist, message.parsed)
+        ) {
+          this.logger.debug(
+            { message, whitelist: this.whitelist },
+            `Skipping message ${message.id} not matching whitelist`,
+          );
+          return;
+        }
 
-      this.backlog.push({
-        attempts: 0,
-        lastAttempt: Date.now(),
-        message: message.message,
-        dispatchTx: event.transactionHash,
-      });
-    }, this.whitelistChains());
+        const dispatchTxHash =
+          event?.transactionHash ??
+          event?.log?.transactionHash ??
+          event?.receipt?.hash;
+        assert(
+          dispatchTxHash,
+          `Missing dispatch transaction hash for message ${message.id}`,
+        );
+
+        this.backlog.push({
+          attempts: 0,
+          lastAttempt: Date.now(),
+          message: message.message,
+          dispatchTx: dispatchTxHash,
+        });
+      },
+      this.whitelistChains(),
+    );
 
     this.stopRelayingHandler = removeHandler;
 

@@ -1,6 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants, ethers } from 'ethers';
+import { MaxUint256, ZeroAddress } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -82,6 +82,8 @@ describe('InterchainAccounts', async () => {
   it('forwards calls from interchain account', async () => {
     const recipientF = new TestRecipient__factory(signer);
     const recipient = await recipientF.deploy();
+    const recipientAddress = await recipient.getAddress();
+    const localAddress = await local.getAddress();
     const fooMessage = 'Test';
     const data = recipient.interface.encodeFunctionData('fooBar', [
       1,
@@ -92,23 +94,24 @@ describe('InterchainAccounts', async () => {
     ](
       multiProvider.getDomainId(localChain),
       signer.address,
-      local.address,
-      constants.AddressZero,
+      localAddress,
+      ZeroAddress,
     );
 
     const call = {
-      to: recipient.address,
+      to: recipientAddress,
       data,
       value: '0',
     };
     const quote = await local['quoteGasPayment(uint32)'](
       multiProvider.getDomainId(remoteChain),
     );
-    const balanceBefore = await signer.getBalance();
+    const originProvider = multiProvider.getProvider(localChain);
+    const balanceBefore = await originProvider.getBalance(signer.address);
     const config: AccountConfig = {
       origin: localChain,
       owner: signer.address,
-      localRouter: local.address,
+      localRouter: localAddress,
     };
     await app.callRemote({
       chain: localChain,
@@ -116,9 +119,9 @@ describe('InterchainAccounts', async () => {
       innerCalls: [call],
       config,
     });
-    const balanceAfter = await signer.getBalance();
+    const balanceAfter = await originProvider.getBalance(signer.address);
     await coreApp.processMessages();
-    expect(balanceAfter).to.lte(balanceBefore.sub(quote));
+    expect(balanceAfter <= balanceBefore - quote).to.be.true;
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });
@@ -138,7 +141,7 @@ describe('InterchainAccounts', async () => {
 
     it('should approve fee tokens for hooks during deployment', async () => {
       const feeTokenApprovals: FeeTokenApproval[] = [
-        { feeToken: feeToken.address, hook: mockHookAddress },
+        { feeToken: await feeToken.getAddress(), hook: mockHookAddress },
       ];
 
       const configWithApprovals = objMap(
@@ -162,21 +165,22 @@ describe('InterchainAccounts', async () => {
         contractsWithApprovals[localChain].interchainAccountRouter;
 
       const provider = multiProvider.getProvider(localChain);
-      const token = IERC20__factory.connect(feeToken.address, provider);
+      const token = IERC20__factory.connect(
+        await feeToken.getAddress(),
+        provider,
+      );
       const allowance = await token.allowance(
-        localRouter.address,
+        await localRouter.getAddress(),
         mockHookAddress,
       );
 
-      expect(allowance.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
-      );
+      expect(allowance).to.equal(MaxUint256);
     });
 
     it('should approve multiple fee tokens during deployment', async () => {
       const feeTokenApprovals: FeeTokenApproval[] = [
-        { feeToken: feeToken.address, hook: mockHookAddress },
-        { feeToken: feeToken2.address, hook: mockHookAddress2 },
+        { feeToken: await feeToken.getAddress(), hook: mockHookAddress },
+        { feeToken: await feeToken2.getAddress(), hook: mockHookAddress2 },
       ];
 
       const configWithApprovals = objMap(
@@ -200,24 +204,26 @@ describe('InterchainAccounts', async () => {
         contractsWithApprovals[localChain].interchainAccountRouter;
 
       const provider = multiProvider.getProvider(localChain);
-      const token1 = IERC20__factory.connect(feeToken.address, provider);
-      const token2 = IERC20__factory.connect(feeToken2.address, provider);
+      const token1 = IERC20__factory.connect(
+        await feeToken.getAddress(),
+        provider,
+      );
+      const token2 = IERC20__factory.connect(
+        await feeToken2.getAddress(),
+        provider,
+      );
 
       const allowance1 = await token1.allowance(
-        localRouter.address,
+        await localRouter.getAddress(),
         mockHookAddress,
       );
       const allowance2 = await token2.allowance(
-        localRouter.address,
+        await localRouter.getAddress(),
         mockHookAddress2,
       );
 
-      expect(allowance1.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
-      );
-      expect(allowance2.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
-      );
+      expect(allowance1).to.equal(MaxUint256);
+      expect(allowance2).to.equal(MaxUint256);
     });
 
     it('should not fail when feeTokenApprovals is empty', async () => {
@@ -239,8 +245,10 @@ describe('InterchainAccounts', async () => {
       ).deploy(configWithEmptyApprovals);
 
       expect(
-        contractsWithEmptyApprovals[localChain].interchainAccountRouter.address,
-      ).to.not.equal(constants.AddressZero);
+        await contractsWithEmptyApprovals[
+          localChain
+        ].interchainAccountRouter.getAddress(),
+      ).to.not.equal(ZeroAddress);
     });
 
     it('should not fail when feeTokenApprovals is undefined', async () => {
@@ -262,8 +270,10 @@ describe('InterchainAccounts', async () => {
       ).deploy(configWithoutApprovals);
 
       expect(
-        contractsWithoutApprovals[localChain].interchainAccountRouter.address,
-      ).to.not.equal(constants.AddressZero);
+        await contractsWithoutApprovals[
+          localChain
+        ].interchainAccountRouter.getAddress(),
+      ).to.not.equal(ZeroAddress);
     });
   });
 });

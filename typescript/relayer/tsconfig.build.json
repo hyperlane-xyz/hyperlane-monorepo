@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "./src/**/*.test.ts",
+    "./src/**/*.hardhat-test.ts",
+    "./src/**/*.foundry-test.ts"
+  ]
+}

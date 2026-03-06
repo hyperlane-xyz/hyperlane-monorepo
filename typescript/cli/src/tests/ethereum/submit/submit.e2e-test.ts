@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
+import { type TransactionRequest as EthersV6Transaction, ethers } from 'ethers';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
 import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
-import { EV5FileSubmitter } from '../../../submitters/EV5FileSubmitter.js';
+import { EvmFileSubmitter } from '../../../submitters/EvmFileSubmitter.js';
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
@@ -22,13 +22,14 @@ async function getMintOnlyOwnerTransaction(
   address: Address,
   amount: number,
   chainId: number,
-): Promise<EV5Transaction> {
+): Promise<EthersV6Transaction> {
   const owner = await xerc20.owner();
-  const iface = new ethers.utils.Interface(XERC20VSTest__factory.abi);
+  const xerc20Address = await xerc20.getAddress();
+  const iface = new ethers.Interface(XERC20VSTest__factory.abi);
   const calldata = iface.encodeFunctionData('mintOnlyOwner', [address, amount]);
   return {
     data: calldata,
-    to: xerc20.address,
+    to: xerc20Address,
     from: owner,
     chainId,
   };
@@ -44,7 +45,7 @@ async function expectUserBalances(
     const xerc20 = xerc20Chains[idx];
     const balance = balances[idx];
     const userBalance = await xerc20.balanceOf(user);
-    expect(userBalance).to.eql(ethers.BigNumber.from(balance));
+    expect(userBalance).to.eql(BigInt(balance));
   }
 }
 
@@ -124,8 +125,8 @@ describe('hyperlane submit', function () {
     );
     await hyperlaneSubmit({ strategyPath, transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      initialBalances[0].add(chain2MintAmount).toNumber(),
-      initialBalances[1].add(chain3MintAmount).toNumber(),
+      Number(initialBalances[0] + BigInt(chain2MintAmount)),
+      Number(initialBalances[1] + BigInt(chain3MintAmount)),
     ]);
   });
 
@@ -157,8 +158,8 @@ describe('hyperlane submit', function () {
     );
     await hyperlaneSubmit({ transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      initialBalances[0].add(chain2MintAmount).toNumber(),
-      initialBalances[1].add(chain3MintAmount).toNumber(),
+      Number(initialBalances[0] + BigInt(chain2MintAmount)),
+      Number(initialBalances[1] + BigInt(chain3MintAmount)),
     ]);
   });
 
@@ -211,11 +212,11 @@ describe('hyperlane submit', function () {
 
     it('should serialize parallel writes to the same file', async () => {
       const outputTransactionPath = `${TEMP_PATH}/transactions_${randomInt(0, 1_000_000)}.json`;
-      const submitterA = new EV5FileSubmitter({
+      const submitterA = new EvmFileSubmitter({
         chain: CHAIN_NAME_2,
         filepath: outputTransactionPath,
       });
-      const submitterB = new EV5FileSubmitter({
+      const submitterB = new EvmFileSubmitter({
         chain: CHAIN_NAME_3,
         filepath: outputTransactionPath,
       });

@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract, constants } from 'ethers';
+import { Contract, ZeroAddress } from 'ethers';
 
 import {
   EverclearTokenBridge,
@@ -214,10 +214,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        domains = await movableToken.domains();
+        const domainIds = (await movableToken.domains()).map(Number);
+        domains = domainIds;
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
-            arrayToObject(domains.map((domain) => domain.toString())),
+            arrayToObject(domainIds.map((domain) => domain.toString())),
             (domain) => movableToken.allowedBridges(domain),
           ),
         );
@@ -244,7 +245,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (type === TokenType.collateralCctp) {
-      routerConfig.interchainSecurityModule = constants.AddressZero;
+      routerConfig.interchainSecurityModule = ZeroAddress;
     }
 
     return {
@@ -269,7 +270,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
-      TokenRouter.feeRecipient().catch(() => constants.AddressZero),
+      TokenRouter.feeRecipient().catch(() => ZeroAddress),
     ]);
 
     const hasTokenFeeInterface =
@@ -291,13 +292,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await TokenRouter.domains().catch((error) => {
-        this.logger.debug(
-          `Failed to derive token router domains for routing fee config on "${this.chain}"`,
-          error,
-        );
-        return undefined;
-      }));
+      (
+        await TokenRouter.domains().catch((error) => {
+          this.logger.debug(
+            `Failed to derive token router domains for routing fee config on "${this.chain}"`,
+            error,
+          );
+          return undefined;
+        })
+      )?.map(Number);
 
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
@@ -463,7 +466,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                 wrappedToken,
                 this.provider,
               );
-              await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
+              await xerc20.mintingCurrentLimitOf(warpRouteAddress);
               return TokenType.XERC20;
             } catch (error) {
               this.logger.debug(
@@ -479,7 +482,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               );
 
               // Simulate minting tokens from the warp route contract
-              await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
+              await fiatToken.mint.staticCall(NON_ZERO_SENDER_ADDRESS, 1, {
                 from: warpRouteAddress,
               });
 
@@ -498,7 +501,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                   this.provider,
                 );
 
-              await maybeEverclearTokenBridge.callStatic.everclearAdapter();
+              await maybeEverclearTokenBridge.everclearAdapter.staticCall();
 
               let everclearTokenType: TokenType = TokenType.collateralEverclear;
               try {
@@ -598,7 +601,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           this.chain,
           {
             to: warpRouteAddress,
-            value: BigNumber.from(0),
+            value: 0n,
           },
           NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
         );
@@ -796,7 +799,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     ).version();
 
-    if (onchainCctpVersion === 0) {
+    if (onchainCctpVersion === 0n) {
       return {
         ...collateralConfig,
         type: TokenType.collateralCctp,
@@ -805,7 +808,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenMessenger,
         urls,
       };
-    } else if (onchainCctpVersion === 1) {
+    } else if (onchainCctpVersion === 1n) {
       const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
         hypToken,
         this.provider,
@@ -821,13 +824,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenBridgeV2.minFinalityThreshold(),
         usesPpmName
           ? tokenBridgeV2.maxFeePpm()
-          : tokenBridgeV2.provider
+          : this.provider
               .call({
                 to: hypToken,
                 // maxFeeBps() selector
                 data: '0xbf769a3f',
               })
-              .then((result) => BigNumber.from(result)),
+              .then((result: string) => BigInt(result)),
       ]);
       return {
         ...collateralConfig,
@@ -836,8 +839,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         messageTransmitter,
         tokenMessenger,
         urls,
-        minFinalityThreshold,
-        maxFeeBps: maxFeePpm.toNumber(),
+        minFinalityThreshold: Number(minFinalityThreshold),
+        maxFeeBps: Number(maxFeePpm),
       };
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
@@ -1004,8 +1007,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.fetchScale(hypTokenAddress),
     ]);
 
-    const collateralChainName =
-      this.multiProvider.getChainName(collateralDomainId);
+    const collateralChainName = this.multiProvider.getChainName(
+      Number(collateralDomainId),
+    );
 
     return {
       ...erc20TokenMetadata,
@@ -1047,8 +1051,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           await everclearTokenbridgeInstance.feeParams(domainId);
 
         return {
-          deadline: deadline.toNumber(),
-          fee: fee.toNumber(),
+          deadline: Number(deadline),
+          fee: Number(fee),
           signature,
         };
       }),
@@ -1185,7 +1189,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       erc20.decimals(),
     ]);
 
-    return { name, symbol, decimals, isNft: false };
+    return { name, symbol, decimals: Number(decimals), isNft: false };
   }
 
   /**
@@ -1218,8 +1222,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ]);
 
       result = {
-        numerator: numerator.toBigInt(),
-        denominator: denominator.toBigInt(),
+        numerator,
+        denominator,
       };
     } else {
       // Read old format (single scale value) using low-level call
@@ -1231,8 +1235,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         legacyScaleABI,
         this.provider,
       );
-      const scale: BigNumber = await legacyContract.scale();
-      result = { numerator: scale.toBigInt(), denominator: 1n };
+      const scale = BigInt(await legacyContract.scale());
+      result = { numerator: scale, denominator: 1n };
     }
 
     // Omit identity scale so derived config matches deploy configs that

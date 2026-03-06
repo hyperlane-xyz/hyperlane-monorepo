@@ -1,4 +1,4 @@
-import { BytesLike, ethers } from 'ethers';
+import { BytesLike, dataSlice, toBigInt } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -44,29 +44,31 @@ class CCTPAttestationService {
     fieldIndex: number,
     fieldOffset: number,
   ): BytesLike {
-    return ethers.utils.hexDataSlice(
-      message,
-      fieldIndex,
-      fieldIndex + fieldOffset,
-    );
+    return dataSlice(message, fieldIndex, fieldIndex + fieldOffset);
   }
 
   // Index and offset values retrieved from CctpMessageV2.sol
   _getCCTPVersionFromMessage(message: string): bigint {
     const versionIndex = 0;
     const versionOffset = 4;
-    return ethers.BigNumber.from(
+    return toBigInt(
       this._getFieldFromMessage(message, versionIndex, versionOffset),
-    ).toBigInt();
+    );
   }
 
   // Index and offset values retrieved from CctpMessageV2.sol
   _getSourceDomainFromMessage(message: string): number {
     const sourceDomainIndex = 4;
     const sourceDomainOffset = 4;
-    return ethers.BigNumber.from(
-      this._getFieldFromMessage(message, sourceDomainIndex, sourceDomainOffset),
-    ).toNumber();
+    return Number(
+      toBigInt(
+        this._getFieldFromMessage(
+          message,
+          sourceDomainIndex,
+          sourceDomainOffset,
+        ),
+      ),
+    );
   }
 
   _getAttestationUrlV1(cctpMessage: string, transactionHash: string): string {

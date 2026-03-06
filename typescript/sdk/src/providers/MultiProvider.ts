@@ -1,13 +1,11 @@
 import {
-  BigNumber,
-  Contract,
   ContractFactory,
-  ContractReceipt,
-  ContractTransaction,
-  PopulatedTransaction,
-  Signer,
-  providers,
+  NonceManager,
+  TransactionReceipt,
+  TransactionRequest,
+  JsonRpcProvider,
 } from 'ethers';
+import type { Provider as EthersProvider, Signer } from 'ethers';
 import { Logger } from 'pino';
 import {
   ContractFactory as ZKSyncContractFactory,
@@ -36,7 +34,7 @@ import {
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
-import { AnnotatedEV5Transaction } from './ProviderType.js';
+import { AnnotatedEvmTransaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
@@ -44,10 +42,58 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider | ZKSyncProvider;
+type Provider = EthersProvider | ZKSyncProvider;
+type TransactionResponseLike = {
+  hash: string;
+  wait(confirmations?: number): Promise<TransactionReceipt | null>;
+};
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
+
+export function isNonceDriftError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as { code?: unknown; message?: unknown };
+  if (err.code === 'NONCE_EXPIRED') return true;
+  if (typeof err.message !== 'string') return false;
+  const message = err.message.toLowerCase();
+  return (
+    message.includes('nonce too low') ||
+    message.includes('nonce has already been used')
+  );
+}
+
+class ResilientNonceManager extends NonceManager {
+  override async sendTransaction(tx: TransactionRequest) {
+    try {
+      return await super.sendTransaction(tx);
+    } catch (error) {
+      // Failed sends can desync nonce cache from chain state; reset before retrying.
+      this.reset();
+      if (isNonceDriftError(error)) {
+        return super.sendTransaction(tx);
+      }
+      throw error;
+    }
+  }
+}
+
+function unwrapSignerForNonceManagement(signer: Signer): Signer {
+  if (!(signer instanceof NonceManager)) return signer;
+  const innerSigner = (signer as Signer & { signer?: Signer }).signer;
+  return innerSigner ?? signer;
+}
+
+function connectSignerToProvider(signer: Signer, provider: Provider): Signer {
+  if (provider instanceof ZKSyncProvider) {
+    assert(
+      signer instanceof ZKSyncWallet,
+      'Expected zkSync wallet for zkSync provider',
+    );
+    return signer.connect(provider) as unknown as Signer;
+  }
+  return signer.connect(provider);
+}
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -130,7 +176,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
       } else {
-        this.providers[name] = new providers.JsonRpcProvider(
+        this.providers[name] = new JsonRpcProvider(
           'http://127.0.0.1:8545',
           31337,
         );
@@ -174,7 +220,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.signers[chainName];
     if (signer && signer.provider && !this.useSharedSigner) {
       try {
-        this.setSigner(chainName, signer.connect(provider));
+        this.setSigner(chainName, connectSignerToProvider(signer, provider));
       } catch (e: unknown) {
         // JsonRpcSigner throws UNSUPPORTED_OPERATION for .connect();
         // use a type guard instead of `as` cast to safely access .code
@@ -209,19 +255,38 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (!chainName) return null;
     const signer = this.signers[chainName];
     if (!signer) return null;
-    if (signer.provider) return signer;
+    let connectedSigner = signer;
     // Auto-connect the signer for convenience
-    const provider = this.tryGetProvider(chainName);
-    if (!provider) return signer;
-    const connected = signer.connect(provider);
-    // Only cache when not using a shared signer. In shared-signer mode,
-    // caching pins the signer to this provider; setProvider() skips
-    // reconnection when useSharedSigner is true, so the cached signer
-    // would go stale after a provider swap.
-    if (!this.useSharedSigner) {
-      this.signers[chainName] = connected;
+    if (!connectedSigner.provider) {
+      const provider = this.tryGetProvider(chainName);
+      if (!provider) return connectedSigner;
+      connectedSigner = connectSignerToProvider(connectedSigner, provider);
     }
-    return connected;
+
+    const metadata = this.getChainMetadata(chainName);
+    const signerConstructorName = connectedSigner.constructor?.name;
+    const isHardhatSigner = signerConstructorName === 'HardhatEthersSigner';
+    const skipNonceManagerForLocalTesting =
+      metadata.blocks?.confirmations === 0 &&
+      metadata.blocks?.reorgPeriod === 0;
+    const useNonceManager =
+      metadata.protocol === ProtocolType.Ethereum &&
+      !skipNonceManagerForLocalTesting &&
+      !isHardhatSigner;
+
+    if (
+      useNonceManager &&
+      !(connectedSigner instanceof ResilientNonceManager)
+    ) {
+      connectedSigner = new ResilientNonceManager(
+        unwrapSignerForNonceManagement(connectedSigner),
+      );
+    }
+
+    if (!this.useSharedSigner) {
+      this.signers[chainName] = connectedSigner;
+    }
+    return connectedSigner;
   }
 
   /**
@@ -367,7 +432,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   getTransactionOverrides(
     chainNameOrId: ChainNameOrId,
-  ): Partial<providers.TransactionRequest> {
+  ): Partial<TransactionRequest> {
     return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
   }
 
@@ -386,15 +451,15 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const metadata = this.getChainMetadata(chainNameOrId);
     const { protocol, technicalStack } = metadata;
 
-    let contract: Contract;
-    let estimatedGas: BigNumber;
+    let contract: any;
+    let estimatedGas: bigint;
 
     // estimate gas for deploy
     // deploy with buffer on gas limit
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
-      const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
+      const deployer = new ZKSyncDeployer(signer as unknown as ZKSyncWallet);
       estimatedGas = await deployer.estimateDeployGas(artifact, params);
       contract = await deployer.deploy(artifact, params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
@@ -405,28 +470,44 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else {
       const resolved =
         protocol === ProtocolType.Tron
-          ? await this.resolveTronFactory(factory)
+          ? await this.resolveTronFactory(factory as unknown as ContractFactory)
           : factory;
-      const contractFactory = resolved.connect(signer);
-
-      const deployTx = contractFactory.getDeployTransaction(...params);
+      const contractFactory = resolved.connect(signer as any);
+      const deployTx = await contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
-      // manually wait for deploy tx to be confirmed
-      assert(contract.deployTransaction, 'Deploy transaction missing');
-      await this.handleTx(chainNameOrId, contract.deployTransaction);
+      // manually wait for deploy tx to be confirmed for non-zksync chains
+      const deploymentTx =
+        (contract as any).deploymentTransaction?.() ??
+        (contract as any).deployTransaction;
+      if (!deploymentTx) {
+        throw new Error(`Missing deployment transaction for ${chainNameOrId}`);
+      }
+      await this.handleTx(
+        chainNameOrId,
+        deploymentTx as TransactionResponseLike,
+      );
     }
 
+    const contractAddress = await (contract as any).getAddress?.();
+    assert(
+      typeof contractAddress === 'string',
+      `Missing deployed contract address on ${chainNameOrId}`,
+    );
+    const deploymentTx =
+      (contract as any).deploymentTransaction?.() ??
+      (contract as any).deployTransaction;
+
     this.logger.trace(
-      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
-      { transaction: contract.deployTransaction },
+      `Contract deployed at ${contractAddress} on ${chainNameOrId}:`,
+      { transaction: deploymentTx },
     );
 
     // return deployed contract
-    return contract as Awaited<ReturnType<F['deploy']>>;
+    return contract;
   }
 
   /**
@@ -441,7 +522,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * with TronContractFactory to handle Tron's deployment flow.
    * @throws if no matching Tron factory is found
    */
-  async resolveTronFactory<F extends ContractFactory>(factory: F): Promise<F> {
+  async resolveTronFactory(factory: ContractFactory): Promise<ContractFactory> {
     const TronSdk = await import('@hyperlane-xyz/tron-sdk');
     const TronFactory = (TronSdk as Record<string, any>)[
       factory.constructor.name
@@ -451,7 +532,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         `No Tron-compiled factory found for ${factory.constructor.name}`,
       );
     }
-    return new TronSdk.TronContractFactory(new TronFactory()) as unknown as F;
+    return new TronSdk.TronContractFactory(
+      new TronFactory(),
+    ) as unknown as ContractFactory;
   }
 
   /**
@@ -461,9 +544,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async handleTx(
     chainNameOrId: ChainNameOrId,
-    tx: ContractTransaction | Promise<ContractTransaction>,
+    tx: TransactionResponseLike | Promise<TransactionResponseLike>,
     options?: SendTransactionOptions,
-  ): Promise<ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
 
@@ -499,13 +582,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
-    const receipt = await timeout(
+    const receipt = (await timeout(
       response.wait(confirmations),
       timeoutMs,
       `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
-    );
+    )) as TransactionReceipt | null;
 
-    // ethers v5 can return null for wait(0) if tx is still pending.
+    // ethers can return null for wait(0) if tx is still pending.
     if (receipt) return receipt;
 
     this.logger.info(
@@ -529,10 +612,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async waitForBlockTag(
     chainNameOrId: ChainNameOrId,
-    response: ContractTransaction,
+    response: TransactionResponseLike,
     blockTag: EthJsonRpcBlockParameterTag,
     timeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
-  ): Promise<ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion
     assert(receipt, `Transaction ${response.hash} was not included`);
@@ -562,7 +645,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
           `Transaction ${response.hash} not found after ${blockTag} confirmation - may have been reorged out`,
         );
       }
-      return finalReceipt;
+      return finalReceipt as unknown as TransactionReceipt;
     }
 
     const POLL_INTERVAL_MS = 2000;
@@ -584,7 +667,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
             `Transaction ${response.hash} not found after ${blockTag} confirmation - may have been reorged out`,
           );
         }
-        return finalReceipt;
+        return finalReceipt as unknown as TransactionReceipt;
       }
     }
 
@@ -599,9 +682,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async prepareTx(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction,
+    tx: TransactionRequest,
     from?: string,
-  ): Promise<providers.TransactionRequest> {
+  ): Promise<TransactionRequest> {
     const txFrom = from ?? (await this.getSignerAddress(chainNameOrId));
     const overrides = this.getTransactionOverrides(chainNameOrId);
     return {
@@ -617,9 +700,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async estimateGas(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction,
+    tx: TransactionRequest,
     from?: string,
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const txReq = {
       ...(await this.prepareTx(chainNameOrId, tx, from)),
       // Reset any tx request params that may have an unintended effect on gas estimation
@@ -639,9 +722,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainNameOrId,
-    txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
+    txProm: AnnotatedEvmTransaction | Promise<AnnotatedEvmTransaction>,
     options?: SendTransactionOptions,
-  ): Promise<ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
@@ -650,7 +733,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
-    return this.handleTx(chainNameOrId, response, options);
+    return this.handleTx(
+      chainNameOrId,
+      response as TransactionResponseLike,
+      options,
+    );
   }
 
   /**

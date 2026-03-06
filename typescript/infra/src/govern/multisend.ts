@@ -38,7 +38,7 @@ export class SignerMultiSend extends MultiSend {
         gasLimit: addBufferToGasLimit(estimate),
         ...call,
       });
-      console.log(chalk.green(`Confirmed tx ${receipt.transactionHash}`));
+      console.log(chalk.green(`Confirmed tx ${receipt.hash}`));
     }
   }
 }

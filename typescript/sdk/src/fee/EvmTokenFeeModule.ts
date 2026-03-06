@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { MaxUint256, ZeroAddress } from 'ethers';
 
 import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
@@ -22,7 +22,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -115,7 +115,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       multiProvider,
       {
         addresses: {
-          deployedFee: constants.AddressZero,
+          deployedFee: ZeroAddress,
         },
         chain,
         config,
@@ -129,8 +129,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
       config,
     });
-    module.args.addresses.deployedFee =
-      contracts[chainName][config.type].address;
+    module.args.addresses.deployedFee = contracts[chainName][config.type]
+      .target as Address;
 
     return module;
   }
@@ -225,8 +225,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         type: TokenFeeType.RoutingFee,
         token,
         owner,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
+        maxFee: MaxUint256,
+        halfAmount: MaxUint256,
         feeContracts,
       };
     } else {
@@ -291,10 +291,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   async update(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     TokenFeeConfigInputSchema.parse(targetConfig);
 
-    let updateTransactions: AnnotatedEV5Transaction[] = [];
+    let updateTransactions: AnnotatedEvmTransaction[] = [];
 
     // Derive routingDestinations from target config if not provided
     // This ensures we read all sub-fee configs that need to be compared/updated
@@ -355,8 +355,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         chainName: this.chainName,
         contractVerifier: this.contractVerifier,
       });
-      this.args.addresses.deployedFee =
-        contracts[this.chainName][normalizedTargetConfig.type].address;
+      this.args.addresses.deployedFee = contracts[this.chainName][
+        normalizedTargetConfig.type
+      ].target as Address;
 
       return [];
     }
@@ -381,7 +382,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
 
     if (!targetConfig.feeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
@@ -413,7 +414,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           chainId: this.chainId,
           to: currentRoutingAddress,
           data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
+            'setFeeContract',
             [this.multiProvider.getDomainId(chainName), deployedSubFee],
           ),
         });
@@ -445,7 +446,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             chainId: this.chainId,
             to: currentRoutingAddress,
             data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
+              'setFeeContract',
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });
@@ -459,7 +460,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   private createOwnershipUpdateTxs(
     actualConfig: TokenFeeConfig,
     expectedConfig: TokenFeeConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     return transferOwnershipTransactions(
       this.multiProvider.getEvmChainId(this.args.chain),
       this.args.addresses.deployedFee,

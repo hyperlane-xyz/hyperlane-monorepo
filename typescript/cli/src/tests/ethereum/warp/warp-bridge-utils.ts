@@ -1,6 +1,4 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
-import { parseUnits } from 'ethers/lib/utils.js';
+import { JsonRpcProvider, Wallet, parseUnits } from 'ethers';
 
 import {
   type ERC20Test,
@@ -113,7 +111,8 @@ export async function runWarpBridgeTests(
 
     const warpCoreConfig: WarpCoreConfig = readYamlOrJson(routeConfigPath);
     if (warpConfig[CHAIN_NAME_2].type.match(/.*xerc20.*/i)) {
-      const tx = await config.xERC202.addBridge({
+      const xerc20 = config.xERC202.connect(config.walletChain2);
+      const tx = await xerc20.addBridge({
         bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
         bufferCap: 20000000000000,
         rateLimitPerSecond: 5000000000,
@@ -123,7 +122,8 @@ export async function runWarpBridgeTests(
     }
 
     if (warpConfig[CHAIN_NAME_3].type.match(/.*xerc20.*/i)) {
-      const tx = await config.xERC203.addBridge({
+      const xerc20 = config.xERC203.connect(config.walletChain3);
+      const tx = await xerc20.addBridge({
         bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
         bufferCap: 20000000000000,
         rateLimitPerSecond: 5000000000,
@@ -175,6 +175,7 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   ]);
 
   const tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+  const tokenChain2Address = await tokenChain2.getAddress();
   const fiatToken2 = await deployFiatToken(ANVIL_KEY, CHAIN_NAME_2);
   const xERC202 = await deployXERC20VSToken(ANVIL_KEY, CHAIN_NAME_2);
   const xERC20Lockbox2 = await deployXERC20LockboxToken(
@@ -185,7 +186,7 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const vaultChain2 = await deploy4626Vault(
     ANVIL_KEY,
     CHAIN_NAME_2,
-    tokenChain2.address,
+    tokenChain2Address,
   );
 
   const [tokenChain2Symbol, tokenVaultChain2Symbol] = await Promise.all([
@@ -200,6 +201,7 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   );
 
   const tokenChain3 = await deployToken(ANVIL_KEY, CHAIN_NAME_3);
+  const tokenChain3Address = await tokenChain3.getAddress();
   const fiatToken3 = await deployFiatToken(ANVIL_KEY, CHAIN_NAME_3);
   const xERC203 = await deployXERC20VSToken(ANVIL_KEY, CHAIN_NAME_3);
   const xERC20Lockbox3 = await deployXERC20LockboxToken(
@@ -210,7 +212,7 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const vaultChain3 = await deploy4626Vault(
     ANVIL_KEY,
     CHAIN_NAME_3,
-    tokenChain3.address,
+    tokenChain3Address,
   );
 
   const [tokenChain3Symbol, tokenVaultChain3Symbol] = await Promise.all([
@@ -249,33 +251,61 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   };
 }
 
-export function generateTestCases(
+export async function generateTestCases(
   config: WarpBridgeTestConfig,
   divideBy: number,
   index: number,
-): ReadonlyArray<WarpRouteDeployConfig> {
+): Promise<ReadonlyArray<WarpRouteDeployConfig>> {
+  const [
+    tokenChain2Address,
+    vaultChain2Address,
+    fiatToken2Address,
+    xERC202Address,
+    xERC20Lockbox2Address,
+    everclearBridgeAdapterChain2Address,
+    tokenChain3Address,
+    vaultChain3Address,
+    fiatToken3Address,
+    xERC203Address,
+    xERC20Lockbox3Address,
+    everclearBridgeAdapterChain3Address,
+  ] = await Promise.all([
+    config.tokenChain2.getAddress(),
+    config.vaultChain2.getAddress(),
+    config.fiatToken2.getAddress(),
+    config.xERC202.getAddress(),
+    config.xERC20Lockbox2.getAddress(),
+    config.everclearBridgeAdapterChain2.getAddress(),
+    config.tokenChain3.getAddress(),
+    config.vaultChain3.getAddress(),
+    config.fiatToken3.getAddress(),
+    config.xERC203.getAddress(),
+    config.xERC20Lockbox3.getAddress(),
+    config.everclearBridgeAdapterChain3.getAddress(),
+  ]);
+
   const warpConfigTestCases = generateWarpConfigs(
     {
       chainName: CHAIN_NAME_2,
       mailbox: config.chain2Addresses.mailbox,
       owner: config.ownerAddress,
-      token: config.tokenChain2.address,
-      vault: config.vaultChain2.address,
-      fiatToken: config.fiatToken2.address,
-      xerc20: config.xERC202.address,
-      xerc20Lockbox: config.xERC20Lockbox2.address,
-      everclearBridgeAdapter: config.everclearBridgeAdapterChain2.address,
+      token: tokenChain2Address,
+      vault: vaultChain2Address,
+      fiatToken: fiatToken2Address,
+      xerc20: xERC202Address,
+      xerc20Lockbox: xERC20Lockbox2Address,
+      everclearBridgeAdapter: everclearBridgeAdapterChain2Address,
     },
     {
       chainName: CHAIN_NAME_3,
       mailbox: config.chain3Addresses.mailbox,
       owner: config.ownerAddress,
-      token: config.tokenChain3.address,
-      vault: config.vaultChain3.address,
-      fiatToken: config.fiatToken3.address,
-      xerc20: config.xERC203.address,
-      xerc20Lockbox: config.xERC20Lockbox3.address,
-      everclearBridgeAdapter: config.everclearBridgeAdapterChain3.address,
+      token: tokenChain3Address,
+      vault: vaultChain3Address,
+      fiatToken: fiatToken3Address,
+      xerc20: xERC203Address,
+      xerc20Lockbox: xERC20Lockbox3Address,
+      everclearBridgeAdapter: everclearBridgeAdapterChain3Address,
     },
   );
 
@@ -342,11 +372,14 @@ export async function collateralizeWarpTokens(
           !warpDeployConfig[chainName].type.match(/.*synthetic/i) &&
           warpDeployConfig[chainName].type.match(/.*collateral/i)
         ) {
-          const decimals =
-            await walletAndCollateralByChain[chainName].collateral.decimals();
-          const tx = await walletAndCollateralByChain[
-            chainName
-          ].collateral.transfer(
+          const collateral = walletAndCollateralByChain[chainName].collateral;
+          const collateralAddress = await collateral.getAddress();
+          const collateralInstance = ERC20Test__factory.connect(
+            collateralAddress,
+            walletAndCollateralByChain[chainName].wallet,
+          );
+          const decimals = await collateralInstance.decimals();
+          const tx = await collateralInstance.transfer(
             config[chainName].addressOrDenom,
             parseUnits('2', decimals),
           );
@@ -356,6 +389,7 @@ export async function collateralizeWarpTokens(
 
         if (warpDeployConfig[chainName].type === TokenType.XERC20Lockbox) {
           const lockbox = walletAndCollateralByChain[chainName].xerc20Lockbox;
+          const lockboxAddress = await lockbox.getAddress();
 
           const lockboxCollateral = await lockbox.ERC20();
           const collateralInstance = ERC20Test__factory.connect(
@@ -365,7 +399,7 @@ export async function collateralizeWarpTokens(
 
           const decimals = await collateralInstance.decimals();
           const tx = await collateralInstance.transfer(
-            lockbox.address,
+            lockboxAddress,
             parseUnits('1', decimals),
           );
 

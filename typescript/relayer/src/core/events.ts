@@ -1,6 +1,6 @@
-import type { providers } from 'ethers';
-
 import type { DispatchedMessage } from '@hyperlane-xyz/sdk';
+
+import type { DispatchReceipt } from './dispatchReceipt.js';
 
 /**
  * Relayer events, useful for metrics and monitoring
@@ -13,7 +13,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       durationMs: number;
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: DispatchReceipt;
     }
   | {
       type: 'messageFailed';
@@ -22,7 +22,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       error: Error;
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: DispatchReceipt;
     }
   | {
       type: 'messageSkipped';
@@ -31,7 +31,7 @@ export type RelayerEvent =
       destinationChain: string;
       messageId: string;
       reason: 'whitelist' | 'already_delivered';
-      dispatchTx?: providers.TransactionReceipt;
+      dispatchTx?: DispatchReceipt;
     }
   | {
       type: 'retry';

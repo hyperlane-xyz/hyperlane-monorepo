@@ -8,7 +8,7 @@ import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
 import { ChainMap } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   ProtocolTypedReceipt,
 } from '../../../ProviderType.js';
 import { CallData } from '../../types.js';
@@ -25,7 +25,7 @@ type EvmTimelockControllerSubmitterConstructorConfig = Required<
   >
 >;
 
-export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
+export class EvmTimelockSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.TIMELOCK_CONTROLLER;
 
@@ -40,14 +40,14 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     config: EvmTimelockControllerSubmitterProps,
     multiProvider: MultiProvider,
     coreAddressesByChain: ChainMap<Record<string, string>>,
-  ): Promise<EV5TimelockSubmitter> {
+  ): Promise<EvmTimelockSubmitter> {
     const provider = multiProvider.getProvider(config.chain);
     const timelockInstance = TimelockController__factory.connect(
       config.timelockAddress,
       provider,
     );
 
-    const minDelay = (await timelockInstance.getMinDelay()).toBigInt();
+    const minDelay = await timelockInstance.getMinDelay();
     const delay = config.delay ?? minDelay;
     assert(
       delay >= minDelay,
@@ -60,7 +60,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       coreAddressesByChain,
     );
 
-    return new EV5TimelockSubmitter(
+    return new EvmTimelockSubmitter(
       {
         chain: config.chain,
         delay,
@@ -74,7 +74,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
   }
 
   async submit(
-    ...txs: AnnotatedEV5Transaction[]
+    ...txs: AnnotatedEvmTransaction[]
   ): Promise<
     | void
     | ProtocolTypedReceipt<ProtocolType.Ethereum>['receipt']
@@ -94,8 +94,14 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     // If no domain id is set on the transactions
     // assume they are to be sent on the current configured chain
     const [domainId] = transactionChains.values();
+    const destinationDomainOrChain =
+      domainId === undefined || domainId === null
+        ? this.config.chain
+        : typeof domainId === 'bigint'
+          ? Number(domainId)
+          : domainId;
     const destinationChainDomainId = this.multiProvider.getDomainId(
-      domainId ?? this.config.chain,
+      destinationDomainOrChain,
     );
 
     const calldata: CallData[] = txs.map((transaction): CallData => {
@@ -103,6 +109,10 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       assert(
         transaction.to,
         'Invalid Transaction: target address must be defined',
+      );
+      assert(
+        typeof transaction.to === 'string',
+        'Invalid Transaction: target address must be a string',
       );
 
       return {
@@ -140,7 +150,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     );
 
     const [proposeCallData, executeCallData] = await Promise.all([
-      this.timelockInstance.populateTransaction.scheduleBatch(
+      this.timelockInstance.scheduleBatch.populateTransaction(
         to,
         value,
         data,
@@ -148,7 +158,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
         this.config.salt,
         this.config.delay,
       ),
-      this.timelockInstance.populateTransaction.executeBatch(
+      this.timelockInstance.executeBatch.populateTransaction(
         to,
         value,
         data,
