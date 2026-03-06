@@ -76,7 +76,6 @@ mod multisig_ism;
 mod registry;
 mod router;
 mod serde;
-mod spl_token_2022_ext;
 mod squads;
 mod warp_route;
 

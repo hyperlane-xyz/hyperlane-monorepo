@@ -39,7 +39,6 @@ use crate::{
     router::{
         deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
-    spl_token_2022_ext::initialize_metadata_pointer,
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
@@ -325,11 +324,15 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                         )
                         .unwrap(),
                     )
-                    .add(initialize_metadata_pointer(
-                        &mint_account,
-                        Some(ctx.payer_pubkey), // metadata pointer authority
-                        Some(mint_account),     // metadata stored in mint account itself
-                    ))
+                    .add(
+                        spl_token_2022::extension::metadata_pointer::instruction::initialize(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            Some(ctx.payer_pubkey),
+                            Some(mint_account),
+                        )
+                        .unwrap(),
+                    )
                     .add(
                         spl_token_2022::instruction::initialize_mint2(
                             &spl_token_2022::id(),
