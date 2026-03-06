@@ -156,6 +156,14 @@ export class LiFiBridge implements IExternalBridge {
     return this.chainMetadataByChainId.get(chainId)?.protocol;
   }
 
+  private addressesEqual(a: string, b: string, chainId: number): boolean {
+    const protocol = this.getProtocolTypeForChainId(chainId);
+    if (protocol === ProtocolType.Ethereum) {
+      return a.toLowerCase() === b.toLowerCase();
+    }
+    return a === b;
+  }
+
   /**
    * Configure LiFi SDK providers from the given private keys.
    * Sets up wallet/signer for each protocol type present in the keys map.
@@ -568,25 +576,37 @@ export class LiFiBridge implements IExternalBridge {
       `Route toChainId ${route.toChainId} does not match requested ${requestParams.toChain}`,
     );
     assert(
-      route.fromToken.address.toLowerCase() ===
-        requestParams.fromToken.toLowerCase(),
+      this.addressesEqual(
+        route.fromToken.address,
+        requestParams.fromToken,
+        route.fromChainId,
+      ),
       `Route fromToken ${route.fromToken.address} does not match requested ${requestParams.fromToken}`,
     );
     assert(
-      route.toToken.address.toLowerCase() ===
-        requestParams.toToken.toLowerCase(),
+      this.addressesEqual(
+        route.toToken.address,
+        requestParams.toToken,
+        route.toChainId,
+      ),
       `Route toToken ${route.toToken.address} does not match requested ${requestParams.toToken}`,
     );
-    const expectedToAddress = (
-      requestParams.toAddress ?? requestParams.fromAddress
-    ).toLowerCase();
+    const expectedToAddress =
+      requestParams.toAddress ?? requestParams.fromAddress;
     assert(
-      route.toAddress?.toLowerCase() === expectedToAddress,
+      this.addressesEqual(
+        route.toAddress ?? '',
+        expectedToAddress,
+        route.toChainId,
+      ),
       `Route toAddress ${route.toAddress} does not match requested ${expectedToAddress}`,
     );
     assert(
-      route.fromAddress?.toLowerCase() ===
-        requestParams.fromAddress.toLowerCase(),
+      this.addressesEqual(
+        route.fromAddress ?? '',
+        requestParams.fromAddress,
+        route.fromChainId,
+      ),
       `Route fromAddress ${route.fromAddress} does not match requested ${requestParams.fromAddress}`,
     );
     const routeFromAmount = BigInt(route.fromAmount);
