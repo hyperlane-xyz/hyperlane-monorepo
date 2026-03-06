@@ -15,7 +15,6 @@ import {
   getU64Codec,
 } from '@solana/kit';
 
-import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { concatBytes, option, u8, vec } from '../codecs/binary.js';
 import {
   encodeGasOracleConfig,
@@ -24,18 +23,18 @@ import {
   type GasOverheadConfig,
   type H256,
 } from '../codecs/shared.js';
-import {
-  buildInstruction,
-  readonlyAccount,
-  readonlySigner,
-  writableAccount,
-  writableSigner,
-} from './utils.js';
+import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import {
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
   deriveOverheadIgpAccountPda,
 } from '../pda.js';
+import {
+  buildInstruction,
+  readonlyAccount,
+  writableAccount,
+  writableSigner,
+} from './utils.js';
 
 export enum IgpInstructionKind {
   Init = 0,
