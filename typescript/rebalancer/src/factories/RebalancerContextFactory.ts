@@ -368,7 +368,9 @@ export class RebalancerContextFactory {
       bridges,
       rebalancerAddress,
       inventorySignerAddresses: this.config.inventorySigners
-        ? (Object.values(this.config.inventorySigners)
+        ? (Object.entries(this.config.inventorySigners)
+            .filter(([protocol]) => protocol === ProtocolType.Ethereum)
+            .map(([, signerConfig]) => signerConfig)
             .map((s) => s.address)
             .filter(Boolean) as Address[])
         : undefined,
