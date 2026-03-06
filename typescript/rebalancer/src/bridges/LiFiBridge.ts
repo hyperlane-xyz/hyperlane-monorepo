@@ -76,8 +76,10 @@ function toBase58SolanaKey(rawKey: string): string {
   const trimmedKey = rawKey.trim();
   if (!trimmedKey.startsWith('[') && !trimmedKey.includes(',')) {
     try {
-      bs58.decode(trimmedKey);
-      return trimmedKey;
+      const decoded = bs58.decode(trimmedKey);
+      if (decoded.length === 64) {
+        return trimmedKey;
+      }
     } catch {
       // Not valid base58, continue to parse as byte array
     }
