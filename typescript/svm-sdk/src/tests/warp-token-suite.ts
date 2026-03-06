@@ -10,7 +10,6 @@ import type {
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
-import { address as parseAddress } from '@solana/kit';
 import { SvmSigner } from '../clients/signer.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import type { createRpc } from '../rpc.js';
@@ -271,7 +270,7 @@ export function defineWarpTokenTests(
     // Verify the BPF loader upgrade authority was also transferred.
     const upgradeAuthority = await getProgramUpgradeAuthority(
       rpc,
-      parseAddress(deployedProgramId),
+      address(deployedProgramId),
     );
     expect(upgradeAuthority).to.equal(newOwnerSigner.getSignerAddress());
 

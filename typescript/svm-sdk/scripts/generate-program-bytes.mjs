@@ -10,10 +10,7 @@ import { computeSealevelSourceHash } from './sealevel-source-hash.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const PROGRAMS_DIR = join(
-  __dirname,
-  '../../../rust/sealevel/target/deploy',
-);
+const PROGRAMS_DIR = join(__dirname, '../../../rust/sealevel/target/deploy');
 const OUTPUT_FILE = join(__dirname, '../src/hyperlane/program-bytes.ts');
 
 /** All Sealevel programs — keys match PROGRAM_BINARIES in testing/setup.ts. */

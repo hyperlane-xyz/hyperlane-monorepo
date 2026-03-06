@@ -116,7 +116,8 @@ export function decodeMetaplexMetadata(data: Uint8Array): {
     offset += 4;
     const bytes = data.subarray(offset, offset + len);
     offset += len;
-    return new TextDecoder().decode(bytes).replace(/\0/g, '').trim();
+    // eslint-disable-next-line no-control-regex -- stripping null padding from on-chain metadata
+    return new TextDecoder().decode(bytes).replace(/\x00/g, '').trim();
   }
 
   return { name: readString(), symbol: readString(), uri: readString() };
