@@ -291,12 +291,14 @@ describe('MultiProvider', () => {
 
       // First call should connect and cache
       const result1 = mp.tryGetSigner(TestChainName.test1);
-      expect(result1).to.equal(mockConnectedSigner);
+      expect(result1).to.not.equal(mockConnectedSigner);
+      expect(result1?.provider).to.equal(mockProvider);
       expect(connectCallCount).to.equal(1);
 
       // Second call should return cached signer without calling connect again
       const result2 = mp.tryGetSigner(TestChainName.test1);
-      expect(result2).to.equal(mockConnectedSigner);
+      expect(result2).to.equal(result1);
+      expect(result2?.provider).to.equal(mockProvider);
       expect(connectCallCount).to.equal(1);
     });
 
