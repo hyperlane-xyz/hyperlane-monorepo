@@ -1,9 +1,9 @@
 import {
   type TransactionMessageBytesBase64,
-  address as parseAddress,
   compileTransactionMessage,
   createTransactionMessage,
   getCompiledTransactionMessageEncoder,
+  address as parseAddress,
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit';
@@ -16,7 +16,7 @@ import {
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
 import { createRpc } from '../rpc.js';
-import { buildTransactionMessage, DEFAULT_COMPUTE_UNITS } from '../tx.js';
+import { DEFAULT_COMPUTE_UNITS } from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
