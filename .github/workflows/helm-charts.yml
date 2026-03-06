@@ -1,0 +1,101 @@
+name: Helm Charts
+
+on:
+  pull_request:
+    paths:
+      - 'rust/main/helm/**'
+      - '.github/workflows/helm-charts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/main/helm/**'
+      - '.github/workflows/helm-charts.yml'
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Build Chart Dependencies
+        run: helm dependency build rust/main/helm/hyperlane-agent
+
+      - name: Lint Charts
+        run: |
+          helm lint rust/main/helm/agent-common
+          helm lint rust/main/helm/hyperlane-agent
+
+  release:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs:
+      - lint
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Ensure gh-pages Branch Exists
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "gh-pages branch already exists"
+            exit 0
+          fi
+
+          git switch --orphan gh-pages
+          git rm -rf . >/dev/null 2>&1 || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          touch .nojekyll
+          git add .nojekyll
+          git commit -m "chore: initialize gh-pages branch for helm charts"
+          git push origin gh-pages
+          git checkout --force "$GITHUB_SHA"
+
+      - name: Build Chart Dependencies
+        run: helm dependency build rust/main/helm/hyperlane-agent
+
+      - name: Publish Helm Charts
+        id: chart-releaser
+        uses: helm/chart-releaser-action@v1.7.0
+        with:
+          charts_dir: rust/main/helm
+          pages_branch: gh-pages
+          packages_with_index: true
+          skip_existing: true
+          mark_as_latest: false
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Workflow Summary
+        run: |
+          {
+            if [ -n "${{ steps.chart-releaser.outputs.changed_charts }}" ]; then
+              echo "Published charts: \`${{ steps.chart-releaser.outputs.changed_charts }}\`"
+            else
+              echo "No chart releases were created on this run."
+            fi
+            echo ""
+            echo "If GitHub Pages is configured to serve the \`gh-pages\` branch, charts will be available from:"
+            echo "\`https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
