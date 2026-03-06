@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 
 import {
+  ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
@@ -28,8 +29,16 @@ export async function getConfirmedBlockTag(
     if (metadata.protocol !== ProtocolType.Ethereum) {
       return undefined;
     }
-
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+
+    // Tron chains don't support named block tags like 'finalized' or 'safe'
+    if (
+      metadata.technicalStack === ChainTechnicalStack.Tron &&
+      typeof reorgPeriod === 'string'
+    ) {
+      return undefined;
+    }
+
     if (typeof reorgPeriod === 'string') {
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
