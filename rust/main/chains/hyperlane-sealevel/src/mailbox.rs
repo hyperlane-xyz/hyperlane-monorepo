@@ -307,17 +307,6 @@ impl SealevelMailbox {
         sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
-    /// Resolve which ALT to use for a given message.
-    /// Checks per-message overrides first (first match wins), then falls back to
-    /// the static `mailbox_process_alt`.
-    fn resolve_process_alt(&self, message: &HyperlaneMessage) -> Option<Pubkey> {
-        resolve_process_alt(
-            &self.process_alt_overrides,
-            self.mailbox_process_alt,
-            message,
-        )
-    }
-
     async fn get_process_payload(
         &self,
         message: &HyperlaneMessage,
@@ -403,7 +392,11 @@ impl SealevelMailbox {
 
         Ok(SealevelProcessPayload {
             instruction,
-            alt_address: self.resolve_process_alt(message),
+            alt_address: resolve_process_alt(
+                &self.process_alt_overrides,
+                self.mailbox_process_alt,
+                message,
+            ),
         })
     }
 
