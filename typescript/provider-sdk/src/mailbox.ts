@@ -104,12 +104,11 @@ export type DeployedRawMailboxArtifact = ArtifactDeployed<
  * Should be used to implement an object/closure or class that individually deploys
  * Mailboxes on chain
  */
-export interface IRawMailboxArtifactManager
-  extends IArtifactManager<
-    MailboxType,
-    RawMailboxArtifactConfigs,
-    DeployedMailboxAddress
-  > {
+export interface IRawMailboxArtifactManager extends IArtifactManager<
+  MailboxType,
+  RawMailboxArtifactConfigs,
+  DeployedMailboxAddress
+> {
   /**
    * Read a mailbox by its address.
    * This is the entry point for reading mailbox configuration from the chain.

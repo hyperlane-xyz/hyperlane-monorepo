@@ -13,9 +13,10 @@ import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { getMailboxConfig } from './mailbox-query.js';
 
-export class RadixMailboxReader
-  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
-{
+export class RadixMailboxReader implements ArtifactReader<
+  MailboxOnChain,
+  DeployedMailboxAddress
+> {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(

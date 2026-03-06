@@ -84,12 +84,11 @@ export type DeployedRawValidatorAnnounceArtifact = ArtifactDeployed<
  * Should be used to implement an object/closure or class that individually deploys
  * ValidatorAnnounce contracts on chain
  */
-export interface IRawValidatorAnnounceArtifactManager
-  extends IArtifactManager<
-    ValidatorAnnounceType,
-    RawValidatorAnnounceArtifactConfigs,
-    DeployedValidatorAnnounceAddress
-  > {
+export interface IRawValidatorAnnounceArtifactManager extends IArtifactManager<
+  ValidatorAnnounceType,
+  RawValidatorAnnounceArtifactConfigs,
+  DeployedValidatorAnnounceAddress
+> {
   /**
    * Read a validator announce contract by its address.
    * This is the entry point for reading validator announce configuration from the chain.

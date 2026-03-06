@@ -12,10 +12,10 @@ import {
 
 import { getValidatorAnnounceConfig } from './validator-announce.js';
 
-export class RadixValidatorAnnounceReader
-  implements
-    ArtifactReader<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
-{
+export class RadixValidatorAnnounceReader implements ArtifactReader<
+  RawValidatorAnnounceConfig,
+  DeployedValidatorAnnounceAddress
+> {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(

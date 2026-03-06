@@ -17,9 +17,7 @@ import { RadixBase } from '../utils/base.js';
 import { RadixValidatorAnnounceReader } from './validator-announce-reader.js';
 import { RadixValidatorAnnounceWriter } from './validator-announce-writer.js';
 
-export class RadixValidatorAnnounceArtifactManager
-  implements IRawValidatorAnnounceArtifactManager
-{
+export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnounceArtifactManager {
   constructor(
     private readonly gateway: GatewayApiClient,
     private readonly base: RadixBase,
