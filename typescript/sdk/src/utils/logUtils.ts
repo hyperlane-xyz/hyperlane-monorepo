@@ -1,8 +1,13 @@
-import { Interface, Log as EthersLog, LogDescription } from 'ethers';
-import { Log } from 'viem';
+import { Interface, LogDescription } from 'ethers';
+
+export type ParsableLog = {
+  address: string;
+  topics: readonly string[];
+  data: string;
+};
 
 export function findMatchingLogEvents(
-  logs: readonly (EthersLog | Log<bigint, number, false>)[],
+  logs: readonly ParsableLog[],
   iface: Interface,
   eventName: string,
 ): LogDescription[] {

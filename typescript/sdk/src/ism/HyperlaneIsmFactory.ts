@@ -1,4 +1,4 @@
-import type { Log, LogDescription, TransactionReceipt } from 'ethers';
+import type { LogDescription, TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -718,10 +718,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const getAddressResult = await factory['getAddress(address[],uint8)'](
-      sorted,
-      threshold,
-    );
+    const getAddressResult = await factory
+      .getFunction('getAddress(address[],uint8)')
+      .staticCall(sorted, threshold);
     const address =
       (await this.previewFactoryDeployAddress(
         chain,
@@ -776,9 +775,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const getAddressResult = await factory[
-      'getAddress((address,uint96)[],uint96)'
-    ](sorted, thresholdWeight);
+    const getAddressResult = await factory
+      .getFunction('getAddress')
+      .staticCall(sorted, thresholdWeight);
     const address =
       (await this.previewFactoryDeployAddress(
         chain,
@@ -823,7 +822,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   private async previewFactoryDeployAddress(
     chain: ChainName,
     factory: {
-      address: string;
+      target?: unknown;
+      getAddress?: () => Promise<string>;
       interface: {
         encodeFunctionData(
           functionName: string,
@@ -836,9 +836,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     args: readonly unknown[],
   ): Promise<Address | undefined> {
     try {
+      const factoryAddress =
+        typeof factory.target === 'string'
+          ? factory.target
+          : await factory.getAddress?.();
+      assert(factoryAddress, `Missing factory address for ${signature}`);
       const data = factory.interface.encodeFunctionData(signature, args);
       const result = await this.multiProvider.getProvider(chain).call({
-        to: factory.address,
+        to: factoryAddress,
         data,
       });
       const decoded = factory.interface.decodeFunctionResult(signature, result);
@@ -851,7 +856,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       return undefined;
     } catch (e: unknown) {
       this.logger.warn(
-        `Failed to preview factory deploy address on ${chain} (factory=${factory.address}, fn=${signature}): ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to preview factory deploy address on ${chain} (fn=${signature}): ${e instanceof Error ? e.message : String(e)}`,
       );
       return undefined;
     }

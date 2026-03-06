@@ -1,6 +1,5 @@
 import { expect } from 'chai';
-import { ContractFactory } from 'ethers';
-import { Wallet } from 'ethers';
+import { ContractFactory, Wallet } from 'ethers';
 
 import {
   Mailbox__factory,

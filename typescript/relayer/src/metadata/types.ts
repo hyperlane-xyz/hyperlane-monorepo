@@ -1,5 +1,3 @@
-import type { TransactionReceipt } from 'ethers';
-
 import type {
   ChainName,
   DerivedHookConfig,
@@ -14,6 +12,7 @@ import type { ArbL2ToL1Metadata } from './arbL2ToL1.js';
 import type { MultisigMetadata } from './multisig.js';
 import type { NullMetadata } from './null.js';
 import type { RoutingMetadata } from './routing.js';
+import type { DispatchReceipt } from '../core/dispatchReceipt.js';
 
 export type StructuredMetadata =
   | NullMetadata
@@ -27,7 +26,7 @@ export interface MetadataContext<
   HookContext = DerivedHookConfig,
 > {
   message: DispatchedMessage;
-  dispatchTx: TransactionReceipt;
+  dispatchTx: DispatchReceipt;
   ism: IsmContext;
   hook: HookContext;
 }
