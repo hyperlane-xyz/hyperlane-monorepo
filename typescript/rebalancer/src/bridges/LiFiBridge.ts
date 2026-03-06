@@ -105,6 +105,7 @@ export class LiFiBridge implements IExternalBridge {
   readonly externalBridgeId = 'lifi';
   readonly logger: Logger;
   private initialized = false;
+  private _executeLock: Promise<void> = Promise.resolve();
   private readonly config: ExternalBridgeConfig;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
 
@@ -453,40 +454,53 @@ export class LiFiBridge implements IExternalBridge {
 
     const fromRpcUrl = this.getRpcUrlForChainId(fromChain);
 
-    this.configureLiFiProviders(privateKeys, fromChain, fromRpcUrl);
-
-    this.logger.debug(
-      {
-        fromChain,
-        protocols: Object.keys(privateKeys),
-      },
-      'Configured LiFi providers for route execution',
-    );
+    let release!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const prev = this._executeLock;
+    this._executeLock = acquired;
+    await prev;
 
     let txHash: string | undefined;
+    let executedRoute!: RouteExtended;
 
-    // Execute route with update callbacks
-    const executedRoute = await executeRoute(route, {
-      // Update callback for route progress
-      updateRouteHook: (updatedRoute: RouteExtended) => {
-        this.logger.debug(
-          { step: updatedRoute.steps[0]?.id },
-          'Route step updated',
-        );
+    try {
+      this.configureLiFiProviders(privateKeys, fromChain, fromRpcUrl);
 
-        // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
-        const execution = updatedRoute.steps[0]?.execution;
-        if (execution?.process) {
-          for (const process of execution.process) {
-            if (process.txHash) {
-              txHash = process.txHash;
+      this.logger.debug(
+        {
+          fromChain,
+          protocols: Object.keys(privateKeys),
+        },
+        'Configured LiFi providers for route execution',
+      );
+
+      // Execute route with update callbacks
+      executedRoute = await executeRoute(route, {
+        // Update callback for route progress
+        updateRouteHook: (updatedRoute: RouteExtended) => {
+          this.logger.debug(
+            { step: updatedRoute.steps[0]?.id },
+            'Route step updated',
+          );
+
+          // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
+          const execution = updatedRoute.steps[0]?.execution;
+          if (execution?.process) {
+            for (const process of execution.process) {
+              if (process.txHash) {
+                txHash = process.txHash;
+              }
             }
           }
-        }
-      },
-      // Auto-accept rate updates for rebalancing
-      acceptExchangeRateUpdateHook: async () => true,
-    });
+        },
+        // Auto-accept rate updates for rebalancing
+        acceptExchangeRateUpdateHook: async () => true,
+      });
+    } finally {
+      release();
+    }
 
     // Extract txHash from executed route if not captured in callbacks
     if (!txHash) {
