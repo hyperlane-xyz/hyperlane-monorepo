@@ -11,6 +11,7 @@ import {
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
+  isEVMLike,
   isObjEmpty,
   objFilter,
   objMap,
@@ -35,7 +36,7 @@ import { WarpCoreConfig } from '../warp/types.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
-import { HypERC20Deployer } from './deploy.js';
+import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   ContractVerificationStatus,
   DerivedWarpRouteDeployConfig,
@@ -150,14 +151,16 @@ export async function expandWarpDeployConfig(params: {
     expandedOnChainWarpConfig,
   } = params;
 
-  const derivedTokenMetadata: TokenMetadataMap =
-    await HypERC20Deployer.deriveTokenMetadata(multiProvider, warpDeployConfig);
+  const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
+    multiProvider,
+    warpDeployConfig,
+  );
 
   // If the token is on an EVM chain check if it is deployed as a proxy
   // to expand the proxy config too
   const isDeployedAsProxyByChain = await promiseObjAll(
     objMap(deployedRoutersAddresses, async (chain, address) => {
-      if (!(multiProvider.getProtocol(chain) === ProtocolType.Ethereum)) {
+      if (!isEVMLike(multiProvider.getProtocol(chain))) {
         return false;
       }
 
@@ -221,7 +224,7 @@ export async function expandWarpDeployConfig(params: {
       chainConfig.destinationGas = formattedDestinationGas;
 
       const protocol = multiProvider.getProtocol(chain);
-      const isEVMChain = protocol === ProtocolType.Ethereum;
+      const isEVMChain = isEVMLike(protocol);
 
       // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
       // For contractVerificationStatus, all values should be 'verified'
@@ -270,6 +273,7 @@ export async function expandWarpDeployConfig(params: {
       // (not just an address string for EVM - those are left as-is to avoid deriving)
       if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
         switch (protocol) {
+          case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
             const reader = new EvmHookReader(multiProvider, chain);
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
@@ -290,6 +294,7 @@ export async function expandWarpDeployConfig(params: {
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
         switch (protocol) {
+          case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
             const reader = new EvmIsmReader(multiProvider, chain);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(

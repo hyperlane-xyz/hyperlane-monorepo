@@ -17,13 +17,9 @@ use crate::utils::{
 
 pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 
-/// Solana CLI version for compiling programs
-pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
-pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
-
-/// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.24";
-pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
+/// Agave CLI version for compiling programs (v3.x supports Rust 2024 edition)
+pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "3.0.14";
+pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
     "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz";
@@ -189,13 +185,38 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .expect("Failed to remove solana program archive");
 
     let bin_path = concat_path(&solana_cli_tools_path, "cargo-build-sbf");
-    let build_sbf = Program::new(bin_path).env("SBF_OUT_PATH", out_path.to_str().unwrap());
+    let build_sbf = Program::new(bin_path.clone()).env("SBF_OUT_PATH", out_path.to_str().unwrap());
 
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
     let sealevel_programs = concat_path(sealevel_path, "programs");
 
-    // build our programs
+    // Pre-download platform-tools with retries before building any programs.
+    // cargo-build-sbf downloads platform-tools on first run; this can fail due to
+    // transient network errors. Using --install-only isolates the download step so
+    // actual compilation failures are never retried.
+    let max_retries = 3;
+    for attempt in 1..=max_retries {
+        let success = Program::new(bin_path.clone())
+            .flag("install-only")
+            .run_to_success()
+            .join();
+        if success {
+            break;
+        }
+        if attempt < max_retries {
+            log!(
+                "platform-tools download failed, retrying ({}/{})",
+                attempt,
+                max_retries
+            );
+            sleep(Duration::from_secs(10));
+        } else {
+            panic!("Failed to download platform-tools after {max_retries} attempts");
+        }
+    }
+
+    // Build programs sequentially (platform-tools already cached from above)
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()

@@ -2,7 +2,7 @@ import { type CommandModule } from 'yargs';
 
 import {
   type Address,
-  ProtocolType,
+  isEVMLike,
   isValidAddressEvm,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
@@ -88,7 +88,7 @@ const preFlightCheckCommand: CommandModuleWithContext<{
 
     const chainMetadata = multiProvider.getChainMetadata(chain);
 
-    if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+    if (!isEVMLike(chainMetadata.protocol)) {
       errorRed(
         `\n❌ Validator pre flight check only supports EVM chains. Exiting.`,
       );

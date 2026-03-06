@@ -18,6 +18,7 @@ import {
   ProtocolType,
   difference,
   inCIMode,
+  isEVMLike,
   objFilter,
   objMap,
   promiseObjAll,
@@ -644,7 +645,7 @@ export async function getMultiProviderForRole(
         return acc;
       }, {} as ChainMap<ChainMetadata>),
       async (chain, _) => {
-        if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+        if (isEVMLike(multiProvider.getProtocol(chain))) {
           const key = getKeyForRole(environment, context, role, chain, index);
           const provider = multiProvider.tryGetProvider(chain);
           if (!provider) {
@@ -688,7 +689,7 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 export function getModuleDirectory(
   environment: DeployEnvironment,
   module: Modules,
-  context?: Contexts,
+  _context?: Contexts,
 ) {
   // for backwards compatibility with existing paths
   const suffixFn = () => {

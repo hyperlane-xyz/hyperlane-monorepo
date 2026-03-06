@@ -17,6 +17,7 @@ import {
   ProtocolType,
   addBufferToGasLimit,
   eqAddress,
+  isEVMLike,
   isZeroishAddress,
   rootLogger,
   runWithTimeout,
@@ -121,6 +122,14 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
+    const metadata = this.multiProvider.getChainMetadata(chain);
+
+    // Skip verification for Tron chains (not supported yet)
+    if (metadata.protocol === ProtocolType.Tron) {
+      logger.debug(`Skipping contract verification for Tron chain ${chain}`);
+      return;
+    }
+
     const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
     if (!explorerApi) {
       logger.warn(
@@ -146,10 +155,8 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
-    const ethereumConfigChains = configChains.filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
+    const ethereumConfigChains = configChains.filter((chain) =>
+      isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
     );
 
     const targetChains = this.multiProvider.intersect(
@@ -455,9 +462,9 @@ export abstract class HyperlaneDeployer<
         // Estimate gas for the initialize transaction
         const estimatedGas = await contract
           .connect(signer)
-          .estimateGas[
-            this.initializeFnSignature(contractName)
-          ](...initializeArgs);
+          .estimateGas[this.initializeFnSignature(contractName)](
+            ...initializeArgs,
+          );
 
         // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);

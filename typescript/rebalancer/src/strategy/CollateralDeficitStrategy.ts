@@ -14,7 +14,12 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
+import {
+  type BridgeConfigWithOverride,
+  createStrategyRoute,
+  isInventoryConfig,
+  isMovableCollateralConfig,
+} from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -249,12 +254,14 @@ export class CollateralDeficitStrategy extends BaseStrategy {
           surplus.chain,
           deficit.chain,
         );
-        routes.push({
-          origin: surplus.chain,
-          destination: deficit.chain,
-          amount: transferAmount,
-          bridge: bridgeConfig.bridge,
-        });
+        routes.push(
+          createStrategyRoute(
+            bridgeConfig,
+            surplus.chain,
+            deficit.chain,
+            transferAmount,
+          ),
+        );
       }
 
       deficit.amount -= transferAmount;
@@ -274,6 +281,11 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     );
 
     const filteredRoutes = this.filterRoutes(routes, actualBalances);
+
+    // Record metrics for each intent created
+    for (const route of filteredRoutes) {
+      this.metrics?.recordIntentCreated(route, this.name);
+    }
 
     this.logger.debug(
       {
@@ -299,18 +311,33 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     }
 
     return pendingRebalances.filter((rebalance) => {
-      if (!('bridge' in rebalance) || !rebalance.bridge) {
-        this.logger.debug(
-          { origin: rebalance.origin, destination: rebalance.destination },
-          'Including pending rebalance without bridge (recovered intent)',
-        );
-        return true;
-      }
       const bridgeConfig = this.getBridgeConfigForRoute(
         rebalance.origin,
         rebalance.destination,
       );
-      return bridgeConfig?.bridge === rebalance.bridge;
+
+      // For movableCollateral routes: match bridge address
+      if ('bridge' in rebalance && rebalance.bridge) {
+        return (
+          isMovableCollateralConfig(bridgeConfig) &&
+          bridgeConfig.bridge === rebalance.bridge
+        );
+      }
+
+      // For inventory routes: match externalBridge type
+      if ('externalBridge' in rebalance && rebalance.externalBridge) {
+        return (
+          isInventoryConfig(bridgeConfig) &&
+          bridgeConfig.externalBridge === rebalance.externalBridge
+        );
+      }
+
+      // Recovered intents without bridge info - include to be safe
+      this.logger.debug(
+        { origin: rebalance.origin, destination: rebalance.destination },
+        'Including pending rebalance without bridge (recovered intent)',
+      );
+      return true;
     });
   }
 

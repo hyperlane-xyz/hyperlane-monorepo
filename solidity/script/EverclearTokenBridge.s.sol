@@ -19,6 +19,7 @@ contract EverclearTokenBridgeScript is Script {
         EverclearTokenBridge bridge = new EverclearTokenBridge(
             0x82aF49447D8a07e3bd95BD0d56f35241523fBab1, // WETH
             1,
+            1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             IEverclearAdapter(0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75) // Everclear adapter
         );

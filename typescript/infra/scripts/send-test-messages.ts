@@ -9,7 +9,6 @@ import {
   Mailbox,
   StorageGasOracle,
   StorageGasOracle__factory,
-  TestSendReceiver,
   TestSendReceiver__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -19,7 +18,7 @@ import {
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, formatMessage, sleep } from '@hyperlane-xyz/utils';
+import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
 
 const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';

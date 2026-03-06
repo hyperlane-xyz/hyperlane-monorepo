@@ -46,7 +46,7 @@ export const buildAggregationIsmConfigs = (
   return objMap(
     objFilter(
       multisigConfigs,
-      (chain, config): config is MultisigConfig =>
+      (chain, _config): _config is MultisigConfig =>
         chain !== local && chains.includes(chain),
     ),
     (_, config): AggregationIsmConfig => ({

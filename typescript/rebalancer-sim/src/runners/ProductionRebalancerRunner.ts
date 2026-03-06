@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { pino } from 'pino';
 
 import {
+  DEFAULT_INTENT_TTL_MS,
   RebalancerConfig,
   RebalancerService,
   RebalancerStrategyOptions,
@@ -13,6 +14,7 @@ import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import type { IRebalancerRunner, RebalancerSimConfig } from '../types.js';
 
+import { MockActionTracker } from './MockActionTracker.js';
 import { SimulationRegistry } from './SimulationRegistry.js';
 
 // Silent logger for the rebalancer service (internal)
@@ -112,12 +114,16 @@ export class ProductionRebalancerRunner
   private config?: RebalancerSimConfig;
   private service?: RebalancerService;
   private running = false;
+  private mockTracker = new MockActionTracker();
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
     await cleanupProductionRebalancer();
 
     this.config = config;
+
+    // Reset tracker state for fresh simulation
+    this.mockTracker.clear();
   }
 
   async start(): Promise<void> {
@@ -213,13 +219,16 @@ export class ProductionRebalancerRunner
 
     // Create RebalancerConfig
     // Need explicit cast due to discriminated union type narrowing
-    const rebalancerConfig = new RebalancerConfig(registry.getWarpRouteId(), [
-      strategyConfig,
-    ] as StrategyConfig[]);
+    const rebalancerConfig = new RebalancerConfig(
+      registry.getWarpRouteId(),
+      [strategyConfig] as StrategyConfig[],
+      DEFAULT_INTENT_TTL_MS,
+    );
 
-    // Create service
+    // Create service with mock action tracker
     this.service = new RebalancerService(
       multiProvider,
+      undefined,
       multiProtocolProvider,
       registry,
       rebalancerConfig,
@@ -229,6 +238,7 @@ export class ProductionRebalancerRunner
         monitorOnly: false,
         withMetrics: false,
         logger: silentLogger,
+        actionTracker: this.mockTracker,
       },
     );
 
@@ -274,6 +284,7 @@ export class ProductionRebalancerRunner
     }
 
     this.config = undefined;
+    this.mockTracker.clear();
     this.removeAllListeners();
   }
 
@@ -285,5 +296,12 @@ export class ProductionRebalancerRunner
     // Wait for a reasonable settle time
     const settleTime = Math.min(timeoutMs, 2000);
     await new Promise((resolve) => setTimeout(resolve, settleTime));
+  }
+
+  /**
+   * Get the mock action tracker for direct inflight tracking updates.
+   */
+  getActionTracker(): MockActionTracker {
+    return this.mockTracker;
   }
 }

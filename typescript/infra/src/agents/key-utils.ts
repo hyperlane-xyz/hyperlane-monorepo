@@ -16,8 +16,11 @@ import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import localRelayerAddresses from '../../config/relayer.json' with { type: 'json' };
 import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
-import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type {
+  AgentContextConfig,
+  RootAgentConfig,
+} from '../config/agent/agent.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
 import {
@@ -149,6 +152,19 @@ function getRoleKeyMapPerChain(
     }
   };
 
+  const setInventoryRebalancerKeys = () => {
+    const inventoryKey = getInventoryRebalancerKey(agentConfig);
+    // Assign the single inventory rebalancer key to all chains that have a relayer configured
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.InventoryRebalancer]: {
+          [inventoryKey.identifier]: inventoryKey,
+        },
+      };
+    }
+  };
+
   for (const role of agentConfig.rolesWithKeys) {
     switch (role) {
       case Role.Validator:
@@ -162,6 +178,9 @@ function getRoleKeyMapPerChain(
         break;
       case Role.Rebalancer:
         setRebalancerKeys();
+        break;
+      case Role.InventoryRebalancer:
+        setInventoryRebalancerKeys();
         break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
@@ -227,6 +246,8 @@ export function getCloudAgentKey(
       return getDeployerKey(agentConfig);
     case Role.Rebalancer:
       return getRebalancerKey(agentConfig);
+    case Role.InventoryRebalancer:
+      return getInventoryRebalancerKey(agentConfig);
     default:
       throw Error(`Unsupported role ${role}`);
   }
@@ -281,6 +302,19 @@ export function getRebalancerKey(
     agentConfig.runEnv,
     Contexts.Hyperlane,
     Role.Rebalancer,
+  );
+}
+
+// Returns the inventory rebalancer key. This is always a GCP key, not chain specific
+// and in the Hyperlane context
+export function getInventoryRebalancerKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  logger.debug('Retrieving inventory rebalancer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.InventoryRebalancer,
   );
 }
 
@@ -471,7 +505,7 @@ async function persistAddressesInGcp(
       );
       return;
     }
-  } catch (e) {
+  } catch {
     // If the secret doesn't exist, we'll create it below.
     logger.debug(
       `No existing secret found for ${context} context in ${environment} environment`,

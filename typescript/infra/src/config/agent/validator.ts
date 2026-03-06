@@ -6,7 +6,7 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
@@ -151,8 +151,8 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       if (this.aws) {
         validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
 
-        // AWS-based chain signer keys are only used for Ethereum
-        if (protocol === ProtocolType.Ethereum) {
+        // AWS-based chain signer keys are only used for EVM-like chains
+        if (isEVMLike(protocol)) {
           chainSigner = validator;
         }
       }

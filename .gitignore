@@ -48,6 +48,9 @@ yalc.lock
 .opencode
 .sisyphus
 
+# codespell venv
+.codespell/.venv/
+
 # Forge build artifacts
 cache/
 out/

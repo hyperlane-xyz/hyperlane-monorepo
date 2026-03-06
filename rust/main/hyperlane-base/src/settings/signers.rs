@@ -131,12 +131,23 @@ impl ChainSigner for hyperlane_ethereum::Signers {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
-            let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
-            Ok(hyperlane_tron::TronSigner::from(wallet))
-        } else {
-            bail!(format!("{conf:?} key is not supported by tron"));
+        match conf {
+            SignerConf::HexKey { key } => {
+                let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
+                let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
+                Ok(hyperlane_tron::TronSigner::from(wallet))
+            }
+            SignerConf::Aws { id, region } => {
+                let http_client = utils::http_client_with_timeout()
+                    .map_err(|err| eyre::eyre!(err.to_string()))?;
+                let client = KmsClient::new_with_client(
+                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
+                    region.clone(),
+                );
+                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
+                Ok(hyperlane_tron::TronSigner::Aws(signer))
+            }
+            _ => bail!(format!("{conf:?} key is not supported by tron")),
         }
     }
 }
@@ -158,7 +169,7 @@ impl ChainSigner for hyperlane_tron::TronSigner {
         bs58::encode(final_bytes).into_string()
     }
     fn address_h256(&self) -> H256 {
-        ethers::types::H256::from(ethers::signers::Signer::address(self)).into()
+        ethers::types::H256::from(self.address()).into()
     }
 }
 
@@ -341,7 +352,7 @@ mod tests {
             "0d861aa9ee7b09fe0305a649ec9aa0dfede421817dbe995b48964e5a79fc89e50f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
         const ADDRESS: &str = "0f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
 
-        let chain_signer = hyperlane_sealevel::Keypair::from_bytes(
+        let chain_signer = hyperlane_sealevel::Keypair::try_from(
             hex::decode(PRIVATE_KEY)
                 .expect("Failed to decode private key")
                 .as_slice(),

@@ -9,7 +9,6 @@ import {
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 
 // TODO: Confirm ownership
 const safeOwners: ChainMap<Address> = {

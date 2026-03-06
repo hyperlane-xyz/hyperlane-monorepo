@@ -11,8 +11,8 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts.js';
-import { AgentContextConfig } from '../../config/agent/agent.js';
-import { DeployEnvironment } from '../../config/environment.js';
+import type { AgentContextConfig } from '../../config/agent/agent.js';
+import type { DeployEnvironment } from '../../config/environment.js';
 import { Role } from '../../roles.js';
 
 import { AgentAwsKey } from './key.js';

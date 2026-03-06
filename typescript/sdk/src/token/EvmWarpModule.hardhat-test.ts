@@ -23,6 +23,7 @@ import {
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   EvmIsmModule,
   HookConfig,
@@ -166,7 +167,10 @@ describe('EvmWarpModule', async () => {
   });
 
   const movableCollateralTypes = Object.values(TokenType).filter(
-    isMovableCollateralTokenType,
+    (t) =>
+      isMovableCollateralTokenType(t) &&
+      // MultiCollateral contract too large for hardhat; covered by forge tests
+      t !== TokenType.multiCollateral,
   ) as MovableTokenType[];
 
   const everclearTokenBridgeTypes = [
@@ -211,6 +215,12 @@ describe('EvmWarpModule', async () => {
       [TokenType.nativeScaled]: {
         ...baseConfig,
         type: TokenType.nativeScaled,
+        allowedRebalancers,
+      },
+      [TokenType.multiCollateral]: {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
         allowedRebalancers,
       },
     };
@@ -815,6 +825,10 @@ describe('EvmWarpModule', async () => {
       const existingConfig = await evmERC20WarpModule.read();
       for (let i = 0; i < numOfRouters; i++) {
         delete existingConfig.remoteRouters?.[i.toString()];
+        // Also remove corresponding destinationGas entry to stay consistent
+        if (existingConfig.destinationGas) {
+          delete existingConfig.destinationGas[i.toString()];
+        }
         await sendTxs(await evmERC20WarpModule.update(existingConfig));
 
         const updatedConfig = await evmERC20WarpModule.read();
@@ -879,6 +893,75 @@ describe('EvmWarpModule', async () => {
       expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(1);
       expect(updatedConfig.remoteRouters?.['3'].address.toLowerCase()).to.be.eq(
         addressToBytes32(extendedRemoteRouter['3'].address),
+      );
+    });
+
+    it('normalizes chain-name enrolledRouters keys for multicollateral enroll/unenroll txs', async () => {
+      const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+      const keepRouterAddress = '0x1111111111111111111111111111111111111111';
+      const keepRouter = addressToBytes32(keepRouterAddress);
+      const addRouterAddress = '0x2222222222222222222222222222222222222222';
+      const addRouter = addressToBytes32(addRouterAddress);
+      const removeRouterAddress = '0x3333333333333333333333333333333333333333';
+      const removeRouter = addressToBytes32(removeRouterAddress);
+
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.multiCollateral,
+          token: token.address,
+        } as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: randomAddress(),
+        },
+      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+      const actualConfig = {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        enrolledRouters: {
+          [destinationDomain]: [keepRouter, removeRouter],
+        },
+      } as Parameters<
+        EvmWarpModule['createEnrollMultiCollateralRoutersTxs']
+      >[0];
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        enrolledRouters: {
+          [TestChainName.test2]: [keepRouterAddress.toUpperCase(), addRouter],
+        },
+      } as HypTokenRouterConfig;
+
+      const enrollTxs = module.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      expect(enrollTxs.length).to.equal(1);
+      const [enrollDomains, enrollRouters] =
+        MultiCollateral__factory.createInterface().decodeFunctionData(
+          'enrollRouters',
+          enrollTxs[0].data!,
+        );
+      expect(enrollDomains.map(Number)).to.deep.equal([destinationDomain]);
+      expect(enrollRouters[0].toLowerCase()).to.equal(addRouter.toLowerCase());
+
+      const unenrollTxs = module.createUnenrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      expect(unenrollTxs.length).to.equal(1);
+      const [unenrollDomains, unenrollRouters] =
+        MultiCollateral__factory.createInterface().decodeFunctionData(
+          'unenrollRouters',
+          unenrollTxs[0].data!,
+        );
+      expect(unenrollDomains.map(Number)).to.deep.equal([destinationDomain]);
+      expect(unenrollRouters[0].toLowerCase()).to.equal(
+        removeRouter.toLowerCase(),
       );
     });
 
@@ -1675,6 +1758,12 @@ describe('EvmWarpModule', async () => {
         .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
         .resolves('6.0.0');
 
+      // Also stub fetchScale to avoid version mismatch when reading scale
+      // For old contracts (< 11.0.0), scale would default to 1
+      const scaleStub = sinon
+        .stub(evmERC20WarpModule.reader, 'fetchScale')
+        .resolves(undefined);
+
       // In update, we do a check see if the package version is old
       // If it is, we deploy a new implementation and run upgradeTo
       await sendTxs(
@@ -1685,6 +1774,7 @@ describe('EvmWarpModule', async () => {
       );
 
       versionStub.restore();
+      scaleStub.restore();
       const updatedConfig = await evmERC20WarpModule.read();
 
       // Assert

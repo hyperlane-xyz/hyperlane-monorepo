@@ -30,6 +30,7 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -249,6 +250,47 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
     }
+  });
+
+  it('should derive config with non-default scale fraction correctly', async () => {
+    // Create config with a scale fraction (e.g., for downscaling 18 decimals to 6 decimals)
+    const scaleNumerator = 1;
+    const scaleDenominator = 1000000000000; // 10^12 for 18->6 decimal conversion
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.synthetic,
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: 6, // Lower decimals than standard 18
+        scale: {
+          numerator: scaleNumerator,
+          denominator: scaleDenominator,
+        },
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
+        ...baseConfig,
+      },
+    };
+
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Derive config and check if scale is correctly read
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].synthetic.address,
+    );
+
+    // Verify scale is returned as an object with bigint numerator/denominator
+    expect(derivedConfig.scale).to.deep.equal({
+      numerator: BigInt(scaleNumerator),
+      denominator: BigInt(scaleDenominator),
+    });
+
+    // Verify other properties
+    expect(derivedConfig.type).to.equal(TokenType.synthetic);
+    expect(derivedConfig.name).to.equal(TOKEN_NAME);
+    expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+    expect(derivedConfig.decimals).to.equal(6);
   });
 
   it('should derive xerc20 config correctly', async () => {
@@ -947,6 +989,12 @@ describe('EvmWarpRouteReader', async () => {
       .stub(PackageVersioned__factory, 'connect')
       .returns(mockPackageVersioned as any);
 
+    // Also stub fetchScale to avoid version mismatch when reading scale
+    // For old contracts (< 11.0.0), scale would default to 1
+    const fetchScaleStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchScale')
+      .resolves(undefined);
+
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
@@ -957,6 +1005,74 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.tokenFee).to.be.undefined;
 
     fetchPackageVersionStub.restore();
+    fetchScaleStub.restore();
+  });
+
+  it('derives multicollateral config with scale from the router', async () => {
+    const routerAddress = '0x1000000000000000000000000000000000000001';
+    const wrappedTokenAddress = '0x2000000000000000000000000000000000000002';
+    const localDomain = 31337;
+    const remoteDomain = 31338;
+    const localRouter = addressToBytes32(
+      '0x3000000000000000000000000000000000000003',
+    );
+    const remoteRouter = addressToBytes32(
+      '0x4000000000000000000000000000000000000004',
+    );
+    const expectedScale = {
+      numerator: 1n,
+      denominator: 1_000_000_000_000n,
+    };
+
+    const mcConnectStub = sinon
+      .stub(MultiCollateral__factory, 'connect')
+      .returns({
+        wrappedToken: sinon.stub().resolves(wrappedTokenAddress),
+        localDomain: sinon.stub().resolves(localDomain),
+        getEnrolledRouters: sinon
+          .stub()
+          .callsFake(async (domain: number) =>
+            domain === localDomain ? [localRouter] : [remoteRouter],
+          ),
+      } as any);
+    const tokenRouterConnectStub = sinon
+      .stub(TokenRouter__factory, 'connect')
+      .returns({
+        domains: sinon.stub().resolves([remoteDomain]),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
+      .resolves({
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
+        isNft: false,
+      });
+    const scaleStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchScale')
+      .resolves(expectedScale);
+
+    const deriveMultiCollateralTokenConfig = (evmERC20WarpRouteReader as any)
+      .deriveMultiCollateralTokenConfig as (address: string) => Promise<any>;
+    try {
+      const derivedConfig = await deriveMultiCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+
+      expect(derivedConfig.type).to.equal(TokenType.multiCollateral);
+      expect(derivedConfig.token).to.equal(wrappedTokenAddress);
+      expect(derivedConfig.scale).to.deep.equal(expectedScale);
+      expect(derivedConfig.enrolledRouters).to.deep.equal({
+        [localDomain.toString()]: [localRouter],
+        [remoteDomain.toString()]: [remoteRouter],
+      });
+    } finally {
+      mcConnectStub.restore();
+      tokenRouterConnectStub.restore();
+      metadataStub.restore();
+      scaleStub.restore();
+    }
   });
 
   describe('Backward compatibility for token type detection', () => {
@@ -1075,6 +1191,12 @@ describe('EvmWarpRouteReader', async () => {
           .stub(PackageVersioned__factory, 'connect')
           .returns(mockPackageVersioned as any);
 
+        // Also stub fetchScale to avoid version mismatch when reading scale
+        // For old contracts (< 11.0.0), scale would default to 1
+        const fetchScaleStub = sinon
+          .stub(evmERC20WarpRouteReader, 'fetchScale')
+          .resolves(undefined);
+
         const derivedConfig =
           await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);
 
@@ -1090,8 +1212,14 @@ describe('EvmWarpRouteReader', async () => {
         }
 
         fetchPackageVersionStub.restore();
+        fetchScaleStub.restore();
       });
     }
+
+    // Note: legacy contract fetchScale path (< 11.0.0) cannot be tested in hardhat
+    // without deploying a real legacy contract. The legacy path converts a single
+    // uint256 scale() return to { numerator: bigint, denominator: 1n }.
+    // Coverage is provided by the fetchScale stubs in other tests returning NormalizedScale.
 
     it('should fail when modern version contract claims v10.0.0+ but is missing token() method', async () => {
       const config: WarpRouteDeployConfigMailboxRequired = {

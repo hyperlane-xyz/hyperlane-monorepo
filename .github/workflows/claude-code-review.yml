@@ -40,7 +40,7 @@ jobs:
         github.event.pull_request.head.repo.full_name == github.repository
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -71,14 +71,14 @@ jobs:
 
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: Run /claude-review
+          prompt: "Use agent teams to run /claude-review"
           track_progress: true
-          use_sticky_comment: true
-          claude_args: |
-            --model ${{ env.CLAUDE_OPUS_MODEL }}
-            --max-turns 30
+          use_sticky_comment: false
+          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
 
   # Security-focused review: manual via @claude security comment only
   security-review:
@@ -144,7 +144,7 @@ jobs:
         github.event.comment.author_association == 'COLLABORATOR'
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -188,14 +188,14 @@ jobs:
       - name: Run ToB Security Skills
         if: steps.solidity-changes.outputs.solidity == 'true'
         uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: Run /claude-tob-review
+          prompt: "Use agent teams to run /claude-tob-review"
           track_progress: true
-          use_sticky_comment: true
-          claude_args: |
-            --model ${{ env.CLAUDE_OPUS_MODEL }}
-            --max-turns 25
+          use_sticky_comment: false
+          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
 
   # Interactive @claude mentions in comments
   interactive:
@@ -222,7 +222,7 @@ jobs:
         )
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -257,10 +257,10 @@ jobs:
 
       - name: Run Claude Code Assistant
         uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
-          use_sticky_comment: true
-          claude_args: |
-            --model ${{ env.CLAUDE_SONNET_MODEL }}
-            --max-turns 20
+          use_sticky_comment: false
+          claude_args: "--model ${{ env.CLAUDE_SONNET_MODEL }}"

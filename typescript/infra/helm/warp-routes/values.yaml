@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-warp-monitor
+  repository: ghcr.io/hyperlane-xyz/hyperlane-warp-monitor
   tag:
 hyperlane:
   runEnv: mainnet3

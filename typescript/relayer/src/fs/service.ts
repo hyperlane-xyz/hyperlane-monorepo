@@ -4,7 +4,11 @@ import { z } from 'zod';
 
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  applyRpcUrlOverridesFromEnv,
+  createServiceLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import type { RelayerConfigInput } from '../config/schema.js';
 
@@ -87,6 +91,13 @@ async function main(): Promise<void> {
     logger.info('Initialized registry');
 
     const chainMetadata = await registry.getMetadata();
+    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
+    if (overriddenChains.length > 0) {
+      logger.info(
+        { chains: overriddenChains, count: overriddenChains.length },
+        'Applied RPC overrides from environment variables',
+      );
+    }
     logger.info(
       `Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
     );

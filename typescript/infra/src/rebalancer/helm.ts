@@ -164,7 +164,7 @@ export class RebalancerHelmManager extends HelmManager {
       let warpCoreConfig;
       try {
         warpCoreConfig = getWarpCoreConfig(warpRouteId);
-      } catch (e) {
+      } catch {
         continue;
       }
 

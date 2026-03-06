@@ -1,5 +1,47 @@
 # @hyperlane-xyz/utils
 
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- 06aacac: Fix aleo empty program prefix
+
+## 25.5.0
+
+## 25.4.1
+
+## 25.4.0
+
+### Patch Changes
+
+- 1f021bf: Implemented warp token artifact API for Aleo. Added warp token readers and writers for native, collateral, and synthetic tokens, with AleoWarpArtifactManager providing factory methods for type-specific operations. Writers support creating new warp tokens with ISM and Hook configuration, enrolling remote routers, and transferring ownership. Update operations generate transaction arrays for ISM and Hook changes, router enrollment/unenrollment, and ownership transfers.
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+## 25.2.0
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- 360db52: Fixed `timeout()` to clear its internal `setTimeout` when the wrapped promise settles, preventing lingering timers from keeping the Node.js event loop alive.
+
+## 25.1.0
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
 ## 25.0.0
 
 ### Minor Changes
@@ -54,7 +96,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility

@@ -3,6 +3,8 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
+
 import {
   type ERC20Test,
   EverclearTokenBridge__factory,
@@ -49,7 +51,10 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  IS_TRON_TEST,
   REGISTRY_PATH,
+  TRON_KEY_1,
+  TRON_KEY_2,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
 
@@ -96,7 +101,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    providerChain2 = IS_TRON_TEST
+      ? new TronJsonRpcProvider(chain2Metadata.rpcUrls[0].http)
+      : new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
@@ -106,11 +113,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const chain4Metadata: ChainMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
     chain4DomainId = chain4Metadata.domainId;
 
-    // Deploy core contracts to populate the registry
+    // Use different deployer keys on Tron to avoid "Dup transaction" errors
+    // when deploying identical core bytecodes in parallel to the same node.
+    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
+    const chain4Key = IS_TRON_TEST ? TRON_KEY_2 : ANVIL_KEY;
     await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
+      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, chain4Key),
     ]);
   });
 

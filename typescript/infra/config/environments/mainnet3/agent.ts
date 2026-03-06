@@ -46,7 +46,6 @@ import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' wi
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
-import merklyNftAddresses from './misc-artifacts/merkly-nft-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -243,7 +242,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
-    eden: false,
+    eden: true,
     electroneum: true,
     endurance: true,
     eni: true,
@@ -387,7 +386,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
-    eden: false,
+    eden: true,
     electroneum: true,
     endurance: true,
     eni: true,
@@ -483,8 +482,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     torus: true,
     unichain: true,
     vana: true,
-    // Has RPC non-compliance that breaks scraping.
-    viction: false,
+    // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
+    viction: true,
     worldchain: true,
     xai: true,
     xlayer: true,
@@ -726,10 +725,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     {
       name: 'merkly_eth',
       matchingList: routerMatchingList(merklyEthAddresses),
-    },
-    {
-      name: 'merkly_nft',
-      matchingList: routerMatchingList(merklyNftAddresses),
     },
     {
       name: 'velo_message_module',

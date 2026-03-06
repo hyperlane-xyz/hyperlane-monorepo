@@ -15,6 +15,7 @@ export enum WarpRouteIds {
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
+  ETHSTAGEStage = 'ETHSTAGE/stage',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
@@ -131,4 +132,15 @@ export enum WarpRouteIds {
   EniWBTC = 'WBTC/eni',
   EniUSDC = 'USDC/eni',
   EniUSDT = 'USDT/eni',
+
+  ModeUSDTSTAGE = 'USDTSTAGE/mode',
+
+  // Aleo
+  AleoUSDC = 'USDC/aleo',
+  AleoUSDT = 'USDT/aleo',
+  AleoETH = 'ETH/aleo',
+  AleoWBTC = 'WBTC/aleo',
+  AleoSOL = 'SOL/aleo',
+  AleoUSAD = 'USAD/aleo',
+  AleoALEO = 'ALEO/aleo',
 }

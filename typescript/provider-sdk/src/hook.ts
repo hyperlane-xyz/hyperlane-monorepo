@@ -12,6 +12,7 @@ import {
   ArtifactNew,
   ArtifactState,
   IArtifactManager,
+  isArtifactDeployed,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 
@@ -149,12 +150,11 @@ export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
  * Should be used to implement an object/closure or class that individually deploys
  * Hooks on chain
  */
-export interface IRawHookArtifactManager
-  extends IArtifactManager<
-    HookType,
-    RawHookArtifactConfigs,
-    DeployedHookAddress
-  > {
+export interface IRawHookArtifactManager extends IArtifactManager<
+  HookType,
+  RawHookArtifactConfigs,
+  DeployedHookAddress
+> {
   /**
    * Read any hook by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading hooks of unknown types.
@@ -309,6 +309,49 @@ export function shouldDeployNewHook(
       throw new Error(`Unhandled hook type: ${(expected as any).type}`);
     }
   }
+}
+
+/**
+ * Merges current on-chain hook artifact with expected hook artifact.
+ * Determines whether to deploy a new hook or update/reuse existing one.
+ *
+ * @param currentArtifact Current deployed hook artifact (from on-chain state)
+ * @param expectedArtifact Expected hook artifact (desired configuration)
+ * @returns Merged artifact - either NEW (deploy needed) or DEPLOYED (update/reuse)
+ */
+export function mergeHookArtifacts(
+  currentArtifact: DeployedHookArtifact | undefined,
+  expectedArtifact: ArtifactNew<HookArtifactConfig> | DeployedHookArtifact,
+): ArtifactNew<HookArtifactConfig> | DeployedHookArtifact {
+  const expectedConfig = expectedArtifact.config;
+
+  // No current hook - return expected as-is
+  if (!currentArtifact) {
+    return expectedArtifact;
+  }
+
+  const currentConfig = currentArtifact.config;
+
+  // Type changed or config requires new deployment
+  if (shouldDeployNewHook(currentConfig, expectedConfig)) {
+    return {
+      artifactState: ArtifactState.NEW,
+      config: expectedConfig,
+    };
+  }
+
+  // Hook can be updated/reused
+  // If expected is DEPLOYED (has address), use that address (switching to different deployed hook)
+  // Otherwise use current address (updating current hook)
+  const deployedAddress = isArtifactDeployed(expectedArtifact)
+    ? expectedArtifact.deployed
+    : currentArtifact.deployed;
+
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: expectedConfig,
+    deployed: deployedAddress,
+  };
 }
 
 /**

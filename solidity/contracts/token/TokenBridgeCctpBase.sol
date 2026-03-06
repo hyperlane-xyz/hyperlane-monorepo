@@ -41,6 +41,8 @@ struct Domain {
 }
 
 // see ./CCTP.md for sequence diagrams of the destination chain control flow
+// Circle domain mappings are a translation table between Hyperlane and Circle domain IDs, not Hyperlane domain config
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 abstract contract TokenBridgeCctpBase is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
@@ -101,7 +103,7 @@ abstract contract TokenBridgeCctpBase is
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) TokenRouter(_SCALE, _mailbox) {
+    ) TokenRouter(_SCALE, _SCALE, _mailbox) {
         if (_messageTransmitter.version() != _getCCTPVersion())
             revert InvalidCCTPVersion();
         messageTransmitter = _messageTransmitter;

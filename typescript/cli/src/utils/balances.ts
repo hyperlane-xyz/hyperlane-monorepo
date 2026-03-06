@@ -45,6 +45,7 @@ export async function nativeBalancesAreSufficient(
     let deployerBalance: string = '0';
 
     switch (protocolType) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         address = await multiProvider.getSignerAddress(chain);
 

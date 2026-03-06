@@ -82,10 +82,19 @@ export function timeout<T>(
 ): Promise<T> {
   if (!timeoutMs || timeoutMs <= 0) return promise;
   return new Promise((resolve, reject) => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       reject(new Error(message));
     }, timeoutMs);
-    promise.then(resolve).catch(reject);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
   });
 }
 

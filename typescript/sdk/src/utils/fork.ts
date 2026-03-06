@@ -13,6 +13,12 @@ export enum ANVIL_RPC_METHODS {
   IMPERSONATE_ACCOUNT = 'anvil_impersonateAccount',
   STOP_IMPERSONATING_ACCOUNT = 'anvil_stopImpersonatingAccount',
   NODE_INFO = 'anvil_nodeInfo',
+  SET_BALANCE = 'anvil_setBalance',
+  SET_STORAGE_AT = 'anvil_setStorageAt',
+  MINE = 'anvil_mine',
+  SNAPSHOT = 'evm_snapshot',
+  REVERT = 'evm_revert',
+  INCREASE_TIME = 'evm_increaseTime',
 }
 
 /**
@@ -137,3 +143,62 @@ export const getLocalProvider = ({
 
   return new providers.JsonRpcProvider(url);
 };
+
+export async function setBalance(
+  provider: providers.JsonRpcProvider,
+  address: Address,
+  balanceWei: string,
+): Promise<void> {
+  await provider.send(ANVIL_RPC_METHODS.SET_BALANCE, [address, balanceWei]);
+}
+
+export async function setStorageAt(
+  provider: providers.JsonRpcProvider,
+  contractAddress: Address,
+  slot: string,
+  value: string,
+): Promise<void> {
+  await provider.send(ANVIL_RPC_METHODS.SET_STORAGE_AT, [
+    contractAddress,
+    slot,
+    value,
+  ]);
+}
+
+export async function mine(
+  provider: providers.JsonRpcProvider,
+  blocks = 1,
+): Promise<void> {
+  await provider.send(ANVIL_RPC_METHODS.MINE, [blocks]);
+}
+
+export async function increaseTime(
+  provider: providers.JsonRpcProvider,
+  seconds: number,
+): Promise<void> {
+  await provider.send(ANVIL_RPC_METHODS.INCREASE_TIME, [seconds]);
+}
+
+export async function snapshot(
+  provider: providers.JsonRpcProvider,
+): Promise<string> {
+  return provider.send(ANVIL_RPC_METHODS.SNAPSHOT, []);
+}
+
+export async function revertToSnapshot(
+  provider: providers.JsonRpcProvider,
+  snapshotId: string,
+): Promise<boolean> {
+  return provider.send(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
+}
+
+export async function impersonateAccounts(
+  provider: providers.JsonRpcProvider,
+  accounts: string[],
+): Promise<void> {
+  await Promise.all(
+    accounts.map((address) =>
+      provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]),
+    ),
+  );
+}

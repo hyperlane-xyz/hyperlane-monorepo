@@ -1,5 +1,75 @@
 # @hyperlane-xyz/cli
 
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Minor Changes
+
+- 43255a9: MultiCollateral warp route support was added across the SDK, CLI, and warp monitor.
+
+  SDK: WarpCore gained `transferRemoteTo` flows for multicollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles multicollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives multicollateral token config including on-chain scale. A new `EvmMultiCollateralAdapter` provides quote, approve, and transfer operations.
+
+  CLI: `warp deploy` and `warp extend` support multicollateral token types. A new `warp combine` command merges independent warp route configs into a single multicollateral route. `warp send` and `warp check` work with multicollateral routes.
+
+  Warp monitor: Pending-transfer and inventory metrics were added for multicollateral routes, with projected deficit scoped to collateralized routes only.
+
+## 25.5.0
+
+### Patch Changes
+
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+## 25.4.1
+
+## 25.4.0
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+### Minor Changes
+
+- 1970a32: Updated CLI warp rebalancer command to match new RebalancerService constructor signature.
+
+## 25.2.0
+
+### Minor Changes
+
+- 9d38b07: Warp route extension deployments were changed to run per-chain in parallel. Successful deployments are now written to the registry before reporting failures, making `warp apply` resumable — re-running after a partial failure skips already-deployed chains.
+
+### Patch Changes
+
+- 176b684: Fixed `hl submit` with ICA/timelock strategies failing with missing chain signer errors by extracting all referenced chains from the strategy file in `resolveSubmitChains`.
+
+## 25.1.0
+
+### Minor Changes
+
+- cae845c: Added top-level `xerc20 read` and `xerc20 apply` commands for viewing and managing XERC20 mint/burn limits.
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
 ## 25.0.0
 
 ### Patch Changes
@@ -22,7 +92,6 @@
 
 - c094f7f: Allowed `warp check --ica` to validate ICA ownership on chains before warp apply/extension by moving config filtering after the ICA check.
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
@@ -83,7 +152,6 @@
 - bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
 - 7032a7c: Added `hyperlane ica deploy` command to deploy Interchain Accounts (ICAs) on destination chains for a specified owner on an origin chain. The command accepts `--origin`, `--destinations`, `--owner`, and `--key` parameters, and outputs a table showing the deployment status for each destination chain.
 - 9963e0e: feat: separate rebalancer package
-
   - Extract rebalancer logic from CLI into dedicated `@hyperlane-xyz/rebalancer` package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
   - CLI now imports from new package, maintaining backward compatibility for manual rebalancing
@@ -99,7 +167,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -1389,7 +1456,6 @@
 
 - f44589e45: Improve warp and kurtosis deploy command UX
 - 2da6ccebe: Allow users to only configure validators for their chain
-
   - Don't restrict user to having two chains for ism config
   - If the user accidentally picks two chains, we prompt them again to confirm if they don't want to use the hyperlane validators for their multisigConfig
 

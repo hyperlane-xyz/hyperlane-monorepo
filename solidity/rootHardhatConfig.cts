@@ -8,7 +8,7 @@ export const rootHardhatConfig = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 999_999,
+        runs: 25_000,
       },
     },
   },

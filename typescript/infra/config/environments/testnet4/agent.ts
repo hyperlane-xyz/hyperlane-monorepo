@@ -17,7 +17,6 @@ import {
 import {
   BaseRelayerConfig,
   MetricAppContext,
-  routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
@@ -42,7 +41,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: true,
@@ -60,13 +59,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radixtestnet: true,
     sepolia: true,
     solanatestnet: true,
+    somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
   },
   [Role.Relayer]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: true,
@@ -84,13 +84,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radixtestnet: true,
     sepolia: true,
     solanatestnet: true,
+    somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
   },
   [Role.Scraper]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: true,
@@ -108,6 +109,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     radixtestnet: true,
     sepolia: true,
     solanatestnet: true,
+    somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
   },
@@ -138,6 +140,17 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // paradexsepolia
       { originDomain: getDomainId('paradexsepolia') },
       { destinationDomain: getDomainId('paradexsepolia') },
+    ],
+  },
+  {
+    type: GasPaymentEnforcementPolicyType.Minimum,
+    payment: '1',
+    matchingList: [
+      // Workaround for gas price fluctuations
+      // Works in tandem with increased igp overhead
+      {
+        destinationDomain: getDomainId('somniatestnet'),
+      },
     ],
   },
   // Default policy is OnChainFeeQuoting

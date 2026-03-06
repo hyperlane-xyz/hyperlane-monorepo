@@ -2,10 +2,10 @@ import { ethers } from 'ethers';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { assertChain, assertContext, assertRole } from '../utils/utils.js';
 
@@ -27,7 +27,7 @@ export abstract class BaseAgentKey {
     protocol: ProtocolType,
     _bech32Prefix?: string,
   ): string | undefined {
-    if (protocol === ProtocolType.Ethereum) {
+    if (isEVMLike(protocol)) {
       return this.address;
     }
     return undefined;
@@ -83,7 +83,7 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   ): HexString;
   privateKeyForProtocol(protocol: ProtocolType.Sealevel): Uint8Array;
   privateKeyForProtocol(protocol: ProtocolType): HexString | Uint8Array {
-    if (protocol === ProtocolType.Ethereum) {
+    if (isEVMLike(protocol)) {
       return this.privateKey;
     }
 

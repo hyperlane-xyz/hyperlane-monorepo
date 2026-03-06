@@ -30,13 +30,15 @@ export interface CronJobConfig {
   prometheusPushGateway: string;
 }
 
-export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
-  extends CronJobConfig {
+export interface KeyFunderConfig<
+  SupportedChains extends readonly ChainName[],
+> extends CronJobConfig {
   contextFundingFrom: Contexts;
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   desiredBalancePerChain: Record<SupportedChains[number], string>;
   desiredRebalancerBalancePerChain: ChainMap<string>;
+  desiredInventoryRebalancerBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
   // Per-chain overrides for automatic sweep of excess funds to Safes

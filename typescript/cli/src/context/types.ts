@@ -44,8 +44,10 @@ export interface ContextSettings extends BaseContext {
   authToken?: string;
 }
 
-export interface CommandContext
-  extends Omit<BaseContext, 'key' | 'skipConfirmation'> {
+export interface CommandContext extends Omit<
+  BaseContext,
+  'key' | 'skipConfirmation'
+> {
   key?: SignerKeyProtocolMap;
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;

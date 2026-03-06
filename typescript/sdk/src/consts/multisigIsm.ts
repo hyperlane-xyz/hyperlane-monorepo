@@ -466,7 +466,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
-        alias: 'O-OPS',
+        alias: 'P-OPS Team',
       },
       {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
@@ -1954,6 +1954,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  somniatestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb3b27a27bfa94002d344e9cf5217a0e3502e018b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

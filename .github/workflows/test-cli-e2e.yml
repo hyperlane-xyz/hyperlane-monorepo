@@ -1,0 +1,434 @@
+name: test-cli-e2e
+
+on:
+  workflow_call:
+    inputs:
+      run_cli_e2e:
+        type: string
+      ci_tier:
+        type: string
+        description: "'smoke' for PR-level subset, 'full' for merge queue"
+      has_cosmos:
+        type: string
+      has_aleo:
+        type: string
+      has_radix:
+        type: string
+      has_tron:
+        type: string
+      has_relayer:
+        type: string
+      has_rebalancer:
+        type: string
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  # ── EVM ──────────────────────────────────────────────
+
+  cli-evm-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.run_cli_e2e == 'true' && inputs.ci_tier == 'smoke'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy-1
+          - warp-apply-simple-updates
+          - warp-check-1
+          - warp-send
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-evm-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.run_cli_e2e == 'true' && inputs.ci_tier == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-init
+          - core-read
+          # ISM Commands
+          - ism
+          # Other commands
+          - relay
+          - status
+          - submit
+          # ICA
+          - ica-deploy
+          # Warp Apply Commands
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-rebalancing-config
+          - warp-apply-simple-updates
+          - warp-apply-submitters
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
+          - warp-extend-resumable
+          # deploy
+          - warp-bridge-1
+          - warp-bridge-2
+          - warp-deploy-1
+          - warp-deploy-2
+          # check
+          - warp-check-1
+          - warp-check-2
+          - warp-check-3
+          - warp-check-4
+          - warp-check-5
+          - warp-check-ica
+          # other
+          - warp-init
+          - warp-read
+          - warp-rebalancer
+          - warp-send
+          # xerc20
+          - xerc20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── Cosmos ───────────────────────────────────────────
+
+  cli-cosmos-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_cosmos == 'true') && inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI cosmosnative e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cosmosnative:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cosmos-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_cosmos == 'true') && inputs.ci_tier == 'full'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-read
+          # ISM Commands
+          - ism
+          # Warp Commands
+          - warp-apply-ism-updates
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI cosmosnative e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cosmosnative:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── Radix ────────────────────────────────────────────
+
+  cli-radix-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') && inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI radix e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:radix:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-radix-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') && inputs.ci_tier == 'full'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-deploy
+          - core-apply
+          # ISM Commands
+          - ism
+          # Warp Commands
+          - warp-deploy
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI radix e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:radix:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── Tron (small — always full) ──────────────────────
+
+  cli-tron-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.run_cli_e2e == 'true' || inputs.has_tron == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy-1
+          - warp-deploy-2
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI tron e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:tron:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── Cross-chain (small — always full) ───────────────
+
+  cli-cross-chain-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.run_cli_e2e == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - warp-apply
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI cross chain e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cross-chain:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── Aleo ─────────────────────────────────────────────
+
+  cli-aleo-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') && inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+          - warp-apply-ism-updates
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI aleo e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:aleo:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-aleo-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') && inputs.ci_tier == 'full'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply-hooks
+          - core-apply-ism
+          - core-apply-mailbox
+          - core-deploy
+          - core-read
+          # ISM Commands
+          - ism
+          # Warp Commands
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI aleo e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:aleo:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── Package-specific targeted tests ─────────────────
+  # Run only when peripheral packages change, testing just the
+  # specific CLI commands that use them. Full coverage in merge queue.
+
+  cli-evm-relayer-e2e:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_relayer == 'true'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI relayer e2e test
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: relay
+
+  cli-evm-rebalancer-e2e:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_rebalancer == 'true'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI rebalancer e2e test
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: warp-rebalancer
