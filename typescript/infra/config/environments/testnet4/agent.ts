@@ -62,6 +62,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
+    tronshasta: true,
   },
   [Role.Relayer]: {
     aleotestnet: true,
@@ -87,6 +88,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
+    tronshasta: true,
   },
   [Role.Scraper]: {
     aleotestnet: true,
@@ -112,6 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
+    tronshasta: true,
   },
 };
 
