@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 
 import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import {
   assertCorrectKubeContext,
   getArgs,
