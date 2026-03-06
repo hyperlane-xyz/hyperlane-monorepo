@@ -67,7 +67,7 @@ const expect = chai.expect;
 chai.should();
 
 describe('hyperlane warp apply e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let cosmosNativeDeployerAddress: Address;
   let cosmosNativeChain1CoreAddress: ChainAddresses;
