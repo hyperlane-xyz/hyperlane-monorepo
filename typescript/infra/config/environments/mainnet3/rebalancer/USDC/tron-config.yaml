@@ -1,0 +1,64 @@
+# Tron Chain Rebalancer Configuration
+# Example YAML for USDC warp route rebalancing between Ethereum and Tron
+#
+# TRON-SPECIFIC CONSIDERATIONS:
+# 1. Tron uses ProtocolType.Ethereum + ChainTechnicalStack.Tron in chain metadata
+#    (NOT a separate ProtocolType). This allows reuse of EVM infrastructure.
+#
+# 2. Tron shares the same EVM inventory signer key (secp256k1 key derivation).
+#    The inventorySigners.ethereum key is used for both Ethereum and Tron chains.
+#    NO separate tron signer entry is needed or supported.
+#
+# 3. External bridges (LiFi) do NOT support Tron. Rebalancing must use:
+#    - WarpCore execution (executionType: inventory) for direct warp route transfers
+#    - Manual funding of Tron inventory (no automated bridge support)
+#    This config does NOT include externalBridges section.
+#
+# 4. blocks.reorgPeriod MUST be numeric for Tron chains (e.g., 0 or 1).
+#    String tags like 'finalized' are NOT supported by Tron's JSON-RPC API.
+#    Tron has 3-second block times with DPOS finality (~27 seconds for 27 validators).
+#
+# 5. TronJsonRpcProvider appends '/jsonrpc' to RPC URL and returns 0 for nonce.
+#    Gas is converted to TRX: feeLimit = gasLimit × gasPrice × 1.5, capped at 1000 TRX.
+
+warpRouteId: USDC/ethereum-tron
+
+# Inventory signers: Only ethereum key is needed.
+# Tron chains use the same secp256k1 key as Ethereum chains.
+# Do NOT add a separate 'tron' signer entry.
+inventorySigners:
+  ethereum: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+
+# NO externalBridges section for Tron.
+# LiFi does not support Tron. Rebalancing uses WarpCore (inventory execution) only.
+# If manual bridge funding is needed, it must be done outside this config.
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    # Ethereum: EVM chain with LiFi bridge support (standard EVM config)
+    ethereum:
+      weighted:
+        weight: 50
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3500
+      # Placeholder bridge address (example only, not production)
+      bridge: "0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23"
+      override:
+        tron:
+          # Tron execution: Use WarpCore (inventory) only.
+          # No external bridge available for Tron.
+          executionType: inventory
+
+    # Tron: EVM-compatible chain with Tron-specific considerations
+    tron:
+      weighted:
+        weight: 50
+        tolerance: 5
+      # Tron execution type: inventory (WarpCore execution)
+      # Tron does NOT support external bridges (LiFi).
+      # Rebalancing happens via direct warp route transfers.
+      executionType: inventory
+      # Note: No externalBridge field for Tron.
+      # If inventory needs funding, it must be done manually or via separate process.
