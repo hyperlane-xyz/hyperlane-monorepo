@@ -78,7 +78,9 @@ function toBase58SolanaKey(rawKey: string): string {
     try {
       bs58.decode(trimmedKey);
       return trimmedKey;
-    } catch {}
+    } catch {
+      // Not valid base58, continue to parse as byte array
+    }
   }
 
   const bytes = parseSolanaPrivateKey(trimmedKey);
