@@ -1,20 +1,19 @@
 # Reproducible Solana Program Build Environment
-# Based on solana-verifiable-build v1.14.20 configuration
-# Reference: https://github.com/Ellipsis-Labs/solana-verifiable-build
+# Builds Sealevel programs using Agave CLI v3.0.14 with platform-tools v1.51
 
-# Pinned Rust 1.75.0-bullseye image (matches rust/sealevel/rust-toolchain)
-# Must use bullseye (Debian 11) because Solana BPF toolchain requires libssl.so.1.1 (OpenSSL 1.1)
-# which is not available in bookworm (Debian 12, OpenSSL 3.x only)
+# Pinned Rust 1.86.0-bookworm image (matches rust/sealevel/rust-toolchain)
+# Uses bookworm (Debian 12) which provides GLIBC 2.36 required by Agave v3.x
+# (bullseye only has GLIBC 2.31, insufficient for Agave v3.0.14)
 # This exact digest ensures reproducible builds across time
 # Platform is intentionally hardcoded for reproducibility (not a variable)
 # check=skip=FromPlatformFlagConstDisallowed
-FROM --platform=linux/amd64 rust@sha256:2576095c947f6d9cfb5f19d51b822cdeb557c5a5b6de9460f2bf1f913d0434ca AS builder
+FROM --platform=linux/amd64 rust@sha256:300ec56abce8cc9448ddea2172747d048ed902a3090e6b57babb2bf19f754081 AS builder
 
 # Install dependencies with pinned versions for reproducibility
 # Note: git and curl are pre-installed in the pinned base image.
-# Only gnutls-bin needs to be installed. Version from Debian 11 bullseye main repo.
+# Only gnutls-bin needs to be installed. Version from Debian 12 bookworm-security repo.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gnutls-bin=3.7.1-5+deb11u5 \
+    gnutls-bin=3.7.9-2+deb12u6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Reproducibility environment variables
@@ -24,14 +23,14 @@ ENV SOURCE_DATE_EPOCH=0
 ENV CARGO_INCREMENTAL=0
 ENV RUSTFLAGS="--cfg tokio_unstable"
 
-# Install Solana CLI v1.14.20
+# Install Agave CLI v3.0.14 (formerly Solana CLI, now maintained by Anza)
 # Download release tarball directly and verify SHA256 for full reproducibility
 # Note: Platform is locked to linux/amd64 above, so we hardcode x86_64
-ENV SOLANA_VERSION=v1.14.20
-ARG SOLANA_RELEASE_SHA256=8d9feed221bf352a544b15b7a7e74fed877da7c4aa0458b9a33fd7ce3099ad54
+ENV SOLANA_VERSION=v3.0.14
+ARG SOLANA_RELEASE_SHA256=65614325423316a48f57f1ceeaa91ca78f4516e165e305b38c01873cf8c6b8b4
 RUN SOLANA_INSTALL_DIR="/root/.local/share/solana/install/releases/${SOLANA_VERSION}" && \
     mkdir -p "$SOLANA_INSTALL_DIR" && \
-    curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" -o /tmp/solana-release.tar.bz2 && \
+    curl -sSfL "https://github.com/anza-xyz/agave/releases/download/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" -o /tmp/solana-release.tar.bz2 && \
     echo "${SOLANA_RELEASE_SHA256}  /tmp/solana-release.tar.bz2" | sha256sum -c - && \
     tar -xjf /tmp/solana-release.tar.bz2 -C "$SOLANA_INSTALL_DIR" --strip-components=1 && \
     rm /tmp/solana-release.tar.bz2 && \
@@ -43,25 +42,19 @@ ENV PATH="/root/.local/share/solana/install/active_release/bin:${PATH}"
 # Verify installation
 RUN solana --version && cargo --version && rustc --version
 
-# Pre-download BPF SDK/platform-tools with checksum verification
+# Pre-download platform-tools with checksum verification
 # This ensures reproducibility even if GitHub releases are modified
-# Check version with: cargo build-sbf --version (shows "sbf-tools vX.XX")
-# Note: solana-labs/platform-tools moved to anza-xyz/platform-tools
-ARG BPF_TOOLS_VERSION=v1.29
-ARG BPF_TOOLS_SHA256=61ab3485168129eb2392efa4e2c7781435c9825f07c19822e46bcf5a2cd8a8d2
-ARG CRITERION_VERSION=v2.3.3
-ARG CRITERION_SHA256=ee7f92d7268563848aa3ae90bbf5df86604b8d0fb0e4942b0ecfbf6201596550
-RUN BPF_TOOLS_URL="https://github.com/anza-xyz/platform-tools/releases/download/${BPF_TOOLS_VERSION}/solana-bpf-tools-linux.tar.bz2" && \
-    CRITERION_URL="https://github.com/Snaipe/Criterion/releases/download/${CRITERION_VERSION}/criterion-${CRITERION_VERSION}-linux-x86_64.tar.bz2" && \
-    CACHE_DIR="/root/.cache/solana/${SOLANA_VERSION}/platform-tools" && \
+# Check version with: cargo build-sbf --version (shows "platform-tools vX.XX")
+# Agave v3.x caches platform-tools by their own version (not CLI version)
+ARG BPF_TOOLS_VERSION=v1.51
+ARG BPF_TOOLS_SHA256=0933e05dd964826e8e2db5c58c34ae255e3baf0ce1711568552dca81b5407a6b
+RUN BPF_TOOLS_URL="https://github.com/anza-xyz/platform-tools/releases/download/${BPF_TOOLS_VERSION}/platform-tools-linux-x86_64.tar.bz2" && \
+    CACHE_DIR="/root/.cache/solana/${BPF_TOOLS_VERSION}/platform-tools" && \
     mkdir -p "$CACHE_DIR" && \
     curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$BPF_TOOLS_URL" -o /tmp/bpf-tools.tar.bz2 && \
     echo "${BPF_TOOLS_SHA256}  /tmp/bpf-tools.tar.bz2" | sha256sum -c - && \
-    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$CRITERION_URL" -o /tmp/criterion.tar.bz2 && \
-    echo "${CRITERION_SHA256}  /tmp/criterion.tar.bz2" | sha256sum -c - && \
     tar -xjf /tmp/bpf-tools.tar.bz2 -C "$CACHE_DIR" && \
-    tar -xjf /tmp/criterion.tar.bz2 -C "$CACHE_DIR" && \
-    rm /tmp/bpf-tools.tar.bz2 /tmp/criterion.tar.bz2
+    rm /tmp/bpf-tools.tar.bz2
 
 WORKDIR /build
 
