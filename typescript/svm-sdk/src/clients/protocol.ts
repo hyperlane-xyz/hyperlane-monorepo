@@ -75,7 +75,8 @@ export class SvmProtocolProvider implements ProtocolProvider {
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 0n,
-      WARP_DEPLOY_GAS: 0n,
+      // ~2.6 SOL covers program account rent + token PDA rent + ATA payer funding
+      WARP_DEPLOY_GAS: 2_600_000_000n,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
       ISM_DEPLOY_GAS: 0n,
