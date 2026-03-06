@@ -426,8 +426,18 @@ export class RebalancerContextFactory {
       return null;
     }
 
+    const redactedInventorySigners = Object.fromEntries(
+      Object.entries(inventorySigners).map(([protocol, signerConfig]) => [
+        protocol,
+        signerConfig ? { address: signerConfig.address } : signerConfig,
+      ]),
+    );
+
     this.logger.debug(
-      { warpRouteId: this.config.warpRouteId, inventorySigners },
+      {
+        warpRouteId: this.config.warpRouteId,
+        inventorySigners: redactedInventorySigners,
+      },
       'Creating inventory components',
     );
 
@@ -557,7 +567,7 @@ export class RebalancerContextFactory {
     this.logger.info(
       {
         inventoryChains,
-        inventorySigners,
+        inventorySigners: redactedInventorySigners,
       },
       'Inventory components created successfully',
     );
