@@ -1,11 +1,22 @@
-import { address as parseAddress } from '@solana/kit';
+import {
+  type TransactionMessageBytesBase64,
+  address as parseAddress,
+  compileTransactionMessage,
+  createTransactionMessage,
+  getCompiledTransactionMessageEncoder,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+} from '@solana/kit';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { LAMPORTS_PER_SIGNATURE } from '../constants.js';
+import {
+  LAMPORTS_PER_SIGNATURE,
+  SYSTEM_PROGRAM_ADDRESS,
+} from '../constants.js';
 import { createRpc } from '../rpc.js';
-import { DEFAULT_COMPUTE_UNITS } from '../tx.js';
+import { buildTransactionMessage, DEFAULT_COMPUTE_UNITS } from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
@@ -61,11 +72,51 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     req: AltVM.ReqEstimateTransactionFee<SvmTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     const numSigners = 1 + (req.transaction.additionalSigners?.length ?? 0);
-    const fee = BigInt(numSigners * LAMPORTS_PER_SIGNATURE);
+    const gasPrice = await this.queryBaseFeePerSignature();
+    const fee = BigInt(numSigners) * BigInt(gasPrice);
     const gasUnits = BigInt(
       req.transaction.computeUnits ?? DEFAULT_COMPUTE_UNITS,
     );
-    return { gasUnits, gasPrice: LAMPORTS_PER_SIGNATURE, fee };
+    return { gasUnits, gasPrice, fee };
+  }
+
+  /**
+   * Queries the RPC for the base fee per signature using a minimal
+   * unsigned message.
+   */
+  private async queryBaseFeePerSignature(): Promise<number> {
+    try {
+      const { value: latestBlockhash } = await this.rpc
+        .getLatestBlockhash()
+        .send();
+
+      const baseMessage = createTransactionMessage({ version: 0 });
+      const withFeePayer = setTransactionMessageFeePayer(
+        SYSTEM_PROGRAM_ADDRESS,
+        baseMessage,
+      );
+      const withLifetime = setTransactionMessageLifetimeUsingBlockhash(
+        latestBlockhash,
+        withFeePayer,
+      );
+
+      const compiled = compileTransactionMessage(withLifetime);
+      const messageBytes =
+        getCompiledTransactionMessageEncoder().encode(compiled);
+      const base64Message = Buffer.from(messageBytes).toString(
+        'base64',
+      ) as TransactionMessageBytesBase64;
+
+      const result = await this.rpc.getFeeForMessage(base64Message).send();
+      if (result.value != null) {
+        return Number(result.value);
+      }
+    } catch (error) {
+      rootLogger.debug('getFeeForMessage failed, using static fallback', {
+        error,
+      });
+    }
+    return LAMPORTS_PER_SIGNATURE;
   }
 
   // ### QUERY CORE ###
