@@ -42,8 +42,9 @@ export async function resolveChains(
       return resolveWarpRouteConfigChains(argv);
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.STATUS:
+      return resolveStatusChains(argv);
+    case CommandType.WARP_SEND:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
@@ -187,6 +188,19 @@ async function resolveSendMessageChains(
   // Return only explicitly provided chains - signers for interactively
   // selected chains will be created after selection
   return selectedChains;
+}
+
+/**
+ * Resolves chains for the 'status' command.
+ * Returns only explicitly provided chains (origin/destination).
+ * Destination chains discovered from the dispatch tx are resolved lazily.
+ */
+async function resolveStatusChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  // Only origin is declared by the status command builder (messageOptions).
+  // Destination chains are discovered lazily from the dispatch tx.
+  return argv.origin ? [argv.origin] : [];
 }
 
 async function resolveRelayerChains(
