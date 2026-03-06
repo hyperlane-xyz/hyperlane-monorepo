@@ -1,5 +1,4 @@
 import { TransactionReceipt, ZeroAddress } from 'ethers';
-import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import {
   IMessageRecipient,
@@ -38,7 +37,8 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 import { estimateHandleGasForRecipient } from '../utils/gas.js';
-import { findMatchingLogEvents } from '../utils/logUtils.js';
+
+import { findMatchingLogEvents, type ParsableLog } from '../utils/logUtils.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
 import { DispatchedMessage } from './types.js';
@@ -46,6 +46,10 @@ import { DispatchedMessage } from './types.js';
 // If no metadata is provided, ensure we provide a default of 0x0001.
 // We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.
 const DEFAULT_METADATA = '0x0001';
+
+type SourceReceipt = {
+  logs: readonly ParsableLog[];
+} & ({ hash: string } | { transactionHash: string });
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromAddressesMap(
@@ -194,7 +198,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     chains = Object.keys(this.contractsMap),
   ): Promise<{
     removeHandler: (chains?: ChainName[]) => void;
-  } {
+  }> {
     chains.forEach((originChain) => {
       const mailbox = this.contractsMap[originChain].mailbox;
       this.logger.debug(`Listening for dispatch on ${originChain}`);
@@ -215,8 +219,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
           // add human readable chain names
           dispatched.parsed.originChain = this.getOrigin(dispatched);
-          dispatched.parsed.destinationChain =
-            this.getDestination(dispatched);
+          dispatched.parsed.destinationChain = this.getDestination(dispatched);
 
           this.logger.info(
             `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
@@ -433,7 +436,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   waitForMessageProcessing(
-    sourceTx: TransactionReceipt | ViemTxReceipt,
+    sourceTx: SourceReceipt,
   ): Promise<TransactionReceipt[]> {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
@@ -441,7 +444,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   // TODO consider renaming this, all the waitForMessage* methods are confusing
   async waitForMessageProcessed(
-    sourceTx: TransactionReceipt | ViemTxReceipt,
+    sourceTx: SourceReceipt,
     delay?: number,
     maxAttempts?: number,
   ): Promise<void> {
@@ -464,9 +467,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   // Redundant with static method but keeping for backwards compatibility
-  getDispatchedMessages(
-    sourceTx: TransactionReceipt | ViemTxReceipt,
-  ): DispatchedMessage[] {
+  getDispatchedMessages(sourceTx: SourceReceipt): DispatchedMessage[] {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     return messages.map(({ parsed, ...other }) => {
       const originChain =
@@ -508,9 +509,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return { id, message, parsed };
   }
 
-  static getDispatchedMessages(
-    sourceTx: TransactionReceipt | ViemTxReceipt,
-  ): DispatchedMessage[] {
+  static getDispatchedMessages(sourceTx: SourceReceipt): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = findMatchingLogEvents(
       sourceTx.logs,

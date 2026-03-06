@@ -42,7 +42,6 @@ import {
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let signer: Signer;
   let isolatedSigner: Signer;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
@@ -66,7 +65,6 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const provider = new ethers.JsonRpcProvider(chainMetadata.rpcUrls[0].http);
 
-    signer = new Wallet(ANVIL_KEY).connect(provider);
     isolatedSigner = await provider.getSigner(1);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);

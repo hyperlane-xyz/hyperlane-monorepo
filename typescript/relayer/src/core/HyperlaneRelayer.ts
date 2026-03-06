@@ -28,6 +28,7 @@ import { BaseMetadataBuilder } from '../metadata/builder.js';
 import { isMetadataBuildable } from '../metadata/types.js';
 
 import { RelayerCache } from './cache.js';
+import { DispatchReceipt, toDispatchReceipt } from './dispatchReceipt.js';
 import { RelayerObserver } from './events.js';
 import { messageMatchesWhitelist } from './whitelist.js';
 
@@ -167,7 +168,7 @@ export class HyperlaneRelayer {
   }
 
   async relayAll(
-    dispatchTx: TransactionReceipt,
+    dispatchTx: DispatchReceipt,
     messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
   ): Promise<ChainMap<TransactionReceipt[]>> {
     const destinationMap: ChainMap<DispatchedMessage[]> = {};
@@ -199,7 +200,7 @@ export class HyperlaneRelayer {
   }
 
   async relayMessage(
-    dispatchTx: TransactionReceipt,
+    dispatchTx: DispatchReceipt,
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
   ): Promise<TransactionReceipt> {
@@ -362,7 +363,11 @@ export class HyperlaneRelayer {
           `Dispatch receipt not found for tx ${dispatchTx}`,
         );
 
-        await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
+        await this.relayMessage(
+          toDispatchReceipt(dispatchReceipt),
+          undefined,
+          dispatchMsg,
+        );
       } catch (error) {
         const newAttempts = attempts + 1;
         this.logger.error(

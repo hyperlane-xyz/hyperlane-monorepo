@@ -84,6 +84,17 @@ function unwrapSignerForNonceManagement(signer: Signer): Signer {
   return innerSigner ?? signer;
 }
 
+function connectSignerToProvider(signer: Signer, provider: Provider): Signer {
+  if (provider instanceof ZKSyncProvider) {
+    assert(
+      signer instanceof ZKSyncWallet,
+      'Expected zkSync wallet for zkSync provider',
+    );
+    return signer.connect(provider) as unknown as Signer;
+  }
+  return signer.connect(provider);
+}
+
 export interface MultiProviderOptions {
   logger?: Logger;
   providers?: ChainMap<Provider>;
@@ -209,7 +220,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.signers[chainName];
     if (signer && signer.provider && !this.useSharedSigner) {
       try {
-        this.setSigner(chainName, signer.connect(provider));
+        this.setSigner(chainName, connectSignerToProvider(signer, provider));
       } catch (e: unknown) {
         // JsonRpcSigner throws UNSUPPORTED_OPERATION for .connect();
         // use a type guard instead of `as` cast to safely access .code
@@ -249,7 +260,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (!connectedSigner.provider) {
       const provider = this.tryGetProvider(chainName);
       if (!provider) return connectedSigner;
-      connectedSigner = connectedSigner.connect(provider);
+      connectedSigner = connectSignerToProvider(connectedSigner, provider);
     }
 
     const metadata = this.getChainMetadata(chainName);
