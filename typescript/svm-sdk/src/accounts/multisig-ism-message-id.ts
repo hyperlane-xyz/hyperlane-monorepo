@@ -1,4 +1,5 @@
 import { type Address, getAddressDecoder } from '@solana/kit';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { decodeAccountData } from '../codecs/account-data.js';
 import { ByteCursor } from '../codecs/binary.js';
@@ -27,8 +28,13 @@ export function decodeMultisigIsmAccessControlAccount(
 ): AccessControlData | null {
   const wrapped = decodeAccountData(raw, (cursor) => {
     const bumpSeed = cursor.readU8();
-    const hasOwner = cursor.readU8() === 1;
-    const owner = hasOwner ? addressDecoder.decode(cursor.readBytes(32)) : null;
+    const ownerTag = cursor.readU8();
+    assert(
+      ownerTag === 0 || ownerTag === 1,
+      `Invalid option tag for owner: ${ownerTag}`,
+    );
+    const owner =
+      ownerTag === 1 ? addressDecoder.decode(cursor.readBytes(32)) : null;
     return { bumpSeed, owner };
   });
   return wrapped.data;

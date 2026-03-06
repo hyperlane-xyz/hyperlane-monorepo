@@ -213,8 +213,11 @@ export class SvmIgpHookWriter
     const oracleConfigs: GasOracleConfig[] = Object.entries(
       config.oracleConfig,
     ).map(([domainStr, oracleData]) => {
-      const domain = parseInt(domainStr, 10);
-      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+      const domain = Number(domainStr);
+      assert(
+        Number.isInteger(domain) && domain >= 0,
+        `Invalid domain: '${domainStr}'`,
+      );
       return {
         domain,
         gasOracle: {
@@ -245,8 +248,11 @@ export class SvmIgpHookWriter
     const overheadConfigs: GasOverheadConfig[] = Object.entries(
       config.overhead,
     ).map(([domainStr, gas]) => {
-      const domain = parseInt(domainStr, 10);
-      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+      const domain = Number(domainStr);
+      assert(
+        Number.isInteger(domain) && domain >= 0,
+        `Invalid domain: '${domainStr}'`,
+      );
       return {
         destinationDomain: domain,
         gasOverhead: BigInt(gas),
@@ -304,8 +310,11 @@ export class SvmIgpHookWriter
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
     for (const [domainStr, oracleData] of Object.entries(config.oracleConfig)) {
-      const domain = parseInt(domainStr, 10);
-      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+      const domain = Number(domainStr);
+      assert(
+        Number.isInteger(domain) && domain >= 0,
+        `Invalid domain: '${domainStr}'`,
+      );
       const existingOracle = currentIgp.gasOracles.get(domain);
 
       const newGasPrice = BigInt(oracleData.gasPrice);
@@ -366,8 +375,11 @@ export class SvmIgpHookWriter
 
     const overheadConfigsToUpdate: GasOverheadConfig[] = [];
     for (const [domainStr, gas] of Object.entries(config.overhead)) {
-      const domain = parseInt(domainStr, 10);
-      assert(Number.isFinite(domain), `Invalid domain: '${domainStr}'`);
+      const domain = Number(domainStr);
+      assert(
+        Number.isInteger(domain) && domain >= 0,
+        `Invalid domain: '${domainStr}'`,
+      );
       const existingOverhead = currentOverheadIgp?.gasOverheads.get(domain);
       const newOverhead = BigInt(gas);
 

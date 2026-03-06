@@ -293,7 +293,7 @@ export async function getSetGasOracleConfigsInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(igpAccount),
-      readonlySigner(owner),
+      writableSigner(owner),
     ],
     encodeIgpProgramInstruction({ kind: 'setGasOracleConfigs', configs }),
   );
@@ -310,7 +310,7 @@ export async function getSetDestinationGasOverheadsInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(overheadIgpAccount),
-      readonlySigner(owner),
+      writableSigner(owner),
     ],
     encodeIgpProgramInstruction({
       kind: 'setDestinationGasOverheads',
