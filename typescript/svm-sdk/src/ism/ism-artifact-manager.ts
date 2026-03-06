@@ -11,10 +11,11 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedRawIsmArtifact,
+  IRawIsmArtifactManager,
   RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import type { SvmSigner } from '../signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type { SvmDeployedIsm } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
@@ -24,7 +25,7 @@ import {
 } from './multisig-ism.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
-export class SvmIsmArtifactManager {
+export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
   constructor(private readonly rpc: Rpc<SolanaRpcApi>) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {

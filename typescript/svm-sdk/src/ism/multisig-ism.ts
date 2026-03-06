@@ -21,7 +21,7 @@ import {
   getInitializeMultisigIsmMessageIdInstruction,
   getSetValidatorsAndThresholdInstruction,
 } from '../instructions/multisig-ism-message-id.js';
-import type { SvmSigner } from '../signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedIsm,

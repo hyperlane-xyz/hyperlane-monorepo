@@ -14,7 +14,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
-import type { SvmSigner } from '../signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedHook,

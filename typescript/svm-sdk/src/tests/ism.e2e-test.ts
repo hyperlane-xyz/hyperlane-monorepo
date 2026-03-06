@@ -10,6 +10,7 @@ import {
 import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { SvmSigner } from '../clients/signer.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import {
   SvmMessageIdMultisigIsmReader,
@@ -23,7 +24,6 @@ import {
 } from '../ism/test-ism.js';
 import type { SvmDeployedIsm } from '../types.js';
 import { createRpc } from '../rpc.js';
-import { type SvmSigner, createSigner } from '../signer.js';
 import {
   TEST_PROGRAM_IDS,
   airdropSol,
@@ -49,7 +49,7 @@ describe('SVM ISM E2E Tests', function () {
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
-  let signer: SvmSigner & { address: string };
+  let signer: SvmSigner;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -61,10 +61,13 @@ describe('SVM ISM E2E Tests', function () {
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
-    signer = await createSigner(TEST_PRIVATE_KEY, rpc);
+    signer = await SvmSigner.connectWithSigner(
+      [solana.rpcUrl],
+      TEST_PRIVATE_KEY,
+    );
 
-    console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, address(signer.address));
+    console.log(`Airdropping SOL to ${signer.getSignerAddress()}...`);
+    await airdropSol(rpc, address(signer.getSignerAddress()));
   });
 
   after(async () => {

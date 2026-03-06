@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
+import { SvmSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import {
   type SvmIgpHookConfig,
@@ -23,7 +24,6 @@ import {
 } from '../hook/merkle-tree-hook.js';
 import type { SvmDeployedHook } from '../types.js';
 import { createRpc } from '../rpc.js';
-import { type SvmSigner, createSigner } from '../signer.js';
 import {
   TEST_PROGRAM_IDS,
   airdropSol,
@@ -46,7 +46,7 @@ describe('SVM Hook E2E Tests', function () {
 
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
-  let signer: SvmSigner & { address: string };
+  let signer: SvmSigner;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -58,10 +58,13 @@ describe('SVM Hook E2E Tests', function () {
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
-    signer = await createSigner(TEST_PRIVATE_KEY, rpc);
+    signer = await SvmSigner.connectWithSigner(
+      [solana.rpcUrl],
+      TEST_PRIVATE_KEY,
+    );
 
-    console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, address(signer.address));
+    console.log(`Airdropping SOL to ${signer.getSignerAddress()}...`);
+    await airdropSol(rpc, address(signer.getSignerAddress()));
   });
 
   after(async () => {
@@ -122,9 +125,9 @@ describe('SVM Hook E2E Tests', function () {
       const igpConfig: SvmIgpHookConfig = {
         type: HookType.INTERCHAIN_GAS_PAYMASTER,
         program: { programId: TEST_PROGRAM_IDS.igp },
-        owner: signer.address,
-        beneficiary: signer.address,
-        oracleKey: signer.address,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        oracleKey: signer.getSignerAddress(),
         oracleConfig: {
           1: {
             gasPrice: '50000000000',
@@ -166,9 +169,9 @@ describe('SVM Hook E2E Tests', function () {
       const updateConfig: SvmIgpHookConfig = {
         type: HookType.INTERCHAIN_GAS_PAYMASTER,
         program: { programId: TEST_PROGRAM_IDS.igp },
-        owner: signer.address,
-        beneficiary: signer.address,
-        oracleKey: signer.address,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        oracleKey: signer.getSignerAddress(),
         oracleConfig: {
           1: {
             gasPrice: '50000000000',

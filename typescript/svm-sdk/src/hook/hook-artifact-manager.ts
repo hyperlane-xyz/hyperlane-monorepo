@@ -12,11 +12,12 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedHookArtifact,
+  IRawHookArtifactManager,
   RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
-import type { SvmSigner } from '../signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
@@ -33,7 +34,7 @@ import {
 
 export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 
-export class SvmHookArtifactManager {
+export class SvmHookArtifactManager implements IRawHookArtifactManager {
   private readonly salt: Uint8Array;
 
   constructor(
@@ -52,8 +53,8 @@ export class SvmHookArtifactManager {
       return this.createReader(this.altVmToTypeKey(hookType)).read(address);
     }
 
-    // detectHookType returns null for non-IGP addresses; the only other
-    // supported hook on SVM is the Merkle tree hook, which IS the mailbox.
+    // The only other supported hook on SVM is the merkle tree hook, which IS
+    // the mailbox program. Validate the address matches before assuming.
     assert(
       addr === this.mailboxAddress,
       `Unknown hook address ${address}: not an IGP program; expected the configured mailbox (${this.mailboxAddress}) for Merkle detection`,

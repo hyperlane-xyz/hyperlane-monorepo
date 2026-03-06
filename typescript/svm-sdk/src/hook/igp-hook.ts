@@ -27,7 +27,7 @@ import {
   getSetGasOracleConfigsInstruction,
 } from '../instructions/igp.js';
 import { deriveIgpAccountPda, deriveOverheadIgpAccountPda } from '../pda.js';
-import type { SvmSigner } from '../signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedIgpHook,

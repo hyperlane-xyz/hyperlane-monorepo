@@ -1,6 +1,6 @@
 import type { Address } from '@solana/kit';
 
-import type { SvmSigner } from '../signer.js';
+import type { SvmSigner } from '../clients/signer.js';
 import type { SvmProgramTarget, SvmReceipt, SvmRpc } from '../types.js';
 
 import {
