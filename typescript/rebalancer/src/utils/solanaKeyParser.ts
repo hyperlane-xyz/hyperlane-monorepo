@@ -98,7 +98,9 @@ export function parseSolanaPrivateKey(rawKey: string): Uint8Array {
       const decoded = bs58.decode(trimmed);
       const bytes = Array.from(decoded);
       return toSecretKey(bytes);
-    } catch {}
+    } catch {
+      // bs58 decode failed, fall through to outer catch
+    }
   } catch (error) {
     if (
       error instanceof Error &&
