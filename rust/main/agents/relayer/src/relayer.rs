@@ -33,7 +33,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
-    QueueOperation, H512, U256,
+    QueueOperation, SubmitterType, H512, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -209,6 +209,18 @@ impl BaseAgent for Relayer {
             let destination_chain_setup = destination.chain_conf.clone();
             let destination_mailbox = destination.mailbox.clone();
             let ccip_signer = destination.ccip_signer.clone();
+            let destination_gas_estimator = destination.chain_conf.gas_estimator;
+
+            if destination_gas_estimator == SubmitterType::Lander
+                && destination.dispatcher_entrypoint.is_none()
+            {
+                warn!(
+                    destination=%destination_domain.name(),
+                    submitter=?destination.chain_conf.submitter,
+                    gas_estimator=?destination_gas_estimator,
+                    "Destination chain is configured to use Lander gas estimator, but no dispatcher entrypoint is available; falling back to Classic gas estimation",
+                );
+            }
 
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination_domain.id()) {
@@ -250,6 +262,11 @@ impl BaseAgent for Relayer {
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
+                let payload_dispatcher_entrypoint = match destination_gas_estimator {
+                    SubmitterType::Classic => None,
+                    SubmitterType::Lander => destination.dispatcher_entrypoint.clone(),
+                };
+
                 msg_ctxs.insert(
                     ContextKey {
                         origin: origin_domain.clone(),
@@ -268,6 +285,7 @@ impl BaseAgent for Relayer {
                             destination_domain,
                         ),
                         application_operation_verifier: application_operation_verifier.clone(),
+                        payload_dispatcher_entrypoint,
                     }),
                 );
             }

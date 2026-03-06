@@ -341,22 +341,24 @@ fn parse_chain(
         .get_opt_key("submitter")
         .parse_from_str::<SubmitterType>("Invalid Submitter type")
         .end();
-    // for EVM chains, default to `SubmitterType::Lander` if not specified
-    let submitter = match submitter {
-        Some(submitter_type) => submitter_type,
-        None => match connection.protocol() {
-            HyperlaneDomainProtocol::Ethereum
-            | HyperlaneDomainProtocol::Aleo
-            | HyperlaneDomainProtocol::Radix
-            | HyperlaneDomainProtocol::Sealevel
-            | HyperlaneDomainProtocol::Tron => SubmitterType::Lander,
-            _ => Default::default(),
-        },
-    };
+    // Default submitter by protocol when `submitter` is not specified.
+    let submitter =
+        submitter.unwrap_or_else(|| default_submitter_for_protocol(connection.protocol()));
+
+    let gas_estimator = chain
+        .chain(&mut err)
+        .get_opt_key("gasEstimator")
+        .parse_from_str::<SubmitterType>("Invalid GasEstimator type")
+        .end();
+    // Default gas estimator by protocol when `gas_estimator` is not specified.
+    let gas_estimator =
+        gas_estimator.unwrap_or_else(|| default_gas_estimator_for_protocol(connection.protocol()));
+
     err.into_result(ChainConf {
         domain,
         signer,
         submitter,
+        gas_estimator,
         estimated_block_time,
         reorg_period,
         addresses: CoreContractAddresses {
@@ -381,6 +383,28 @@ fn parse_chain(
             denom: native_token_denom,
         },
     })
+}
+
+fn default_submitter_for_protocol(protocol: HyperlaneDomainProtocol) -> SubmitterType {
+    match protocol {
+        HyperlaneDomainProtocol::Ethereum
+        | HyperlaneDomainProtocol::Aleo
+        | HyperlaneDomainProtocol::Radix
+        | HyperlaneDomainProtocol::Sealevel
+        | HyperlaneDomainProtocol::Tron => SubmitterType::Lander,
+        _ => Default::default(),
+    }
+}
+
+fn default_gas_estimator_for_protocol(protocol: HyperlaneDomainProtocol) -> SubmitterType {
+    match protocol {
+        HyperlaneDomainProtocol::Ethereum
+        | HyperlaneDomainProtocol::Aleo
+        | HyperlaneDomainProtocol::Radix
+        | HyperlaneDomainProtocol::Sealevel
+        | HyperlaneDomainProtocol::Tron => SubmitterType::Classic,
+        _ => Default::default(),
+    }
 }
 
 /// Expects ChainMetadata
@@ -688,4 +712,73 @@ fn ethereum_to_tron_connection_conf(
         eth_conf.solidity_grpc_urls.unwrap_or_default(),
         eth_conf.energy_multiplier,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use hyperlane_core::config::{ConfigParsingError, ConfigPath};
+
+    use super::{default_gas_estimator_for_protocol, *};
+
+    #[test]
+    fn parse_gas_estimator_explicit_value() {
+        let config = json!({ "gasestimator": "Lander" });
+        let mut err = ConfigParsingError::default();
+        let parsed = ValueParser::new(ConfigPath::default(), &config)
+            .chain(&mut err)
+            .get_opt_key("gasEstimator")
+            .parse_from_str::<SubmitterType>("Invalid GasEstimator type")
+            .end();
+
+        assert!(err.is_ok());
+        assert_eq!(parsed, Some(SubmitterType::Lander));
+    }
+
+    #[test]
+    fn parse_gas_estimator_defaults_for_supported_protocols() {
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Ethereum),
+            SubmitterType::Classic
+        );
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Aleo),
+            SubmitterType::Classic
+        );
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Radix),
+            SubmitterType::Classic
+        );
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Sealevel),
+            SubmitterType::Classic
+        );
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Tron),
+            SubmitterType::Classic
+        );
+    }
+
+    #[test]
+    fn parse_gas_estimator_defaults_for_non_evm_protocols() {
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Cosmos),
+            SubmitterType::default()
+        );
+    }
+
+    #[test]
+    fn parse_gas_estimator_invalid_value_returns_error() {
+        let config = json!({ "gasestimator": "invalid-submitter-type" });
+        let mut err = ConfigParsingError::default();
+        let parsed = ValueParser::new(ConfigPath::default(), &config)
+            .chain(&mut err)
+            .get_opt_key("gasEstimator")
+            .parse_from_str::<SubmitterType>("Invalid GasEstimator type")
+            .end();
+
+        assert_eq!(parsed, None);
+        assert!(!err.is_ok());
+    }
 }

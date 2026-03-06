@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use snarkvm::{ledger::ConfirmedTransaction, prelude::Transaction};
 
-use hyperlane_core::{ChainResult, H512};
+use hyperlane_core::{ChainCommunicationError, ChainResult, H512};
 
 use crate::{
     provider::{AleoClient, AleoProvider},
-    CurrentNetwork, Plaintext,
+    CurrentNetwork, FeeEstimate, Plaintext,
 };
 
 /// Trait defining the interface that Lander's AleoAdapter needs from an Aleo provider.
@@ -61,6 +61,18 @@ pub trait AleoProviderForLander: Send + Sync {
         mapping_name: &str,
         mapping_key: &Plaintext<CurrentNetwork>,
     ) -> ChainResult<bool>;
+
+    /// Estimates transaction fee for an Aleo call.
+    async fn estimate_tx(
+        &self,
+        _program_id: &str,
+        _function_name: &str,
+        _input: Vec<String>,
+    ) -> ChainResult<FeeEstimate> {
+        Err(ChainCommunicationError::from_other_str(
+            "Aleo fee estimation is not implemented for this provider",
+        ))
+    }
 }
 
 #[async_trait]
@@ -103,5 +115,14 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
             .await?;
 
         Ok(plain_text.is_some())
+    }
+
+    async fn estimate_tx(
+        &self,
+        program_id: &str,
+        function_name: &str,
+        input: Vec<String>,
+    ) -> ChainResult<FeeEstimate> {
+        self.estimate_tx(program_id, function_name, input).await
     }
 }

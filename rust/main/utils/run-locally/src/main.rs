@@ -504,6 +504,9 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
         .hyp_env("CHAINS_TEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("CHAINS_TEST2_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("CHAINS_TEST3_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_TEST1_GASESTIMATOR", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_TEST2_GASESTIMATOR", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_TEST3_GASESTIMATOR", SUBMITTER_TYPE.to_string())
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
