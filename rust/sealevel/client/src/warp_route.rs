@@ -292,9 +292,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
         };
 
-        let home_path = std::env::var("HOME").unwrap();
-        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
-
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
                 hyperlane_sealevel_token_native::instruction::init_instruction(
@@ -365,6 +362,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         }
         .with_client(client)
         .send_with_payer();
+
+        let home_path = std::env::var("HOME").unwrap();
+        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
 
         if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
             let (mint_account, _mint_bump) =
