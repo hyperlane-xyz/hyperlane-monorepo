@@ -3461,6 +3461,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-fee"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "hyperlane-test-utils",
+ "num-derive",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-hello-world"
 version = "0.1.0"
 dependencies = [
@@ -3662,6 +3683,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3692,6 +3714,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3722,9 +3745,13 @@ dependencies = [
  "borsh 1.6.0",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-token",
+ "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-native",
  "hyperlane-warp-route",
  "num-derive",
  "num-traits",
@@ -3747,6 +3774,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",

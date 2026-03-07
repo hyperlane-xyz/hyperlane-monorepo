@@ -45,6 +45,9 @@ hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-fee = { path = "../hyperlane-sealevel-fee", features = [
+    "no-entrypoint",
+] }
 
 [lib]
 crate-type = ["cdylib", "lib"]

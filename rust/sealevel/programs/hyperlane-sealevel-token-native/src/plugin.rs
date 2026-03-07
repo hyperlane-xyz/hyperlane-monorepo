@@ -113,7 +113,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     }
 
     /// Transfers tokens into the program so they can be sent to a remote chain.
-    /// Burns the tokens from the sender's associated token account.
+    /// Locks lamports in the native collateral PDA.
+    /// If fees are configured, transfers fee lamports to the fee beneficiary.
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
@@ -124,6 +125,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee_amount: u64,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // Account 0: System program.
         let system_program = next_account_info(accounts_iter)?;
@@ -135,11 +138,27 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         let native_collateral_account = next_account_info(accounts_iter)?;
         Self::verify_native_collateral_account_info(program_id, token, native_collateral_account)?;
 
-        // Transfer tokens into the native collateral account.
+        // Lock lamports in the native collateral account.
         invoke(
             &system_instruction::transfer(sender_wallet.key, native_collateral_account.key, amount),
             &[sender_wallet.clone(), native_collateral_account.clone()],
-        )
+        )?;
+
+        // Transfer fee lamports to recipient (if any).
+        // The fee_beneficiary_account's legitimacy (matching the fee account's
+        // stored beneficiary) was verified by verify_and_quote_fee in the
+        // hyperlane-sealevel-token lib.
+        if fee_amount > 0 {
+            let recipient = fee_beneficiary_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
+            ))?;
+            invoke(
+                &system_instruction::transfer(sender_wallet.key, recipient.key, fee_amount),
+                &[sender_wallet.clone(), recipient.clone()],
+            )?;
+        }
+
+        Ok(())
     }
 
     /// Transfers tokens out to a recipient's associated token account as a
@@ -182,6 +201,10 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         verify_rent_exempt(native_collateral_account, &Rent::get()?)?;
 
         Ok(())
+    }
+
+    fn fee_beneficiary_account_key(_token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey {
+        *beneficiary
     }
 
     /// Returns the accounts required for `transfer_out`.
