@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  addressToBytes32,
   eqAddress,
   isZeroishAddress,
   objMap,
@@ -325,6 +326,46 @@ describe('TokenDeployer', async () => {
       );
       const feeToken = await routingFee.token();
       expect(eqAddress(feeToken, routerAddress)).to.be.true;
+    });
+
+    it('should quote both native IGP fee and non-native token fee when feeRecipient is enabled', async () => {
+      const syntheticConfig: WarpRouteDeployConfigMailboxRequired = {
+        ...config,
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            bps: 100n,
+            maxFee: 1000000000n,
+            halfAmount: 500000000n,
+          },
+        },
+      };
+
+      const warpRoute = await deployer.deploy(syntheticConfig);
+      const routerAddress = warpRoute[chain].synthetic.address;
+      const router = TokenRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+      const quotes = await router.callStatic[
+        'quoteTransferRemote(uint32,bytes32,uint256)'
+      ](destinationDomain, addressToBytes32(signer.address), 1_000_000n);
+
+      expect(quotes.length).to.be.gte(2);
+
+      const hasNativeQuote = quotes.some((q) =>
+        eqAddress(q.token, ethers.constants.AddressZero),
+      );
+      expect(hasNativeQuote).to.be.true;
+
+      const hasTokenFeeQuote = quotes.some(
+        (q) => !eqAddress(q.token, ethers.constants.AddressZero),
+      );
+      expect(hasTokenFeeQuote).to.be.true;
     });
   });
 });
