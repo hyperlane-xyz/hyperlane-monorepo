@@ -145,6 +145,22 @@ export class RebalancerContextFactory {
       multiProvider.getProvider(chain);
     }
 
+    // Validate Tron chain metadata: reorgPeriod must be numeric.
+    // Tron's JSON-RPC doesn't support named block tags like 'finalized' or 'safe'.
+    // A non-numeric reorgPeriod will cause block tag resolution to fall back to 'latest'.
+    for (const chain of warpChains) {
+      const metadata = multiProvider.getChainMetadata(chain);
+      if ((metadata?.technicalStack as string) === 'tron') {
+        const reorgPeriod = metadata.blocks?.reorgPeriod;
+        if (reorgPeriod !== undefined && typeof reorgPeriod !== 'number') {
+          logger.warn(
+            { chain, reorgPeriod },
+            'Tron chain has non-numeric reorgPeriod; block tag resolution will fall back to latest. Set blocks.reorgPeriod to a number (recommended: 0 or 1)',
+          );
+        }
+      }
+    }
+
     // Create MultiProtocolProvider (convert from MultiProvider if not provided)
     const mpp =
       multiProtocolProvider ??

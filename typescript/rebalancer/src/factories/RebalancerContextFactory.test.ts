@@ -317,4 +317,118 @@ describe('RebalancerContextFactory', () => {
       );
     });
   });
+  describe('create() — Tron chain metadata validation', () => {
+    it('should warn when Tron chain has non-numeric reorgPeriod', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'tron', protocol: ProtocolType.Ethereum },
+      ]);
+
+      multiProvider.getChainMetadata.callsFake((chain: any) => {
+        if (chain === 'tron') {
+          return {
+            protocol: ProtocolType.Ethereum,
+            technicalStack: 'tron',
+            blocks: { reorgPeriod: 'finalized' },
+          };
+        }
+        return { protocol: ProtocolType.Ethereum };
+      });
+
+      const warnStub = Sinon.stub();
+      const mockLogger = {
+        debug: Sinon.stub(),
+        info: Sinon.stub(),
+        warn: warnStub,
+        error: Sinon.stub(),
+        child: Sinon.stub().returnsThis(),
+        level: 'debug',
+      } as any;
+
+      await RebalancerContextFactory.create(
+        createMockConfig(),
+        multiProvider,
+        createMockMpp(),
+        createMockRegistry(),
+        mockLogger,
+        undefined,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'tron',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypSynthetic,
+            ),
+          ],
+        },
+      );
+
+      const tronWarnings = warnStub
+        .getCalls()
+        .filter((call: any) => call.args[0]?.chain === 'tron');
+      expect(tronWarnings).to.have.length(1);
+      expect(tronWarnings[0].args[1]).to.include('reorgPeriod');
+    });
+
+    it('should not warn when Tron chain has numeric reorgPeriod', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'tron', protocol: ProtocolType.Ethereum },
+      ]);
+
+      multiProvider.getChainMetadata.callsFake((chain: any) => {
+        if (chain === 'tron') {
+          return {
+            protocol: ProtocolType.Ethereum,
+            technicalStack: 'tron',
+            blocks: { reorgPeriod: 1 },
+          };
+        }
+        return { protocol: ProtocolType.Ethereum };
+      });
+
+      const warnStub = Sinon.stub();
+      const mockLogger = {
+        debug: Sinon.stub(),
+        info: Sinon.stub(),
+        warn: warnStub,
+        error: Sinon.stub(),
+        child: Sinon.stub().returnsThis(),
+        level: 'debug',
+      } as any;
+
+      await RebalancerContextFactory.create(
+        createMockConfig(),
+        multiProvider,
+        createMockMpp(),
+        createMockRegistry(),
+        mockLogger,
+        undefined,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'tron',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypSynthetic,
+            ),
+          ],
+        },
+      );
+
+      const tronWarnings = warnStub
+        .getCalls()
+        .filter((call: any) => call.args[0]?.chain === 'tron');
+      expect(tronWarnings).to.have.length(0);
+    });
+  });
 });
