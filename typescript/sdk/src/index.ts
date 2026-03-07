@@ -402,6 +402,15 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
+  buildGetEthBalanceCall,
+  clearMulticall3BatchSupportCache,
+  EvmMulticallReadOptions,
+  EvmReadCall,
+  EvmReadCallResults,
+  readEvmCallMapWithMulticall,
+  readEvmCallsWithMulticall,
+} from './providers/multicall3.js';
+export {
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
