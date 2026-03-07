@@ -356,6 +356,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     }
 
     /// @dev Target-router-aware gas quote helper. Avoids Router._mustHaveRemoteRouter().
+    /// Caller must validate `_targetRouter` is authorized for `_destination`.
     function _quoteGasPaymentTo(
         uint32 _destination,
         bytes32 _recipient,
