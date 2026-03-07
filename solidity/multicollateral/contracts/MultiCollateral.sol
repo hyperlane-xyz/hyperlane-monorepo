@@ -197,11 +197,12 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         // Same-domain transferRemoteTo calls handle() directly and does not dispatch
         // through mailbox hooks, so do not charge hook fees in that path.
         if (_feeHook != address(0) && _destination != localDomain) {
-            uint256 hookFee = _quoteGasPayment(
+            uint256 hookFee = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
                 _amount,
-                _token
+                _token,
+                _targetRouter
             );
             if (hookFee > 0) {
                 if (_token != address(this)) {
@@ -317,17 +318,24 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount,
         bytes32 _targetRouter
     ) external view override returns (Quote[] memory quotes) {
+        require(
+            _isRemoteRouter(_destination, _targetRouter) ||
+                _enrolledRouters[_destination].contains(_targetRouter),
+            "MC: unauthorized router"
+        );
+
         quotes = new Quote[](3);
 
         // Same-domain: handle() called directly, no interchain gas
         uint256 gasQuote = 0;
         address _feeToken = feeToken();
         if (_destination != localDomain) {
-            gasQuote = _quoteGasPayment(
+            gasQuote = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
                 _outboundAmount(_amount),
-                _feeToken
+                _feeToken,
+                _targetRouter
             );
         }
         quotes[0] = Quote({token: _feeToken, amount: gasQuote});
@@ -345,5 +353,24 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             token: token(),
             amount: _externalFeeAmount(_destination, _recipient, _amount)
         });
+    }
+
+    /// @dev Target-router-aware gas quote helper. Avoids Router._mustHaveRemoteRouter().
+    /// Caller must validate `_targetRouter` is authorized for `_destination`.
+    function _quoteGasPaymentTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        address _feeToken,
+        bytes32 _targetRouter
+    ) internal view returns (uint256) {
+        return
+            mailbox.quoteDispatch(
+                _destination,
+                _targetRouter,
+                TokenMessage.format(_recipient, _amount),
+                _generateHookMetadata(_destination, _feeToken),
+                IPostDispatchHook(address(hook))
+            );
     }
 }
