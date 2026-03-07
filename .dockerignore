@@ -1,3 +1,6 @@
+# Rust build artifacts
+**/target
+
 # Dependencies & build caches
 node_modules
 .pnpm-store/
