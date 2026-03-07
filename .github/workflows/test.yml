@@ -228,7 +228,6 @@ jobs:
           echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
           echo "has_svm=$has_svm" >> $GITHUB_OUTPUT
 
-          echo "Shared changes: $has_shared"
           echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron svm=$has_svm"
 
       - name: Decide what to run
@@ -498,7 +497,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 

@@ -7,6 +7,8 @@ import {
   getUtf8Encoder,
 } from '@solana/kit';
 
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { ByteCursor } from '../codecs/binary.js';
 import {
   METAPLEX_METADATA_PROGRAM_ADDRESS,
@@ -116,8 +118,7 @@ export function decodeMetaplexMetadata(data: Uint8Array): {
     offset += 4;
     const bytes = data.subarray(offset, offset + len);
     offset += len;
-    // eslint-disable-next-line no-control-regex -- stripping null padding from on-chain metadata
-    return new TextDecoder().decode(bytes).replace(/\x00/g, '').trim();
+    return new TextDecoder().decode(bytes).replaceAll('\0', '').trim();
   }
 
   return { name: readString(), symbol: readString(), uri: readString() };
@@ -188,8 +189,11 @@ export async function fetchMintMetadata(
       );
       if (name && symbol) return { name, symbol, decimals, uri };
     }
-  } catch {
-    // Fall through to unknown.
+  } catch (error) {
+    rootLogger.debug('Metaplex metadata lookup failed', {
+      mintAddress,
+      error,
+    });
   }
 
   return { name: 'Unknown Token', symbol: 'UNKNOWN', decimals };

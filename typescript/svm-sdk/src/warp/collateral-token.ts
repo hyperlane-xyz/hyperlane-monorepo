@@ -136,18 +136,7 @@ export class SvmCollateralTokenWriter
     const receipts: SvmReceipt[] = [];
     const tokenConfig = artifact.config;
 
-    const { programAddress, receipts: deployReceipts } = await resolveProgram(
-      this.config.program,
-      this.svmSigner,
-      this.rpc,
-      true,
-    );
-    receipts.push(...deployReceipts);
-
-    const { address: escrowPda } = await deriveEscrowPda(programAddress);
-    const { address: ataPayerPda } = await deriveAtaPayerPda(programAddress);
-
-    // Determine which SPL program owns the mint (Token or Token 2022).
+    // Validate the collateral mint before deploying
     const collateralMint = parseAddress(tokenConfig.token);
     const mintInfo = await this.rpc
       .getAccountInfo(collateralMint, { encoding: 'base64' })
@@ -160,11 +149,27 @@ export class SvmCollateralTokenWriter
     const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
     const localDecimals = getMintDecimals(mintRawData);
     assertLocalDecimals(localDecimals);
+    const remoteDecimals = scaleToRemoteDecimals(
+      localDecimals,
+      tokenConfig.scale,
+    );
+
+    // Deploy
+    const { programAddress, receipts: deployReceipts } = await resolveProgram(
+      this.config.program,
+      this.svmSigner,
+      this.rpc,
+      true,
+    );
+    receipts.push(...deployReceipts);
+
+    const { address: escrowPda } = await deriveEscrowPda(programAddress);
+    const { address: ataPayerPda } = await deriveAtaPayerPda(programAddress);
 
     const initData = await buildBaseInitData(
       tokenConfig,
       localDecimals,
-      scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
+      remoteDecimals,
     );
 
     const initIx = await getTokenInitInstruction(

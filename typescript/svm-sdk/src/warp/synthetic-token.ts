@@ -250,6 +250,12 @@ export class SvmSyntheticTokenWriter
       'metadataUri is required for Solana synthetic token deployments',
     );
 
+    assertLocalDecimals(tokenConfig.decimals);
+    const remoteDecimals = scaleToRemoteDecimals(
+      tokenConfig.decimals,
+      tokenConfig.scale,
+    );
+
     const { programAddress, receipts: deployReceipts } = await resolveProgram(
       this.config.program,
       this.svmSigner,
@@ -261,11 +267,10 @@ export class SvmSyntheticTokenWriter
     const { address: mintPda } = await deriveSyntheticMintPda(programAddress);
     const { address: ataPayerPda } = await deriveAtaPayerPda(programAddress);
 
-    assertLocalDecimals(tokenConfig.decimals);
     const initData = await buildBaseInitData(
       tokenConfig,
       tokenConfig.decimals,
-      scaleToRemoteDecimals(tokenConfig.decimals, tokenConfig.scale),
+      remoteDecimals,
     );
 
     const initIx = await getTokenInitInstruction(

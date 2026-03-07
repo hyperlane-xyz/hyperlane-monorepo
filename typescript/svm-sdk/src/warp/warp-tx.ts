@@ -62,24 +62,48 @@ export function assertLocalDecimals(localDecimals: number): void {
  * scale = 10^(remoteDecimals - localDecimals), so
  * remoteDecimals = localDecimals + log10(scale).
  * Falls back to localDecimals when scale is absent or 1.
+ * Supports both upscaling (scale >= 1, e.g. 1e9) and downscaling
+ * (scale < 1, e.g. 1e-4) to match the on-chain program which stores
+ * decimals and remote_decimals as independent u8 values.
  * Asserts that scale is an exact power of 10.
  */
 export function scaleToRemoteDecimals(
   localDecimals: number,
   scale?: number,
 ): number {
-  if (!scale || scale === 1) return localDecimals;
+  if (scale == null || scale === 1) return localDecimals;
+  assert(scale > 0, `scale must be positive, got ${scale}`);
+
+  if (scale >= 1) {
+    let exp = 0;
+    let remaining = scale;
+    while (remaining > 1 && remaining % 10 === 0) {
+      remaining /= 10;
+      exp++;
+    }
+    assert(
+      remaining === 1,
+      `scale must be an exact power of 10 (e.g. 1e9), got ${scale}`,
+    );
+    return localDecimals + exp;
+  }
+
+  // Downscale: scale < 1 (e.g. 0.0001 = 1e-4)
   let exp = 0;
   let remaining = scale;
-  while (remaining > 1 && remaining % 10 === 0) {
-    remaining /= 10;
+  while (remaining < 1) {
+    remaining *= 10;
     exp++;
   }
   assert(
     remaining === 1,
-    `scale must be an exact power of 10 (e.g. 1e9), got ${scale}`,
+    `scale must be an exact power of 10 (e.g. 1e-4), got ${scale}`,
   );
-  return localDecimals + exp;
+  assert(
+    localDecimals >= exp,
+    `scale 1e-${exp} would produce negative remoteDecimals for localDecimals=${localDecimals}`,
+  );
+  return localDecimals - exp;
 }
 
 /**
@@ -416,22 +440,20 @@ export async function computeWarpTokenUpdateInstructions(
     });
   }
 
-  // 4. Upgrade authority — always last tx
+  // 4. Upgrade authority — always last tx.
+  // Skip when the program is immutable (no current authority).
   const currentUpgradeAuthority = await getProgramUpgradeAuthority(
     rpc,
     programId,
   );
   if (
+    currentUpgradeAuthority &&
     !eqOptionalAddress(
       currentUpgradeAuthority ?? undefined,
       expectedOwnerAddress ?? undefined,
       eqAddressSol,
     )
   ) {
-    assert(
-      currentUpgradeAuthority,
-      'Cannot transfer upgrade authority: no current authority',
-    );
     txs.push({
       instructions: [
         await getSetUpgradeAuthorityInstruction(

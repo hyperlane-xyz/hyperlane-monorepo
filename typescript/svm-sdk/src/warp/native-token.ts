@@ -118,6 +118,13 @@ export class SvmNativeTokenWriter
     const receipts: SvmReceipt[] = [];
     const tokenConfig = artifact.config;
 
+    const localDecimals = tokenConfig.decimals ?? SOL_DECIMALS;
+    assertLocalDecimals(localDecimals);
+    const remoteDecimals = scaleToRemoteDecimals(
+      localDecimals,
+      tokenConfig.scale,
+    );
+
     const { programAddress, receipts: deployReceipts } = await resolveProgram(
       this.config.program,
       this.svmSigner,
@@ -129,12 +136,10 @@ export class SvmNativeTokenWriter
     const { address: nativeCollateralPda } =
       await deriveNativeCollateralPda(programAddress);
 
-    const localDecimals = tokenConfig.decimals ?? SOL_DECIMALS;
-    assertLocalDecimals(localDecimals);
     const initData = await buildBaseInitData(
       tokenConfig,
       localDecimals,
-      scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
+      remoteDecimals,
     );
 
     const initIx = await getTokenInitInstruction(
@@ -163,7 +168,7 @@ export class SvmNativeTokenWriter
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: tokenConfig,
+        config: { ...tokenConfig, decimals: localDecimals },
         deployed: { address: programAddress },
       },
       receipts,

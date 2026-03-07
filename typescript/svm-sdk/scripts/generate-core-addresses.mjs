@@ -46,6 +46,11 @@ for (const entry of readdirSync(ENVIRONMENTS_DIR, { withFileTypes: true })) {
 
 const chainNames = Object.keys(chains).sort();
 
+if (chainNames.length === 0) {
+  console.error('No valid chains found in', ENVIRONMENTS_DIR);
+  process.exit(1);
+}
+
 const interfaceFields = Object.keys(chains[chainNames[0]])
   .map((k) => `  ${k}: string;`)
   .join('\n');
