@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import { ExternalBridgeType } from '../config/types.js';
+import { ExternalBridgeType, ExecutionType } from '../config/types.js';
 import type {
   InventoryRoute,
   RawBalances,
@@ -57,6 +57,7 @@ describe('CollateralDeficitStrategy', () => {
             {
               [chain1]: {
                 bridge: BRIDGE1,
+                executionType: ExecutionType.MovableCollateral,
                 buffer: '1000',
               },
             },
@@ -72,10 +73,12 @@ describe('CollateralDeficitStrategy', () => {
         {
           [chain1]: {
             bridge: BRIDGE1,
+            executionType: ExecutionType.MovableCollateral,
             buffer: '1000',
           },
           [chain2]: {
             bridge: BRIDGE2,
+            executionType: ExecutionType.MovableCollateral,
             buffer: '500',
           },
         },
@@ -91,8 +94,16 @@ describe('CollateralDeficitStrategy', () => {
     it('should detect deficit when balance is negative and add buffer', () => {
       const strategy = new CollateralDeficitStrategy(
         {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+          [chain1]: {
+            bridge: BRIDGE1,
+            buffer: '1000',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain2]: {
+            bridge: BRIDGE2,
+            buffer: '500',
+            executionType: ExecutionType.MovableCollateral,
+          },
         },
         tokensByChainName,
         testLogger,
@@ -120,8 +131,16 @@ describe('CollateralDeficitStrategy', () => {
     it('should treat zero balance as neither surplus nor deficit', () => {
       const strategy = new CollateralDeficitStrategy(
         {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+          [chain1]: {
+            bridge: BRIDGE1,
+            buffer: '1000',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain2]: {
+            bridge: BRIDGE2,
+            buffer: '500',
+            executionType: ExecutionType.MovableCollateral,
+          },
         },
         tokensByChainName,
         testLogger,
@@ -143,8 +162,16 @@ describe('CollateralDeficitStrategy', () => {
     it('should treat positive balance as surplus', () => {
       const strategy = new CollateralDeficitStrategy(
         {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+          [chain1]: {
+            bridge: BRIDGE1,
+            buffer: '1000',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain2]: {
+            bridge: BRIDGE2,
+            buffer: '500',
+            executionType: ExecutionType.MovableCollateral,
+          },
         },
         tokensByChainName,
         testLogger,
@@ -164,8 +191,16 @@ describe('CollateralDeficitStrategy', () => {
 
     it('should filter pending rebalances by configured bridges and simulate', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -211,8 +246,16 @@ describe('CollateralDeficitStrategy', () => {
 
     it('should filter out pending rebalances with different bridge', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -254,8 +297,16 @@ describe('CollateralDeficitStrategy', () => {
 
     it('should handle pending rebalance that fully covers deficit', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -294,9 +345,21 @@ describe('CollateralDeficitStrategy', () => {
     it('should handle multiple chains with mixed balances', () => {
       const strategy = new CollateralDeficitStrategy(
         {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-          [chain3]: { bridge: BRIDGE1, buffer: '2000' },
+          [chain1]: {
+            bridge: BRIDGE1,
+            buffer: '1000',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain2]: {
+            bridge: BRIDGE2,
+            buffer: '500',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain3]: {
+            bridge: BRIDGE1,
+            buffer: '2000',
+            executionType: ExecutionType.MovableCollateral,
+          },
         },
         tokensByChainName,
         testLogger,
@@ -326,8 +389,16 @@ describe('CollateralDeficitStrategy', () => {
     it('should handle empty pending rebalances array', () => {
       const strategy = new CollateralDeficitStrategy(
         {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+          [chain1]: {
+            bridge: BRIDGE1,
+            buffer: '1000',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain2]: {
+            bridge: BRIDGE2,
+            buffer: '500',
+            executionType: ExecutionType.MovableCollateral,
+          },
         },
         tokensByChainName,
         testLogger,
@@ -350,8 +421,16 @@ describe('CollateralDeficitStrategy', () => {
   describe('getRebalancingRoutes', () => {
     it('should set bridge field on output routes', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -396,9 +475,21 @@ describe('CollateralDeficitStrategy', () => {
 
     it('should generate routes from surplus to deficit chains', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        [chain3]: { bridge: BRIDGE1, buffer: '100' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain3]: {
+          bridge: BRIDGE1,
+          buffer: '100',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -446,8 +537,16 @@ describe('CollateralDeficitStrategy', () => {
   describe('filterByConfiguredBridges', () => {
     it('should filter rebalances by configured bridge for route', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -490,8 +589,16 @@ describe('CollateralDeficitStrategy', () => {
 
     it('should include rebalance when bridge matches configured bridge for the route', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -520,8 +627,16 @@ describe('CollateralDeficitStrategy', () => {
 
     it('should exclude rebalance when bridge does not match configured bridge for the route', () => {
       const config = {
-        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: '1000',
+          executionType: ExecutionType.MovableCollateral,
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: '500',
+          executionType: ExecutionType.MovableCollateral,
+        },
       };
       const bridgeConfigs = extractBridgeConfigs(config);
 
@@ -550,8 +665,16 @@ describe('CollateralDeficitStrategy', () => {
     it('should return empty array for undefined pending rebalances', () => {
       const strategy = new CollateralDeficitStrategy(
         {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+          [chain1]: {
+            bridge: BRIDGE1,
+            buffer: '1000',
+            executionType: ExecutionType.MovableCollateral,
+          },
+          [chain2]: {
+            bridge: BRIDGE2,
+            buffer: '500',
+            executionType: ExecutionType.MovableCollateral,
+          },
         },
         tokensByChainName,
         testLogger,

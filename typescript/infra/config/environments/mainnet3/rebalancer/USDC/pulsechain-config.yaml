@@ -10,6 +10,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+      executionType: movableCollateral
 
     avalanche:
       weighted:
@@ -18,6 +19,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677'
+      executionType: movableCollateral
 
     base:
       weighted:
@@ -26,6 +28,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+      executionType: movableCollateral
 
     ethereum:
       weighted:
@@ -34,6 +37,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+      executionType: movableCollateral
 
     optimism:
       weighted:
@@ -42,6 +46,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE'
+      executionType: movableCollateral
 
     polygon:
       weighted:
@@ -50,6 +55,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0xa62F45662809f5F6535b58bae9A572a2EC4A1f84'
+      executionType: movableCollateral
 
     unichain:
       weighted:
@@ -58,3 +64,4 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
       bridge: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682'
+      executionType: movableCollateral
