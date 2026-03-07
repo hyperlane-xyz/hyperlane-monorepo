@@ -717,6 +717,26 @@ contract MultiCollateralTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
+    function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment() public {
+        // Remove default Router.sol mapping for DESTINATION while keeping
+        // usdtRouterB enrolled via MultiCollateral's per-domain set.
+        usdcRouterA.unenrollRemoteRouter(DESTINATION);
+
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
+
+        assertEq(quotes.length, 3);
+        assertEq(quotes[0].token, address(0));
+        uint256 expectedFee = (1000e6 * DEFAULT_FEE_BPS) / 10000;
+        assertEq(quotes[1].token, address(originUSDC));
+        assertEq(quotes[1].amount, 1000e6 + expectedFee);
+        assertEq(quotes[2].amount, 0);
+    }
+
     // ============ Batch enrollment ============
 
     function test_enrollRouters_batch() public {
