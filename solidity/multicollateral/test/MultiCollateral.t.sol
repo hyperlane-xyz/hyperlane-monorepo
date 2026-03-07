@@ -737,6 +737,36 @@ contract MultiCollateralTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
+    function test_quoteTransferRemoteTo_revert_unauthorizedRouter() public {
+        vm.expectRevert("MC: unauthorized router");
+        usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(0xdead).addressToBytes32()
+        );
+    }
+
+    function test_transferRemoteTo_withoutDefaultRouterEnrollment() public {
+        usdcRouterA.setFeeRecipient(address(0));
+        usdtRouterB.setFeeRecipient(address(0));
+        usdcRouterA.unenrollRemoteRouter(DESTINATION);
+
+        uint256 amount = 1234e6;
+        uint256 bobBefore = destUSDT.balanceOf(BOB);
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+        env.processNextPendingMessage();
+
+        assertEq(destUSDT.balanceOf(BOB), bobBefore + 1234e18);
+    }
+
     // ============ Batch enrollment ============
 
     function test_enrollRouters_batch() public {

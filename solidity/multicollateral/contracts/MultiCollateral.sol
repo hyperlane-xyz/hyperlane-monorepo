@@ -318,6 +318,12 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount,
         bytes32 _targetRouter
     ) external view override returns (Quote[] memory quotes) {
+        require(
+            _isRemoteRouter(_destination, _targetRouter) ||
+                _enrolledRouters[_destination].contains(_targetRouter),
+            "MC: unauthorized router"
+        );
+
         quotes = new Quote[](3);
 
         // Same-domain: handle() called directly, no interchain gas
