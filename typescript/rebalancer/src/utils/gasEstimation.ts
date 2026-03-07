@@ -241,7 +241,11 @@ export async function calculateTransferCosts(
     };
   }
 
-  // Estimate gas with buffer
+  // Estimate gas with buffer.
+  // Note: Tron chains (ChainTechnicalStack.Tron) enter this path because they
+  // use ProtocolType.Ethereum. TronWallet.sendTransaction() independently applies
+  // a 1.5x feeLimit multiplier (capped at 1000 TRX) on top of the gas limit.
+  // This results in double-buffering — safe, but yields higher fee estimates.
   const estimatedGasLimit = await estimateTransferRemoteGas(
     originChain,
     destinationChain,
