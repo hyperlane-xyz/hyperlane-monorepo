@@ -111,7 +111,7 @@ jobs:
           fi
 
       - name: Upload program artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sealevel-programs-${{ steps.version.outputs.version }}
           path: ./artifacts/*.so
@@ -119,7 +119,7 @@ jobs:
           retention-days: 90
 
       - name: Upload checksums
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sealevel-checksums-${{ steps.version.outputs.version }}
           path: ./artifacts/checksums.sha256
@@ -163,7 +163,11 @@ jobs:
 
           mkdir -p ./second-build
           CONTAINER_ID=$(docker create sealevel-verify:local)
-          docker cp "${CONTAINER_ID}:/build/rust/sealevel/target/deploy/." ./second-build/ || true
+          if ! docker cp "${CONTAINER_ID}:/build/rust/sealevel/target/deploy/." ./second-build/; then
+            echo "ERROR: Failed to copy artifacts from verification build"
+            docker rm "${CONTAINER_ID}"
+            exit 1
+          fi
           docker rm "${CONTAINER_ID}"
 
       - name: Compare hashes

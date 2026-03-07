@@ -17,6 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 PROGRAM_TYPE="${1:-all}"
+if [[ ! "${PROGRAM_TYPE}" =~ ^(all|core|token)$ ]]; then
+    echo "ERROR: Invalid program type '${PROGRAM_TYPE}'. Must be one of: all, core, token"
+    exit 1
+fi
 TAG="${2:-latest}"
 IMAGE_NAME="hyperlane-sealevel-build"
 
