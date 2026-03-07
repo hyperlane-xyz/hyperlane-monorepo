@@ -10,6 +10,7 @@ use solana_client::{
 use std::{
     collections::HashMap,
     fmt::Debug,
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -363,10 +364,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .with_client(client)
         .send_with_payer();
 
-        let home_path = std::env::var("HOME").unwrap();
-        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
-
         if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
+            let spl_token_binary_path = find_spl_token_binary().expect(
+                "Could not find spl-token binary on PATH, in CARGO_HOME/bin, or in HOME/.cargo/bin",
+            );
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
@@ -725,6 +726,33 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
             print_data_or_err(res);
         }
     }
+}
+
+fn find_spl_token_binary() -> Option<PathBuf> {
+    // 1. Check PATH via `which`
+    if let Ok(output) = Command::new("which").arg("spl-token").output() {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(PathBuf::from(path));
+            }
+        }
+    }
+    // 2. Check CARGO_HOME/bin
+    if let Ok(cargo_home) = std::env::var("CARGO_HOME") {
+        let path = PathBuf::from(cargo_home).join("bin/spl-token");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    // 3. Fall back to HOME/.cargo/bin
+    if let Ok(home) = std::env::var("HOME") {
+        let path = PathBuf::from(home).join(".cargo/bin/spl-token");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
 }
 
 pub fn install_spl_token_cli() {
