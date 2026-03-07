@@ -1,11 +1,7 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import {
-  ChainTechnicalStack,
-  type ChainMetadata,
-  type MultiProtocolProvider,
-} from '@hyperlane-xyz/sdk';
+import { type ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getConfirmedBlockTag } from './blockTag.js';
@@ -27,8 +23,9 @@ describe('getConfirmedBlockTag', () => {
   it('should return undefined for Tron chain with string reorgPeriod', async () => {
     const metadata: Partial<ChainMetadata> = {
       protocol: ProtocolType.Ethereum,
-      technicalStack: ChainTechnicalStack.Tron,
+      technicalStack: 'tron' as any,
       blocks: {
+        confirmations: 1,
         reorgPeriod: 'finalized',
       },
     };
@@ -43,8 +40,9 @@ describe('getConfirmedBlockTag', () => {
   it('should return block number for Tron chain with numeric reorgPeriod', async () => {
     const metadata: Partial<ChainMetadata> = {
       protocol: ProtocolType.Ethereum,
-      technicalStack: ChainTechnicalStack.Tron,
+      technicalStack: 'tron' as any,
       blocks: {
+        confirmations: 1,
         reorgPeriod: 1,
       },
     };
@@ -64,8 +62,9 @@ describe('getConfirmedBlockTag', () => {
   it('should return string tag for non-Tron EVM chain with string reorgPeriod', async () => {
     const metadata: Partial<ChainMetadata> = {
       protocol: ProtocolType.Ethereum,
-      technicalStack: ChainTechnicalStack.Other,
+      technicalStack: 'other' as any,
       blocks: {
+        confirmations: 1,
         reorgPeriod: 'finalized',
       },
     };
@@ -81,6 +80,7 @@ describe('getConfirmedBlockTag', () => {
     const metadata: Partial<ChainMetadata> = {
       protocol: ProtocolType.Cosmos,
       blocks: {
+        confirmations: 1,
         reorgPeriod: 'finalized',
       },
     };
@@ -95,8 +95,9 @@ describe('getConfirmedBlockTag', () => {
   it('should return block number for EVM chain with numeric reorgPeriod', async () => {
     const metadata: Partial<ChainMetadata> = {
       protocol: ProtocolType.Ethereum,
-      technicalStack: ChainTechnicalStack.Other,
+      technicalStack: 'other' as any,
       blocks: {
+        confirmations: 1,
         reorgPeriod: 10,
       },
     };
@@ -116,8 +117,10 @@ describe('getConfirmedBlockTag', () => {
   it('should use default reorgPeriod of 32 when not specified', async () => {
     const metadata: Partial<ChainMetadata> = {
       protocol: ProtocolType.Ethereum,
-      technicalStack: ChainTechnicalStack.Other,
-      blocks: {},
+      technicalStack: 'other' as any,
+      blocks: {
+        confirmations: 1,
+      },
     };
 
     const mockProvider = {

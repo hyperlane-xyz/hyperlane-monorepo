@@ -1,7 +1,6 @@
 import type { Logger } from 'pino';
 
 import {
-  ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
@@ -33,7 +32,7 @@ export async function getConfirmedBlockTag(
 
     // Tron chains don't support named block tags like 'finalized' or 'safe'
     if (
-      metadata.technicalStack === ChainTechnicalStack.Tron &&
+      (metadata.technicalStack as string) === 'tron' &&
       typeof reorgPeriod === 'string'
     ) {
       return undefined;
