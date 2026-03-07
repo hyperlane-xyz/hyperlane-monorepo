@@ -15,7 +15,7 @@ import {
   type WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { type Address, assert, isEVMLike, mustGet } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import {
@@ -53,10 +53,9 @@ export async function runPreflightChecksForChains({
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
 
-    const signer =
-      metadata.protocol === ProtocolType.Ethereum
-        ? multiProvider.getSigner(chain)
-        : mustGet(altVmSigners, chain);
+    const signer = isEVMLike(metadata.protocol)
+      ? multiProvider.getSigner(chain)
+      : mustGet(altVmSigners, chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -92,6 +91,7 @@ export async function runDeployPlanStep({
 
   const protocol = context.multiProvider.getProtocol(chain);
   switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       address = await multiProvider.getSigner(chain).getAddress();
       break;
@@ -162,7 +162,7 @@ export async function getBalances(
   for (const chain of chains) {
     const { nativeToken, protocol } = multiProvider.getChainMetadata(chain);
 
-    if (protocol === ProtocolType.Ethereum) {
+    if (isEVMLike(protocol)) {
       const address =
         userAddress ?? (await multiProvider.getSignerAddress(chain));
       const provider = await multiProvider.getProvider(chain);

@@ -1,9 +1,12 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { constants, ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
+  ERC20Test,
+  ERC20Test__factory,
+  IERC20__factory,
   InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
@@ -14,7 +17,7 @@ import { HyperlaneContractsMap } from '../../contracts/types.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { IcaRouterConfig } from '../../ica/types.js';
+import { FeeTokenApproval, IcaRouterConfig } from '../../ica/types.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -118,5 +121,149 @@ describe('InterchainAccounts', async () => {
     expect(balanceAfter).to.lte(balanceBefore.sub(quote));
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
+  });
+
+  describe('feeTokenApprovals', async () => {
+    let feeToken: ERC20Test;
+    let feeToken2: ERC20Test;
+    let erc20Factory: ERC20Test__factory;
+    const mockHookAddress = '0x1234567890123456789012345678901234567890';
+    const mockHookAddress2 = '0xabcdef0123456789abcdef0123456789abcdef01';
+
+    before(async () => {
+      erc20Factory = new ERC20Test__factory(signer);
+      feeToken = await erc20Factory.deploy('FeeToken', 'FEE', '1000000', 18);
+      feeToken2 = await erc20Factory.deploy('FeeToken2', 'FEE2', '1000000', 18);
+    });
+
+    it('should approve fee tokens for hooks during deployment', async () => {
+      const feeTokenApprovals: FeeTokenApproval[] = [
+        { feeToken: feeToken.address, hook: mockHookAddress },
+      ];
+
+      const configWithApprovals = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: signer.address,
+            urls: ['some-url'],
+          },
+          feeTokenApprovals,
+        }),
+      );
+
+      const contractsWithApprovals = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(configWithApprovals);
+
+      const localRouter =
+        contractsWithApprovals[localChain].interchainAccountRouter;
+
+      const provider = multiProvider.getProvider(localChain);
+      const token = IERC20__factory.connect(feeToken.address, provider);
+      const allowance = await token.allowance(
+        localRouter.address,
+        mockHookAddress,
+      );
+
+      expect(allowance.toBigInt()).to.equal(
+        ethers.constants.MaxUint256.toBigInt(),
+      );
+    });
+
+    it('should approve multiple fee tokens during deployment', async () => {
+      const feeTokenApprovals: FeeTokenApproval[] = [
+        { feeToken: feeToken.address, hook: mockHookAddress },
+        { feeToken: feeToken2.address, hook: mockHookAddress2 },
+      ];
+
+      const configWithApprovals = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: signer.address,
+            urls: ['some-url'],
+          },
+          feeTokenApprovals,
+        }),
+      );
+
+      const contractsWithApprovals = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(configWithApprovals);
+
+      const localRouter =
+        contractsWithApprovals[localChain].interchainAccountRouter;
+
+      const provider = multiProvider.getProvider(localChain);
+      const token1 = IERC20__factory.connect(feeToken.address, provider);
+      const token2 = IERC20__factory.connect(feeToken2.address, provider);
+
+      const allowance1 = await token1.allowance(
+        localRouter.address,
+        mockHookAddress,
+      );
+      const allowance2 = await token2.allowance(
+        localRouter.address,
+        mockHookAddress2,
+      );
+
+      expect(allowance1.toBigInt()).to.equal(
+        ethers.constants.MaxUint256.toBigInt(),
+      );
+      expect(allowance2.toBigInt()).to.equal(
+        ethers.constants.MaxUint256.toBigInt(),
+      );
+    });
+
+    it('should not fail when feeTokenApprovals is empty', async () => {
+      const configWithEmptyApprovals = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: signer.address,
+            urls: ['some-url'],
+          },
+          feeTokenApprovals: [],
+        }),
+      );
+
+      const contractsWithEmptyApprovals = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(configWithEmptyApprovals);
+
+      expect(
+        contractsWithEmptyApprovals[localChain].interchainAccountRouter.address,
+      ).to.not.equal(constants.AddressZero);
+    });
+
+    it('should not fail when feeTokenApprovals is undefined', async () => {
+      // This uses the default config without feeTokenApprovals
+      const configWithoutApprovals = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: signer.address,
+            urls: ['some-url'],
+          },
+        }),
+      );
+
+      const contractsWithoutApprovals = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(configWithoutApprovals);
+
+      expect(
+        contractsWithoutApprovals[localChain].interchainAccountRouter.address,
+      ).to.not.equal(constants.AddressZero);
+    });
   });
 });

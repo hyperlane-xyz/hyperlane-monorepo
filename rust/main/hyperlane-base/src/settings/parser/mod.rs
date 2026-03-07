@@ -18,17 +18,19 @@ use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
+use hyperlane_core::matching_list::MatchingList;
+
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, SubmitterType,
 };
 
 use crate::settings::{
     chains::IndexSettings,
     parser::connection_parser::{build_connection_conf, is_protocol_supported},
     trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+    ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -267,6 +269,48 @@ fn parse_chain(
         .parse_bool()
         .unwrap_or(false);
 
+    let confirmations = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_opt_key("confirmations")
+        .parse_u32()
+        .unwrap_or(1);
+
+    // chainId can be a number (EVM) or a string (Cosmos), so we need to handle both.
+    let chain_id = chain
+        .chain(&mut err)
+        .get_opt_key("chainId")
+        .parse_value::<serde_json::Value>("Invalid chainId")
+        .map(|v| match v {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            other => other.to_string(),
+        })
+        .unwrap_or_default();
+
+    let native_token_decimals = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
+        .parse_u32()
+        .unwrap_or(18);
+
+    let native_token_symbol = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("symbol")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
+    let native_token_denom = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -281,6 +325,16 @@ fn parse_chain(
             max_submit_queue_length,
         },
     );
+
+    // Convert Ethereum → Tron when techstack indicates Tron
+    let connection = connection.map(|conn| {
+        if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
+            if let ChainConnectionConf::Ethereum(eth_conf) = conn {
+                return ethereum_to_tron_connection_conf(eth_conf);
+            }
+        }
+        conn
+    });
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
 
@@ -320,7 +374,14 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        confirmations,
+        chain_id,
         ignore_reorg_reports,
+        native_token: NativeToken {
+            decimals: native_token_decimals,
+            symbol: native_token_symbol,
+            denom: native_token_denom,
+        },
     })
 }
 
@@ -529,6 +590,44 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
     val
 }
 
+/// Parse a JSON array from a ValueParser, handling both stringified JSON and native arrays.
+pub fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
+    let mut err = ConfigParsingError::default();
+
+    match p {
+        ValueParser {
+            val: Value::String(array_str),
+            cwp,
+        } => serde_json::from_str::<Value>(array_str)
+            .context("Expected JSON string")
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
+        ValueParser {
+            val: value @ Value::Array(_),
+            cwp,
+        } => Some((cwp, value.clone())),
+        _ => Err(eyre!("Expected JSON array or stringified JSON"))
+            .take_err(&mut err, || p.cwp.clone()),
+    }
+}
+
+/// Parse a matching list from a ValueParser.
+pub fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
+    let mut err = ConfigParsingError::default();
+
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(MatchingList::default());
+    };
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+    let ml = p
+        .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
+
+    err.into_result(ml)
+}
+
 /// Expects AgentSigner.
 fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmount> {
     let mut err = ConfigParsingError::default();
@@ -616,4 +715,36 @@ fn parse_base_and_override_urls(
         );
     }
     combined
+}
+
+/// Convert an Ethereum connection conf to a Tron connection conf.
+/// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
+fn ethereum_to_tron_connection_conf(
+    eth_conf: hyperlane_ethereum::ConnectionConf,
+) -> ChainConnectionConf {
+    ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
+        eth_conf.rpc_urls(),
+        eth_conf.grpc_urls.unwrap_or_default(),
+        eth_conf.solidity_grpc_urls.unwrap_or_default(),
+        eth_conf.energy_multiplier,
+    ))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn supports_sequence_h256s() {
+        let json_str = r#"[{"origindomain":1399811151,"senderaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"],"destinationdomain":11155111,"recipientaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"]}]"#;
+
+        // Test parsing directly into MatchingList
+        serde_json::from_str::<MatchingList>(json_str).unwrap();
+
+        // Test parsing into a Value and then into MatchingList, which is the path used
+        // by the agent config parser.
+        let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let value_parser = ValueParser::new(Default::default(), &val);
+        parse_matching_list(value_parser).unwrap();
+    }
 }

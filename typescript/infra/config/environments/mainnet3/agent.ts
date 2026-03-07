@@ -15,7 +15,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -24,6 +24,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  BaseRelayerConfig,
   IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
@@ -46,7 +47,6 @@ import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' wi
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
-import merklyNftAddresses from './misc-artifacts/merkly-nft-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -728,10 +728,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       matchingList: routerMatchingList(merklyEthAddresses),
     },
     {
-      name: 'merkly_nft',
-      matchingList: routerMatchingList(merklyNftAddresses),
-    },
-    {
       name: 'velo_message_module',
       // Almost all messages to / from this address relate to the Velo Message Module.
       // The only exception is Metal, which had an initial misconfiguration that the Velo
@@ -878,6 +874,21 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
+const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
+  solanamainnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+          ),
+        },
+      ],
+      addressLookupTable: '8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z',
+    },
+  ],
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -893,6 +904,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -939,6 +951,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -980,6 +993,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,

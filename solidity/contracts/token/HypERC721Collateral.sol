@@ -21,7 +21,7 @@ contract HypERC721Collateral is TokenRouter {
      * @notice Constructor
      * @param erc721 Address of the token to keep as collateral
      */
-    constructor(address erc721, address _mailbox) TokenRouter(1, _mailbox) {
+    constructor(address erc721, address _mailbox) TokenRouter(1, 1, _mailbox) {
         wrappedToken = IERC721(erc721);
     }
 

@@ -1,4 +1,3 @@
-import { assert } from 'chai';
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -23,6 +22,7 @@ import {
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
+import { assert } from '@hyperlane-xyz/utils';
 
 export class TronSigner
   extends TronProvider

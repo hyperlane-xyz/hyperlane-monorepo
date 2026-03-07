@@ -1,5 +1,94 @@
 # @hyperlane-xyz/rebalancer-sim
 
+## 0.2.0
+
+### Minor Changes
+
+- 43255a9: Scenario loading was extracted to a shared `ScenarioLoader` API with `SCENARIOS_DIR` env override support. A new `ResultsExporter` API was added for saving simulation results as JSON and HTML. Path traversal guards were added to both scenario loading and result export paths.
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [279b714]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/rebalancer@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/rebalancer@25.5.0
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/rebalancer@3.2.1
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+  - @hyperlane-xyz/core@11.0.1
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [b50aa7b]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [027eeac]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/rebalancer@3.2.0
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/provider-sdk@1.4.0
+
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/rebalancer@3.1.1
+  - @hyperlane-xyz/sdk@25.3.2
+  - @hyperlane-xyz/utils@25.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.6
+
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [ff8c0f0]
+- Updated dependencies [aa6871b]
+  - @hyperlane-xyz/rebalancer@3.1.0
+  - @hyperlane-xyz/sdk@25.3.1
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+  - @hyperlane-xyz/core@10.1.5
+
 ## 0.1.5
 
 ### Patch Changes

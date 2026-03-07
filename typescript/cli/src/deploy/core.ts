@@ -70,6 +70,7 @@ export async function runCoreDeploy(params: DeployParams) {
   let deployedAddresses: ChainAddresses;
   const protocol = multiProvider.getProtocol(chain);
   switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum:
       {
         const signer = multiProvider.getSigner(chain);
@@ -139,6 +140,7 @@ export async function runCoreApply(params: ApplyParams) {
 
   const protocol = multiProvider.getProtocol(chain);
   switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
         chain,

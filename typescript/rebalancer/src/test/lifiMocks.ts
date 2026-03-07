@@ -2,6 +2,7 @@ import Sinon, { type SinonStub } from 'sinon';
 
 import type {
   BridgeQuote,
+  BridgeQuoteParams,
   BridgeTransferStatus,
 } from '../interfaces/IExternalBridge.js';
 
@@ -119,22 +120,58 @@ export function mockLiFiStatus(
 
 /**
  * Create a mock BridgeQuote for testing.
+ * The route structure includes all fields read by validateRouteAgainstRequest.
  */
 export function createMockBridgeQuote(
   overrides?: Partial<BridgeQuote>,
 ): BridgeQuote {
+  const route = overrides?.route as
+    | { action?: { fromChainId?: number; toChainId?: number } }
+    | undefined;
+
+  const defaultRequestParams: BridgeQuoteParams = {
+    fromChain: 42161,
+    toChain: 1399811149,
+    fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+    toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+    fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    fromAmount: 10000000000n,
+  };
+  const requestParams: BridgeQuoteParams = {
+    ...defaultRequestParams,
+    ...overrides?.requestParams,
+  };
+
+  const fromChainId = route?.action?.fromChainId ?? requestParams.fromChain;
+  const toChainId = route?.action?.toChainId ?? requestParams.toChain;
+  const fromAmount =
+    overrides?.fromAmount ?? requestParams.fromAmount ?? 10000000000n;
+  const toAmount = overrides?.toAmount ?? 9950000000n;
+  const toAmountMin = overrides?.toAmountMin ?? 9900000000n;
+
   return {
     id: 'quote-123',
     tool: 'across',
-    fromAmount: 10000000000n,
-    toAmount: 9950000000n,
-    toAmountMin: 9900000000n,
+    fromAmount,
+    toAmount,
+    toAmountMin,
     executionDuration: 300,
-    gasCosts: 50000000n, // Default mock gas costs
-    feeCosts: 0n, // Default mock fee costs
+    gasCosts: 50000000n,
+    feeCosts: 0n,
+    // Route includes all fields read by validateRouteAgainstRequest for validation compatibility
     route: {
-      action: { fromChainId: 42161, toChainId: 1399811149 },
+      action: { fromChainId, toChainId },
+      fromChainId,
+      toChainId,
+      fromToken: { address: requestParams.fromToken },
+      toToken: { address: requestParams.toToken },
+      fromAddress: requestParams.fromAddress,
+      toAddress: requestParams.toAddress ?? requestParams.fromAddress,
+      fromAmount: fromAmount.toString(),
+      toAmount: toAmount.toString(),
     },
+    requestParams,
     ...overrides,
   };
 }

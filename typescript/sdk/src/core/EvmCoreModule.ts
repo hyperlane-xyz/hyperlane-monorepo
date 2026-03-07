@@ -64,6 +64,7 @@ export class EvmCoreModule extends HyperlaneModule<
   CoreConfig,
   DeployedCoreAddresses
 > {
+  static protocols = [ProtocolType.Ethereum, ProtocolType.Tron];
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
   protected evmIcaModule?: EvmIcaModule;

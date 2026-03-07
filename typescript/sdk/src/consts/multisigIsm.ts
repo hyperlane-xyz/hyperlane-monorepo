@@ -466,7 +466,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
-        alias: 'O-OPS',
+        alias: 'P-OPS Team',
       },
       {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
@@ -2268,6 +2268,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  tronshasta: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x189ea37efb3764ab638cbaecbe764a8e814e7583',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

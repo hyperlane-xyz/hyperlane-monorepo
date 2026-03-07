@@ -13,6 +13,7 @@
     "rootHardhatConfig.cts",
     "./plugins",
     "./dependencies",
-    "./artifacts-tron"
+    "./artifacts-tron",
+    "./multicollateral"
   ]
 }

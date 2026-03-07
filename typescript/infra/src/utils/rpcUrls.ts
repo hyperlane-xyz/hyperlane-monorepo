@@ -4,7 +4,7 @@ import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
+import { isEVMLike, timeout } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
@@ -760,7 +760,7 @@ export async function refreshSelectedReleases(
 
 async function testProvider(chain: ChainName, url: string): Promise<boolean> {
   const chainMetadata = getChain(chain);
-  if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+  if (!isEVMLike(chainMetadata.protocol)) {
     console.log(`Skipping provider test for non-Ethereum chain ${chain}`);
     return true;
   }

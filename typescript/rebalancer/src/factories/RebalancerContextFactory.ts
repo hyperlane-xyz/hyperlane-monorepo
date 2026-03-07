@@ -11,7 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, toWei } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, toWei } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -119,12 +119,18 @@ export class RebalancerContextFactory {
       );
     }
 
-    // Force-initialize providers for all warp route chains
-    // This ensures fromMultiProvider() snapshots actual provider instances
+    // Force-initialize providers for EVM warp route chains only.
+    // This ensures fromMultiProvider() snapshots actual provider instances.
+    // Non-EVM chains (StarkNet, Sealevel, etc.) don't use ethers providers
+    // and would crash if we tried to build one (e.g. non-numeric chainId).
     const warpChains = [
-      ...new Set(warpCoreConfig.tokens.map((t: any) => t.chainName)),
+      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
     for (const chain of warpChains) {
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        logger.debug({ chain }, 'Skipping provider init for non-EVM chain');
+        continue;
+      }
       multiProvider.getProvider(chain);
     }
 
@@ -386,15 +392,17 @@ export class RebalancerContextFactory {
    * Returns null if inventory config is not available.
    *
    * @param actionTracker - ActionTracker instance for tracking inventory actions
+   * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
   private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
+    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigner, externalBridges } = this.config;
+    const { inventorySigner } = this.config;
 
     if (!inventorySigner) {
       this.logger.debug(
@@ -423,15 +431,67 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    // Build registry dynamically from ExternalBridgeType enum
-    const externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+    const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
+      externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
+
+    if (Object.keys(externalBridgeRegistry).length === 0) {
+      if (externalBridgeRegistryOverride !== undefined) {
+        this.logger.debug(
+          'No external bridges in override registry, skipping inventory components',
+        );
+      } else {
+        this.logger.debug(
+          'No external bridges configured, skipping inventory components',
+        );
+      }
+      return null;
+    }
+
+    // 3. Build inventory config
+    const inventoryConfig: InventoryMonitorConfig = {
+      inventoryAddress: inventorySigner,
+      chains: inventoryChains,
+    };
+
+    // 4. Create InventoryRebalancer
+    // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
+    const inventoryRebalancer = new InventoryRebalancer(
+      {
+        inventorySigner,
+        inventoryMultiProvider:
+          this.inventoryMultiProvider ?? this.multiProvider,
+        inventoryChains,
+      },
+      actionTracker,
+      externalBridgeRegistry,
+      this.warpCore,
+      this.multiProvider,
+      this.logger,
+    );
+
+    if (externalBridgeRegistryOverride === undefined) {
+      this.logger.info(
+        {
+          inventoryChains,
+          inventorySigner,
+        },
+        'Inventory components created successfully',
+      );
+    }
+
+    return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
+  }
+
+  private buildExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+    const { externalBridges } = this.config;
+    const registry: Partial<ExternalBridgeRegistry> = {};
 
     for (const bridgeType of Object.values(ExternalBridgeType)) {
       switch (bridgeType) {
         case ExternalBridgeType.LiFi: {
           const lifiConfig = externalBridges?.lifi;
           if (lifiConfig?.integrator) {
-            externalBridgeRegistry[ExternalBridgeType.LiFi] = new LiFiBridge(
+            registry[ExternalBridgeType.LiFi] = new LiFiBridge(
               {
                 integrator: lifiConfig.integrator,
                 defaultSlippage: lifiConfig.defaultSlippage,
@@ -450,53 +510,22 @@ export class RebalancerContextFactory {
       }
     }
 
-    if (Object.keys(externalBridgeRegistry).length === 0) {
-      this.logger.debug(
-        'No external bridges configured, skipping inventory components',
-      );
-      return null;
-    }
-
-    // 3. Build inventory config
-    const inventoryConfig: InventoryMonitorConfig = {
-      inventoryAddress: inventorySigner,
-      chains: inventoryChains,
-    };
-
-    // 4. Create InventoryRebalancer
-    // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
-    const inventoryRebalancer = new InventoryRebalancer(
-      {
-        inventorySigner,
-        inventoryMultiProvider: this.inventoryMultiProvider,
-        inventoryChains,
-      },
-      actionTracker,
-      externalBridgeRegistry,
-      this.warpCore,
-      this.multiProvider,
-      this.logger,
-    );
-
-    this.logger.info(
-      {
-        inventoryChains,
-        inventorySigner,
-      },
-      'Inventory components created successfully',
-    );
-
-    return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
+    return registry;
   }
 
   /**
    * Creates all rebalancers based on config execution types.
    * Returns an array of rebalancers (movableCollateral and/or inventory)
    * along with metadata needed for monitor and orchestrator.
+   *
+   * @param actionTracker - ActionTracker instance for tracking actions
+   * @param metrics - Optional Metrics instance
+   * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
   public async createRebalancers(
     actionTracker: IActionTracker,
     metrics?: Metrics,
+    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
   ): Promise<{
     rebalancers: IRebalancer[];
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
@@ -504,7 +533,7 @@ export class RebalancerContextFactory {
   }> {
     const rebalancers: IRebalancer[] = [];
     let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
-    let inventoryConfig: InventoryMonitorConfig | undefined;
+    let inventoryConfig: undefined | InventoryMonitorConfig;
 
     // Check if any chains use movableCollateral execution type
     const hasMovableCollateral = this.hasMovableCollateralChains();
@@ -517,8 +546,10 @@ export class RebalancerContextFactory {
     }
 
     // Check if any chains use inventory execution type
-    const inventoryComponents =
-      await this.createInventoryRebalancerAndConfig(actionTracker);
+    const inventoryComponents = await this.createInventoryRebalancerAndConfig(
+      actionTracker,
+      externalBridgeRegistryOverride,
+    );
     if (inventoryComponents) {
       rebalancers.push(inventoryComponents.inventoryRebalancer);
       externalBridgeRegistry = inventoryComponents.externalBridgeRegistry;

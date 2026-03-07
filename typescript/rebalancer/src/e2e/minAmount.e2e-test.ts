@@ -1,12 +1,7 @@
 import { expect } from 'chai';
 import { BigNumber, providers } from 'ethers';
 
-import {
-  HyperlaneCore,
-  MultiProvider,
-  revertToSnapshot,
-  snapshot,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import {
   RebalancerMinAmountType,
@@ -20,10 +15,9 @@ import {
   TEST_CHAINS,
 } from './fixtures/routes.js';
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './harness/LocalDeploymentManager.js';
+import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
+import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
@@ -31,7 +25,7 @@ import { tryRelayMessage } from './harness/TransferHelper.js';
 describe('MinAmountStrategy E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: LocalDeploymentManager;
+  let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
   let snapshotIds: Map<string, string>;
@@ -40,8 +34,9 @@ describe('MinAmountStrategy E2E', function () {
   let minAmountStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    deploymentManager = new LocalDeploymentManager();
-    const ctx: LocalDeploymentContext = await deploymentManager.start();
+    deploymentManager = new Erc20LocalDeploymentManager();
+    const ctx: LocalDeploymentContext<DeployedAddresses> =
+      await deploymentManager.start();
     multiProvider = ctx.multiProvider;
     localProviders = ctx.providers;
     deployedAddresses = ctx.deployedAddresses;
@@ -97,11 +92,11 @@ describe('MinAmountStrategy E2E', function () {
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of localProviders) {
-      const id = snapshotIds.get(chain)!;
-      await revertToSnapshot(provider, id);
-      snapshotIds.set(chain, await snapshot(provider));
-    }
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
   });
 
   after(async function () {
@@ -223,7 +218,8 @@ describe('MinAmountStrategy E2E', function () {
     ).to.be.true;
 
     // Sync actions to detect delivery and mark complete
-    await context.tracker.syncRebalanceActions();
+    const blockTags = await context.getConfirmedBlockTags();
+    await context.tracker.syncRebalanceActions(blockTags);
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(

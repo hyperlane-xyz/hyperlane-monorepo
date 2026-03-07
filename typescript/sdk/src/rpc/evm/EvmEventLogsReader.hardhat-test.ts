@@ -4,6 +4,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
@@ -390,6 +391,134 @@ describe('EvmEventLogsReader', () => {
       });
 
       expect(res.length).to.equal(5);
+    });
+  });
+
+  describe('retry before fallback', () => {
+    it('should succeed on retry without hitting fallback', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+
+      // Manually add a fallback so we can verify it's not called
+      const fallback = new EvmRpcEventLogsReader(
+        TestChainName.test1,
+        {},
+        multiProvider,
+      );
+      reader['fallbackLogReaderStrategy'] = fallback;
+      const fallbackSpy = sinon.spy(fallback, 'getContractLogs');
+
+      // Make primary strategy fail once then succeed
+      const primaryStrategy = reader['logReaderStrategy'];
+      const originalGetLogs =
+        primaryStrategy.getContractLogs.bind(primaryStrategy);
+      let callCount = 0;
+      primaryStrategy.getContractLogs = async (opts: any) => {
+        if (callCount++ === 0) throw new Error('rate limit');
+        return originalGetLogs(opts);
+      };
+
+      const logs = await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+        fromBlock: deploymentBlockNumber,
+      });
+
+      // Primary succeeded on retry, fallback never called
+      expect(logs.length).to.be.greaterThan(0);
+      expect(callCount).to.equal(2);
+      expect(fallbackSpy.callCount).to.equal(0);
+    });
+
+    it('should fall back after all retries exhausted', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+
+      // Make primary strategy always fail
+      reader['logReaderStrategy'] = {
+        getContractDeploymentBlockNumber: async () => deploymentBlockNumber,
+        getContractLogs: async () => {
+          throw new Error('permanent failure');
+        },
+      };
+
+      // Set fallback to a working RPC reader
+      const fallback = new EvmRpcEventLogsReader(
+        TestChainName.test1,
+        {},
+        multiProvider,
+      );
+      reader['fallbackLogReaderStrategy'] = fallback;
+      const fallbackSpy = sinon.spy(fallback, 'getContractLogs');
+
+      const logs = await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+        fromBlock: deploymentBlockNumber,
+      });
+
+      expect(logs.length).to.be.greaterThan(0);
+      expect(fallbackSpy.callCount).to.equal(1);
+    });
+  });
+
+  describe('deployment block cache', () => {
+    it('should only look up deployment block once for the same contract', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+
+      const primaryStrategy = reader['logReaderStrategy'];
+      const deploymentSpy = sinon.spy(
+        primaryStrategy,
+        'getContractDeploymentBlockNumber',
+      );
+
+      // Two calls without fromBlock — both need the deployment block
+      await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+      });
+      await reader.getLogsByTopic({
+        eventTopic: ethers.utils.id('Approval(address,address,uint256)'),
+        contractAddress: testContract.address,
+      });
+
+      expect(deploymentSpy.callCount).to.equal(1);
+    });
+
+    it('should not look up deployment block when fromBlock is provided', async () => {
+      await deployTestErc20();
+
+      const reader = EvmEventLogsReader.fromConfig(
+        { chain: TestChainName.test1, useRPC: true },
+        multiProvider,
+      );
+
+      const primaryStrategy = reader['logReaderStrategy'];
+      const deploymentSpy = sinon.spy(
+        primaryStrategy,
+        'getContractDeploymentBlockNumber',
+      );
+
+      await reader.getLogsByTopic({
+        eventTopic: transferTopic,
+        contractAddress: testContract.address,
+        fromBlock: deploymentBlockNumber,
+      });
+
+      expect(deploymentSpy.callCount).to.equal(0);
     });
   });
 

@@ -90,5 +90,9 @@
   "starknetsepolia": {
     "amount": "0.01",
     "decimals": 9
+  },
+  "tronshasta": {
+    "amount": "0.00000021",
+    "decimals": 9
   }
 }

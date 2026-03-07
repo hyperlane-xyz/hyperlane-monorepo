@@ -11,10 +11,10 @@ import {
   cleanupProductionRebalancer,
   cleanupSimpleRunner,
   deployMultiDomainSimulation,
-  generateTimelineHtml,
   getWarpTokenBalance,
   loadScenario,
   loadScenarioFile,
+  saveSimulationResults,
 } from '../../src/index.js';
 import type {
   ChainStrategyConfig,
@@ -315,96 +315,12 @@ export function saveResults(
 ): void {
   ensureResultsDir();
 
-  const output: any = {
-    scenario: scenarioName,
-    timestamp: new Date().toISOString(),
-    description: file.description,
-    expectedBehavior: file.expectedBehavior,
-    expectations: file.expectations,
-    results: results.map((r) => ({
-      rebalancerName: r.rebalancerName,
-      kpis: {
-        totalTransfers: r.kpis.totalTransfers,
-        completedTransfers: r.kpis.completedTransfers,
-        completionRate: r.kpis.completionRate,
-        averageLatency: r.kpis.averageLatency,
-        p50Latency: r.kpis.p50Latency,
-        p95Latency: r.kpis.p95Latency,
-        p99Latency: r.kpis.p99Latency,
-        totalRebalances: r.kpis.totalRebalances,
-        rebalanceVolume: r.kpis.rebalanceVolume.toString(),
-      },
-    })),
-    config: {
-      timing: file.defaultTiming,
-      initialCollateral: file.defaultInitialCollateral,
-      initialImbalance: file.initialImbalance,
-    },
-  };
-
-  if (comparison) {
-    output.comparison = comparison;
-  }
-
-  // Save JSON results
-  const jsonPath = path.join(RESULTS_DIR, `${scenarioName}.json`);
-  fs.writeFileSync(jsonPath, JSON.stringify(output, null, 2));
-
-  // Generate HTML timeline visualization
-  const firstOrigin = Object.keys(file.defaultBridgeConfig)[0];
-  const firstDest = firstOrigin
-    ? Object.keys(file.defaultBridgeConfig[firstOrigin])[0]
-    : undefined;
-  const bridgeDelay =
-    firstOrigin && firstDest
-      ? file.defaultBridgeConfig[firstOrigin][firstDest].deliveryDelay
-      : 0;
-
-  const vizConfig: Record<string, any> = {
-    scenarioName: file.name,
-    description: file.description,
-    expectedBehavior: file.expectedBehavior,
-    transferCount: file.transfers.length,
-    duration: file.duration,
-    bridgeDeliveryDelay: bridgeDelay,
-    rebalancerPollingFrequency: file.defaultTiming.rebalancerPollingFrequency,
-    userTransferDelay: file.defaultTiming.userTransferDeliveryDelay,
-  };
-
-  if (file.defaultStrategyConfig.type === 'weighted') {
-    vizConfig.targetWeights = {};
-    vizConfig.tolerances = {};
-    for (const [chain, chainConfig] of Object.entries(
-      file.defaultStrategyConfig.chains,
-    )) {
-      if (chainConfig.weighted) {
-        vizConfig.targetWeights[chain] = Math.round(
-          parseFloat(chainConfig.weighted.weight) * 100,
-        );
-        vizConfig.tolerances[chain] = Math.round(
-          parseFloat(chainConfig.weighted.tolerance) * 100,
-        );
-      }
-    }
-  }
-
-  vizConfig.initialCollateral = {};
-  for (const chain of file.chains) {
-    const base = parseFloat(
-      ethers.utils.formatEther(file.defaultInitialCollateral),
-    );
-    const extra = file.initialImbalance?.[chain]
-      ? parseFloat(ethers.utils.formatEther(file.initialImbalance[chain]))
-      : 0;
-    vizConfig.initialCollateral[chain] = (base + extra).toString();
-  }
-
-  const html = generateTimelineHtml(
+  const { htmlPath } = saveSimulationResults({
+    outputDir: RESULTS_DIR,
+    scenarioName,
+    scenarioFile: file,
     results,
-    { title: `${file.name}: ${file.description}` },
-    vizConfig,
-  );
-  const htmlPath = path.join(RESULTS_DIR, `${scenarioName}.html`);
-  fs.writeFileSync(htmlPath, html);
+    comparison,
+  });
   console.log(`  Timeline saved to: ${htmlPath}`);
 }

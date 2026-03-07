@@ -436,7 +436,7 @@ mod test {
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
-    use prometheus::{opts, IntGaugeVec, Registry};
+    use prometheus::Registry;
     use reqwest::Url;
     use sea_orm::{DatabaseBackend, MockDatabase};
 
@@ -444,7 +444,7 @@ mod test {
         settings::{
             ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, TracingConfig,
         },
-        BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
+        ChainMetrics,
     };
     use hyperlane_core::{
         config::OpSubmissionConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
@@ -509,6 +509,9 @@ mod test {
                         ..Default::default()
                     },
                     consider_null_transaction_receipt: false,
+                    grpc_urls: None,
+                    solidity_grpc_urls: None,
+                    energy_multiplier: None,
                 }),
                 metrics_conf: PrometheusMiddlewareConf {
                     contracts: HashMap::new(),
@@ -519,7 +522,10 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                confirmations: Default::default(),
+                chain_id: Default::default(),
                 ignore_reorg_reports: false,
+                native_token: Default::default(),
             },
         )];
 
@@ -553,19 +559,7 @@ mod test {
         let registry = Registry::new();
         let core_metrics = Arc::new(CoreMetrics::new("scraper", 4000, registry).unwrap());
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
-        let chain_metrics = ChainMetrics {
-            block_height: IntGaugeVec::new(
-                opts!("block_height", BLOCK_HEIGHT_HELP),
-                BLOCK_HEIGHT_LABELS,
-            )
-            .unwrap(),
-            gas_price: None,
-            critical_error: IntGaugeVec::new(
-                opts!("critical_error", CRITICAL_ERROR_HELP),
-                CRITICAL_ERROR_LABELS,
-            )
-            .unwrap(),
-        };
+        let chain_metrics = ChainMetrics::test_default();
 
         // set the chains we want to scrape
         settings.chains_to_scrape = vec![

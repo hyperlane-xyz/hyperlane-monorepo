@@ -1,5 +1,109 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/tron-sdk@22.0.0
+  - @hyperlane-xyz/aleo-sdk@26.0.0
+  - @hyperlane-xyz/cosmos-sdk@26.0.0
+  - @hyperlane-xyz/radix-sdk@26.0.0
+
+## 2.0.0
+
+### Major Changes
+
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+### Minor Changes
+
+- e197331: Added WarpTokenReader and WarpTokenWriter for artifact API-based warp token operations.
+
+  New exports:
+  - createWarpTokenReader: Factory for reading warp tokens
+  - createWarpTokenWriter: Factory for creating/updating warp tokens
+  - WarpTokenReader: Artifact for reading warp tokens with nested ISM/hook expansion
+  - WarpTokenWriter: Artifact for deploying and updating warp tokens
+
+  Protocol providers now support createWarpArtifactManager method.
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/aleo-sdk@25.5.0
+  - @hyperlane-xyz/cosmos-sdk@25.5.0
+  - @hyperlane-xyz/radix-sdk@25.5.0
+  - @hyperlane-xyz/tron-sdk@21.1.5
+  - @hyperlane-xyz/utils@25.5.0
+
+## 1.4.1
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@25.4.1
+- @hyperlane-xyz/cosmos-sdk@25.4.1
+- @hyperlane-xyz/radix-sdk@25.4.1
+- @hyperlane-xyz/utils@25.4.1
+- @hyperlane-xyz/provider-sdk@1.4.1
+- @hyperlane-xyz/tron-sdk@21.1.4
+
+## 1.4.0
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/aleo-sdk@25.4.0
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/cosmos-sdk@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/radix-sdk@25.4.0
+  - @hyperlane-xyz/tron-sdk@21.1.3
+
+## 1.3.6
+
+### Patch Changes
+
+- @hyperlane-xyz/tron-sdk@21.1.2
+- @hyperlane-xyz/aleo-sdk@25.3.2
+- @hyperlane-xyz/cosmos-sdk@25.3.2
+- @hyperlane-xyz/radix-sdk@25.3.2
+- @hyperlane-xyz/utils@25.3.2
+- @hyperlane-xyz/provider-sdk@1.3.6
+
+## 1.3.5
+
+### Patch Changes
+
+- Updated dependencies [7636bb4]
+  - @hyperlane-xyz/tron-sdk@21.1.1
+  - @hyperlane-xyz/aleo-sdk@25.3.1
+  - @hyperlane-xyz/cosmos-sdk@25.3.1
+  - @hyperlane-xyz/radix-sdk@25.3.1
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+
 ## 1.3.4
 
 ### Patch Changes

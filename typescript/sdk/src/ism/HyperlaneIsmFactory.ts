@@ -17,6 +17,8 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
+  IncrementalDomainRoutingIsm,
+  IncrementalDomainRoutingIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -189,6 +191,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
+      case IsmType.INCREMENTAL_ROUTING:
       case IsmType.AMOUNT_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
@@ -448,9 +451,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IRoutingIsm> {
     const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
+    const contracts = this.getContracts(destination);
     const domainRoutingIsmFactory =
-      this.getContracts(destination).domainRoutingIsmFactory;
-    let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
+      config.type === IsmType.INCREMENTAL_ROUTING
+        ? contracts.incrementalDomainRoutingIsmFactory
+        : contracts.domainRoutingIsmFactory;
+    let routingIsm:
+      | DomainRoutingIsm
+      | IncrementalDomainRoutingIsm
+      | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
       const domainId = this.multiProvider.tryGetDomainId(domain);
@@ -581,10 +590,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
+          const factory =
+            config.type === IsmType.INCREMENTAL_ROUTING
+              ? new IncrementalDomainRoutingIsm__factory()
+              : new DomainRoutingIsm__factory();
           const routingIsm = await this.deployer?.deployContractFromFactory(
             destination,
-            new DomainRoutingIsm__factory(),
-            IsmType.ROUTING,
+            factory,
+            config.type,
             [],
           );
           await routingIsm['initialize(address,uint32[],address[])'](
@@ -617,7 +630,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(destination, tx);
 
         // TODO: Break this out into a generalized function
-        const dispatchLogs = receipt.logs
+        const dispatchLogs = (receipt.logs ?? [])
           .map((log) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
@@ -633,7 +646,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           throw new Error('No ModuleDeployed event found');
         }
         const moduleAddress = dispatchLogs[0].args['module'];
-        routingIsm = DomainRoutingIsm__factory.connect(
+        const factory =
+          config.type === IsmType.INCREMENTAL_ROUTING
+            ? IncrementalDomainRoutingIsm__factory
+            : DomainRoutingIsm__factory;
+        routingIsm = factory.connect(
           moduleAddress,
           this.multiProvider.getSigner(destination),
         );
@@ -697,10 +714,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress(address[],uint8)'](
+    const getAddressResult = await factory['getAddress(address[],uint8)'](
       sorted,
       threshold,
     );
+    const address =
+      (await this.previewFactoryDeployAddress(
+        chain,
+        factory,
+        'deploy(address[],uint8)',
+        [sorted, threshold],
+      )) ?? getAddressResult;
+    if (!eqAddress(address, getAddressResult)) {
+      logger.debug(
+        `Factory getAddress mismatch on ${chain}, using deploy simulation address ${address}`,
+      );
+    }
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -739,10 +768,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress((address,uint96)[],uint96)'](
-      sorted,
-      thresholdWeight,
-    );
+    const getAddressResult = await factory[
+      'getAddress((address,uint96)[],uint96)'
+    ](sorted, thresholdWeight);
+    const address =
+      (await this.previewFactoryDeployAddress(
+        chain,
+        factory,
+        'deploy((address,uint96)[],uint96)',
+        [sorted, thresholdWeight],
+      )) ?? getAddressResult;
+    if (!eqAddress(address, getAddressResult)) {
+      logger.debug(
+        `Weighted factory getAddress mismatch on ${chain}, using deploy simulation address ${address}`,
+      );
+    }
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -772,5 +812,42 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       );
     }
     return address;
+  }
+
+  private async previewFactoryDeployAddress(
+    chain: ChainName,
+    factory: {
+      address: string;
+      interface: {
+        encodeFunctionData(
+          functionName: string,
+          args?: readonly unknown[],
+        ): string;
+        decodeFunctionResult(functionName: string, data: string): unknown;
+      };
+    },
+    signature: string,
+    args: readonly unknown[],
+  ): Promise<Address | undefined> {
+    try {
+      const data = factory.interface.encodeFunctionData(signature, args);
+      const result = await this.multiProvider.getProvider(chain).call({
+        to: factory.address,
+        data,
+      });
+      const decoded = factory.interface.decodeFunctionResult(signature, result);
+      if (Array.isArray(decoded) && typeof decoded[0] === 'string') {
+        return decoded[0];
+      }
+      if (typeof decoded === 'string') {
+        return decoded;
+      }
+      return undefined;
+    } catch (e: unknown) {
+      this.logger.warn(
+        `Failed to preview factory deploy address on ${chain} (factory=${factory.address}, fn=${signature}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return undefined;
+    }
   }
 }

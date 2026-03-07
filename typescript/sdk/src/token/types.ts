@@ -37,7 +37,19 @@ export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
   decimals: z.number().gt(0).optional(),
-  scale: z.number().optional(),
+  scale: z
+    .union([
+      z.number().int().gt(0),
+      z.object({
+        numerator: z.number().int().gt(0),
+        denominator: z.number().int().gt(0),
+      }),
+      z.object({
+        numerator: z.coerce.bigint(),
+        denominator: z.coerce.bigint(),
+      }),
+    ])
+    .optional(),
   isNft: z.boolean().optional(),
   contractVersion: z.string().optional(),
 });
@@ -200,7 +212,14 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       .describe('CCTP Token Messenger contract address'),
     cctpVersion: z.enum(['V1', 'V2']),
     minFinalityThreshold: z.number().optional(),
-    maxFeeBps: z.number().optional(),
+    maxFeeBps: z
+      .number()
+      .min(0)
+      .max(9_999.99)
+      .optional()
+      .describe(
+        'Maximum fee in basis points (bps), supports decimals for fractional bps. 1 bps = 0.01%. Examples: 1.3 bps for Circle Optimism/Arbitrum/Base fee, 1.5 bps for Circle Unichain fee. Internally converted to ppm (parts per million) for contract precision.',
+      ),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 
@@ -232,6 +251,27 @@ export type SyntheticRebaseTokenConfig = z.infer<
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
+);
+
+/**
+ * Configuration for MultiCollateral (multi-router collateral routing).
+ * Direct 1-message atomic transfers between collateral routers.
+ */
+export const MultiCollateralTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.multiCollateral),
+    token: z.string().describe('Collateral token address'),
+    /** Map of domain → router addresses to enroll */
+    enrolledRouters: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    ...BaseMovableTokenConfigSchema.shape,
+  });
+export type MultiCollateralTokenConfig = z.infer<
+  typeof MultiCollateralTokenConfigSchema
+>;
+export const isMultiCollateralTokenConfig = isCompliant(
+  MultiCollateralTokenConfigSchema,
 );
 
 export const EverclearCollateralTokenConfigSchema = z.object({
@@ -321,6 +361,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   CctpTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  MultiCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 
@@ -426,7 +467,8 @@ export const WarpRouteDeployConfigSchema = z
           isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
-          isEverclearTokenBridgeConfig(config),
+          isEverclearTokenBridgeConfig(config) ||
+          isMultiCollateralTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
@@ -659,6 +701,7 @@ function extractCCIPIsmMap(
 
 const MovableTokenSchema = z.discriminatedUnion('type', [
   CollateralTokenConfigSchema,
+  MultiCollateralTokenConfigSchema,
   NativeTokenConfigSchema,
 ]);
 export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;

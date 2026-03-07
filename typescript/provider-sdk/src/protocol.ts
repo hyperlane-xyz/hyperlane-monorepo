@@ -11,6 +11,7 @@ import {
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
+import { IRawWarpArtifactManager } from './warp.js';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
@@ -20,6 +21,7 @@ export enum ProtocolType {
   Starknet = 'starknet',
   Radix = 'radix',
   Aleo = 'aleo',
+  Tron = 'tron',
   Unknown = 'unknown',
 }
 
@@ -34,6 +36,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
   [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Tron]: 'SUN',
   [ProtocolType.Unknown]: 'unknown',
 };
 
@@ -83,6 +86,20 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawHookArtifactManager;
+
+  /**
+   * Creates a Warp artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle warp token operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @param context Optional deployment context (mailbox address, etc.)
+   * @returns A protocol-specific Warp artifact manager
+   */
+  createWarpArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawWarpArtifactManager;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

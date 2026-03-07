@@ -173,6 +173,20 @@ const AgentSealevelChainMetadataSchema = z.object({
       url: z.string().optional(),
     })
     .optional(),
+  processAltOverrides: z
+    .union([
+      z.array(
+        z.object({
+          matchingList: MatchingListSchema,
+          addressLookupTable: z.string(),
+        }),
+      ),
+      z.string().min(1),
+    ])
+    .optional()
+    .describe(
+      'Per-message ALT overrides. Array of {matchingList, addressLookupTable} or JSON string.',
+    ),
 });
 
 export type AgentSealevelChainMetadata = z.infer<
@@ -232,6 +246,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     }
 
     switch (metadata.protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         if (
           ![

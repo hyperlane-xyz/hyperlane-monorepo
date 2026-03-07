@@ -217,10 +217,6 @@ describe(EvmTimelockReader.name, () => {
             expect(normalizeAddressEvm(scheduledTx.data[i].to)).to.equal(
               normalizeAddressEvm(timelockTx.data[i].to),
             );
-            assert(
-              scheduledTx.data[i].value,
-              'Expected value to be defined when reading from Timelock',
-            );
             expect(scheduledTx.data[i].value?.toString()).to.equal(
               timelockTx.data[i].value?.toString() ?? '0',
             );
