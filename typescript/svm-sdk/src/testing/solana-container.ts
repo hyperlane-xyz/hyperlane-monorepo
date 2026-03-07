@@ -19,7 +19,12 @@ import {
   Wait,
 } from 'testcontainers';
 
-export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v2.0.20';
+// Agave v3.0.x activates stricter_abi_and_runtime_constraints which rejects
+// the old Token-2022 program's non-zero-init realloc calls. The test setup
+// overrides the built-in Token-2022 with v10.0.0 (via --bpf-program) which
+// uses zero-init realloc and is compatible with the stricter runtime.
+// See https://github.com/anza-xyz/agave/issues/9799
+export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v3.0.14';
 export const SOLANA_RPC_PORT = 8899;
 
 export function isAppleSilicon(): boolean {
