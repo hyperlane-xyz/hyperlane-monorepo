@@ -15,6 +15,7 @@ import type { SvmSigner } from '../clients/signer.js';
 import {
   RENT_SYSVAR_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
+  TOKEN_2022_PROGRAM_ADDRESS,
 } from '../constants.js';
 import {
   buildInstruction,
@@ -65,11 +66,22 @@ export const PROGRAM_BINARIES = {
 export type PreloadableProgram = keyof typeof PROGRAM_BINARIES &
   keyof typeof TEST_PROGRAM_IDS;
 
+// Token-2022 v10.0.0 binary — fixes InvalidRealloc on Agave v3.0+ where the
+// stricter_abi_and_runtime_constraints feature gate rejects the older program's
+// non-zero-init realloc calls during InitializeTokenMetadata.
+// See https://github.com/anza-xyz/agave/issues/9799
+// Binary source: https://github.com/solana-program/token-2022/releases/tag/program%40v10.0.0
+const TOKEN_2022_V10_SO_PATH = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  'fixtures',
+  'spl_token_2022_v10.so',
+);
+
 export function getPreloadedPrograms(
   programs: Array<PreloadableProgram>,
   programsPath: string = DEFAULT_PROGRAMS_PATH,
 ): PreloadedProgram[] {
-  return programs.map((program) => {
+  const preloaded = programs.map((program) => {
     const programId = TEST_PROGRAM_IDS[program];
     assert(programId, `Program '${program}' not found in TEST_PROGRAM_IDS`);
     return {
@@ -77,6 +89,16 @@ export function getPreloadedPrograms(
       soPath: path.join(programsPath, PROGRAM_BINARIES[program]),
     };
   });
+
+  // Override the built-in Token-2022 with v10.0.0 to fix realloc on v3.0+.
+  if (fs.existsSync(TOKEN_2022_V10_SO_PATH)) {
+    preloaded.push({
+      programId: TOKEN_2022_PROGRAM_ADDRESS,
+      soPath: TOKEN_2022_V10_SO_PATH,
+    });
+  }
+
+  return preloaded;
 }
 
 export async function airdropSol(
