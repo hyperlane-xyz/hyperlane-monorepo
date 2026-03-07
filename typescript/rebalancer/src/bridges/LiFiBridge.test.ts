@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { pino } from 'pino';
 
 import type { LiFiStep } from '@lifi/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -174,7 +175,9 @@ describe('LiFiBridge.execute() route validation', function () {
     const quote = createTestQuote();
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       // If it resolves, validation definitely passed
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -190,7 +193,9 @@ describe('LiFiBridge.execute() route validation', function () {
     const quote = createTestQuote({ fromChainId: 999 }, { fromChain: 42161 });
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -204,7 +209,9 @@ describe('LiFiBridge.execute() route validation', function () {
     const quote = createTestQuote({ toChainId: 888 }, { toChain: 1399811149 });
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -221,7 +228,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -238,7 +247,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -254,7 +265,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -269,7 +282,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -287,7 +302,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -304,7 +321,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -323,7 +342,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -355,7 +376,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -371,7 +394,9 @@ describe('LiFiBridge.execute() route validation', function () {
     // With `!== undefined`, a 0n request is correctly compared against the route amount.
     const quote = createTestQuote({ fromAmount: '1' }, { fromAmount: 0n });
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -388,7 +413,9 @@ describe('LiFiBridge.execute() route validation', function () {
       { fromAmount: undefined, toAmount: 5000000000n },
     );
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -405,7 +432,9 @@ describe('LiFiBridge.execute() route validation', function () {
       { fromAmount: undefined, toAmount: 123n },
     );
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -424,7 +453,9 @@ describe('LiFiBridge.execute() route validation', function () {
       { fromAmount: undefined, toAmount: 1000000n },
     );
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(

@@ -1,5 +1,7 @@
 import {
   EVM,
+  KeypairWalletAdapter,
+  Solana,
   type LiFiStep,
   type Route,
   type RouteExtended,
@@ -10,6 +12,9 @@ import {
   getStatus,
   config as lifiConfig,
 } from '@lifi/sdk';
+import bs58 from 'bs58';
+import type { ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -24,6 +29,7 @@ import type {
   ExternalBridgeConfig,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
+import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 /**
  * LiFi API base URL for REST endpoints.
@@ -66,6 +72,23 @@ function getViemChain(chainId: number, rpcUrl?: string): Chain {
   } as Chain;
 }
 
+function toBase58SolanaKey(rawKey: string): string {
+  const trimmedKey = rawKey.trim();
+  if (!trimmedKey.startsWith('[') && !trimmedKey.includes(',')) {
+    try {
+      const decoded = bs58.decode(trimmedKey);
+      if (decoded.length === 64) {
+        return trimmedKey;
+      }
+    } catch {
+      // Not valid base58, continue to parse as byte array
+    }
+  }
+
+  const bytes = parseSolanaPrivateKey(trimmedKey);
+  return bs58.encode(bytes);
+}
+
 /**
  * LiFi implementation of IExternalBridge using the official @lifi/sdk.
  *
@@ -84,11 +107,22 @@ export class LiFiBridge implements IExternalBridge {
   readonly externalBridgeId = 'lifi';
   readonly logger: Logger;
   private initialized = false;
+  private _executeLock: Promise<void> = Promise.resolve();
   private readonly config: ExternalBridgeConfig;
+  private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
 
   constructor(config: ExternalBridgeConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
+    // Build chainId -> metadata map for O(1) lookups
+    this.chainMetadataByChainId = new Map();
+    if (config.chainMetadata) {
+      for (const metadata of Object.values(config.chainMetadata)) {
+        if (metadata.chainId !== undefined) {
+          this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
+        }
+      }
+    }
   }
 
   getNativeTokenAddress(): string {
@@ -115,13 +149,85 @@ export class LiFiBridge implements IExternalBridge {
    * Iterates metadata to find matching chainId and returns first HTTP RPC URL.
    */
   private getRpcUrlForChainId(chainId: number): string | undefined {
-    if (!this.config.chainMetadata) return undefined;
-    for (const metadata of Object.values(this.config.chainMetadata)) {
-      if (metadata.chainId === chainId && metadata.rpcUrls?.length) {
-        return metadata.rpcUrls[0].http;
+    return this.chainMetadataByChainId.get(chainId)?.rpcUrls?.[0]?.http;
+  }
+
+  private getProtocolTypeForChainId(chainId: number): ProtocolType | undefined {
+    return this.chainMetadataByChainId.get(chainId)?.protocol;
+  }
+
+  private addressesEqual(a: string, b: string, chainId: number): boolean {
+    const protocol = this.getProtocolTypeForChainId(chainId);
+    if (protocol === ProtocolType.Ethereum) {
+      return a.toLowerCase() === b.toLowerCase();
+    }
+    return a === b;
+  }
+
+  /**
+   * Configure LiFi SDK providers from the given private keys.
+   * Sets up wallet/signer for each protocol type present in the keys map.
+   */
+  private configureLiFiProviders(
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    fromChain: number,
+    fromRpcUrl: string | undefined,
+  ): void {
+    const providers: Parameters<typeof lifiConfig.setProviders>[0] = [];
+    for (const [protocol, key] of Object.entries(privateKeys)) {
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          const account = privateKeyToAccount(ensure0x(key) as `0x${string}`);
+          const chain = getViemChain(fromChain, fromRpcUrl);
+          const walletClient = createWalletClient({
+            account,
+            chain,
+            transport: http(fromRpcUrl),
+          });
+          providers.push(
+            EVM({
+              getWalletClient: async () => walletClient,
+              switchChain: async (requiredChainId: number) => {
+                const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
+                const requiredChain = getViemChain(
+                  requiredChainId,
+                  switchRpcUrl,
+                );
+                return createWalletClient({
+                  account,
+                  chain: requiredChain,
+                  transport: http(switchRpcUrl),
+                });
+              },
+            }),
+          );
+          break;
+        }
+        case ProtocolType.Sealevel: {
+          const base58Key = toBase58SolanaKey(key);
+          providers.push(
+            Solana({
+              getWalletAdapter: async () => new KeypairWalletAdapter(base58Key),
+            }),
+          );
+          break;
+        }
+        default:
+          throw new Error(
+            `Unsupported protocol type '${protocol}' for LiFi provider`,
+          );
       }
     }
-    return undefined;
+
+    lifiConfig.setProviders(providers);
+
+    this.logger.debug(
+      {
+        fromChain,
+        protocols: Object.keys(privateKeys),
+      },
+      'Configured LiFi providers for route execution',
+    );
   }
 
   /**
@@ -324,11 +430,11 @@ export class LiFiBridge implements IExternalBridge {
    * Handles approvals, transaction signing, and execution automatically.
    *
    * @param quote - Quote obtained from quote()
-   * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
+   * @param privateKeys - Private keys keyed by protocol type for signing transactions
    */
   async execute(
     quote: BridgeQuote<LiFiStep>,
-    privateKey: string,
+    privateKeys: Partial<Record<ProtocolType, string>>,
   ): Promise<BridgeTransferResult> {
     this.initialize();
 
@@ -339,6 +445,11 @@ export class LiFiBridge implements IExternalBridge {
 
     const fromChain = route.fromChainId;
     const toChain = route.toChainId;
+    const fromProtocol = this.getProtocolTypeForChainId(fromChain);
+    assert(
+      privateKeys[fromProtocol ?? ProtocolType.Ethereum],
+      `Missing private key for source chain protocol ${fromProtocol ?? ProtocolType.Ethereum}`,
+    );
 
     this.logger.info(
       {
@@ -351,66 +462,55 @@ export class LiFiBridge implements IExternalBridge {
       'Executing LiFi bridge transfer',
     );
 
-    // Create viem account and wallet client for the source chain
-    const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const rpcUrl = this.getRpcUrlForChainId(fromChain);
-    const chain = getViemChain(fromChain, rpcUrl);
+    const fromRpcUrl = this.getRpcUrlForChainId(fromChain);
 
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
+    let release!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      release = resolve;
     });
-
-    this.logger.debug(
-      {
-        fromChain,
-        chainName: chain.name,
-        account: account.address,
-      },
-      'Created viem WalletClient for LiFi execution',
-    );
-
-    // Configure LiFi SDK with EVM provider that has our wallet client
-    lifiConfig.setProviders([
-      EVM({
-        getWalletClient: async () => walletClient,
-        switchChain: async (requiredChainId: number) => {
-          const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
-          const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
-          return createWalletClient({
-            account,
-            chain: requiredChain,
-            transport: http(switchRpcUrl),
-          });
-        },
-      }),
-    ]);
+    const prev = this._executeLock;
+    this._executeLock = acquired;
+    await prev;
 
     let txHash: string | undefined;
+    let executedRoute!: RouteExtended;
 
-    // Execute route with update callbacks
-    const executedRoute = await executeRoute(route, {
-      // Update callback for route progress
-      updateRouteHook: (updatedRoute: RouteExtended) => {
-        this.logger.debug(
-          { step: updatedRoute.steps[0]?.id },
-          'Route step updated',
-        );
+    try {
+      this.configureLiFiProviders(privateKeys, fromChain, fromRpcUrl);
 
-        // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
-        const execution = updatedRoute.steps[0]?.execution;
-        if (execution?.process) {
-          for (const process of execution.process) {
-            if (process.txHash) {
-              txHash = process.txHash;
+      this.logger.debug(
+        {
+          fromChain,
+          protocols: Object.keys(privateKeys),
+        },
+        'Configured LiFi providers for route execution',
+      );
+
+      // Execute route with update callbacks
+      executedRoute = await executeRoute(route, {
+        // Update callback for route progress
+        updateRouteHook: (updatedRoute: RouteExtended) => {
+          this.logger.debug(
+            { step: updatedRoute.steps[0]?.id },
+            'Route step updated',
+          );
+
+          // Extract txHash from execution if available (RouteExtended has LiFiStepExtended with execution)
+          const execution = updatedRoute.steps[0]?.execution;
+          if (execution?.process) {
+            for (const process of execution.process) {
+              if (process.txHash) {
+                txHash = process.txHash;
+              }
             }
           }
-        }
-      },
-      // Auto-accept rate updates for rebalancing
-      acceptExchangeRateUpdateHook: async () => true,
-    });
+        },
+        // Auto-accept rate updates for rebalancing
+        acceptExchangeRateUpdateHook: async () => true,
+      });
+    } finally {
+      release();
+    }
 
     // Extract txHash from executed route if not captured in callbacks
     if (!txHash) {
@@ -476,25 +576,37 @@ export class LiFiBridge implements IExternalBridge {
       `Route toChainId ${route.toChainId} does not match requested ${requestParams.toChain}`,
     );
     assert(
-      route.fromToken.address.toLowerCase() ===
-        requestParams.fromToken.toLowerCase(),
+      this.addressesEqual(
+        route.fromToken.address,
+        requestParams.fromToken,
+        route.fromChainId,
+      ),
       `Route fromToken ${route.fromToken.address} does not match requested ${requestParams.fromToken}`,
     );
     assert(
-      route.toToken.address.toLowerCase() ===
-        requestParams.toToken.toLowerCase(),
+      this.addressesEqual(
+        route.toToken.address,
+        requestParams.toToken,
+        route.toChainId,
+      ),
       `Route toToken ${route.toToken.address} does not match requested ${requestParams.toToken}`,
     );
-    const expectedToAddress = (
-      requestParams.toAddress ?? requestParams.fromAddress
-    ).toLowerCase();
+    const expectedToAddress =
+      requestParams.toAddress ?? requestParams.fromAddress;
     assert(
-      route.toAddress?.toLowerCase() === expectedToAddress,
+      this.addressesEqual(
+        route.toAddress ?? '',
+        expectedToAddress,
+        route.toChainId,
+      ),
       `Route toAddress ${route.toAddress} does not match requested ${expectedToAddress}`,
     );
     assert(
-      route.fromAddress?.toLowerCase() ===
-        requestParams.fromAddress.toLowerCase(),
+      this.addressesEqual(
+        route.fromAddress ?? '',
+        requestParams.fromAddress,
+        route.fromChainId,
+      ),
       `Route fromAddress ${route.fromAddress} does not match requested ${requestParams.fromAddress}`,
     );
     const routeFromAmount = BigInt(route.fromAmount);

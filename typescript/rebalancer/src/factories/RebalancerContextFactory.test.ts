@@ -13,6 +13,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
+  ExecutionType,
   DEFAULT_INTENT_TTL_MS,
   RebalancerStrategyOptions,
 } from '../config/types.js';
@@ -121,19 +122,27 @@ function createMockMultiProvider(chains: ChainDef[]) {
   return { multiProvider };
 }
 
+async function createFactory(
+  config: RebalancerConfig,
+  multiProvider: MultiProvider,
+  warpCoreConfig: WarpCoreConfig,
+) {
+  return RebalancerContextFactory.create(
+    config,
+    multiProvider,
+    createMockMpp(),
+    createMockRegistry(),
+    testLogger,
+    undefined,
+    warpCoreConfig,
+  );
+}
+
 async function callCreate(
   multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
 ) {
-  await RebalancerContextFactory.create(
-    createMockConfig(),
-    multiProvider,
-    undefined,
-    createMockMpp(),
-    createMockRegistry(),
-    testLogger,
-    warpCoreConfig,
-  );
+  await createFactory(createMockConfig(), multiProvider, warpCoreConfig);
 }
 
 describe('RebalancerContextFactory', () => {
@@ -236,6 +245,76 @@ describe('RebalancerContextFactory', () => {
         .map((c) => c.args[0]);
       expect(providerChains).to.include('ethereum');
       expect(providerChains).to.include('arbitrum');
+    });
+
+    it('should fail early when inventory override origin protocol signer key is missing', async () => {
+      const sealevelChain = 'solana';
+      const evmChain = 'ethereum';
+      const { multiProvider } = createMockMultiProvider([
+        { name: evmChain, protocol: ProtocolType.Ethereum },
+        { name: sealevelChain, protocol: ProtocolType.Sealevel },
+      ]);
+
+      const config = {
+        warpRouteId: 'USDC/mixed-route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              [sealevelChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+                override: {
+                  [evmChain]: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              [evmChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+        },
+        intentTTL: DEFAULT_INTENT_TTL_MS,
+      } as RebalancerConfig;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            evmChain,
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+          createToken(
+            sealevelChain,
+            'SolToken1111111111111111111111111111111111111',
+            TokenStandard.SealevelHypCollateral,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake((chainName: string) => ({
+        protocol:
+          chainName === sealevelChain
+            ? ProtocolType.Sealevel
+            : ProtocolType.Ethereum,
+      }));
+
+      await expect(
+        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
+      ).to.be.rejectedWith(
+        `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
+      );
     });
   });
 });

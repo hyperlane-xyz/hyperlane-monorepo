@@ -10,8 +10,9 @@
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
  * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
- * - HYP_INVENTORY_KEY: Private key for inventory operations - LiFi bridges and transferRemote (optional)
+ * - HYP_INVENTORY_KEY_<PROTOCOL>: Private key for inventory operations per protocol (e.g., HYP_INVENTORY_KEY_ETHEREUM, HYP_INVENTORY_KEY_SEALEVEL)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
+ * - HYP_INVENTORY_KEY: Backward-compatible fallback for Ethereum inventory signer (optional, use HYP_INVENTORY_KEY_ETHEREUM preferentially)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
@@ -24,6 +25,7 @@
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
+import { Keypair } from '@solana/web3.js';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -31,11 +33,14 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
+import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
+import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
@@ -55,8 +60,24 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Optional: inventory key for inventory-based operations (LiFi bridges, transferRemote)
-  const inventoryPrivateKey = process.env.HYP_INVENTORY_KEY;
+  // Build per-protocol private key map from env vars.
+  // Naming: HYP_INVENTORY_KEY_<UPPERCASE_PROTOCOL> (e.g., HYP_INVENTORY_KEY_ETHEREUM).
+  // HYP_INVENTORY_KEY (no suffix) is kept as backward-compatible fallback for Ethereum only.
+  const inventoryPrivateKeys: Partial<Record<ProtocolType, string>> = {};
+  for (const protocol of Object.values(ProtocolType)) {
+    const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
+    const val = process.env[envKey];
+    if (val) {
+      inventoryPrivateKeys[protocol] = val;
+    }
+  }
+  // Backward compat: HYP_INVENTORY_KEY (no suffix) as Ethereum fallback
+  if (
+    !inventoryPrivateKeys[ProtocolType.Ethereum] &&
+    process.env.HYP_INVENTORY_KEY
+  ) {
+    inventoryPrivateKeys[ProtocolType.Ethereum] = process.env.HYP_INVENTORY_KEY;
+  }
 
   // Parse optional environment variables
   let checkFrequency = 60_000;
@@ -125,41 +146,88 @@ async function main(): Promise<void> {
       '✅ Initialized MultiProvider with rebalancer signer',
     );
 
-    // Create inventory MultiProvider if inventory key is provided
-    let inventoryMultiProvider: MultiProvider | undefined;
-    if (inventoryPrivateKey) {
-      inventoryMultiProvider = new MultiProvider(chainMetadata, {
-        providers: multiProvider.providers,
-      });
-      const inventorySigner = new Wallet(inventoryPrivateKey);
-      inventoryMultiProvider.setSharedSigner(inventorySigner);
+    // Build consolidated inventory signers with keys embedded
+    const inventorySigners: Partial<
+      Record<ProtocolType, InventorySignerConfig>
+    > = {};
 
-      // Validate against config.inventorySigner if present
-      const inventoryAddress = inventorySigner.address;
-      if (
-        rebalancerConfig.inventorySigner &&
-        rebalancerConfig.inventorySigner.toLowerCase() !==
-          inventoryAddress.toLowerCase()
-      ) {
-        throw new Error(
-          `inventorySigner mismatch: config has ${rebalancerConfig.inventorySigner} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
+    for (const [protocol, privateKey] of Object.entries(inventoryPrivateKeys)) {
+      if (!privateKey) continue;
+
+      let derivedAddress: string;
+
+      if (protocol === ProtocolType.Ethereum) {
+        derivedAddress = new Wallet(privateKey).address;
+      } else if (protocol === ProtocolType.Sealevel) {
+        const keyBytes = parseSolanaPrivateKey(privateKey);
+        const keypair = Keypair.fromSecretKey(keyBytes);
+        derivedAddress = keypair.publicKey.toBase58();
+      } else {
+        logger.warn(
+          { protocol },
+          `Unsupported protocol for inventory signer derivation, skipping`,
         );
+        continue;
       }
+
+      // Validate against config if present
+      const configuredAddress =
+        rebalancerConfig.inventorySigners?.[protocol as ProtocolType]?.address;
+      if (configuredAddress) {
+        const mismatch =
+          protocol === ProtocolType.Ethereum
+            ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
+            : configuredAddress !== derivedAddress;
+        if (mismatch) {
+          throw new Error(
+            `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
+          );
+        }
+      }
+
+      inventorySigners[protocol as ProtocolType] = {
+        address: derivedAddress,
+        key: privateKey,
+      };
       logger.info(
-        { inventoryAddress },
-        '✅ Initialized inventory MultiProvider',
+        { protocol, address: derivedAddress },
+        `✅ ${protocol} inventory signer configured`,
       );
     }
 
-    // Fail fast if config references inventorySigner but no HYP_INVENTORY_KEY is provided
-    // Without the matching key, inventory operations would silently use the wrong signer
-    if (rebalancerConfig.inventorySigner && !inventoryPrivateKey) {
-      logger.error(
-        { inventorySigner: rebalancerConfig.inventorySigner },
-        'Config specifies inventorySigner but HYP_INVENTORY_KEY is not set. Provide the key or remove inventorySigner from config.',
-      );
-      process.exit(1);
+    // Fail fast if config references protocol-specific inventory signer but key is missing
+    for (const protocol of Object.values(ProtocolType)) {
+      if (
+        rebalancerConfig.inventorySigners?.[protocol] &&
+        !inventoryPrivateKeys[protocol]
+      ) {
+        const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
+        const hint =
+          protocol === ProtocolType.Ethereum
+            ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
+            : envKey;
+        logger.error(
+          {
+            inventorySigner:
+              rebalancerConfig.inventorySigners[protocol]?.address,
+          },
+          `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
+        );
+        process.exit(1);
+      }
     }
+
+    // Merge runtime keys into config (creates new RebalancerConfig with keys embedded)
+    const mergedRebalancerConfig =
+      Object.keys(inventorySigners).length > 0
+        ? new RebalancerConfig(
+            rebalancerConfig.warpRouteId,
+            rebalancerConfig.strategyConfig,
+            rebalancerConfig.intentTTL,
+            inventorySigners,
+            rebalancerConfig.externalBridges,
+          )
+        : rebalancerConfig;
 
     // MultiProtocolProvider will be derived from multiProvider in factory
     const multiProtocolProvider = undefined;
@@ -167,10 +235,9 @@ async function main(): Promise<void> {
     // Create the rebalancer service
     const service = new RebalancerService(
       multiProvider,
-      inventoryMultiProvider,
       multiProtocolProvider,
       registry,
-      rebalancerConfig,
+      mergedRebalancerConfig,
       {
         mode: 'daemon',
         checkFrequency,
