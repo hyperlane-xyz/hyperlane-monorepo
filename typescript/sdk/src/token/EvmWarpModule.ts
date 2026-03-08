@@ -13,7 +13,10 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  AggLayerTokenBridge__factory,
+  MultiCollateral__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,
@@ -89,6 +92,10 @@ type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
 };
 
+type MovableAllowedBridgeConfig = NonNullable<
+  MovableTokenConfig['allowedRebalancingBridges']
+>[string][number];
+
 const getAllowedRebalancingBridgesByDomain = (
   allowedRebalancingBridgesByDomain: NonNullable<
     MovableTokenConfig['allowedRebalancingBridges']
@@ -104,6 +111,36 @@ const getAllowedRebalancingBridgesByDomain = (
       );
     },
   );
+};
+
+const getAggLayerConfigByBridgeAndDomain = (
+  allowedRebalancingBridgesByDomain: NonNullable<
+    MovableTokenConfig['allowedRebalancingBridges']
+  >,
+): Record<
+  Address,
+  Record<string, NonNullable<MovableAllowedBridgeConfig['agglayer']>>
+> => {
+  const aggLayerConfigByBridge: Record<
+    Address,
+    Record<string, NonNullable<MovableAllowedBridgeConfig['agglayer']>>
+  > = {};
+
+  for (const [domain, allowedBridges] of Object.entries(
+    allowedRebalancingBridgesByDomain,
+  )) {
+    for (const bridgeConfig of allowedBridges) {
+      if (!bridgeConfig.agglayer) {
+        continue;
+      }
+
+      const bridge = normalizeAddressEvm(bridgeConfig.bridge);
+      aggLayerConfigByBridge[bridge] ??= {};
+      aggLayerConfigByBridge[bridge][domain] = bridgeConfig.agglayer;
+    }
+  }
+
+  return aggLayerConfigByBridge;
 };
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -206,6 +243,7 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
+      ...this.createUpdateAggLayerBridgeConfigTxs(actualConfig, expectedConfig),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
 
       ...this.createAddRemoteOutputAssetsTxs(actualConfig, expectedConfig),
@@ -731,6 +769,102 @@ export class EvmWarpModule extends HyperlaneModule<
         });
       },
     );
+  }
+
+  createUpdateAggLayerBridgeConfigTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    const expectedAllowedBridges = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.allowedRebalancingBridges,
+    );
+    const actualAllowedBridges = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.allowedRebalancingBridges ?? {},
+    );
+
+    const expectedAggLayerBridgeConfig = getAggLayerConfigByBridgeAndDomain(
+      expectedAllowedBridges,
+    );
+    const actualAggLayerBridgeConfig =
+      getAggLayerConfigByBridgeAndDomain(actualAllowedBridges);
+
+    const txs: AnnotatedEV5Transaction[] = [];
+
+    for (const [bridgeAddress, destinationConfig] of Object.entries(
+      expectedAggLayerBridgeConfig,
+    )) {
+      for (const [domain, config] of Object.entries(destinationConfig)) {
+        const actualConfigForDomain =
+          actualAggLayerBridgeConfig[bridgeAddress]?.[domain];
+
+        if (
+          !actualConfigForDomain ||
+          actualConfigForDomain.destinationNetwork !== config.destinationNetwork
+        ) {
+          txs.push({
+            chainId: this.chainId,
+            annotation: `Setting AggLayer destination network for bridge "${bridgeAddress}" domain "${domain}" on chain "${this.chainName}"`,
+            to: bridgeAddress,
+            data: AggLayerTokenBridge__factory.createInterface().encodeFunctionData(
+              'setDestinationDomain',
+              [Number(domain), config.destinationNetwork],
+            ),
+          });
+        }
+
+        if (config.nativeFee !== undefined || config.tokenFee !== undefined) {
+          const actualNativeFee = actualConfigForDomain?.nativeFee ?? 0;
+          const actualTokenFee = actualConfigForDomain?.tokenFee ?? 0;
+          const expectedNativeFee = config.nativeFee ?? 0;
+          const expectedTokenFee = config.tokenFee ?? 0;
+          if (
+            actualNativeFee !== expectedNativeFee ||
+            actualTokenFee !== expectedTokenFee
+          ) {
+            txs.push({
+              chainId: this.chainId,
+              annotation: `Setting AggLayer fee config for bridge "${bridgeAddress}" domain "${domain}" on chain "${this.chainName}"`,
+              to: bridgeAddress,
+              data: AggLayerTokenBridge__factory.createInterface().encodeFunctionData(
+                'setFeeConfig',
+                [Number(domain), expectedNativeFee, expectedTokenFee],
+              ),
+            });
+          }
+        }
+
+        if (config.forceUpdateGlobalExitRoot !== undefined) {
+          const actualForce =
+            actualConfigForDomain?.forceUpdateGlobalExitRoot ?? false;
+          if (actualForce !== config.forceUpdateGlobalExitRoot) {
+            txs.push({
+              chainId: this.chainId,
+              annotation: `Setting AggLayer forceUpdateGlobalExitRoot for bridge "${bridgeAddress}" on chain "${this.chainName}"`,
+              to: bridgeAddress,
+              data: AggLayerTokenBridge__factory.createInterface().encodeFunctionData(
+                'setForceUpdateGlobalExitRoot',
+                [config.forceUpdateGlobalExitRoot],
+              ),
+            });
+          }
+        }
+      }
+    }
+
+    return txs;
   }
 
   createAddRemoteOutputAssetsTxs(

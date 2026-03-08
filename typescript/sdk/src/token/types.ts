@@ -56,12 +56,23 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+export const AggLayerBridgeConfigSchema = z.object({
+  agglayerBridgeAddress: ZHash,
+  destinationNetwork: z.number().int().nonnegative(),
+  nativeFee: z.number().int().nonnegative().optional(),
+  tokenFee: z.number().int().nonnegative().optional(),
+  forceUpdateGlobalExitRoot: z.boolean().optional(),
+});
+export type AggLayerBridgeConfig = z.infer<typeof AggLayerBridgeConfigSchema>;
+export const isAggLayerBridgeConfig = isCompliant(AggLayerBridgeConfigSchema);
+
 const MovableTokenRebalancingBridgeConfigSchema = z.object({
   bridge: ZHash,
   approvedTokens: z
     .array(ZHash)
     .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
     .optional(),
+  agglayer: AggLayerBridgeConfigSchema.optional(),
 });
 
 const BaseEverclearTokenBridgeConfigSchema = z.object({

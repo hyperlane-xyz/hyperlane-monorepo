@@ -1207,6 +1207,50 @@ describe('EvmWarpModule', async () => {
         expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
       });
 
+      it(`should include AggLayer bridge configuration txs for tokens of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
+
+        const config: HypTokenRouterConfig = {
+          ...movableTokenConfigs[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+        };
+
+        const evmERC20WarpModule = await EvmWarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update(
+          HypTokenRouterConfigSchema.parse({
+            ...config,
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: allowedBridgeToAdd,
+                  agglayer: {
+                    agglayerBridgeAddress: randomAddress(),
+                    destinationNetwork: 20,
+                    nativeFee: 0,
+                    tokenFee: 0,
+                    forceUpdateGlobalExitRoot: false,
+                  },
+                },
+              ],
+            },
+          }),
+        );
+
+        // addBridge + setDestinationDomain + setFeeConfig
+        expect(txs.length).to.equal(3);
+      });
+
       it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
         const config = HypTokenRouterConfigSchema.parse({

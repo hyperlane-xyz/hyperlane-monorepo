@@ -14,7 +14,10 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  AggLayerTokenBridge__factory,
+  MultiCollateral__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   addressToBytes32,
@@ -567,6 +570,70 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setAggLayerBridgeConfigs(
+    configMap: ChainMap<HypTokenConfig>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const resolvedAllowedBridges = resolveRouterMapConfig(
+          this.multiProvider,
+          config.allowedRebalancingBridges ?? {},
+        );
+
+        for (const [domain, allowedBridges] of Object.entries(
+          resolvedAllowedBridges,
+        )) {
+          for (const allowedBridge of allowedBridges) {
+            if (!allowedBridge.agglayer) {
+              continue;
+            }
+
+            const agglayerBridgeConfig = allowedBridge.agglayer;
+            const bridge = AggLayerTokenBridge__factory.connect(
+              allowedBridge.bridge,
+              this.multiProvider.getSigner(chain),
+            );
+
+            await this.multiProvider.handleTx(
+              chain,
+              bridge.setDestinationDomain(
+                Number(domain),
+                agglayerBridgeConfig.destinationNetwork,
+              ),
+            );
+
+            if (
+              agglayerBridgeConfig.nativeFee !== undefined ||
+              agglayerBridgeConfig.tokenFee !== undefined
+            ) {
+              await this.multiProvider.handleTx(
+                chain,
+                bridge.setFeeConfig(
+                  Number(domain),
+                  agglayerBridgeConfig.nativeFee ?? 0,
+                  agglayerBridgeConfig.tokenFee ?? 0,
+                ),
+              );
+            }
+
+            if (agglayerBridgeConfig.forceUpdateGlobalExitRoot !== undefined) {
+              await this.multiProvider.handleTx(
+                chain,
+                bridge.setForceUpdateGlobalExitRoot(
+                  agglayerBridgeConfig.forceUpdateGlobalExitRoot,
+                ),
+              );
+            }
+          }
+        }
+      }),
+    );
+  }
+
   protected async setEverclearFeeParams(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -732,6 +799,8 @@ abstract class TokenDeployer<
     await this.setRebalancers(configMap, deployedContractsMap);
 
     await this.setAllowedBridges(configMap, deployedContractsMap);
+
+    await this.setAggLayerBridgeConfigs(configMap);
 
     await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
 

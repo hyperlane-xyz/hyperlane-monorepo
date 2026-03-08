@@ -27,7 +27,10 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  AggLayerTokenBridge__factory,
+  MultiCollateral__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
@@ -223,8 +226,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         );
 
         allowedRebalancingBridges = objFilter(
-          objMap(allowedBridgesByDomain, (_domain, bridges) =>
-            bridges.map((bridge) => ({ bridge })),
+          await promiseObjAll(
+            objMap(allowedBridgesByDomain, async (domain, bridges) => {
+              return Promise.all(
+                bridges.map(async (bridge) => {
+                  const agglayer = await this.deriveAggLayerBridgeConfig(
+                    bridge,
+                    Number(domain),
+                  );
+                  return agglayer ? { bridge, agglayer } : { bridge };
+                }),
+              );
+            }),
           ),
           // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
@@ -256,6 +269,54 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       destinationGas,
       tokenFee,
     } as DerivedTokenRouterConfig;
+  }
+
+  private async deriveAggLayerBridgeConfig(
+    bridgeAddress: Address,
+    domain: number,
+  ): Promise<
+    | {
+        agglayerBridgeAddress: Address;
+        destinationNetwork: number;
+        nativeFee: number;
+        tokenFee: number;
+        forceUpdateGlobalExitRoot: boolean;
+      }
+    | undefined
+  > {
+    try {
+      const bridge = AggLayerTokenBridge__factory.connect(
+        bridgeAddress,
+        this.provider,
+      );
+
+      const configured = await bridge.destinationDomainConfigured(domain);
+      if (!configured) {
+        return undefined;
+      }
+
+      const [agglayerBridgeAddress, destinationNetwork, feeConfig, forceFlag] =
+        await Promise.all([
+          bridge.agglayerBridge(),
+          bridge.destinationNetworkByDomain(domain),
+          bridge.feeConfigByDomain(domain),
+          bridge.forceUpdateGlobalExitRoot(),
+        ]);
+
+      return {
+        agglayerBridgeAddress,
+        destinationNetwork: Number(destinationNetwork),
+        nativeFee: feeConfig.nativeFee.toNumber(),
+        tokenFee: feeConfig.tokenFee.toNumber(),
+        forceUpdateGlobalExitRoot: forceFlag,
+      };
+    } catch (error) {
+      this.logger.debug(
+        `Bridge at "${bridgeAddress}" on chain "${this.chain}" is not an AggLayerTokenBridge`,
+        error,
+      );
+      return undefined;
+    }
   }
 
   public async fetchTokenFee(

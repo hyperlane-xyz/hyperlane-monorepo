@@ -41,6 +41,7 @@ optimism = "${RPC_URL_OPTIMISM}"
 polygon = "${RPC_URL_POLYGON}"
 arbitrum = "${RPC_URL_ARBITRUM}"
 base = "${RPC_URL_BASE}"
+katana = "${RPC_URL_KATANA}"
 
 [fuzz]
 runs = 50

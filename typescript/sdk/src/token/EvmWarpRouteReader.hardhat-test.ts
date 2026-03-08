@@ -31,6 +31,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import { AggLayerTokenBridge__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -684,6 +685,57 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig).to.deep.include(config[TestChainName.test4]);
     });
   }
+
+  it('should derive AggLayer bridge config from allowed rebalancing bridge', async () => {
+    const bridgeAddress = '0x1111111111111111111111111111111111111111';
+    const agglayerBridgeAddress = '0x2222222222222222222222222222222222222222';
+    const domain = 747474;
+
+    const connectStub = sinon
+      .stub(AggLayerTokenBridge__factory, 'connect')
+      .returns({
+        destinationDomainConfigured: sinon.stub().resolves(true),
+        agglayerBridge: sinon.stub().resolves(agglayerBridgeAddress),
+        destinationNetworkByDomain: sinon.stub().resolves(20),
+        feeConfigByDomain: sinon.stub().resolves({
+          nativeFee: { toNumber: () => 1234 },
+          tokenFee: { toNumber: () => 5678 },
+        }),
+        forceUpdateGlobalExitRoot: sinon.stub().resolves(true),
+      } as any);
+
+    const config = await (
+      evmERC20WarpRouteReader as any
+    ).deriveAggLayerBridgeConfig(bridgeAddress, domain);
+
+    expect(config).to.deep.equal({
+      agglayerBridgeAddress,
+      destinationNetwork: 20,
+      nativeFee: 1234,
+      tokenFee: 5678,
+      forceUpdateGlobalExitRoot: true,
+    });
+
+    connectStub.restore();
+  });
+
+  it('should return undefined AggLayer bridge config when domain is not configured', async () => {
+    const connectStub = sinon
+      .stub(AggLayerTokenBridge__factory, 'connect')
+      .returns({
+        destinationDomainConfigured: sinon.stub().resolves(false),
+      } as any);
+
+    const config = await (
+      evmERC20WarpRouteReader as any
+    ).deriveAggLayerBridgeConfig(
+      '0x1111111111111111111111111111111111111111',
+      747474,
+    );
+
+    expect(config).to.be.undefined;
+    connectStub.restore();
+  });
 
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config

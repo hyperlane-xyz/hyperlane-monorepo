@@ -11,3 +11,7 @@ allow_paths = [".."]
 
 [fuzz]
 runs = 50
+
+[rpc_endpoints]
+mainnet = "${RPC_URL_MAINNET}"
+katana = "${RPC_URL_KATANA}"
