@@ -201,7 +201,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             uint256 hookFee = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
-                _amount,
+                _outboundAmount(_amount),
                 _feeToken,
                 _targetRouter
             );
