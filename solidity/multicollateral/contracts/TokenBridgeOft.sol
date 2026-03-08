@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity >=0.8.0;
+
+import {TokenRouter} from "@hyperlane-xyz/core/token/libs/TokenRouter.sol";
+import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt} from "./interfaces/layerzero/IOFT.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+/**
+ * @title TokenBridgeOft
+ * @notice Warp route adapter for LayerZero OFT (Omnichain Fungible Token) contracts.
+ * @dev Extends TokenRouter so it integrates with the Hyperlane warp route deployer
+ *      and SDK tooling. Overrides _transferRemote to bridge via OFT.send() instead
+ *      of dispatching a Hyperlane message.
+ *
+ * Supports all OFT patterns:
+ *  - Native OFT (burn/mint, approvalRequired=false)
+ *  - OFTAdapter (lock/unlock, approvalRequired=true)
+ *  - OFTWrapper (Paxos-style burn/mint, approvalRequired=false)
+ */
+contract TokenBridgeOft is TokenRouter {
+    using SafeERC20 for IERC20;
+
+    // ============ Errors ============
+
+    error LzEidNotConfigured(uint32 hyperlaneDomain);
+
+    // ============ Events ============
+
+    event DomainAdded(uint32 indexed hyperlaneDomain, uint32 lzEid);
+    event DomainRemoved(uint32 indexed hyperlaneDomain);
+    event ExtraOptionsSet(bytes extraOptions);
+    event RefundAddressSet(address refundAddress);
+
+    // ============ Storage ============
+
+    /// @notice The LayerZero OFT contract to bridge through
+    IOFT public immutable oft;
+
+    /// @notice The underlying ERC20 token
+    IERC20 public immutable wrappedToken;
+
+    /// @notice Mapping from Hyperlane domain ID to LayerZero endpoint ID
+    mapping(uint32 hyperlaneDomain => uint32 lzEid)
+        public hyperlaneDomainToLzEid;
+
+    /// @notice Configurable LayerZero extra options (e.g., destination gas limits)
+    bytes public extraOptions;
+
+    /// @notice Address to receive excess native gas refunds from OFT.send()
+    address public refundAddress;
+
+    // ============ Constructor ============
+
+    /**
+     * @param _oft Address of the OFT / OFTAdapter / OFTWrapper contract
+     * @param _mailbox Address of the Hyperlane Mailbox (for deployer compatibility)
+     */
+    constructor(address _oft, address _mailbox) TokenRouter(1, 1, _mailbox) {
+        require(_oft != address(0), "TokenBridgeOft: zero OFT address");
+
+        oft = IOFT(_oft);
+        wrappedToken = IERC20(IOFT(_oft).token());
+        refundAddress = msg.sender;
+
+        // If the OFT is an adapter (lock/unlock), pre-approve it to spend tokens
+        if (IOFT(_oft).approvalRequired()) {
+            IERC20(IOFT(_oft).token()).safeApprove(_oft, type(uint256).max);
+        }
+    }
+
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
+    // ============ TokenRouter Overrides ============
+
+    /// @notice Returns the address of the underlying ERC20 token.
+    function token() public view override returns (address) {
+        return address(wrappedToken);
+    }
+
+    /**
+     * @dev Override to return LayerZero OFT native fee instead of Hyperlane IGP fee.
+     * This is called by TokenRouter.quoteTransferRemote().
+     */
+    function _quoteGasPayment(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        address /* _feeToken */
+    ) internal view override returns (uint256) {
+        SendParam memory sendParam = _buildSendParam(
+            _destination,
+            _recipient,
+            _amount,
+            0 // minAmountLD = 0 for quoting
+        );
+        MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
+        return msgFee.nativeFee;
+    }
+
+    /**
+     * @dev Override to bridge via OFT.send() instead of Hyperlane dispatch.
+     * Flow: pull tokens from sender → call OFT.send() → return LZ guid.
+     */
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (bytes32 messageId) {
+        // Pull tokens from sender
+        _transferFromSender(_amount);
+
+        // Build OFT send params
+        SendParam memory sendParam = _buildSendParam(
+            _destination,
+            _recipient,
+            _amount,
+            0 // placeholder, will be set from quoteOFT
+        );
+
+        // Get the expected receipt to set minAmountLD for slippage protection
+        (, , OFTReceipt memory receipt) = oft.quoteOFT(sendParam);
+        sendParam.minAmountLD = receipt.amountReceivedLD;
+
+        // Get native gas fee
+        MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
+
+        // Execute the OFT send
+        (MessagingReceipt memory msgReceipt, ) = oft.send{
+            value: msgFee.nativeFee
+        }(sendParam, msgFee, refundAddress);
+
+        emit SentTransferRemote(_destination, _recipient, _amount);
+        return msgReceipt.guid;
+    }
+
+    /// @dev Pull tokens from msg.sender to this contract.
+    function _transferFromSender(uint256 _amount) internal override {
+        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+    }
+
+    /// @dev No-op — OFT delivers tokens directly to recipients on the destination chain.
+    function _transferTo(address, uint256) internal pure override {
+        // Intentionally empty: OFT handles token delivery
+    }
+
+    /**
+     * @dev Revert on inbound Hyperlane messages — tokens arrive via LayerZero, not Hyperlane.
+     */
+    function _handle(uint32, bytes32, bytes calldata) internal pure override {
+        revert("TokenBridgeOft: no inbound handling");
+    }
+
+    // ============ Admin ============
+
+    function addDomain(
+        uint32 _hyperlaneDomain,
+        uint32 _lzEid
+    ) external onlyOwner {
+        hyperlaneDomainToLzEid[_hyperlaneDomain] = _lzEid;
+        emit DomainAdded(_hyperlaneDomain, _lzEid);
+    }
+
+    function removeDomain(uint32 _hyperlaneDomain) external onlyOwner {
+        delete hyperlaneDomainToLzEid[_hyperlaneDomain];
+        emit DomainRemoved(_hyperlaneDomain);
+    }
+
+    function setExtraOptions(bytes calldata _options) external onlyOwner {
+        extraOptions = _options;
+        emit ExtraOptionsSet(_options);
+    }
+
+    function setRefundAddress(address _refundAddress) external onlyOwner {
+        require(
+            _refundAddress != address(0),
+            "TokenBridgeOft: zero refund address"
+        );
+        refundAddress = _refundAddress;
+        emit RefundAddressSet(_refundAddress);
+    }
+
+    // ============ Internal ============
+
+    function _buildSendParam(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _minAmountLD
+    ) internal view returns (SendParam memory) {
+        uint32 lzEid = hyperlaneDomainToLzEid[_destination];
+        if (lzEid == 0) revert LzEidNotConfigured(_destination);
+
+        return
+            SendParam({
+                dstEid: lzEid,
+                to: _recipient,
+                amountLD: _amount,
+                minAmountLD: _minAmountLD,
+                extraOptions: extraOptions,
+                composeMsg: "",
+                oftCmd: ""
+            });
+    }
+
+    /// @notice Allow contract to receive native token refunds from OFT
+    receive() external payable {}
+}

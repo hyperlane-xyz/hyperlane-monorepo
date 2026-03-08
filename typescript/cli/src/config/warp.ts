@@ -75,6 +75,8 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
+  [TokenType.collateralOft]:
+    'A collateral token that bridges via LayerZero OFT',
   [TokenType.multiCollateral]:
     'A collateral token that can route to multiple routers across chains',
 };

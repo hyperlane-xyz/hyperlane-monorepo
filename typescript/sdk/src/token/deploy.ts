@@ -14,7 +14,10 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  MultiCollateral__factory,
+  TokenBridgeOft__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   addressToBytes32,
@@ -63,6 +66,7 @@ import {
   CctpTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
+  OftTokenConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
@@ -73,6 +77,7 @@ import {
   isMovableCollateralTokenConfig,
   isMultiCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -198,6 +203,8 @@ abstract class TokenDeployer<
         config.mailbox,
         collateralDomain,
       ];
+    } else if (isOftTokenConfig(config)) {
+      return [config.oft, config.mailbox];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -255,7 +262,8 @@ abstract class TokenDeployer<
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isNativeTokenConfig(config) ||
-      isMultiCollateralTokenConfig(config)
+      isMultiCollateralTokenConfig(config) ||
+      isOftTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -414,6 +422,60 @@ abstract class TokenDeployer<
               }),
             );
           }
+        }
+      }),
+    );
+  }
+
+  protected async configureOftDomains(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const oftConfigs = objFilter(
+      configMap,
+      (_, config): config is OftTokenConfig => isOftTokenConfig(config),
+    );
+
+    await promiseObjAll(
+      objMap(oftConfigs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeOft__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedMappings = resolveRouterMapConfig(
+          this.multiProvider,
+          config.domainMappings,
+        );
+
+        for (const [domainId, lzEid] of Object.entries(resolvedMappings)) {
+          this.logger.info(`Adding OFT domain mapping on ${chain}`, {
+            hyperlaneDomain: domainId,
+            lzEid,
+          });
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.addDomain(Number(domainId), lzEid),
+          );
+        }
+
+        // Set extra options if configured
+        if (config.extraOptions) {
+          this.logger.info(`Setting OFT extra options on ${chain}`);
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.setExtraOptions(config.extraOptions),
+          );
+        }
+
+        // Set refund address if configured
+        if (config.refundAddress) {
+          this.logger.info(`Setting OFT refund address on ${chain}`);
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.setRefundAddress(config.refundAddress),
+          );
         }
       }),
     );
@@ -728,6 +790,9 @@ abstract class TokenDeployer<
 
     // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
     await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
+
+    // Configure OFT domain mappings (Hyperlane domain → LZ EID)
+    await this.configureOftDomains(configMap, deployedContractsMap);
 
     await this.setRebalancers(configMap, deployedContractsMap);
 

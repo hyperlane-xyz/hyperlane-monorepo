@@ -27,7 +27,10 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  MultiCollateral__factory,
+  TokenBridgeOft__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
@@ -72,6 +75,7 @@ import {
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
   MovableTokenConfig,
+  OftTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
   OwnerStatus,
@@ -145,6 +149,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.collateralOft]:
+        this.deriveHypCollateralOftTokenConfig.bind(this),
       [TokenType.multiCollateral]:
         this.deriveMultiCollateralTokenConfig.bind(this),
     };
@@ -429,6 +435,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.XERC20Lockbox]: {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
+      },
+      [TokenType.collateralOft]: {
+        factory: TokenBridgeOft__factory,
+        method: 'oft',
       },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
@@ -842,6 +852,31 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
     }
+  }
+
+  private async deriveHypCollateralOftTokenConfig(
+    hypToken: Address,
+  ): Promise<OftTokenConfig> {
+    const tokenBridge = TokenBridgeOft__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [oft, token, extraOptions, refundAddress] = await Promise.all([
+      tokenBridge.oft(),
+      tokenBridge.token(),
+      tokenBridge.extraOptions(),
+      tokenBridge.refundAddress(),
+    ]);
+
+    return {
+      type: TokenType.collateralOft,
+      token,
+      oft,
+      domainMappings: {},
+      extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
+      refundAddress,
+    };
   }
 
   private async deriveHypCollateralTokenConfig(
