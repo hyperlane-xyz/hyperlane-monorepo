@@ -17,6 +17,7 @@ export const TokenType = {
   ethEverclear: 'ethEverclear',
   // backwards compatible alias to native
   nativeScaled: 'nativeScaled',
+  multiCollateral: 'multiCollateral',
   unknown: 'unknown',
 } as const;
 
@@ -44,6 +45,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
+  [TokenType.multiCollateral]: true,
   [TokenType.unknown]: false,
 } as const;
 

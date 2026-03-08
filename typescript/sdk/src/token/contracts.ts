@@ -43,6 +43,8 @@ export const hypERC20contracts = {
   [TokenType.nativeScaled]: 'HypNative',
   [TokenType.ethEverclear]: 'EverclearEthBridge',
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
+  // TODO: Replace with 'MultiCollateral' once PR #8246 is merged
+  [TokenType.multiCollateral]: 'HypERC20Collateral',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -70,6 +72,8 @@ export const hypERC20factories = {
 
   [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
   [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
+  // TODO: Replace with MultiCollateral__factory once PR #8246 is merged
+  [TokenType.multiCollateral]: new HypERC20Collateral__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 

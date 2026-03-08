@@ -135,6 +135,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.EvmHypEverclearCollateral]: null,
   [TokenStandard.EvmHypEverclearEth]: null,
+  [TokenStandard.EvmHypMultiCollateral]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
@@ -172,6 +173,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.SealevelHypMultiCollateral]: null,
   [TokenStandard.SealevelHypSynthetic]: {
     chainName: testSealevelChain.name,
     standard: TokenStandard.SealevelHypSynthetic,

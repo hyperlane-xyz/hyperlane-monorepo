@@ -938,6 +938,31 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   }
 }
 
+// Interacts with Hyp MultiCollateral token programs.
+// Extends collateral adapter with multi-router enrollment support.
+export class SealevelHypMultiCollateralAdapter extends SealevelHypCollateralAdapter {
+  deriveMultiCollateralStateAccount(): PublicKey {
+    return super.derivePda(
+      ['hyperlane_token', '-', 'multicollateral'],
+      this.warpProgramPubKey,
+    );
+  }
+
+  override async getTransferInstructionKeyList(
+    params: KeyListParams,
+  ): Promise<Array<AccountMeta>> {
+    return [
+      ...(await super.getTransferInstructionKeyList(params)),
+      // MultiCollateral state PDA (read by TransferRemoteTo to validate enrollment)
+      {
+        pubkey: this.deriveMultiCollateralStateAccount(),
+        isSigner: false,
+        isWritable: false,
+      },
+    ];
+  }
+}
+
 interface KeyListParams {
   sender: PublicKey;
   mailbox: PublicKey;

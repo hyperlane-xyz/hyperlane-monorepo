@@ -663,6 +663,7 @@ export {
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
+  SealevelHypMultiCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
   SealevelHypTokenAdapter,

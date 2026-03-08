@@ -1,0 +1,8 @@
+{
+  "sealeveltest1": {
+    "type": "multiCollateral",
+    "token": "__SPL_MINT_PLACEHOLDER__",
+    "decimals": 6,
+    "remoteDecimals": 18
+  }
+}

@@ -353,6 +353,7 @@ pub enum TokenType {
     Native,
     Synthetic,
     Collateral,
+    MultiCollateral,
 }
 
 #[derive(Args)]
@@ -1033,7 +1034,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     accounts_to_query.push(mint_account);
                     accounts_to_query.push(ata_payer_account);
                 }
-                TokenType::Collateral => {
+                TokenType::Collateral | TokenType::MultiCollateral => {
                     let (escrow_account, _escrow_bump) = Pubkey::find_program_address(
                         hyperlane_token_escrow_pda_seeds!(),
                         &query.program_id,
@@ -1108,7 +1109,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         ata_payer_account, ata_payer_bump,
                     );
                 }
-                TokenType::Collateral => {
+                TokenType::Collateral | TokenType::MultiCollateral => {
                     let (escrow_account, escrow_bump) = Pubkey::find_program_address(
                         hyperlane_token_escrow_pda_seeds!(),
                         &query.program_id,
@@ -1281,7 +1282,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         AccountMeta::new(sender_associated_token_account, false),
                     ]);
                 }
-                TokenType::Collateral => {
+                TokenType::Collateral | TokenType::MultiCollateral => {
                     // 5. [executable] The SPL token program for the mint.
                     // 6. [writeable] The mint.
                     // 7. [writeable] The token sender's associated token account, from which tokens will be sent.

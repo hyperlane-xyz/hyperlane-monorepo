@@ -144,6 +144,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      // TODO: Add proper MultiCollateral reader once PR #8246 is merged
+      [TokenType.multiCollateral]:
+        this.deriveHypCollateralTokenConfig.bind(this),
     };
 
     this.contractVerifier =
