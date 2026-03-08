@@ -9,14 +9,26 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /**
  * @title TokenBridgeOft
  * @notice Warp route adapter for LayerZero OFT (Omnichain Fungible Token) contracts.
- * @dev Extends TokenRouter so it integrates with the Hyperlane warp route deployer
- *      and SDK tooling. Overrides _transferRemote to bridge via OFT.send() instead
- *      of dispatching a Hyperlane message.
+ *
+ * @dev TokenRouter coupling:
+ *  This contract extends TokenRouter to integrate with the Hyperlane warp route
+ *  deployer and SDK. However, it does NOT use Hyperlane messaging for transfers.
+ *  Instead, _transferRemote bridges via OFT.send() and _handle reverts on inbound
+ *  Hyperlane messages. The Mailbox address passed to the constructor is required by
+ *  TokenRouter's initializer but is not used for dispatching. The scale factors
+ *  (1, 1) passed to TokenRouter(...) avoid decimal conversion since OFT handles
+ *  its own decimal normalization via sharedDecimals.
  *
  * Supports all OFT patterns:
  *  - Native OFT (burn/mint, approvalRequired=false)
  *  - OFTAdapter (lock/unlock, approvalRequired=true)
  *  - OFTWrapper (Paxos-style burn/mint, approvalRequired=false)
+ *
+ * Token support:
+ *  - Fee-on-transfer tokens: NOT supported — amount mismatches between
+ *    safeTransferFrom and OFT.send will cause failures or loss.
+ *  - Rebasing tokens: NOT supported — amounts may diverge across chains.
+ *  - ERC-777: NOT explicitly supported — hook reentrancy not guarded.
  */
 contract TokenBridgeOft is TokenRouter {
     using SafeERC20 for IERC20;
@@ -163,6 +175,7 @@ contract TokenBridgeOft is TokenRouter {
         uint32 _hyperlaneDomain,
         uint32 _lzEid
     ) external onlyOwner {
+        require(_lzEid != 0, "TokenBridgeOft: zero LZ EID");
         hyperlaneDomainToLzEid[_hyperlaneDomain] = _lzEid;
         emit DomainAdded(_hyperlaneDomain, _lzEid);
     }

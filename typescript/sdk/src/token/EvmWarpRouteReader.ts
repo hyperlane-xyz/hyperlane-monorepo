@@ -869,10 +869,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       tokenBridge.refundAddress(),
     ]);
 
+    const erc20Metadata = await this.fetchERC20Metadata(token);
+
     return {
+      ...erc20Metadata,
       type: TokenType.collateralOft,
       token,
       oft,
+      // Domain mappings can't be enumerated from a Solidity mapping;
+      // they are populated from the deploy config, not on-chain state.
       domainMappings: {},
       extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
       refundAddress,

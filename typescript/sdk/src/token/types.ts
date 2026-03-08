@@ -233,7 +233,10 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
     .describe('Underlying ERC20 token address (resolved from OFT)'),
   oft: z.string().describe('OFT / OFTAdapter / OFTWrapper contract address'),
   domainMappings: z
-    .record(RemoteRouterDomainOrChainNameSchema, z.number())
+    .record(
+      RemoteRouterDomainOrChainNameSchema,
+      z.number().int().nonnegative().max(4294967295),
+    )
     .describe(
       'Mapping of Hyperlane domain (or chain name) to LayerZero endpoint ID',
     ),
