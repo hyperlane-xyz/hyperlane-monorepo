@@ -158,12 +158,11 @@ export class LiFiBridge implements IExternalBridge {
 
   private addressesEqual(a: string, b: string, chainId: number): boolean {
     const protocol = this.getProtocolTypeForChainId(chainId);
-    // Default to case-insensitive when protocol is unknown (e.g. no chain metadata)
-    // since LiFi primarily serves EVM chains with hex addresses.
-    if (!protocol || protocol === ProtocolType.Ethereum) {
-      return a.toLowerCase() === b.toLowerCase();
+    // Sealevel uses base58 addresses where case is significant.
+    if (protocol === ProtocolType.Sealevel) {
+      return a === b;
     }
-    return a === b;
+    return a.toLowerCase() === b.toLowerCase();
   }
 
   /**
