@@ -717,7 +717,9 @@ contract MultiCollateralTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
-    function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment() public {
+    function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment()
+        public
+    {
         // Remove default Router.sol mapping for DESTINATION while keeping
         // usdtRouterB enrolled via MultiCollateral's per-domain set.
         usdcRouterA.unenrollRemoteRouter(DESTINATION);
@@ -747,6 +749,24 @@ contract MultiCollateralTest is Test {
         );
     }
 
+    function test_quoteTransferRemoteTo_revert_sameDomain_targetRouterNotContract()
+        public
+    {
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = ORIGIN;
+        routers[0] = address(0xdead).addressToBytes32();
+        usdcRouterA.enrollRouters(domains, routers);
+
+        vm.expectRevert("MC: target router not contract");
+        usdcRouterA.quoteTransferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            1000e6,
+            address(0xdead).addressToBytes32()
+        );
+    }
+
     function test_transferRemoteTo_withoutDefaultRouterEnrollment() public {
         usdcRouterA.setFeeRecipient(address(0));
         usdtRouterB.setFeeRecipient(address(0));
@@ -765,6 +785,35 @@ contract MultiCollateralTest is Test {
         env.processNextPendingMessage();
 
         assertEq(destUSDT.balanceOf(BOB), bobBefore + 1234e18);
+    }
+
+    function test_transferRemoteTo_withHookFee_withoutDefaultRouterEnrollment()
+        public
+    {
+        usdcRouterA.setFeeRecipient(address(0));
+        usdtRouterB.setFeeRecipient(address(0));
+        usdcRouterA.unenrollRemoteRouter(DESTINATION);
+
+        uint256 amount = 1234e6;
+        uint256 hookFee = 7e6;
+        FixedQuoteHook hook = new FixedQuoteHook(hookFee);
+        usdcRouterA.setHook(address(hook));
+        usdcRouterA.setFeeHook(address(hook));
+
+        uint256 aliceBefore = originUSDC.balanceOf(ALICE);
+        uint256 bobBefore = destUSDT.balanceOf(BOB);
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+        env.processNextPendingMessage();
+
+        assertEq(destUSDT.balanceOf(BOB), bobBefore + 1234e18);
+        assertEq(aliceBefore - originUSDC.balanceOf(ALICE), amount + hookFee);
     }
 
     // ============ Batch enrollment ============

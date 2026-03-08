@@ -193,6 +193,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
 
         address _feeHook = feeHook();
         address _token = token();
+        address _feeToken = feeToken();
 
         // Same-domain transferRemoteTo calls handle() directly and does not dispatch
         // through mailbox hooks, so do not charge hook fees in that path.
@@ -201,7 +202,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 _destination,
                 _recipient,
                 _amount,
-                _token,
+                _feeToken,
                 _targetRouter
             );
             if (hookFee > 0) {
@@ -323,6 +324,12 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 _enrolledRouters[_destination].contains(_targetRouter),
             "MC: unauthorized router"
         );
+        if (_destination == localDomain) {
+            require(
+                _targetRouter.bytes32ToAddress().code.length > 0,
+                "MC: target router not contract"
+            );
+        }
 
         quotes = new Quote[](3);
 
