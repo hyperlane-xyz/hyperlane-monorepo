@@ -113,6 +113,7 @@ enum TokenType {
     Native,
     Synthetic(TokenMetadata),
     Collateral(CollateralInfo),
+    MultiCollateral(CollateralInfo),
 }
 
 impl TokenType {
@@ -125,6 +126,7 @@ impl TokenType {
             TokenType::Synthetic(_) => 64_000,
             TokenType::Native => 44_000,
             TokenType::Collateral(_) => 68_000,
+            TokenType::MultiCollateral(_) => 68_000,
         }
     }
 }
@@ -201,6 +203,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Native => "hyperlane_sealevel_token_native",
             TokenType::Synthetic(_) => "hyperlane_sealevel_token",
             TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
+            TokenType::MultiCollateral(_) => "hyperlane_sealevel_token_multicollateral",
         }
     }
 
@@ -234,7 +237,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
                 if matches!(
                     app_config.token_type,
-                    TokenType::Collateral(_) | TokenType::Synthetic(_)
+                    TokenType::Collateral(_)
+                        | TokenType::Synthetic(_)
+                        | TokenType::MultiCollateral(_)
                 ) {
                     fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
                 }
@@ -368,6 +373,22 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
                 ctx.new_txn().add(
                     hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_spl_token_program,
+                        collateral_mint,
+                    )
+                    .unwrap(),
+                )
+            }
+            TokenType::MultiCollateral(collateral_info) => {
+                let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
+                let collateral_mint_account = client.get_account(&collateral_mint).unwrap();
+                let collateral_spl_token_program = collateral_mint_account.owner;
+
+                ctx.new_txn().add(
+                    hyperlane_sealevel_token_multicollateral::instruction::init_instruction(
                         program_id,
                         ctx.payer_pubkey,
                         init,
@@ -735,7 +756,7 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
             let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
             print_data_or_err(res);
         }
-        FlatTokenType::Collateral => {
+        FlatTokenType::Collateral | FlatTokenType::MultiCollateral => {
             let res = HyperlaneTokenAccount::<CollateralPlugin>::fetch(data);
             print_data_or_err(res);
         }

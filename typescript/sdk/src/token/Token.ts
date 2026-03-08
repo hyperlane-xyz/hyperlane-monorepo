@@ -78,6 +78,7 @@ import {
 } from './adapters/RadixTokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
+  SealevelHypMultiCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
   SealevelNativeTokenAdapter,
@@ -341,6 +342,18 @@ export class Token implements IToken {
       );
 
       return new SealevelHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
+    } else if (standard === TokenStandard.SealevelHypMultiCollateral) {
+      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom required for Sealevel hyp multiCollateral tokens`,
+      );
+
+      return new SealevelHypMultiCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,

@@ -49,6 +49,9 @@ hyperlane-sealevel-igp = { path = "../programs/hyperlane-sealevel-igp", features
 hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-token-multicollateral = { path = "../programs/hyperlane-sealevel-token-multicollateral", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native", features = [
     "no-entrypoint",
