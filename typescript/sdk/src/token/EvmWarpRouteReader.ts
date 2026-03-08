@@ -862,23 +862,29 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [oft, token, extraOptions, refundAddress] = await Promise.all([
-      tokenBridge.oft(),
-      tokenBridge.token(),
-      tokenBridge.extraOptions(),
-      tokenBridge.refundAddress(),
-    ]);
+    const [oft, token, extraOptions, refundAddress, domainMappingsRaw] =
+      await Promise.all([
+        tokenBridge.oft(),
+        tokenBridge.token(),
+        tokenBridge.extraOptions(),
+        tokenBridge.refundAddress(),
+        tokenBridge.getDomainMappings(),
+      ]);
 
     const erc20Metadata = await this.fetchERC20Metadata(token);
+
+    const domainMappings: Record<string, number> = {};
+    const [domains, lzEids] = domainMappingsRaw;
+    for (let i = 0; i < domains.length; i++) {
+      domainMappings[domains[i].toString()] = lzEids[i];
+    }
 
     return {
       ...erc20Metadata,
       type: TokenType.collateralOft,
       token,
       oft,
-      // Domain mappings can't be enumerated from a Solidity mapping;
-      // they are populated from the deploy config, not on-chain state.
-      domainMappings: {},
+      domainMappings,
       extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
       refundAddress,
     };

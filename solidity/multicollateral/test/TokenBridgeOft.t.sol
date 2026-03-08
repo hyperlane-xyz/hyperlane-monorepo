@@ -211,6 +211,13 @@ contract TokenBridgeOftUnitTest is Test {
         assertEq(bridge.hyperlaneDomainToLzEid(DOMAIN_ETH), 0);
     }
 
+    function test_getDomainMappings() public view {
+        (uint32[] memory domains, uint32[] memory lzEids) = bridge
+            .getDomainMappings();
+        assertEq(domains.length, 2);
+        assertEq(lzEids.length, 2);
+    }
+
     // ---- Quote ----
 
     function test_quoteTransferRemote_returnsThreeQuotes() public view {

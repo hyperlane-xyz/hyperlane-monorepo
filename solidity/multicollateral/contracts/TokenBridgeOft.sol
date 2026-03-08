@@ -5,6 +5,7 @@ import {TokenRouter} from "@hyperlane-xyz/core/token/libs/TokenRouter.sol";
 import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt} from "./interfaces/layerzero/IOFT.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 /**
  * @title TokenBridgeOft
@@ -32,6 +33,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  */
 contract TokenBridgeOft is TokenRouter {
     using SafeERC20 for IERC20;
+    using EnumerableMap for EnumerableMap.UintToUintMap;
 
     // ============ Errors ============
 
@@ -52,9 +54,8 @@ contract TokenBridgeOft is TokenRouter {
     /// @notice The underlying ERC20 token
     IERC20 public immutable wrappedToken;
 
-    /// @notice Mapping from Hyperlane domain ID to LayerZero endpoint ID
-    mapping(uint32 hyperlaneDomain => uint32 lzEid)
-        public hyperlaneDomainToLzEid;
+    /// @notice Enumerable mapping from Hyperlane domain ID to LayerZero endpoint ID
+    EnumerableMap.UintToUintMap private _domainToLzEid;
 
     /// @notice Configurable LayerZero extra options (e.g., destination gas limits)
     bytes public extraOptions;
@@ -176,12 +177,12 @@ contract TokenBridgeOft is TokenRouter {
         uint32 _lzEid
     ) external onlyOwner {
         require(_lzEid != 0, "TokenBridgeOft: zero LZ EID");
-        hyperlaneDomainToLzEid[_hyperlaneDomain] = _lzEid;
+        _domainToLzEid.set(uint256(_hyperlaneDomain), uint256(_lzEid));
         emit DomainAdded(_hyperlaneDomain, _lzEid);
     }
 
     function removeDomain(uint32 _hyperlaneDomain) external onlyOwner {
-        delete hyperlaneDomainToLzEid[_hyperlaneDomain];
+        _domainToLzEid.remove(uint256(_hyperlaneDomain));
         emit DomainRemoved(_hyperlaneDomain);
     }
 
@@ -199,6 +200,32 @@ contract TokenBridgeOft is TokenRouter {
         emit RefundAddressSet(_refundAddress);
     }
 
+    // ============ Views ============
+
+    /// @notice Look up the LZ endpoint ID for a given Hyperlane domain.
+    function hyperlaneDomainToLzEid(
+        uint32 _domain
+    ) external view returns (uint32) {
+        (bool exists, uint256 eid) = _domainToLzEid.tryGet(uint256(_domain));
+        return exists ? uint32(eid) : 0;
+    }
+
+    /// @notice Returns all configured domain mappings as parallel arrays.
+    function getDomainMappings()
+        external
+        view
+        returns (uint32[] memory domains, uint32[] memory lzEids)
+    {
+        uint256 len = _domainToLzEid.length();
+        domains = new uint32[](len);
+        lzEids = new uint32[](len);
+        for (uint256 i = 0; i < len; i++) {
+            (uint256 domain, uint256 eid) = _domainToLzEid.at(i);
+            domains[i] = uint32(domain);
+            lzEids[i] = uint32(eid);
+        }
+    }
+
     // ============ Internal ============
 
     function _buildSendParam(
@@ -207,8 +234,11 @@ contract TokenBridgeOft is TokenRouter {
         uint256 _amount,
         uint256 _minAmountLD
     ) internal view returns (SendParam memory) {
-        uint32 lzEid = hyperlaneDomainToLzEid[_destination];
-        if (lzEid == 0) revert LzEidNotConfigured(_destination);
+        (bool exists, uint256 eid) = _domainToLzEid.tryGet(
+            uint256(_destination)
+        );
+        if (!exists) revert LzEidNotConfigured(_destination);
+        uint32 lzEid = uint32(eid);
 
         return
             SendParam({
