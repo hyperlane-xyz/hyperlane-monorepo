@@ -1,4 +1,4 @@
-Review this pull request. Focus on:
+# Code Review Guidelines
 
 ## Code Quality
 
@@ -90,7 +90,3 @@ The only acceptable cast is one with a `// CAST:` comment explaining why it's un
 - **Interface changes** - Deprecate before removing; add new methods alongside old
 - **Storage layout** - Document migration path for upgradeable contracts
 - **Config schema changes** - Ensure backward compatibility or migration scripts
-
-Provide actionable feedback with specific line references.
-Be concise. For minor style issues, group them together.
-Security issues are handled by a separate dedicated review.
