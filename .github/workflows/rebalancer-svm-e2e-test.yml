@@ -99,11 +99,12 @@ jobs:
       # ── Build Sealevel programs (.so files → rust/main/target/dist/) ──
       - name: Build Sealevel programs
         run: |
+          mkdir -p rust/main/target/dist
           cd rust/sealevel/programs
           bash build-programs.sh
         env:
           RUST_BACKTRACE: '1'
-
+          SBF_OUT_PATH: ${{ github.workspace }}/rust/main/target/dist
       # ── Download SPL programs (.so files needed by solana-test-validator) ──
       - name: Download SPL programs
         run: |
