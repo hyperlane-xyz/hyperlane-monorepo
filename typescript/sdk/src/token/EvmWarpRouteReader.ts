@@ -1157,20 +1157,32 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [collateralTokenAddress, remoteDomains, localDomain, scale] =
-      await Promise.all([
-        mc.wrappedToken(),
-        tokenRouter.domains(),
-        mc.localDomain(),
-        this.fetchScale(hypTokenAddress),
-      ]);
+    const [
+      collateralTokenAddress,
+      remoteDomains,
+      mcEnrolledDomains,
+      localDomain,
+      scale,
+    ] = await Promise.all([
+      mc.wrappedToken(),
+      tokenRouter.domains(),
+      mc.getEnrolledDomains(),
+      mc.localDomain(),
+      this.fetchScale(hypTokenAddress),
+    ]);
 
     const erc20TokenMetadata = await this.fetchERC20Metadata(
       collateralTokenAddress,
     );
 
-    // Build enrolledRouters: domain → bytes32[] for all domains (remote + local)
-    const allDomains = [...remoteDomains.map(Number), localDomain];
+    // Merge Router._routers domains, MC-enrolled domains, and localDomain
+    const allDomains = [
+      ...new Set([
+        ...remoteDomains.map(Number),
+        ...mcEnrolledDomains.map(Number),
+        localDomain,
+      ]),
+    ];
     const enrolledRouters: Record<string, string[]> = {};
 
     await Promise.all(

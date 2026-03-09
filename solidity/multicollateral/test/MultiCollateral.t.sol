@@ -967,6 +967,50 @@ contract MultiCollateralTest is Test {
         assertEq(list[0], r1);
     }
 
+    function test_getEnrolledDomains_tracksEnrollAndUnenroll() public {
+        MultiCollateral fresh = _deployRouter(
+            address(originUSDC),
+            USDC_SCALE_NUM,
+            USDC_SCALE_DEN,
+            address(originMailbox)
+        );
+
+        // Initially empty
+        assertEq(fresh.getEnrolledDomains().length, 0);
+
+        // Enroll routers on domains 10 and 20
+        bytes32 r1 = address(0xD1).addressToBytes32();
+        bytes32 r2 = address(0xD2).addressToBytes32();
+        bytes32 r3 = address(0xD3).addressToBytes32();
+
+        uint32[] memory domains = new uint32[](3);
+        bytes32[] memory routers = new bytes32[](3);
+        domains[0] = 10;
+        domains[1] = 10;
+        domains[2] = 20;
+        routers[0] = r1;
+        routers[1] = r2;
+        routers[2] = r3;
+        fresh.enrollRouters(domains, routers);
+
+        uint32[] memory enrolled = fresh.getEnrolledDomains();
+        assertEq(enrolled.length, 2);
+
+        // Unenroll one router from domain 10 — domain should persist
+        uint32[] memory ud = new uint32[](1);
+        bytes32[] memory ur = new bytes32[](1);
+        ud[0] = 10;
+        ur[0] = r1;
+        fresh.unenrollRouters(ud, ur);
+        assertEq(fresh.getEnrolledDomains().length, 2);
+
+        // Unenroll last router from domain 10 — domain should be removed
+        ur[0] = r2;
+        fresh.unenrollRouters(ud, ur);
+        assertEq(fresh.getEnrolledDomains().length, 1);
+        assertEq(fresh.getEnrolledDomains()[0], 20);
+    }
+
     // ============ MultiCollateralRoutingFee Tests ============
 
     function test_routingFee_perRouterFee() public {
