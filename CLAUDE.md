@@ -351,6 +351,49 @@ Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 - Ensure return values are always assigned
 - Don't assume `msg.sender` is the operated-upon user
 
+### Default Value Footguns
+
+Solidity mappings return the type's zero value for unset keys. This creates subtle authorization bypasses:
+
+```solidity
+// DANGEROUS: passes when no router is enrolled (both sides are bytes32(0))
+require(routers[domain] == _router, "unauthorized");
+
+// SAFE: explicitly reject zero values first
+require(_router != bytes32(0), "zero router");
+require(routers[domain] == _router, "unauthorized");
+```
+
+**Review checklist for default values:**
+
+- Any `mapping` lookup compared against a parameter — what happens when the key is unset?
+- `address(0)` and `bytes32(0)` comparisons in authorization checks — can a caller pass the zero value to match an unset entry?
+- Derived contracts that override base-class lookups — does the override handle the "not found" case identically?
+
+### Quote-Execute Parity
+
+View functions that quote fees/costs must validate identically to their mutating counterparts. If `transferRemoteTo` checks authorization at line N, `quoteTransferRemoteTo` must perform the same check. Otherwise SDK callers get valid-looking quotes that revert on execution.
+
+When reviewing quote functions:
+
+- Diff the validation logic against the execute function line-by-line
+- Check that parameters are scaled/transformed identically (e.g., `_outboundAmount(_amount)` vs raw `_amount`)
+- Verify the same hook metadata is constructed for both paths
+
+### Inheritance Assumption Leaks
+
+When a derived contract extends the domain model (e.g., MultiCollateral supports multiple routers per domain), every inherited method that assumes the old model is a potential bug. Review derived contracts by:
+
+1. Listing all base class methods that touch the extended state (e.g., `Router._routers`, `GasRouter.destinationGas`)
+2. For each, asking: does this method's assumption still hold in the derived contract?
+3. Checking if the derived contract needs to override or bypass the base method
+
+Common patterns:
+
+- Base `Router.domains()` only returns standard `_routers` map entries — derived contracts with additional enrollment mechanisms are invisible
+- Base `GasRouter._setDestinationGas` validates against `_routers` — fails for domains enrolled through other mechanisms
+- Base `_quoteGasPayment` calls `_mustHaveRemoteRouter` — reverts for non-standard enrollment paths
+
 ### External Calls
 
 - Verify external call necessity and assess DoS risk from errors (SWC-113)
@@ -404,6 +447,19 @@ Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 - Include tests for new functionality (especially edge cases)
 - Gas efficiency for Solidity (avoid unnecessary storage writes)
 - Use `ChainMap` for per-chain configurations in TypeScript
+
+### Solidity Review Checklist
+
+Common issues caught in code review:
+
+| Issue                              | Example                                                                                               | What to check                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Default-value authorization bypass | `routers[domain] == _router` passes for `bytes32(0)`                                                  | Add explicit zero-value rejection before comparison                   |
+| Quote-execute validation mismatch  | `quoteTransferRemoteTo` skips checks that `transferRemoteTo` enforces                                 | Diff quote vs execute paths line-by-line                              |
+| Base class assumption leak         | `GasRouter._setDestinationGas` rejects domains not in `Router._routers`                               | List all base methods touching extended state; verify each            |
+| Dual setters to same storage       | Both `GasRouter.setDestinationGas` and `MC.setDestinationGasForDomain` write `destinationGas[domain]` | Document which is canonical; ensure SDK uses the right one            |
+| Scaled vs raw parameters in hooks  | `_amount` vs `_outboundAmount(_amount)` in quote vs dispatch                                          | Verify hook metadata and message body match between quote and execute |
+| Read/write path asymmetry          | SDK reader uses `contract.domains()` (misses MC-only domains); writer uses user config                | Verify reader discovers all state the writer can create               |
 
 ### TypeScript Review Checklist
 
