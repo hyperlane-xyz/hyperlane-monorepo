@@ -1,0 +1,25 @@
+# Spell checking with typos (https://github.com/crate-ci/typos)
+# See .spellcheck/typos.toml for configuration.
+
+name: spellcheck
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  spellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Spell check
+        uses: crate-ci/typos@v1
+        with:
+          config: ./.spellcheck/typos.toml
