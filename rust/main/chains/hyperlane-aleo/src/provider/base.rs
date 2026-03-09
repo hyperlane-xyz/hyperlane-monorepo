@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use reqwest::header::{HeaderValue, AUTHORIZATION};
-use reqwest::Client as RequestClient;
+use reqwest::Client as ReqwestClient;
 use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
 use tokio::sync::RwLock;
@@ -23,7 +23,7 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct BaseHttpClient {
-    client: RequestClient,
+    client: ReqwestClient,
     base_url: String,
 }
 
@@ -31,7 +31,7 @@ impl BaseHttpClient {
     pub fn new(base_url: Url, network: u16) -> ChainResult<Self> {
         let (headers, url) =
             parse_custom_rpc_headers(&base_url).map_err(ChainCommunicationError::from_other)?;
-        let client = RequestClient::builder()
+        let client = ReqwestClient::builder()
             .connect_timeout(DEFAULT_CONNECT_TIMEOUT)
             .timeout(DEFAULT_REQUEST_TIMEOUT)
             .default_headers(headers)
@@ -106,7 +106,7 @@ impl HttpClientBuilder for BaseHttpClient {
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct JWTBaseHttpClient {
-    client: RequestClient,
+    client: ReqwestClient,
     base_url: String,
     suffix: String,
     auth_url: String,
@@ -123,7 +123,7 @@ impl JWTBaseHttpClient {
             .and_then(|v| v.to_str().ok())
             .unwrap_or_default()
             .to_string();
-        let client = RequestClient::builder()
+        let client = ReqwestClient::builder()
             .connect_timeout(DEFAULT_CONNECT_TIMEOUT)
             .timeout(DEFAULT_REQUEST_TIMEOUT)
             .default_headers(headers)
