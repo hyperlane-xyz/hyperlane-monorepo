@@ -60,6 +60,14 @@ use hyperlane_sealevel_token_lib::{
         Instruction as HtInstruction, TransferRemote as HtTransferRemote,
     },
 };
+use hyperlane_sealevel_token_multicollateral::{
+    instruction::{
+        enroll_multi_routers_instruction, EnrolledRouterConfig, MultiCollateralInstruction,
+        TransferRemoteTo as McTransferRemoteTo,
+    },
+    multicollateral_pda_seeds,
+    processor::MultiCollateralStateAccount,
+};
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
@@ -364,8 +372,11 @@ struct TokenCmd {
 enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
+    TransferRemoteTo(TokenTransferRemoteTo),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
+    EnrollMulticollateralRouter(TokenEnrollMulticollateralRouter),
     SetDestinationGas(TokenSetDestinationGas),
+    SetLocalDomain(TokenSetLocalDomain),
     TransferOwnership(TransferOwnership),
     SetInterchainSecurityModule(SetInterchainSecurityModule),
     Igp(Igp),
@@ -401,7 +412,28 @@ struct TokenTransferRemote {
 }
 
 #[derive(Args)]
+struct TokenTransferRemoteTo {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    sender: String,
+    amount: u64,
+    destination_domain: u32,
+    recipient: String,
+    target_router: H256,
+    #[arg(value_enum)]
+    token_type: TokenType,
+}
+
+#[derive(Args)]
 struct TokenEnrollRemoteRouter {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    domain: u32,
+    router: H256,
+}
+
+#[derive(Args)]
+struct TokenEnrollMulticollateralRouter {
     #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
     program_id: Pubkey,
     domain: u32,
@@ -414,6 +446,13 @@ struct TokenSetDestinationGas {
     program_id: Pubkey,
     domain: u32,
     gas: u64,
+}
+
+#[derive(Args)]
+struct TokenSetLocalDomain {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    local_domain: u32,
 }
 
 #[derive(Args)]
@@ -1533,6 +1572,233 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // Print the output so it can be used in e2e tests
             println!("{:?}", tx_result);
         }
+        TokenSubCmd::TransferRemoteTo(xfer) => {
+            is_keypair(&xfer.sender).unwrap();
+            assert!(
+                xfer.token_type == TokenType::MultiCollateral,
+                "transfer-remote-to is only supported for multi-collateral tokens"
+            );
+            ctx.commitment = CommitmentConfig::confirmed();
+            let sender = read_keypair_file(xfer.sender).unwrap();
+            let recipient = if xfer.recipient.starts_with("0x") {
+                H256::from_str(&xfer.recipient).unwrap()
+            } else {
+                let pubkey = Pubkey::from_str(&xfer.recipient).unwrap();
+                H256::from_slice(&pubkey.to_bytes()[..])
+            };
+
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
+            let (mc_state_account, _mc_state_bump) =
+                Pubkey::find_program_address(multicollateral_pda_seeds!(), &xfer.program_id);
+            let fetched_token_account = ctx
+                .client
+                .get_account_with_commitment(&token_account, ctx.commitment)
+                .unwrap()
+                .value
+                .expect("Missing token PDA account");
+            let fetched_mc_state_account = ctx
+                .client
+                .get_account_with_commitment(&mc_state_account, ctx.commitment)
+                .unwrap()
+                .value
+                .expect("Missing multicollateral state PDA account");
+            let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(
+                &mut &fetched_token_account.data[..],
+            )
+            .unwrap()
+            .into_inner();
+            let mc_state =
+                MultiCollateralStateAccount::fetch(&mut &fetched_mc_state_account.data[..])
+                    .unwrap()
+                    .into_inner();
+            let source_sender_associated_token_account =
+                get_associated_token_address_with_program_id(
+                    &sender.pubkey(),
+                    &token.plugin_data.mint,
+                    &token.plugin_data.spl_token_program,
+                );
+            let ixn = MultiCollateralInstruction::TransferRemoteTo(McTransferRemoteTo {
+                destination_domain: xfer.destination_domain,
+                recipient,
+                amount_or_id: xfer.amount,
+                target_router: xfer.target_router,
+            });
+
+            let mut accounts = vec![
+                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(token_account, false),
+                AccountMeta::new_readonly(mc_state_account, false),
+            ];
+
+            let target_router_pubkey = Pubkey::try_from(xfer.target_router.as_ref())
+                .ok()
+                .unwrap_or_else(|| Pubkey::new_from_array(xfer.target_router.into()));
+
+            if mc_state.local_domain != 0 && xfer.destination_domain == mc_state.local_domain {
+                let target_token_account = Pubkey::find_program_address(
+                    hyperlane_token_pda_seeds!(),
+                    &target_router_pubkey,
+                )
+                .0;
+                let target_mc_state_account = Pubkey::find_program_address(
+                    multicollateral_pda_seeds!(),
+                    &target_router_pubkey,
+                )
+                .0;
+                let target_fetched_token_account = ctx
+                    .client
+                    .get_account_with_commitment(&target_token_account, ctx.commitment)
+                    .unwrap()
+                    .value
+                    .expect("Missing target token PDA account");
+                let target_token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(
+                    &mut &target_fetched_token_account.data[..],
+                )
+                .unwrap()
+                .into_inner();
+                let recipient_pubkey = Pubkey::new_from_array(recipient.into());
+                let recipient_associated_token_account =
+                    get_associated_token_address_with_program_id(
+                        &recipient_pubkey,
+                        &target_token.plugin_data.mint,
+                        &target_token.plugin_data.spl_token_program,
+                    );
+                let target_ata_payer_account = Pubkey::find_program_address(
+                    hyperlane_token_ata_payer_pda_seeds!(),
+                    &target_router_pubkey,
+                )
+                .0;
+
+                accounts.extend([
+                    AccountMeta::new(sender.pubkey(), true),
+                    AccountMeta::new_readonly(token.plugin_data.spl_token_program, false),
+                    AccountMeta::new(token.plugin_data.mint, false),
+                    AccountMeta::new(source_sender_associated_token_account, false),
+                    AccountMeta::new(token.plugin_data.escrow, false),
+                    AccountMeta::new_readonly(target_router_pubkey, false),
+                    AccountMeta::new_readonly(target_token_account, false),
+                    AccountMeta::new_readonly(target_mc_state_account, false),
+                    AccountMeta::new(recipient_pubkey, false),
+                    AccountMeta::new_readonly(target_token.plugin_data.spl_token_program, false),
+                    AccountMeta::new_readonly(
+                        hyperlane_sealevel_token::spl_associated_token_account::id(),
+                        false,
+                    ),
+                    AccountMeta::new_readonly(target_token.plugin_data.mint, false),
+                    AccountMeta::new(recipient_associated_token_account, false),
+                    AccountMeta::new(target_ata_payer_account, false),
+                    AccountMeta::new(target_token.plugin_data.escrow, false),
+                ]);
+
+                let tx_result = ctx
+                    .new_txn()
+                    .add(Instruction {
+                        program_id: xfer.program_id,
+                        data: ixn.encode().unwrap(),
+                        accounts,
+                    })
+                    .send(
+                        &[ctx.payer_signer().as_deref(), Some(&sender)],
+                        &ctx.payer_pubkey,
+                        None,
+                    );
+                println!("{:?}", tx_result);
+            } else {
+                let (dispatch_authority_account, _dispatch_authority_bump) =
+                    Pubkey::find_program_address(
+                        mailbox_message_dispatch_authority_pda_seeds!(),
+                        &xfer.program_id,
+                    );
+                let unique_message_account_keypair = Keypair::new();
+                let (dispatched_message_account, _dispatched_message_bump) =
+                    Pubkey::find_program_address(
+                        mailbox_dispatched_message_pda_seeds!(
+                            &unique_message_account_keypair.pubkey()
+                        ),
+                        &token.mailbox,
+                    );
+                let (mailbox_outbox_account, _mailbox_outbox_bump) =
+                    Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &token.mailbox);
+
+                accounts.extend([
+                    AccountMeta::new_readonly(token.mailbox, false),
+                    AccountMeta::new(mailbox_outbox_account, false),
+                    AccountMeta::new_readonly(dispatch_authority_account, false),
+                    AccountMeta::new(sender.pubkey(), true),
+                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                    AccountMeta::new(dispatched_message_account, false),
+                ]);
+
+                if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster {
+                    let (igp_program_data, _bump) = Pubkey::find_program_address(
+                        igp_program_data_pda_seeds!(),
+                        &igp_program_id,
+                    );
+                    let (gas_payment_pda, _bump) = Pubkey::find_program_address(
+                        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+                        &igp_program_id,
+                    );
+
+                    accounts.extend([
+                        AccountMeta::new_readonly(igp_program_id, false),
+                        AccountMeta::new(igp_program_data, false),
+                        AccountMeta::new(gas_payment_pda, false),
+                    ]);
+
+                    match igp_account_type {
+                        InterchainGasPaymasterType::OverheadIgp(overhead_igp_account_id) => {
+                            let overhead_igp_account = ctx
+                                .client
+                                .get_account_with_commitment(
+                                    &overhead_igp_account_id,
+                                    ctx.commitment,
+                                )
+                                .unwrap()
+                                .value
+                                .unwrap();
+                            let overhead_igp_account =
+                                OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+                                    .unwrap()
+                                    .into_inner();
+                            accounts.extend([
+                                AccountMeta::new_readonly(overhead_igp_account_id, false),
+                                AccountMeta::new(overhead_igp_account.inner, false),
+                            ]);
+                        }
+                        InterchainGasPaymasterType::Igp(igp_account_id) => {
+                            accounts.push(AccountMeta::new(igp_account_id, false));
+                        }
+                    }
+                }
+
+                accounts.extend([
+                    AccountMeta::new_readonly(token.plugin_data.spl_token_program, false),
+                    AccountMeta::new(token.plugin_data.mint, false),
+                    AccountMeta::new(source_sender_associated_token_account, false),
+                    AccountMeta::new(token.plugin_data.escrow, false),
+                ]);
+
+                let tx_result = ctx
+                    .new_txn()
+                    .add(Instruction {
+                        program_id: xfer.program_id,
+                        data: ixn.encode().unwrap(),
+                        accounts,
+                    })
+                    .send(
+                        &[
+                            ctx.payer_signer().as_deref(),
+                            Some(&sender),
+                            Some(&unique_message_account_keypair),
+                        ],
+                        &ctx.payer_pubkey,
+                        None,
+                    );
+                println!("{:?}", tx_result);
+            }
+        }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
             let instruction = enroll_remote_routers_instruction(
                 enroll.program_id,
@@ -1543,6 +1809,19 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 }],
             )
             .expect("Should build instruction correctly");
+
+            ctx.new_txn().add(instruction).send_with_payer();
+        }
+        TokenSubCmd::EnrollMulticollateralRouter(enroll) => {
+            let instruction = enroll_multi_routers_instruction(
+                enroll.program_id,
+                ctx.payer_pubkey,
+                vec![EnrolledRouterConfig {
+                    domain: enroll.domain,
+                    router: enroll.router,
+                }],
+            )
+            .expect("Should build multicollateral enroll instruction correctly");
 
             ctx.new_txn().add(instruction).send_with_payer();
         }
@@ -1560,6 +1839,30 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 }],
             )
             .expect("Failed to build set remote gas instruction");
+
+            ctx.new_txn().add(instruction).send_with_payer();
+        }
+        TokenSubCmd::SetLocalDomain(set_local_domain) => {
+            let (token_account, _token_bump) = Pubkey::find_program_address(
+                hyperlane_token_pda_seeds!(),
+                &set_local_domain.program_id,
+            );
+            let (mc_state_account, _mc_state_bump) = Pubkey::find_program_address(
+                multicollateral_pda_seeds!(),
+                &set_local_domain.program_id,
+            );
+            let instruction = Instruction::new_with_bytes(
+                set_local_domain.program_id,
+                &MultiCollateralInstruction::SetLocalDomain(set_local_domain.local_domain)
+                    .encode()
+                    .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::id(), false),
+                    AccountMeta::new(token_account, false),
+                    AccountMeta::new(ctx.payer_pubkey, true),
+                    AccountMeta::new(mc_state_account, false),
+                ],
+            );
 
             ctx.new_txn().add(instruction).send_with_payer();
         }
