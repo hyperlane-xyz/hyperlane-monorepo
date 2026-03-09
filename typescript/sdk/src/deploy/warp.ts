@@ -96,10 +96,14 @@ export function validateWarpConfigForAltVM(
     );
   }
 
-  assert(
-    isNullish(config.scale) || typeof config.scale === 'number',
-    'Fractional scaling not supported on non-EVM chains',
-  );
+  let scale: number | undefined;
+  if (!isNullish(config.scale)) {
+    scale =
+      typeof config.scale === 'number'
+        ? config.scale
+        : Number(config.scale.numerator) / Number(config.scale.denominator);
+  }
+
   const baseConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -110,7 +114,7 @@ export function validateWarpConfigForAltVM(
     hook: config.hook as ProviderHookConfig | string | undefined,
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
-    scale: config.scale,
+    scale,
   };
 
   if (config.type === TokenType.collateral) {

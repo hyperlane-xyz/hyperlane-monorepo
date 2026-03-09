@@ -181,9 +181,28 @@ export class SvmSigner
       try {
         // Check if blockhash expired and resubmit if needed
         const { value: isValid } = await this.rpc
-          .isBlockhashValid(blockhash, { commitment: 'processed' })
+          .isBlockhashValid(blockhash, { commitment: 'finalized' })
           .send();
         if (!isValid) {
+          // Check if the old tx already landed before resubmitting
+          const oldStatus = await this.rpc
+            .getSignatureStatuses([signature], {
+              searchTransactionHistory: true,
+            })
+            .send();
+
+          const [oldResult] = oldStatus.value;
+          if (
+            oldResult &&
+            !oldResult.err &&
+            (oldResult.confirmationStatus === 'confirmed' ||
+              oldResult.confirmationStatus === 'finalized')
+          ) {
+            confirmed = true;
+            slot = BigInt(oldResult.slot);
+            break;
+          }
+
           this.logger.warn('Blockhash expired, resubmitting transaction');
           ({ signature, blockhash } = await this.signAndSend(tx));
           continue;
