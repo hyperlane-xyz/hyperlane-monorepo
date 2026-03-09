@@ -1,20 +1,19 @@
 #!/bin/bash
-# Cross-VM test: Sealevel MultiCollateral ↔ EVM Collateral
+# Cross-VM test: Sealevel MultiCollateral ↔ EVM Collateral (multi-remote-router)
 #
-# Tests cross-chain message compatibility between Sealevel and EVM by:
-# 1. Starting solana-test-validator + anvil
-# 2. Deploying core infrastructure on both chains
-# 3. Deploying MC warp route on Sealevel, HypERC20Collateral on EVM
-# 4. Cross-enrolling routers
-# 5. Testing Sealevel→EVM transfer (outbound dispatch + EVM relay)
-# 6. Testing EVM→Sealevel transfer (outbound dispatch)
+# Tests cross-chain message compatibility between Sealevel and two EVM chains:
+# 1. Starting solana-test-validator + two anvil instances
+# 2. Deploying core infrastructure on all three chains
+# 3. Deploying MC warp route on Sealevel, HypERC20Collateral on each EVM chain
+# 4. Cross-enrolling routers (Sealevel MC enrolled with both EVM routers)
+# 5. Testing Sealevel→EVM1, Sealevel→EVM2 transfers
+# 6. Testing EVM1→Sealevel, EVM2→Sealevel transfers
 #
 # Prerequisites:
 #   - Rust toolchain with cargo-build-sbf (or agave CLI tools)
 #   - solana CLI tools (solana, solana-test-validator, spl-token)
 #   - foundry (forge, cast, anvil)
 #   - jq
-#   - pnpm (for TypeScript SDK if needed)
 #
 # Usage:
 #   cd rust/sealevel && bash scripts/test-cross-vm.sh
@@ -32,7 +31,8 @@ SOLIDITY_DIR="$REPO_ROOT/solidity"
 
 # Domain IDs
 SEALEVEL_DOMAIN=13375  # sealeveltest1
-EVM_DOMAIN=31337       # anvil default chain ID
+EVM_DOMAIN_1=31337     # anvil chain 1
+EVM_DOMAIN_2=31338     # anvil chain 2
 
 # Sealevel config
 SEALEVEL_RPC="http://127.0.0.1:8899"
@@ -43,9 +43,17 @@ SEALEVEL_MOCK_REGISTRY="environments/local-e2e/mock-registry"
 SBF_OUT_PATH="$SEALEVEL_DIR/target/dist"
 
 # EVM config
-EVM_RPC="http://127.0.0.1:8545"
+EVM_RPC_1="http://127.0.0.1:8545"
+EVM_RPC_2="http://127.0.0.1:8546"
 ANVIL_PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 ANVIL_ADDRESS="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+
+# Per-chain EVM state (set by deploy_evm_chain)
+EVM1_MAILBOX="" EVM1_ERC20="" EVM1_COLLATERAL=""
+EVM2_MAILBOX="" EVM2_ERC20="" EVM2_COLLATERAL=""
+
+# Sealevel dispatch nonce tracker (incremented after each sealevel→EVM test)
+SEALEVEL_DISPATCH_NONCE=0
 
 # Temp dir for test artifacts
 WORK_DIR=$(mktemp -d)
@@ -143,7 +151,6 @@ sealevel_client() {
         "$@"
 }
 
-# Wait for RPC to be ready
 wait_for_rpc() {
     local url="$1"
     local name="$2"
@@ -182,6 +189,31 @@ get_spl_balance_raw() {
     echo "$resp" | jq -r '.result.value[0].account.data.parsed.info.tokenAmount.amount // "0"'
 }
 
+# Deploy a Solidity contract via forge create, return deployed address
+forge_deploy() {
+    local contract="$1"
+    local rpc_url="$2"
+    shift 2
+    local args=()
+    if [ $# -gt 0 ]; then
+        args=(--constructor-args "$@")
+    fi
+    local output
+    if ! output=$(forge create "$contract" \
+        --broadcast \
+        --rpc-url "$rpc_url" \
+        --private-key "$ANVIL_PRIVATE_KEY" \
+        "${args[@]+"${args[@]}"}" 2>&1); then
+        fail "forge create $contract failed: $output"
+    fi
+    local addr
+    addr=$(echo "$output" | awk '/Deployed to:/{print $3}' | head -1)
+    if [ -z "$addr" ]; then
+        fail "Could not parse address from forge create $contract: $output"
+    fi
+    echo "$addr"
+}
+
 # ========================================
 # Step 0: Build prerequisites
 # ========================================
@@ -190,11 +222,8 @@ build_sealevel_programs() {
     log "Building sealevel programs (including multicollateral)..."
     cd "$SEALEVEL_DIR"
 
-    # Build the sealevel client
     cargo build -p hyperlane-sealevel-client 2>&1 | tail -5
 
-    # Build sealevel programs using cargo-build-sbf
-    # (requires agave CLI tools to be installed)
     local programs=(
         "mailbox"
         "validator-announce"
@@ -223,17 +252,13 @@ build_sealevel_programs() {
 start_solana_validator() {
     log "Starting solana-test-validator..."
 
-    # Create a temp solana config
     SOLANA_CONFIG="$WORK_DIR/solana-config.yml"
     solana config set \
         --url "$SEALEVEL_RPC" \
         --keypair "$SEALEVEL_DEPLOYER_KEYPAIR" \
         --config "$SOLANA_CONFIG" 2>&1 | tail -1
 
-    # Load SPL token programs (pre-built)
     local spl_args=()
-    # These are standard SPL programs that need to be loaded
-    # If they exist in the dist dir, load them
     if [ -f "$SBF_OUT_PATH/spl_token.so" ]; then
         spl_args+=(
             --bpf-program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA "$SBF_OUT_PATH/spl_token.so"
@@ -243,7 +268,6 @@ start_solana_validator() {
         )
     fi
 
-    # Load deployer account
     local deployer_account="$SEALEVEL_DIR/environments/local-e2e/accounts/test_deployer-account.json"
     local deployer_pubkey="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
 
@@ -258,10 +282,13 @@ start_solana_validator() {
 }
 
 start_anvil() {
-    log "Starting anvil..."
-    anvil --silent &
+    local port="$1"
+    local chain_id="$2"
+    local rpc_url="http://127.0.0.1:$port"
+    log "Starting anvil (port=$port, chain-id=$chain_id)..."
+    anvil --silent --port "$port" --chain-id "$chain_id" &
     PIDS+=($!)
-    wait_for_rpc "$EVM_RPC" "Anvil"
+    wait_for_rpc "$rpc_url" "Anvil (port $port)"
 }
 
 # ========================================
@@ -281,7 +308,6 @@ deploy_sealevel_core() {
         --chain sealeveltest1 \
         --built-so-dir "$SBF_OUT_PATH" 2>&1 | tail -5
 
-    # Read the deployed program IDs
     SEALEVEL_MAILBOX=$(jq -r '.mailbox' "$SEALEVEL_ENVS_DIR/$SEALEVEL_ENV_NAME/sealeveltest1/core/program-ids.json")
     SEALEVEL_IGP=$(jq -r '.igp_program_id' "$SEALEVEL_ENVS_DIR/$SEALEVEL_ENV_NAME/sealeveltest1/core/program-ids.json")
     log "  Mailbox: $SEALEVEL_MAILBOX"
@@ -290,7 +316,6 @@ deploy_sealevel_core() {
 
 create_spl_token_mint() {
     log "Creating SPL token mint (decimals=6)..."
-    # Create a new SPL token
     local output
     if ! output=$(spl-token create-token --decimals 6 --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1); then
         fail "spl-token create-token failed: $output"
@@ -301,10 +326,8 @@ create_spl_token_mint() {
     fi
     log "  SPL Mint: $SPL_MINT"
 
-    # Create an associated token account for the deployer
     spl-token create-account "$SPL_MINT" --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1 | tail -1 || fail "spl-token create-account failed"
 
-    # Mint tokens to the deployer
     spl-token mint "$SPL_MINT" 1000000000 --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1 | tail -1 || fail "spl-token mint failed"
     log "  Minted 1,000,000,000 tokens (= 1000 with 6 decimals)"
 }
@@ -313,7 +336,6 @@ deploy_sealevel_mc_warp_route() {
     log "Deploying Sealevel MultiCollateral warp route..."
     cd "$SEALEVEL_DIR"
 
-    # Create token config with actual mint address
     local token_config="$WORK_DIR/mc-token-config.json"
     cat > "$token_config" <<EOF
 {
@@ -337,7 +359,6 @@ EOF
         --registry "$SEALEVEL_MOCK_REGISTRY" \
         --ata-payer-funding-amount 1000000000 2>&1 | tail -10
 
-    # Read the deployed warp route program ID
     SEALEVEL_MC_PROGRAM=$(jq -r '.sealeveltest1.base58' "$SEALEVEL_ENVS_DIR/$SEALEVEL_ENV_NAME/warp-routes/mctest/program-ids.json")
     SEALEVEL_MC_PROGRAM_HEX=$(jq -r '.sealeveltest1.hex' "$SEALEVEL_ENVS_DIR/$SEALEVEL_ENV_NAME/warp-routes/mctest/program-ids.json")
     log "  MC Warp Route Program: $SEALEVEL_MC_PROGRAM"
@@ -345,180 +366,135 @@ EOF
 }
 
 # ========================================
-# Step 3: Deploy EVM core + warp route
+# Step 3: Deploy EVM contracts (parameterized)
 # ========================================
 
-deploy_evm_contracts() {
-    log "Deploying EVM contracts on Anvil..."
+# Sets globals: _EVM_MAILBOX, _EVM_ERC20, _EVM_COLLATERAL
+deploy_evm_chain() {
+    local rpc_url="$1"
+    local domain="$2"
+    log "Deploying EVM contracts (domain=$domain, rpc=$rpc_url)..."
     cd "$SOLIDITY_DIR"
 
-    # 1. Deploy Mailbox
-    log "  Deploying Mailbox (domain=$EVM_DOMAIN)..."
-    local mailbox_output
-    if ! mailbox_output=$(forge create contracts/Mailbox.sol:Mailbox \
-        --broadcast \
-        --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" \
-        --constructor-args "$EVM_DOMAIN" 2>&1); then
-        fail "forge create Mailbox failed: $mailbox_output"
-    fi
-    EVM_MAILBOX=$(echo "$mailbox_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
-    if [ -z "$EVM_MAILBOX" ]; then
-        fail "Could not parse Mailbox address from forge output: $mailbox_output"
-    fi
-    log "    Mailbox: $EVM_MAILBOX"
+    _EVM_MAILBOX=$(forge_deploy contracts/Mailbox.sol:Mailbox "$rpc_url" "$domain")
+    log "  Mailbox: $_EVM_MAILBOX"
 
-    # 2. Deploy TestIsm (always returns true)
-    log "  Deploying TestIsm..."
-    local ism_output
-    if ! ism_output=$(forge create contracts/test/TestIsm.sol:TestIsm \
-        --broadcast \
-        --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" 2>&1); then
-        fail "forge create TestIsm failed: $ism_output"
-    fi
-    EVM_ISM=$(echo "$ism_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
-    if [ -z "$EVM_ISM" ]; then
-        fail "Could not parse TestIsm address from forge output: $ism_output"
-    fi
-    log "    TestIsm: $EVM_ISM"
+    local ism
+    ism=$(forge_deploy contracts/test/TestIsm.sol:TestIsm "$rpc_url")
+    log "  TestIsm: $ism"
 
-    # 3. Deploy a test hook (NoopHook - does nothing)
-    log "  Deploying TestPostDispatchHook..."
-    local hook_output
-    if ! hook_output=$(forge create contracts/test/TestPostDispatchHook.sol:TestPostDispatchHook \
-        --broadcast \
-        --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" 2>&1); then
-        fail "forge create TestPostDispatchHook failed: $hook_output"
-    fi
-    EVM_HOOK=$(echo "$hook_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
-    if [ -z "$EVM_HOOK" ]; then
-        fail "Could not parse TestPostDispatchHook address from forge output: $hook_output"
-    fi
-    log "    Hook: $EVM_HOOK"
+    local hook
+    hook=$(forge_deploy contracts/test/TestPostDispatchHook.sol:TestPostDispatchHook "$rpc_url")
+    log "  Hook: $hook"
 
-    # 4. Initialize Mailbox
-    log "  Initializing Mailbox..."
-    cast send "$EVM_MAILBOX" \
+    cast send "$_EVM_MAILBOX" \
         "initialize(address,address,address,address)" \
-        "$ANVIL_ADDRESS" "$EVM_ISM" "$EVM_HOOK" "$EVM_HOOK" \
-        --rpc-url "$EVM_RPC" \
+        "$ANVIL_ADDRESS" "$ism" "$hook" "$hook" \
+        --rpc-url "$rpc_url" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
-    # 5. Deploy ERC20Test
-    log "  Deploying ERC20Test..."
-    local erc20_output
-    if ! erc20_output=$(forge create contracts/test/ERC20Test.sol:ERC20Test \
-        --broadcast \
-        --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" \
-        --constructor-args "TestToken" "TST" "0" "18" 2>&1); then
-        fail "forge create ERC20Test failed: $erc20_output"
-    fi
-    EVM_ERC20=$(echo "$erc20_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
-    if [ -z "$EVM_ERC20" ]; then
-        fail "Could not parse ERC20Test address from forge output: $erc20_output"
-    fi
-    log "    ERC20: $EVM_ERC20"
+    _EVM_ERC20=$(forge_deploy contracts/test/ERC20Test.sol:ERC20Test "$rpc_url" "TestToken" "TST" "0" "18")
+    log "  ERC20: $_EVM_ERC20"
 
-    # 6. Deploy HypERC20Collateral
-    log "  Deploying HypERC20Collateral..."
-    local collateral_output
-    # Constructor: (address erc20, uint256 scaleNumerator, uint256 scaleDenominator, address mailbox)
-    # Scale 1:1 for now (numerator=1, denominator=1)
-    if ! collateral_output=$(forge create contracts/token/HypERC20Collateral.sol:HypERC20Collateral \
-        --broadcast \
-        --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" \
-        --constructor-args "$EVM_ERC20" 1 1 "$EVM_MAILBOX" 2>&1); then
-        fail "forge create HypERC20Collateral failed: $collateral_output"
-    fi
-    EVM_COLLATERAL=$(echo "$collateral_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
-    if [ -z "$EVM_COLLATERAL" ]; then
-        fail "Could not parse HypERC20Collateral address from forge output: $collateral_output"
-    fi
-    log "    HypERC20Collateral: $EVM_COLLATERAL"
+    _EVM_COLLATERAL=$(forge_deploy contracts/token/HypERC20Collateral.sol:HypERC20Collateral "$rpc_url" "$_EVM_ERC20" 1 1 "$_EVM_MAILBOX")
+    log "  HypERC20Collateral: $_EVM_COLLATERAL"
 
-    # 7. Initialize HypERC20Collateral
-    log "  Initializing HypERC20Collateral..."
-    cast send "$EVM_COLLATERAL" \
+    cast send "$_EVM_COLLATERAL" \
         "initialize(address,address,address)" \
-        "$EVM_HOOK" "$EVM_ISM" "$ANVIL_ADDRESS" \
-        --rpc-url "$EVM_RPC" \
+        "$hook" "$ism" "$ANVIL_ADDRESS" \
+        --rpc-url "$rpc_url" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
-    log "  All EVM contracts deployed"
+    log "  All EVM contracts deployed (domain=$domain)"
 }
 
 # ========================================
-# Step 4: Cross-enroll routers
+# Step 4: Cross-enroll routers (multi-remote)
 # ========================================
 
 cross_enroll_routers() {
-    log "Cross-enrolling routers..."
+    log "Cross-enrolling routers (multi-remote-router)..."
 
-    # Enroll EVM collateral router on Sealevel MC warp route
-    # The EVM address needs to be left-padded to 32 bytes (H256)
-    local evm_router_h256
-    evm_router_h256=$(printf "0x000000000000000000000000%s" "${EVM_COLLATERAL#0x}")
-    log "  Enrolling EVM router on Sealevel: domain=$EVM_DOMAIN router=$evm_router_h256"
+    local evm1_router_h256 evm2_router_h256
+    evm1_router_h256=$(printf "0x000000000000000000000000%s" "${EVM1_COLLATERAL#0x}")
+    evm2_router_h256=$(printf "0x000000000000000000000000%s" "${EVM2_COLLATERAL#0x}")
 
+    # Enroll both EVM routers on Sealevel MC warp route
+    log "  Enrolling EVM1 router on Sealevel: domain=$EVM_DOMAIN_1"
     sealevel_client \
         token enroll-remote-router \
         --program-id "$SEALEVEL_MC_PROGRAM" \
-        "$EVM_DOMAIN" \
-        "$evm_router_h256" 2>&1 | tail -3
+        "$EVM_DOMAIN_1" \
+        "$evm1_router_h256" 2>&1 | tail -3
 
-    # Enroll Sealevel MC warp route on EVM HypERC20Collateral
-    log "  Enrolling Sealevel router on EVM: domain=$SEALEVEL_DOMAIN router=$SEALEVEL_MC_PROGRAM_HEX"
+    log "  Enrolling EVM2 router on Sealevel: domain=$EVM_DOMAIN_2"
+    sealevel_client \
+        token enroll-remote-router \
+        --program-id "$SEALEVEL_MC_PROGRAM" \
+        "$EVM_DOMAIN_2" \
+        "$evm2_router_h256" 2>&1 | tail -3
 
-    cast send "$EVM_COLLATERAL" \
+    # Enroll Sealevel on both EVM collaterals
+    log "  Enrolling Sealevel router on EVM1: domain=$SEALEVEL_DOMAIN"
+    cast send "$EVM1_COLLATERAL" \
         "enrollRemoteRouter(uint32,bytes32)" \
         "$SEALEVEL_DOMAIN" \
         "$SEALEVEL_MC_PROGRAM_HEX" \
-        --rpc-url "$EVM_RPC" \
+        --rpc-url "$EVM_RPC_1" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
-    # Set destination gas on Sealevel
+    log "  Enrolling Sealevel router on EVM2: domain=$SEALEVEL_DOMAIN"
+    cast send "$EVM2_COLLATERAL" \
+        "enrollRemoteRouter(uint32,bytes32)" \
+        "$SEALEVEL_DOMAIN" \
+        "$SEALEVEL_MC_PROGRAM_HEX" \
+        --rpc-url "$EVM_RPC_2" \
+        --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
+
+    # Set destination gas for both EVM domains on Sealevel
     sealevel_client \
         token set-destination-gas \
         --program-id "$SEALEVEL_MC_PROGRAM" \
-        "$EVM_DOMAIN" \
+        "$EVM_DOMAIN_1" \
         "68000" 2>&1 | tail -3
 
-    log "  Routers cross-enrolled"
+    sealevel_client \
+        token set-destination-gas \
+        --program-id "$SEALEVEL_MC_PROGRAM" \
+        "$EVM_DOMAIN_2" \
+        "68000" 2>&1 | tail -3
+
+    log "  Routers cross-enrolled (Sealevel ↔ EVM1, Sealevel ↔ EVM2)"
 }
 
 # ========================================
-# Step 5: Test Sealevel → EVM transfer
+# Step 5: Test Sealevel → EVM transfer (parameterized)
 # ========================================
 
 test_sealevel_to_evm() {
-    log "=== Testing Sealevel → EVM transfer ==="
+    local evm_rpc="$1"
+    local evm_domain="$2"
+    local evm_mailbox="$3"
+    local evm_collateral="$4"
+    local evm_erc20="$5"
+    local nonce="$SEALEVEL_DISPATCH_NONCE"
 
-    # The recipient on EVM - use the Anvil default account for simplicity
-    # Sealevel transfer-remote expects a hex address for EVM recipients
+    log "=== Testing Sealevel → EVM (domain=$evm_domain, nonce=$nonce) ==="
+
     local recipient_h256
     recipient_h256=$(printf "0x000000000000000000000000%s" "${ANVIL_ADDRESS#0x}")
 
-    # Mint some ERC20 to the HypERC20Collateral contract on EVM (to simulate collateral pool)
-    # When message arrives, the collateral contract will send tokens to the recipient
-    log "  Minting ERC20 tokens to HypERC20Collateral contract on EVM..."
-    cast send "$EVM_ERC20" \
+    # Mint ERC20 to HypERC20Collateral (collateral pool for incoming transfers)
+    log "  Minting ERC20 tokens to HypERC20Collateral..."
+    cast send "$evm_erc20" \
         "mintTo(address,uint256)" \
-        "$EVM_COLLATERAL" \
+        "$evm_collateral" \
         "1000000000000000000000" \
-        --rpc-url "$EVM_RPC" \
+        --rpc-url "$evm_rpc" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
-    local evm_collateral_balance
-    evm_collateral_balance=$(cast call "$EVM_ERC20" "balanceOf(address)(uint256)" "$EVM_COLLATERAL" --rpc-url "$EVM_RPC")
-    log "  EVM Collateral balance: $evm_collateral_balance"
-
-    # Check initial recipient balance on EVM
     local initial_balance
-    initial_balance=$(cast call "$EVM_ERC20" "balanceOf(address)(uint256)" "$ANVIL_ADDRESS" --rpc-url "$EVM_RPC")
+    initial_balance=$(cast call "$evm_erc20" "balanceOf(address)(uint256)" "$ANVIL_ADDRESS" --rpc-url "$evm_rpc")
     log "  Initial recipient ERC20 balance: $initial_balance"
 
     # Transfer from Sealevel
@@ -531,20 +507,15 @@ test_sealevel_to_evm() {
         --program-id "$SEALEVEL_MC_PROGRAM" \
         "$SEALEVEL_DEPLOYER_KEYPAIR" \
         "$transfer_amount" \
-        "$EVM_DOMAIN" \
+        "$evm_domain" \
         "$recipient_h256" \
         "multi-collateral" 2>&1); then
         fail "Sealevel transfer-remote failed: $transfer_output"
     fi
-
     echo "$transfer_output" | tail -10
     log "  Transfer dispatched on Sealevel"
 
-    # Fetch the dispatched message using the relayer's approach:
-    # Query getProgramAccounts with memcmp filter on discriminator + nonce at offset 1.
-    # Account layout: initialized(1) + discriminator(8) + nonce(4) + slot(8) + unique_pubkey(32) + message(var)
-    # Raw Hyperlane message bytes start at offset 53.
-    local nonce=0  # First message after fresh deploy
+    # Fetch dispatched message from mailbox
     local filter_b64
     filter_b64=$(python3 -c "
 import base64, struct
@@ -597,59 +568,63 @@ print(binascii.hexlify(raw[53:]).decode(), end='')
     log "  Extracted message (${#msg_hex} hex chars)"
 
     log "  Relaying Sealevel message to EVM mailbox.process..."
-    cast send "$EVM_MAILBOX" \
+    cast send "$evm_mailbox" \
         "process(bytes,bytes)" \
         "0x" \
         "0x$msg_hex" \
-        --rpc-url "$EVM_RPC" \
+        --rpc-url "$evm_rpc" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
     local final_balance
-    final_balance=$(cast call "$EVM_ERC20" "balanceOf(address)(uint256)" "$ANVIL_ADDRESS" --rpc-url "$EVM_RPC")
+    final_balance=$(cast call "$evm_erc20" "balanceOf(address)(uint256)" "$ANVIL_ADDRESS" --rpc-url "$evm_rpc")
     log "  Final recipient ERC20 balance: $final_balance"
     if [ "$final_balance" = "$initial_balance" ]; then
-        fail "Sealevel→EVM relay did not change recipient ERC20 balance"
+        fail "Sealevel→EVM (domain=$evm_domain) relay did not change recipient ERC20 balance"
     fi
-    log "  Sealevel→EVM relay PASSED"
+    log "  Sealevel→EVM (domain=$evm_domain) relay PASSED"
+
+    SEALEVEL_DISPATCH_NONCE=$((SEALEVEL_DISPATCH_NONCE + 1))
 }
 
 # ========================================
-# Step 6: Test EVM → Sealevel transfer
+# Step 6: Test EVM → Sealevel transfer (parameterized)
 # ========================================
 
 test_evm_to_sealevel() {
-    log "=== Testing EVM → Sealevel transfer ==="
+    local evm_rpc="$1"
+    local evm_domain="$2"
+    local evm_collateral="$3"
+    local evm_erc20="$4"
 
-    # The recipient on Sealevel - use the deployer pubkey
+    log "=== Testing EVM (domain=$evm_domain) → Sealevel ==="
+
     local deployer_pubkey
     deployer_pubkey=$(solana-keygen pubkey "$SEALEVEL_DEPLOYER_KEYPAIR")
-    # Convert base58 pubkey to hex using the keypair JSON (last 32 bytes of the 64-byte key)
     local recipient_h256
     recipient_h256="0x$(python3 -c "
 import json
 with open('$SEALEVEL_DEPLOYER_KEYPAIR') as f:
     key_bytes = json.load(f)
-# Keypair is 64 bytes: first 32 = secret key, last 32 = public key
 pubkey_hex = bytes(key_bytes[32:]).hex()
 print(pubkey_hex)
 ")"
 
-    # Mint ERC20 tokens to the Anvil account
+    # Mint ERC20 tokens to sender
     log "  Minting ERC20 tokens to sender..."
-    cast send "$EVM_ERC20" \
+    cast send "$evm_erc20" \
         "mintTo(address,uint256)" \
         "$ANVIL_ADDRESS" \
         "1000000000000000000" \
-        --rpc-url "$EVM_RPC" \
+        --rpc-url "$evm_rpc" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
     # Approve HypERC20Collateral to spend tokens
     log "  Approving HypERC20Collateral..."
-    cast send "$EVM_ERC20" \
+    cast send "$evm_erc20" \
         "approve(address,uint256)" \
-        "$EVM_COLLATERAL" \
+        "$evm_collateral" \
         "1000000000000000000" \
-        --rpc-url "$EVM_RPC" \
+        --rpc-url "$evm_rpc" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
     local initial_sol_balance
@@ -661,21 +636,21 @@ print(pubkey_hex)
     log "  Initiating transferRemote on EVM (amount=$transfer_amount to domain=$SEALEVEL_DOMAIN)..."
 
     local tx_hash
-    tx_hash=$(cast send "$EVM_COLLATERAL" \
+    tx_hash=$(cast send "$evm_collateral" \
         "transferRemote(uint32,bytes32,uint256)" \
         "$SEALEVEL_DOMAIN" \
         "$recipient_h256" \
         "$transfer_amount" \
-        --rpc-url "$EVM_RPC" \
+        --rpc-url "$evm_rpc" \
         --private-key "$ANVIL_PRIVATE_KEY" \
         --json 2>&1 | jq -r '.transactionHash')
 
     log "  EVM transferRemote tx: $tx_hash"
 
     local receipt_json
-    receipt_json=$(cast receipt "$tx_hash" --rpc-url "$EVM_RPC" --json 2>/dev/null)
+    receipt_json=$(cast receipt "$tx_hash" --rpc-url "$evm_rpc" --json 2>/dev/null)
 
-    # Dispatch event data contains ABI-encoded "bytes message"
+    # Extract Dispatch event data
     local dispatch_data
     dispatch_data=$(echo "$receipt_json" | jq -r '.logs[] | select(.topics[0] == "0x769f711d20c679153d382254f59892613b58a97cc876b249134ac25c80f9c814") | .data' | head -1)
     if [ -z "$dispatch_data" ] || [ "$dispatch_data" = "null" ]; then
@@ -709,16 +684,16 @@ print(pubkey_hex)
         --message-id "$message_id" 2>&1)
     echo "$delivered_output" | tail -3
     if ! echo "$delivered_output" | rg -q "Message delivered"; then
-        fail "EVM→Sealevel message was not marked delivered"
+        fail "EVM (domain=$evm_domain)→Sealevel message was not marked delivered"
     fi
 
     local final_sol_balance
     final_sol_balance=$(get_spl_balance_raw "$deployer_pubkey" "$SPL_MINT")
     log "  Final Sealevel recipient token balance: $final_sol_balance"
     if [ "$final_sol_balance" = "$initial_sol_balance" ]; then
-        fail "EVM→Sealevel relay did not change recipient token balance"
+        fail "EVM (domain=$evm_domain)→Sealevel relay did not change recipient token balance"
     fi
-    log "  EVM→Sealevel relay PASSED"
+    log "  EVM (domain=$evm_domain)→Sealevel relay PASSED"
 }
 
 # ========================================
@@ -726,7 +701,7 @@ print(pubkey_hex)
 # ========================================
 
 main() {
-    log "Starting Cross-VM test: Sealevel MultiCollateral ↔ EVM Collateral"
+    log "Starting Cross-VM test: Sealevel MultiCollateral ↔ 2 EVM Collaterals"
     log "Working directory: $WORK_DIR"
     check_prerequisites
 
@@ -735,33 +710,48 @@ main() {
 
     # Start chains
     start_solana_validator
-    start_anvil
+    start_anvil 8545 "$EVM_DOMAIN_1"
+    start_anvil 8546 "$EVM_DOMAIN_2"
 
     # Deploy Sealevel
     deploy_sealevel_core
     create_spl_token_mint
     deploy_sealevel_mc_warp_route
 
-    # Deploy EVM
-    deploy_evm_contracts
+    # Deploy EVM chain 1
+    deploy_evm_chain "$EVM_RPC_1" "$EVM_DOMAIN_1"
+    EVM1_MAILBOX="$_EVM_MAILBOX"
+    EVM1_ERC20="$_EVM_ERC20"
+    EVM1_COLLATERAL="$_EVM_COLLATERAL"
 
-    # Cross-enroll
+    # Deploy EVM chain 2
+    deploy_evm_chain "$EVM_RPC_2" "$EVM_DOMAIN_2"
+    EVM2_MAILBOX="$_EVM_MAILBOX"
+    EVM2_ERC20="$_EVM_ERC20"
+    EVM2_COLLATERAL="$_EVM_COLLATERAL"
+
+    # Cross-enroll all routers
     cross_enroll_routers
 
-    # Test transfers
-    test_sealevel_to_evm
-    test_evm_to_sealevel
+    # Test all four transfer directions
+    test_sealevel_to_evm "$EVM_RPC_1" "$EVM_DOMAIN_1" "$EVM1_MAILBOX" "$EVM1_COLLATERAL" "$EVM1_ERC20"
+    test_sealevel_to_evm "$EVM_RPC_2" "$EVM_DOMAIN_2" "$EVM2_MAILBOX" "$EVM2_COLLATERAL" "$EVM2_ERC20"
+    test_evm_to_sealevel "$EVM_RPC_1" "$EVM_DOMAIN_1" "$EVM1_COLLATERAL" "$EVM1_ERC20"
+    test_evm_to_sealevel "$EVM_RPC_2" "$EVM_DOMAIN_2" "$EVM2_COLLATERAL" "$EVM2_ERC20"
 
     log ""
     log "========================================"
-    log "Cross-VM test completed!"
+    log "Cross-VM test completed! (4/4 transfers passed)"
     log "========================================"
     log ""
     log "Summary:"
     log "  Sealevel MC Program: $SEALEVEL_MC_PROGRAM"
-    log "  EVM HypERC20Collateral: $EVM_COLLATERAL"
-    log "  Sealevel→EVM: Relay PASSED"
-    log "  EVM→Sealevel: Relay PASSED"
+    log "  EVM1 HypERC20Collateral: $EVM1_COLLATERAL (domain=$EVM_DOMAIN_1)"
+    log "  EVM2 HypERC20Collateral: $EVM2_COLLATERAL (domain=$EVM_DOMAIN_2)"
+    log "  Sealevel→EVM1: PASSED"
+    log "  Sealevel→EVM2: PASSED"
+    log "  EVM1→Sealevel: PASSED"
+    log "  EVM2→Sealevel: PASSED"
     log ""
 }
 
