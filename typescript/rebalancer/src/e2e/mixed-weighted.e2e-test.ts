@@ -211,7 +211,10 @@ describe('Mixed WeightedStrategy E2E', function () {
       );
 
     expect(inventoryConfig).to.exist;
-    expect(inventoryConfig!.chains).to.deep.equal([MIXED_INVENTORY_CHAIN]);
+    expect(inventoryConfig!.chains).to.have.members([
+      MIXED_INVENTORY_CHAIN,
+      ...MIXED_MOVABLE_CHAINS,
+    ]);
     expect(rebalancers.map((r) => r.rebalancerType).sort()).to.deep.equal([
       'inventory',
       'movableCollateral',

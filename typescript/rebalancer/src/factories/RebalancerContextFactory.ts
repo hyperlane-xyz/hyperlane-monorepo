@@ -480,6 +480,19 @@ export class RebalancerContextFactory {
       );
     }
 
+    // Validate inventory address coverage for all required protocols
+    for (const protocol of requiredProtocols) {
+      const chainsForProtocol = allRelevantChains.filter(
+        (chain) =>
+          this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
+          protocol,
+      );
+      assert(
+        inventorySigners[protocol]?.address,
+        `Missing inventory address for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
+      );
+    }
+
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
       externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
 
