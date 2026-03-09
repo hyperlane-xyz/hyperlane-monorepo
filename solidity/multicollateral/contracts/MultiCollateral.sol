@@ -107,14 +107,10 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
 
     // ============ Destination Gas Override ============
 
-    /// @notice Sets destination gas for a domain that has either a default remote
-    /// router or MC-enrolled routers. Bypasses GasRouter._setDestinationGas which
-    /// only checks the default Router._routers map.
-    /// @dev Excludes localDomain since same-chain transfers skip mailbox dispatch.
-    function setDestinationGasForDomain(
-        uint32 domain,
-        uint256 gas
-    ) external onlyOwner {
+    /// @dev Overrides GasRouter._setDestinationGas to also accept MC-enrolled
+    /// domains (not just default Router._routers). Excludes localDomain since
+    /// same-chain transfers skip mailbox dispatch.
+    function _setDestinationGas(uint32 domain, uint256 gas) internal override {
         require(domain != localDomain, "MC: no gas for local domain");
         require(
             routers(domain) != bytes32(0) ||
@@ -123,23 +119,6 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         );
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
-    }
-
-    /// @notice Batch version of setDestinationGasForDomain.
-    function setDestinationGasForDomains(
-        GasRouterConfig[] calldata gasConfigs
-    ) external onlyOwner {
-        for (uint256 i = 0; i < gasConfigs.length; i++) {
-            uint32 domain = gasConfigs[i].domain;
-            require(domain != localDomain, "MC: no gas for local domain");
-            require(
-                routers(domain) != bytes32(0) ||
-                    _enrolledRouters[domain].length() > 0,
-                "MC: domain has no routers"
-            );
-            destinationGas[domain] = gasConfigs[i].gas;
-            emit GasSet(domain, gasConfigs[i].gas);
-        }
     }
 
     // ============ Internal Helpers ============
@@ -363,11 +342,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount,
         bytes32 _targetRouter
     ) external view override returns (Quote[] memory quotes) {
-        require(
-            _isRemoteRouter(_destination, _targetRouter) ||
-                _enrolledRouters[_destination].contains(_targetRouter),
-            "MC: unauthorized router"
-        );
+        _requireAuthorizedRouter(_destination, _targetRouter);
         if (_destination == localDomain) {
             require(
                 _targetRouter.bytes32ToAddress().code.length > 0,
