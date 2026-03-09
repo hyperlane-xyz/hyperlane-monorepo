@@ -934,12 +934,13 @@ describe('WarpCore', () => {
       });
       expect(result.length).to.equal(1);
       if (expectExtraSigners) {
-        expect(result[0].category).to.equal(WarpTxCategory.Transfer);
-        expect(result[0].type).to.equal(providerType);
-        expect(result[0].transaction).to.eql({});
-        expect((result[0] as any).extraSigners)
-          .to.be.an('array')
-          .with.lengthOf(1);
+        const tx = result[0];
+        expect(tx.category).to.equal(WarpTxCategory.Transfer);
+        expect(tx.type).to.equal(providerType);
+        expect(tx.transaction).to.eql({});
+        if (tx.type === ProviderType.SolanaWeb3) {
+          expect(tx.extraSigners).to.be.an('array').with.lengthOf(1);
+        }
       } else {
         expect(
           result[0],
