@@ -199,6 +199,16 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       ),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      // MC enrollment must come before gas setting so that MC-only domains
+      // are on-chain when setDestinationGasForDomains validates them.
+      ...this.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createUnenrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
@@ -213,15 +223,6 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
-
-      ...this.createEnrollMultiCollateralRoutersTxs(
-        actualConfig,
-        expectedConfig,
-      ),
-      ...this.createUnenrollMultiCollateralRoutersTxs(
-        actualConfig,
-        expectedConfig,
-      ),
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -971,22 +972,36 @@ export class EvmWarpModule extends HyperlaneModule<
       'expectedDestinationGas is undefined',
     );
 
-    // Only set gas for domains that will have routers enrolled after the update
-    // Use resolveRouterMapConfig to handle both domain IDs and chain names as keys
+    // Only set gas for domains that will have routers enrolled after the update.
+    // For MultiCollateral configs, also include domains from enrolledRouters.
     const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
       this.multiProvider,
       expectedConfig.remoteRouters ?? {},
     );
-    const expectedRemoteRouterDomains = new Set(
+    const expectedRouterDomains = new Set(
       Object.keys(resolvedExpectedRemoteRouters).map(Number),
     );
 
+    // Include MC-enrolled router domains
     if (
-      expectedRemoteRouterDomains.size === 0 &&
+      isMultiCollateralTokenConfig(expectedConfig) &&
+      expectedConfig.enrolledRouters
+    ) {
+      const resolvedEnrolled = resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.enrolledRouters,
+      );
+      for (const domain of Object.keys(resolvedEnrolled).map(Number)) {
+        expectedRouterDomains.add(domain);
+      }
+    }
+
+    if (
+      expectedRouterDomains.size === 0 &&
       Object.keys(expectedConfig.destinationGas).length > 0
     ) {
       throw new Error(
-        `destinationGas is set but remoteRouters is empty. ` +
+        `destinationGas is set but remoteRouters and enrolledRouters are empty. ` +
           `Cannot configure gas for domains without corresponding router enrollments.`,
       );
     }
@@ -1003,23 +1018,18 @@ export class EvmWarpModule extends HyperlaneModule<
     // Filter to only domains that will have routers enrolled
     const filteredExpectedGas = Object.fromEntries(
       Object.entries(expectedDestinationGas).filter(([domain]) =>
-        expectedRemoteRouterDomains.has(Number(domain)),
+        expectedRouterDomains.has(Number(domain)),
       ),
     );
 
     // Filter actual gas to the same domains for comparison
     const filteredActualGas = Object.fromEntries(
       Object.entries(actualDestinationGas).filter(([domain]) =>
-        expectedRemoteRouterDomains.has(Number(domain)),
+        expectedRouterDomains.has(Number(domain)),
       ),
     );
 
     if (!deepEquals(filteredActualGas, filteredExpectedGas)) {
-      const contractToUpdate = GasRouter__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
-      );
-
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: {
         domain: BigNumberish;
@@ -1032,15 +1042,35 @@ export class EvmWarpModule extends HyperlaneModule<
         });
       });
 
-      updateTransactions.push({
-        chainId: this.chainId,
-        annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        to: contractToUpdate.address,
-        data: contractToUpdate.interface.encodeFunctionData(
-          'setDestinationGas((uint32,uint256)[])',
-          [gasRouterConfigs],
-        ),
-      });
+      const contractToUpdate = GasRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      // MultiCollateral uses setDestinationGasForDomains which supports
+      // MC-enrolled-only domains. Standard routers use setDestinationGas.
+      // Both take the same (uint32,uint256)[] parameter type.
+      if (isMultiCollateralTokenConfig(expectedConfig)) {
+        const mcIface = MultiCollateral__factory.createInterface();
+        updateTransactions.push({
+          chainId: this.chainId,
+          annotation: `Setting destination gas (MC) for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+          to: contractToUpdate.address,
+          data: mcIface.encodeFunctionData('setDestinationGasForDomains', [
+            gasRouterConfigs,
+          ]),
+        });
+      } else {
+        updateTransactions.push({
+          chainId: this.chainId,
+          annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+          to: contractToUpdate.address,
+          data: contractToUpdate.interface.encodeFunctionData(
+            'setDestinationGas((uint32,uint256)[])',
+            [gasRouterConfigs],
+          ),
+        });
+      }
     }
     return updateTransactions;
   }

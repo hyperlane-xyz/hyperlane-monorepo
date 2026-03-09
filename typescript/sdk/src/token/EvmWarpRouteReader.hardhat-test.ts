@@ -1075,6 +1075,36 @@ describe('EvmWarpRouteReader', async () => {
     }
   });
 
+  it('fetchDestinationGas includes MC-enrolled domains via additionalDomains', async () => {
+    const routerAddress = '0x1000000000000000000000000000000000000001';
+    const defaultDomain = 2;
+    const mcOnlyDomain = 99;
+
+    const tokenRouterStub = sinon
+      .stub(TokenRouter__factory, 'connect')
+      .returns({
+        domains: sinon.stub().resolves([defaultDomain]),
+        destinationGas: sinon.stub().callsFake(async (domain: number) => {
+          if (domain === defaultDomain) return { toString: () => '100000' };
+          if (domain === mcOnlyDomain) return { toString: () => '200000' };
+          return { toString: () => '0' };
+        }),
+      } as any);
+
+    try {
+      const gas = await evmERC20WarpRouteReader.fetchDestinationGas(
+        routerAddress,
+        [mcOnlyDomain],
+      );
+
+      // Both the default domain and the MC-only domain should be present
+      expect(gas[defaultDomain]).to.equal('100000');
+      expect(gas[mcOnlyDomain]).to.equal('200000');
+    } finally {
+      tokenRouterStub.restore();
+    }
+  });
+
   describe('Backward compatibility for token type detection', () => {
     // Test table for token type detection
     const tokenTypeTestCases = [
