@@ -126,7 +126,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             maxBatchSize: batchConfig.maxBatchSize,
             bypassBatchSimulation: batchConfig.bypassBatchSimulation,
             ...(batchConfig.maxSubmitQueueLength
-              ? { maxSubmitQueueLength: batchConfig.maxSubmitQueueLength }
+              ? {
+                  maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
+                }
               : {}),
             priorityFeeOracle,
             transactionSubmitter,
@@ -200,6 +202,17 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
+
+    // Inject per-chain processAltOverrides into Sealevel chain configs
+    const processAltOverrides =
+      this.config.relayerConfig.processAltOverrides ?? {};
+    values.hyperlane.chains = values.hyperlane.chains.map((chain) => {
+      const overrides = processAltOverrides[chain.name];
+      if (overrides && overrides.length > 0) {
+        return { ...chain, processAltOverrides: JSON.stringify(overrides) };
+      }
+      return chain;
+    });
 
     const config = await this.config.buildConfig();
 

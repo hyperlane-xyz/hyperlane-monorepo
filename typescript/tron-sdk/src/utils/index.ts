@@ -1,8 +1,9 @@
 import { TronWeb } from 'tronweb';
 
-import { strip0x } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { IABI } from './types.js';
+import { BigNumber, providers } from 'ethers';
 
 export const TRON_EMPTY_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 export const TRON_EMPTY_MESSAGE =
@@ -104,4 +105,36 @@ export async function createRawBytecodeDeploymentTransaction(
     },
     signer,
   );
+}
+
+/** Convert ethers 0x address to Tron 41-prefixed hex */
+export function toTronHex(address: string): string {
+  return '41' + strip0x(address).toLowerCase();
+}
+
+export async function convertEthersToTronTransaction(
+  tronWeb: Readonly<TronWeb>,
+  tx: providers.TransactionRequest,
+  sender: string,
+): Promise<any> {
+  assert(tx.to, 'Transaction must have a destination address');
+  // Contract call - use 'input' option for raw ABI-encoded calldata
+  const tronHexTo = toTronHex(tx.to);
+  const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
+
+  const result = await tronWeb.transactionBuilder.triggerSmartContract(
+    tronHexTo,
+    '', // Empty functionSelector since we pass raw encoded data via input
+    {
+      callValue,
+      input: tx.data ? strip0x(tx.data.toString()) : undefined,
+    },
+    [],
+    sender,
+  );
+  assert(
+    result.result?.result,
+    `triggerSmartContract failed: ${result.result?.message}`,
+  );
+  return result.transaction;
 }

@@ -15,6 +15,40 @@ import type {
   MetadataContext,
 } from './types.js';
 
+function isHexString(value: unknown): value is string {
+  // Minimum 64 hex bytes (128 chars) to avoid matching addresses (20B) and tx hashes (32B).
+  // OffchainLookup is 4 + 5×32 = 164 bytes minimum, so 64B is a conservative floor.
+  return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2}){64,}$/.test(value);
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null && !Array.isArray(x);
+}
+
+const MAX_BFS_ITERATIONS = 50;
+
+function extractRevertData(error: unknown): string | undefined {
+  const seen = new Set<unknown>();
+  const queue: unknown[] = [error];
+  let iterations = 0;
+
+  while (queue.length && iterations < MAX_BFS_ITERATIONS) {
+    iterations += 1;
+    const candidate = queue.shift();
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+
+    if (isHexString(candidate)) return candidate;
+    if (!isRecord(candidate)) continue;
+
+    for (const key of ['data', 'error', 'cause', 'details', 'info']) {
+      if (candidate[key] !== undefined) queue.push(candidate[key]);
+    }
+  }
+
+  return undefined;
+}
+
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
@@ -40,9 +74,10 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       // Should revert with OffchainLookup
       await contract.getOffchainVerifyInfo(message.message);
       throw new Error('Expected OffchainLookup revert');
-    } catch (err: any) {
-      revertData = err.error?.data || err.data;
-      if (!revertData) throw err;
+    } catch (err: unknown) {
+      const extracted = extractRevertData(err);
+      if (!extracted) throw err;
+      revertData = extracted;
     }
 
     const parsed = contract.interface.parseError(revertData);
@@ -89,7 +124,11 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
           res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender, data: callDataHex, signature }),
+            body: JSON.stringify({
+              sender,
+              data: callDataHex,
+              signature,
+            }),
           });
         }
       } catch (error: any) {

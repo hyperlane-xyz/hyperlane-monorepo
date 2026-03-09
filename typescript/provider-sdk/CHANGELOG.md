@@ -1,5 +1,17 @@
 # @hyperlane-xyz/provider-sdk
 
+## 3.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+
 ## 2.0.0
 
 ### Major Changes

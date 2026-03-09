@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
@@ -50,7 +50,7 @@ export function getExplorerApi(
 } | null {
   const { protocol, blockExplorers } = metadata;
   // TODO solana + cosmos support here as needed
-  if (protocol !== ProtocolType.Ethereum) return null;
+  if (!isEVMLike(protocol)) return null;
   if (!blockExplorers?.length || !blockExplorers[index].apiUrl) return null;
 
   // Convert to V2 format if it's an Etherscan-like API

@@ -62,6 +62,7 @@ import {
   type Address,
   addressToBytes32,
   assert,
+  isEVMLike,
   mapAllSettled,
   mustGet,
   objFilter,
@@ -157,8 +158,7 @@ export async function runWarpRouteDeploy({
   // Some of the below functions throw if passed non-EVM or non-supported chains
   const deploymentChains = chains.filter(
     (chain) =>
-      chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      !!altVmSigners[chain],
+      isEVMLike(chainMetadata[chain].protocol) || !!altVmSigners[chain],
   );
 
   await runPreflightChecksForChains({
@@ -186,11 +186,11 @@ export async function runWarpRouteDeploy({
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
   const enrollChains = Object.keys(enrollTxs);
-  const evmChains = enrollChains.filter(
-    (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmChains = enrollChains.filter((chain) =>
+    isEVMLike(multiProvider.getProtocol(chain)),
   );
   const nonEvmChains = enrollChains.filter(
-    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
   );
 
   const enrollFailures: string[] = [];
@@ -469,7 +469,7 @@ export async function runWarpRouteApply(
   const intermediateOwnerConfig = await promiseObjAll(
     objMap(params.warpDeployConfig, async (chain, config) => {
       const protocolType = multiProvider.getProtocol(chain);
-      if (protocolType === ProtocolType.Ethereum) {
+      if (isEVMLike(protocolType)) {
         return {
           ...config,
           owner: await context.multiProvider.getSignerAddress(chain),
@@ -631,13 +631,11 @@ export async function extendWarpRoute(
   // Non-EVM chains must run sequentially because when the same private key
   // is used across multiple chains, parallel tx submission causes sequence
   // number conflicts
-  const evmExtendChains = filteredExtendedChains.filter(
-    (chain) =>
-      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmExtendChains = filteredExtendedChains.filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
   );
   const nonEvmExtendChains = filteredExtendedChains.filter(
-    (chain) =>
-      context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
   );
 
   let newDeployedContracts: ChainMap<Address> = {};
@@ -770,7 +768,7 @@ async function updateExistingWarpRoute(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
         const protocolType = multiProvider.getProtocol(chain);
-        if (protocolType !== ProtocolType.Ethereum && !altVmSigners[chain]) {
+        if (!isEVMLike(protocolType) && !altVmSigners[chain]) {
           logBlue(`Skipping non-compatible chain ${chain}`);
           return;
         }
@@ -783,6 +781,7 @@ async function updateExistingWarpRoute(
         };
 
         switch (protocolType) {
+          case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
             const evmERC20WarpModule = new EvmWarpModule(
               multiProvider,
@@ -1055,7 +1054,7 @@ async function submitChainTransactions(
         ...(transactions as any[]),
       );
 
-      if (protocol !== ProtocolType.Ethereum) {
+      if (!isEVMLike(protocol)) {
         return;
       }
 
@@ -1119,13 +1118,11 @@ async function submitWarpApplyTransactions(
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
   const chains = Object.keys(updateTransactions);
-  const evmChains = chains.filter(
-    (chain) =>
-      params.context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmChains = chains.filter((chain) =>
+    isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
   const nonEvmChains = chains.filter(
-    (chain) =>
-      params.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
 
   const failures: string[] = [];
@@ -1221,6 +1218,11 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const protocol = multiProvider.getProtocol(chain);
 
   const additionalSubmitterFactories: any = {
+    [ProtocolType.Tron]: {
+      file: (_multiProvider: MultiProvider, metadata: any) => {
+        return new EV5FileSubmitter(metadata);
+      },
+    },
     [ProtocolType.Ethereum]: {
       file: (_multiProvider: MultiProvider, metadata: any) => {
         return new EV5FileSubmitter(metadata);
@@ -1229,7 +1231,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   };
 
   // Only add non-Ethereum protocol factories if we have an alt VM signer
-  if (protocol !== ProtocolType.Ethereum) {
+  if (!isEVMLike(protocol)) {
     const signer = mustGet(altVmSigners, chain);
     additionalSubmitterFactories[protocol] = {
       jsonRpc: () => {

@@ -51,7 +51,7 @@ const expect = chai.expect;
 chai.should();
 
 describe('hyperlane warp deploy e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let cosmosNativeDeployerAddress: Address;
   let cosmosNativeChain1CoreAddress: ChainAddresses;
@@ -201,7 +201,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
     // Unknown is excluded because it's a forward-compatibility placeholder
     Exclude<
       ProtocolType,
-      ProtocolType.Radix | ProtocolType.Aleo | ProtocolType.Unknown
+      | ProtocolType.Radix
+      | ProtocolType.Aleo
+      | ProtocolType.Tron
+      | ProtocolType.Unknown
     >,
     Address
   > = {

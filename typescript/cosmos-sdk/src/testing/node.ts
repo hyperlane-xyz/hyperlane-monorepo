@@ -5,7 +5,42 @@ import {
 } from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { retryAsync, sleep } from '@hyperlane-xyz/utils';
+import { pollAsync, retryAsync } from '@hyperlane-xyz/utils';
+
+type CometStatusResponse = {
+  result?: {
+    sync_info?: {
+      latest_block_height?: string;
+    };
+  };
+};
+
+async function waitForCosmosRpcReady(rpcPort: number): Promise<void> {
+  const statusUrl = `http://127.0.0.1:${rpcPort}/status`;
+
+  await pollAsync(
+    async () => {
+      const response = await fetch(statusUrl);
+      if (!response.ok) {
+        throw new Error(
+          `Cosmos RPC not ready at ${statusUrl}: HTTP ${response.status}`,
+        );
+      }
+
+      const status = (await response.json()) as CometStatusResponse;
+      const latestHeight = Number(
+        status.result?.sync_info?.latest_block_height ?? '0',
+      );
+      if (!Number.isFinite(latestHeight) || latestHeight < 1) {
+        throw new Error(
+          `Cosmos RPC has no committed blocks yet at ${statusUrl}`,
+        );
+      }
+    },
+    1000,
+    30,
+  );
+}
 
 export async function runCosmosNode({
   rpcPort,
@@ -37,10 +72,8 @@ export async function runCosmosNode({
     5000,
   );
 
-  // Wait for the block to be committed and RPC to be fully ready.
-  // The log message only indicates a proposal was received, not that
-  // the block was committed and sync info is available.
-  await sleep(2000);
+  // The container log indicates proposals are flowing, but RPC may still race.
+  await waitForCosmosRpcReady(rpcPort);
 
   return container;
 }

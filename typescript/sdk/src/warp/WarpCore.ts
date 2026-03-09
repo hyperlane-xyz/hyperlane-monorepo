@@ -9,6 +9,7 @@ import {
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
   convertToScaledAmount,
+  isEVMLike,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -329,10 +330,7 @@ export class WarpCore {
       }
     }
     // On ethereum, sometimes 2 txs are required (one approve, one transferRemote)
-    else if (
-      txs.length === 2 &&
-      originToken.protocol === ProtocolType.Ethereum
-    ) {
+    else if (txs.length === 2 && isEVMLike(originToken.protocol)) {
       const provider = this.multiProvider.getEthersV5Provider(
         originMetadata.name,
       );

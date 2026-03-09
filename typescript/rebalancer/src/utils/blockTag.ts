@@ -1,5 +1,7 @@
 import type { Logger } from 'pino';
 
+import { providers } from 'ethers';
+
 import {
   EthJsonRpcBlockParameterTag,
   MultiProtocolProvider,
@@ -30,7 +32,26 @@ export async function getConfirmedBlockTag(
     }
 
     const provider = multiProvider.getEthersV5Provider(chainName);
-    const latestBlock = await provider.getBlockNumber();
+    let latestBlock: number;
+    if (provider instanceof providers.JsonRpcProvider) {
+      const latestBlockHex = await provider.send('eth_blockNumber', []);
+      if (
+        typeof latestBlockHex !== 'string' ||
+        !/^0x[0-9a-fA-F]+$/.test(latestBlockHex)
+      ) {
+        throw new Error(
+          `Invalid eth_blockNumber response for ${chainName}: ${latestBlockHex}`,
+        );
+      }
+      latestBlock = parseInt(latestBlockHex, 16);
+      if (!Number.isFinite(latestBlock)) {
+        throw new Error(
+          `Parsed block number is not finite for ${chainName}: ${latestBlockHex}`,
+        );
+      }
+    } else {
+      latestBlock = await provider.getBlockNumber();
+    }
     return Math.max(0, latestBlock - reorgPeriod);
   } catch (error) {
     logger?.warn(

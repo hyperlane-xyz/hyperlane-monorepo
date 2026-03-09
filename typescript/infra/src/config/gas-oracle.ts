@@ -21,6 +21,7 @@ import {
   assert,
   convertDecimals,
   fromWei,
+  isEVMLike,
   rootLogger,
   toWei,
 } from '@hyperlane-xyz/utils';
@@ -341,7 +342,7 @@ const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 export function getOverhead(local: ChainName, remote: ChainName): number {
   const remoteProtocol = getChain(remote).protocol;
 
-  if (remoteProtocol === ProtocolType.Ethereum) {
+  if (isEVMLike(remoteProtocol)) {
     return multisigIsmVerificationCost(
       defaultMultisigConfigs[local].threshold,
       defaultMultisigConfigs[local].validators.length,

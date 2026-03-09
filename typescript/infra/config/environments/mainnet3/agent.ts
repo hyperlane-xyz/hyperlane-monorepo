@@ -15,7 +15,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -24,6 +24,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  BaseRelayerConfig,
   IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
@@ -873,6 +874,21 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
+const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
+  solanamainnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+          ),
+        },
+      ],
+      addressLookupTable: '8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z',
+    },
+  ],
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -888,6 +904,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -934,6 +951,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
@@ -975,6 +993,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknet: 16,
