@@ -25,7 +25,7 @@ import {
 
 import { fetchMintMetadata } from '../accounts/mint.js';
 import type { SvmSigner } from '../clients/signer.js';
-import { concatBytes, u32le, u8 } from '../codecs/binary.js';
+import { concatBytes, u32le, u64le, u8 } from '../codecs/binary.js';
 import {
   RENT_SYSVAR_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
@@ -318,7 +318,7 @@ export class SvmSyntheticTokenWriter
       [writableSigner(this.svmSigner.signer), writableAccount(mintPda)],
       concatBytes(
         u32le(2), // SystemProgram::Transfer discriminator (u32 LE)
-        new Uint8Array(new BigUint64Array([metadataRent]).buffer),
+        u64le(metadataRent),
       ),
     );
 

@@ -285,7 +285,7 @@ export class SvmIgpHookWriter
         artifactState: ArtifactState.DEPLOYED,
         config: config,
         deployed: {
-          address: igpPda,
+          address: programId,
           programId,
           igpPda,
           overheadIgpPda,

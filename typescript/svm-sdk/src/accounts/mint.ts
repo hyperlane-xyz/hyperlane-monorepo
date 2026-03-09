@@ -60,6 +60,7 @@ export function parseToken2022Extensions(
     const length = view.getUint16(offset + 2, true);
     offset += 4;
     if (type === 0) break; // end sentinel
+    if (offset + length > data.length) break; // truncated extension
     extensions.set(type, data.slice(offset, offset + length));
     offset += length;
   }

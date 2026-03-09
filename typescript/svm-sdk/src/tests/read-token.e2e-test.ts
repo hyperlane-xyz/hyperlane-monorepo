@@ -74,6 +74,7 @@ describe('SVM Warp Token read E2E Tests', function () {
       const read = await artifactManager.readWarpToken(testCase.tokenAddress);
 
       const onChainConfig = read.config;
+      expect(onChainConfig.type).to.equal(testCase.type);
       expect(onChainConfig.name).to.equal(testCase.expectedMetadata.name);
       expect(onChainConfig.decimals).to.equal(
         testCase.expectedMetadata.decimals,

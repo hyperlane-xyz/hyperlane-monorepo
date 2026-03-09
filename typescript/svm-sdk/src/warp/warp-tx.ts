@@ -88,11 +88,13 @@ export function scaleToRemoteDecimals(
     return localDecimals + exp;
   }
 
-  // Downscale: scale < 1 (e.g. 0.0001 = 1e-4)
+  // Downscale: scale < 1 (e.g. 0.0001 = 1e-4).
+  // Invert to integer and reuse the integer-only loop to avoid FP accumulation.
+  const inverse = Math.round(1 / scale);
   let exp = 0;
-  let remaining = scale;
-  while (remaining < 1) {
-    remaining *= 10;
+  let remaining = inverse;
+  while (remaining > 1 && remaining % 10 === 0) {
+    remaining /= 10;
     exp++;
   }
   assert(
@@ -449,7 +451,7 @@ export async function computeWarpTokenUpdateInstructions(
   if (
     currentUpgradeAuthority &&
     !eqOptionalAddress(
-      currentUpgradeAuthority ?? undefined,
+      currentUpgradeAuthority,
       expectedOwnerAddress ?? undefined,
       eqAddressSol,
     )

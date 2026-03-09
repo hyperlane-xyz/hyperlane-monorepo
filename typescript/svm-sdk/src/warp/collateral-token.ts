@@ -216,7 +216,7 @@ export class SvmCollateralTokenWriter
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: tokenConfig,
+        config: { ...tokenConfig, decimals: localDecimals },
         deployed: { address: programAddress },
       },
       receipts,
