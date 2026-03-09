@@ -105,6 +105,58 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         return _enrolledRouters[_domain].values();
     }
 
+    // ============ Destination Gas Override ============
+
+    /// @notice Sets destination gas for a domain that has either a default remote
+    /// router or MC-enrolled routers. Bypasses GasRouter._setDestinationGas which
+    /// only checks the default Router._routers map.
+    /// @dev Excludes localDomain since same-chain transfers skip mailbox dispatch.
+    function setDestinationGasForDomain(
+        uint32 domain,
+        uint256 gas
+    ) external onlyOwner {
+        require(domain != localDomain, "MC: no gas for local domain");
+        require(
+            routers(domain) != bytes32(0) ||
+                _enrolledRouters[domain].length() > 0,
+            "MC: domain has no routers"
+        );
+        destinationGas[domain] = gas;
+        emit GasSet(domain, gas);
+    }
+
+    /// @notice Batch version of setDestinationGasForDomain.
+    function setDestinationGasForDomains(
+        GasRouterConfig[] calldata gasConfigs
+    ) external onlyOwner {
+        for (uint256 i = 0; i < gasConfigs.length; i++) {
+            uint32 domain = gasConfigs[i].domain;
+            require(domain != localDomain, "MC: no gas for local domain");
+            require(
+                routers(domain) != bytes32(0) ||
+                    _enrolledRouters[domain].length() > 0,
+                "MC: domain has no routers"
+            );
+            destinationGas[domain] = gasConfigs[i].gas;
+            emit GasSet(domain, gasConfigs[i].gas);
+        }
+    }
+
+    // ============ Internal Helpers ============
+
+    /// @dev Reverts unless `_router` is enrolled for `_domain` (either via the
+    /// standard Router._routers map or via the MC-specific _enrolledRouters set).
+    function _requireAuthorizedRouter(
+        uint32 _domain,
+        bytes32 _router
+    ) internal view {
+        require(
+            _isRemoteRouter(_domain, _router) ||
+                _enrolledRouters[_domain].contains(_router),
+            "MC: unauthorized router"
+        );
+    }
+
     // ============ Handle Override ============
 
     /// @dev Overrides `Router.handle` from core (`client/Router.sol`) via
@@ -119,11 +171,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     ) external payable override {
         if (msg.sender == address(mailbox)) {
             // Cross-chain via mailbox: sender must be enrolled
-            require(
-                _isRemoteRouter(_origin, _sender) ||
-                    _enrolledRouters[_origin].contains(_sender),
-                "MC: unauthorized router"
-            );
+            _requireAuthorizedRouter(_origin, _sender);
         } else {
             // Same-chain direct call: caller must be an enrolled router
             require(
@@ -263,11 +311,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount,
         bytes32 _targetRouter
     ) public payable returns (bytes32 messageId) {
-        require(
-            _isRemoteRouter(_destination, _targetRouter) ||
-                _enrolledRouters[_destination].contains(_targetRouter),
-            "MC: unauthorized router"
-        );
+        _requireAuthorizedRouter(_destination, _targetRouter);
         if (_destination == localDomain) {
             require(msg.value == 0, "MC: local transfer no msg.value");
         }

@@ -28,6 +28,7 @@ import {MultiCollateral} from "../contracts/MultiCollateral.sol";
 import {MultiCollateralRoutingFee} from "../contracts/MultiCollateralRoutingFee.sol";
 import {IMultiCollateralFee} from "../contracts/interfaces/IMultiCollateralFee.sol";
 import {HypERC20Collateral} from "@hyperlane-xyz/core/token/HypERC20Collateral.sol";
+import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
 import {LinearFee} from "@hyperlane-xyz/core/token/fees/LinearFee.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
@@ -1123,6 +1124,94 @@ contract MultiCollateralTest is Test {
         vm.prank(ALICE);
         vm.expectRevert("Ownable: caller is not the owner");
         routingFee.claim(ALICE, address(originUSDC));
+    }
+
+    // ============ Destination Gas for MC-enrolled domains ============
+
+    function test_setDestinationGasForDomain_mcOnlyDomain() public {
+        // Deploy a fresh MC router with NO default remote router for domain 99,
+        // only MC-enrolled routers.
+        MultiCollateral fresh = _deployRouter(
+            address(originUSDC),
+            USDC_SCALE_NUM,
+            USDC_SCALE_DEN,
+            address(originMailbox)
+        );
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = 99;
+        routers[0] = address(0xAA).addressToBytes32();
+        fresh.enrollRouters(domains, routers);
+
+        // Should succeed — domain 99 has MC-enrolled routers
+        fresh.setDestinationGasForDomain(99, 200_000);
+        assertEq(fresh.destinationGas(99), 200_000);
+    }
+
+    function test_setDestinationGasForDomain_defaultRouterDomain() public {
+        // Domain with a default remote router should also work
+        usdcRouterA.setDestinationGasForDomain(DESTINATION, 300_000);
+        assertEq(usdcRouterA.destinationGas(DESTINATION), 300_000);
+    }
+
+    function test_revert_setDestinationGasForDomain_unknownDomain() public {
+        vm.expectRevert("MC: domain has no routers");
+        usdcRouterA.setDestinationGasForDomain(999, 200_000);
+    }
+
+    function test_revert_setDestinationGasForDomain_localDomain() public {
+        vm.expectRevert("MC: no gas for local domain");
+        usdcRouterA.setDestinationGasForDomain(ORIGIN, 200_000);
+    }
+
+    function test_revert_setDestinationGasForDomain_nonOwner() public {
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdcRouterA.setDestinationGasForDomain(DESTINATION, 200_000);
+    }
+
+    function test_setDestinationGasForDomains_batch() public {
+        MultiCollateral fresh = _deployRouter(
+            address(originUSDC),
+            USDC_SCALE_NUM,
+            USDC_SCALE_DEN,
+            address(originMailbox)
+        );
+        // Enroll MC routers for domains 99 and 100
+        uint32[] memory enrollDomains = new uint32[](2);
+        bytes32[] memory enrollRouters = new bytes32[](2);
+        enrollDomains[0] = 99;
+        enrollDomains[1] = 100;
+        enrollRouters[0] = address(0xAA).addressToBytes32();
+        enrollRouters[1] = address(0xBB).addressToBytes32();
+        fresh.enrollRouters(enrollDomains, enrollRouters);
+
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](2);
+        configs[0] = GasRouter.GasRouterConfig({domain: 99, gas: 150_000});
+        configs[1] = GasRouter.GasRouterConfig({domain: 100, gas: 250_000});
+
+        fresh.setDestinationGasForDomains(configs);
+        assertEq(fresh.destinationGas(99), 150_000);
+        assertEq(fresh.destinationGas(100), 250_000);
+    }
+
+    function test_revert_setDestinationGasForDomains_localDomain() public {
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](1);
+        configs[0] = GasRouter.GasRouterConfig({domain: ORIGIN, gas: 100_000});
+
+        vm.expectRevert("MC: no gas for local domain");
+        usdcRouterA.setDestinationGasForDomains(configs);
+    }
+
+    function test_revert_setDestinationGasForDomains_unknownDomain() public {
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](1);
+        configs[0] = GasRouter.GasRouterConfig({domain: 999, gas: 100_000});
+
+        vm.expectRevert("MC: domain has no routers");
+        usdcRouterA.setDestinationGasForDomains(configs);
     }
 
     // ============ Helpers ============
