@@ -211,6 +211,12 @@ contract TokenBridgeOftUnitTest is Test {
         assertEq(bridge.hyperlaneDomainToLzEid(DOMAIN_ETH), 0);
     }
 
+    function test_removeDomain_revertsOnNonExistent() public {
+        vm.prank(owner);
+        vm.expectRevert("TokenBridgeOft: domain not configured");
+        bridge.removeDomain(999);
+    }
+
     function test_getDomainMappings() public view {
         (uint32[] memory domains, uint32[] memory lzEids) = bridge
             .getDomainMappings();
@@ -316,23 +322,23 @@ contract TokenBridgeOftUnitTest is Test {
         assertEq(bridge.extraOptions(), options);
     }
 
-    function test_setRefundAddress() public {
-        address newRefund = makeAddr("refund");
-        vm.prank(owner);
-        bridge.setRefundAddress(newRefund);
-        assertEq(bridge.refundAddress(), newRefund);
-    }
+    function test_transferRemote_refundsExcessValue() public {
+        vm.startPrank(caller);
+        token.approve(address(bridge), type(uint256).max);
 
-    function test_setRefundAddress_revertsOnZero() public {
-        vm.prank(owner);
-        vm.expectRevert("TokenBridgeOft: zero refund address");
-        bridge.setRefundAddress(address(0));
-    }
+        uint256 callerBalBefore = caller.balance;
+        // Send 1 ether but mock only charges 0.001 ether
+        bridge.transferRemote{value: 1 ether}(DOMAIN_ETH, recipient, 100e6);
+        vm.stopPrank();
 
-    function test_setRefundAddress_revertsNonOwner() public {
-        vm.prank(caller);
-        vm.expectRevert("Ownable: caller is not the owner");
-        bridge.setRefundAddress(caller);
+        // Excess should be refunded to caller
+        uint256 callerBalAfter = caller.balance;
+        assertEq(
+            callerBalAfter,
+            callerBalBefore - 0.001 ether,
+            "excess ETH should be refunded"
+        );
+        assertEq(address(bridge).balance, 0, "bridge should have no ETH");
     }
 
     // ---- Handle (inbound) ----

@@ -862,14 +862,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [oft, token, extraOptions, refundAddress, domainMappingsRaw] =
-      await Promise.all([
-        tokenBridge.oft(),
-        tokenBridge.token(),
-        tokenBridge.extraOptions(),
-        tokenBridge.refundAddress(),
-        tokenBridge.getDomainMappings(),
-      ]);
+    const [oft, token, extraOptions, domainMappingsRaw] = await Promise.all([
+      tokenBridge.oft(),
+      tokenBridge.token(),
+      tokenBridge.extraOptions(),
+      tokenBridge.getDomainMappings(),
+    ]);
 
     const erc20Metadata = await this.fetchERC20Metadata(token);
 
@@ -886,7 +884,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       oft,
       domainMappings,
       extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
-      refundAddress,
     };
   }
 

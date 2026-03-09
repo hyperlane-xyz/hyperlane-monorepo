@@ -17,7 +17,6 @@ address constant MAILBOX_ETHEREUM = 0xc005dc82818d67AF737725bD4bf75435d065D239;
 /**
  * @title TokenBridgeOftArbForkTest
  * @notice Fork tests against USDT0 OFT on Arbitrum (burn/mint pattern).
- * @dev Run with: forge test --match-contract TokenBridgeOftArbForkTest --fork-url $RPC_URL_ARBITRUM -vvv
  */
 contract TokenBridgeOftArbForkTest is Test {
     // USDT0 OFT on Arbitrum (burn/mint, approvalRequired=false)
@@ -38,6 +37,7 @@ contract TokenBridgeOftArbForkTest is Test {
         bytes32(uint256(uint160(makeAddr("recipient"))));
 
     function setUp() public {
+        vm.createSelectFork("arbitrum");
         bridge = new TokenBridgeOft(USDT0_OFT, MAILBOX_ARBITRUM);
         bridge.initialize(address(0), address(0), address(this));
         bridge.addDomain(HYP_DOMAIN_ETHEREUM, LZ_EID_ETHEREUM);
@@ -47,7 +47,6 @@ contract TokenBridgeOftArbForkTest is Test {
     function test_constructor() public view {
         assertEq(address(bridge.oft()), USDT0_OFT);
         assertEq(bridge.token(), USDT0_TOKEN);
-        assertEq(bridge.refundAddress(), address(this));
     }
 
     function test_oftInterface() public view {
@@ -166,17 +165,6 @@ contract TokenBridgeOftArbForkTest is Test {
         assertEq(bridge.extraOptions(), opts);
     }
 
-    function test_setRefundAddress() public {
-        address newRefund = makeAddr("newRefund");
-        bridge.setRefundAddress(newRefund);
-        assertEq(bridge.refundAddress(), newRefund);
-    }
-
-    function test_revert_setRefundAddressZero() public {
-        vm.expectRevert("TokenBridgeOft: zero refund address");
-        bridge.setRefundAddress(address(0));
-    }
-
     function test_revert_nonOwnerAddDomain() public {
         vm.prank(caller);
         vm.expectRevert("Ownable: caller is not the owner");
@@ -187,7 +175,6 @@ contract TokenBridgeOftArbForkTest is Test {
 /**
  * @title TokenBridgeOftEthForkTest
  * @notice Fork tests against USDT0 OFT Adapter on Ethereum (lock/unlock pattern).
- * @dev Run with: forge test --match-contract TokenBridgeOftEthForkTest --fork-url $RPC_URL_MAINNET -vvv
  */
 contract TokenBridgeOftEthForkTest is Test {
     using SafeERC20 for IERC20;
@@ -212,6 +199,7 @@ contract TokenBridgeOftEthForkTest is Test {
         bytes32(uint256(uint160(makeAddr("recipient"))));
 
     function setUp() public {
+        vm.createSelectFork("mainnet");
         bridge = new TokenBridgeOft(USDT0_OFT_ADAPTER, MAILBOX_ETHEREUM);
         bridge.initialize(address(0), address(0), address(this));
         bridge.addDomain(HYP_DOMAIN_ARBITRUM, LZ_EID_ARBITRUM);
@@ -221,7 +209,6 @@ contract TokenBridgeOftEthForkTest is Test {
     function test_constructor_adapter() public view {
         assertEq(address(bridge.oft()), USDT0_OFT_ADAPTER);
         assertEq(bridge.token(), USDT_TOKEN);
-        assertEq(bridge.refundAddress(), address(this));
 
         // OFT Adapter should have max approval set in constructor
         uint256 allowance = IERC20(USDT_TOKEN).allowance(
@@ -295,7 +282,6 @@ contract TokenBridgeOftEthForkTest is Test {
  * @notice Fork tests against pyUSD OFTWrapper on Arbitrum (burn/mint via Paxos OFTWrapper).
  * @dev Paxos uses a custom OFTWrapper (not standard OFTAdapter) that burns/mints directly.
  *      approvalRequired=false because the wrapper has mint/burn permissions on the token.
- *      Run with: forge test --match-contract TokenBridgeOftPyusdArbForkTest --fork-url $RPC_URL_ARBITRUM -vvv
  */
 contract TokenBridgeOftPyusdArbForkTest is Test {
     // Paxos OFTWrapper on Arbitrum (burn/mint, approvalRequired=false)
@@ -313,6 +299,7 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
         bytes32(uint256(uint160(makeAddr("recipient"))));
 
     function setUp() public {
+        vm.createSelectFork("arbitrum");
         bridge = new TokenBridgeOft(PYUSD_OFT, MAILBOX_ARBITRUM);
         bridge.initialize(address(0), address(0), address(this));
         bridge.addDomain(HYP_DOMAIN_ETHEREUM, LZ_EID_ETHEREUM);
@@ -403,7 +390,6 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
 /**
  * @title TokenBridgeOftPyusdEthForkTest
  * @notice Fork tests against pyUSD OFTWrapper on Ethereum (burn/mint via Paxos OFTWrapper).
- * @dev Run with: forge test --match-contract TokenBridgeOftPyusdEthForkTest --fork-url $RPC_URL_MAINNET -vvv
  */
 contract TokenBridgeOftPyusdEthForkTest is Test {
     // Paxos OFTWrapper on Ethereum (burn/mint, approvalRequired=false)
@@ -421,6 +407,7 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
         bytes32(uint256(uint160(makeAddr("recipient"))));
 
     function setUp() public {
+        vm.createSelectFork("mainnet");
         bridge = new TokenBridgeOft(PYUSD_OFT, MAILBOX_ETHEREUM);
         bridge.initialize(address(0), address(0), address(this));
         bridge.addDomain(HYP_DOMAIN_ARBITRUM, LZ_EID_ARBITRUM);

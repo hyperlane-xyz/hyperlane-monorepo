@@ -468,15 +468,6 @@ abstract class TokenDeployer<
             tokenBridge.setExtraOptions(config.extraOptions),
           );
         }
-
-        // Set refund address if configured
-        if (config.refundAddress) {
-          this.logger.info(`Setting OFT refund address on ${chain}`);
-          await this.multiProvider.handleTx(
-            chain,
-            tokenBridge.setRefundAddress(config.refundAddress),
-          );
-        }
       }),
     );
   }

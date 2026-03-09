@@ -44,7 +44,6 @@ contract TokenBridgeOft is TokenRouter {
     event DomainAdded(uint32 indexed hyperlaneDomain, uint32 lzEid);
     event DomainRemoved(uint32 indexed hyperlaneDomain);
     event ExtraOptionsSet(bytes extraOptions);
-    event RefundAddressSet(address refundAddress);
 
     // ============ Storage ============
 
@@ -60,9 +59,6 @@ contract TokenBridgeOft is TokenRouter {
     /// @notice Configurable LayerZero extra options (e.g., destination gas limits)
     bytes public extraOptions;
 
-    /// @notice Address to receive excess native gas refunds from OFT.send()
-    address public refundAddress;
-
     // ============ Constructor ============
 
     /**
@@ -74,7 +70,6 @@ contract TokenBridgeOft is TokenRouter {
 
         oft = IOFT(_oft);
         wrappedToken = IERC20(IOFT(_oft).token());
-        refundAddress = msg.sender;
 
         // If the OFT is an adapter (lock/unlock), pre-approve it to spend tokens
         if (IOFT(_oft).approvalRequired()) {
@@ -119,13 +114,16 @@ contract TokenBridgeOft is TokenRouter {
 
     /**
      * @dev Override to bridge via OFT.send() instead of Hyperlane dispatch.
-     * Flow: pull tokens from sender → call OFT.send() → return LZ guid.
+     * Flow: pull tokens → OFT.send() with msg.sender as LZ refund → refund
+     * any excess msg.value back to caller.
      */
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) internal override returns (bytes32 messageId) {
+        uint256 balBefore = address(this).balance - msg.value;
+
         // Pull tokens from sender
         _transferFromSender(_amount);
 
@@ -144,10 +142,18 @@ contract TokenBridgeOft is TokenRouter {
         // Get native gas fee
         MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
 
-        // Execute the OFT send
+        // Execute the OFT send — LZ refunds go to msg.sender
         (MessagingReceipt memory msgReceipt, ) = oft.send{
             value: msgFee.nativeFee
-        }(sendParam, msgFee, refundAddress);
+        }(sendParam, msgFee, msg.sender);
+
+        // Refund excess msg.value (re-quote difference) back to caller
+        uint256 excess = address(this).balance - balBefore;
+        if (excess > 0) {
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool ok, ) = msg.sender.call{value: excess}("");
+            require(ok, "TokenBridgeOft: ETH refund failed");
+        }
 
         emit SentTransferRemote(_destination, _recipient, _amount);
         return msgReceipt.guid;
@@ -182,22 +188,14 @@ contract TokenBridgeOft is TokenRouter {
     }
 
     function removeDomain(uint32 _hyperlaneDomain) external onlyOwner {
-        _domainToLzEid.remove(uint256(_hyperlaneDomain));
+        bool removed = _domainToLzEid.remove(uint256(_hyperlaneDomain));
+        require(removed, "TokenBridgeOft: domain not configured");
         emit DomainRemoved(_hyperlaneDomain);
     }
 
     function setExtraOptions(bytes calldata _options) external onlyOwner {
         extraOptions = _options;
         emit ExtraOptionsSet(_options);
-    }
-
-    function setRefundAddress(address _refundAddress) external onlyOwner {
-        require(
-            _refundAddress != address(0),
-            "TokenBridgeOft: zero refund address"
-        );
-        refundAddress = _refundAddress;
-        emit RefundAddressSet(_refundAddress);
     }
 
     // ============ Views ============

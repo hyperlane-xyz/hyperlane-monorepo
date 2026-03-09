@@ -241,10 +241,6 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
       'Mapping of Hyperlane domain (or chain name) to LayerZero endpoint ID',
     ),
   extraOptions: z.string().optional().describe('LayerZero extra options (hex)'),
-  refundAddress: z
-    .string()
-    .optional()
-    .describe('Address for OFT native gas refunds'),
 });
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
