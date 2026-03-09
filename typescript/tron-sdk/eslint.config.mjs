@@ -14,7 +14,15 @@ export default [
   {
     files: ['src/**/*.ts'],
     rules: {
-      'import/no-unresolved': ['error', { ignore: ['\\.*/abi/.*\\.json$'] }],
+      'import/no-unresolved': [
+        'error',
+        {
+          ignore: [
+            '\\.*/abi/.*\\.json$',
+            '^@hyperlane-xyz/core/tron/typechain/.*\\.js$',
+          ],
+        },
+      ],
     },
   },
 ];

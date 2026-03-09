@@ -35,7 +35,7 @@ describe('TronWallet Integration Tests', function () {
 
   after(async () => {
     if (wallet?.provider instanceof TronJsonRpcProvider) {
-      wallet.provider.removeAllListeners();
+      await wallet.provider.removeAllListeners();
     }
     if (node) {
       await stopTronNode(node);
