@@ -675,8 +675,8 @@ export class LiFiBridge implements IExternalBridge {
     try {
       const status = await getStatus({
         txHash,
-        fromChain,
-        toChain,
+        fromChain: LiFiBridge.toLiFiChainId(fromChain),
+        toChain: LiFiBridge.toLiFiChainId(toChain),
       });
 
       switch (status.status) {

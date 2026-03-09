@@ -542,3 +542,35 @@ describe('LiFiBridge.quote() input validation', function () {
     }
   });
 });
+
+describe('LiFiBridge.getStatus()', function () {
+  let bridge: LiFiBridge;
+
+  beforeEach(() => {
+    bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+  });
+
+  it('should translate Hyperlane domain IDs to LiFi chain IDs before SDK status lookup', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl = '';
+
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      requestUrl = String(input);
+      return {
+        ok: true,
+        json: async () => ({ status: 'NOT_FOUND' }),
+      } as Response;
+    }) as typeof fetch;
+
+    try {
+      const result = await bridge.getStatus('0x1234', 1399811149, 1399811149);
+      const params = new URL(requestUrl).searchParams;
+
+      expect(result.status).to.equal('not_found');
+      expect(params.get('fromChain')).to.equal('1151111081099710');
+      expect(params.get('toChain')).to.equal('1151111081099710');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
