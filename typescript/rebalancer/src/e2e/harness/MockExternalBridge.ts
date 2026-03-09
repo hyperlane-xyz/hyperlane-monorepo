@@ -1,5 +1,6 @@
 import { BigNumber, ethers, type providers } from 'ethers';
 import { pino, type Logger } from 'pino';
+import { PublicKey } from '@solana/web3.js';
 
 import {
   ERC20Test__factory,
@@ -22,6 +23,7 @@ import type {
   NativeDeployedAddresses,
   TestChain,
 } from '../fixtures/routes.js';
+import { SVM_CHAIN_NAME, SVM_DOMAIN_ID } from '../fixtures/svm-routes.js';
 
 type MockBridgeRoute = {
   fromChain: number;
@@ -126,7 +128,7 @@ export class MockExternalBridge implements IExternalBridge {
     const toChainName = this.resolveChainName(toChain);
 
     const bridgeRouteAddress =
-      this.deployedAddresses.bridgeRoute[fromChainName];
+      this.deployedAddresses.bridgeRoute[fromChainName as TestChain];
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
@@ -134,10 +136,20 @@ export class MockExternalBridge implements IExternalBridge {
     assert(evmKey, 'Missing Ethereum private key for MockExternalBridge');
     const signer = new ethers.Wallet(evmKey, provider);
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(route.toAddress),
-      32,
-    );
+    let recipientBytes32: string;
+    if (toChainName === SVM_CHAIN_NAME && !route.toAddress.startsWith('0x')) {
+      // SVM destination with base58 Solana address
+      const pubkey = new PublicKey(route.toAddress);
+      recipientBytes32 = ethers.utils.hexZeroPad(
+        '0x' + Buffer.from(pubkey.toBytes()).toString('hex'),
+        32,
+      );
+    } else {
+      recipientBytes32 = ethers.utils.hexZeroPad(
+        ethers.utils.hexlify(route.toAddress),
+        32,
+      );
+    }
 
     let tx;
     if (this.tokenType === 'erc20') {
@@ -147,7 +159,7 @@ export class MockExternalBridge implements IExternalBridge {
       );
       const tokenAddress = (
         this.deployedAddresses as Erc20InventoryDeployedAddresses
-      ).tokens[fromChainName];
+      ).tokens[fromChainName as TestChain];
       const token = ERC20Test__factory.connect(tokenAddress, signer);
       await token.approve(bridgeRouteAddress, quote.fromAmount);
 
@@ -290,14 +302,23 @@ export class MockExternalBridge implements IExternalBridge {
     const toChainName = this.resolveChainName(toChain);
 
     const bridgeRouteAddress =
-      this.deployedAddresses.bridgeRoute[fromChainName];
+      this.deployedAddresses.bridgeRoute[fromChainName as TestChain];
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
     const provider = this.multiProvider.getProvider(fromChainName);
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(toAddress),
-      32,
-    );
+    let recipientBytes32: string;
+    if (toChainName === SVM_CHAIN_NAME && !toAddress.startsWith('0x')) {
+      const pubkey = new PublicKey(toAddress);
+      recipientBytes32 = ethers.utils.hexZeroPad(
+        '0x' + Buffer.from(pubkey.toBytes()).toString('hex'),
+        32,
+      );
+    } else {
+      recipientBytes32 = ethers.utils.hexZeroPad(
+        ethers.utils.hexlify(toAddress),
+        32,
+      );
+    }
 
     // Use 1 wei for estimation — gas usage doesn't depend on transfer amount
     const estimateAmount = 1n;
@@ -347,7 +368,12 @@ export class MockExternalBridge implements IExternalBridge {
     };
   }
 
-  private resolveChainName(chainRef: number): TestChain {
+  private resolveChainName(chainRef: number): string {
+    // Check SVM chain by domain ID
+    if (chainRef === SVM_DOMAIN_ID) {
+      return SVM_CHAIN_NAME;
+    }
+
     const chainNames = Object.keys(
       this.deployedAddresses.chains,
     ) as TestChain[];

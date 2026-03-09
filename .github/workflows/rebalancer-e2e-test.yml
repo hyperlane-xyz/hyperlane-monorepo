@@ -41,6 +41,6 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: Run rebalancer E2E tests (serial)
+      - name: Run rebalancer E2E tests (EVM-only, serial)
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json --exit
+        run: pnpm mocha --config .mocharc.e2e.json --ignore 'src/e2e/mixed-*.e2e-test.ts' --exit
