@@ -16,7 +16,7 @@ nativeToken:
   decimals: 9
   name: Solana
   symbol: SOL
-protocol: sealevel
+protocol: unknown
 rpcUrls:
   - http: http://127.0.0.1:139
 technicalStack: other
