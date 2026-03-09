@@ -500,7 +500,7 @@ export class RebalancerContextFactory {
       ) as Partial<Record<ProtocolType, Address>>;
       const inventoryConfig: InventoryMonitorConfig = {
         inventoryAddresses,
-        chains: inventoryChains,
+        chains: allRelevantChains,
       };
       // Merge config addresses with runtime keys
       const mergedSigners: Partial<
@@ -540,7 +540,7 @@ export class RebalancerContextFactory {
     ) as Partial<Record<ProtocolType, Address>>;
     const inventoryConfig: InventoryMonitorConfig = {
       inventoryAddresses,
-      chains: inventoryChains,
+      chains: allRelevantChains,
     };
 
     // 4. Create InventoryRebalancer
