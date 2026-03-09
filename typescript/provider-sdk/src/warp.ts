@@ -100,6 +100,7 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  metadataUri?: string;
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
@@ -486,6 +487,7 @@ export function warpArtifactToDerivedConfig(
       return {
         ...baseDerivedConfig,
         type: TokenType.synthetic,
+        metadataUri: config.metadataUri,
       };
 
     case 'native':
