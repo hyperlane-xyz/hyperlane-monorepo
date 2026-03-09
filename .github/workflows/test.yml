@@ -143,6 +143,7 @@ jobs:
       has_tron: ${{ steps.decide.outputs.has_tron }}
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
+      has_svm: ${{ steps.decide.outputs.has_svm }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -181,6 +182,7 @@ jobs:
             echo "has_tron=true" >> $GITHUB_OUTPUT
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
+            echo "has_svm=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -192,6 +194,7 @@ jobs:
             echo "has_tron=false" >> $GITHUB_OUTPUT
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
+            echo "has_svm=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -200,6 +203,7 @@ jobs:
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
+          has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/svm-sdk/)' && echo true || echo false)
 
           # Package-specific changes (run only their targeted CLI e2e tests)
           has_relayer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/relayer/' && echo true || echo false)
@@ -222,6 +226,9 @@ jobs:
           echo "CLI changes: $has_cli_changes"
           echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron"
           echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
+          echo "has_svm=$has_svm" >> $GITHUB_OUTPUT
+
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron svm=$has_svm"
 
       - name: Decide what to run
         id: decide
@@ -244,6 +251,7 @@ jobs:
             echo "has_tron=false" >> $GITHUB_OUTPUT
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
+            echo "has_svm=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -257,6 +265,7 @@ jobs:
             echo "has_tron=true" >> $GITHUB_OUTPUT
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
+            echo "has_svm=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -269,6 +278,7 @@ jobs:
           echo "has_tron=${{ steps.check-vm.outputs.has_tron }}" >> $GITHUB_OUTPUT
           echo "has_relayer=${{ steps.check-vm.outputs.has_relayer }}" >> $GITHUB_OUTPUT
           echo "has_rebalancer=${{ steps.check-vm.outputs.has_rebalancer }}" >> $GITHUB_OUTPUT
+          echo "has_svm=${{ steps.check-vm.outputs.has_svm }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
@@ -477,6 +487,22 @@ jobs:
             echo "Changes found in agent config: $CHANGES"
             exit 1
           fi
+
+  svm-program-bytes:
+    runs-on: ubuntu-latest
+    needs: [change-detection]
+    if: needs.change-detection.outputs.has_svm == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check program-bytes.ts staleness
+        run: node typescript/svm-sdk/scripts/check-program-bytes-hash.mjs
 
   env-tests:
     needs: [change-detection]

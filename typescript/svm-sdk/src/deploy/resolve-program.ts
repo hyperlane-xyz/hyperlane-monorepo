@@ -18,6 +18,7 @@ export async function resolveProgram(
   target: SvmProgramTarget,
   signer: SvmSigner,
   rpc: SvmRpc,
+  useExactDataLen?: boolean,
 ): Promise<ResolvedProgram> {
   if ('programId' in target) {
     return { programAddress: target.programId, receipts: [] };
@@ -28,6 +29,12 @@ export async function resolveProgram(
     programBytes: target.programBytes,
     getMinimumBalanceForRentExemption: (size: number) =>
       rpc.getMinimumBalanceForRentExemption(BigInt(size)).send(),
+    // Exact data len minimizes rent cost. Programs can still be upgraded to
+    // the same size binary. Use the 2x default (undefined) if future upgrades
+    // may grow the binary beyond the current size.
+    maxDataLen: useExactDataLen
+      ? BigInt(target.programBytes.length)
+      : undefined,
   });
 
   const executeStage = async (stage: DeployStage): Promise<SvmReceipt> =>

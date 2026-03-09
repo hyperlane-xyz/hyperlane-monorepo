@@ -133,6 +133,7 @@ interface BaseWarpArtifactConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  scale?: number;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -145,6 +146,7 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   name: string;
   symbol: string;
   decimals: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {

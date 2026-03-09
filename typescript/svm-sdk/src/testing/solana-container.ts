@@ -19,7 +19,12 @@ import {
   Wait,
 } from 'testcontainers';
 
-export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v2.0.20';
+// Agave v3.0.x activates stricter_abi_and_runtime_constraints which rejects
+// the old Token-2022 program's non-zero-init realloc calls. The test setup
+// overrides the built-in Token-2022 with v10.0.0 (via --bpf-program) which
+// uses zero-init realloc and is compatible with the stricter runtime.
+// See https://github.com/anza-xyz/agave/issues/9799
+export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v3.0.14';
 export const SOLANA_RPC_PORT = 8899;
 
 export function isAppleSilicon(): boolean {
@@ -34,7 +39,7 @@ export function isAppleSilicon(): boolean {
   }
 }
 
-const MIN_SOLANA_VERSION = { major: 2, minor: 0 };
+const MIN_SOLANA_VERSION = { major: 3, minor: 0 };
 
 function parseVersion(
   version: string,
@@ -69,8 +74,7 @@ function getValidatorVersion(binaryPath: string): string | null {
 
 const SOLANA_BINARY_PATHS = [
   path.join(os.homedir(), '.local/share/solana/install/active_release/bin'),
-  path.join(os.homedir(), '.local/share/solana/install/releases/2.1.0/bin'),
-  path.join(os.homedir(), '.local/share/solana/install/releases/2.0.20/bin'),
+  path.join(os.homedir(), '.local/share/solana/install/releases/3.0.14/bin'),
   '/tmp/solana-release/bin',
   '/opt/homebrew/bin',
   '/usr/local/bin',
@@ -349,7 +353,7 @@ export async function startSolanaTestValidator(
         'Docker is not supported: Solana requires AVX instructions that Rosetta 2 cannot emulate.\n' +
         'Install natively from: https://docs.anza.xyz/cli/install\n' +
         'Or download directly:\n' +
-        '  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/v2.0.20/solana-release-aarch64-apple-darwin.tar.bz2\n' +
+        '  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/v3.0.14/solana-release-aarch64-apple-darwin.tar.bz2\n' +
         '  tar jxf /tmp/solana.tar.bz2 -C /tmp',
     );
   }
