@@ -142,6 +142,17 @@ export class LiFiBridge implements IExternalBridge {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
       }
+      // Also key by LiFi chain IDs so both Hyperlane domains and LiFi IDs resolve to the same metadata.
+      for (const [hyperlaneDomainId, lifiChainId] of Object.entries(
+        HYPERLANE_TO_LIFI_CHAIN_IDS,
+      )) {
+        const metadata = this.chainMetadataByChainId.get(
+          Number(hyperlaneDomainId),
+        );
+        if (metadata !== undefined) {
+          this.chainMetadataByChainId.set(Number(lifiChainId), metadata);
+        }
+      }
     }
   }
 

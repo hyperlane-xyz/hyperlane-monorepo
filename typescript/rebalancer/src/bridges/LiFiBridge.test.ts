@@ -20,6 +20,20 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
   integrator: 'test-rebalancer',
 };
 
+const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
+  integrator: 'test-rebalancer',
+  chainMetadata: {
+    solana: {
+      chainId: 1399811149,
+      protocol: ProtocolType.Sealevel,
+      name: 'solana',
+      displayName: 'Solana',
+      domainId: 1399811149,
+      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+    },
+  },
+};
+
 // Use all-digit hex addresses to avoid EIP-55 checksum case mutations
 const TOKEN_ADDR = '0x1234567890123456789012345678901234567890';
 const SENDER_ADDR = '0x9876543210987654321098765432109876543210';
@@ -571,6 +585,31 @@ describe('LiFiBridge.getStatus()', function () {
       expect(params.get('toChain')).to.equal('1151111081099710');
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('LiFiBridge constructor chainMetadataByChainId', function () {
+  it('should resolve Sealevel protocol using a LiFi chain ID mapped from Hyperlane metadata', async () => {
+    const bridge = new LiFiBridge(SOLANA_CHAIN_METADATA_CONFIG, testLogger);
+    const quote = createTestQuote(
+      {
+        toTokenAddress: 'Abcdef123456789ABCDEFGHijklmnopQRSTUVwx',
+      },
+      {
+        toToken: 'abcdef123456789abcdefghijklmnopqrstuvwx',
+      },
+    );
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('toToken');
+      expect(msg).to.include('does not match requested');
     }
   });
 });
