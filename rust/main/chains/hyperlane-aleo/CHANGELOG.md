@@ -1,3 +1,7 @@
+## [2.2.0] - 2026-03-09
+
+* chore: migrate spellchecker from codespell to typos (#8214)
+
 ## [2.1.0] - 2026-03-04
 
 * chore: update chunk size again (#7825)
