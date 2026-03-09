@@ -196,24 +196,26 @@ async function main(): Promise<void> {
     }
 
     // Fail fast if config references protocol-specific inventory signer but key is missing
-    for (const protocol of Object.values(ProtocolType)) {
-      if (
-        rebalancerConfig.inventorySigners?.[protocol] &&
-        !inventoryPrivateKeys[protocol]
-      ) {
-        const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
-        const hint =
-          protocol === ProtocolType.Ethereum
-            ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
-            : envKey;
-        logger.error(
-          {
-            inventorySigner:
-              rebalancerConfig.inventorySigners[protocol]?.address,
-          },
-          `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
-        );
-        process.exit(1);
+    if (!monitorOnly) {
+      for (const protocol of Object.values(ProtocolType)) {
+        if (
+          rebalancerConfig.inventorySigners?.[protocol] &&
+          !inventoryPrivateKeys[protocol]
+        ) {
+          const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
+          const hint =
+            protocol === ProtocolType.Ethereum
+              ? `${envKey} (or fallback HYP_INVENTORY_KEY)`
+              : envKey;
+          logger.error(
+            {
+              inventorySigner:
+                rebalancerConfig.inventorySigners[protocol]?.address,
+            },
+            `Config specifies inventorySigners.${protocol} but ${hint} is not set.`,
+          );
+          process.exit(1);
+        }
       }
     }
 
