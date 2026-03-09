@@ -95,7 +95,13 @@ export class HyperlaneJsonRpcProvider
       case ProviderMethod.GetBalance:
         return this.getBalance(params?.address, params?.blockTag);
       case ProviderMethod.GetBlock:
-        return this.getBlock(params?.blockTag ?? params?.block ?? 'latest');
+        return this.getBlock(
+          params?.blockHash ??
+            params?.hash ??
+            params?.blockTag ??
+            params?.block ??
+            'latest',
+        );
       case ProviderMethod.GetBlockNumber:
         return this.getBlockNumber();
       case ProviderMethod.GetCode:
@@ -200,14 +206,12 @@ export class HyperlaneJsonRpcProvider
     for (const reqChunk of requestChunks) {
       const resultPromises = reqChunk.map(
         ([from, to]) =>
-          this.send('eth_getLogs', [
-            {
-              address,
-              topics,
-              fromBlock: toBeHex(from),
-              toBlock: toBeHex(to),
-            },
-          ]) as Promise<Array<Log>>,
+          this.getLogs({
+            address,
+            topics,
+            fromBlock: toBeHex(from),
+            toBlock: toBeHex(to),
+          }) as Promise<Array<Log>>,
       );
       const results = await Promise.all(resultPromises);
       combinedResults = [...combinedResults, ...results.flat()];

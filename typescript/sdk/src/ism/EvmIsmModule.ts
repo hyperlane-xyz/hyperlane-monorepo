@@ -70,7 +70,8 @@ export class EvmIsmModule extends HyperlaneModule<
   public readonly domainId: Domain;
 
   protected getContractAddress(contract: { target?: unknown }): Address {
-    return contract.target as Address;
+    assert(typeof contract.target === 'string', 'Missing contract target');
+    return contract.target;
   }
 
   constructor(

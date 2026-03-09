@@ -50,6 +50,13 @@ const MAX_ISM_DEPTH = 5;
 const MAX_NUM_VALIDATORS = 10;
 const NUM_RUNS = 16;
 
+function getContractAddress(contract: { target?: unknown }): Address {
+  if (typeof contract.target !== 'string') {
+    throw new Error('Missing contract target');
+  }
+  return contract.target;
+}
+
 describe('BaseMetadataBuilder', () => {
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
@@ -92,8 +99,9 @@ describe('BaseMetadataBuilder', () => {
       factoryContracts = contractsMap[chain];
       proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
         (acc, key) => {
-          acc[key] =
-            contractsMap[chain][key as keyof ProxyFactoryFactories].address;
+          acc[key] = getContractAddress(
+            contractsMap[chain][key as keyof ProxyFactoryFactories],
+          );
           return acc;
         },
         {} as Record<string, Address>,
@@ -122,7 +130,9 @@ describe('BaseMetadataBuilder', () => {
           const merkleHook = merkleHooks[match.origin];
           const checkpoint: Checkpoint = {
             root: await merkleHook.root(),
-            merkle_tree_hook_address: addressToBytes32(merkleHook.address),
+            merkle_tree_hook_address: addressToBytes32(
+              getContractAddress(merkleHook),
+            ),
             index: match.index,
             mailbox_domain: match.origin,
           };
@@ -168,14 +178,17 @@ describe('BaseMetadataBuilder', () => {
         config,
         mailbox: core.getAddresses(destination).mailbox,
       });
-      await testRecipient.setInterchainSecurityModule(deployedIsm.address);
+      await testRecipient.setInterchainSecurityModule(
+        getContractAddress(deployedIsm),
+      );
 
-      const merkleHookAddress =
-        merkleHooks[core.multiProvider.getDomainId(origin)].address;
+      const merkleHookAddress = getContractAddress(
+        merkleHooks[core.multiProvider.getDomainId(origin)],
+      );
       const { dispatchTx, message } = await core.sendMessage(
         origin,
         destination,
-        testRecipient.address,
+        getContractAddress(testRecipient),
         '0xdeadbeef',
         merkleHookAddress,
       );
@@ -183,7 +196,7 @@ describe('BaseMetadataBuilder', () => {
       const derivedIsm = await new EvmIsmReader(
         core.multiProvider,
         destination,
-      ).deriveIsmConfig(deployedIsm.address);
+      ).deriveIsmConfig(getContractAddress(deployedIsm));
 
       context = {
         hook: {

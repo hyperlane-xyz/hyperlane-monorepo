@@ -99,7 +99,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   protected readonly deployer: IsmDeployer;
 
   protected getContractAddress(contract: { target?: unknown }): Address {
-    return contract.target as Address;
+    assert(typeof contract.target === 'string', 'Missing contract target');
+    return contract.target;
   }
 
   constructor(

@@ -3,6 +3,7 @@ import hre from 'hardhat';
 
 import {
   ChainMap,
+  findMatchingLogEvents,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
@@ -67,7 +68,18 @@ describe('HelloWorld', () => {
     const tx = await local.sendHelloWorld(remoteDomain, body, {
       value: payment,
     });
-    await tx.wait();
+    const receipt = await tx.wait();
+    expect(receipt).to.not.equal(null);
+    if (!receipt) throw new Error('Missing receipt');
+    const sentEvents = findMatchingLogEvents(
+      receipt.logs,
+      local.interface,
+      'SentHelloWorld',
+    );
+    expect(sentEvents).to.have.length(1);
+    expect(sentEvents[0].args.origin).to.equal(BigInt(localDomain));
+    expect(sentEvents[0].args.destination).to.equal(BigInt(remoteDomain));
+    expect(sentEvents[0].args.message).to.equal(body);
     // The sent counts are correct
     expect(await local.sent()).to.equal(1);
     expect(await local.sentTo(remoteDomain)).to.equal(1);
@@ -77,16 +89,11 @@ describe('HelloWorld', () => {
 
   it('reverts if there is insufficient payment', async () => {
     const body = 'Hello';
-    try {
-      await local.sendHelloWorld(remoteDomain, body, {
+    await expect(
+      local.sendHelloWorld(remoteDomain, body, {
         value: 0n,
-      });
-      expect.fail('Expected sendHelloWorld to revert');
-    } catch (error) {
-      expect(String(error)).to.contain(
-        'ProtocolFee: insufficient protocol fee',
-      );
-    }
+      }),
+    ).to.be.rejectedWith('ProtocolFee: insufficient protocol fee');
   });
 
   it('handles a message', async () => {

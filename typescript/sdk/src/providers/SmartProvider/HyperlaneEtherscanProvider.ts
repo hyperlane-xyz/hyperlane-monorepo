@@ -109,7 +109,13 @@ export class HyperlaneEtherscanProvider
       case ProviderMethod.GetBlockNumber:
         return this.getBlockNumber();
       case ProviderMethod.GetBlock:
-        return this.getBlock(params?.blockTag ?? params?.block ?? 'latest');
+        return this.getBlock(
+          params?.blockHash ??
+            params?.hash ??
+            params?.blockTag ??
+            params?.block ??
+            'latest',
+        );
       case ProviderMethod.GetBalance:
         return this.getBalance(params?.address, params?.blockTag);
       case ProviderMethod.GetCode:
