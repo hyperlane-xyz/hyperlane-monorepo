@@ -19,10 +19,17 @@ export default [
         {
           ignore: [
             '\\.*/abi/.*\\.json$',
+            '^@hyperlane-xyz/core/tron/typechain$',
             '^@hyperlane-xyz/core/tron/typechain/.*\\.js$',
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['src/factories/index.ts', 'src/index.ts'],
+    rules: {
+      'import/export': 'off',
     },
   },
 ];
