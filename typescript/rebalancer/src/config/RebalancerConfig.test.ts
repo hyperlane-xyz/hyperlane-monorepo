@@ -46,6 +46,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
+              executionType: ExecutionType.MovableCollateral,
             },
             chain2: {
               weighted: {
@@ -54,6 +55,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -89,6 +91,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1_000,
+              executionType: 'movableCollateral',
             },
             chain2: {
               weighted: {
@@ -97,6 +100,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1_000,
+              executionType: 'movableCollateral',
             },
           },
         },
@@ -143,6 +147,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
+              executionType: ExecutionType.MovableCollateral,
             },
             chain2: {
               minAmount: {
@@ -152,6 +157,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -183,6 +189,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
+              executionType: ExecutionType.MovableCollateral,
             },
             chain2: {
               minAmount: {
@@ -192,6 +199,7 @@ describe('RebalancerConfig', () => {
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
+              executionType: ExecutionType.MovableCollateral,
             },
           },
         },
@@ -224,6 +232,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
                 override: {
                   chain2: {
                     bridge: '0x1234567890123456789012345678901234567890',
@@ -238,6 +247,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
               chain3: {
                 minAmount: {
@@ -247,6 +257,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -285,6 +296,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
                 override: {
                   chain2: {
                     bridge: '0x1234567890123456789012345678901234567890',
@@ -302,6 +314,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -330,6 +343,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
                 override: {
                   chain1: {
                     bridgeMinAcceptedAmount: 1000,
@@ -344,6 +358,7 @@ describe('RebalancerConfig', () => {
                 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -362,6 +377,7 @@ describe('RebalancerConfig', () => {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 3000,
         bridgeLockTime: 1,
+        executionType: ExecutionType.MovableCollateral,
         weighted: {
           weight: 100,
           tolerance: 0,
@@ -380,6 +396,7 @@ describe('RebalancerConfig', () => {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 5000,
         bridgeLockTime: 1,
+        executionType: ExecutionType.MovableCollateral,
         weighted: {
           weight: 100,
           tolerance: 0,
@@ -390,6 +407,7 @@ describe('RebalancerConfig', () => {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 6000,
         bridgeLockTime: 1,
+        executionType: ExecutionType.MovableCollateral,
         weighted: {
           weight: 100,
           tolerance: 0,
@@ -429,11 +447,13 @@ describe('RebalancerConfig', () => {
                 weighted: { weight: 100, tolerance: 0 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
               chain2: {
                 weighted: { weight: 100, tolerance: 0 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -444,11 +464,13 @@ describe('RebalancerConfig', () => {
                 buffer: 1000,
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
               chain2: {
                 buffer: 1000,
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -473,11 +495,13 @@ describe('RebalancerConfig', () => {
                 buffer: 1000,
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
               chain2: {
                 buffer: 1000,
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -488,11 +512,13 @@ describe('RebalancerConfig', () => {
                 weighted: { weight: 100, tolerance: 0 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
               chain2: {
                 weighted: { weight: 100, tolerance: 0 },
                 bridge: ethers.constants.AddressZero,
                 bridgeLockTime: 1,
+                executionType: ExecutionType.MovableCollateral,
               },
             },
           },
@@ -681,11 +707,13 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
           chain2: {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
@@ -704,11 +732,13 @@ describe('getAllBridges', () => {
             buffer: 1000,
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
           chain2: {
             buffer: 1000,
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
@@ -719,11 +749,13 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_B,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
           chain2: {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_B,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
@@ -743,6 +775,7 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
             override: {
               chain2: {
                 bridge: BRIDGE_B,
@@ -756,11 +789,13 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
           chain3: {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
@@ -780,11 +815,13 @@ describe('getAllBridges', () => {
             buffer: 1000,
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
           chain2: {
             buffer: 1000,
             bridge: BRIDGE_B,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
@@ -795,6 +832,7 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A, // Same as first strategy
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
             override: {
               chain2: {
                 bridge: BRIDGE_B, // Same as chain2 default
@@ -805,6 +843,7 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_B,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
@@ -824,6 +863,7 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
             override: {
               chain2: {
                 bridgeMinAcceptedAmount: 5000, // Override without bridge
@@ -834,6 +874,7 @@ describe('getAllBridges', () => {
             weighted: { weight: 100n, tolerance: 0n },
             bridge: BRIDGE_A,
             bridgeLockTime: 1000,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },

@@ -10,6 +10,7 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 500
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
+      executionType: movableCollateral
 
     base:
       weighted:
@@ -18,6 +19,7 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      executionType: movableCollateral
 
     ethereum:
       weighted:
@@ -26,6 +28,7 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 500
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
+      executionType: movableCollateral
 
     optimism:
       weighted:
@@ -34,6 +37,7 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      executionType: movableCollateral
 
     polygon:
       weighted:
@@ -42,3 +46,4 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      executionType: movableCollateral

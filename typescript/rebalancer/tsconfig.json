@@ -2,7 +2,8 @@
   "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "noEmitOnError": false
   },
   "include": ["./src/**/*"]
 }
