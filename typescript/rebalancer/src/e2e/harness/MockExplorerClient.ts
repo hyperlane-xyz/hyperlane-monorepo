@@ -8,7 +8,7 @@ import type {
   UserTransferQueryParams,
 } from '../../utils/ExplorerClient.js';
 
-import type { ForkIndexer } from './ForkIndexer.js';
+import type { IForkIndexer } from './IForkIndexer.js';
 
 export interface MockExplorerConfig {
   userTransfers?: ExplorerMessage[];
@@ -21,7 +21,7 @@ export class MockExplorerClient implements IExplorerClient {
 
   constructor(
     config: MockExplorerConfig = {},
-    private readonly forkIndexer?: ForkIndexer,
+    private readonly forkIndexer?: IForkIndexer,
     private readonly getBlockTags?: () => Promise<ConfirmedBlockTags>,
   ) {
     this.userTransfers = config.userTransfers ?? [];
