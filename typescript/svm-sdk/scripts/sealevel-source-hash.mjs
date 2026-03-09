@@ -25,7 +25,7 @@ const STANDALONE_FILES = [
  * that affect the compiled .so program binaries.
  *
  * Includes: all .rs files, all Cargo.toml files in programs/ and libraries/,
- * plus workspace-level config files (Cargo.lock, rust-toolchain, etc.).
+ * plus workspace-level config files (rust-toolchain, etc.).
  *
  * @returns {string} Hex-encoded SHA-256 digest.
  */
