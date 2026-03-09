@@ -14,8 +14,7 @@ import {
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
 
-import { RadixMailboxReader } from './mailbox-reader.js';
-import { RadixMailboxWriter } from './mailbox-writer.js';
+import { RadixMailboxReader, RadixMailboxWriter } from './mailbox.js';
 
 export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
   constructor(
@@ -32,10 +31,7 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
   createReader<T extends MailboxType>(
     _type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return new RadixMailboxReader(this.gateway) as ArtifactReader<
-      RawMailboxArtifactConfigs[T],
-      DeployedMailboxAddress
-    >;
+    return new RadixMailboxReader(this.gateway);
   }
 
   createWriter<T extends MailboxType>(
@@ -49,6 +45,6 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
       baseSigner,
       this.base,
       this.domainId,
-    ) as ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress>;
+    );
   }
 }
