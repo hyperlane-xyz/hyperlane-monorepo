@@ -83,7 +83,7 @@ function createInitializeMetadataPointerInstruction(
   data.set(addressEncoder.encode(metadataAddress), 34);
   return buildInstruction(
     TOKEN_2022_PROGRAM_ADDRESS,
-    [readonlyAccount(mint)],
+    [writableAccount(mint)],
     data,
   );
 }

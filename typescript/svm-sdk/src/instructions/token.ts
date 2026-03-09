@@ -50,6 +50,7 @@ import {
   readonlySignerAddress,
   writableAccount,
   writableSigner,
+  writableSignerAddress,
 } from './utils.js';
 
 export enum TokenProgramInstructionKind {
@@ -329,7 +330,7 @@ export async function getTokenEnrollRemoteRoutersInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(tokenPda),
-      readonlySignerAddress(owner),
+      writableSignerAddress(owner),
     ],
     encodeTokenProgramInstruction({
       kind: 'enrollRemoteRouters',
@@ -349,7 +350,7 @@ export async function getTokenSetDestinationGasConfigsInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(tokenPda),
-      readonlySignerAddress(owner),
+      writableSignerAddress(owner),
     ],
     encodeTokenProgramInstruction({
       kind: 'setDestinationGasConfigs',

@@ -13,15 +13,10 @@ import * as path from 'path';
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 import type { SvmSigner } from '../clients/signer.js';
 import {
-  RENT_SYSVAR_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '../constants.js';
-import {
-  buildInstruction,
-  readonlyAccount,
-  writableAccount,
-} from '../instructions/utils.js';
+import { buildInstruction, writableAccount } from '../instructions/utils.js';
 import type { SvmRpc } from '../types.js';
 
 import type { PreloadedProgram } from './solana-container.js';
@@ -176,7 +171,7 @@ export async function createSplMint(
   initMintData[34] = 0; // freeze authority: None
   const initMintIx = buildInstruction(
     SPL_TOKEN_PROGRAM_ADDRESS,
-    [writableAccount(mintSigner.address), readonlyAccount(RENT_SYSVAR_ADDRESS)],
+    [writableAccount(mintSigner.address)],
     initMintData,
   );
 
