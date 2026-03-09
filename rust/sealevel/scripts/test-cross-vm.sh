@@ -562,6 +562,7 @@ print(base64.b64encode(discriminator + nonce_bytes).decode())
       \"params\":[
         \"$SEALEVEL_MAILBOX\",
         {
+          \"commitment\":\"confirmed\",
           \"encoding\":\"base64\",
           \"filters\":[
             {
@@ -622,20 +623,16 @@ test_evm_to_sealevel() {
     # The recipient on Sealevel - use the deployer pubkey
     local deployer_pubkey
     deployer_pubkey=$(solana-keygen pubkey "$SEALEVEL_DEPLOYER_KEYPAIR")
-    # Pad to 32 bytes (Solana pubkeys are already 32 bytes, just hex-encode)
+    # Convert base58 pubkey to hex using the keypair JSON (last 32 bytes of the 64-byte key)
     local recipient_h256
-    recipient_h256="0x$(solana-keygen pubkey "$SEALEVEL_DEPLOYER_KEYPAIR" | python3 -c "
-import sys, base58
-pubkey = sys.stdin.read().strip()
-decoded = base58.b58decode(pubkey)
-print(decoded.hex())
-" 2>/dev/null || echo "SKIP_NO_BASE58")"
-
-    if [[ "$recipient_h256" == *"SKIP_NO_BASE58"* ]]; then
-        log "  Skipping EVM→Sealevel test (python3 base58 module not available)"
-        log "  Install with: pip3 install base58"
-        return
-    fi
+    recipient_h256="0x$(python3 -c "
+import json
+with open('$SEALEVEL_DEPLOYER_KEYPAIR') as f:
+    key_bytes = json.load(f)
+# Keypair is 64 bytes: first 32 = secret key, last 32 = public key
+pubkey_hex = bytes(key_bytes[32:]).hex()
+print(pubkey_hex)
+")"
 
     # Mint ERC20 tokens to the Anvil account
     log "  Minting ERC20 tokens to sender..."
@@ -685,7 +682,7 @@ print(decoded.hex())
         fail "Could not extract Dispatch event data from EVM logs"
     fi
     local raw_message
-    raw_message=$(cast abi-decode "(bytes)" "$dispatch_data" | tr -d '\n')
+    raw_message=$(cast decode-abi "dispatch(bytes)(bytes)" "$dispatch_data" | tr -d '\n')
     if [ -z "$raw_message" ] || [ "$raw_message" = "0x" ]; then
         fail "Failed to decode raw Hyperlane message from Dispatch event"
     fi
