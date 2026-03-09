@@ -22,10 +22,9 @@ import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
 import {
-  DEFAULT_IGP_CONTEXT,
+  DEFAULT_IGP_SALT,
   SvmIgpHookReader,
   SvmIgpHookWriter,
-  deriveIgpSalt,
 } from './igp-hook.js';
 import {
   SvmMerkleTreeHookReader,
@@ -35,15 +34,11 @@ import {
 export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
-  private readonly salt: Uint8Array;
-
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly mailboxAddress: Address,
-    context: string = DEFAULT_IGP_CONTEXT,
-  ) {
-    this.salt = deriveIgpSalt(context);
-  }
+    private readonly salt: Uint8Array = DEFAULT_IGP_SALT,
+  ) {}
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const addr = parseAddress(address);
