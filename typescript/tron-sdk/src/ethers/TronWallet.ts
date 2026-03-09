@@ -38,6 +38,10 @@ export interface TronTransactionResponse {
   ) => ReturnType<TronJsonRpcProvider['waitForTransaction']>;
 }
 
+export type TronWalletTransactionResponse = TransactionResponse & {
+  tronTransaction: TronTransaction;
+};
+
 const TRON_TX_COUNTER_KEY = '__hyperlane_tron_tx_counter__';
 
 function nextTronTxExtension(): number {
@@ -111,7 +115,7 @@ export class TronWallet extends Wallet {
    * Override connect to preserve TronWallet type.
    * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
    */
-  override connect(_provider: Provider | null): Wallet {
+  override connect(_provider: Provider | null): TronWallet {
     return new TronWallet(this.privateKey, this.tronUrl);
   }
 
@@ -144,7 +148,7 @@ export class TronWallet extends Wallet {
 
   override async sendTransaction(
     transaction: TransactionRequest,
-  ): Promise<TransactionResponse> {
+  ): Promise<TronWalletTransactionResponse> {
     // Populate transaction (estimates gas and gas price if not set)
     const tx = await this.populateTransaction(transaction);
     const provider = this.provider;
@@ -256,7 +260,7 @@ export class TronWallet extends Wallet {
       async () => {
         const response = await provider.getTransaction(txHash);
         assert(response, `Transaction ${txHash} not available yet`);
-        return response;
+        return Object.assign(response, { tronTransaction: tronTx });
       },
       100,
       100,

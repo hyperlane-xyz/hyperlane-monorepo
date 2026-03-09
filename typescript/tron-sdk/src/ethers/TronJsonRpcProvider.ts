@@ -80,7 +80,11 @@ export class TronJsonRpcProvider extends JsonRpcProvider {
     }
 
     const base58Address = this.toBase58Address(address);
-    const balance = await this.tronWeb.trx.getBalance(base58Address);
+    const balance = await retryAsync(
+      () => this.tronWeb.trx.getBalance(base58Address),
+      this.maxRetries,
+      this.baseRetryMs,
+    );
     return BigInt(balance);
   }
 
