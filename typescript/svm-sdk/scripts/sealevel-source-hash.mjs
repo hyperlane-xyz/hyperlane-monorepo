@@ -14,7 +14,6 @@ const SCAN_DIRS = ['programs', 'libraries'];
 
 /** Standalone files that affect compilation output. */
 const STANDALONE_FILES = [
-  'Cargo.lock',
   'Cargo.toml',
   'rust-toolchain',
   '.cargo/config.toml',
