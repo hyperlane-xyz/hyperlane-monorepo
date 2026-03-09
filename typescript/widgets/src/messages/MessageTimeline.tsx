@@ -15,6 +15,14 @@ interface Props {
   timings: StageTimings;
   timestampSent?: number;
   hideDescriptions?: boolean;
+  /** 'above' (default): icons float above the bar. 'inline': icons render inside the bar. */
+  iconPosition?: 'above' | 'inline';
+  /** Additional CSS class applied to each bar segment (useful for overriding the bar color). */
+  barClassName?: string;
+  /** Override the color of the chevron arrows between stages. */
+  chevronColor?: string;
+  /** Override the color of the stage icons. Defaults to white. */
+  iconColor?: string;
 }
 
 export function MessageTimeline({
@@ -23,9 +31,14 @@ export function MessageTimeline({
   timings,
   timestampSent,
   hideDescriptions,
+  iconPosition = 'above',
+  barClassName,
+  chevronColor,
+  iconColor = ColorPalette.White,
 }: Props) {
   // Ignore stage value if status shows as delivered
   const stage = status === MessageStatus.Delivered ? Stage.Relayed : _stage;
+  const isInline = iconPosition === 'inline';
 
   const timeSent = timestampSent ? new Date(timestampSent) : null;
   const timeSentStr = timeSent
@@ -33,21 +46,27 @@ export function MessageTimeline({
     : null;
 
   return (
-    <div className="htw-pt-14 htw-pb-1 htw-flex htw-w-full">
+    <div className={isInline ? 'htw-pb-1 htw-flex htw-w-full' : 'htw-pt-14 htw-pb-1 htw-flex htw-w-full'}>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} htw-rounded-l ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName || ''} htw-rounded-l ${getStageOpacityClass(
             Stage.Sent,
             stage,
             status,
           )}`}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={AirplaneIcon} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronBlue />
+          {isInline ? (
+            <InlineIcon Icon={AirplaneIcon} color={iconColor} />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={AirplaneIcon} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Sent, stage, timings, status)}
@@ -63,19 +82,25 @@ export function MessageTimeline({
       <div className={styles.stageSpacer}></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName || ''} ${getStageOpacityClass(
             Stage.Finalized,
             stage,
             status,
           )}`}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={LockIcon} size={14} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronWhite />
-          <ChevronBlue />
+          {isInline ? (
+            <InlineIcon Icon={LockIcon} size={14} color={iconColor} />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={LockIcon} size={14} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="left" color="#ffffff" />
+          <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Finalized, stage, timings, status)}
@@ -89,19 +114,25 @@ export function MessageTimeline({
       <div className={styles.stageSpacer}></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName || ''} ${getStageOpacityClass(
             Stage.Validated,
             stage,
             status,
           )}`}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={ShieldIcon} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronWhite />
-          <ChevronBlue />
+          {isInline ? (
+            <InlineIcon Icon={ShieldIcon} color={iconColor} />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={ShieldIcon} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="left" color="#ffffff" />
+          <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Validated, stage, timings, status)}
@@ -115,18 +146,24 @@ export function MessageTimeline({
       <div className={styles.stageSpacer}></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} htw-rounded-r ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName || ''} htw-rounded-r ${getStageOpacityClass(
             Stage.Relayed,
             stage,
             status,
           )}`}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={EnvelopeIcon} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronWhite />
+          {isInline ? (
+            <InlineIcon Icon={EnvelopeIcon} color={iconColor} />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={EnvelopeIcon} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="left" color="#ffffff" />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Relayed, stage, timings, status)}
@@ -154,23 +191,23 @@ function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
   );
 }
 
-function ChevronWhite() {
+function InlineIcon({ Icon, size, color = ColorPalette.White }: { Icon: any; size?: number; color?: string }) {
   return (
-    <div className="htw-absolute htw--left-3 htw-top-0 htw-h-6">
-      <WideChevronIcon
-        direction="e"
-        height="100%"
-        width="auto"
-        color="#ffffff"
+    <div className="htw-flex htw-items-center htw-justify-center htw-z-10">
+      <Icon
+        width={size ?? 14}
+        height={size ?? 14}
+        color={color}
       />
     </div>
   );
 }
 
-function ChevronBlue() {
+function Chevron({ side, color = ColorPalette.Blue }: { side: 'left' | 'right'; color?: string }) {
+  const posClass = side === 'left' ? 'htw--left-3' : 'htw--right-3';
   return (
-    <div className="htw-absolute htw--right-3 htw-top-0 htw-h-6">
-      <WideChevronIcon direction="e" height="100%" width="auto" />
+    <div className={`htw-absolute ${posClass} htw-top-0 htw-h-6`}>
+      <WideChevronIcon direction="e" height="100%" width="auto" color={color} />
     </div>
   );
 }
