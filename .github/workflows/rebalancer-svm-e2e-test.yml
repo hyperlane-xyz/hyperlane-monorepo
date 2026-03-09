@@ -104,6 +104,12 @@ jobs:
         env:
           RUST_BACKTRACE: '1'
 
+      # ── Download SPL programs (.so files needed by solana-test-validator) ──
+      - name: Download SPL programs
+        run: |
+          mkdir -p rust/main/target/dist
+          curl -sL https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz | tar -xz -C rust/main/target/dist
+
       # ── Build hyperlane-sealevel-client ──
       - name: Build Sealevel client
         run: cargo build --package hyperlane-sealevel-client
