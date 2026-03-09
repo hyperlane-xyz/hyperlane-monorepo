@@ -22,7 +22,7 @@ export function createLiFiSdkMocks() {
       return {
         ...q,
         fromChainId: q.action?.fromChainId ?? 42161,
-        toChainId: q.action?.toChainId ?? 1399811149,
+        toChainId: q.action?.toChainId ?? 1151111081099710,
         steps: [],
       };
     }),
@@ -46,7 +46,7 @@ export function mockSuccessfulQuote(
   }>,
 ) {
   const fromChainId = overrides?.fromChainId ?? 42161;
-  const toChainId = overrides?.toChainId ?? 1399811149;
+  const toChainId = overrides?.toChainId ?? 1151111081099710;
   const fromAmount = overrides?.fromAmount ?? '10000000000';
   const toAmount = overrides?.toAmount ?? '9950000000';
   const toAmountMin = overrides?.toAmountMin ?? '9900000000';

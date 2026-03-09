@@ -49,6 +49,17 @@ const VIEM_CHAINS: Record<number, Chain> = {
 };
 
 /**
+ * Mapping from Hyperlane domain IDs to LiFi chain IDs for non-EVM chains.
+ * EVM chains use their native chain ID which is the same in both systems.
+ * Non-EVM chains (e.g., Solana) have different identifiers in each system.
+ *
+ * @see https://docs.li.fi/introduction/lifi-architecture/solana-overview
+ */
+const HYPERLANE_TO_LIFI_CHAIN_IDS: Record<number, number> = {
+  1399811149: 1151111081099710, // Solana: Hyperlane domain → LiFi chain ID
+};
+
+/**
  * Get viem chain config by chain ID.
  * Falls back to a minimal chain config if not found.
  */
@@ -105,6 +116,15 @@ export class LiFiBridge implements IExternalBridge {
     '0x0000000000000000000000000000000000000000';
 
   readonly externalBridgeId = 'lifi';
+
+  /**
+   * Convert a Hyperlane domain ID to a LiFi-compatible chain ID.
+   * For EVM chains, these are identical (e.g., Arbitrum = 42161 in both).
+   * For non-EVM chains like Solana, LiFi uses different chain identifiers.
+   */
+  static toLiFiChainId(chainId: number): number {
+    return HYPERLANE_TO_LIFI_CHAIN_IDS[chainId] ?? chainId;
+  }
   readonly logger: Logger;
   private initialized = false;
   private _executeLock: Promise<void> = Promise.resolve();
@@ -278,9 +298,12 @@ export class LiFiBridge implements IExternalBridge {
   ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
+    const lifiFromChain = LiFiBridge.toLiFiChainId(params.fromChain);
+    const lifiToChain = LiFiBridge.toLiFiChainId(params.toChain);
+
     const quote = await getQuote({
-      fromChain: params.fromChain,
-      toChain: params.toChain,
+      fromChain: lifiFromChain,
+      toChain: lifiToChain,
       fromToken: params.fromToken,
       toToken: params.toToken,
       fromAmount: params.fromAmount!.toString(),
@@ -317,7 +340,11 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
-      requestParams: { ...params },
+      requestParams: {
+        ...params,
+        fromChain: lifiFromChain,
+        toChain: lifiToChain,
+      },
     };
   }
 
@@ -330,9 +357,12 @@ export class LiFiBridge implements IExternalBridge {
   ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
 
+    const lifiFromChain = LiFiBridge.toLiFiChainId(params.fromChain);
+    const lifiToChain = LiFiBridge.toLiFiChainId(params.toChain);
+
     const queryParams = new URLSearchParams({
-      fromChain: params.fromChain.toString(),
-      toChain: params.toChain.toString(),
+      fromChain: lifiFromChain.toString(),
+      toChain: lifiToChain.toString(),
       fromToken: params.fromToken,
       toToken: params.toToken,
       toAmount: params.toAmount!.toString(),
@@ -390,7 +420,11 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
-      requestParams: { ...params },
+      requestParams: {
+        ...params,
+        fromChain: lifiFromChain,
+        toChain: lifiToChain,
+      },
     };
   }
 

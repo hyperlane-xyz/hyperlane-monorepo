@@ -40,7 +40,7 @@ function createLiFiStep(overrides?: {
   fromAddress?: string;
 }): LiFiStep {
   const fromChainId = overrides?.fromChainId ?? 42161;
-  const toChainId = overrides?.toChainId ?? 1399811149;
+  const toChainId = overrides?.toChainId ?? 1151111081099710;
   const fromTokenAddress = overrides?.fromTokenAddress ?? TOKEN_ADDR;
   const toTokenAddress = overrides?.toTokenAddress ?? TOKEN_ADDR;
   const fromAmount = overrides?.fromAmount ?? '10000000000';
@@ -119,7 +119,7 @@ function createTestQuote(
 
   const defaultParams: BridgeQuoteParams = {
     fromChain: 42161,
-    toChain: 1399811149,
+    toChain: 1151111081099710,
     fromToken: TOKEN_ADDR,
     toToken: TOKEN_ADDR,
     fromAddress: SENDER_ADDR,
@@ -206,7 +206,10 @@ describe('LiFiBridge.execute() route validation', function () {
   });
 
   it('should throw when route toChainId does not match requested', async () => {
-    const quote = createTestQuote({ toChainId: 888 }, { toChain: 1399811149 });
+    const quote = createTestQuote(
+      { toChainId: 888 },
+      { toChain: 1151111081099710 },
+    );
 
     try {
       await bridge.execute(quote, {
@@ -216,7 +219,7 @@ describe('LiFiBridge.execute() route validation', function () {
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(msg).to.include('888');
-      expect(msg).to.include('1399811149');
+      expect(msg).to.include('1151111081099710');
       expect(msg).to.include('toChainId');
     }
   });
@@ -477,7 +480,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -495,7 +498,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -511,7 +514,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -528,7 +531,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
