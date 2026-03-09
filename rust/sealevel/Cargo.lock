@@ -3413,6 +3413,7 @@ name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
  "account-utils",
+ "base64 0.21.7",
  "bincode",
  "borsh 1.6.0",
  "bs58 0.5.1",
@@ -3423,7 +3424,9 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-collateral",
@@ -3436,6 +3439,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "serializable-account-meta",
  "solana-address-lookup-table-interface 3.0.1",
  "solana-clap-utils",
  "solana-cli-config",

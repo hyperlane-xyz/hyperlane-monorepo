@@ -9,6 +9,7 @@ edition = "2021"
 borsh.workspace = true
 bs58.workspace = true
 bincode.workspace = true
+base64.workspace = true
 clap = { workspace = true, features = ["derive"] }
 ethers.workspace = true
 hex.workspace = true
@@ -59,4 +60,7 @@ hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token
 hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../libraries/interchain-security-module-interface" }
+hyperlane-sealevel-message-recipient-interface = { path = "../libraries/message-recipient-interface" }
 hyperlane-sealevel-hello-world = { path = "../programs/helloworld" }
+serializable-account-meta = { path = "../libraries/serializable-account-meta" }

@@ -54,6 +54,7 @@ trap 'cleanup' EXIT
 
 # Track background processes
 PIDS=()
+BUILD_SBF_MODE=""
 
 # ========================================
 # Utility functions
@@ -70,10 +71,69 @@ fail() {
 
 cleanup() {
     log "Cleaning up..."
-    for pid in "${PIDS[@]}"; do
-        kill "$pid" 2>/dev/null || true
-    done
+    if [[ -n "${PIDS+set}" && "${#PIDS[@]}" -gt 0 ]]; then
+        for pid in "${PIDS[@]}"; do
+            kill "$pid" 2>/dev/null || true
+        done
+    fi
     rm -rf "$WORK_DIR" "$LEDGER_DIR"
+}
+
+bootstrap_path() {
+    local candidate_paths=(
+        "$HOME/.local/share/solana/install/active_release/bin"
+        "/opt/homebrew/bin"
+        "/usr/local/bin"
+    )
+    local p
+    for p in "${candidate_paths[@]}"; do
+        if [ -d "$p" ] && [[ ":$PATH:" != *":$p:"* ]]; then
+            PATH="$p:$PATH"
+        fi
+    done
+    export PATH
+}
+
+require_cmd() {
+    local cmd="$1"
+    command -v "$cmd" >/dev/null 2>&1 || fail "Missing required command: $cmd (PATH=$PATH)"
+}
+
+detect_build_sbf() {
+    if command -v cargo-build-sbf >/dev/null 2>&1; then
+        BUILD_SBF_MODE="cargo-build-sbf"
+        return
+    fi
+    if cargo --list 2>/dev/null | awk '{print $1}' | grep -qx "build-sbf"; then
+        BUILD_SBF_MODE="cargo-build-sbf-subcommand"
+        return
+    fi
+    fail "Missing cargo build-sbf tooling. Install Solana/Agave CLI so cargo-build-sbf is available."
+}
+
+build_sbf_program() {
+    local program_dir="$1"
+    if [ "$BUILD_SBF_MODE" = "cargo-build-sbf" ]; then
+        (cd "$program_dir" && cargo-build-sbf)
+    else
+        (cd "$program_dir" && cargo build-sbf)
+    fi
+}
+
+check_prerequisites() {
+    bootstrap_path
+    require_cmd cargo
+    require_cmd jq
+    require_cmd curl
+    require_cmd python3
+    require_cmd solana
+    require_cmd solana-keygen
+    require_cmd solana-test-validator
+    require_cmd spl-token
+    require_cmd anvil
+    require_cmd forge
+    require_cmd cast
+    detect_build_sbf
 }
 
 sealevel_client() {
@@ -101,6 +161,25 @@ wait_for_rpc() {
         attempt=$((attempt + 1))
     done
     fail "$name did not start within ${max_attempts}s"
+}
+
+rpc_post() {
+    local url="$1"
+    local payload="$2"
+    curl -sf "$url" -X POST -H "Content-Type: application/json" -d "$payload"
+}
+
+get_spl_balance_raw() {
+    local owner="$1"
+    local mint="$2"
+    local resp
+    resp=$(rpc_post "$SEALEVEL_RPC" "{
+      \"jsonrpc\":\"2.0\",
+      \"id\":1,
+      \"method\":\"getTokenAccountsByOwner\",
+      \"params\":[\"$owner\", {\"mint\":\"$mint\"}, {\"encoding\":\"jsonParsed\"}]
+    }")
+    echo "$resp" | jq -r '.result.value[0].account.data.parsed.info.tokenAmount.amount // "0"'
 }
 
 # ========================================
@@ -132,7 +211,7 @@ build_sealevel_programs() {
 
     for prog in "${programs[@]}"; do
         log "  Building $prog..."
-        (cd "$SEALEVEL_DIR/programs/$prog" && cargo build-sbf) 2>&1 | tail -3
+        build_sbf_program "$SEALEVEL_DIR/programs/$prog" 2>&1 | tail -3
     done
     log "All sealevel programs built"
 }
@@ -146,7 +225,10 @@ start_solana_validator() {
 
     # Create a temp solana config
     SOLANA_CONFIG="$WORK_DIR/solana-config.yml"
-    solana config set --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" 2>&1 | tail -1
+    solana config set \
+        --url "$SEALEVEL_RPC" \
+        --keypair "$SEALEVEL_DEPLOYER_KEYPAIR" \
+        --config "$SOLANA_CONFIG" 2>&1 | tail -1
 
     # Load SPL token programs (pre-built)
     local spl_args=()
@@ -169,7 +251,7 @@ start_solana_validator() {
         --quiet --reset \
         --ledger "$LEDGER_DIR" \
         --account "$deployer_pubkey" "$deployer_account" \
-        "${spl_args[@]}" &
+        "${spl_args[@]+"${spl_args[@]}"}" &
     PIDS+=($!)
 
     wait_for_rpc "$SEALEVEL_RPC" "Solana"
@@ -210,19 +292,20 @@ create_spl_token_mint() {
     log "Creating SPL token mint (decimals=6)..."
     # Create a new SPL token
     local output
-    output=$(spl-token create-token --decimals 6 --url "$SEALEVEL_RPC" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1)
-    SPL_MINT=$(echo "$output" | grep "Creating token" | awk '{print $3}')
+    if ! output=$(spl-token create-token --decimals 6 --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1); then
+        fail "spl-token create-token failed: $output"
+    fi
+    SPL_MINT=$(echo "$output" | grep -oE '[A-HJ-NP-Za-km-z1-9]{32,44}' | head -1 || true)
     if [ -z "$SPL_MINT" ]; then
-        # Try alternate parsing
-        SPL_MINT=$(echo "$output" | grep -oP '[A-HJ-NP-Za-km-z1-9]{32,44}' | head -1)
+        fail "Failed to parse SPL mint address from spl-token output: $output"
     fi
     log "  SPL Mint: $SPL_MINT"
 
     # Create an associated token account for the deployer
-    spl-token create-account "$SPL_MINT" --url "$SEALEVEL_RPC" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1 | tail -1
+    spl-token create-account "$SPL_MINT" --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1 | tail -1 || fail "spl-token create-account failed"
 
     # Mint tokens to the deployer
-    spl-token mint "$SPL_MINT" 1000000000 --url "$SEALEVEL_RPC" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1 | tail -1
+    spl-token mint "$SPL_MINT" 1000000000 --url "$SEALEVEL_RPC" --config "$SOLANA_CONFIG" --fee-payer "$SEALEVEL_DEPLOYER_KEYPAIR" 2>&1 | tail -1 || fail "spl-token mint failed"
     log "  Minted 1,000,000,000 tokens (= 1000 with 6 decimals)"
 }
 
@@ -272,29 +355,47 @@ deploy_evm_contracts() {
     # 1. Deploy Mailbox
     log "  Deploying Mailbox (domain=$EVM_DOMAIN)..."
     local mailbox_output
-    mailbox_output=$(forge create contracts/Mailbox.sol:Mailbox \
+    if ! mailbox_output=$(forge create contracts/Mailbox.sol:Mailbox \
+        --broadcast \
         --rpc-url "$EVM_RPC" \
         --private-key "$ANVIL_PRIVATE_KEY" \
-        --constructor-args "$EVM_DOMAIN" 2>&1)
-    EVM_MAILBOX=$(echo "$mailbox_output" | grep "Deployed to:" | awk '{print $3}')
+        --constructor-args "$EVM_DOMAIN" 2>&1); then
+        fail "forge create Mailbox failed: $mailbox_output"
+    fi
+    EVM_MAILBOX=$(echo "$mailbox_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
+    if [ -z "$EVM_MAILBOX" ]; then
+        fail "Could not parse Mailbox address from forge output: $mailbox_output"
+    fi
     log "    Mailbox: $EVM_MAILBOX"
 
     # 2. Deploy TestIsm (always returns true)
     log "  Deploying TestIsm..."
     local ism_output
-    ism_output=$(forge create contracts/test/TestIsm.sol:TestIsm \
+    if ! ism_output=$(forge create contracts/test/TestIsm.sol:TestIsm \
+        --broadcast \
         --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" 2>&1)
-    EVM_ISM=$(echo "$ism_output" | grep "Deployed to:" | awk '{print $3}')
+        --private-key "$ANVIL_PRIVATE_KEY" 2>&1); then
+        fail "forge create TestIsm failed: $ism_output"
+    fi
+    EVM_ISM=$(echo "$ism_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
+    if [ -z "$EVM_ISM" ]; then
+        fail "Could not parse TestIsm address from forge output: $ism_output"
+    fi
     log "    TestIsm: $EVM_ISM"
 
     # 3. Deploy a test hook (NoopHook - does nothing)
     log "  Deploying TestPostDispatchHook..."
     local hook_output
-    hook_output=$(forge create contracts/test/TestPostDispatchHook.sol:TestPostDispatchHook \
+    if ! hook_output=$(forge create contracts/test/TestPostDispatchHook.sol:TestPostDispatchHook \
+        --broadcast \
         --rpc-url "$EVM_RPC" \
-        --private-key "$ANVIL_PRIVATE_KEY" 2>&1)
-    EVM_HOOK=$(echo "$hook_output" | grep "Deployed to:" | awk '{print $3}')
+        --private-key "$ANVIL_PRIVATE_KEY" 2>&1); then
+        fail "forge create TestPostDispatchHook failed: $hook_output"
+    fi
+    EVM_HOOK=$(echo "$hook_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
+    if [ -z "$EVM_HOOK" ]; then
+        fail "Could not parse TestPostDispatchHook address from forge output: $hook_output"
+    fi
     log "    Hook: $EVM_HOOK"
 
     # 4. Initialize Mailbox
@@ -308,11 +409,17 @@ deploy_evm_contracts() {
     # 5. Deploy ERC20Test
     log "  Deploying ERC20Test..."
     local erc20_output
-    erc20_output=$(forge create contracts/test/ERC20Test.sol:ERC20Test \
+    if ! erc20_output=$(forge create contracts/test/ERC20Test.sol:ERC20Test \
+        --broadcast \
         --rpc-url "$EVM_RPC" \
         --private-key "$ANVIL_PRIVATE_KEY" \
-        --constructor-args "TestToken" "TST" "0" "18" 2>&1)
-    EVM_ERC20=$(echo "$erc20_output" | grep "Deployed to:" | awk '{print $3}')
+        --constructor-args "TestToken" "TST" "0" "18" 2>&1); then
+        fail "forge create ERC20Test failed: $erc20_output"
+    fi
+    EVM_ERC20=$(echo "$erc20_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
+    if [ -z "$EVM_ERC20" ]; then
+        fail "Could not parse ERC20Test address from forge output: $erc20_output"
+    fi
     log "    ERC20: $EVM_ERC20"
 
     # 6. Deploy HypERC20Collateral
@@ -320,11 +427,17 @@ deploy_evm_contracts() {
     local collateral_output
     # Constructor: (address erc20, uint256 scaleNumerator, uint256 scaleDenominator, address mailbox)
     # Scale 1:1 for now (numerator=1, denominator=1)
-    collateral_output=$(forge create contracts/token/HypERC20Collateral.sol:HypERC20Collateral \
+    if ! collateral_output=$(forge create contracts/token/HypERC20Collateral.sol:HypERC20Collateral \
+        --broadcast \
         --rpc-url "$EVM_RPC" \
         --private-key "$ANVIL_PRIVATE_KEY" \
-        --constructor-args "$EVM_ERC20" 1 1 "$EVM_MAILBOX" 2>&1)
-    EVM_COLLATERAL=$(echo "$collateral_output" | grep "Deployed to:" | awk '{print $3}')
+        --constructor-args "$EVM_ERC20" 1 1 "$EVM_MAILBOX" 2>&1); then
+        fail "forge create HypERC20Collateral failed: $collateral_output"
+    fi
+    EVM_COLLATERAL=$(echo "$collateral_output" | awk '/Deployed to:/{print $3}' | head -1 || true)
+    if [ -z "$EVM_COLLATERAL" ]; then
+        fail "Could not parse HypERC20Collateral address from forge output: $collateral_output"
+    fi
     log "    HypERC20Collateral: $EVM_COLLATERAL"
 
     # 7. Initialize HypERC20Collateral
@@ -413,51 +526,90 @@ test_sealevel_to_evm() {
     log "  Initiating transfer-remote on Sealevel (amount=$transfer_amount)..."
 
     local transfer_output
-    transfer_output=$(sealevel_client \
+    if ! transfer_output=$(sealevel_client \
         token transfer-remote \
         --program-id "$SEALEVEL_MC_PROGRAM" \
         "$SEALEVEL_DEPLOYER_KEYPAIR" \
         "$transfer_amount" \
         "$EVM_DOMAIN" \
         "$recipient_h256" \
-        "multi-collateral" 2>&1)
+        "multi-collateral" 2>&1); then
+        fail "Sealevel transfer-remote failed: $transfer_output"
+    fi
 
     echo "$transfer_output" | tail -10
     log "  Transfer dispatched on Sealevel"
 
-    # Extract message ID from logs
-    local message_id
-    message_id=$(echo "$transfer_output" | grep -oP 'ID 0x[0-9a-fA-F]+' | head -1 | awk '{print $2}')
-    if [ -n "$message_id" ]; then
-        log "  Message ID: $message_id"
-    else
-        log "  WARNING: Could not extract message ID from logs"
+    # Fetch the dispatched message using the relayer's approach:
+    # Query getProgramAccounts with memcmp filter on discriminator + nonce at offset 1.
+    # Account layout: initialized(1) + discriminator(8) + nonce(4) + slot(8) + unique_pubkey(32) + message(var)
+    # Raw Hyperlane message bytes start at offset 53.
+    local nonce=0  # First message after fresh deploy
+    local filter_b64
+    filter_b64=$(python3 -c "
+import base64, struct
+discriminator = b'DISPATCH'
+nonce_bytes = struct.pack('<I', $nonce)
+print(base64.b64encode(discriminator + nonce_bytes).decode())
+")
+
+    log "  Fetching dispatched message (nonce=$nonce) from mailbox $SEALEVEL_MAILBOX..."
+    local accounts_json
+    accounts_json=$(rpc_post "$SEALEVEL_RPC" "{
+      \"jsonrpc\":\"2.0\",
+      \"id\":1,
+      \"method\":\"getProgramAccounts\",
+      \"params\":[
+        \"$SEALEVEL_MAILBOX\",
+        {
+          \"encoding\":\"base64\",
+          \"filters\":[
+            {
+              \"memcmp\":{
+                \"offset\":1,
+                \"bytes\":\"$filter_b64\",
+                \"encoding\":\"base64\"
+              }
+            }
+          ]
+        }
+      ]
+    }")
+
+    local msg_hex
+    msg_hex=$(echo "$accounts_json" | python3 -c "
+import base64, binascii, json, sys
+obj = json.load(sys.stdin)
+accounts = obj.get('result', [])
+if not accounts:
+    sys.exit('No dispatched message account found for nonce $nonce')
+raw = base64.b64decode(accounts[0]['account']['data'][0])
+# Skip: initialized(1) + discriminator(8) + nonce(4) + slot(8) + unique_pubkey(32) = 53
+if len(raw) <= 53:
+    sys.exit('Account data too short')
+print(binascii.hexlify(raw[53:]).decode(), end='')
+")
+
+    if [ -z "$msg_hex" ]; then
+        fail "Failed to extract dispatched message bytes for nonce $nonce"
     fi
+    log "  Extracted message (${#msg_hex} hex chars)"
 
-    # To relay the message to EVM, we need the raw Hyperlane message bytes.
-    # The message is stored in a Sealevel PDA (dispatched message account).
-    # For now, we verify the dispatch was successful. Full relay requires
-    # reading the PDA data and constructing the mailbox.process() call.
-    log "  Sealevel→EVM dispatch verified (transfer-remote succeeded)"
-    log "  NOTE: Full relay to EVM requires extracting message from Sealevel PDA"
-    log "        and calling mailbox.process() - see TODO below"
+    log "  Relaying Sealevel message to EVM mailbox.process..."
+    cast send "$EVM_MAILBOX" \
+        "process(bytes,bytes)" \
+        "0x" \
+        "0x$msg_hex" \
+        --rpc-url "$EVM_RPC" \
+        --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
-    # TODO: Extract message bytes from Sealevel dispatched message PDA
-    # The dispatched message PDA contains:
-    #   8 bytes discriminator ("DISPATCH")
-    #   4 bytes nonce (u32 LE)
-    #   8 bytes slot (u64 LE)
-    #   32 bytes unique_message_pubkey
-    #   4 bytes message_len (u32 LE)
-    #   N bytes encoded_message
-    #
-    # To relay:
-    # 1. Find the dispatched message PDA from transaction logs
-    # 2. solana account <pda> --output json | jq '.data[0]' | base64 -d
-    # 3. Skip 52 bytes header, read message length, extract message bytes
-    # 4. cast send $EVM_MAILBOX "process(bytes,bytes)" "0x" "0x<message_hex>" \
-    #      --rpc-url $EVM_RPC --private-key $ANVIL_PRIVATE_KEY
-    # 5. Verify recipient ERC20 balance increased
+    local final_balance
+    final_balance=$(cast call "$EVM_ERC20" "balanceOf(address)(uint256)" "$ANVIL_ADDRESS" --rpc-url "$EVM_RPC")
+    log "  Final recipient ERC20 balance: $final_balance"
+    if [ "$final_balance" = "$initial_balance" ]; then
+        fail "Sealevel→EVM relay did not change recipient ERC20 balance"
+    fi
+    log "  Sealevel→EVM relay PASSED"
 }
 
 # ========================================
@@ -503,6 +655,10 @@ print(decoded.hex())
         --rpc-url "$EVM_RPC" \
         --private-key "$ANVIL_PRIVATE_KEY" >/dev/null
 
+    local initial_sol_balance
+    initial_sol_balance=$(get_spl_balance_raw "$deployer_pubkey" "$SPL_MINT")
+    log "  Initial Sealevel recipient token balance: $initial_sol_balance"
+
     # Transfer remote to Sealevel
     local transfer_amount="1000000000000000000"  # 1.0 tokens with 18 decimals
     log "  Initiating transferRemote on EVM (amount=$transfer_amount to domain=$SEALEVEL_DOMAIN)..."
@@ -519,35 +675,53 @@ print(decoded.hex())
 
     log "  EVM transferRemote tx: $tx_hash"
 
-    # Extract dispatched message from logs
-    local dispatch_log
-    dispatch_log=$(cast receipt "$tx_hash" --rpc-url "$EVM_RPC" --json 2>&1 | \
-        jq -r '.logs[] | select(.topics[0] == "0x769f711d20c679153d382254f59892613b58a97cc876b249134ac25c80f9c814") | .data' 2>/dev/null || echo "")
+    local receipt_json
+    receipt_json=$(cast receipt "$tx_hash" --rpc-url "$EVM_RPC" --json 2>/dev/null)
 
-    if [ -n "$dispatch_log" ] && [ "$dispatch_log" != "" ]; then
-        log "  Dispatch event captured from EVM"
-        log "  Message data (first 64 chars): ${dispatch_log:0:64}..."
-    else
-        log "  WARNING: Could not extract Dispatch event from EVM logs"
+    # Dispatch event data contains ABI-encoded "bytes message"
+    local dispatch_data
+    dispatch_data=$(echo "$receipt_json" | jq -r '.logs[] | select(.topics[0] == "0x769f711d20c679153d382254f59892613b58a97cc876b249134ac25c80f9c814") | .data' | head -1)
+    if [ -z "$dispatch_data" ] || [ "$dispatch_data" = "null" ]; then
+        fail "Could not extract Dispatch event data from EVM logs"
+    fi
+    local raw_message
+    raw_message=$(cast abi-decode "(bytes)" "$dispatch_data" | tr -d '\n')
+    if [ -z "$raw_message" ] || [ "$raw_message" = "0x" ]; then
+        fail "Failed to decode raw Hyperlane message from Dispatch event"
     fi
 
-    log "  EVM→Sealevel dispatch verified (transferRemote succeeded)"
-    log "  NOTE: Full relay to Sealevel requires a mailbox process CLI command"
-    log "        or a custom Rust helper binary to construct the process instruction"
+    local message_id
+    message_id=$(echo "$receipt_json" | jq -r '.logs[] | select(.topics[0] == "0x788dbc1b7152732178210e7f4d9d010ef016f9eafbe66786bd7169f56e0c353a") | .topics[1]' | head -1)
+    if [ -z "$message_id" ] || [ "$message_id" = "null" ]; then
+        fail "Could not extract DispatchId message ID from EVM logs"
+    fi
+    log "  Message ID: $message_id"
 
-    # TODO: Relay to Sealevel
-    # The Sealevel mailbox process instruction requires:
-    #   1. Parse message bytes from Dispatch event data
-    #   2. Construct InboxProcess instruction with accounts:
-    #      - payer (signer)
-    #      - mailbox inbox PDA
-    #      - recipient program (MC warp route)
-    #      - process authority PDA
-    #      - processed message PDA
-    #      - ISM program + accounts
-    #      - SPL noop program
-    #      - Additional recipient accounts (token PDAs, escrow, etc.)
-    #   3. Submit via sealevel-client or custom binary
+    log "  Relaying EVM message to Sealevel mailbox process..."
+    sealevel_client \
+        mailbox process \
+        --program-id "$SEALEVEL_MAILBOX" \
+        --message "$raw_message" \
+        --metadata "0x" 2>&1 | tail -10
+
+    log "  Verifying Sealevel mailbox delivered(message_id)..."
+    local delivered_output
+    delivered_output=$(sealevel_client \
+        mailbox delivered \
+        --program-id "$SEALEVEL_MAILBOX" \
+        --message-id "$message_id" 2>&1)
+    echo "$delivered_output" | tail -3
+    if ! echo "$delivered_output" | rg -q "Message delivered"; then
+        fail "EVM→Sealevel message was not marked delivered"
+    fi
+
+    local final_sol_balance
+    final_sol_balance=$(get_spl_balance_raw "$deployer_pubkey" "$SPL_MINT")
+    log "  Final Sealevel recipient token balance: $final_sol_balance"
+    if [ "$final_sol_balance" = "$initial_sol_balance" ]; then
+        fail "EVM→Sealevel relay did not change recipient token balance"
+    fi
+    log "  EVM→Sealevel relay PASSED"
 }
 
 # ========================================
@@ -557,6 +731,7 @@ print(decoded.hex())
 main() {
     log "Starting Cross-VM test: Sealevel MultiCollateral ↔ EVM Collateral"
     log "Working directory: $WORK_DIR"
+    check_prerequisites
 
     # Build
     build_sealevel_programs
@@ -588,10 +763,9 @@ main() {
     log "Summary:"
     log "  Sealevel MC Program: $SEALEVEL_MC_PROGRAM"
     log "  EVM HypERC20Collateral: $EVM_COLLATERAL"
-    log "  Sealevel→EVM: Dispatch PASSED"
-    log "  EVM→Sealevel: Dispatch PASSED"
+    log "  Sealevel→EVM: Relay PASSED"
+    log "  EVM→Sealevel: Relay PASSED"
     log ""
-    log "For full relay testing, see TODO comments in script."
 }
 
 main "$@"

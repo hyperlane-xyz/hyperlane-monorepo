@@ -5,6 +5,7 @@
 
 use std::{path::PathBuf, str::FromStr};
 
+use base64::{prelude::BASE64_STANDARD, Engine};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
@@ -20,7 +21,7 @@ use solana_sdk::{
 use solana_system_interface::program as system_program;
 
 use account_utils::DiscriminatorEncode;
-use hyperlane_core::{H160, H256};
+use hyperlane_core::{Decode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
@@ -28,13 +29,20 @@ use hyperlane_sealevel_igp::{
     accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
-    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
+    instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_processed_message_pda_seeds,
+    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
     protocol_fee::ProtocolFee,
+};
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction, HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+    INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
 };
 
 use hyperlane_sealevel_token::{
@@ -62,6 +70,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
@@ -244,6 +253,8 @@ enum MailboxSubCmd {
     Delivered(Delivered),
     TransferOwnership(TransferOwnership),
     SetDefaultIsm(SetDefaultIsm),
+    /// Process a raw Hyperlane message via inbox process (builds dynamic account metas via simulation)
+    Process(ProcessMailboxMessage),
     /// Simulate processing a message to debug delivery failures
     Simulate(Simulate),
 }
@@ -329,6 +340,18 @@ struct Simulate {
     /// Base58-encoded transaction to simulate
     #[arg(long)]
     transaction: String,
+}
+
+#[derive(Args)]
+struct ProcessMailboxMessage {
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
+    program_id: Pubkey,
+    /// Hex-encoded Hyperlane message bytes (0x-prefixed or raw hex)
+    #[arg(long)]
+    message: String,
+    /// Hex-encoded ISM metadata bytes (defaults to empty)
+    #[arg(long, default_value = "0x")]
+    metadata: String,
 }
 
 #[derive(Args)]
@@ -966,6 +989,101 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 )
                 .send_with_payer();
         }
+        MailboxSubCmd::Process(process) => {
+            let payer = ctx
+                .payer_signer()
+                .expect("Processing requires an available payer keypair");
+            let payer_pubkey = payer.pubkey();
+            let message = parse_hex_bytes(&process.message);
+            let metadata = parse_hex_bytes(&process.metadata);
+
+            let decoded_message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&message))
+                .expect("Failed to decode Hyperlane message bytes");
+            let recipient_program_id = Pubkey::new_from_array(decoded_message.recipient.0);
+
+            let (inbox_account, _) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &process.program_id);
+            let (process_authority_key, _) = Pubkey::find_program_address(
+                mailbox_process_authority_pda_seeds!(&recipient_program_id),
+                &process.program_id,
+            );
+            let (processed_message_account_key, _) = Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(decoded_message.id()),
+                &process.program_id,
+            );
+
+            let ism_getter_account_metas = get_non_signer_account_metas_with_instruction_bytes(
+                &ctx,
+                recipient_program_id,
+                &MessageRecipientInstruction::InterchainSecurityModuleAccountMetas
+                    .encode()
+                    .expect("Encode should work"),
+                INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
+            );
+
+            let mut get_ism_accounts = vec![
+                AccountMeta::new_readonly(inbox_account, false),
+                AccountMeta::new_readonly(recipient_program_id, false),
+            ];
+            get_ism_accounts.extend(ism_getter_account_metas.clone());
+            let get_ism_ix = Instruction::new_with_borsh(
+                process.program_id,
+                &MailboxInstruction::InboxGetRecipientIsm(recipient_program_id),
+                get_ism_accounts,
+            );
+            let ism = simulate_return_data::<SimulationReturnData<Pubkey>>(&ctx, &get_ism_ix)
+                .expect("No return data for recipient ISM")
+                .return_data;
+
+            let ism_verify_account_metas = get_non_signer_account_metas_with_instruction_bytes(
+                &ctx,
+                ism,
+                &InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+                    metadata: metadata.clone(),
+                    message: message.clone(),
+                })
+                .encode()
+                .expect("Encode should work"),
+                VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+            );
+
+            let handle_account_metas = get_non_signer_account_metas_with_instruction_bytes(
+                &ctx,
+                recipient_program_id,
+                &MessageRecipientInstruction::HandleAccountMetas(HandleInstruction {
+                    origin: decoded_message.origin,
+                    sender: decoded_message.sender,
+                    message: decoded_message.body.clone(),
+                })
+                .encode()
+                .expect("Encode should work"),
+                HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+            );
+
+            let mut process_accounts: Vec<AccountMeta> = vec![
+                AccountMeta::new_readonly(payer_pubkey, true),
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(inbox_account, false),
+                AccountMeta::new_readonly(process_authority_key, false),
+                AccountMeta::new(processed_message_account_key, false),
+            ];
+            process_accounts.extend(ism_getter_account_metas);
+            process_accounts.extend([
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(ism, false),
+            ]);
+            process_accounts.extend(ism_verify_account_metas);
+            process_accounts.push(AccountMeta::new_readonly(recipient_program_id, false));
+            process_accounts.extend(handle_account_metas);
+
+            let process_ix = Instruction::new_with_borsh(
+                process.program_id,
+                &MailboxInstruction::InboxProcess(InboxProcess { metadata, message }),
+                process_accounts,
+            );
+
+            ctx.new_txn().add(process_ix).send_with_payer();
+        }
         MailboxSubCmd::Simulate(simulate) => {
             // Decode the base58 transaction
             let tx_bytes = bs58::decode(&simulate.transaction)
@@ -1003,6 +1121,89 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
             }
         }
     };
+}
+
+fn parse_hex_bytes(s: &str) -> Vec<u8> {
+    let hex = s.strip_prefix("0x").unwrap_or(s);
+    if hex.is_empty() {
+        return vec![];
+    }
+    hex::decode(hex).expect("Invalid hex string")
+}
+
+fn simulate_return_data<T: borsh::BorshDeserialize>(
+    ctx: &Context,
+    instruction: &Instruction,
+) -> Option<T> {
+    let payer = ctx
+        .payer_signer()
+        .expect("Simulation requires an available payer keypair");
+    let blockhash = ctx
+        .client
+        .get_latest_blockhash()
+        .expect("Failed to fetch recent blockhash");
+    let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+        &[instruction.clone()],
+        Some(&payer.pubkey()),
+        &[payer],
+        blockhash,
+    );
+    let sim = ctx
+        .client
+        .simulate_transaction(&tx)
+        .expect("Failed to simulate transaction");
+    if let Some(err) = sim.value.err {
+        panic!("Simulation failed: {:?}", err);
+    }
+    let return_data = sim.value.return_data?;
+    let (raw, _encoding) = return_data.data;
+    let mut decoded = BASE64_STANDARD
+        .decode(raw)
+        .expect("Failed to decode simulation return data");
+    // Workaround for occasionally missing trailing marker byte in SimulationReturnData.
+    if decoded.last().copied() != Some(u8::MAX) {
+        decoded.push(u8::MAX);
+    }
+    T::try_from_slice(&decoded).ok()
+}
+
+fn get_non_signer_account_metas_with_instruction_bytes(
+    ctx: &Context,
+    program_id: Pubkey,
+    instruction_data: &[u8],
+    account_metas_pda_seeds: &[&[u8]],
+) -> Vec<AccountMeta> {
+    let (account_metas_pda_key, _) =
+        Pubkey::find_program_address(account_metas_pda_seeds, &program_id);
+    let instruction = Instruction::new_with_bytes(
+        program_id,
+        instruction_data,
+        vec![AccountMeta::new(account_metas_pda_key, false)],
+    );
+    let account_metas = simulate_return_data::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+        ctx,
+        &instruction,
+    )
+    .expect("No return data for account metas")
+    .return_data
+    .into_iter()
+    .map(AccountMeta::from)
+    .collect::<Vec<_>>();
+
+    sanitize_dynamic_accounts(account_metas, &ctx.payer_pubkey)
+}
+
+fn sanitize_dynamic_accounts(
+    mut account_metas: Vec<AccountMeta>,
+    payer: &Pubkey,
+) -> Vec<AccountMeta> {
+    account_metas
+        .iter_mut()
+        .for_each(|meta| meta.is_signer = false);
+    if account_metas.iter().any(|meta| meta.pubkey == *payer) {
+        panic!("Dynamic account metas contain payer account");
+    }
+    account_metas
 }
 
 fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
@@ -1134,7 +1335,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
-            ctx.commitment = CommitmentConfig::finalized();
+            // Finalized can lag on local validators; confirmed is sufficient for e2e scripting.
+            ctx.commitment = CommitmentConfig::confirmed();
             let sender = read_keypair_file(xfer.sender).unwrap();
 
             let recipient = if xfer.recipient.starts_with("0x") {
@@ -1156,8 +1358,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 .client
                 .get_account_with_commitment(&token_account, ctx.commitment)
                 .unwrap()
-                .value
-                .unwrap();
+                .value;
+            let Some(fetched_token_account) = fetched_token_account else {
+                eprintln!(
+                    "Missing token PDA account {} for program {}. Ensure the warp route is initialized on-chain before transfer-remote.",
+                    token_account, xfer.program_id
+                );
+                std::process::exit(1);
+            };
             let token = HyperlaneTokenAccount::<()>::fetch(&mut &fetched_token_account.data[..])
                 .unwrap()
                 .into_inner();
