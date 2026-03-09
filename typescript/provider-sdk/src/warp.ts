@@ -334,6 +334,7 @@ export function warpConfigToArtifact(
     hook: hookArtifact,
     remoteRouters,
     destinationGas,
+    scale: config.scale,
   };
 
   switch (config.type) {
@@ -470,6 +471,7 @@ export function warpArtifactToDerivedConfig(
     name: config.name,
     symbol: config.symbol,
     decimals: config.decimals,
+    scale: config.scale,
   };
 
   switch (config.type) {

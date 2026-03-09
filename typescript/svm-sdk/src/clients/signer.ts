@@ -192,9 +192,12 @@ export class SvmSigner
             .send();
 
           const [oldResult] = oldStatus.value;
+          assert(
+            !oldResult?.err,
+            `Transaction failed: ${signature}, err: ${JSON.stringify(oldResult?.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
+          );
           if (
             oldResult &&
-            !oldResult.err &&
             (oldResult.confirmationStatus === 'confirmed' ||
               oldResult.confirmationStatus === 'finalized')
           ) {
