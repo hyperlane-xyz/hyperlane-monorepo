@@ -36,6 +36,18 @@ You need `jq` installed on your machine. You can download it from [official page
 
 You need `gitleaks` installed on your machine. You can download it from [official page](https://github.com/gitleaks/gitleaks) or use a package manager of your choice.
 
+#### Install `typos`
+
+[typos](https://github.com/crate-ci/typos) is used for spell checking. Install it via your package manager:
+
+```bash
+# macOS
+brew install typos-cli
+
+# or via cargo
+cargo install typos-cli --locked
+```
+
 #### Foundry
 
 First ensure you have Foundry installed on your machine.
