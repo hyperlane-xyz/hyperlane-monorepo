@@ -808,7 +808,7 @@ describe('per-chain bridge configuration', () => {
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
-      /externalBridges\.lifi.*required/i,
+      /inventory execution but has no.*externalBridge.*configured/i,
     );
   });
 

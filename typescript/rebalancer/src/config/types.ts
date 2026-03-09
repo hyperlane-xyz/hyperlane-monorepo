@@ -40,6 +40,7 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  Meson = 'meson',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -130,8 +131,14 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const MesonBridgeConfigSchema = z.object({
+  apiUrl: z.string().url().optional(),
+  defaultSlippage: z.number().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  meson: MesonBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -378,12 +385,48 @@ export const RebalancerConfigSchema = z
         }
       }
 
-      if (!config.externalBridges?.lifi?.integrator) {
+      // Collect all bridge types used across strategies
+      const usedBridgeTypes = new Set<ExternalBridgeType>();
+      for (const strategy of config.strategy) {
+        for (const [, chainConfig] of Object.entries(strategy.chains)) {
+          if (chainConfig.externalBridge) {
+            usedBridgeTypes.add(chainConfig.externalBridge);
+          }
+          if (chainConfig.override) {
+            for (const overrideConfig of Object.values(chainConfig.override)) {
+              const merged = {
+                ...chainConfig,
+                ...(overrideConfig as Record<string, unknown>),
+              };
+              if ((merged as any).externalBridge) {
+                usedBridgeTypes.add(
+                  (merged as any).externalBridge as ExternalBridgeType,
+                );
+              }
+            }
+          }
+        }
+      }
+      if (
+        usedBridgeTypes.has(ExternalBridgeType.LiFi) &&
+        !config.externalBridges?.lifi?.integrator
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'externalBridges.lifi is required when using inventory execution',
+            'externalBridges.lifi is required when any chain uses externalBridge: lifi',
           path: ['externalBridges', 'lifi'],
+        });
+      }
+      if (
+        usedBridgeTypes.has(ExternalBridgeType.Meson) &&
+        !config.externalBridges?.meson
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'externalBridges.meson is required when any chain uses externalBridge: meson',
+          path: ['externalBridges', 'meson'],
         });
       }
     }
