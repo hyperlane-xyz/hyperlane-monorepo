@@ -513,6 +513,20 @@ export function getChainExecutionType(
 }
 
 /**
+ * Extract the executionType from an override config object.
+ * Returns undefined if the override config doesn't have an executionType field.
+ */
+export function getOverrideExecutionType(
+  overrideConfig: unknown,
+): ExecutionType | undefined {
+  return typeof overrideConfig === 'object' &&
+    overrideConfig !== null &&
+    'executionType' in overrideConfig
+    ? (overrideConfig as { executionType?: ExecutionType }).executionType
+    : undefined;
+}
+
+/**
  * Get the names of all chains that use inventory execution type.
  * Includes both top-level inventory chains and override destination chains
  * where the override sets executionType to inventory.
@@ -540,15 +554,7 @@ export function getInventoryChainNames(strategies: StrategyConfig[]): string[] {
             return overrideEntries
               .filter(([, overrideConfig]) => {
                 const overrideExecutionType =
-                  typeof overrideConfig === 'object' &&
-                  overrideConfig !== null &&
-                  'executionType' in overrideConfig
-                    ? (
-                        overrideConfig as {
-                          executionType?: ExecutionType;
-                        }
-                      ).executionType
-                    : undefined;
+                  getOverrideExecutionType(overrideConfig);
 
                 return (
                   (overrideExecutionType ??
@@ -582,15 +588,7 @@ export function getInventoryOriginChainNames(
               chainConfig.override,
             ).some((overrideConfig) => {
               const overrideExecutionType =
-                typeof overrideConfig === 'object' &&
-                overrideConfig !== null &&
-                'executionType' in overrideConfig
-                  ? (
-                      overrideConfig as {
-                        executionType?: ExecutionType;
-                      }
-                    ).executionType
-                  : undefined;
+                getOverrideExecutionType(overrideConfig);
 
               return (
                 (overrideExecutionType ??

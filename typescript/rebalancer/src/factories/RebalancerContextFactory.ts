@@ -27,6 +27,7 @@ import {
   getAllBridges,
   getInventoryChainNames,
   getInventoryOriginChainNames,
+  getOverrideExecutionType,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -702,12 +703,7 @@ export class RebalancerContextFactory {
 
         return Object.values(chainConfig.override).some((overrideConfig) => {
           const overrideExecutionType =
-            typeof overrideConfig === 'object' &&
-            overrideConfig !== null &&
-            'executionType' in overrideConfig
-              ? (overrideConfig as { executionType?: ExecutionType })
-                  .executionType
-              : undefined;
+            getOverrideExecutionType(overrideConfig);
 
           return (
             (overrideExecutionType ??
