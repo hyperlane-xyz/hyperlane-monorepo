@@ -22,7 +22,11 @@ import {
 import { fetchMintMetadata, getMintDecimals } from '../accounts/mint.js';
 import { decodeCollateralPlugin } from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
-import { RENT_SYSVAR_ADDRESS } from '../constants.js';
+import {
+  RENT_SYSVAR_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
+  TOKEN_2022_PROGRAM_ADDRESS,
+} from '../constants.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { getTokenInitInstruction } from '../instructions/token.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
@@ -146,6 +150,11 @@ export class SvmCollateralTokenWriter
       `Mint account not found: ${collateralMint}`,
     );
     const splProgram = parseAddress(mintInfo.value.owner);
+    assert(
+      splProgram === SPL_TOKEN_PROGRAM_ADDRESS ||
+        splProgram === TOKEN_2022_PROGRAM_ADDRESS,
+      `Mint ${collateralMint} is not owned by SPL Token or Token-2022 (owner: ${splProgram})`,
+    );
     const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
     const localDecimals = getMintDecimals(mintRawData);
     assertLocalDecimals(localDecimals);

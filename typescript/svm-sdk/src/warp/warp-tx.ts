@@ -52,8 +52,10 @@ const MAX_LOCAL_DECIMALS = 9;
  */
 export function assertLocalDecimals(localDecimals: number): void {
   assert(
-    localDecimals <= MAX_LOCAL_DECIMALS,
-    `Invalid decimals: ${localDecimals}. Must be <= ${MAX_LOCAL_DECIMALS}. Use scale/remoteDecimals for higher-precision remote chains.`,
+    Number.isInteger(localDecimals) &&
+      localDecimals > 0 &&
+      localDecimals <= MAX_LOCAL_DECIMALS,
+    `Invalid decimals: ${localDecimals}. Must be an integer in [1, ${MAX_LOCAL_DECIMALS}]. Use scale/remoteDecimals for higher-precision remote chains.`,
   );
 }
 
