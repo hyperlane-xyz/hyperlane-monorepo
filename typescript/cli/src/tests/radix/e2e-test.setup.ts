@@ -16,7 +16,7 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 
-let orginalRadixTestMentadata:
+let originalRadixTestMetadata:
   | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
   | undefined;
 
@@ -42,7 +42,7 @@ before(async function () {
   const { code, packageDefinition } = await downloadRadixContracts();
 
   // Store the original metadata so that it can be restored after all the test run
-  orginalRadixTestMentadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
+  originalRadixTestMetadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
 
   // Run only one node for now
   await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1, {
@@ -85,7 +85,7 @@ beforeEach(() => {
 after(function () {
   // Restore the original test metadata
   for (const [chainName, originalMetadata] of Object.entries(
-    orginalRadixTestMentadata ?? {},
+    originalRadixTestMetadata ?? {},
   )) {
     const metadataPath =
       TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][

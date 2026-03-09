@@ -30,6 +30,7 @@ import {
   type Address,
   ProtocolType,
   assert,
+  ensure0x,
   inCIMode,
 } from '@hyperlane-xyz/utils';
 
@@ -189,11 +190,15 @@ function setSignerForChain(
   chain: string,
   privateKey: string,
 ): void {
+  const key = ensure0x(privateKey);
   const { protocol, rpcUrls } = multiProvider.getChainMetadata(chain);
   if (protocol === ProtocolType.Tron) {
-    multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrls[0].http));
+    assert(rpcUrls?.length, `No rpcUrls configured for chain ${chain}`);
+    // TronWallet expects the base node URL without /jsonrpc suffix
+    const tronUrl = rpcUrls[0].http.replace(/\/jsonrpc\/?$/, '');
+    multiProvider.setSigner(chain, new TronWallet(key, tronUrl));
   } else {
-    multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+    multiProvider.setSigner(chain, new ethers.Wallet(key));
   }
 }
 

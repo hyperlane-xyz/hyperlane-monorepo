@@ -62,6 +62,11 @@ export interface RelayerBatchConfig {
   maxSubmitQueueLength?: ChainMap<number>;
 }
 
+export interface AddressLookupTableOverride {
+  matchingList: MatchingList;
+  addressLookupTable: string;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -72,6 +77,7 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;
+  processAltOverrides?: ChainMap<AddressLookupTableOverride[]>;
   dbBootstrap?: boolean;
   mixing?: RelayerMixingConfig;
   environmentVariableEndpointEnabled?: boolean;
@@ -243,7 +249,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    const sanctionedEthereumAdresses = allSanctionedAddresses
+    const sanctionedEthereumAddresses = allSanctionedAddresses
       .flat()
       .filter((address) => {
         if (!isValidAddressEvm(address)) {
@@ -270,7 +276,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const uniqueAddresses = new Set(
       [
-        ...sanctionedEthereumAdresses,
+        ...sanctionedEthereumAddresses,
         ...radiantExploiter,
         ...flowAddresses,
       ].map((address) => address.toLowerCase()),
