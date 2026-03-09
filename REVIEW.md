@@ -1,54 +1,92 @@
 # Code Review Guidelines
 
-## Always flag
+## Code Quality
 
-### Solidity
+- Logic errors and potential bugs
+- Error handling and edge cases
+- Code clarity and maintainability
+- Adherence to existing patterns in the codebase
+- **Use existing utilities** - Search codebase before adding new helpers
+- **Prefer `??` over `||`** - Preserves zero/empty string as valid values
+- **Use `assert()` for preconditions** - Import from `@hyperlane-xyz/utils`
+- **Use `isNullish()` for null checks** - Type-safe null/undefined check from `@hyperlane-xyz/utils`
+- **Async lazy init** - Prefer `LazyAsync` from `@hyperlane-xyz/utils` for cached async initialization
 
-- New external/public functions missing access control modifiers
-- Unchecked external calls or missing return value checks
-- Storage layout changes in upgradeable contracts without migration handling
-- Missing event emissions for state-changing operations
-- Use of `transfer`/`send` instead of `.call{value: ...}("")`
-- Reentrancy risks: state changes after external calls
-- Missing input validation on user-facing functions
-- New `selfdestruct` or `delegatecall` usage
+## Architecture
 
-### TypeScript
+- Consistency with existing architecture patterns
+- Breaking changes or backward compatibility issues
+- API contract changes
+- **Deduplicate** - Move repeated code/types to shared files
+- **Extract utilities** - Shared functions belong in utils packages
 
-- Introduction of `as` type assertions, `as any`, `as unknown as X`, or `!` non-null assertions
-- New `catch (e: any)` blocks (use `unknown` + type guards)
-- Secrets or API keys in code or logs
-- Missing `assert()` for preconditions that should fail fast
-- Silent error swallowing (empty catch blocks or catch-and-ignore)
+## Testing
 
-### Rust
+- Test coverage for new/modified code
+- Edge cases that should be tested
+- **New utility functions need unit tests**
+- **CLI changes need e2e tests** - `test:ethereum:e2e`, `test:cosmosnative:e2e`
 
-- Unwrap/expect on user-provided or external data without proper error handling
-- Missing error context in `.map_err()` chains
-- New `unsafe` blocks without justification comments
-- Hardcoded secrets or credentials
+## Performance
 
-### Cross-cutting
+- Unnecessary allocations or computations
 
-- Changes to CI/CD pipelines or GitHub Actions without clear justification
-- New dependencies added without justification
-- Breaking changes to published package interfaces without migration path
-- Modified files missing corresponding test updates
+## Changesets
 
-## Never flag
+- **Required for published packages** - Any change to `typescript/` packages needs a changeset
+- **Past tense descriptions** - "Added support for X" not "Add support for X"
+- **Describe the why** - Focus on user impact, not implementation details
 
-- Formatting or style issues (handled by prettier, eslint, solhint, cargo fmt, typos)
-- Missing documentation or comments on self-evident code
-- Existing patterns that are intentional (check git history if unsure)
-- Minor naming preferences when existing convention is followed
-- Test file organization choices
-- Import ordering
+## Type Cast Audit (MANDATORY PASS)
 
-## Skip these paths
+**Do a dedicated pass over the diff looking for every `as` keyword and `any` type.** Flag each one. This is the most common source of bugs in this codebase.
 
-- `node_modules/`
-- `artifacts/`
-- `cache/`
-- `dist/`
-- `*.lock` files
-- `rust/main/config/*.json` (generated chain configs)
+- **`as X`** — flag it. The fix is almost always to fix the function signature, add a type guard, or restructure the code
+- **`as unknown as X`** — always flag. This completely bypasses type checking
+- **`as any`** — always flag. Use `unknown` + type guards instead
+- **`as T['field']`**, **`as Partial<T>`**, **`as Record<string, any>`** — bandaid casts, flag them
+- **`: any`** — flag any parameter, variable, or return type annotated as `any`
+- **`!` (non-null assertion)** — flag unless the value is provably non-null on the preceding line
+
+The only acceptable cast is one with a `// CAST:` comment explaining why it's unavoidable.
+
+## TypeScript/SDK Patterns
+
+- **Use `ChainMap<T>`** for per-chain configurations
+- **Use `MultiProvider`** for EVM multi-chain provider management
+- **Use `MultiProtocolProvider`** for cross-VM abstractions (EVM, Cosmos, Sealevel, etc.)
+- **Import types from SDK** - Don't redefine types that exist in `@hyperlane-xyz/sdk`
+- **Zod schemas** - Follow existing patterns in `typescript/sdk/src/` for config validation
+- **Prefer enums over literals** - Use `Status.Pending` not `'pending'`; enables refactoring and IDE support
+
+## Common TypeScript Anti-Patterns
+
+- **`forEach` with assignment** - `arr.forEach(x => (obj[x] = val))` returns value; use `for-of` with block body
+- **`array.sort()` mutates** - Use `[...array].sort()` to avoid mutating input
+- **Placeholder strings in typed maps** - Don't use `map['placeholder']` when type expects `Address`
+- **Duplicate test names** - Two `it('does X')` in same file hides intent; make names distinct
+- **Stale test `describe()` strings** - Keep in sync with actual CLI flags/behavior
+- **Unused imports** - Remove imports that aren't used
+- **`||` for defaults** - `value || fallback` treats `0`/`''` as falsy; use `??` instead
+
+## Solidity Patterns
+
+- **Events for state changes** - All storage mutations should emit events
+- **`onlyOwner` on privileged functions** - Check access control modifiers
+- **Storage layout** - Upgradeable contracts must preserve storage layout
+- **Check-effects-interactions** - External calls after state changes
+- **Gas efficiency** - Avoid unnecessary storage writes, use `immutable`/`constant`
+- **No magic numbers** - Use named constants for thresholds, limits
+
+## Rust Patterns
+
+- **Feature flags** - New VM support behind feature flags (e.g., `aleo`, `starknet`)
+- **Clippy compliance** - `cargo clippy -- -D warnings` must pass
+- **Trait implementations** - Follow existing patterns in `hyperlane-core`
+- **Error handling** - Use `eyre` for errors, avoid `.unwrap()` in non-test code
+
+## Breaking Changes
+
+- **Interface changes** - Deprecate before removing; add new methods alongside old
+- **Storage layout** - Document migration path for upgradeable contracts
+- **Config schema changes** - Ensure backward compatibility or migration scripts
