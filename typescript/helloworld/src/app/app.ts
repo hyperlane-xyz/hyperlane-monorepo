@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { toUtf8Bytes } from 'ethers';
 
 import {
   ChainMap,
@@ -39,25 +39,25 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     from: ChainName,
     to: ChainName,
     message: string,
-    value: BigNumber,
-  ): Promise<ethers.ContractReceipt> {
+    value: bigint,
+  ) {
     const sender = this.getContracts(from).router;
     const toDomain = this.multiProvider.getDomainId(to);
     const { blocks, transactionOverrides } =
       this.multiProvider.getChainMetadata(from);
 
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
-    const estimated = await sender.estimateGas.sendHelloWorld(
+    const estimated = await sender.sendHelloWorld.estimateGas(
       toDomain,
       message,
       { ...transactionOverrides, value },
     );
 
-    const quote = await sender.quoteDispatch(toDomain, message);
+    const quote = await sender.quoteDispatch(toDomain, toUtf8Bytes(message));
     const tx = await sender.sendHelloWorld(toDomain, message, {
       gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,
-      value: value.add(quote),
+      value: value + quote,
     });
     this.logger.info('Sending hello message', {
       from,
@@ -65,18 +65,20 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       message,
       tx,
     });
-    return tx.wait(blocks?.confirmations ?? 1);
+    const receipt = await tx.wait(blocks?.confirmations ?? 1);
+    if (!receipt) throw new Error('Transaction receipt was null');
+    return receipt;
   }
 
   async waitForMessageReceipt(
-    receipt: ethers.ContractReceipt,
-  ): Promise<ethers.ContractReceipt[]> {
+    receipt: Parameters<HyperlaneCore['waitForMessageProcessing']>[0],
+  ) {
     return this.core.waitForMessageProcessing(receipt);
   }
 
   async waitForMessageProcessed(
-    receipt: ethers.ContractReceipt,
-  ): Promise<void> {
+    receipt: Parameters<HyperlaneCore['waitForMessageProcessed']>[0],
+  ) {
     return this.core.waitForMessageProcessed(receipt);
   }
 
@@ -88,7 +90,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       this.multiProvider.getDomainId(from),
     );
 
-    return { sent: sent.toNumber(), received: received.toNumber() };
+    return { sent: Number(sent), received: Number(received) };
   }
 
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {

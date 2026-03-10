@@ -198,7 +198,7 @@ export class RelayerService {
     }
 
     this.logger.info('Starting relayer...');
-    relayer.start();
+    await relayer.start();
 
     process.once('SIGINT', () => this.stop());
     process.once('SIGTERM', () => this.stop());

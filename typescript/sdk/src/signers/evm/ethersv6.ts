@@ -1,4 +1,5 @@
-import { Wallet, ethers } from 'ethers';
+import { Wallet, isHexString } from 'ethers';
+import type { Signer } from 'ethers';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
@@ -10,7 +11,7 @@ import {
   MultiProvider,
   SendTransactionOptions,
 } from '../../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../../providers/ProviderType.js';
+import { EthersV6Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
@@ -27,19 +28,19 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       multiProvider.getChainMetadata(chainName);
 
     assert(
-      ethers.utils.isHexString(privateKey),
+      isHexString(privateKey),
       `Private key for chain ${chainName} should be a hex string`,
     );
 
-    let wallet: Wallet;
+    let wallet: Signer;
     if (technicalStack === ChainTechnicalStack.ZkSync) {
-      wallet = new ZkSyncWallet(privateKey);
+      wallet = new ZkSyncWallet(privateKey) as unknown as Signer;
     } else if (protocol === ProtocolType.Tron) {
       assert(
         rpcUrls.length > 0,
         `No RPC URLs configured for Tron chain ${chainName}`,
       );
-      wallet = new TronWallet(privateKey, rpcUrls[0].http);
+      wallet = new TronWallet(privateKey, rpcUrls[0].http) as unknown as Signer;
     } else {
       wallet = new Wallet(privateKey);
     }
@@ -53,7 +54,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   }
 
   async sendAndConfirmTransaction(
-    tx: EthersV5Transaction,
+    tx: EthersV6Transaction,
     options?: SendTransactionOptions,
   ): Promise<string> {
     const res = await this.multiProvider.sendTransaction(
@@ -62,6 +63,6 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       options,
     );
 
-    return res.transactionHash;
+    return res.hash;
   }
 }

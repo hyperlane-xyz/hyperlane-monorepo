@@ -1,6 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -16,7 +16,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -35,7 +35,7 @@ describe('EvmCoreModule', async () => {
   let validatorAnnounceContract: any;
   let testRecipientContract: any;
   let timelockControllerContract: any;
-  async function sendTxs(txs: AnnotatedEV5Transaction[]) {
+  async function sendTxs(txs: AnnotatedEvmTransaction[]) {
     for (const tx of txs) {
       await multiProvider.sendTransaction(CHAIN, tx);
     }
@@ -111,7 +111,7 @@ describe('EvmCoreModule', async () => {
 
       objMap(coreContracts as any, (_, address) => {
         expect(address).to.exist;
-        expect(address).to.not.equal(constants.AddressZero);
+        expect(address).to.not.equal(ZeroAddress);
       });
     });
 
@@ -138,21 +138,15 @@ describe('EvmCoreModule', async () => {
     });
 
     it('should deploy mailbox default Ism', async () => {
-      expect(await mailboxContract.defaultIsm()).to.not.equal(
-        constants.AddressZero,
-      );
+      expect(await mailboxContract.defaultIsm()).to.not.equal(ZeroAddress);
     });
 
     it('should deploy mailbox default hook', async () => {
-      expect(await mailboxContract.defaultHook()).to.not.equal(
-        constants.AddressZero,
-      );
+      expect(await mailboxContract.defaultHook()).to.not.equal(ZeroAddress);
     });
 
     it('should deploy mailbox required hook', async () => {
-      expect(await mailboxContract.requiredHook()).to.not.equal(
-        constants.AddressZero,
-      );
+      expect(await mailboxContract.requiredHook()).to.not.equal(ZeroAddress);
     });
 
     it('should deploy validatorAnnounce', async () => {
@@ -321,11 +315,11 @@ describe('EvmCoreModule', async () => {
       await sendTxs(updateTxs);
 
       const updatedConfig = await evmCoreModuleInstance.read();
-      expect(updatedConfig[hookType]).to.not.equal(constants.AddressZero);
+      expect(updatedConfig[hookType]).to.not.equal(ZeroAddress);
 
       // Verify the hook was actually updated by checking the mailbox
       const newHookAddress = await hookAddressGetter();
-      expect(newHookAddress).to.not.equal(constants.AddressZero);
+      expect(newHookAddress).to.not.equal(ZeroAddress);
     };
 
     const hookAddressGetters: Record<
@@ -385,7 +379,7 @@ describe('EvmCoreModule', async () => {
 
         const newHookAddress = await hookAddressGetters[hookField]();
         expect(newHookAddress).to.not.equal(currentHookAddress);
-        expect(newHookAddress).to.not.equal(constants.AddressZero);
+        expect(newHookAddress).to.not.equal(ZeroAddress);
       });
     }
 

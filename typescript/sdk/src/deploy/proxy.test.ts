@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { isInitialized, proxyAdmin, proxyAdminUpdateTxs } from './proxy.js';
 
@@ -85,7 +85,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).to.equal(ZeroAddress);
     });
 
     it('should return zero address for 0x response (malformed RPC)', async () => {
@@ -98,7 +98,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).to.equal(ZeroAddress);
     });
 
     it('should return zero address for 0x0 response (malformed RPC)', async () => {
@@ -111,7 +111,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).to.equal(ZeroAddress);
     });
 
     it('should return valid address for proper storage value', async () => {
@@ -140,7 +140,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).to.equal(ZeroAddress);
     });
   });
 

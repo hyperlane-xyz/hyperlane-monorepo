@@ -1,4 +1,8 @@
-import type { BigNumber, Signer, ethers } from 'ethers';
+import type { Provider, Signer } from 'ethers';
+import type {
+  Provider as ZkSyncProvider,
+  Signer as ZkSyncSigner,
+} from 'zksync-ethers';
 import { z } from 'zod';
 
 import type { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -20,7 +24,7 @@ export type ProtocolMap<Value> = Partial<Record<ProtocolType, Value>>;
 
 export type ChainNameOrId = ChainName | Domain;
 
-export type Connection = ethers.providers.Provider | ethers.Signer;
+export type Connection = Provider | Signer | ZkSyncProvider | ZkSyncSigner;
 
 export const OwnableSchema = z.object({
   owner: ZHash,
@@ -58,5 +62,5 @@ export interface IMultiProtocolSignerManager {
     address: Address;
     chain: ChainName;
     denom?: string;
-  }): Promise<BigNumber>;
+  }): Promise<bigint>;
 }

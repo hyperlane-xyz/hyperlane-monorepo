@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish, constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -58,7 +58,7 @@ import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
@@ -118,6 +118,11 @@ export class EvmWarpModule extends HyperlaneModule<
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
+  private getContractAddress(contract: { target?: unknown }): Address {
+    assert(typeof contract.target === 'string', 'Missing contract target');
+    return contract.target as Address;
+  }
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
@@ -159,12 +164,12 @@ export class EvmWarpModule extends HyperlaneModule<
   async update(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
     const transactions = [];
 
-    let xerc20Txs: AnnotatedEV5Transaction[] = [];
+    let xerc20Txs: AnnotatedEvmTransaction[] = [];
     if (isXERC20TokenConfig(expectedConfig)) {
       const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
         this.multiProvider,
@@ -246,8 +251,8 @@ export class EvmWarpModule extends HyperlaneModule<
   createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): AnnotatedEvmTransaction[] {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -282,7 +287,7 @@ export class EvmWarpModule extends HyperlaneModule<
     updateTransactions.push({
       chainId: this.chainId,
       annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-      to: contractToUpdate.address,
+      to: this.getContractAddress(contractToUpdate),
       data: contractToUpdate.interface.encodeFunctionData(
         'enrollRemoteRouters',
         [
@@ -300,8 +305,8 @@ export class EvmWarpModule extends HyperlaneModule<
   createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): AnnotatedEvmTransaction[] {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -331,9 +336,9 @@ export class EvmWarpModule extends HyperlaneModule<
     updateTransactions.push({
       annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
       chainId: this.chainId,
-      to: contractToUpdate.address,
+      to: this.getContractAddress(contractToUpdate),
       data: contractToUpdate.interface.encodeFunctionData(
-        'unenrollRemoteRouters(uint32[])',
+        'unenrollRemoteRouters',
         [routesToUnenroll.map((k) => Number(k))],
       ),
     });
@@ -344,7 +349,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createAddRebalancersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -376,7 +381,7 @@ export class EvmWarpModule extends HyperlaneModule<
       annotation: `Adding rebalancer role to "${rebalancerToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
       to: this.args.addresses.deployedTokenRoute,
       data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-        'addRebalancer(address)',
+        'addRebalancer',
         [rebalancerToAdd],
       ),
     }));
@@ -385,7 +390,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createRemoveRebalancersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -417,7 +422,7 @@ export class EvmWarpModule extends HyperlaneModule<
       annotation: `Removing rebalancer role from "${rebalancerToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
       to: this.args.addresses.deployedTokenRoute,
       data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-        'removeRebalancer(address)',
+        'removeRebalancer',
         [rebalancerToRemove],
       ),
     }));
@@ -429,7 +434,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createEnrollMultiCollateralRoutersTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMultiCollateralTokenConfig(expectedConfig) ||
       !isMultiCollateralTokenConfig(actualConfig)
@@ -492,7 +497,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createUnenrollMultiCollateralRoutersTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMultiCollateralTokenConfig(expectedConfig) ||
       !isMultiCollateralTokenConfig(actualConfig)
@@ -556,7 +561,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async getAllowedBridgesApprovalTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -597,7 +602,7 @@ export class EvmWarpModule extends HyperlaneModule<
             bridge,
           );
 
-          if (allowance.toBigInt() !== UINT_256_MAX) {
+          if (allowance !== UINT_256_MAX) {
             filteredApprovals.push(token);
           }
         }
@@ -613,7 +618,7 @@ export class EvmWarpModule extends HyperlaneModule<
           annotation: `Approving allowed bridge "${bridge}" to spend token "${tokenToApprove}" on behalf of "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
           to: this.args.addresses.deployedTokenRoute,
           data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-            'approveTokenForBridge(address,address)',
+            'approveTokenForBridge',
             [tokenToApprove, bridge],
           ),
         })),
@@ -623,7 +628,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createAddAllowedBridgesUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -666,7 +671,7 @@ export class EvmWarpModule extends HyperlaneModule<
           annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
           to: this.args.addresses.deployedTokenRoute,
           data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-            'addBridge(uint32,address)',
+            'addBridge',
             [domain, bridgeToAdd],
           ),
         };
@@ -683,7 +688,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createRemoveBridgesTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -724,7 +729,7 @@ export class EvmWarpModule extends HyperlaneModule<
             annotation: `Removing allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
             to: this.args.addresses.deployedTokenRoute,
             data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-              'removeBridge(uint32,address)',
+              'removeBridge',
               [domain, bridgeToAdd],
             ),
           };
@@ -736,7 +741,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createAddRemoteOutputAssetsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isEverclearTokenBridgeConfig(expectedConfig) ||
       !isEverclearTokenBridgeConfig(actualConfig)
@@ -779,7 +784,7 @@ export class EvmWarpModule extends HyperlaneModule<
         to: this.args.addresses.deployedTokenRoute,
         annotation: `Adding "${Object.keys(assets)}" output assets for token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
-          'setOutputAssetsBatch((uint32,bytes32)[])',
+          'setOutputAssetsBatch',
           [assets],
         ),
       },
@@ -789,7 +794,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createRemoveRemoteOutputAssetsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isEverclearTokenBridgeConfig(expectedConfig) ||
       !isEverclearTokenBridgeConfig(actualConfig)
@@ -835,7 +840,7 @@ export class EvmWarpModule extends HyperlaneModule<
         to: this.args.addresses.deployedTokenRoute,
         annotation: `Removing "${outputAssetsToRemove}" output assets from token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
-          'setOutputAssetsBatch((uint32,bytes32)[])',
+          'setOutputAssetsBatch',
           [assets],
         ),
       },
@@ -845,7 +850,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createUpdateEverclearFeeParamsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isEverclearTokenBridgeConfig(expectedConfig) ||
       !isEverclearTokenBridgeConfig(actualConfig)
@@ -907,7 +912,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createRemoveEverclearFeeParamsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     if (
       !isEverclearTokenBridgeConfig(expectedConfig) ||
       !isEverclearTokenBridgeConfig(actualConfig)
@@ -959,8 +964,8 @@ export class EvmWarpModule extends HyperlaneModule<
   createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): AnnotatedEvmTransaction[] {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -1020,11 +1025,8 @@ export class EvmWarpModule extends HyperlaneModule<
         this.multiProvider.getProvider(this.domainId),
       );
 
-      // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
-      const gasRouterConfigs: {
-        domain: BigNumberish;
-        gas: BigNumberish;
-      }[] = [];
+      // Convert { 1: 2, 2: 3, ... } to [{ domain: 1, gas: 2 }, ...]
+      const gasRouterConfigs: { domain: Domain; gas: string }[] = [];
       objMap(filteredExpectedGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
@@ -1035,7 +1037,7 @@ export class EvmWarpModule extends HyperlaneModule<
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        to: contractToUpdate.address,
+        to: this.getContractAddress(contractToUpdate),
         data: contractToUpdate.interface.encodeFunctionData(
           'setDestinationGas((uint32,uint256)[])',
           [gasRouterConfigs],
@@ -1055,8 +1057,8 @@ export class EvmWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): Promise<AnnotatedEvmTransaction[]> {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
     if (!expectedConfig.interchainSecurityModule) {
       return [];
     }
@@ -1082,7 +1084,7 @@ export class EvmWarpModule extends HyperlaneModule<
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        to: contractToUpdate.address,
+        to: this.getContractAddress(contractToUpdate),
         data: contractToUpdate.interface.encodeFunctionData(
           'setInterchainSecurityModule',
           [expectedDeployedIsm],
@@ -1096,7 +1098,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createHookUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (!expectedConfig.hook) {
       return [];
     }
@@ -1140,7 +1142,7 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (!expectedConfig.tokenFee) {
       return [];
     }
@@ -1183,7 +1185,7 @@ export class EvmWarpModule extends HyperlaneModule<
             `Failed to read feeRecipient, defaulting to generate setFeeRecipient tx`,
             error,
           );
-          return constants.AddressZero;
+          return ZeroAddress;
         });
 
       if (eqAddress(currentFeeRecipient, deployedFee)) {
@@ -1196,7 +1198,7 @@ export class EvmWarpModule extends HyperlaneModule<
           chainId: this.chainId,
           to: this.args.addresses.deployedTokenRoute,
           data: TokenRouter__factory.createInterface().encodeFunctionData(
-            'setFeeRecipient(address)',
+            'setFeeRecipient',
             [deployedFee],
           ),
         },
@@ -1230,7 +1232,7 @@ export class EvmWarpModule extends HyperlaneModule<
         chainId: this.chainId,
         to: this.args.addresses.deployedTokenRoute,
         data: TokenRouter__factory.createInterface().encodeFunctionData(
-          'setFeeRecipient(address)',
+          'setFeeRecipient',
           [deployedFee],
         ),
       });
@@ -1248,7 +1250,7 @@ export class EvmWarpModule extends HyperlaneModule<
   createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     return transferOwnershipTransactions(
       this.multiProvider.getEvmChainId(this.args.chain),
       this.args.addresses.deployedTokenRoute,
@@ -1268,7 +1270,7 @@ export class EvmWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedEV5Transaction[];
+    updateTransactions: AnnotatedEvmTransaction[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
@@ -1317,8 +1319,8 @@ export class EvmWarpModule extends HyperlaneModule<
   async upgradeWarpRouteImplementationTx(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): Promise<AnnotatedEvmTransaction[]> {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
 
     assert(
       expectedConfig.type !== TokenType.unknown,
@@ -1403,7 +1405,7 @@ export class EvmWarpModule extends HyperlaneModule<
       to: proxyAdminAddress,
       data: ProxyAdmin__factory.createInterface().encodeFunctionData(
         'upgrade',
-        [proxyAddress, implementation.address],
+        [proxyAddress, this.getContractAddress(implementation)],
       ),
     });
 
@@ -1443,7 +1445,7 @@ export class EvmWarpModule extends HyperlaneModule<
       {
         addresses: {
           ...proxyFactoryFactories,
-          deployedTokenRoute: deployedContracts[config.type].address,
+          deployedTokenRoute: deployedContracts[config.type].target as Address,
         },
         chain,
         config,

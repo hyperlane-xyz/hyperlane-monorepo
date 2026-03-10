@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
@@ -19,7 +19,7 @@ export class ForkIndexer {
   private rebalanceActions: ExplorerMessage[] = [];
 
   constructor(
-    private readonly providers: Map<string, providers.JsonRpcProvider>,
+    private readonly providers: Map<string, JsonRpcProvider>,
     private readonly core: HyperlaneCore,
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
@@ -109,13 +109,20 @@ export class ForkIndexer {
           continue;
         }
 
+        const receiptHash =
+          (receipt as { hash?: string; transactionHash?: string }).hash ??
+          (receipt as { transactionHash?: string }).transactionHash;
+        if (!receiptHash) {
+          throw new Error(`Missing transaction hash for message ${msgId}`);
+        }
+
         const msg: ExplorerMessage = {
           msg_id: msgId,
           origin_domain_id: parsed.origin,
           destination_domain_id: parsed.destination,
           sender: bytes32ToAddress(parsed.sender),
           recipient: bytes32ToAddress(parsed.recipient),
-          origin_tx_hash: receipt.transactionHash,
+          origin_tx_hash: receiptHash,
           origin_tx_sender: receipt.from,
           origin_tx_recipient: event.args.sender,
           is_delivered: false,

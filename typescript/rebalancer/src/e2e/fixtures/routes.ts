@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -160,7 +158,7 @@ export const ANVIL_USER_PRIVATE_KEY =
 
 export const TEST_TIMEOUT_MS = 300000;
 
-export const DEFAULT_TRANSFER_AMOUNT = BigNumber.from('600000000');
+export const DEFAULT_TRANSFER_AMOUNT = 600000000n;
 
 export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
   DEFICIT_ARB: {
@@ -369,30 +367,19 @@ export const INVENTORY_SIGNER_PRESETS: Record<
 // Exported so tests can derive expected deficit amounts instead of hardcoding.
 export const INVENTORY_MIN_AMOUNT_MIN = '1';
 export const INVENTORY_MIN_AMOUNT_TARGET = '2';
-export const INVENTORY_MIN_AMOUNT_TARGET_WEI = BigNumber.from(
-  INVENTORY_MIN_AMOUNT_TARGET,
-).mul(BigNumber.from('1000000000000000000'));
+export const INVENTORY_MIN_AMOUNT_TARGET_WEI =
+  BigInt(INVENTORY_MIN_AMOUNT_TARGET) * 1000000000000000000n;
 
 // Weighted strategy deficit constants
-export const WEIGHTED_EXPECTED_DEFICIT_1ETH = BigNumber.from(
-  '1000000000000000000',
-);
-export const WEIGHTED_EXPECTED_DEFICIT_2ETH = BigNumber.from(
-  '2000000000000000000',
-);
-export const WEIGHTED_EXPECTED_DEFICIT_1_2ETH = BigNumber.from(
-  '1200000000000000000',
-);
+export const WEIGHTED_EXPECTED_DEFICIT_1ETH = 1000000000000000000n;
+export const WEIGHTED_EXPECTED_DEFICIT_2ETH = 2000000000000000000n;
+export const WEIGHTED_EXPECTED_DEFICIT_1_2ETH = 1200000000000000000n;
 
 // ERC20 inventory deficit constants (USDC, 6 decimals)
-export const ERC20_INVENTORY_MIN_AMOUNT_TARGET_RAW =
-  BigNumber.from('200000000'); // 200 USDC
-export const ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC =
-  BigNumber.from('1000000000'); // 1000 USDC
-export const ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC =
-  BigNumber.from('2000000000'); // 2000 USDC
-export const ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC =
-  BigNumber.from('1200000000'); // 1200 USDC
+export const ERC20_INVENTORY_MIN_AMOUNT_TARGET_RAW = 200000000n; // 200 USDC
+export const ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC = 1000000000n; // 1000 USDC
+export const ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC = 2000000000n; // 2000 USDC
+export const ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC = 1200000000n; // 1200 USDC
 
 export function buildInventoryMinAmountStrategyConfig(
   _addresses: NativeDeployedAddresses,

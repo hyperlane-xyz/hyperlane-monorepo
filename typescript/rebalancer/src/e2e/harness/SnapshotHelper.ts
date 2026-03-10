@@ -1,52 +1,108 @@
-import { ethers, providers } from 'ethers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 
 import { MultiProvider, revertToSnapshot, snapshot } from '@hyperlane-xyz/sdk';
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
-import { ANVIL_TEST_PRIVATE_KEY, TEST_CHAINS } from '../fixtures/routes.js';
+import { ANVIL_TEST_PRIVATE_KEY } from '../fixtures/routes.js';
 
-function createFreshProvider(url: string): providers.JsonRpcProvider {
-  return new providers.JsonRpcProvider(url);
+const SNAPSHOT_RPC_TIMEOUT_MS = 10_000;
+
+type SnapshotResetOptions = {
+  localProviders: Map<string, JsonRpcProvider>;
+  multiProvider: MultiProvider;
+  snapshotIds: Map<string, string>;
+};
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
 }
 
-/**
- * Revert all chains to their snapshots, take new snapshots, and refresh
- * the providers in both localProviders and multiProvider so that ethers v5
- * internal block-number caches are cleared.
- */
+function createFreshProvider(
+  multiProvider: MultiProvider,
+  chain: string,
+): JsonRpcProvider {
+  const chainMetadata = multiProvider.getChainMetadata(chain);
+  const rpcUrl = chainMetadata.rpcUrls[0]?.http;
+  assert(rpcUrl, `Missing rpc url for chain ${chain}`);
+  return new JsonRpcProvider(rpcUrl);
+}
+
+async function revertAndSnapshotWithRetries(
+  provider: JsonRpcProvider,
+  snapshotId: string,
+): Promise<string> {
+  return retryAsync(
+    async () => {
+      const reverted = await withTimeout(
+        revertToSnapshot(provider, snapshotId),
+        SNAPSHOT_RPC_TIMEOUT_MS,
+      );
+      assert(reverted, `evm_revert returned false for snapshot ${snapshotId}`);
+      return withTimeout(snapshot(provider), SNAPSHOT_RPC_TIMEOUT_MS);
+    },
+    2,
+    250,
+  );
+}
+
 export async function resetSnapshotsAndRefreshProviders({
   localProviders,
   multiProvider,
   snapshotIds,
-}: {
-  localProviders: Map<string, providers.JsonRpcProvider>;
-  multiProvider: MultiProvider;
-  snapshotIds: Map<string, string>;
-}): Promise<void> {
-  for (const [chain, provider] of localProviders) {
-    const id = snapshotIds.get(chain);
-    assert(id, `Missing snapshot id for chain ${chain}`);
-    await revertToSnapshot(provider, id);
-    snapshotIds.set(chain, await snapshot(provider));
+}: SnapshotResetOptions): Promise<void> {
+  const chains = Array.from(localProviders.keys());
+
+  for (const chain of chains) {
+    const existingProvider = localProviders.get(chain);
+    assert(existingProvider, `Missing provider for chain ${chain}`);
+    const snapshotId = snapshotIds.get(chain);
+    assert(snapshotId, `Missing snapshot id for chain ${chain}`);
+
+    try {
+      const newSnapshotId = await revertAndSnapshotWithRetries(
+        existingProvider,
+        snapshotId,
+      );
+      snapshotIds.set(chain, newSnapshotId);
+    } catch {
+      const freshProvider = createFreshProvider(multiProvider, chain);
+      const newSnapshotId = await revertAndSnapshotWithRetries(
+        freshProvider,
+        snapshotId,
+      );
+      snapshotIds.set(chain, newSnapshotId);
+      localProviders.set(chain, freshProvider);
+    }
   }
 
-  // Replace providers so ethers v5 internal block-number caches are cleared.
-  const signerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-
-  for (const [chain, oldProvider] of Array.from(localProviders.entries())) {
-    const url = oldProvider.connection.url;
-    const freshProvider = createFreshProvider(url);
+  // Refresh provider/signer bindings after evm_revert to avoid stale provider state.
+  const signerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
+  for (const chain of chains) {
+    const freshProvider = createFreshProvider(multiProvider, chain);
     localProviders.set(chain, freshProvider);
     multiProvider.setProvider(chain, freshProvider);
     multiProvider.setSigner(chain, signerWallet.connect(freshProvider));
   }
 
-  // Wait until every fresh provider can serve a basic RPC call.
   await Promise.all(
-    TEST_CHAINS.map((chain) => {
-      const p = localProviders.get(chain);
-      assert(p, `Missing provider for chain ${chain}`);
-      return retryAsync(() => p.send('eth_blockNumber', []), 10, 500);
+    chains.map((chain) => {
+      const provider = localProviders.get(chain);
+      assert(provider, `Missing provider for chain ${chain}`);
+      return retryAsync(() => provider.getBlockNumber(), 10, 500);
     }),
   );
 }

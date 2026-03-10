@@ -30,7 +30,9 @@ export class EvmRouterAdapter extends BaseEvmAdapter implements IRouterAdapter {
   }
 
   remoteDomains(): Promise<Domain[]> {
-    return this.getConnectedContract().domains();
+    return this.getConnectedContract()
+      .domains()
+      .then((domains) => domains.map(Number));
   }
 
   async remoteRouter(remoteDomain: Domain): Promise<Address> {

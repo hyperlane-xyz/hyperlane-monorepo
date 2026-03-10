@@ -12,6 +12,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
+  getContractAddress,
   randomAddress,
   randomIsmConfig,
   randomMultisigIsmConfig,
@@ -51,13 +52,15 @@ describe('EvmIsmModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    factoryAddresses = Object.keys(factoryContracts).reduce(
-      (acc, key) => {
-        acc[key] =
-          contractsMap[chain][key as keyof ProxyFactoryFactories].address;
-        return acc;
-      },
-      {} as Record<string, Address>,
+    factoryAddresses = Object.fromEntries(
+      await Promise.all(
+        Object.keys(factoryContracts).map(async (key) => [
+          key,
+          await getContractAddress(
+            contractsMap[chain][key as keyof ProxyFactoryFactories],
+          ),
+        ]),
+      ),
     ) as HyperlaneAddresses<ProxyFactoryFactories>;
 
     // legacy HyperlaneIsmFactory is required to do a core deploy
@@ -67,9 +70,11 @@ describe('EvmIsmModule', async () => {
     );
 
     // mailbox
-    mailboxAddress = (
-      await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
+    mailboxAddress = await getContractAddress(
+      (
+        await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
+      ).getContracts(chain).mailbox,
+    );
   });
 
   beforeEach(async () => {
@@ -94,10 +99,11 @@ describe('EvmIsmModule', async () => {
     await hre.ethers.provider.send('hardhat_impersonateAccount', [account]);
     await fundingAccount.sendTransaction({
       to: account,
-      value: hre.ethers.utils.parseEther('1.0'),
+      value: hre.ethers.parseEther('1.0'),
     });
+    const impersonatedSigner = await hre.ethers.provider.getSigner(account);
     return MultiProvider.createTestMultiProvider({
-      signer: hre.ethers.provider.getSigner(account),
+      signer: impersonatedSigner,
     });
   }
 
@@ -121,6 +127,7 @@ describe('EvmIsmModule', async () => {
 
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
+    if (!testIsm || !testConfig) return;
     const derivedConfiig = await testIsm.read();
 
     const normalizedDerivedConfig = normalizeConfig(derivedConfiig);

@@ -1,4 +1,4 @@
-import { Wallet, utils } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 
 import { Contexts } from '../../config/contexts.js';
 import { AgentGCPKey } from '../agents/gcp.js';
@@ -29,7 +29,9 @@ export const getDeterministicKey = async (
     Role.Deployer,
   );
   await deployerKey.fetch();
-  const seed = utils.HDNode.fromSeed(deployerKey.privateKey);
+  const seed = ethers.HDNodeWallet.fromSeed(
+    ethers.getBytes(deployerKey.privateKey),
+  );
   const derivedKey = seed.derivePath(
     `m/44'/60'/0'/${deterministicKeyRole}/${DeterministicKeyRoleNonces[deterministicKeyRole]}`,
   );

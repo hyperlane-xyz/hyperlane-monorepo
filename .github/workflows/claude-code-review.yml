@@ -75,10 +75,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Use agent teams to run /claude-review"
+          prompt: 'Use agent teams to run /claude-review'
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
+          claude_args: '--model ${{ env.CLAUDE_OPUS_MODEL }}'
 
   # Security-focused review: manual via @claude security comment only
   security-review:
@@ -192,10 +192,10 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Use agent teams to run /claude-tob-review"
+          prompt: 'Use agent teams to run /claude-tob-review'
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
+          claude_args: '--model ${{ env.CLAUDE_OPUS_MODEL }}'
 
   # Interactive @claude mentions in comments
   interactive:
@@ -263,4 +263,4 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_SONNET_MODEL }}"
+          claude_args: '--model ${{ env.CLAUDE_SONNET_MODEL }}'

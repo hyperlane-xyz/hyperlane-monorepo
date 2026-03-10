@@ -1,7 +1,7 @@
-import { ethers, utils as ethersUtils } from 'ethers';
+import { AbiCoder, ZeroAddress } from 'ethers';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
-import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -99,7 +99,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
     assert(
-      localDomain === this.multiProvider.getDomainId(chain),
+      Number(localDomain) === this.multiProvider.getDomainId(chain),
       `local domain ${localDomain} does not match expected domain ${this.multiProvider.getDomainId(
         chain,
       )} for ${chain}`,
@@ -163,9 +163,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
           this.ismFactory.multiProvider,
           chain,
         );
-        let actualConfig: string | DerivedIsmConfig =
-          ethers.constants.AddressZero;
-        if (actualIsmAddress !== ethers.constants.AddressZero) {
+        let actualConfig: string | DerivedIsmConfig = ZeroAddress;
+        if (actualIsmAddress !== ZeroAddress) {
           actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
         }
 
@@ -191,10 +190,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const localDomain = await mailbox.localDomain();
     const implementation = await proxyImplementation(
       this.multiProvider.getProvider(chain),
-      mailbox.address,
+      mailbox.target as Address,
     );
 
-    if (implementation === ethers.constants.AddressZero) {
+    if (implementation === ZeroAddress) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
         subType: MailboxViolationType.NotProxied,
@@ -221,7 +220,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
           // are just done via an offset guard
           bytecode
             .replaceAll(
-              ethersUtils.defaultAbiCoder
+              AbiCoder.defaultAbiCoder()
                 .encode(['uint32'], [localDomain])
                 .slice(2),
               (match, offset) => (offset > 8000 ? match : ''),
@@ -242,12 +241,16 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       );
     }
 
-    await this.checkProxy(chain, 'Mailbox proxy', contracts.mailbox.address);
+    await this.checkProxy(
+      chain,
+      'Mailbox proxy',
+      contracts.mailbox.target as Address,
+    );
 
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
-      contracts.proxyAdmin.address,
+      contracts.proxyAdmin.target as Address,
       [
         BytecodeHash.PROXY_ADMIN_BYTECODE_HASH,
         BytecodeHash.V2_PROXY_ADMIN_BYTECODE_HASH,

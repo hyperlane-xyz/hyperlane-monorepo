@@ -140,7 +140,10 @@ export async function getLogsFromRpc({
       address: toString(rawLog.address, 'address'),
       blockNumber: toNumber(rawLog.blockNumber, 'blockNumber'),
       data: toString(rawLog.data, 'data'),
-      logIndex: toNumber(rawLog.logIndex, 'logIndex'),
+      logIndex: toNumber(
+        'logIndex' in rawLog ? rawLog.logIndex : rawLog.index,
+        'logIndex',
+      ),
       topics: toStringArray(rawLog.topics, 'topics'),
       transactionHash: toString(rawLog.transactionHash, 'transactionHash'),
       transactionIndex: toNumber(rawLog.transactionIndex, 'transactionIndex'),

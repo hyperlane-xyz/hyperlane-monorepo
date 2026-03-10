@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers, type Signer } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 import prompts from 'prompts';
@@ -112,7 +112,7 @@ async function main() {
     const deployer = DEPLOYERS[environment];
     const signer = await impersonateAccount(deployer);
 
-    multiProvider.setSharedSigner(signer);
+    multiProvider.setSharedSigner(signer as unknown as Signer);
   }
 
   // if none provided, instantiate a default verifier with the default core contract build artifact
@@ -207,8 +207,7 @@ async function main() {
     for (const chain of Object.keys(addresses)) {
       config[chain] = {
         interchainSecurityModule:
-          addresses[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
+          addresses[chain].interchainSecurityModule ?? ethers.ZeroAddress, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
       };
     }
     deployer = new TestRecipientDeployer(

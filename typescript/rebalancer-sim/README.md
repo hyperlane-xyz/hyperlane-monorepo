@@ -433,7 +433,7 @@ console.log(`Best latency: ${report.comparison.bestLatency}`);
 ### Generate Custom Scenarios
 
 ```typescript
-import { parseEther } from 'ethers/lib/utils';
+import { parseEther } from 'ethers';
 
 import { ScenarioGenerator } from '@hyperlane-xyz/rebalancer-sim';
 

@@ -47,7 +47,7 @@ function createMockDispatchEvent(
       message,
     },
     getTransactionReceipt: sinon.stub().resolves({
-      transactionHash: txHash,
+      hash: txHash,
       from: txFrom,
     }),
   };

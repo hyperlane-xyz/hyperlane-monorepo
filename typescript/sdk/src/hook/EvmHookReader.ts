@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import {
   AmountRoutingHook__factory,
@@ -138,7 +138,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
       this.setSmartProviderLogLevel('silent');
-      onchainHookType = await hook.hookType();
+      onchainHookType = this.asHookType(await hook.hookType());
 
       switch (onchainHookType) {
         case OnchainHookType.ROUTING:
@@ -177,7 +177,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           break;
         default:
           throw new Error(
-            `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
+            `Unsupported HookType: ${
+              onchainHookType === undefined
+                ? 'unknown'
+                : OnchainHookType[onchainHookType]
+            }`,
           );
       }
     } catch (e: any) {
@@ -298,7 +302,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   ): Promise<WithAddress<CCIPHookConfig>> {
     const ccipHook = CCIPHook__factory.connect(address, this.provider);
     const destinationDomain = await ccipHook.destinationDomain();
-    const destinationChain = this.multiProvider.getChainName(destinationDomain);
+    const destinationChain = this.multiProvider.getChainName(
+      this.asDomainId(destinationDomain),
+    );
 
     const config: WithAddress<CCIPHookConfig> = {
       address,
@@ -335,7 +341,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     // Parallelize hookType and hooks list fetching
     const [hookType, hooks] = await Promise.all([
       hook.hookType(),
-      hook.hooks(ethers.constants.AddressZero),
+      hook.hooks(ZeroAddress),
     ]);
 
     this.assertHookType(hookType, OnchainHookType.AGGREGATION);
@@ -405,7 +411,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             await hook.getExchangeRateAndGasPrice(domainId);
           const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
-          overhead[chainName] = domainGasOverhead.toNumber();
+          overhead[chainName] = Number(domainGasOverhead);
           oracleConfig[chainName] = {
             tokenExchangeRate: tokenExchangeRate.toString(),
             gasPrice: gasPrice.toString(),
@@ -503,8 +509,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     this.assertHookType(hookType, OnchainHookType.ID_AUTH_ISM);
 
-    const destinationChainName =
-      this.multiProvider.getChainName(destinationDomain);
+    const destinationChainName = this.multiProvider.getChainName(
+      this.asDomainId(destinationDomain),
+    );
 
     const config: WithAddress<OpStackHookConfig> = {
       owner,
@@ -531,8 +538,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       hook.childHook(),
     ]);
 
-    const destinationChainName =
-      this.multiProvider.getChainName(destinationDomain);
+    const destinationChainName = this.multiProvider.getChainName(
+      this.asDomainId(destinationDomain),
+    );
 
     const childHookConfig = await this.deriveHookConfig(childHookAddress);
     const config: WithAddress<ArbL2ToL1HookConfig> = {
@@ -619,7 +627,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         const chainName = this.multiProvider.getChainName(domainId);
         try {
           const domainHook = await hook.hooks(domainId);
-          if (domainHook !== ethers.constants.AddressZero) {
+          if (domainHook !== ZeroAddress) {
             domainHooks[chainName] = await this.deriveHookConfig(domainHook);
           }
         } catch {
@@ -686,7 +694,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const config: WithAddress<AmountRoutingHookConfig> = {
       address,
       type: HookType.AMOUNT_ROUTING,
-      threshold: threshold.toNumber(),
+      threshold: Number(threshold),
       lowerHook: lowerHookConfig,
       upperHook: upperHookConfig,
     };
@@ -696,13 +704,23 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config;
   }
 
+  private asHookType(hookType: bigint): OnchainHookType {
+    return Number(hookType) as OnchainHookType;
+  }
+
+  private asDomainId(domain: bigint): number {
+    return Number(domain);
+  }
+
   assertHookType(
-    hookType: OnchainHookType,
+    hookType: bigint | OnchainHookType,
     expectedType: OnchainHookType,
   ): void {
+    const normalizedHookType =
+      typeof hookType === 'bigint' ? this.asHookType(hookType) : hookType;
     assert(
-      hookType === expectedType,
-      `expected hook type to be ${expectedType}, got ${hookType}`,
+      normalizedHookType === expectedType,
+      `expected hook type to be ${expectedType}, got ${normalizedHookType}`,
     );
   }
 }

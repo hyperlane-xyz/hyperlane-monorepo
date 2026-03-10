@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, constants } from 'ethers';
+import { ZeroAddress, toBeHex } from 'ethers';
 
 import {
   ERC20__factory,
@@ -7,8 +7,6 @@ import {
   GasRouter,
   IMessageTransmitter__factory,
   MovableCollateralRouter__factory,
-  OpL1V1NativeTokenBridge__factory,
-  OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
@@ -90,42 +88,23 @@ const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
 const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
 
+function getEvmContractAddress(contract: { target?: unknown }): Address {
+  assert(typeof contract.target === 'string', 'Missing contract target');
+  return contract.target as Address;
+}
+
 export const TOKEN_INITIALIZE_SIGNATURE = (
   contractName: HypERC20contracts[DeployableTokenType],
 ) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':
-      assert(
-        OpL2NativeTokenBridge__factory.createInterface().functions[
-          OP_L2_INITIALIZE_SIGNATURE
-        ],
-        'missing expected initialize function',
-      );
       return OP_L2_INITIALIZE_SIGNATURE;
     case 'OpL1TokenBridgeNative':
-      assert(
-        OpL1V1NativeTokenBridge__factory.createInterface().functions[
-          OP_L1_INITIALIZE_SIGNATURE
-        ],
-        'missing expected initialize function',
-      );
       return OP_L1_INITIALIZE_SIGNATURE;
     case 'TokenBridgeCctp':
-      assert(
-        TokenBridgeCctpBase__factory.createInterface().functions[
-          CCTP_INITIALIZE_SIGNATURE
-        ],
-        'missing expected initialize function',
-      );
       return CCTP_INITIALIZE_SIGNATURE;
     case 'EverclearTokenBridge':
     case 'EverclearEthBridge':
-      assert(
-        EverclearTokenBridge__factory.createInterface().functions[
-          EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE
-        ],
-        'missing expected initialize function',
-      );
       return EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE;
     default:
       return 'initialize';
@@ -246,8 +225,8 @@ abstract class TokenDeployer<
   ): Promise<any> {
     const signer = await this.multiProvider.getSigner(chain).getAddress();
     const defaultArgs = [
-      config.hook ?? constants.AddressZero,
-      config.interchainSecurityModule ?? constants.AddressZero,
+      config.hook ?? ZeroAddress,
+      config.interchainSecurityModule ?? ZeroAddress,
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
@@ -262,13 +241,13 @@ abstract class TokenDeployer<
       isEverclearCollateralTokenConfig(config) ||
       isEverclearEthBridgeTokenConfig(config)
     ) {
-      return [config.hook ?? constants.AddressZero, config.owner];
+      return [config.hook ?? ZeroAddress, config.owner];
     } else if (isOpL2TokenConfig(config)) {
-      return [config.hook ?? constants.AddressZero, config.owner];
+      return [config.hook ?? ZeroAddress, config.owner];
     } else if (isOpL1TokenConfig(config)) {
       return [config.owner, config.urls];
     } else if (isCctpTokenConfig(config)) {
-      return [config.hook ?? constants.AddressZero, config.owner, config.urls];
+      return [config.hook ?? ZeroAddress, config.owner, config.urls];
     } else if (isSyntheticTokenConfig(config)) {
       return [
         config.initialSupply ?? 0,
@@ -319,7 +298,9 @@ abstract class TokenDeployer<
 
     await promiseObjAll(
       objMap(cctpConfigs, async (chain, _config) => {
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const tokenBridge = TokenBridgeCctpBase__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -353,7 +334,9 @@ abstract class TokenDeployer<
 
     await promiseObjAll(
       objMap(cctpV2Configs, async (chain, config) => {
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -378,18 +361,18 @@ abstract class TokenDeployer<
         // Read current fee: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
         const currentMaxFee = usesPpmName
           ? await tokenBridgeV2.maxFeePpm()
-          : BigNumber.from(
-              await tokenBridgeV2.provider.call({
+          : BigInt(
+              await this.multiProvider.getProvider(chain).call({
                 to: router,
                 // maxFeeBps() selector
                 data: '0xbf769a3f',
               }),
             );
 
-        if (currentMaxFee.toNumber() !== targetFee) {
+        if (Number(currentMaxFee) !== targetFee) {
           const currentFeeBps = usesPpmStorage
-            ? currentMaxFee.toNumber() / 100
-            : currentMaxFee.toNumber();
+            ? Number(currentMaxFee) / 100
+            : Number(currentMaxFee);
           this.logger.info(
             `Setting maxFeePpm on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmStorage ? ' (stored as ppm)' : ''}`,
           );
@@ -402,15 +385,10 @@ abstract class TokenDeployer<
           } else {
             await this.multiProvider.handleTx(
               chain,
-              tokenBridgeV2.signer.sendTransaction({
+              this.multiProvider.getSigner(chain).sendTransaction({
                 to: router,
                 // setMaxFeeBps(uint256) selector + abi-encoded targetFee
-                data:
-                  '0x246d4569' +
-                  BigNumber.from(targetFee)
-                    .toHexString()
-                    .slice(2)
-                    .padStart(64, '0'),
+                data: '0x246d4569' + toBeHex(targetFee, 32).slice(2),
               }),
             );
           }
@@ -429,7 +407,9 @@ abstract class TokenDeployer<
           return;
         }
 
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -458,7 +438,7 @@ abstract class TokenDeployer<
 
         const router = this.router(deployedContractsMap[chain]);
         const movableToken = MovableCollateralRouter__factory.connect(
-          router.address,
+          this.getContractAddress(router),
           this.multiProvider.getSigner(chain),
         );
 
@@ -479,7 +459,7 @@ abstract class TokenDeployer<
         // Filter out domains that are not enrolled to avoid errors
         const routerDomains = await router.domains();
         const bridgesToAllowOnRouter = bridgesToAllow.filter(({ domain }) =>
-          routerDomains.includes(domain),
+          routerDomains.map(Number).includes(domain),
         );
         for (const bridgeConfig of bridgesToAllowOnRouter) {
           await this.multiProvider.handleTx(
@@ -501,7 +481,9 @@ abstract class TokenDeployer<
           return;
         }
 
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -538,11 +520,11 @@ abstract class TokenDeployer<
             );
 
             const currentAllowance = await tokenInstance.allowance(
-              movableToken.address,
+              this.getContractAddress(movableToken),
               bridge,
             );
 
-            if (currentAllowance.gt(0)) {
+            if (currentAllowance > 0n) {
               bridgesWithAllowanceAlreadySet[token].add(bridge);
             }
           }),
@@ -577,7 +559,9 @@ abstract class TokenDeployer<
           return;
         }
 
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const everclearTokenBridge = EverclearTokenBridge__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -594,7 +578,7 @@ abstract class TokenDeployer<
           await this.multiProvider.handleTx(
             chain,
             everclearTokenBridge.setFeeParams(
-              domainId,
+              Number(domainId),
               feeConfig.fee,
               feeConfig.deadline,
               feeConfig.signature,
@@ -615,7 +599,9 @@ abstract class TokenDeployer<
           return;
         }
 
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const everclearTokenBridge = EverclearTokenBridge__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -660,7 +646,9 @@ abstract class TokenDeployer<
           return;
         }
 
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = getEvmContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const mc = MultiCollateral__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -833,7 +821,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         const router = this.router(deployedContractsMap[chain]);
         const resolvedFeeInput = resolveTokenFeeAddress(
           tokenFeeInput,
-          router.address,
+          this.getContractAddress(router),
           config,
         );
 
@@ -862,6 +850,7 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = true,
   ) {
     super(
       multiProvider,
@@ -869,6 +858,7 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
       'HypERC721Deployer',
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   }
 

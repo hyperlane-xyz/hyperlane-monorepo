@@ -61,9 +61,7 @@ describe('hyperlane core apply e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
-      chain2Metadata.rpcUrls[0].http,
-    );
+    const provider = new ethers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
 
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
@@ -98,8 +96,9 @@ describe('hyperlane core apply e2e tests', async function () {
 
     const proxyFactory = new ProxyAdmin__factory().connect(signer);
     const deployTx = await proxyFactory.deploy();
-    const newProxyAdmin = await deployTx.deployed();
-    coreConfig.proxyAdmin!.address = newProxyAdmin.address;
+    const newProxyAdmin = await deployTx.waitForDeployment();
+    const newProxyAdminAddress = await newProxyAdmin.getAddress();
+    coreConfig.proxyAdmin!.address = newProxyAdminAddress;
 
     writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
     await hyperlaneCore.apply(ANVIL_KEY);
@@ -107,7 +106,7 @@ describe('hyperlane core apply e2e tests', async function () {
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(updatedConfig.owner).to.equal(initialOwnerAddress);
-    expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdmin.address);
+    expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdminAddress);
     // Assuming that the ProtocolFeeHook is used for deployment
     expect(
       (updatedConfig.requiredHook as ProtocolFeeHookConfig).owner,

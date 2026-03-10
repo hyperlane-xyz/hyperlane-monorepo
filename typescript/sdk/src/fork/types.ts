@@ -25,7 +25,7 @@ export const EventAssertionSchema = z.discriminatedUnion('type', [
 
 export type EventAssertion = z.infer<typeof EventAssertionSchema>;
 
-// Additional types can be added based on: https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L55
+// Additional types can be added based on ethers JsonRpcProvider error shapes.
 export enum RevertAssertionType {
   ESTIMATE_GAS = 'estimateGas',
 }

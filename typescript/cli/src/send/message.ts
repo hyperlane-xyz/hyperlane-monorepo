@@ -151,7 +151,7 @@ async function executeDelivery({
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
-    logBlue(`Dispatch TX: ${dispatchTx.transactionHash}`);
+    logBlue(`Dispatch TX: ${dispatchTx.hash}`);
     logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
     log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 

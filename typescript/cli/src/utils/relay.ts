@@ -1,4 +1,4 @@
-import { type TransactionReceipt } from '@ethersproject/providers';
+import type { TransactionReceipt } from 'ethers';
 
 import { type IRegistry } from '@hyperlane-xyz/registry';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';

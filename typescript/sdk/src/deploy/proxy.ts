@@ -1,14 +1,15 @@
-import { ethers } from 'ethers';
+import { ZeroAddress, getAddress, id, toBigInt } from 'ethers';
+import type { Provider } from 'ethers';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
-export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
+export type EthersLikeProvider = Provider | ZKSyncProvider;
 
 export type UpgradeConfig = {
   timelock: {
@@ -42,20 +43,32 @@ async function assertCodeExists(
   }
 }
 
+async function readStorage(
+  provider: EthersLikeProvider,
+  contract: Address,
+  slot: string,
+): Promise<string> {
+  if ('getStorage' in provider) {
+    return (provider as any).getStorage(contract, slot);
+  }
+  return (provider as any).getStorageAt(contract, slot);
+}
+
 export async function proxyImplementation(
   provider: EthersLikeProvider,
   proxy: Address,
 ): Promise<Address> {
   await assertCodeExists(provider, proxy);
   // Hardcoded storage slot for implementation per EIP-1967
-  const storageValue = await provider.getStorageAt(
+  const storageValue = await readStorage(
+    provider,
     proxy,
     '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
   );
   if (isStorageEmpty(storageValue)) {
-    return ethers.constants.AddressZero;
+    return ZeroAddress;
   }
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return getAddress(storageValue.slice(26));
 }
 
 export async function isInitialized(
@@ -64,12 +77,12 @@ export async function isInitialized(
 ): Promise<boolean> {
   await assertCodeExists(provider, contract);
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const storageValue = await provider.getStorageAt(contract, '0x0');
+  const storageValue = await readStorage(provider, contract, '0x0');
   if (isStorageEmpty(storageValue)) {
     return false;
   }
-  const value = ethers.BigNumber.from(storageValue);
-  return value.eq(1) || value.eq(255);
+  const value = toBigInt(storageValue);
+  return value === 1n || value === 255n;
 }
 
 export async function proxyAdmin(
@@ -78,20 +91,21 @@ export async function proxyAdmin(
 ): Promise<Address> {
   await assertCodeExists(provider, proxy);
   // Hardcoded storage slot for admin per EIP-1967
-  const storageValue = await provider.getStorageAt(
+  const storageValue = await readStorage(
+    provider,
     proxy,
     '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',
   );
   if (isStorageEmpty(storageValue)) {
-    return ethers.constants.AddressZero;
+    return ZeroAddress;
   }
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return getAddress(storageValue.slice(26));
 }
 
-export function proxyConstructorArgs<C extends ethers.Contract>(
-  implementation: C,
+export function proxyConstructorArgs(
+  implementation: any,
   proxyAdmin: string,
-  initializeArgs?: Parameters<C['initialize']>,
+  initializeArgs?: any[],
   initializeFnSignature = 'initialize',
 ): [string, string, string] {
   const initData = initializeArgs
@@ -100,7 +114,7 @@ export function proxyConstructorArgs<C extends ethers.Contract>(
         initializeArgs,
       )
     : '0x';
-  return [implementation.address, proxyAdmin, initData];
+  return [implementation.target as string, proxyAdmin, initData];
 }
 
 export async function isProxy(
@@ -108,7 +122,7 @@ export async function isProxy(
   proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
-  return !eqAddress(admin, ethers.constants.AddressZero);
+  return !eqAddress(admin, ZeroAddress);
 }
 
 export function proxyAdminUpdateTxs(
@@ -124,8 +138,8 @@ export function proxyAdminUpdateTxs(
     ownerOverrides?: Record<string, string>;
     proxyAdmin?: DeployedOwnableConfig;
   }>,
-): AnnotatedEV5Transaction[] {
-  const transactions: AnnotatedEV5Transaction[] = [];
+): AnnotatedEvmTransaction[] {
+  const transactions: AnnotatedEvmTransaction[] = [];
 
   const parsedChainId =
     typeof chainId === 'string' ? parseInt(chainId) : chainId;
@@ -140,7 +154,7 @@ export function proxyAdminUpdateTxs(
       annotation: `Updating ProxyAdmin for proxy at "${proxyAddress}" from "${actualConfig.proxyAdmin.address}" to "${expectedConfig.proxyAdmin.address}"`,
       to: actualConfig.proxyAdmin.address,
       data: ProxyAdmin__factory.createInterface().encodeFunctionData(
-        'changeProxyAdmin(address,address)',
+        'changeProxyAdmin',
         [proxyAddress, expectedConfig.proxyAdmin.address],
       ),
     });
@@ -182,7 +196,7 @@ const requiredProxyAdminFunctionSelectors = [
   'upgrade(address,address)',
   'upgradeAndCall(address,address,bytes)',
   'changeProxyAdmin(address,address)',
-].map((func) => ethers.utils.id(func).substring(2, 10));
+].map((func) => id(func).substring(2, 10));
 
 /**
  * Check if contract bytecode matches ProxyAdmin patterns

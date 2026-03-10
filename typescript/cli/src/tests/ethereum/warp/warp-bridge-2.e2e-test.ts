@@ -26,7 +26,7 @@ describe('hyperlane warp deploy and bridge e2e tests', async function () {
 
   before(async function () {
     config = await setupChains();
-    warpConfigTestCases = generateTestCases(config, TOTAL_PARTS, INDEX);
+    warpConfigTestCases = await generateTestCases(config, TOTAL_PARTS, INDEX);
   });
 
   it(`Should deploy and bridge different types of warp routes - Part ${

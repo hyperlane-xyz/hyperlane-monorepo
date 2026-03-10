@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { formatUnits, parseUnits } from 'ethers';
 import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
@@ -145,9 +145,9 @@ async function fundVanguards() {
             VANGUARD_FUNDING_CONFIGS[chain][vanguard],
             TOKEN_DECIMALS,
           );
-          const delta = desiredBalance.sub(currentBalance);
+          const delta = desiredBalance - currentBalance;
 
-          if (delta.gt(MIN_FUNDING_AMOUNT)) {
+          if (delta > MIN_FUNDING_AMOUNT) {
             topUpsNeeded[chain] = topUpsNeeded[chain] || [];
             topUpsNeeded[chain].push({
               chain,
@@ -201,12 +201,15 @@ async function fundVanguards() {
         for (const { vanguard, balance: topUpAmount } of topUps) {
           try {
             const signer = multiProvider.getSigner(chain);
-            const signerBalance = await signer.getBalance();
+            const signerAddress = await signer.getAddress();
+            const signerBalance = await multiProvider
+              .getProvider(chain)
+              .getBalance(signerAddress);
 
             // Convert balance to a BigNumber by using parseUnits
             const amount = parseUnits(topUpAmount, TOKEN_DECIMALS);
 
-            if (signerBalance.lt(amount)) {
+            if (signerBalance < amount) {
               rootLogger.warn(
                 chalk.bold.yellow(
                   `Insufficient balance for ${vanguard} on ${chain}. Required: ${formatUnits(

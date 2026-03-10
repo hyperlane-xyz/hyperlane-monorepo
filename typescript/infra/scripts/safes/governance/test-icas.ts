@@ -67,9 +67,7 @@ async function main() {
     }
 
     const call =
-      await core.contractsMap[chain].mailbox.populateTransaction[
-        'localDomain()'
-      ]();
+      await core.contractsMap[chain].mailbox.localDomain.populateTransaction();
 
     assert(call.to, 'call.to is undefined');
     assert(call.data, 'call.data is undefined');
@@ -81,7 +79,7 @@ async function main() {
         destination: chain,
         innerCalls: [
           {
-            to: call.to,
+            to: call.to as string,
             data: call.data,
           },
         ],
@@ -99,9 +97,9 @@ async function main() {
 
   await safeMultiSend.sendTransactions(
     remoteCalls.map((call) => ({
-      to: call.to!,
+      to: call.to as string,
       data: call.data!,
-      value: call.value,
+      value: call.value ?? undefined,
     })),
   );
 }

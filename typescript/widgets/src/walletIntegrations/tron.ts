@@ -163,6 +163,9 @@ export function useTronTransactionFns(
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
         const receipt = await response.wait(1);
+        if (!receipt) {
+          throw new Error(`Missing receipt for transaction ${txID}`);
+        }
 
         return {
           type: tx.type,

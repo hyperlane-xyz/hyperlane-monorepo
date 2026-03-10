@@ -1,8 +1,8 @@
 import type { Logger } from 'pino';
-import { Wallet, type ContractReceipt } from 'ethers';
+import { type TransactionReceipt } from 'ethers';
 
 import {
-  type AnnotatedEV5Transaction,
+  type AnnotatedEvmTransaction,
   type ChainName,
   type EthJsonRpcBlockParameterTag,
   HyperlaneCore,
@@ -161,6 +161,36 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       );
     }
     return addr;
+  }
+
+  /**
+   * Extract a private key from a signer, unwrapping wrappers like NonceManager.
+   */
+  private getSignerPrivateKey(signer: unknown): string | undefined {
+    let current: unknown = signer;
+    const visited = new Set<unknown>();
+
+    while (current && !visited.has(current)) {
+      visited.add(current);
+
+      const signerWithKey = current as { privateKey?: unknown };
+      if (
+        typeof signerWithKey.privateKey === 'string' &&
+        signerWithKey.privateKey.length > 0
+      ) {
+        return signerWithKey.privateKey;
+      }
+
+      const wrappedSigner = current as { signer?: unknown };
+      if (wrappedSigner.signer) {
+        current = wrappedSigner.signer;
+        continue;
+      }
+
+      break;
+    }
+
+    return undefined;
   }
 
   /**
@@ -886,7 +916,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Sending transferRemote transaction',
     );
 
-    let receipt: ContractReceipt | undefined;
+    let receipt: TransactionReceipt | undefined;
     for (const tx of transactions) {
       this.logger.debug(
         { origin, destination, category: tx.category },
@@ -895,7 +925,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const isTransfer = tx.category === WarpTxCategory.Transfer;
       receipt = await signingProvider.sendTransaction(
         origin,
-        tx.transaction as AnnotatedEV5Transaction,
+        tx.transaction as AnnotatedEvmTransaction,
         isTransfer
           ? {
               waitConfirmations: reorgPeriod as
@@ -916,7 +946,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         {
           origin,
           destination,
-          txHash: receipt.transactionHash,
+          txHash: receipt.hash,
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
@@ -927,7 +957,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         origin,
         destination,
-        txHash: receipt.transactionHash,
+        txHash: receipt.hash,
         messageId,
         intentId: intent.id,
       },
@@ -941,7 +971,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: destinationDomain,
       amount,
       type: 'inventory_deposit',
-      txHash: receipt.transactionHash,
+      txHash: receipt.hash,
       messageId,
     });
 
@@ -1247,12 +1277,18 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       const signingProvider = this.config.inventoryMultiProvider;
       const signer = signingProvider.getSigner(sourceChain);
+      const signerPrivateKey = this.getSignerPrivateKey(signer);
+      const signerType =
+        typeof signer === 'object' && signer !== null
+          ? ((signer as { constructor?: { name?: string } }).constructor
+              ?.name ?? 'Object')
+          : typeof signer;
       assert(
-        signer instanceof Wallet,
-        `External bridge execution requires a Wallet signer with private key access, got ${signer.constructor.name}`,
+        signerPrivateKey,
+        `External bridge execution requires a signer with private key access, got ${signerType}`,
       );
 
-      const result = await externalBridge.execute(quote, signer.privateKey);
+      const result = await externalBridge.execute(quote, signerPrivateKey);
 
       this.logger.info(
         {

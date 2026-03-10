@@ -3,6 +3,7 @@ export { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
 export {
   TronTransaction,
   TronTransactionResponse,
+  TronWalletTransactionResponse,
   TronWallet,
   TronTransactionBuilder,
 } from './TronWallet.js';

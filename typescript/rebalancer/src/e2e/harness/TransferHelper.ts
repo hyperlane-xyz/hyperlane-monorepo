@@ -1,4 +1,12 @@
-import { BigNumber, type ContractReceipt, ethers, providers } from 'ethers';
+import {
+  JsonRpcProvider,
+  JsonRpcSigner,
+  MaxUint256,
+  TransactionReceipt,
+  Wallet,
+  parseEther,
+  toBeHex,
+} from 'ethers';
 
 import {
   ERC20__factory,
@@ -14,18 +22,20 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, retryAsync } from '@hyperlane-xyz/utils';
 
+import { ANVIL_TEST_PRIVATE_KEY } from '../fixtures/routes.js';
+
 export interface WarpTransferParams {
   originChain: string;
   destinationChain: string;
   routerAddress: string;
   tokenAddress: string;
-  amount: BigNumber;
+  amount: bigint;
   recipient: string;
   senderAddress?: string;
 }
 
 export interface WarpTransferResult {
-  dispatchTx: ContractReceipt;
+  dispatchTx: TransactionReceipt;
   messageId: string;
   origin: string;
   destination: string;
@@ -34,7 +44,7 @@ export interface WarpTransferResult {
 export async function executeWarpTransfer(
   multiProvider: MultiProvider,
   params: WarpTransferParams,
-  forkedProvider?: providers.JsonRpcProvider,
+  forkedProvider?: JsonRpcProvider,
 ): Promise<WarpTransferResult> {
   const {
     originChain,
@@ -48,7 +58,7 @@ export async function executeWarpTransfer(
 
   const provider =
     forkedProvider ??
-    (multiProvider.getProvider(originChain) as providers.JsonRpcProvider);
+    (multiProvider.getProvider(originChain) as JsonRpcProvider);
   const destinationDomain = multiProvider.getDomainId(destinationChain);
 
   let sender: string;
@@ -59,23 +69,18 @@ export async function executeWarpTransfer(
     sender = await multiProvider.getSigner(originChain).getAddress();
   }
 
-  await provider.send('anvil_setBalance', [
-    sender,
-    ethers.utils.parseEther('100').toHexString(),
-  ]);
+  await provider.send('anvil_setBalance', [sender, toBeHex(parseEther('100'))]);
 
-  const signer = provider.getSigner(sender);
+  const signer = await provider.getSigner(sender);
 
   const token = ERC20__factory.connect(tokenAddress, signer);
   const router = HypERC20Collateral__factory.connect(routerAddress, signer);
 
   const currentAllowance = await token.allowance(sender, routerAddress);
-  if (currentAllowance.lt(amount)) {
-    const approveTx = await token.approve(
-      routerAddress,
-      ethers.constants.MaxUint256,
-      { gasLimit: 100000 },
-    );
+  if (currentAllowance < amount) {
+    const approveTx = await token.approve(routerAddress, MaxUint256, {
+      gasLimit: 100000,
+    });
     await approveTx.wait();
   }
 
@@ -90,6 +95,9 @@ export async function executeWarpTransfer(
     { gasLimit: 500000, value: gasQuote },
   );
   const receipt = await tx.wait();
+  if (!receipt) {
+    throw new Error('Transfer transaction not mined');
+  }
 
   if (senderAddress) {
     await provider.send('anvil_stopImpersonatingAccount', [senderAddress]);
@@ -112,13 +120,36 @@ export async function relayMessage(
   multiProvider: MultiProvider,
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
-): Promise<ContractReceipt> {
+): Promise<TransactionReceipt> {
+  const relayChains = core.chains();
+  const coreAddresses = Object.fromEntries(
+    relayChains.map((chain) => [chain, core.getAddresses(chain)]),
+  );
+
+  // Use an isolated MultiProvider + dedicated relay signer so relay nonce state
+  // cannot be affected by prior rebalancer submissions in the same test.
+  const { result: relayMultiProvider } = multiProvider.intersect(relayChains);
+  for (const chain of relayChains) {
+    const provider = relayMultiProvider.getProvider(chain) as JsonRpcProvider;
+    const relaySigner = new Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
+    await provider.send('anvil_setBalance', [
+      relaySigner.address,
+      toBeHex(parseEther('100')),
+    ]);
+    relayMultiProvider.setSigner(chain, relaySigner);
+  }
+
+  const relayCore = HyperlaneCore.fromAddressesMap(
+    coreAddresses,
+    relayMultiProvider,
+  );
+
   return retryAsync(
     async () => {
-      const relayer = new HyperlaneRelayer({ core });
+      const relayer = new HyperlaneRelayer({ core: relayCore });
       const receipts = await relayer.relayAll(transferResult.dispatchTx);
       // relayAll keys receipts by domain ID, so look up by domain ID or chain name
-      const destinationDomain = core.multiProvider.getDomainId(
+      const destinationDomain = relayCore.multiProvider.getDomainId(
         transferResult.destination,
       );
       const destinationReceipts =
@@ -139,7 +170,7 @@ export async function executeWarpTransferAndRelay(
   params: WarpTransferParams,
 ): Promise<{
   transferResult: WarpTransferResult;
-  relayReceipt: ContractReceipt;
+  relayReceipt: TransactionReceipt;
 }> {
   const transferResult = await executeWarpTransfer(multiProvider, params);
   const relayReceipt = await relayMessage(multiProvider, core, transferResult);
@@ -147,7 +178,7 @@ export async function executeWarpTransferAndRelay(
 }
 
 export async function getRebalancerAddress(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   routerAddress: string,
 ): Promise<string> {
   const movable = MovableCollateralRouter__factory.connect(
@@ -162,15 +193,15 @@ export async function getRebalancerAddress(
 }
 
 export async function impersonateRebalancer(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   routerAddress: string,
-): Promise<{ rebalancerAddress: string; signer: providers.JsonRpcSigner }> {
+): Promise<{ rebalancerAddress: string; signer: JsonRpcSigner }> {
   const rebalancerAddress = await getRebalancerAddress(provider, routerAddress);
   await impersonateAccounts(provider, [rebalancerAddress]);
   await setBalance(provider, rebalancerAddress, '0x56BC75E2D63100000');
   return {
     rebalancerAddress,
-    signer: provider.getSigner(rebalancerAddress),
+    signer: await provider.getSigner(rebalancerAddress),
   };
 }
 
@@ -178,7 +209,7 @@ export async function tryRelayMessage(
   multiProvider: MultiProvider,
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
-): Promise<{ success: boolean; receipt?: ContractReceipt; error?: string }> {
+): Promise<{ success: boolean; receipt?: TransactionReceipt; error?: string }> {
   try {
     const receipt = await relayMessage(multiProvider, core, transferResult);
     return { success: true, receipt };

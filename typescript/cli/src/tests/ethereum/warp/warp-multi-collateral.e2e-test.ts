@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { parseUnits } from 'ethers/lib/utils.js';
+import { parseUnits } from 'ethers';
 
 import {
   type ChainAddresses,

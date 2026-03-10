@@ -262,7 +262,7 @@ export class AgentAwsKey extends CloudAgentKey {
     this.logger.debug('Keys rotated successfully');
   }
 
-  async getSigner(provider: ethers.providers.Provider): Promise<ethers.Signer> {
+  async getSigner(provider: ethers.Provider): Promise<ethers.Signer> {
     this.logger.debug('Getting signer');
     const keyId = await this.getId();
     if (!keyId) {
@@ -281,7 +281,7 @@ export class AgentAwsKey extends CloudAgentKey {
           region: this.region,
         },
       },
-      provider,
+      provider as any,
     );
   }
 

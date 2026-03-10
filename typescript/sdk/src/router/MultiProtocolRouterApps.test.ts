@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -14,7 +14,7 @@ describe('MultiProtocolRouterApp', () => {
       MultiProtocolProvider.createTestMultiProtocolProvider<RouterAddress>();
     it('creates an app class', async () => {
       const addresses = {
-        test1: { router: ethers.constants.AddressZero },
+        test1: { router: ZeroAddress },
       };
       const app = new MultiProtocolRouterApp(
         multiProvider.intersect(Object.keys(addresses)).result,
