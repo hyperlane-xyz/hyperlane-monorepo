@@ -351,16 +351,37 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: 0n,
       });
 
+      config.inventorySigners[ProtocolType.Sealevel] = {
+        address: INVENTORY_SIGNER,
+        key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
+      };
+
+      warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+        name: chain,
+        protocol:
+          chain === SOLANA_CHAIN
+            ? ProtocolType.Sealevel
+            : ProtocolType.Ethereum,
+        blocks: { reorgPeriod: 1 },
+      }));
+
+      const sendAndConfirmStub = Sinon.stub(
+        InventoryRebalancer.prototype as any,
+        'sendAndConfirmInventoryTx',
+      ).resolves({ txHash: '0xSolanaTxHash' });
+
+      warpCore.multiProvider.getSolanaWeb3Provider = Sinon.stub().returns({
+        getTransaction: Sinon.stub().resolves({
+          meta: { logMessages: [] },
+        }),
+      });
+
       multiProvider.sendTransaction.resetHistory();
       warpCore.getTransferRemoteTxs.resolves([
         {
           category: WarpTxCategory.Transfer,
-          type: ProviderType.EthersV5,
-          transaction: {
-            to: '0xRouterAddress',
-            data: '0xTransferRemoteData',
-            value: 1000000n,
-          },
+          type: ProviderType.SolanaWeb3,
+          transaction: {} as any,
         },
       ]);
 
@@ -368,10 +389,12 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect(multiProvider.sendTransaction.calledOnce).to.be.true;
+      expect(sendAndConfirmStub.calledOnce).to.be.true;
+      expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
+      expect(multiProvider.sendTransaction.called).to.be.false;
 
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.txHash).to.equal('0xTransferRemoteTxHash');
+      expect(actionParams.txHash).to.equal('0xSolanaTxHash');
     });
   });
 
