@@ -21,6 +21,7 @@ import {
   ProtocolType,
   assert,
   ensure0x,
+  isEVMLike,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -1024,6 +1025,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   ): MultiProtocolSignerSignerAccountInfo {
     void chain;
     switch (protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         return { protocol, privateKey: ensure0x(key) };
       case ProtocolType.Sealevel:
@@ -1063,7 +1065,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     try {
       const protocol = this.getProtocolForChain(origin);
 
-      if (protocol === ProtocolType.Ethereum) {
+      if (isEVMLike(protocol)) {
         const provider =
           this.warpCore.multiProvider.getEthersV5Provider(origin);
         const receipt = await provider.getTransactionReceipt(txHash);
