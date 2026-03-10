@@ -189,6 +189,7 @@ export class LiFiBridge implements IExternalBridge {
   private addressesEqual(a: string, b: string, chainId: number): boolean {
     const protocol = this.getProtocolTypeForChainId(chainId);
     // Sealevel uses base58 addresses where case is significant.
+    // EVM and Tron use hex addresses where case is insignificant.
     if (protocol === ProtocolType.Sealevel) {
       return a === b;
     }
@@ -244,9 +245,11 @@ export class LiFiBridge implements IExternalBridge {
           break;
         }
         default:
-          throw new Error(
-            `Unsupported protocol type '${protocol}' for LiFi provider`,
+          this.logger.warn(
+            { protocol },
+            `Skipping unsupported protocol for LiFi provider — no LiFi bridge support for ${protocol}`,
           );
+          break;
       }
     }
 
