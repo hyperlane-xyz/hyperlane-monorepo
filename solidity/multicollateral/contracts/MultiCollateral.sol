@@ -43,6 +43,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.UintSet;
 
     // ============ Events ============
 
@@ -54,6 +55,10 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     /// @notice Additional enrolled routers by domain (beyond the standard
     /// enrolled remote router). Local routers use localDomain as key.
     mapping(uint32 => EnumerableSet.Bytes32Set) private _enrolledRouters;
+
+    /// @notice Tracks which domains have at least one MC-enrolled router,
+    /// enabling on-chain enumeration for the SDK reader.
+    EnumerableSet.UintSet private _enrolledDomains;
 
     // ============ Constructor ============
 
@@ -73,6 +78,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         require(_domains.length == _routers.length, "MC: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
             if (_enrolledRouters[_domains[i]].add(_routers[i])) {
+                _enrolledDomains.add(uint256(_domains[i]));
                 emit RouterEnrolled(_domains[i], _routers[i]);
             }
         }
@@ -85,6 +91,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         require(_domains.length == _routers.length, "MC: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
             if (_enrolledRouters[_domains[i]].remove(_routers[i])) {
+                if (_enrolledRouters[_domains[i]].length() == 0) {
+                    _enrolledDomains.remove(uint256(_domains[i]));
+                }
                 emit RouterUnenrolled(_domains[i], _routers[i]);
             }
         }
@@ -103,6 +112,19 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint32 _domain
     ) external view returns (bytes32[] memory) {
         return _enrolledRouters[_domain].values();
+    }
+
+    /// @notice Returns all domains that have at least one MC-enrolled router.
+    function getEnrolledDomains()
+        external
+        view
+        returns (uint32[] memory domains)
+    {
+        uint256 len = _enrolledDomains.length();
+        domains = new uint32[](len);
+        for (uint256 i = 0; i < len; i++) {
+            domains[i] = uint32(_enrolledDomains.at(i));
+        }
     }
 
     // ============ Destination Gas Override ============

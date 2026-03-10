@@ -201,7 +201,6 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       // MC unenroll before enroll for consistency with remote routers.
       // MC enrollment must come before gas setting so that MC-only domains
-      // are on-chain when setDestinationGas validates them.
       ...this.createUnenrollMultiCollateralRoutersTxs(
         actualConfig,
         expectedConfig,
