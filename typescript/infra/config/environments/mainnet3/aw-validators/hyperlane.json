@@ -161,6 +161,9 @@
   "hyperevm": {
     "validators": ["0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f"]
   },
+  "igra": {
+    "validators": ["0x485f0739639e46d3b06b1b92debe2ade56d8bfb1"]
+  },
   "immutablezkevmmainnet": {
     "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
   },
@@ -412,8 +415,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "igra": {
-    "validators": ["0x485f0739639e46d3b06b1b92debe2ade56d8bfb1"]
   }
 }
