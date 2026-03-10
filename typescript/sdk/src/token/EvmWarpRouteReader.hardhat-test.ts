@@ -1029,6 +1029,7 @@ describe('EvmWarpRouteReader', async () => {
       .returns({
         wrappedToken: sinon.stub().resolves(wrappedTokenAddress),
         localDomain: sinon.stub().resolves(localDomain),
+        getEnrolledDomains: sinon.stub().resolves([localDomain, remoteDomain]),
         getEnrolledRouters: sinon
           .stub()
           .callsFake(async (domain: number) =>
