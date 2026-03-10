@@ -15,7 +15,14 @@ import {
   getSignerForChain,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, ensure0x, fromWei } from '@hyperlane-xyz/utils';
+<<<<<<< HEAD
+import {
+  ProtocolType,
+  assert,
+  ensure0x,
+  fromWei,
+  isEVMLike,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -1221,6 +1228,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   ): MultiProtocolSignerSignerAccountInfo {
     void chain;
     switch (protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         return { protocol, privateKey: ensure0x(key) };
       case ProtocolType.Sealevel:
@@ -1260,7 +1268,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     try {
       const protocol = this.getProtocolForChain(origin);
 
-      if (protocol === ProtocolType.Ethereum) {
+      if (isEVMLike(protocol)) {
         const provider =
           this.warpCore.multiProvider.getEthersV5Provider(origin);
         const receipt = await provider.getTransactionReceipt(txHash);
