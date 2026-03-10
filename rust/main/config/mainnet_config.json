@@ -9620,9 +9620,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 1000000000000
-      },
       "aggregationHook": "0x134ec0D4cA23F8D6CE020781d45bd9069543BF27",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -9648,6 +9645,9 @@
       "validatorAnnounce": "0x8452363d5c78bf95538614441Dc8B465e03A89ca",
       "index": {
         "from": 1080309
+      },
+      "transactionOverrides": {
+        "gasPrice": 1000000000000
       }
     }
   }
