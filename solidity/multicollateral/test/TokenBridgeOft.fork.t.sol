@@ -156,7 +156,13 @@ contract TokenBridgeOftArbForkTest is Test {
         assertEq(bridge.hyperlaneDomainToLzEid(100), 30200);
 
         bridge.removeDomain(100);
-        assertEq(bridge.hyperlaneDomainToLzEid(100), 0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeOft.LzEidNotConfigured.selector,
+                uint32(100)
+            )
+        );
+        bridge.hyperlaneDomainToLzEid(100);
     }
 
     function test_setExtraOptions() public {

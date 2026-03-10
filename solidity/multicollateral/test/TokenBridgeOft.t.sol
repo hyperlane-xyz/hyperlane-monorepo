@@ -205,7 +205,13 @@ contract TokenBridgeOftUnitTest is Test {
     function test_removeDomain() public {
         vm.prank(owner);
         bridge.removeDomain(DOMAIN_ETH);
-        assertEq(bridge.hyperlaneDomainToLzEid(DOMAIN_ETH), 0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeOft.LzEidNotConfigured.selector,
+                DOMAIN_ETH
+            )
+        );
+        bridge.hyperlaneDomainToLzEid(DOMAIN_ETH);
     }
 
     function test_removeDomain_revertsOnNonExistent() public {

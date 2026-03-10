@@ -227,7 +227,8 @@ contract TokenBridgeOft is TokenRouter {
         uint32 _domain
     ) external view returns (uint32) {
         (bool exists, uint256 eid) = _domainToLzEid.tryGet(uint256(_domain));
-        return exists ? uint32(eid) : 0;
+        if (!exists) revert LzEidNotConfigured(_domain);
+        return uint32(eid);
     }
 
     /// @notice Returns all configured domain mappings as parallel arrays.
