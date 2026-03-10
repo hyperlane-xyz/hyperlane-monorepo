@@ -219,14 +219,28 @@ async function main(): Promise<void> {
       }
     }
 
-    // Merge runtime keys into config (creates new RebalancerConfig with keys embedded)
+    // Merge runtime keys into config — start from YAML config as base, overlay runtime keys per-protocol.
+    // This preserves YAML-only signer addresses (e.g., monitor-only configs) while adding runtime keys.
+    const mergedInventorySigners: Partial<
+      Record<ProtocolType, InventorySignerConfig>
+    > = { ...(rebalancerConfig.inventorySigners ?? {}) };
+    for (const protocol of Object.values(ProtocolType)) {
+      const runtimeSigner = inventorySigners[protocol];
+      if (runtimeSigner) {
+        mergedInventorySigners[protocol] = {
+          ...mergedInventorySigners[protocol],
+          ...runtimeSigner,
+        };
+      }
+    }
+
     const mergedRebalancerConfig =
-      Object.keys(inventorySigners).length > 0
+      Object.keys(mergedInventorySigners).length > 0
         ? new RebalancerConfig(
             rebalancerConfig.warpRouteId,
             rebalancerConfig.strategyConfig,
             rebalancerConfig.intentTTL,
-            inventorySigners,
+            mergedInventorySigners,
             rebalancerConfig.externalBridges,
           )
         : rebalancerConfig;
