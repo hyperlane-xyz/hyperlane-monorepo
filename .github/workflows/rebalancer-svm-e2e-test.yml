@@ -48,16 +48,6 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: "v1-rebalancer-svm-e2e"
-          shared-key: "sealevel"
-          cache-provider: "github"
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
-          workspaces: |
-            ./rust/main
-            ./rust/sealevel
 
       - name: Install system dependencies
         run: |
@@ -74,27 +64,31 @@ jobs:
         id: cache-agave
         uses: actions/cache@v5
         with:
-          path: .sisyphus/tools/agave-v${{ env.AGAVE_VERSION }}
+          path: .local-tools/agave-v${{ env.AGAVE_VERSION }}
           key: agave-${{ env.AGAVE_VERSION }}-linux-x86_64
 
       - name: Install Agave toolchain
         if: steps.cache-agave.outputs.cache-hit != 'true'
         run: |
-          mkdir -p .sisyphus/tools/agave-v${AGAVE_VERSION}
+          mkdir -p .local-tools/agave-v${AGAVE_VERSION}
           TARBALL="solana-release-x86_64-unknown-linux-gnu.tar.bz2"
           wget --tries=3 --retry-connrefused -q \
             "https://github.com/anza-xyz/agave/releases/download/v${AGAVE_VERSION}/${TARBALL}"
           tar -xjf "${TARBALL}"
-          mv solana-release/* .sisyphus/tools/agave-v${AGAVE_VERSION}/
+          mv solana-release/* .local-tools/agave-v${AGAVE_VERSION}/
           rm -rf solana-release "${TARBALL}"
 
       - name: Add Agave to PATH
-        run: echo "${GITHUB_WORKSPACE}/.sisyphus/tools/agave-v${AGAVE_VERSION}/bin" >> $GITHUB_PATH
+        run: echo "${GITHUB_WORKSPACE}/.local-tools/agave-v${AGAVE_VERSION}/bin" >> $GITHUB_PATH
 
       - name: Verify Agave installation
         run: |
           solana --version
           solana-test-validator --version
+
+      - name: Setup sccache
+        uses: ./.github/actions/setup-sccache
+
 
       # ── Build Sealevel programs (.so files → rust/main/target/dist/) ──
       - name: Build Sealevel programs
