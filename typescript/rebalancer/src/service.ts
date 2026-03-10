@@ -223,7 +223,7 @@ async function main(): Promise<void> {
     // This preserves YAML-only signer addresses (e.g., monitor-only configs) while adding runtime keys.
     const mergedInventorySigners: Partial<
       Record<ProtocolType, InventorySignerConfig>
-    > = { ...(rebalancerConfig.inventorySigners ?? {}) };
+    > = { ...rebalancerConfig.inventorySigners };
     for (const protocol of Object.values(ProtocolType)) {
       const runtimeSigner = inventorySigners[protocol];
       if (runtimeSigner) {
