@@ -242,7 +242,6 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
 
         address _feeHook = feeHook();
         address _token = token();
-        address _feeToken = feeToken();
 
         // Same-domain transferRemoteTo calls handle() directly and does not dispatch
         // through mailbox hooks, so do not charge hook fees in that path.
@@ -251,7 +250,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
                 _destination,
                 _recipient,
                 _outboundAmount(_amount),
-                _feeToken,
+                _token,
                 _targetRouter
             );
             if (hookFee > 0) {
