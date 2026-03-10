@@ -19,7 +19,7 @@ export const SO_DIR = path.join(REPO_ROOT, 'rust/main/target/dist');
 export const SEALEVEL_DIR = path.join(REPO_ROOT, 'rust/sealevel');
 export const AGAVE_BIN_DIR = path.join(
   REPO_ROOT,
-  '.sisyphus/tools/agave-v3.0.14/bin',
+  '.local-tools/agave-v3.0.14/bin',
 );
 export const SEALEVEL_CLIENT = path.join(
   SEALEVEL_DIR,

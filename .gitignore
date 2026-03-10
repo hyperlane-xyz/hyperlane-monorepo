@@ -47,6 +47,7 @@ yalc.lock
 
 .opencode
 .sisyphus
+.local-tools
 
 
 # Forge build artifacts
