@@ -6,6 +6,7 @@ import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt} from "./int
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title TokenBridgeOft
@@ -94,7 +95,7 @@ contract TokenBridgeOft is TokenRouter {
 
     /**
      * @dev Override to return LayerZero OFT native fee instead of Hyperlane IGP fee.
-     * This is called by TokenRouter.quoteTransferRemote().
+     * Quotes using the gross amount (including OFT fee) for accurate gas estimation.
      */
     function _quoteGasPayment(
         uint32 _destination,
@@ -102,60 +103,81 @@ contract TokenBridgeOft is TokenRouter {
         uint256 _amount,
         address /* _feeToken */
     ) internal view override returns (uint256) {
+        uint256 grossAmount = _grossOftAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
         SendParam memory sendParam = _buildSendParam(
             _destination,
             _recipient,
-            _amount,
-            0 // minAmountLD = 0 for quoting
+            grossAmount,
+            _amount
         );
         MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
         return msgFee.nativeFee;
     }
 
     /**
+     * @dev Override to surface OFT token fees as an external fee in quoteTransferRemote.
+     * This is the difference between what we must send the OFT and what the recipient gets.
+     */
+    function _externalFeeAmount(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view override returns (uint256) {
+        return _grossOftAmount(_destination, _recipient, _amount) - _amount;
+    }
+
+    /**
      * @dev Override to bridge via OFT.send() instead of Hyperlane dispatch.
-     * Flow: pull tokens → OFT.send() with msg.sender as LZ refund → refund
-     * any excess msg.value back to caller.
+     * Computes the gross amount (net + OFT fee) via analytical inversion,
+     * pulls gross from sender, and sends to OFT with net _amount as minAmountLD.
      */
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) internal override returns (bytes32 messageId) {
-        uint256 balBefore = address(this).balance - msg.value;
+        uint256 nativeBalBefore = address(this).balance - msg.value;
 
-        // Pull tokens from sender
-        _transferFromSender(_amount);
+        uint256 grossAmount = _grossOftAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
 
-        // Build OFT send params
+        // Pull gross amount (net + OFT fee) from sender
+        _transferFromSender(grossAmount);
+
+        // Build OFT send params: send grossAmount, enforce _amount as minimum received
         SendParam memory sendParam = _buildSendParam(
             _destination,
             _recipient,
-            _amount,
-            0 // placeholder, will be set from quoteOFT
+            grossAmount,
+            _amount
         );
-
-        // Get the expected receipt to set minAmountLD for slippage protection
-        (, , OFTReceipt memory receipt) = oft.quoteOFT(sendParam);
-        sendParam.minAmountLD = receipt.amountReceivedLD;
 
         // Get native gas fee
         MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
+
+        // Emit before external call (CEI pattern)
+        emit SentTransferRemote(_destination, _recipient, _amount);
 
         // Execute the OFT send — LZ refunds go to msg.sender
         (MessagingReceipt memory msgReceipt, ) = oft.send{
             value: msgFee.nativeFee
         }(sendParam, msgFee, msg.sender);
 
-        // Refund excess msg.value (re-quote difference) back to caller
-        uint256 excess = address(this).balance - balBefore;
-        if (excess > 0) {
+        // Refund excess native value back to caller
+        uint256 nativeExcess = address(this).balance - nativeBalBefore;
+        if (nativeExcess > 0) {
             // solhint-disable-next-line avoid-low-level-calls
-            (bool ok, ) = msg.sender.call{value: excess}("");
+            (bool ok, ) = msg.sender.call{value: nativeExcess}("");
             require(ok, "TokenBridgeOft: ETH refund failed");
         }
 
-        emit SentTransferRemote(_destination, _recipient, _amount);
         return msgReceipt.guid;
     }
 
@@ -248,6 +270,41 @@ contract TokenBridgeOft is TokenRouter {
                 composeMsg: "",
                 oftCmd: ""
             });
+    }
+
+    /**
+     * @dev Analytically invert the OFT fee to compute the gross input amount
+     * such that the recipient receives at least _amount after OFT deductions.
+     *
+     * OFT fees are linear (percentage-based), so:
+     *   grossAmount = ceil(_amount * amountSentLD / amountReceivedLD)
+     *
+     * If the OFT charges no fee (amountSentLD == amountReceivedLD), returns _amount.
+     * Reverts if the OFT returns amountReceivedLD == 0 (would indicate 100% fee).
+     */
+    function _grossOftAmount(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (uint256) {
+        SendParam memory probeParam = _buildSendParam(
+            _destination,
+            _recipient,
+            _amount,
+            0
+        );
+        (, , OFTReceipt memory receipt) = oft.quoteOFT(probeParam);
+
+        uint256 sent = receipt.amountSentLD;
+        uint256 received = receipt.amountReceivedLD;
+
+        // No fee: short-circuit
+        if (sent == received) return _amount;
+
+        require(received > 0, "TokenBridgeOft: OFT 100% fee");
+
+        // Analytical inversion: grossAmount = ceil(_amount * sent / received)
+        return Math.ceilDiv(_amount * sent, received);
     }
 
     /// @notice Allow contract to receive native token refunds from OFT

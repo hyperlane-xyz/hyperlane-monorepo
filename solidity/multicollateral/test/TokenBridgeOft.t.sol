@@ -19,7 +19,7 @@ contract MockOFT is IOFT {
     address public tokenAddress;
     bool public approvalRequiredValue;
     uint256 public nativeFeeToReturn;
-    uint256 public amountReceivedLD;
+    uint256 public feeBps; // Linear fee in basis points (e.g. 100 = 1%)
     bytes32 public guidToReturn;
     bool public shouldRevertOnSend;
 
@@ -34,8 +34,8 @@ contract MockOFT is IOFT {
         nativeFeeToReturn = _fee;
     }
 
-    function setAmountReceivedLD(uint256 _amount) external {
-        amountReceivedLD = _amount;
+    function setFeeBps(uint256 _feeBps) external {
+        feeBps = _feeBps;
     }
 
     function setGuid(bytes32 _guid) external {
@@ -44,6 +44,13 @@ contract MockOFT is IOFT {
 
     function setShouldRevertOnSend(bool _revert) external {
         shouldRevertOnSend = _revert;
+    }
+
+    function _applyFee(
+        uint256 _amount
+    ) internal view returns (uint256 sent, uint256 received) {
+        sent = _amount;
+        received = feeBps > 0 ? _amount - (_amount * feeBps) / 10000 : _amount;
     }
 
     // ---- IOFT ----
@@ -78,16 +85,11 @@ contract MockOFT is IOFT {
         view
         returns (OFTLimit memory, OFTFeeDetail[] memory, OFTReceipt memory)
     {
-        uint256 received = amountReceivedLD > 0
-            ? amountReceivedLD
-            : _sendParam.amountLD;
+        (uint256 sent, uint256 received) = _applyFee(_sendParam.amountLD);
         return (
             OFTLimit({minAmountLD: 0, maxAmountLD: type(uint256).max}),
             new OFTFeeDetail[](0),
-            OFTReceipt({
-                amountSentLD: _sendParam.amountLD,
-                amountReceivedLD: received
-            })
+            OFTReceipt({amountSentLD: sent, amountReceivedLD: received})
         );
     }
 
@@ -107,9 +109,7 @@ contract MockOFT is IOFT {
             );
         }
 
-        uint256 received = amountReceivedLD > 0
-            ? amountReceivedLD
-            : _sendParam.amountLD;
+        (uint256 sent, uint256 received) = _applyFee(_sendParam.amountLD);
 
         return (
             MessagingReceipt({
@@ -117,10 +117,7 @@ contract MockOFT is IOFT {
                 nonce: 1,
                 fee: MessagingFee({nativeFee: msg.value, lzTokenFee: 0})
             }),
-            OFTReceipt({
-                amountSentLD: _sendParam.amountLD,
-                amountReceivedLD: received
-            })
+            OFTReceipt({amountSentLD: sent, amountReceivedLD: received})
         );
     }
 }
@@ -424,10 +421,10 @@ contract TokenBridgeOftAdapterUnitTest is Test {
 }
 
 /**
- * @title TokenBridgeOftSlippageTest
- * @notice Tests that minAmountLD is set from quoteOFT for slippage protection.
+ * @title TokenBridgeOftFeeInversionTest
+ * @notice Tests analytical fee inversion for OFTs with linear fees.
  */
-contract TokenBridgeOftSlippageTest is Test {
+contract TokenBridgeOftFeeInversionTest is Test {
     uint32 constant DOMAIN_ETH = 1;
     uint32 constant LZ_EID_ETH = 30101;
 
@@ -455,15 +452,78 @@ contract TokenBridgeOftSlippageTest is Test {
         vm.deal(caller, 10 ether);
     }
 
-    function test_slippageProtection_setsMinAmount() public {
-        // Simulate OFT that takes a fee: send 100, receive 99
-        mockOft.setAmountReceivedLD(99e6);
+    function test_noFee_grossEqualsAmount() public view {
+        // Default: no fee
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ETH,
+            recipient,
+            100e6
+        );
+        // External fee (quotes[2]) should be 0
+        assertEq(quotes[2].amount, 0, "no external fee when OFT has no fee");
+    }
+
+    function test_linearFee_externalFeeInQuote() public {
+        // 1% fee (100 bps)
+        mockOft.setFeeBps(100);
+
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ETH,
+            recipient,
+            100e6
+        );
+
+        // For 100e6 net amount with 1% fee:
+        // Probe: send 100e6, receive 99e6
+        // Gross = ceil(100e6 * 100e6 / 99e6) = 101010102
+        // External fee = 101010102 - 100e6 = 1010102
+        uint256 externalFee = quotes[2].amount;
+        assertGt(externalFee, 0, "external fee should be positive");
+        // Fee should be ~1% of net amount (slightly more due to inversion)
+        assertApproxEqRel(externalFee, 1e6, 0.02e18); // within 2%
+    }
+
+    function test_linearFee_transferPullsGross() public {
+        // 1% fee (100 bps)
+        mockOft.setFeeBps(100);
 
         vm.startPrank(caller);
         token.approve(address(bridge), type(uint256).max);
 
-        // Should not revert — minAmountLD is set from quoteOFT
+        uint256 balBefore = token.balanceOf(caller);
         bridge.transferRemote{value: 0.001 ether}(DOMAIN_ETH, recipient, 100e6);
         vm.stopPrank();
+
+        uint256 pulled = balBefore - token.balanceOf(caller);
+        // Should pull more than 100e6 (gross = net + OFT fee)
+        assertGt(pulled, 100e6, "should pull more than net amount");
+        // Gross should be ~101.01e6
+        assertApproxEqRel(pulled, 101010102, 0.001e18); // within 0.1%
+    }
+
+    function test_linearFee_6bps() public {
+        // 6 bps fee (like Stargate-style)
+        mockOft.setFeeBps(6);
+
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ETH,
+            recipient,
+            1_000e6 // 1000 USDT
+        );
+
+        uint256 externalFee = quotes[2].amount;
+        // ~0.06% of 1000e6 = ~600_036 (0.6 USDT + inversion rounding)
+        assertApproxEqRel(externalFee, 600361, 0.01e18);
+    }
+
+    function test_linearFee_zeroAmount() public {
+        mockOft.setFeeBps(100);
+
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ETH,
+            recipient,
+            0
+        );
+        assertEq(quotes[2].amount, 0, "zero amount = zero fee");
     }
 }
