@@ -13,15 +13,18 @@ const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
+  TokenStandard.TronHypCollateral,
+  TokenStandard.TronHypNative,
 ]);
 
-// SDK-backed native token standard check scoped to EVM and Sealevel only (2-protocol scope).
+// SDK-backed native token standard check scoped to EVM, Sealevel, and Tron (3-protocol scope).
 // NOTE: We intentionally do NOT use the full PROTOCOL_TO_HYP_NATIVE_STANDARD map (all 7 protocols)
-// because the rebalancer only supports EVM and Sealevel native token bridging.
+// because the rebalancer only supports EVM, Sealevel, and Tron native token bridging.
 // Expanding this would change gas reservation behavior for other protocols.
 const REBALANCER_NATIVE_STANDARDS = new Set([
   PROTOCOL_TO_HYP_NATIVE_STANDARD[ProtocolType.Ethereum],
   PROTOCOL_TO_HYP_NATIVE_STANDARD[ProtocolType.Sealevel],
+  PROTOCOL_TO_HYP_NATIVE_STANDARD[ProtocolType.Tron],
 ]);
 
 /**
