@@ -95,7 +95,6 @@ contract TokenBridgeOft is TokenRouter {
 
     /**
      * @dev Override to return LayerZero OFT native fee instead of Hyperlane IGP fee.
-     * Quotes using the gross amount (including OFT fee) for accurate gas estimation.
      */
     function _quoteGasPayment(
         uint32 _destination,
@@ -103,16 +102,11 @@ contract TokenBridgeOft is TokenRouter {
         uint256 _amount,
         address /* _feeToken */
     ) internal view override returns (uint256) {
-        uint256 grossAmount = _grossOftAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
         SendParam memory sendParam = _buildSendParam(
             _destination,
             _recipient,
-            grossAmount,
-            _amount
+            _amount,
+            0
         );
         MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
         return msgFee.nativeFee;
@@ -140,8 +134,6 @@ contract TokenBridgeOft is TokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) internal override returns (bytes32 messageId) {
-        uint256 nativeBalBefore = address(this).balance - msg.value;
-
         uint256 grossAmount = _grossOftAmount(
             _destination,
             _recipient,
@@ -171,7 +163,7 @@ contract TokenBridgeOft is TokenRouter {
         }(sendParam, msgFee, msg.sender);
 
         // Refund excess native value back to caller
-        uint256 nativeExcess = address(this).balance - nativeBalBefore;
+        uint256 nativeExcess = msg.value - msgFee.nativeFee;
         if (nativeExcess > 0) {
             // solhint-disable-next-line avoid-low-level-calls
             (bool ok, ) = msg.sender.call{value: nativeExcess}("");
@@ -226,9 +218,7 @@ contract TokenBridgeOft is TokenRouter {
     function hyperlaneDomainToLzEid(
         uint32 _domain
     ) external view returns (uint32) {
-        (bool exists, uint256 eid) = _domainToLzEid.tryGet(uint256(_domain));
-        if (!exists) revert LzEidNotConfigured(_domain);
-        return uint32(eid);
+        return _getLzEid(_domain);
     }
 
     /// @notice Returns all configured domain mappings as parallel arrays.
@@ -249,21 +239,21 @@ contract TokenBridgeOft is TokenRouter {
 
     // ============ Internal ============
 
+    function _getLzEid(uint32 _domain) internal view returns (uint32) {
+        (bool exists, uint256 eid) = _domainToLzEid.tryGet(uint256(_domain));
+        if (!exists) revert LzEidNotConfigured(_domain);
+        return uint32(eid);
+    }
+
     function _buildSendParam(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         uint256 _minAmountLD
     ) internal view returns (SendParam memory) {
-        (bool exists, uint256 eid) = _domainToLzEid.tryGet(
-            uint256(_destination)
-        );
-        if (!exists) revert LzEidNotConfigured(_destination);
-        uint32 lzEid = uint32(eid);
-
         return
             SendParam({
-                dstEid: lzEid,
+                dstEid: _getLzEid(_destination),
                 to: _recipient,
                 amountLD: _amount,
                 minAmountLD: _minAmountLD,
