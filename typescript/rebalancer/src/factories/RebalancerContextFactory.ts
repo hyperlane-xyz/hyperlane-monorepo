@@ -467,6 +467,21 @@ export class RebalancerContextFactory {
         return metadata.protocol;
       }),
     );
+    const SUPPORTED_INVENTORY_PROTOCOLS = new Set([
+      ProtocolType.Ethereum,
+      ProtocolType.Sealevel,
+    ]);
+    for (const protocol of requiredProtocols) {
+      const chainsForProtocol = allRelevantChains.filter(
+        (chain) =>
+          this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
+          protocol,
+      );
+      assert(
+        SUPPORTED_INVENTORY_PROTOCOLS.has(protocol),
+        `Inventory rebalancing does not support protocol '${protocol}' (chains: ${chainsForProtocol.join(', ')}). Supported: ethereum, sealevel`,
+      );
+    }
     for (const protocol of requiredProtocols) {
       const chainsForProtocol = allRelevantChains.filter(
         (chain) =>

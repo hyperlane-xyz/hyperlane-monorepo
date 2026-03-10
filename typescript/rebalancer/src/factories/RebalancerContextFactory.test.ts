@@ -316,5 +316,79 @@ describe('RebalancerContextFactory', () => {
         `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
       );
     });
+
+    it('should fail early when inventory chain uses unsupported protocol', async () => {
+      const cosmosChain = 'cosmoshub';
+      const evmChain = 'ethereum';
+      const { multiProvider } = createMockMultiProvider([
+        { name: evmChain, protocol: ProtocolType.Ethereum },
+        { name: cosmosChain, protocol: ProtocolType.Cosmos },
+      ]);
+
+      const config = {
+        warpRouteId: 'USDC/cosmos-route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              [cosmosChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+                override: {
+                  [evmChain]: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              [evmChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+          [ProtocolType.Cosmos]: {
+            address: 'cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu',
+            key: 'cosmos_key',
+          },
+        },
+        intentTTL: DEFAULT_INTENT_TTL_MS,
+      } as RebalancerConfig;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            evmChain,
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+          createToken(
+            cosmosChain,
+            'cosmos1token',
+            TokenStandard.EvmHypSynthetic,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake((chainName: string) => ({
+        protocol:
+          chainName === cosmosChain
+            ? ProtocolType.Cosmos
+            : ProtocolType.Ethereum,
+      }));
+
+      await expect(
+        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
+      ).to.be.rejectedWith(
+        `Inventory rebalancing does not support protocol '${ProtocolType.Cosmos}'`,
+      );
+    });
   });
 });
