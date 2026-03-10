@@ -85,6 +85,21 @@ export class RebalancerOrchestrator {
       );
     }
 
+    if (metrics && event.inventoryBalances) {
+      for (const [chain, balance] of Object.entries(event.inventoryBalances)) {
+        metrics.updateInventoryBalance(
+          chain,
+          balance as bigint,
+          this.rebalancerConfig.warpRouteId,
+        );
+      }
+    }
+    if (metrics && event.inventoryFetchFailures) {
+      for (const chain of event.inventoryFetchFailures) {
+        metrics.recordInventoryBalanceFetchFailure(chain);
+      }
+    }
+
     await this.syncActionTracker(event.confirmedBlockTags);
 
     const rawBalances = getRawBalances(
@@ -170,6 +185,7 @@ export class RebalancerOrchestrator {
 
       await this.actionTracker.logStoreContents();
     } catch (error) {
+      this.metrics?.recordCycleError('sync_failure');
       this.logger.warn(
         { error },
         'ActionTracker sync failed, using stale data',
@@ -263,6 +279,7 @@ export class RebalancerOrchestrator {
       if (rebalancer.rebalancerType === 'movableCollateral') {
         this.metrics?.recordRebalancerFailure();
       }
+      this.metrics?.recordCycleError('execution_error');
       this.logger.error(
         { error, type: rebalancer.rebalancerType },
         'Error while executing routes',

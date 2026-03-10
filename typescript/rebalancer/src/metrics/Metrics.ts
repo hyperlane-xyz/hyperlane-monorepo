@@ -11,6 +11,7 @@ import {
   startMetricsServer,
 } from '@hyperlane-xyz/metrics';
 import {
+  type ChainName,
   Token,
   type TokenAmount,
   TokenStandard,
@@ -28,10 +29,15 @@ import { type PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
   rebalancerActionsCreatedTotal,
+  rebalancerBridgeFailuresTotal,
+  rebalancerCycleErrorsTotal,
   rebalancerExecutionAmount,
   rebalancerExecutionTotal,
   rebalancerIntentsCreatedTotal,
+  rebalancerInventoryBalance,
+  rebalancerInventoryBalanceFetchFailuresTotal,
   rebalancerPollingErrorsTotal,
+  rebalancerTxFailuresTotal,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
@@ -86,6 +92,66 @@ export class Metrics implements IMetrics {
   recordPollingError() {
     rebalancerPollingErrorsTotal
       .labels({ warp_route_id: this.warpRouteId })
+      .inc();
+  }
+
+  recordCycleError(errorType: string): void {
+    rebalancerCycleErrorsTotal
+      .labels({ warp_route_id: this.warpRouteId, error_type: errorType })
+      .inc();
+  }
+
+  recordTxFailure(
+    origin: ChainName,
+    destination: ChainName,
+    failureReason: string,
+  ): void {
+    rebalancerTxFailuresTotal
+      .labels({
+        warp_route_id: this.warpRouteId,
+        origin,
+        destination,
+        failure_reason: failureReason,
+      })
+      .inc();
+  }
+
+  recordBridgeFailure(
+    sourceChain: ChainName,
+    targetChain: ChainName,
+    failureReason: string,
+  ): void {
+    rebalancerBridgeFailuresTotal
+      .labels({
+        warp_route_id: this.warpRouteId,
+        source_chain: sourceChain,
+        target_chain: targetChain,
+        failure_reason: failureReason,
+      })
+      .inc();
+  }
+
+  updateInventoryBalance(
+    chain: ChainName,
+    balance: bigint,
+    warpRouteId: string,
+  ): void {
+    const token = this.warpCore.tokens.find((t) => t.chainName === chain);
+    if (!token) return;
+    const decimalBalance = Number(balance) / 10 ** token.decimals;
+    rebalancerInventoryBalance
+      .labels({
+        warp_route_id: warpRouteId,
+        chain,
+        token_symbol: token.symbol,
+        token_address: token.addressOrDenom,
+      })
+      .set(decimalBalance);
+  }
+
+  recordInventoryBalanceFetchFailure(chain: ChainName): void {
+    rebalancerInventoryBalanceFetchFailuresTotal
+      .labels({ warp_route_id: this.warpRouteId, chain })
       .inc();
   }
 
