@@ -9,7 +9,11 @@ import {
   type Token,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
-import { addBufferToGasLimit, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  addBufferToGasLimit,
+  isZeroishAddress,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 /**
  * Fallback gas limit for transferRemote when eth_estimateGas fails.
@@ -206,6 +210,36 @@ export async function calculateTransferCosts(
     isZeroishAddress(gasQuote.tokenFeeQuote.addressOrDenom)
       ? (gasQuote.tokenFeeQuote?.amount ?? 0n)
       : 0n;
+
+  // Skip gas estimation for non-EVM chains (e.g., Solana).
+  // Non-EVM chains have negligible base fees (~5000 lamports ~$0.0001 on Solana)
+  // compared to EVM gas costs ($0.50-$50/tx). The IGP (Interchain Gas Paymaster)
+  // reservation dominates the cost, not chain-specific gas. Thus gasCost=0 is a
+  // safe approximation for non-EVM origin chains.
+  const originProtocol = multiProvider.getProtocol(originChain);
+  if (originProtocol !== ProtocolType.Ethereum) {
+    const totalCost = igpCost + tokenFeeCost;
+    let maxTransferable: bigint;
+    if (availableInventory <= totalCost) {
+      maxTransferable = 0n;
+    } else {
+      const maxAfterReservation = availableInventory - totalCost;
+      maxTransferable =
+        maxAfterReservation < requestedAmount
+          ? maxAfterReservation
+          : requestedAmount;
+    }
+    const minViableTransfer = totalCost * MIN_VIABLE_COST_MULTIPLIER;
+    return {
+      igpCost,
+      gasCost: 0n,
+      tokenFeeCost,
+      totalCost,
+      maxTransferable,
+      minViableTransfer,
+      gasQuote,
+    };
+  }
 
   // Estimate gas with buffer
   const estimatedGasLimit = await estimateTransferRemoteGas(
