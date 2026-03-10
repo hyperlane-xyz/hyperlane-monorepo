@@ -22,12 +22,16 @@ contract MockOFT is IOFT {
     uint256 public feeBps; // Linear fee in basis points (e.g. 100 = 1%)
     bytes32 public guidToReturn;
     bool public shouldRevertOnSend;
+    uint8 public _sharedDecimals;
+    uint8 public _localDecimals;
 
     constructor(address _token, bool _approvalRequired) {
         tokenAddress = _token;
         approvalRequiredValue = _approvalRequired;
         nativeFeeToReturn = 0.001 ether;
         guidToReturn = keccak256("mock-guid");
+        _sharedDecimals = 6;
+        _localDecimals = 6;
     }
 
     function setNativeFee(uint256 _fee) external {
@@ -46,11 +50,27 @@ contract MockOFT is IOFT {
         shouldRevertOnSend = _revert;
     }
 
+    function setDecimals(uint8 local, uint8 shared) external {
+        _localDecimals = local;
+        _sharedDecimals = shared;
+    }
+
+    function _conversionRate() internal view returns (uint256) {
+        return 10 ** (_localDecimals - _sharedDecimals);
+    }
+
+    /// @dev Mirrors OFT._removeDust: truncate sub-sharedDecimals precision
+    function _removeDust(uint256 _amount) internal view returns (uint256) {
+        uint256 rate = _conversionRate();
+        return (_amount / rate) * rate;
+    }
+
     function _applyFee(
         uint256 _amount
     ) internal view returns (uint256 sent, uint256 received) {
-        sent = _amount;
-        received = feeBps > 0 ? _amount - (_amount * feeBps) / 10000 : _amount;
+        sent = _removeDust(_amount);
+        uint256 fee = feeBps > 0 ? (sent * feeBps) / 10000 : 0;
+        received = sent - fee;
     }
 
     // ---- IOFT ----
@@ -67,8 +87,8 @@ contract MockOFT is IOFT {
         return approvalRequiredValue;
     }
 
-    function sharedDecimals() external pure returns (uint8) {
-        return 6;
+    function sharedDecimals() external view returns (uint8) {
+        return _sharedDecimals;
     }
 
     function quoteSend(
@@ -110,6 +130,12 @@ contract MockOFT is IOFT {
         }
 
         (uint256 sent, uint256 received) = _applyFee(_sendParam.amountLD);
+
+        // Simulate slippage check like real OFT
+        require(
+            received >= _sendParam.minAmountLD,
+            "MockOFT: SlippageExceeded"
+        );
 
         return (
             MessagingReceipt({
@@ -531,5 +557,89 @@ contract TokenBridgeOftFeeInversionTest is Test {
             0
         );
         assertEq(quotes[2].amount, 0, "zero amount = zero fee");
+    }
+}
+
+/**
+ * @title TokenBridgeOftDustTest
+ * @notice Tests dust handling for OFTs with localDecimals > sharedDecimals.
+ * When localDecimals (18) > sharedDecimals (6), the OFT truncates
+ * sub-sharedDecimals precision ("dust") via _removeDust(). Without
+ * proper dust rounding, fee inversion produces dusty gross amounts
+ * that cause SlippageExceeded reverts after the OFT's internal truncation.
+ */
+contract TokenBridgeOftDustTest is Test {
+    uint32 constant DOMAIN_ETH = 1;
+    uint32 constant LZ_EID_ETH = 30101;
+
+    ERC20Test internal token;
+    MockOFT internal mockOft;
+    MockMailbox internal mailbox;
+    TokenBridgeOft internal bridge;
+
+    address internal owner = makeAddr("owner");
+    address internal caller = makeAddr("caller");
+    bytes32 internal recipient =
+        bytes32(uint256(uint160(makeAddr("recipient"))));
+
+    function setUp() public {
+        // 18-decimal token with 6 shared decimals (conversion rate = 1e12)
+        token = new ERC20Test("MockWETH", "mWETH", 0, 18);
+        mockOft = new MockOFT(address(token), false);
+        mockOft.setDecimals(18, 6);
+        mailbox = new MockMailbox(1);
+        bridge = new TokenBridgeOft(address(mockOft), address(mailbox));
+        bridge.initialize(address(0), address(0), owner);
+
+        vm.prank(owner);
+        bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
+
+        token.mintTo(caller, 1_000e18);
+        vm.deal(caller, 10 ether);
+    }
+
+    function test_dust_conversionRateSet() public view {
+        assertEq(bridge.decimalConversionRate(), 1e12);
+    }
+
+    function test_dust_transferWithFee_doesNotRevert() public {
+        // 1% fee — this is Devin's exact bug scenario
+        mockOft.setFeeBps(100);
+
+        vm.startPrank(caller);
+        token.approve(address(bridge), type(uint256).max);
+
+        // Without dust rounding, this would revert with SlippageExceeded
+        bridge.transferRemote{value: 0.001 ether}(DOMAIN_ETH, recipient, 1e18);
+        vm.stopPrank();
+    }
+
+    function test_dust_grossAmountIsDustFree() public {
+        mockOft.setFeeBps(100);
+
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ETH,
+            recipient,
+            1e18
+        );
+
+        // grossAmount = _amount + externalFee, should be dust-free (divisible by 1e12)
+        uint256 grossAmount = 1e18 + quotes[2].amount;
+        assertEq(grossAmount % 1e12, 0, "gross amount must be dust-free");
+    }
+
+    function test_dust_noFee_dustyInputRoundedUp() public view {
+        // Even with no fee, a dusty _amount should produce a dust-free gross
+        // 1e18 + 1 has dust in the last 12 digits
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ETH,
+            recipient,
+            1e18 + 1
+        );
+
+        uint256 grossAmount = (1e18 + 1) + quotes[2].amount;
+        assertEq(grossAmount % 1e12, 0, "dusty input rounded up to dust-free");
+        // External fee should be the rounding cost
+        assertGt(quotes[2].amount, 0, "rounding produces nonzero external fee");
     }
 }

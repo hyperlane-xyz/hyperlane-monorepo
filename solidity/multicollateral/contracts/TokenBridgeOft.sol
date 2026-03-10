@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "@hyperlane-xyz/core/token/libs/TokenRouter.sol";
 import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt} from "./interfaces/layerzero/IOFT.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -20,6 +21,17 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *  TokenRouter's initializer but is not used for dispatching. The scale factors
  *  (1, 1) passed to TokenRouter(...) avoid decimal conversion since OFT handles
  *  its own decimal normalization via sharedDecimals.
+ *
+ * @dev Dust and decimal handling:
+ *  OFTs use "sharedDecimals" (typically 6) as a wire format, regardless of the
+ *  token's local decimals. When localDecimals > sharedDecimals, the OFT truncates
+ *  sub-sharedDecimals precision ("dust") via _removeDust() before sending. This
+ *  contract stores the decimalConversionRate (10^(localDecimals - sharedDecimals))
+ *  as an immutable and uses it to:
+ *    1. Round grossAmount UP to the next dust-free boundary after fee inversion,
+ *       preventing SlippageExceeded reverts from the OFT.
+ *    2. Round minAmountLD DOWN to a dust-free value, since the OFT cannot deliver
+ *       sub-dust precision anyway.
  *
  * Supports all OFT patterns:
  *  - Native OFT (burn/mint, approvalRequired=false)
@@ -54,6 +66,11 @@ contract TokenBridgeOft is TokenRouter {
     /// @notice The underlying ERC20 token
     IERC20 public immutable wrappedToken;
 
+    /// @notice 10^(localDecimals - sharedDecimals). Amounts are only meaningful
+    /// at multiples of this value; sub-dust precision is truncated by the OFT.
+    /// Equals 1 when localDecimals == sharedDecimals (no dust).
+    uint256 public immutable decimalConversionRate;
+
     /// @notice Enumerable mapping from Hyperlane domain ID to LayerZero endpoint ID
     EnumerableMap.UintToUintMap private _domainToLzEid;
 
@@ -70,11 +87,20 @@ contract TokenBridgeOft is TokenRouter {
         require(_oft != address(0), "TokenBridgeOft: zero OFT address");
 
         oft = IOFT(_oft);
-        wrappedToken = IERC20(IOFT(_oft).token());
+        address _token = IOFT(_oft).token();
+        wrappedToken = IERC20(_token);
+
+        uint8 localDecimals = IERC20Metadata(_token).decimals();
+        uint8 sharedDecimals = IOFT(_oft).sharedDecimals();
+        require(
+            localDecimals >= sharedDecimals,
+            "TokenBridgeOft: localDecimals < sharedDecimals"
+        );
+        decimalConversionRate = 10 ** (localDecimals - sharedDecimals);
 
         // If the OFT is an adapter (lock/unlock), pre-approve it to spend tokens
         if (IOFT(_oft).approvalRequired()) {
-            IERC20(IOFT(_oft).token()).safeApprove(_oft, type(uint256).max);
+            IERC20(_token).safeApprove(_oft, type(uint256).max);
         }
     }
 
@@ -143,12 +169,13 @@ contract TokenBridgeOft is TokenRouter {
         // Pull gross amount (net + OFT fee) from sender
         _transferFromSender(grossAmount);
 
-        // Build OFT send params: send grossAmount, enforce _amount as minimum received
+        // Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
+        // minAmountLD uses _removeDust because the OFT cannot deliver sub-dust precision.
         SendParam memory sendParam = _buildSendParam(
             _destination,
             _recipient,
             grossAmount,
-            _amount
+            _removeDust(_amount)
         );
 
         // Get native gas fee
@@ -267,10 +294,22 @@ contract TokenBridgeOft is TokenRouter {
      * @dev Analytically invert the OFT fee to compute the gross input amount
      * such that the recipient receives at least _amount after OFT deductions.
      *
-     * OFT fees are linear (percentage-based), so:
+     * OFT fees are linear (percentage-based), so the inversion is:
      *   grossAmount = ceil(_amount * amountSentLD / amountReceivedLD)
      *
-     * If the OFT charges no fee (amountSentLD == amountReceivedLD), returns _amount.
+     * After inversion, grossAmount is rounded UP to the next dust-free boundary.
+     * This is necessary because OFTs internally call _removeDust() which truncates
+     * sub-sharedDecimals precision. Without this rounding, the truncated gross
+     * amount after fee deduction can fall below _amount, causing SlippageExceeded.
+     *
+     * Example with 18 local / 6 shared decimals and 1% fee:
+     *   _amount = 1e18, probe gives sent=1e18, received=0.99e18
+     *   ceilDiv → 1010101010101010102 (has dust in last 12 digits)
+     *   OFT would truncate to 1010101000000000000, then deduct 1% → 0.99999999e18 < 1e18
+     *   Rounding up to 1010102000000000000 ensures post-fee amount >= 1e18
+     *
+     * If the OFT charges no fee (amountSentLD == amountReceivedLD), returns _amount
+     * rounded up to the nearest dust-free value (to handle dusty input amounts).
      * Reverts if the OFT returns amountReceivedLD == 0 (would indicate 100% fee).
      */
     function _grossOftAmount(
@@ -289,13 +328,25 @@ contract TokenBridgeOft is TokenRouter {
         uint256 sent = receipt.amountSentLD;
         uint256 received = receipt.amountReceivedLD;
 
-        // No fee: short-circuit
-        if (sent == received) return _amount;
+        // No fee: return _amount rounded up to dust-free boundary
+        if (sent == received) return _roundUpDust(_amount);
 
         require(received > 0, "TokenBridgeOft: OFT 100% fee");
 
-        // Analytical inversion: grossAmount = ceil(_amount * sent / received)
-        return Math.ceilDiv(_amount * sent, received);
+        // Analytical inversion, then round up to dust-free boundary
+        uint256 gross = Math.ceilDiv(_amount * sent, received);
+        return _roundUpDust(gross);
+    }
+
+    /// @dev Round `_amount` DOWN to the nearest dust-free value (mirrors OFT._removeDust).
+    function _removeDust(uint256 _amount) internal view returns (uint256) {
+        return (_amount / decimalConversionRate) * decimalConversionRate;
+    }
+
+    /// @dev Round `_amount` UP to the nearest dust-free value.
+    function _roundUpDust(uint256 _amount) internal view returns (uint256) {
+        uint256 rate = decimalConversionRate;
+        return ((_amount + rate - 1) / rate) * rate;
     }
 
     /// @notice Allow contract to receive native token refunds from OFT
