@@ -218,6 +218,36 @@ describe('RebalancerContextFactory', () => {
       expect(multiProvider.getProvider.firstCall.args[0]).to.equal('ethereum');
     });
 
+    it('should initialize providers for Tron chains (EVM-like)', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'tron', protocol: ProtocolType.Tron },
+      ]);
+
+      await callCreate(multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'tron',
+            '0xTronToken1234567890',
+            TokenStandard.TronHypCollateral,
+          ),
+        ],
+      });
+
+      // Tron is EVM-like, so getProvider should be called for both chains
+      expect(multiProvider.getProvider.callCount).to.equal(2);
+      const providerChains = multiProvider.getProvider
+        .getCalls()
+        .map((c) => c.args[0]);
+      expect(providerChains).to.include('ethereum');
+      expect(providerChains).to.include('tron');
+    });
+
     it('should call getProvider for all chains when all are EVM', async () => {
       const { multiProvider } = createMockMultiProvider([
         { name: 'ethereum', protocol: ProtocolType.Ethereum },
@@ -315,6 +345,84 @@ describe('RebalancerContextFactory', () => {
       ).to.be.rejectedWith(
         `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
       );
+    });
+
+    it('should accept Tron as a supported inventory protocol', async () => {
+      const tronChain = 'tron';
+      const evmChain = 'ethereum';
+      const { multiProvider } = createMockMultiProvider([
+        { name: evmChain, protocol: ProtocolType.Ethereum },
+        { name: tronChain, protocol: ProtocolType.Tron },
+      ]);
+
+      const config = {
+        warpRouteId: 'USDC/tron-route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              [tronChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+                override: {
+                  [evmChain]: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              [evmChain]: {
+                bridge: TEST_ADDRESSES.bridge,
+                weighted: { weight: 50n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+          [ProtocolType.Tron]: {
+            address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+            key: '0xdef456',
+          },
+        },
+        intentTTL: DEFAULT_INTENT_TTL_MS,
+      } as RebalancerConfig;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            evmChain,
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+          createToken(
+            tronChain,
+            '0xTronToken123',
+            TokenStandard.TronHypCollateral,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake((chainName: string) => ({
+        protocol:
+          chainName === tronChain ? ProtocolType.Tron : ProtocolType.Ethereum,
+      }));
+
+      // Should NOT reject — Tron is in SUPPORTED_INVENTORY_PROTOCOLS
+      // The call may throw for other reasons (missing adapters), but not for unsupported protocol
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (error: unknown) {
+        const msg = (error as Error).message;
+        expect(msg).to.not.include("does not support protocol 'tron'");
+      }
     });
 
     it('should fail early when inventory chain uses unsupported protocol', async () => {
