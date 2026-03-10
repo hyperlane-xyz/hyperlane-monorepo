@@ -315,6 +315,8 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     ) public payable returns (bytes32 messageId) {
         _requireAuthorizedRouter(_destination, _targetRouter);
         if (_destination == localDomain) {
+            // Local transfers call handle() directly without mailbox dispatch,
+            // so any msg.value would be stuck in this contract permanently.
             require(msg.value == 0, "MC: local transfer no msg.value");
         }
 
