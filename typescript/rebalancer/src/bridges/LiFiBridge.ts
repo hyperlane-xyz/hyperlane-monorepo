@@ -14,12 +14,11 @@ import {
 } from '@lifi/sdk';
 import bs58 from 'bs58';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
-import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
