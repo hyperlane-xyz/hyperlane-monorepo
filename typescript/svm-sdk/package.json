@@ -27,7 +27,7 @@
     }
   },
   "scripts": {
-    "build": "node scripts/generate-core-addresses.mjs && rm -rf ./dist && tsc",
+    "build": "rm -rf ./dist && tsc",
     "program:build": "(cd ../../rust/sealevel/programs && bash build-programs.sh)",
     "program:generate": "node scripts/generate-program-bytes.mjs",
     "program:check": "node scripts/check-program-bytes-hash.mjs",
