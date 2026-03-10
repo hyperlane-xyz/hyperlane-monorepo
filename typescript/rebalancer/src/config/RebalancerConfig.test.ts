@@ -572,6 +572,139 @@ describe('RebalancerConfig', () => {
   });
 });
 
+describe('Tron inventorySigners validation', () => {
+  const TEST_CONFIG_PATH_TRON = join(tmpdir(), 'rebalancer-tron-test.yaml');
+
+  afterEach(() => {
+    rmSync(TEST_CONFIG_PATH_TRON, { force: true });
+  });
+
+  it('should accept valid Tron T-prefix base58 address in inventorySigners', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-tron-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            tron: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+            ethereum: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        tron: {
+          address: 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8',
+          key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        },
+        ethereum: {
+          address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        },
+      },
+      externalBridges: {
+        lifi: {
+          integrator: 'test-app',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.not.throw();
+  });
+
+  it('should accept valid 0x hex address for Tron inventorySigners', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-tron-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            tron: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+            ethereum: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        tron: {
+          address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        },
+        ethereum: {
+          address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        },
+      },
+      externalBridges: {
+        lifi: {
+          integrator: 'test-app',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.not.throw();
+  });
+
+  it('should reject invalid Tron address in inventorySigners', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-tron-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            tron: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+            ethereum: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        tron: {
+          address: 'INVALID_TRON_ADDRESS',
+          key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        },
+        ethereum: {
+          address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        },
+      },
+      externalBridges: {
+        lifi: {
+          integrator: 'test-app',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.throw(
+      /must be a valid Tron address/,
+    );
+  });
+});
+
 describe('per-chain bridge configuration', () => {
   const TEST_CONFIG_PATH_BRIDGE = join(tmpdir(), 'rebalancer-bridge-test.yaml');
 
