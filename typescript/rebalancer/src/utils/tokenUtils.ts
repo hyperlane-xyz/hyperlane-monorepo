@@ -60,8 +60,8 @@ export function isCollateralizedTokenEligibleForRebalancing(
  *
  * For warp route tokens, `addressOrDenom` is the warp router contract address,
  * NOT the underlying token. External bridges need the actual token address:
- * - Native tokens (EvmHypNative): Use the bridge's native token representation
- * - Collateral tokens (EvmHypCollateral): Use `collateralAddressOrDenom` (the underlying ERC20)
+ * - Native tokens (EvmHypNative, SealevelHypNative): Use the bridge's native token representation
+ * - Collateral tokens (EvmHypCollateral, SealevelHypCollateral): Use `collateralAddressOrDenom` (the underlying token)
  * - Synthetic tokens: `collateralAddressOrDenom` is undefined, `addressOrDenom` IS the token
  *
  * @param token - The warp route token to resolve
