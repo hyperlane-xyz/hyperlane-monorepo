@@ -11,7 +11,14 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  isEVMLike,
+  ProtocolType,
+  objMap,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -137,7 +144,7 @@ export class RebalancerContextFactory {
       ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
     for (const chain of warpChains) {
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+      if (!isEVMLike(multiProvider.getProtocol(chain))) {
         logger.debug({ chain }, 'Skipping provider init for non-EVM chain');
         continue;
       }
@@ -371,7 +378,7 @@ export class RebalancerContextFactory {
       rebalancerAddress,
       inventorySignerAddresses: this.config.inventorySigners
         ? (Object.entries(this.config.inventorySigners)
-            .filter(([protocol]) => protocol === ProtocolType.Ethereum)
+            .filter(([protocol]) => isEVMLike(protocol as ProtocolType))
             .map(([, signerConfig]) => signerConfig)
             .map((s) => s.address)
             .filter(Boolean) as Address[])
@@ -471,6 +478,7 @@ export class RebalancerContextFactory {
     const SUPPORTED_INVENTORY_PROTOCOLS = new Set([
       ProtocolType.Ethereum,
       ProtocolType.Sealevel,
+      ProtocolType.Tron,
     ]);
     for (const protocol of requiredProtocols) {
       const chainsForProtocol = allRelevantChains.filter(
@@ -480,7 +488,7 @@ export class RebalancerContextFactory {
       );
       assert(
         SUPPORTED_INVENTORY_PROTOCOLS.has(protocol),
-        `Inventory rebalancing does not support protocol '${protocol}' (chains: ${chainsForProtocol.join(', ')}). Supported: ethereum, sealevel`,
+        `Inventory rebalancing does not support protocol '${protocol}' (chains: ${chainsForProtocol.join(', ')}). Supported: ethereum, sealevel, tron`,
       );
     }
     for (const protocol of requiredProtocols) {
