@@ -97,11 +97,15 @@ export function validateWarpConfigForAltVM(
   }
 
   let scale: number | undefined;
-  if (!isNullish(config.scale)) {
-    scale =
-      typeof config.scale === 'number'
-        ? config.scale
-        : Number(config.scale.numerator) / Number(config.scale.denominator);
+  if (typeof config.scale === 'number') {
+    scale = config.scale;
+  } else if (!isNullish(config.scale)) {
+    assert(
+      Number(config.scale.denominator) !== 0,
+      'scale denominator must be non-zero',
+    );
+
+    scale = Number(config.scale.numerator) / Number(config.scale.denominator);
   }
 
   const baseConfig = {

@@ -1,9 +1,10 @@
 import {
-  type Blockhash,
+  type Base64EncodedWireTransaction,
   type KeyPairSigner,
   type ReadonlyUint8Array,
   type Signature,
   type TransactionSigner,
+  type GetSignatureStatusesApi,
   addSignersToTransactionMessage,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
@@ -21,6 +22,20 @@ import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
 import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
 
 import { SvmProvider } from './provider.js';
+
+type SignatureStatusResponse = Awaited<
+  ReturnType<GetSignatureStatusesApi['getSignatureStatuses']>
+>['value'][0];
+
+class SvmTransactionError extends Error {
+  constructor(signature: string, cause: unknown) {
+    super(
+      `Transaction failed: ${signature}, err: ${JSON.stringify(cause, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
+    );
+    this.name = 'SvmTransactionError';
+    this.cause = cause;
+  }
+}
 
 const base58Encoder = getBase58Encoder();
 
@@ -114,16 +129,22 @@ export class SvmSigner
   }
 
   /**
-   * Builds, signs, and sends a transaction with a finalized blockhash.
+   * Builds, signs, and sends a transaction with a confirmed blockhash.
    * Retries on blockhash-not-found errors from the RPC.
+   * Returns the raw transaction bytes for rebroadcasting and the
+   * lastValidBlockHeight for block-height-based expiry detection.
    */
   private async signAndSend(
     tx: SvmTransaction,
     maxAttempts = 3,
-  ): Promise<{ signature: Signature; blockhash: Blockhash }> {
+  ): Promise<{
+    signature: Signature;
+    rawTx: Base64EncodedWireTransaction;
+    lastValidBlockHeight: bigint;
+  }> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const { value: latestBlockhash } = await this.rpc
-        .getLatestBlockhash({ commitment: 'finalized' })
+        .getLatestBlockhash({ commitment: 'confirmed' })
         .send();
 
       let txMessage = buildTransactionMessage({
@@ -145,15 +166,19 @@ export class SvmSigner
       const signature = getSignatureFromTransaction(signedTx);
 
       try {
-        const base64Tx = getBase64EncodedWireTransaction(signedTx);
+        const rawTx = getBase64EncodedWireTransaction(signedTx);
         await this.rpc
-          .sendTransaction(base64Tx, {
+          .sendTransaction(rawTx, {
             encoding: 'base64',
             skipPreflight: tx.skipPreflight ?? false,
           })
           .send();
 
-        return { signature, blockhash: latestBlockhash.blockhash };
+        return {
+          signature,
+          rawTx,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         if (msg.includes('Blockhash not found') && attempt < maxAttempts - 1) {
@@ -168,68 +193,105 @@ export class SvmSigner
     throw new Error('signAndSend: all attempts exhausted');
   }
 
+  /**
+   * Evaluates a signature status result. Throws on error, returns
+   * `{ confirmed: true, slot }` if confirmed/finalized, `{ confirmed: false }`
+   * if still progressing, or `null` if the signature was not found.
+   */
+  private checkSignatureResult(
+    signature: Signature,
+    result: SignatureStatusResponse,
+  ): { confirmed: true; slot: bigint } | { confirmed: false } | null {
+    if (!result) return null;
+
+    if (result.err) {
+      throw new SvmTransactionError(signature, result.err);
+    }
+
+    if (
+      result.confirmationStatus === 'confirmed' ||
+      result.confirmationStatus === 'finalized'
+    ) {
+      return { confirmed: true, slot: result.slot };
+    }
+
+    return { confirmed: false };
+  }
+
   async send(tx: SvmTransaction): Promise<SvmReceipt> {
-    let { signature, blockhash } = await this.signAndSend(tx);
+    let { signature, rawTx, lastValidBlockHeight } = await this.signAndSend(tx);
 
     let confirmed = false;
     let slot: bigint = 0n;
-    const maxRetries = 60;
+    const maxPolls = 60;
     let delay = 500;
-    for (let i = 0; i < maxRetries && !confirmed; i++) {
+    for (let i = 0; i < maxPolls && !confirmed; i++) {
       await new Promise((resolve) => setTimeout(resolve, delay));
       delay = Math.min(delay * 1.5, 4000);
       try {
-        // Check if blockhash expired and resubmit if needed
-        const { value: isValid } = await this.rpc
-          .isBlockhashValid(blockhash, { commitment: 'finalized' })
-          .send();
-        if (!isValid) {
-          // Check if the old tx already landed before resubmitting
-          const oldStatus = await this.rpc
-            .getSignatureStatuses([signature], {
-              searchTransactionHistory: true,
-            })
-            .send();
+        // Check signature status
+        const status = await this.rpc.getSignatureStatuses([signature]).send();
+        const check = this.checkSignatureResult(signature, status.value[0]);
 
-          const [oldResult] = oldStatus.value;
-          assert(
-            !oldResult?.err,
-            `Transaction failed: ${signature}, err: ${JSON.stringify(oldResult?.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
-          );
-          if (
-            oldResult &&
-            (oldResult.confirmationStatus === 'confirmed' ||
-              oldResult.confirmationStatus === 'finalized')
-          ) {
-            confirmed = true;
-            slot = BigInt(oldResult.slot);
-            break;
-          }
+        if (check?.confirmed) {
+          confirmed = true;
+          slot = check.slot;
+          break;
+        }
 
-          this.logger.warn('Blockhash expired, resubmitting transaction');
-          ({ signature, blockhash } = await this.signAndSend(tx));
+        if (check) {
+          // Transaction seen (e.g. 'processed') — keep polling, do NOT resubmit
           continue;
         }
 
-        const status = await this.rpc.getSignatureStatuses([signature]).send();
-        const result = status.value[0];
-        if (result?.err) {
-          throw new Error(
-            `Transaction failed: ${signature}, err: ${JSON.stringify(result.err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
-          );
+        // Transaction not found — check if blockhash expired via block height
+        const currentBlockHeight = await this.rpc
+          .getBlockHeight({ commitment: 'confirmed' })
+          .send();
+
+        if (currentBlockHeight <= lastValidBlockHeight) {
+          // Blockhash still valid — rebroadcast same signed transaction
+          this.logger.debug('Rebroadcasting transaction');
+          await this.rpc
+            .sendTransaction(rawTx, {
+              encoding: 'base64',
+              skipPreflight: tx.skipPreflight ?? false,
+            })
+            .send();
+          continue;
         }
-        if (
-          result?.confirmationStatus === 'confirmed' ||
-          result?.confirmationStatus === 'finalized'
-        ) {
+
+        // Blockhash expired — deep check with transaction history search
+        const historyStatus = await this.rpc
+          .getSignatureStatuses([signature], {
+            searchTransactionHistory: true,
+          })
+          .send();
+        const historyCheck = this.checkSignatureResult(
+          signature,
+          historyStatus.value[0],
+        );
+
+        if (historyCheck?.confirmed) {
           confirmed = true;
-          slot = BigInt(result.slot);
+          slot = historyCheck.slot;
+          break;
         }
+
+        if (historyCheck) {
+          // Found in history but still progressing — keep polling
+          continue;
+        }
+
+        // Blockhash expired and signature never seen — safe to resubmit
+        this.logger.warn(
+          'Blockhash expired and transaction not found, resubmitting',
+        );
+        ({ signature, rawTx, lastValidBlockHeight } =
+          await this.signAndSend(tx));
+        delay = 500;
       } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes('Transaction failed')
-        ) {
+        if (error instanceof SvmTransactionError) {
           throw error;
         }
         this.logger.warn(`Polling attempt ${i + 1} failed`, { error });
@@ -240,20 +302,6 @@ export class SvmSigner
       throw new Error(
         `Transaction not confirmed within polling timeout: ${signature}`,
       );
-    }
-
-    const receipt = await this.rpc
-      .getTransaction(signature, {
-        commitment: 'confirmed',
-        encoding: 'json',
-        maxSupportedTransactionVersion: 0,
-      })
-      .send();
-
-    if (receipt && receipt.meta?.err) {
-      throw new Error(`Transaction with signature ${signature} failed`, {
-        cause: receipt.meta?.err,
-      });
     }
 
     return { signature, slot };
