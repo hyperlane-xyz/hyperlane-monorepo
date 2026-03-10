@@ -412,5 +412,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "igra": {
+    "validators": ["0x485f0739639e46d3b06b1b92debe2ade56d8bfb1"]
   }
 }

@@ -55,6 +55,7 @@ export const mainnet3SupportedChainNames = [
   'hashkey',
   'hemi',
   'hyperevm',
+  'igra',
   'immutablezkevmmainnet',
   'incentiv',
   'ink',

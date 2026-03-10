@@ -215,6 +215,10 @@
     "amount": "4.174817029",
     "decimals": 9
   },
+  "igra": {
+    "amount": "1000.0",
+    "decimals": 9
+  },
   "immutablezkevmmainnet": {
     "amount": "11.000000049",
     "decimals": 9
