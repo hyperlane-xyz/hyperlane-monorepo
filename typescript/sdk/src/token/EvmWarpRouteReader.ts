@@ -79,6 +79,7 @@ import {
   XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
+  isMultiCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -178,7 +179,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
+    // For MultiCollateral tokens, include domains from enrolledRouters so
+    // fetchDestinationGas also reads gas for MC-only enrolled domains.
+    const mcEnrolledDomains: number[] = [];
+    if (
+      isMultiCollateralTokenConfig(tokenConfig) &&
+      tokenConfig.enrolledRouters
+    ) {
+      for (const domain of Object.keys(tokenConfig.enrolledRouters)) {
+        mcEnrolledDomains.push(Number(domain));
+      }
+    }
+    const destinationGas = await this.fetchDestinationGas(
+      warpRouteAddress,
+      mcEnrolledDomains,
+    );
 
     const hasRebalancingInterface =
       compareVersions(
@@ -1142,20 +1157,32 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [collateralTokenAddress, remoteDomains, localDomain, scale] =
-      await Promise.all([
-        mc.wrappedToken(),
-        tokenRouter.domains(),
-        mc.localDomain(),
-        this.fetchScale(hypTokenAddress),
-      ]);
+    const [
+      collateralTokenAddress,
+      remoteDomains,
+      mcEnrolledDomains,
+      localDomain,
+      scale,
+    ] = await Promise.all([
+      mc.wrappedToken(),
+      tokenRouter.domains(),
+      mc.getEnrolledDomains(),
+      mc.localDomain(),
+      this.fetchScale(hypTokenAddress),
+    ]);
 
     const erc20TokenMetadata = await this.fetchERC20Metadata(
       collateralTokenAddress,
     );
 
-    // Build enrolledRouters: domain → bytes32[] for all domains (remote + local)
-    const allDomains = [...remoteDomains.map(Number), localDomain];
+    // Merge Router._routers domains, MC-enrolled domains, and localDomain
+    const allDomains = [
+      ...new Set([
+        ...remoteDomains.map(Number),
+        ...mcEnrolledDomains.map(Number),
+        localDomain,
+      ]),
+    ];
     const enrolledRouters: Record<string, string[]> = {};
 
     await Promise.all(
@@ -1286,6 +1313,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   async fetchDestinationGas(
     warpRouteAddress: Address,
+    additionalDomains: number[] = [],
   ): Promise<DestinationGas> {
     const warpRoute = TokenRouter__factory.connect(
       warpRouteAddress,
@@ -1296,12 +1324,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
      * @remark
      * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
      * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
+     * For MultiCollateral contracts, additionalDomains includes domains that only
+     * have MC-enrolled routers (not in Router._routers), so their gas is also read.
      */
-    const domains = await warpRoute.domains();
+    const routerDomains = await warpRoute.domains();
+    const allDomains = [
+      ...new Set([...routerDomains.map(Number), ...additionalDomains]),
+    ];
 
     return Object.fromEntries(
       await Promise.all(
-        domains.map(async (domain) => {
+        allDomains.map(async (domain) => {
           return [domain, (await warpRoute.destinationGas(domain)).toString()];
         }),
       ),
