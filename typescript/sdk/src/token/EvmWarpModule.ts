@@ -201,7 +201,6 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       // MC unenroll before enroll for consistency with remote routers.
       // MC enrollment must come before gas setting so that MC-only domains
-      // are on-chain when setDestinationGasForDomains validates them.
       ...this.createUnenrollMultiCollateralRoutersTxs(
         actualConfig,
         expectedConfig,
@@ -1048,30 +1047,15 @@ export class EvmWarpModule extends HyperlaneModule<
         this.multiProvider.getProvider(this.domainId),
       );
 
-      // MultiCollateral uses setDestinationGasForDomains which supports
-      // MC-enrolled-only domains. Standard routers use setDestinationGas.
-      // Both take the same (uint32,uint256)[] parameter type.
-      if (isMultiCollateralTokenConfig(expectedConfig)) {
-        const mcIface = MultiCollateral__factory.createInterface();
-        updateTransactions.push({
-          chainId: this.chainId,
-          annotation: `Setting destination gas (MC) for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-          to: contractToUpdate.address,
-          data: mcIface.encodeFunctionData('setDestinationGasForDomains', [
-            gasRouterConfigs,
-          ]),
-        });
-      } else {
-        updateTransactions.push({
-          chainId: this.chainId,
-          annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-          to: contractToUpdate.address,
-          data: contractToUpdate.interface.encodeFunctionData(
-            'setDestinationGas((uint32,uint256)[])',
-            [gasRouterConfigs],
-          ),
-        });
-      }
+      updateTransactions.push({
+        chainId: this.chainId,
+        annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'setDestinationGas((uint32,uint256)[])',
+          [gasRouterConfigs],
+        ),
+      });
     }
     return updateTransactions;
   }

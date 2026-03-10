@@ -13,6 +13,7 @@ import {
   ERC4626Test,
   ERC4626Test__factory,
   GasRouter,
+  GasRouter__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
@@ -966,7 +967,7 @@ describe('EvmWarpModule', async () => {
       );
     });
 
-    it('includes MC enrolledRouters domains in destination gas txs and uses setDestinationGasForDomains', async () => {
+    it('includes MC enrolledRouters domains in destination gas txs', async () => {
       const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
       const enrolledRouter = addressToBytes32(
         '0x4444444444444444444444444444444444444444',
@@ -1015,10 +1016,10 @@ describe('EvmWarpModule', async () => {
       // Should produce a tx (not throw) even without remoteRouters
       expect(gasTxs.length).to.equal(1);
 
-      // Should use setDestinationGasForDomains (MC-specific)
-      const mcIface = MultiCollateral__factory.createInterface();
-      const decoded = mcIface.decodeFunctionData(
-        'setDestinationGasForDomains',
+      // Should use standard setDestinationGas (MC overrides _setDestinationGas)
+      const gasRouterIface = GasRouter__factory.createInterface();
+      const decoded = gasRouterIface.decodeFunctionData(
+        'setDestinationGas((uint32,uint256)[])',
         gasTxs[0].data!,
       );
       expect(decoded[0].length).to.equal(1);
