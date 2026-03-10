@@ -33,6 +33,7 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  isEVMLike,
   ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -162,6 +163,10 @@ async function main(): Promise<void> {
         const keyBytes = parseSolanaPrivateKey(privateKey);
         const keypair = Keypair.fromSecretKey(keyBytes);
         derivedAddress = keypair.publicKey.toBase58();
+      } else if (protocol === ProtocolType.Tron) {
+        // Tron uses same hex private key format as Ethereum.
+        // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
+        derivedAddress = new Wallet(privateKey).address;
       } else {
         logger.warn(
           { protocol },
@@ -174,10 +179,9 @@ async function main(): Promise<void> {
       const configuredAddress =
         rebalancerConfig.inventorySigners?.[protocol as ProtocolType]?.address;
       if (configuredAddress) {
-        const mismatch =
-          protocol === ProtocolType.Ethereum
-            ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
-            : configuredAddress !== derivedAddress;
+        const mismatch = isEVMLike(protocol as ProtocolType)
+          ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
+          : configuredAddress !== derivedAddress;
         if (mismatch) {
           throw new Error(
             `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
