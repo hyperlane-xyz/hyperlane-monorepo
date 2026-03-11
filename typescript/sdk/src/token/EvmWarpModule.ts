@@ -500,6 +500,9 @@ export class EvmWarpModule extends HyperlaneModule<
     ) {
       return [];
     }
+    if (!expectedConfig.crossCollateralRouters) {
+      return [];
+    }
 
     const actualEnrolled = resolveRouterMapConfig(
       this.multiProvider,
@@ -507,7 +510,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
     const expectedEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.crossCollateralRouters ?? {},
+      expectedConfig.crossCollateralRouters,
     );
 
     const domainsToUnenroll: number[] = [];
@@ -987,11 +990,13 @@ export class EvmWarpModule extends HyperlaneModule<
       isCrossCollateralTokenConfig(expectedConfig) &&
       expectedConfig.crossCollateralRouters
     ) {
+      const localDomain = this.multiProvider.getDomainId(this.chainName);
       const resolvedEnrolled = resolveRouterMapConfig(
         this.multiProvider,
         expectedConfig.crossCollateralRouters,
       );
       for (const domain of Object.keys(resolvedEnrolled).map(Number)) {
+        if (domain === localDomain) continue;
         expectedRouterDomains.add(domain);
       }
     }

@@ -33,6 +33,9 @@ import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
  * @dev Extends HypERC20Collateral. Each deployed instance holds collateral for
  * one ERC20. Enrolled routers are other CrossCollateralRouter instances (same or
  * different token) that this instance trusts to send/receive transfers.
+ * CrossCollateralRouter assumes standard ERC20 behavior with exact transfer
+ * amounts. Rebasing tokens, fee-on-transfer tokens, and ERC777 tokens are not
+ * supported due to exact-amount accounting in transfer/handle flows.
  *
  * Overrides:
  *  - handle(): accepts messages from the mailbox (cross-chain) or directly

@@ -33,7 +33,7 @@ import {
   getCombinedWarpRoutePath,
 } from '../consts.js';
 
-describe('hyperlane warp crossCollateral CLI e2e tests', async function () {
+describe('hyperlane warp crossCollateral CLI e2e tests', function () {
   this.timeout(300_000);
 
   let chain2Addresses: ChainAddresses = {};

@@ -176,6 +176,10 @@ export class WarpCore {
           destinationToken,
         });
         assert(
+          isEVMLike(originToken.protocol),
+          'CrossCollateralRouter fee quoting is currently supported only on EVM origins',
+        );
+        assert(
           resolvedDestinationToken.addressOrDenom,
           'Destination token missing addressOrDenom',
         );
@@ -332,7 +336,7 @@ export class WarpCore {
       }
     }
     // On ethereum, sometimes 2 txs are required (one approve, one transferRemote)
-    else if (txs.length === 2 && isEVMLike(originToken.protocol)) {
+    else if (txs.length >= 2 && isEVMLike(originToken.protocol)) {
       const provider = this.multiProvider.getEthersV5Provider(
         originMetadata.name,
       );
@@ -628,6 +632,10 @@ export class WarpCore {
     );
 
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[originToken.standard];
+    assert(
+      isEVMLike(originToken.protocol),
+      'CrossCollateralRouter transferRemoteTo is currently supported only on EVM origins',
+    );
 
     const adapter = originToken.getHypAdapter(
       this.multiProvider,
@@ -798,7 +806,7 @@ export class WarpCore {
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,
-      destinationToken,
+      destinationToken: resolvedDestinationToken,
     });
 
     return {

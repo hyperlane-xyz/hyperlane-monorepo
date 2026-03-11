@@ -225,6 +225,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypNative,
   TokenStandard.EvmHypCrossCollateralRouter,
+  TokenStandard.TronHypCrossCollateralRouter,
 ];
 
 export const XERC20_STANDARDS = [
@@ -300,6 +301,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.TronHypVSXERC20,
   TokenStandard.TronHypVSXERC20Lockbox,
   TokenStandard.TronM0PortalLite,
+  TokenStandard.TronHypCrossCollateralRouter,
   TokenStandard.TronHypEverclearCollateral,
   TokenStandard.TronHypEverclearEth,
 ];

@@ -11,6 +11,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title CrossCollateralRoutingFee
  * @notice Routes fee lookups by destination + target router. Delegates to
  * existing ITokenFee (3-param) fee contracts (LinearFee, ProgressiveFee, etc.).
+ * @dev This contract assumes standard ERC20 behavior for fee balances and
+ * transfers. Rebasing, fee-on-transfer, and ERC777 tokens are not supported
+ * for deterministic fee accounting.
  */
 contract CrossCollateralRoutingFee is ICrossCollateralFee, ITokenFee, Ownable {
     using SafeERC20 for IERC20;

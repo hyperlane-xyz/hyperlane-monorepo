@@ -27,10 +27,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import {
-  CrossCollateralRouter,
-  CrossCollateralRouter__factory,
-} from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
@@ -559,11 +556,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                   warpRouteAddress,
                   this.provider,
                 );
-              // Method probe supports both renamed and legacy ABI.
-              await this.getCrossCollateralRoutersCompat(
-                crossCollateralRouter,
-                0,
-              );
+              await crossCollateralRouter.getCrossCollateralRouters(0);
               return TokenType.crossCollateral;
             } catch (error) {
               this.logger.debug(
@@ -1177,13 +1170,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const [
       collateralTokenAddress,
       remoteDomains,
-      mcEnrolledDomains,
+      crossCollateralDomains,
       localDomain,
       scale,
     ] = await Promise.all([
       crossCollateralRouter.wrappedToken(),
       tokenRouter.domains(),
-      this.getCrossCollateralDomainsCompat(crossCollateralRouter),
+      crossCollateralRouter.getCrossCollateralDomains(),
       crossCollateralRouter.localDomain(),
       this.fetchScale(hypTokenAddress),
     ]);
@@ -1196,7 +1189,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const allDomains = [
       ...new Set([
         ...remoteDomains.map(Number),
-        ...mcEnrolledDomains.map(Number),
+        ...crossCollateralDomains.map(Number),
         localDomain,
       ]),
     ];
@@ -1204,10 +1197,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     await Promise.all(
       allDomains.map(async (domain) => {
-        const routers = await this.getCrossCollateralRoutersCompat(
-          crossCollateralRouter,
-          domain,
-        );
+        const routers =
+          await crossCollateralRouter.getCrossCollateralRouters(domain);
         if (routers.length > 0) {
           crossCollateralRouters[domain.toString()] = [...routers];
         }
@@ -1235,35 +1226,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     ]);
 
     return { name, symbol, decimals, isNft: false };
-  }
-
-  private async getCrossCollateralDomainsCompat(
-    crossCollateralRouter: CrossCollateralRouter,
-  ): Promise<number[]> {
-    try {
-      return await crossCollateralRouter.getCrossCollateralDomains();
-    } catch {
-      return await (
-        crossCollateralRouter as unknown as {
-          getEnrolledDomains: () => Promise<number[]>;
-        }
-      ).getEnrolledDomains();
-    }
-  }
-
-  private async getCrossCollateralRoutersCompat(
-    crossCollateralRouter: CrossCollateralRouter,
-    domain: number,
-  ): Promise<string[]> {
-    try {
-      return await crossCollateralRouter.getCrossCollateralRouters(domain);
-    } catch {
-      return await (
-        crossCollateralRouter as unknown as {
-          getEnrolledRouters: (domain: number) => Promise<string[]>;
-        }
-      ).getEnrolledRouters(domain);
-    }
   }
 
   /**
