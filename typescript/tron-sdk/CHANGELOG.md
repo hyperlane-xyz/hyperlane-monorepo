@@ -1,5 +1,18 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.1.0
+
+### Minor Changes
+
+- 4a816e3: Add retry logic to TronJsonProvider
+
+### Patch Changes
+
+- Updated dependencies [f7ebf6c]
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/utils@27.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.1
+
 ## 22.0.0
 
 ### Major Changes

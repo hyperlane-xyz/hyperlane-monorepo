@@ -1,5 +1,27 @@
 # @hyperlane-xyz/widgets
 
+## 27.0.0
+
+### Minor Changes
+
+- e7f9cc4: Added inline icon mode and customization props to MessageTimeline component. New props: `iconPosition` ('above' | 'inline'), `barClassName`, `chevronColor`, `iconColor`.
+
+### Patch Changes
+
+- Updated dependencies [f2620a1]
+- Updated dependencies [4a816e3]
+- Updated dependencies [f7ebf6c]
+- Updated dependencies [8a6f742]
+- Updated dependencies [b05e242]
+- Updated dependencies [aee625c]
+  - @hyperlane-xyz/sdk@27.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.0
+  - @hyperlane-xyz/aleo-sdk@27.0.0
+  - @hyperlane-xyz/cosmos-sdk@27.0.0
+  - @hyperlane-xyz/radix-sdk@27.0.0
+  - @hyperlane-xyz/utils@27.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.1
+
 ## 26.0.0
 
 ### Major Changes
