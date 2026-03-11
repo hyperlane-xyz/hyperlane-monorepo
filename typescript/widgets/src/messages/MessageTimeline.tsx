@@ -1,5 +1,7 @@
 import React from 'react';
 
+import { Tooltip as ReactTooltip } from 'react-tooltip';
+
 import { ColorPalette } from '../color.js';
 import { AirplaneIcon } from '../icons/Airplane.js';
 import { EnvelopeIcon } from '../icons/Envelope.js';
@@ -8,6 +10,14 @@ import { ShieldIcon } from '../icons/Shield.js';
 import { WideChevronIcon } from '../icons/WideChevron.js';
 
 import { MessageStatus, MessageStage as Stage, StageTimings } from './types.js';
+
+const STAGE_TOOLTIPS: Record<Stage, string> = {
+  [Stage.Preparing]: 'Preparing transaction',
+  [Stage.Sent]: 'Waiting for origin transaction',
+  [Stage.Finalized]: 'Origin transaction has sufficient confirmations',
+  [Stage.Validated]: 'Validators have signed the message bundle',
+  [Stage.Relayed]: 'Destination transaction has been confirmed',
+};
 
 interface Props {
   status: MessageStatus;
@@ -23,6 +33,8 @@ interface Props {
   chevronColor?: string;
   /** Override the color of the stage icons. Defaults to white. */
   iconColor?: string;
+  /** Show tooltips on hover over each stage bar. */
+  showTooltips?: boolean;
 }
 
 export function MessageTimeline({
@@ -35,6 +47,7 @@ export function MessageTimeline({
   barClassName,
   chevronColor,
   iconColor = ColorPalette.White,
+  showTooltips,
 }: Props) {
   // Ignore stage value if status shows as delivered
   const stage = status === MessageStatus.Delivered ? Stage.Relayed : _stage;
@@ -60,6 +73,12 @@ export function MessageTimeline({
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Sent],
+              }
+            : {})}
         >
           {isInline ? (
             <InlineIcon Icon={AirplaneIcon} color={iconColor} />
@@ -95,6 +114,12 @@ export function MessageTimeline({
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Finalized],
+              }
+            : {})}
         >
           {isInline ? (
             <InlineIcon Icon={LockIcon} size={14} color={iconColor} isMiddle />
@@ -129,6 +154,12 @@ export function MessageTimeline({
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Validated],
+              }
+            : {})}
         >
           {isInline ? (
             <InlineIcon Icon={ShieldIcon} color={iconColor} isMiddle />
@@ -163,6 +194,12 @@ export function MessageTimeline({
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Relayed],
+              }
+            : {})}
         >
           {isInline ? (
             <InlineIcon Icon={EnvelopeIcon} color={iconColor} />
@@ -186,6 +223,9 @@ export function MessageTimeline({
           </p>
         )}
       </div>
+      {showTooltips && (
+        <ReactTooltip id="timeline-tooltip" positionStrategy="fixed" />
+      )}
     </div>
   );
 }
