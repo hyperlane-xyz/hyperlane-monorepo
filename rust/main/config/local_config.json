@@ -1,0 +1,60 @@
+{
+  "chains": {
+    "test4": {
+      "name": "test4",
+      "protocol": "ethereum",
+      "chainId": 31337,
+      "domainId": 31337,
+      "rpcUrls": [{"http": "http://127.0.0.1:8545"}],
+      "mailbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "merkleTreeHook": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+      "validatorAnnounce": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "blocks": {
+        "confirmations": 1,
+        "reorgPeriod": 0,
+        "estimateBlockTime": 3
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      },
+      "index": {
+        "from": 1
+      }
+    },
+    "ethereumlocal2": {
+      "name": "ethereumlocal2",
+      "protocol": "ethereum",
+      "chainId": 31338,
+      "domainId": 31338,
+      "rpcUrls": [{"http": "http://127.0.0.1:8546"}],
+      "mailbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "merkleTreeHook": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+      "validatorAnnounce": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "blocks": {
+        "confirmations": 1,
+        "reorgPeriod": 0,
+        "estimateBlockTime": 3
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      },
+      "index": {
+        "from": 1
+      }
+    }
+  },
+  "defaultSigner": {
+    "type": "hexKey",
+    "key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+  },
+  "relayChains": "test4,ethereumlocal2",
+  "db": "./relayer-db",
+  "tracing": {
+    "level": "info",
+    "fmt": "compact"
+  }
+}
