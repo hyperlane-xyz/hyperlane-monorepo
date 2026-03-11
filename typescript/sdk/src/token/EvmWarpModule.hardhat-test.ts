@@ -967,6 +967,63 @@ describe('EvmWarpModule', async () => {
       );
     });
 
+    it('unenrolls all crossCollateralRouters when expected config omits crossCollateralRouters', async () => {
+      const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+      const routerOne = addressToBytes32(
+        '0x3333333333333333333333333333333333333333',
+      );
+      const routerTwo = addressToBytes32(
+        '0x4444444444444444444444444444444444444444',
+      );
+
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.crossCollateral,
+          token: token.address,
+        } as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: randomAddress(),
+        },
+      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+      const actualConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+        crossCollateralRouters: {
+          [destinationDomain]: [routerOne, routerTwo],
+        },
+      } as DerivedTokenRouterConfig;
+
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.crossCollateral,
+        token: token.address,
+      } as HypTokenRouterConfig;
+
+      const unenrollTxs = module.createUnenrollCrossCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      );
+      expect(unenrollTxs.length).to.equal(1);
+      const [unenrollDomains, unenrollRouters] =
+        CrossCollateralRouter__factory.createInterface().decodeFunctionData(
+          'unenrollCrossCollateralRouters',
+          unenrollTxs[0].data!,
+        );
+      expect(unenrollDomains.map(Number)).to.deep.equal([
+        destinationDomain,
+        destinationDomain,
+      ]);
+      expect(
+        unenrollRouters.map((router: string) => router.toLowerCase()).sort(),
+      ).to.deep.equal(
+        [routerOne.toLowerCase(), routerTwo.toLowerCase()].sort(),
+      );
+    });
+
     it('includes MC crossCollateralRouters domains in destination gas txs', async () => {
       const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
       const enrolledRouter = addressToBytes32(

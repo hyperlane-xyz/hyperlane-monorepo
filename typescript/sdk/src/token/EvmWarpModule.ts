@@ -501,7 +501,7 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
     if (!expectedConfig.crossCollateralRouters) {
-      return [];
+      expectedConfig = { ...expectedConfig, crossCollateralRouters: {} };
     }
 
     const actualEnrolled = resolveRouterMapConfig(

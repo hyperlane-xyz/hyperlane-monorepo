@@ -11,4 +11,4 @@ The Solidity ABI was updated with renamed contracts, interfaces, router enrollme
 
 The SDK token type was migrated to `crossCollateral`.
 
-Reader compatibility for legacy deployed contracts was retained by falling back to legacy enrolled-router/domain ABI methods when renamed methods were unavailable.
+Reader compatibility for legacy deployed contracts was not retained; readers now require the renamed CrossCollateral ABI methods.
