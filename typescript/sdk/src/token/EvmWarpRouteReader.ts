@@ -189,14 +189,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    // For CrossCollateralRouter tokens, include domains from enrolledRouters so
+    // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
     // fetchDestinationGas also reads gas for MC-only enrolled domains.
     const mcEnrolledDomains: number[] = [];
     if (
       isCrossCollateralTokenConfig(tokenConfig) &&
-      tokenConfig.enrolledRouters
+      tokenConfig.crossCollateralRouters
     ) {
-      for (const domain of Object.keys(tokenConfig.enrolledRouters)) {
+      for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
         mcEnrolledDomains.push(Number(domain));
       }
     }
@@ -1200,7 +1200,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         localDomain,
       ]),
     ];
-    const enrolledRouters: Record<string, string[]> = {};
+    const crossCollateralRouters: Record<string, string[]> = {};
 
     await Promise.all(
       allDomains.map(async (domain) => {
@@ -1209,7 +1209,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           domain,
         );
         if (routers.length > 0) {
-          enrolledRouters[domain.toString()] = [...routers];
+          crossCollateralRouters[domain.toString()] = [...routers];
         }
       }),
     );
@@ -1219,8 +1219,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       type: TokenType.crossCollateral,
       token: collateralTokenAddress,
       scale,
-      enrolledRouters:
-        Object.keys(enrolledRouters).length > 0 ? enrolledRouters : undefined,
+      crossCollateralRouters:
+        Object.keys(crossCollateralRouters).length > 0
+          ? crossCollateralRouters
+          : undefined,
     };
   }
 

@@ -1066,7 +1066,7 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.type).to.equal(TokenType.crossCollateral);
       expect(derivedConfig.token).to.equal(wrappedTokenAddress);
       expect(derivedConfig.scale).to.deep.equal(expectedScale);
-      expect(derivedConfig.enrolledRouters).to.deep.equal({
+      expect(derivedConfig.crossCollateralRouters).to.deep.equal({
         [localDomain.toString()]: [localRouter],
         [remoteDomain.toString()]: [remoteRouter],
       });

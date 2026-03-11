@@ -263,7 +263,7 @@ export const CrossCollateralTokenConfigSchema =
     type: z.literal(TokenType.crossCollateral),
     token: z.string().describe('Collateral token address'),
     /** Map of domain → router addresses to enroll */
-    enrolledRouters: z
+    crossCollateralRouters: z
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
       .optional(),
     ...BaseMovableTokenConfigSchema.shape,

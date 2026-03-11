@@ -898,7 +898,7 @@ describe('EvmWarpModule', async () => {
       );
     });
 
-    it('normalizes chain-name enrolledRouters keys for multicollateral enroll/unenroll txs', async () => {
+    it('normalizes chain-name crossCollateralRouters keys for multicollateral enroll/unenroll txs', async () => {
       const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
       const keepRouterAddress = '0x1111111111111111111111111111111111111111';
       const keepRouter = addressToBytes32(keepRouterAddress);
@@ -923,7 +923,7 @@ describe('EvmWarpModule', async () => {
         ...baseConfig,
         type: TokenType.crossCollateral,
         token: token.address,
-        enrolledRouters: {
+        crossCollateralRouters: {
           [destinationDomain]: [keepRouter, removeRouter],
         },
       } as Parameters<
@@ -933,7 +933,7 @@ describe('EvmWarpModule', async () => {
         ...baseConfig,
         type: TokenType.crossCollateral,
         token: token.address,
-        enrolledRouters: {
+        crossCollateralRouters: {
           [TestChainName.test2]: [keepRouterAddress.toUpperCase(), addRouter],
         },
       } as HypTokenRouterConfig;
@@ -967,7 +967,7 @@ describe('EvmWarpModule', async () => {
       );
     });
 
-    it('includes MC enrolledRouters domains in destination gas txs', async () => {
+    it('includes MC crossCollateralRouters domains in destination gas txs', async () => {
       const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
       const enrolledRouter = addressToBytes32(
         '0x4444444444444444444444444444444444444444',
@@ -990,17 +990,17 @@ describe('EvmWarpModule', async () => {
         type: TokenType.crossCollateral,
         token: token.address,
         destinationGas: {},
-        enrolledRouters: {
+        crossCollateralRouters: {
           [destinationDomain]: [enrolledRouter],
         },
       } as DerivedTokenRouterConfig;
 
-      // Config has destinationGas for test2, but no remoteRouters — only enrolledRouters
+      // Config has destinationGas for test2, but no remoteRouters — only crossCollateralRouters
       const expectedConfig = {
         ...baseConfig,
         type: TokenType.crossCollateral,
         token: token.address,
-        enrolledRouters: {
+        crossCollateralRouters: {
           [TestChainName.test2]: [enrolledRouter],
         },
         destinationGas: {
@@ -1027,7 +1027,7 @@ describe('EvmWarpModule', async () => {
       expect(decoded[0][0].gas.toString()).to.equal('200000');
     });
 
-    it('throws when destinationGas set but no remoteRouters or enrolledRouters', async () => {
+    it('throws when destinationGas set but no remoteRouters or crossCollateralRouters', async () => {
       const module = new EvmWarpModule(multiProvider, {
         chain,
         config: {
@@ -1058,7 +1058,7 @@ describe('EvmWarpModule', async () => {
 
       expect(() =>
         module.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
-      ).to.throw(/remoteRouters and enrolledRouters are empty/);
+      ).to.throw(/remoteRouters and crossCollateralRouters are empty/);
     });
 
     it('should update the owner only if they are different', async () => {

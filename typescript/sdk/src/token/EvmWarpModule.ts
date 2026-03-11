@@ -438,17 +438,17 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    if (!expectedConfig.enrolledRouters) {
+    if (!expectedConfig.crossCollateralRouters) {
       return [];
     }
 
     const actualEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      actualConfig.enrolledRouters ?? {},
+      actualConfig.crossCollateralRouters ?? {},
     );
     const expectedEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.enrolledRouters,
+      expectedConfig.crossCollateralRouters,
     );
 
     const domainsToEnroll: number[] = [];
@@ -503,11 +503,11 @@ export class EvmWarpModule extends HyperlaneModule<
 
     const actualEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      actualConfig.enrolledRouters ?? {},
+      actualConfig.crossCollateralRouters ?? {},
     );
     const expectedEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.enrolledRouters ?? {},
+      expectedConfig.crossCollateralRouters ?? {},
     );
 
     const domainsToUnenroll: number[] = [];
@@ -973,7 +973,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
 
     // Only set gas for domains that will have routers enrolled after the update.
-    // For CrossCollateralRouter configs, also include domains from enrolledRouters.
+    // For CrossCollateralRouter configs, also include domains from crossCollateralRouters.
     const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
       this.multiProvider,
       expectedConfig.remoteRouters ?? {},
@@ -985,11 +985,11 @@ export class EvmWarpModule extends HyperlaneModule<
     // Include MC-enrolled router domains
     if (
       isCrossCollateralTokenConfig(expectedConfig) &&
-      expectedConfig.enrolledRouters
+      expectedConfig.crossCollateralRouters
     ) {
       const resolvedEnrolled = resolveRouterMapConfig(
         this.multiProvider,
-        expectedConfig.enrolledRouters,
+        expectedConfig.crossCollateralRouters,
       );
       for (const domain of Object.keys(resolvedEnrolled).map(Number)) {
         expectedRouterDomains.add(domain);
@@ -1001,7 +1001,7 @@ export class EvmWarpModule extends HyperlaneModule<
       Object.keys(expectedConfig.destinationGas).length > 0
     ) {
       throw new Error(
-        `destinationGas is set but remoteRouters and enrolledRouters are empty. ` +
+        `destinationGas is set but remoteRouters and crossCollateralRouters are empty. ` +
           `Cannot configure gas for domains without corresponding router enrollments.`,
       );
     }
@@ -1529,8 +1529,8 @@ export class EvmWarpModule extends HyperlaneModule<
 
     if (
       isCrossCollateralTokenConfig(config) &&
-      config.enrolledRouters &&
-      Object.keys(config.enrolledRouters).length > 0
+      config.crossCollateralRouters &&
+      Object.keys(config.crossCollateralRouters).length > 0
     ) {
       const enrollTxs = warpModule.createEnrollCrossCollateralRoutersTxs(
         actualConfig,

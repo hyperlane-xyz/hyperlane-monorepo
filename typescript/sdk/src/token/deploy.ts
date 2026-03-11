@@ -654,8 +654,8 @@ abstract class TokenDeployer<
           return;
         }
         if (
-          !config.enrolledRouters ||
-          Object.keys(config.enrolledRouters).length === 0
+          !config.crossCollateralRouters ||
+          Object.keys(config.crossCollateralRouters).length === 0
         ) {
           return;
         }
@@ -668,7 +668,7 @@ abstract class TokenDeployer<
 
         const resolvedRouters = resolveRouterMapConfig(
           this.multiProvider,
-          config.enrolledRouters,
+          config.crossCollateralRouters,
         );
 
         const domains: number[] = [];

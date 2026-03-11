@@ -107,7 +107,7 @@ describe('runWarpRouteCombine', () => {
           type: TokenType.crossCollateral,
           owner: ROUTER_A,
           token: ROUTER_A,
-          enrolledRouters: {
+          crossCollateralRouters: {
             [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_C)],
           },
         },
@@ -156,7 +156,7 @@ describe('runWarpRouteCombine', () => {
     ).to.equal(true);
 
     const updatedRouteAConfig = addWarpRouteConfig.getCall(0).args[0];
-    expect(updatedRouteAConfig.anvil2.enrolledRouters).to.deep.equal({
+    expect(updatedRouteAConfig.anvil2.crossCollateralRouters).to.deep.equal({
       [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_B)],
     });
   });
