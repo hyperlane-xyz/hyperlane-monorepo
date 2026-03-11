@@ -8,6 +8,7 @@ import {
   HyperlaneIgp,
   HyperlaneIgpChecker,
   HyperlaneIsmFactory,
+  IcaRouterType,
   InterchainAccount,
   InterchainAccountConfig,
   InterchainQuery,
@@ -159,10 +160,11 @@ export async function getGovernor(
       Record<string, InterchainAccountConfig>
     >((acc, [chain, conf]) => {
       if (icaChainAddresses[chain]) {
+        const isMinimal = minimalIcaChains.includes(chain);
         acc[chain] = {
           ...conf,
-          ...(minimalIcaChains.includes(chain)
-            ? {}
+          ...(isMinimal
+            ? { routerType: IcaRouterType.MINIMAL }
             : {
                 commitmentIsm: {
                   type: IsmType.OFFCHAIN_LOOKUP,
@@ -189,10 +191,11 @@ export async function getGovernor(
       Record<string, InterchainAccountConfig>
     >((acc, [chain, conf]) => {
       if (icaChainAddresses[chain]) {
+        const isMinimal = minimalIcaChains.includes(chain);
         acc[chain] = {
           ...conf,
-          ...(minimalIcaChains.includes(chain)
-            ? {}
+          ...(isMinimal
+            ? { routerType: IcaRouterType.MINIMAL }
             : {
                 commitmentIsm: {
                   type: IsmType.OFFCHAIN_LOOKUP,

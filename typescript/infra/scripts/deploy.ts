@@ -16,6 +16,7 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  IcaRouterType,
   InterchainAccount,
   InterchainAccountConfig,
   InterchainAccountDeployer,
@@ -175,10 +176,11 @@ async function main() {
     config = objMap(
       core.getRouterConfig(envConfig.owners) as ChainMap<RouterConfig>,
       (chain, routerConfig): InterchainAccountConfig => {
+        const isMinimal = minimalIcaChains.includes(chain);
         return {
           ...routerConfig,
-          ...(minimalIcaChains.includes(chain)
-            ? {}
+          ...(isMinimal
+            ? { routerType: IcaRouterType.MINIMAL }
             : {
                 commitmentIsm: {
                   type: IsmType.OFFCHAIN_LOOKUP,

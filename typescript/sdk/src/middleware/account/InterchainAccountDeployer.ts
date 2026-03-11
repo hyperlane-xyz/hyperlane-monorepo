@@ -9,7 +9,10 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
-import { IcaRouterConfig as InterchainAccountConfig } from '../../ica/types.js';
+import {
+  IcaRouterConfig as InterchainAccountConfig,
+  IcaRouterType,
+} from '../../ica/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer.js';
 import { ChainName } from '../../types.js';
@@ -46,16 +49,28 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       throw new Error('Configuration of ISM not supported in ICA deployer');
     }
 
+    const routerType = config.routerType ?? IcaRouterType.REGULAR;
+
+    if (routerType === IcaRouterType.REGULAR) {
+      assert(
+        config.commitmentIsm,
+        'commitmentIsm is required for regular ICA router deployments',
+      );
+      assert(
+        config.commitmentIsm.urls.length > 0,
+        'Commitment ISM URLs are required for deployment of ICA Routers',
+      );
+    } else {
+      assert(
+        !config.commitmentIsm,
+        'commitmentIsm must not be set for minimal ICA router deployments',
+      );
+    }
+
     const owner = await this.multiProvider.getSignerAddress(chain);
     let interchainAccountRouter: InterchainAccountRouter;
 
-    if (config.commitmentIsm) {
-      // Full InterchainAccountRouter with commit-reveal support
-      assert(
-        config.commitmentIsm.urls.length > 0,
-        'Commitment ISM URLs are required for deployment of ICA Routers. Please provide at least one URL in the commitmentIsm.urls array.',
-      );
-
+    if (routerType === IcaRouterType.REGULAR) {
       interchainAccountRouter = await this.deployContract(
         chain,
         'interchainAccountRouter',
@@ -64,27 +79,20 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
           ethers.constants.AddressZero,
           owner,
           50_000,
-          config.commitmentIsm.urls,
+          config.commitmentIsm!.urls,
         ],
       );
     } else {
-      // MinimalInterchainAccountRouter for size-constrained chains (e.g. Igra)
-      this.logger.info(
-        `Deploying MinimalInterchainAccountRouter on ${chain} (no commitmentIsm configured)`,
-      );
-      // MinimalInterchainAccountRouter is an ABI-compatible subset of InterchainAccountRouter
-      // (same Router base, same methods the SDK calls), but typechain generates separate types.
+      this.logger.info(`Deploying MinimalInterchainAccountRouter on ${chain}`);
       interchainAccountRouter = (await this.deployContractFromFactory(
         chain,
         new MinimalInterchainAccountRouter__factory(),
-        'interchainAccountRouter',
+        'minimalInterchainAccountRouter',
         [config.mailbox, ethers.constants.AddressZero, owner],
       )) as unknown as InterchainAccountRouter;
     }
 
     // Approve fee tokens for hooks if configured
-    // This is needed when using ERC-20 fee tokens with aggregation hooks
-    // containing an IGP as a child hook
     if (config.feeTokenApprovals?.length) {
       this.logger.info(
         `Approving ${config.feeTokenApprovals.length} fee token(s) for hooks on ${chain}...`,
