@@ -239,9 +239,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           owner: await icaInstance.owner(),
         };
       } catch {
-        // CCIP_READ_ISM not found — try implementation() to detect MinimalInterchainAccountRouter
+        // CCIP_READ_ISM not found — try bytecodeHash() to detect MinimalInterchainAccountRouter
+        // (implementation() is too broad — DomainRoutingIsm and proxies also expose it)
         try {
-          await icaInstance.implementation();
+          await icaInstance.bytecodeHash();
           return {
             address,
             type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
@@ -250,7 +251,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           };
         } catch {
           this.logger.debug(
-            'Not an ICA ISM (no CCIP_READ_ISM or implementation).',
+            'Not an ICA ISM (no CCIP_READ_ISM or bytecodeHash).',
             address,
           );
         }
@@ -289,7 +290,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         isIcaRouter = true;
       } catch {
         try {
-          await icaRouter.implementation();
+          await icaRouter.bytecodeHash();
           isIcaRouter = true;
         } catch {
           this.logger.debug('Not an InterchainAccountRouter ISM.', address);
