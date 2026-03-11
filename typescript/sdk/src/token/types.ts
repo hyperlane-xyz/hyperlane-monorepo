@@ -260,12 +260,7 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
  */
 export const CrossCollateralTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
-    type: z
-      .union([
-        z.literal(TokenType.crossCollateral),
-        z.literal('multiCollateral'),
-      ])
-      .transform(() => TokenType.crossCollateral),
+    type: z.literal(TokenType.crossCollateral),
     token: z.string().describe('Collateral token address'),
     /** Map of domain → router addresses to enroll */
     enrolledRouters: z

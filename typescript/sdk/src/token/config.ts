@@ -19,8 +19,6 @@ export const TokenType = {
   nativeScaled: 'nativeScaled',
   // Canonical value for cross-collateral routing tokens
   crossCollateral: 'crossCollateral',
-  // backwards-compatible alias key
-  multiCollateral: 'crossCollateral',
   unknown: 'unknown',
 } as const;
 
