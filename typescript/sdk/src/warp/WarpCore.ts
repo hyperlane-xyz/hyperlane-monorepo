@@ -14,8 +14,10 @@ import {
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { Keypair } from '@solana/web3.js';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { ProviderType } from '../providers/ProviderType.js';
 import {
   TransactionFeeEstimate,
   estimateTransactionFeeEthersV5ForGasUnits,
@@ -547,6 +549,10 @@ export class WarpCore {
         transactions.push(approveTx);
       }
     }
+    const extraSignerKeypairs =
+      providerType === ProviderType.SolanaWeb3
+        ? [Keypair.generate()]
+        : undefined;
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
@@ -554,6 +560,7 @@ export class WarpCore {
       recipient,
       interchainGas,
       customHook: token.igpTokenAddressOrDenom,
+      extraSigners: extraSignerKeypairs,
     });
 
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
@@ -562,6 +569,7 @@ export class WarpCore {
       category: WarpTxCategory.Transfer,
       type: providerType,
       transaction: transferTxReq,
+      ...(extraSignerKeypairs && { extraSigners: extraSignerKeypairs }),
     } as WarpTypedTransaction;
     transactions.push(transferTx);
 

@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -111,7 +111,7 @@ export class MockExternalBridge implements IExternalBridge {
 
   async execute(
     quote: BridgeQuote,
-    privateKey: string,
+    privateKeys: Partial<Record<ProtocolType, string>>,
   ): Promise<BridgeTransferResult> {
     if (this._failNextExecute) {
       this._failNextExecute = false;
@@ -130,7 +130,9 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
-    const signer = new ethers.Wallet(privateKey, provider);
+    const evmKey = privateKeys[ProtocolType.Ethereum];
+    assert(evmKey, 'Missing Ethereum private key for MockExternalBridge');
+    const signer = new ethers.Wallet(evmKey, provider);
 
     const recipientBytes32 = ethers.utils.hexZeroPad(
       ethers.utils.hexlify(route.toAddress),

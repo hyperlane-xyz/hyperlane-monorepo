@@ -15,13 +15,15 @@ import type {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
-import { address as parseAddress } from '@solana/kit';
 import { assert } from '@hyperlane-xyz/utils';
+import { address as parseAddress } from '@solana/kit';
 
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
 
+import { SVM_CORE_ADDRESSES } from '../generated/core-addresses.js';
+import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 import { SvmProvider } from './provider.js';
 import { SvmSigner } from './signer.js';
 
@@ -57,19 +59,23 @@ export class SvmProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawHookArtifactManager {
+    const mailbox =
+      context?.mailbox ?? SVM_CORE_ADDRESSES[chainMetadata.name]?.mailbox;
+
     assert(
-      context?.mailbox,
+      mailbox,
       'Mailbox address is required for SVM hook artifact manager',
     );
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmHookArtifactManager(rpc, parseAddress(context.mailbox));
+    return new SvmHookArtifactManager(rpc, parseAddress(mailbox));
   }
 
   createWarpArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
-    throw new Error('Warp artifact manager not yet implemented for Sealevel');
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmWarpArtifactManager(rpc);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

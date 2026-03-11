@@ -67,6 +67,7 @@ COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 COPY .claude/skills ./.claude/skills
 COPY .claude/settings.json ./.claude/settings.json
+COPY rust/sealevel/environments/mainnet3 ./rust/sealevel/environments/mainnet3
 
 # Pre-download solc compiler to avoid flaky network issues during build.
 # Hardhat downloads this on-demand, but the network request can timeout in CI.

@@ -924,6 +924,7 @@ describe('WarpCore', () => {
       token: Token,
       destination: ChainName,
       providerType = ProviderType.EthersV5,
+      expectExtraSigners = false,
     ) => {
       const result = await warpCore.getTransferRemoteTxs({
         originTokenAmount: token.amount(TRANSFER_AMOUNT),
@@ -932,21 +933,36 @@ describe('WarpCore', () => {
         recipient: MOCK_ADDRESS,
       });
       expect(result.length).to.equal(1);
-      expect(
-        result[0],
-        `transfer tx for ${token.chainName} to ${destination}`,
-      ).to.eql({
-        category: WarpTxCategory.Transfer,
-        transaction: {},
-        type: providerType,
-      });
+      if (expectExtraSigners) {
+        const tx = result[0];
+        expect(tx.category).to.equal(WarpTxCategory.Transfer);
+        expect(tx.type).to.equal(providerType);
+        expect(tx.transaction).to.eql({});
+        if (tx.type === ProviderType.SolanaWeb3) {
+          expect(tx.extraSigners).to.be.an('array').with.lengthOf(1);
+        }
+      } else {
+        expect(
+          result[0],
+          `transfer tx for ${token.chainName} to ${destination}`,
+        ).to.eql({
+          category: WarpTxCategory.Transfer,
+          transaction: {},
+          type: providerType,
+        });
+      }
     };
 
     await testGetTxs(evmHypNative, test1.name);
     await testGetTxs(evmHypNative, testCosmosChain.name);
     await testGetTxs(evmHypNative, testSealevelChain.name);
     await testGetTxs(evmHypSynthetic, test2.name);
-    await testGetTxs(sealevelHypSynthetic, test2.name, ProviderType.SolanaWeb3);
+    await testGetTxs(
+      sealevelHypSynthetic,
+      test2.name,
+      ProviderType.SolanaWeb3,
+      true,
+    );
     await testGetTxs(cwHypCollateral, test1.name, ProviderType.CosmJsWasm);
     await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
 

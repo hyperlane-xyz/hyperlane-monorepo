@@ -28,6 +28,7 @@ import {MultiCollateral} from "../contracts/MultiCollateral.sol";
 import {MultiCollateralRoutingFee} from "../contracts/MultiCollateralRoutingFee.sol";
 import {IMultiCollateralFee} from "../contracts/interfaces/IMultiCollateralFee.sol";
 import {HypERC20Collateral} from "@hyperlane-xyz/core/token/HypERC20Collateral.sol";
+import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
 import {LinearFee} from "@hyperlane-xyz/core/token/fees/LinearFee.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
@@ -717,6 +718,105 @@ contract MultiCollateralTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
+    function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment()
+        public
+    {
+        // Remove default Router.sol mapping for DESTINATION while keeping
+        // usdtRouterB enrolled via MultiCollateral's per-domain set.
+        usdcRouterA.unenrollRemoteRouter(DESTINATION);
+
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
+
+        assertEq(quotes.length, 3);
+        assertEq(quotes[0].token, address(0));
+        uint256 expectedFee = (1000e6 * DEFAULT_FEE_BPS) / 10000;
+        assertEq(quotes[1].token, address(originUSDC));
+        assertEq(quotes[1].amount, 1000e6 + expectedFee);
+        assertEq(quotes[2].amount, 0);
+    }
+
+    function test_quoteTransferRemoteTo_revert_unauthorizedRouter() public {
+        vm.expectRevert("MC: unauthorized router");
+        usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(0xdead).addressToBytes32()
+        );
+    }
+
+    function test_quoteTransferRemoteTo_revert_sameDomain_targetRouterNotContract()
+        public
+    {
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = ORIGIN;
+        routers[0] = address(0xdead).addressToBytes32();
+        usdcRouterA.enrollRouters(domains, routers);
+
+        vm.expectRevert("MC: target router not contract");
+        usdcRouterA.quoteTransferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            1000e6,
+            address(0xdead).addressToBytes32()
+        );
+    }
+
+    function test_transferRemoteTo_withoutDefaultRouterEnrollment() public {
+        usdcRouterA.setFeeRecipient(address(0));
+        usdtRouterB.setFeeRecipient(address(0));
+        usdcRouterA.unenrollRemoteRouter(DESTINATION);
+
+        uint256 amount = 1234e6;
+        uint256 bobBefore = destUSDT.balanceOf(BOB);
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+        env.processNextPendingMessage();
+
+        assertEq(destUSDT.balanceOf(BOB), bobBefore + 1234e18);
+    }
+
+    function test_transferRemoteTo_withHookFee_withoutDefaultRouterEnrollment()
+        public
+    {
+        usdcRouterA.setFeeRecipient(address(0));
+        usdtRouterB.setFeeRecipient(address(0));
+        usdcRouterA.unenrollRemoteRouter(DESTINATION);
+
+        uint256 amount = 1234e6;
+        uint256 hookFee = 7e6;
+        FixedQuoteHook hook = new FixedQuoteHook(hookFee);
+        usdcRouterA.setHook(address(hook));
+        usdcRouterA.setFeeHook(address(hook));
+
+        uint256 aliceBefore = originUSDC.balanceOf(ALICE);
+        uint256 bobBefore = destUSDT.balanceOf(BOB);
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+        env.processNextPendingMessage();
+
+        assertEq(destUSDT.balanceOf(BOB), bobBefore + 1234e18);
+        assertEq(aliceBefore - originUSDC.balanceOf(ALICE), amount + hookFee);
+    }
+
     // ============ Batch enrollment ============
 
     function test_enrollRouters_batch() public {
@@ -865,6 +965,50 @@ contract MultiCollateralTest is Test {
         bytes32[] memory list = fresh.getEnrolledRouters(10);
         assertEq(list.length, 1);
         assertEq(list[0], r1);
+    }
+
+    function test_getEnrolledDomains_tracksEnrollAndUnenroll() public {
+        MultiCollateral fresh = _deployRouter(
+            address(originUSDC),
+            USDC_SCALE_NUM,
+            USDC_SCALE_DEN,
+            address(originMailbox)
+        );
+
+        // Initially empty
+        assertEq(fresh.getEnrolledDomains().length, 0);
+
+        // Enroll routers on domains 10 and 20
+        bytes32 r1 = address(0xD1).addressToBytes32();
+        bytes32 r2 = address(0xD2).addressToBytes32();
+        bytes32 r3 = address(0xD3).addressToBytes32();
+
+        uint32[] memory domains = new uint32[](3);
+        bytes32[] memory routers = new bytes32[](3);
+        domains[0] = 10;
+        domains[1] = 10;
+        domains[2] = 20;
+        routers[0] = r1;
+        routers[1] = r2;
+        routers[2] = r3;
+        fresh.enrollRouters(domains, routers);
+
+        uint32[] memory enrolled = fresh.getEnrolledDomains();
+        assertEq(enrolled.length, 2);
+
+        // Unenroll one router from domain 10 — domain should persist
+        uint32[] memory ud = new uint32[](1);
+        bytes32[] memory ur = new bytes32[](1);
+        ud[0] = 10;
+        ur[0] = r1;
+        fresh.unenrollRouters(ud, ur);
+        assertEq(fresh.getEnrolledDomains().length, 2);
+
+        // Unenroll last router from domain 10 — domain should be removed
+        ur[0] = r2;
+        fresh.unenrollRouters(ud, ur);
+        assertEq(fresh.getEnrolledDomains().length, 1);
+        assertEq(fresh.getEnrolledDomains()[0], 20);
     }
 
     // ============ MultiCollateralRoutingFee Tests ============
@@ -1123,6 +1267,94 @@ contract MultiCollateralTest is Test {
         vm.prank(ALICE);
         vm.expectRevert("Ownable: caller is not the owner");
         routingFee.claim(ALICE, address(originUSDC));
+    }
+
+    // ============ Destination Gas for MC-enrolled domains ============
+
+    function test_setDestinationGas_mcOnlyDomain() public {
+        // Deploy a fresh MC router with NO default remote router for domain 99,
+        // only MC-enrolled routers.
+        MultiCollateral fresh = _deployRouter(
+            address(originUSDC),
+            USDC_SCALE_NUM,
+            USDC_SCALE_DEN,
+            address(originMailbox)
+        );
+        uint32[] memory domains = new uint32[](1);
+        bytes32[] memory routers = new bytes32[](1);
+        domains[0] = 99;
+        routers[0] = address(0xAA).addressToBytes32();
+        fresh.enrollRouters(domains, routers);
+
+        // Should succeed — domain 99 has MC-enrolled routers
+        fresh.setDestinationGas(99, 200_000);
+        assertEq(fresh.destinationGas(99), 200_000);
+    }
+
+    function test_setDestinationGas_defaultRouterDomain() public {
+        // Domain with a default remote router should also work
+        usdcRouterA.setDestinationGas(DESTINATION, 300_000);
+        assertEq(usdcRouterA.destinationGas(DESTINATION), 300_000);
+    }
+
+    function test_revert_setDestinationGas_unknownDomain() public {
+        vm.expectRevert("MC: domain has no routers");
+        usdcRouterA.setDestinationGas(999, 200_000);
+    }
+
+    function test_revert_setDestinationGas_localDomain() public {
+        vm.expectRevert("MC: no gas for local domain");
+        usdcRouterA.setDestinationGas(ORIGIN, 200_000);
+    }
+
+    function test_revert_setDestinationGas_nonOwner() public {
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("Ownable: caller is not the owner");
+        usdcRouterA.setDestinationGas(DESTINATION, 200_000);
+    }
+
+    function test_setDestinationGas_batch() public {
+        MultiCollateral fresh = _deployRouter(
+            address(originUSDC),
+            USDC_SCALE_NUM,
+            USDC_SCALE_DEN,
+            address(originMailbox)
+        );
+        // Enroll MC routers for domains 99 and 100
+        uint32[] memory enrollDomains = new uint32[](2);
+        bytes32[] memory enrollRouters = new bytes32[](2);
+        enrollDomains[0] = 99;
+        enrollDomains[1] = 100;
+        enrollRouters[0] = address(0xAA).addressToBytes32();
+        enrollRouters[1] = address(0xBB).addressToBytes32();
+        fresh.enrollRouters(enrollDomains, enrollRouters);
+
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](2);
+        configs[0] = GasRouter.GasRouterConfig({domain: 99, gas: 150_000});
+        configs[1] = GasRouter.GasRouterConfig({domain: 100, gas: 250_000});
+
+        fresh.setDestinationGas(configs);
+        assertEq(fresh.destinationGas(99), 150_000);
+        assertEq(fresh.destinationGas(100), 250_000);
+    }
+
+    function test_revert_setDestinationGas_batch_localDomain() public {
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](1);
+        configs[0] = GasRouter.GasRouterConfig({domain: ORIGIN, gas: 100_000});
+
+        vm.expectRevert("MC: no gas for local domain");
+        usdcRouterA.setDestinationGas(configs);
+    }
+
+    function test_revert_setDestinationGas_batch_unknownDomain() public {
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](1);
+        configs[0] = GasRouter.GasRouterConfig({domain: 999, gas: 100_000});
+
+        vm.expectRevert("MC: domain has no routers");
+        usdcRouterA.setDestinationGas(configs);
     }
 
     // ============ Helpers ============
