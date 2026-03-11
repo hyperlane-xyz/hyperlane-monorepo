@@ -447,6 +447,45 @@ contract TokenBridgeOftUnitTest is Test {
         // Crucially, the fee is NOT stuck in the bridge — it went to the recipient.
         assertEq(token.balanceOf(address(bridge)), amount);
     }
+
+    function test_transferRemote_feeRecipientPlusOftFee() public {
+        // Configure both a protocol fee recipient AND an OFT fee
+        uint256 protocolFee = 2e6;
+        MockFeeRecipient feeRecip = new MockFeeRecipient(
+            address(token),
+            protocolFee
+        );
+        vm.prank(owner);
+        bridge.setFeeRecipient(address(feeRecip));
+
+        mockOft.setFeeBps(100); // 1% OFT fee
+
+        uint256 amount = 100e6;
+        uint256 nativeFee = mockOft.nativeFeeToReturn();
+
+        uint256 callerBalBefore = token.balanceOf(caller);
+
+        vm.startPrank(caller);
+        token.approve(address(bridge), type(uint256).max);
+        bridge.transferRemote{value: nativeFee}(DOMAIN_ETH, recipient, amount);
+        vm.stopPrank();
+
+        // Fee recipient gets protocol fee
+        assertEq(token.balanceOf(address(feeRecip)), protocolFee);
+
+        // Caller paid: amount + protocolFee + OFT external fee
+        // OFT fee = grossAmount - amount (1% inversion on 100e6 ≈ 1010102)
+        uint256 callerSpent = callerBalBefore - token.balanceOf(caller);
+        assertGt(callerSpent, amount + protocolFee); // more than amount + protocol fee
+    }
+
+    // ---- Initialize ----
+
+    function test_initialize_approvesOft() public view {
+        // Non-adapter OFT: initialize() should still set approval
+        uint256 allowance = token.allowance(address(bridge), address(mockOft));
+        assertEq(allowance, type(uint256).max);
+    }
 }
 
 /**
@@ -607,6 +646,13 @@ contract TokenBridgeOftFeeInversionTest is Test {
             0
         );
         assertEq(quotes[2].amount, 0, "zero amount = zero fee");
+    }
+
+    function test_linearFee_100pct_reverts() public {
+        mockOft.setFeeBps(10000); // 100% fee
+
+        vm.expectRevert("TokenBridgeOft: OFT 100% fee");
+        bridge.quoteTransferRemote(DOMAIN_ETH, recipient, 100e6);
     }
 }
 
