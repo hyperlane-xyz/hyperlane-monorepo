@@ -55,7 +55,7 @@ export function MessageTimeline({
     >
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${barClassName || ''} htw-rounded-l ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} htw-rounded-l ${getStageOpacityClass(
             Stage.Sent,
             stage,
             status,
@@ -90,7 +90,7 @@ export function MessageTimeline({
       ></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${barClassName || ''} ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} ${getStageOpacityClass(
             Stage.Finalized,
             stage,
             status,
@@ -107,7 +107,7 @@ export function MessageTimeline({
               </div>
             </>
           )}
-          <Chevron side="left" color="#ffffff" />
+          <Chevron side="left" color={ColorPalette.White} />
           <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
@@ -124,7 +124,7 @@ export function MessageTimeline({
       ></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${barClassName || ''} ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} ${getStageOpacityClass(
             Stage.Validated,
             stage,
             status,
@@ -141,7 +141,7 @@ export function MessageTimeline({
               </div>
             </>
           )}
-          <Chevron side="left" color="#ffffff" />
+          <Chevron side="left" color={ColorPalette.White} />
           <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
@@ -158,7 +158,7 @@ export function MessageTimeline({
       ></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${barClassName || ''} htw-rounded-r ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} htw-rounded-r ${getStageOpacityClass(
             Stage.Relayed,
             stage,
             status,
@@ -175,7 +175,7 @@ export function MessageTimeline({
               </div>
             </>
           )}
-          <Chevron side="left" color="#ffffff" />
+          <Chevron side="left" color={ColorPalette.White} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Relayed, stage, timings, status)}
@@ -190,7 +190,14 @@ export function MessageTimeline({
   );
 }
 
-function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
+type IconComponent = React.ComponentType<{
+  width?: number;
+  height?: number;
+  color?: string;
+  alt?: string;
+}>;
+
+function StageIcon({ Icon, size }: { Icon: IconComponent; size?: number }) {
   return (
     <div className="htw-h-9 htw-w-9 htw-flex htw-items-center htw-justify-center htw-rounded-full htw-bg-blue-500">
       <Icon
@@ -209,7 +216,7 @@ function InlineIcon({
   color = ColorPalette.White,
   isMiddle,
 }: {
-  Icon: any;
+  Icon: IconComponent;
   size?: number;
   color?: string;
   isMiddle?: boolean;
