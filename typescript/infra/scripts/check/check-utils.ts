@@ -25,7 +25,7 @@ import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/utils.js';
 import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import { chainsToSkip, minimalIcaChains } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
@@ -161,12 +161,16 @@ export async function getGovernor(
       if (icaChainAddresses[chain]) {
         acc[chain] = {
           ...conf,
-          commitmentIsm: {
-            type: IsmType.OFFCHAIN_LOOKUP,
-            owner: conf.owner,
-            ownerOverrides: conf.ownerOverrides,
-            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
-          },
+          ...(minimalIcaChains.includes(chain)
+            ? {}
+            : {
+                commitmentIsm: {
+                  type: IsmType.OFFCHAIN_LOOKUP,
+                  owner: conf.owner,
+                  ownerOverrides: conf.ownerOverrides,
+                  urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+                },
+              }),
         };
       }
       return acc;
@@ -187,12 +191,16 @@ export async function getGovernor(
       if (icaChainAddresses[chain]) {
         acc[chain] = {
           ...conf,
-          commitmentIsm: {
-            type: IsmType.OFFCHAIN_LOOKUP,
-            owner: conf.owner,
-            ownerOverrides: conf.ownerOverrides,
-            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
-          },
+          ...(minimalIcaChains.includes(chain)
+            ? {}
+            : {
+                commitmentIsm: {
+                  type: IsmType.OFFCHAIN_LOOKUP,
+                  owner: conf.owner,
+                  ownerOverrides: conf.ownerOverrides,
+                  urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+                },
+              }),
         };
       }
       return acc;

@@ -1,5 +1,5 @@
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 
@@ -12,17 +12,24 @@ export class EvmIcaRouterReader extends EvmRouterReader {
       this.provider,
     );
 
-    const commitmentIsmAddress = await icaRouterInstance.CCIP_READ_ISM();
+    let commitmentIsmAddress: string | undefined;
+    try {
+      commitmentIsmAddress = await icaRouterInstance.CCIP_READ_ISM();
+    } catch {
+      rootLogger.debug(
+        `No CCIP_READ_ISM on ${address} — likely MinimalInterchainAccountRouter`,
+      );
+    }
 
-    const [routerConfig, commitmentIsm] = await Promise.all([
-      this.readRouterConfig(address),
-      this.evmIsmReader.deriveOffchainLookupConfig(commitmentIsmAddress),
-    ]);
+    const routerConfig = await this.readRouterConfig(address);
+    const commitmentIsm = commitmentIsmAddress
+      ? await this.evmIsmReader.deriveOffchainLookupConfig(commitmentIsmAddress)
+      : undefined;
 
     return {
       address,
       ...routerConfig,
-      commitmentIsm,
+      ...(commitmentIsm ? { commitmentIsm } : {}),
     };
   }
 }

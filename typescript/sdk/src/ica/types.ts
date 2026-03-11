@@ -18,7 +18,12 @@ export const FeeTokenApprovalSchema = z.object({
 export type FeeTokenApproval = z.infer<typeof FeeTokenApprovalSchema>;
 
 export const IcaRouterConfigSchema = RouterConfigSchema.extend({
-  commitmentIsm: OffchainLookupIsmConfigSchema,
+  /**
+   * Commitment ISM config for the full InterchainAccountRouter.
+   * Optional — omit for MinimalInterchainAccountRouter deployments
+   * on chains with tight deployment size limits (e.g. Igra).
+   */
+  commitmentIsm: OffchainLookupIsmConfigSchema.optional(),
   /**
    * Optional: Pre-approve fee tokens for hooks.
    * Use this when the ICA router will be used with ERC-20 fee tokens and
