@@ -373,7 +373,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         bytes32 _recipient,
         uint256 _amount,
         bytes32 _targetRouter
-    ) external view override returns (Quote[] memory quotes) {
+    ) public view override returns (Quote[] memory quotes) {
         _requireAuthorizedRouter(_destination, _targetRouter);
         if (_destination == localDomain) {
             require(
@@ -411,6 +411,23 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             token: token(),
             amount: _externalFeeAmount(_destination, _recipient, _amount)
         });
+    }
+
+    /// @notice Alias for quoteTransferRemoteToCrossCollateralRouter.
+    /// Keeps the same signature shape as transferRemoteTo.
+    function quoteTransferRemoteTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 _targetRouter
+    ) external view returns (Quote[] memory quotes) {
+        return
+            quoteTransferRemoteToCrossCollateralRouter(
+                _destination,
+                _recipient,
+                _amount,
+                _targetRouter
+            );
     }
 
     /// @dev Target-router-aware gas quote helper. Avoids Router._mustHaveRemoteRouter().

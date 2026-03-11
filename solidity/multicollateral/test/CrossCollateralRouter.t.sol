@@ -725,6 +725,28 @@ contract CrossCollateralRouterTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
+    function test_quoteTransferRemoteTo_alias() public view {
+        Quote[] memory aliasQuotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
+        Quote[] memory canonicalQuotes = usdcRouterA
+            .quoteTransferRemoteToCrossCollateralRouter(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                1000e6,
+                address(usdtRouterB).addressToBytes32()
+            );
+
+        assertEq(aliasQuotes.length, canonicalQuotes.length);
+        for (uint256 i = 0; i < canonicalQuotes.length; i++) {
+            assertEq(aliasQuotes[i].token, canonicalQuotes[i].token);
+            assertEq(aliasQuotes[i].amount, canonicalQuotes[i].amount);
+        }
+    }
+
     function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment()
         public
     {
