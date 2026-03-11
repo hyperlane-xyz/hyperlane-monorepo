@@ -46,7 +46,13 @@ export function MessageTimeline({
     : null;
 
   return (
-    <div className={isInline ? 'htw-pb-1 htw-flex htw-w-full' : 'htw-pt-14 htw-pb-1 htw-flex htw-w-full'}>
+    <div
+      className={
+        isInline
+          ? 'htw-pb-1 htw-flex htw-w-full'
+          : 'htw-pt-14 htw-pb-1 htw-flex htw-w-full'
+      }
+    >
       <div className={styles.stageContainer}>
         <div
           className={`${styles.stageBar} ${barClassName || ''} htw-rounded-l ${getStageOpacityClass(
@@ -79,7 +85,9 @@ export function MessageTimeline({
           </p>
         )}
       </div>
-      <div className={isInline ? styles.stageSpacerInline : styles.stageSpacer}></div>
+      <div
+        className={isInline ? styles.stageSpacerInline : styles.stageSpacer}
+      ></div>
       <div className={styles.stageContainer}>
         <div
           className={`${styles.stageBar} ${barClassName || ''} ${getStageOpacityClass(
@@ -111,7 +119,9 @@ export function MessageTimeline({
           </p>
         )}
       </div>
-      <div className={isInline ? styles.stageSpacerInline : styles.stageSpacer}></div>
+      <div
+        className={isInline ? styles.stageSpacerInline : styles.stageSpacer}
+      ></div>
       <div className={styles.stageContainer}>
         <div
           className={`${styles.stageBar} ${barClassName || ''} ${getStageOpacityClass(
@@ -143,7 +153,9 @@ export function MessageTimeline({
           </p>
         )}
       </div>
-      <div className={isInline ? styles.stageSpacerInline : styles.stageSpacer}></div>
+      <div
+        className={isInline ? styles.stageSpacerInline : styles.stageSpacer}
+      ></div>
       <div className={styles.stageContainer}>
         <div
           className={`${styles.stageBar} ${barClassName || ''} htw-rounded-r ${getStageOpacityClass(
@@ -191,23 +203,43 @@ function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
   );
 }
 
-function InlineIcon({ Icon, size, color = ColorPalette.White, isMiddle }: { Icon: any; size?: number; color?: string; isMiddle?: boolean }) {
+function InlineIcon({
+  Icon,
+  size,
+  color = ColorPalette.White,
+  isMiddle,
+}: {
+  Icon: any;
+  size?: number;
+  color?: string;
+  isMiddle?: boolean;
+}) {
   return (
-    <div className={`htw-flex htw-items-center htw-justify-center htw-z-10${isMiddle ? ' htw-pl-2' : ''}`}>
-      <Icon
-        width={size ?? 14}
-        height={size ?? 14}
-        color={color}
-      />
+    <div
+      className={`htw-flex htw-items-center htw-justify-center htw-z-10${isMiddle ? ' htw-pl-2' : ''}`}
+    >
+      <Icon width={size ?? 14} height={size ?? 14} color={color} />
     </div>
   );
 }
 
-function Chevron({ side, color = ColorPalette.Blue }: { side: 'left' | 'right'; color?: string }) {
+function Chevron({
+  side,
+  color = ColorPalette.Blue,
+}: {
+  side: 'left' | 'right';
+  color?: string;
+}) {
   const posClass = side === 'left' ? 'htw--left-3' : 'htw--right-3';
   return (
     <div className={`htw-absolute ${posClass} htw-top-0 htw-h-6`}>
-      <WideChevronIcon direction="e" height="100%" width="auto" color={color} style={{ display: 'block' }} />
+      <WideChevronIcon
+        direction="e"
+        height="100%"
+        width="auto"
+        color={color}
+        style={{ display: 'block' }}
+      />
     </div>
   );
 }
