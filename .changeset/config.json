@@ -17,6 +17,7 @@
       "@hyperlane-xyz/infra",
       "@hyperlane-xyz/radix-sdk",
       "@hyperlane-xyz/rebalancer",
+      "@hyperlane-xyz/sealevel-sdk",
       "@hyperlane-xyz/sdk",
       "@hyperlane-xyz/tsconfig",
       "@hyperlane-xyz/utils",
