@@ -156,6 +156,29 @@ contract MockOFTAdapter is MockOFT {
     constructor(address _token) MockOFT(_token, true) {}
 }
 
+/**
+ * @title MockFeeRecipient
+ * @notice Mock ITokenFee that charges a fixed fee in the warp token.
+ */
+contract MockFeeRecipient {
+    address public feeToken;
+    uint256 public feeAmount;
+
+    constructor(address _token, uint256 _fee) {
+        feeToken = _token;
+        feeAmount = _fee;
+    }
+
+    function quoteTransferRemote(
+        uint32,
+        bytes32,
+        uint256
+    ) external view returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({token: feeToken, amount: feeAmount});
+    }
+}
+
 // ============================================================
 //  Unit Tests
 // ============================================================
@@ -396,6 +419,33 @@ contract TokenBridgeOftUnitTest is Test {
         (bool ok, ) = address(bridge).call{value: 0.5 ether}("");
         assertTrue(ok);
         assertEq(address(bridge).balance, 0.5 ether);
+    }
+
+    // ---- Fee Recipient ----
+
+    function test_transferRemote_feeRecipientReceivesFee() public {
+        uint256 protocolFee = 5e6; // 5 USDT fee
+        MockFeeRecipient feeRecip = new MockFeeRecipient(
+            address(token),
+            protocolFee
+        );
+
+        vm.prank(owner);
+        bridge.setFeeRecipient(address(feeRecip));
+
+        uint256 amount = 100e6;
+        uint256 nativeFee = mockOft.nativeFeeToReturn();
+
+        vm.startPrank(caller);
+        token.approve(address(bridge), type(uint256).max);
+        bridge.transferRemote{value: nativeFee}(DOMAIN_ETH, recipient, amount);
+        vm.stopPrank();
+
+        // Fee recipient should have received the protocol fee
+        assertEq(token.balanceOf(address(feeRecip)), protocolFee);
+        // Bridge holds only the amount destined for OFT (mock doesn't burn).
+        // Crucially, the fee is NOT stuck in the bridge — it went to the recipient.
+        assertEq(token.balanceOf(address(bridge)), amount);
     }
 }
 

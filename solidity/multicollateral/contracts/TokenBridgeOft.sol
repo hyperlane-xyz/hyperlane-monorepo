@@ -221,6 +221,14 @@ contract TokenBridgeOft is TokenRouter {
         // Intentionally empty: OFT handles token delivery
     }
 
+    /// @dev Override to transfer fees via ERC20 instead of _transferTo (which is a no-op).
+    function _transferFee(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        wrappedToken.safeTransfer(_recipient, _amount);
+    }
+
     /**
      * @dev Revert on inbound Hyperlane messages — tokens arrive via LayerZero, not Hyperlane.
      */
