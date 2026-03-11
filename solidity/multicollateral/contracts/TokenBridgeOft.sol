@@ -118,6 +118,13 @@ contract TokenBridgeOft is TokenRouter {
         return address(wrappedToken);
     }
 
+    /// @dev ERC20 fee hooks are incompatible: _quoteGasPayment returns LZ native
+    /// fees in wei, which _calculateFeesAndCharge would misinterpret as ERC20
+    /// amounts if a feeHook were set. Always return address(0) to disable.
+    function feeHook() public pure override returns (address) {
+        return address(0);
+    }
+
     /**
      * @dev Override to return LayerZero OFT native fee instead of Hyperlane IGP fee.
      */
