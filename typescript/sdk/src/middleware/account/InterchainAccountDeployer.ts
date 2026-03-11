@@ -91,10 +91,12 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
         [config.mailbox, ethers.constants.AddressZero, owner],
       )) as unknown as InterchainAccountRouter;
       // deployContractFromFactory doesn't write to cache (unlike deployContract),
-      // so persist the address for crash-recovery
+      // so persist the address for crash-recovery.
+      // Key must match the contractName passed to deployContractFromFactory above
+      // so that readCache finds it on recovery.
       this.writeCache(
         chain,
-        'interchainAccountRouter',
+        'minimalInterchainAccountRouter',
         interchainAccountRouter.address,
       );
     }
