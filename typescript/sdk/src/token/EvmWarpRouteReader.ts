@@ -85,7 +85,14 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+
+// version that introduced the fractional scale interface
 const SCALE_FRACTION_VERSION = '11.0.0';
+
+// version that introduced the legacy scale interface
+// https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%406.0.0
+const SCALE_VERSION = '6.0.0';
+
 // Version that first introduced ppm precision for CCTP V2 fee storage (was bps before)
 export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
 // Version that renamed maxFeeBps() to maxFeePpm() on-chain
@@ -1229,6 +1236,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
     const hasScaleFractionInterface =
       compareVersions(packageVersion, SCALE_FRACTION_VERSION) >= 0;
+    const hasScaleInterface =
+      compareVersions(packageVersion, SCALE_VERSION) >= 0;
+
+    if (!hasScaleFractionInterface && !hasScaleInterface) {
+      return;
+    }
 
     const tokenRouter = TokenRouter__factory.connect(
       tokenRouterAddress,
@@ -1236,7 +1249,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     );
 
     let result: NormalizedScale;
-
     if (hasScaleFractionInterface) {
       // Read new format (scaleNumerator and scaleDenominator)
       const [numerator, denominator] = await Promise.all([
