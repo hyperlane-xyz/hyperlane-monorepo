@@ -89,7 +89,6 @@ RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
 # solhint-plugin is excluded (not in the turbo bundle dependency graph).
 COPY turbo.json ./
 COPY scripts ./scripts
-COPY rust/sealevel/environments/mainnet3 ./rust/sealevel/environments/mainnet3
 COPY solidity ./solidity
 COPY starknet ./starknet
 COPY typescript/tsconfig ./typescript/tsconfig
