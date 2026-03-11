@@ -9,6 +9,7 @@
     "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "format": "turbo run format",
+    "prettier": "turbo run format",
     "format:check": "oxfmt --check . && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'",
     "lint": "oxlint -c oxlint.json && turbo run lint",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
