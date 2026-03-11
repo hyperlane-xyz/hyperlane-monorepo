@@ -11,6 +11,7 @@ use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::HyperlaneDomain;
 use lander::CommandEntrypoint;
 
+use crate::fast_relay::JobStore;
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
@@ -21,6 +22,7 @@ pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
 pub mod environment_variable;
 pub mod evm;
+pub mod fast_relay;
 pub mod igp;
 pub mod merkle_tree_insertions;
 pub mod messages;
@@ -45,6 +47,8 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
+    #[new(default)]
+    job_store: Option<JobStore>,
 }
 
 impl Server {
@@ -95,6 +99,11 @@ impl Server {
         self
     }
 
+    pub fn with_job_store(mut self, job_store: JobStore) -> Self {
+        self.job_store = Some(job_store);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -139,6 +148,11 @@ impl Server {
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
+
+        if let Some(job_store) = self.job_store {
+            router = router.merge(fast_relay::ServerState::new(job_store).router());
+        }
+
         router
     }
 }

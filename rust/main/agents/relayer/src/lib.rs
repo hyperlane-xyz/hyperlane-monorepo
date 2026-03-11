@@ -4,6 +4,7 @@
 pub mod msg;
 
 mod db_loader;
+mod fast_relay;
 mod merkle_tree;
 mod metrics;
 mod prover;

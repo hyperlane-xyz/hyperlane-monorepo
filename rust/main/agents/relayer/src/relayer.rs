@@ -606,6 +606,12 @@ impl Relayer {
                 })
             })
             .collect();
+
+        // Create JobStore for fast relay and spawn cleanup task
+        let job_store = crate::fast_relay::JobStore::new();
+        let cleanup_interval = std::time::Duration::from_secs(300); // Cleanup every 5 minutes
+        job_store.clone().spawn_cleanup_task(cleanup_interval);
+
         relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
@@ -614,6 +620,7 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
+            .with_job_store(job_store)
             .router()
     }
 
