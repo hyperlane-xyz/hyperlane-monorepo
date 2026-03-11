@@ -35,7 +35,7 @@
     "lint": "eslint -c ./eslint.config.mjs ./index.ts",
     "test": "pnpm deps:soldeer && forge test -vvv",
     "test:ci": "pnpm deps:soldeer && forge test -vvv --no-match-contract ForkTest",
-    "test:fork": "pnpm deps:soldeer && sh -c '. ../solidity/.env.default && forge test -vvv --match-contract ForkTest'"
+    "test:fork": "pnpm deps:soldeer && sh -c '. ../.env.default && forge test -vvv --match-contract ForkTest'"
   },
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*"
