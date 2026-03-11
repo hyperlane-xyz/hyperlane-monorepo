@@ -73,7 +73,11 @@ impl JobStore {
 
         let removed_count = initial_count - jobs.len();
         if removed_count > 0 {
-            info!(removed = removed_count, remaining = jobs.len(), "Cleaned up expired jobs");
+            info!(
+                removed = removed_count,
+                remaining = jobs.len(),
+                "Cleaned up expired jobs"
+            );
         }
 
         removed_count
@@ -105,12 +109,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_get() {
         let store = JobStore::new();
-        let job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
         let id = job.id;
 
         store.insert(job.clone()).await;
@@ -123,12 +122,7 @@ mod tests {
     #[tokio::test]
     async fn test_update() {
         let store = JobStore::new();
-        let mut job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let mut job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
         let id = job.id;
 
         store.insert(job.clone()).await;
@@ -143,12 +137,7 @@ mod tests {
     #[tokio::test]
     async fn test_remove() {
         let store = JobStore::new();
-        let job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
         let id = job.id;
 
         store.insert(job).await;
@@ -172,12 +161,7 @@ mod tests {
         store.insert(expired_job).await;
 
         // Insert valid job
-        let valid_job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let valid_job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
         store.insert(valid_job).await;
 
         assert_eq!(store.count().await, 2);

@@ -120,12 +120,7 @@ mod tests {
 
     #[test]
     fn test_create_job() {
-        let job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
 
         assert_eq!(job.status, RelayStatus::Pending);
         assert_eq!(job.origin_chain, "ethereum");
@@ -135,12 +130,7 @@ mod tests {
 
     #[test]
     fn test_update_status() {
-        let mut job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let mut job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
 
         let initial_time = job.updated_at;
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -152,12 +142,7 @@ mod tests {
 
     #[test]
     fn test_set_error() {
-        let mut job = FastRelayJob::new(
-            "ethereum".to_string(),
-            H256::zero(),
-            H256::zero(),
-            3600,
-        );
+        let mut job = FastRelayJob::new("ethereum".to_string(), H256::zero(), H256::zero(), 3600);
 
         job.set_error("Test error".to_string());
         assert_eq!(job.status, RelayStatus::Failed);

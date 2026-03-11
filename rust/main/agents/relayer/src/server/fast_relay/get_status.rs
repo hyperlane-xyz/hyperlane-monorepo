@@ -1,4 +1,7 @@
-use axum::{extract::{Path, State}, http::StatusCode};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+};
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
@@ -15,18 +18,14 @@ pub async fn get_fast_relay_status(
     State(state): State<ServerState>,
     Path(job_id): Path<Uuid>,
 ) -> ServerResult<ServerSuccessResponse<FastRelayJob>> {
-    let job = state
-        .job_store
-        .get(&job_id)
-        .await
-        .ok_or_else(|| {
-            ServerErrorResponse::new(
-                StatusCode::NOT_FOUND,
-                ServerErrorBody {
-                    message: format!("Job not found: {}", job_id),
-                },
-            )
-        })?;
+    let job = state.job_store.get(&job_id).await.ok_or_else(|| {
+        ServerErrorResponse::new(
+            StatusCode::NOT_FOUND,
+            ServerErrorBody {
+                message: format!("Job not found: {}", job_id),
+            },
+        )
+    })?;
 
     Ok(ServerSuccessResponse::new(job))
 }

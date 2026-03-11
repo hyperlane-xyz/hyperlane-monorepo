@@ -7,7 +7,12 @@ pub use create_job::{create_fast_relay, CreateFastRelayRequest, CreateFastRelayR
 pub use get_status::get_fast_relay_status;
 pub use rate_limit::{RateLimitConfig, RateLimiter};
 
-use axum::{routing::{get, post}, Router};
+use std::sync::Arc;
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use derive_new::new;
 
 use crate::fast_relay::{FastRelayWorker, JobStore, ProviderRegistry};
@@ -21,7 +26,7 @@ pub struct ServerState {
     #[new(default)]
     provider_registry: Option<ProviderRegistry>,
     #[new(default)]
-    worker: Option<FastRelayWorker>,
+    worker: Option<Arc<FastRelayWorker>>,
 }
 
 impl ServerState {
@@ -46,7 +51,7 @@ impl ServerState {
     }
 
     /// Add fast relay worker to server state
-    pub fn with_worker(mut self, worker: FastRelayWorker) -> Self {
+    pub fn with_worker(mut self, worker: Arc<FastRelayWorker>) -> Self {
         self.worker = Some(worker);
         self
     }

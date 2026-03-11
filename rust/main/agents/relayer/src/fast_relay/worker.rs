@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use hyperlane_core::{HyperlaneMessage, PendingOperation, QueueOperation};
+use hyperlane_core::{HyperlaneMessage, QueueOperation};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 
 use crate::fast_relay::{JobStore, RelayStatus};
-use crate::msg::pending_message::{MessageContext, PendingMessage, PendingOperationStatus};
+use crate::msg::pending_message::{MessageContext, PendingMessage};
 
 /// Fast relay worker that injects messages directly into the MessageProcessor
 ///
@@ -59,7 +59,7 @@ impl FastRelayWorker {
             // Update job status to preparing
             if let Some(mut job) = job_store.get(&job_id).await {
                 job.update_status(RelayStatus::Preparing);
-                job_store.update(&job_id, job).await;
+                job_store.update(job).await;
             }
 
             // Get MessageContext for this (origin, destination) pair
@@ -76,7 +76,7 @@ impl FastRelayWorker {
                         "No route configured for origin {} to destination {}",
                         message.origin, message.destination
                     ));
-                    job_store.update(&job_id, job).await;
+                    job_store.update(job).await;
                 }
                 return;
             };
@@ -89,8 +89,11 @@ impl FastRelayWorker {
                     "No send channel found for destination"
                 );
                 if let Some(mut job) = job_store.get(&job_id).await {
-                    job.set_error(format!("No processor for destination {}", message.destination));
-                    job_store.update(&job_id, job).await;
+                    job.set_error(format!(
+                        "No processor for destination {}",
+                        message.destination
+                    ));
+                    job_store.update(job).await;
                 }
                 return;
             };
@@ -112,7 +115,7 @@ impl FastRelayWorker {
                     );
                     if let Some(mut job) = job_store.get(&job_id).await {
                         job.set_error("Message exceeded retry limit".to_string());
-                        job_store.update(&job_id, job).await;
+                        job_store.update(job).await;
                     }
                     return;
                 }
@@ -131,14 +134,10 @@ impl FastRelayWorker {
             // This bypasses the database entirely
             let queue_op: QueueOperation = Box::new(pending_msg);
             if let Err(err) = send_channel.send(queue_op) {
-                error!(
-                    ?job_id,
-                    ?err,
-                    "Failed to send message to processor channel"
-                );
+                error!(?job_id, ?err, "Failed to send message to processor channel");
                 if let Some(mut job) = job_store.get(&job_id).await {
                     job.set_error(format!("Failed to queue message: {}", err));
-                    job_store.update(&job_id, job).await;
+                    job_store.update(job).await;
                 }
                 return;
             }
@@ -155,7 +154,7 @@ impl FastRelayWorker {
             // For now, mark it as "submitted" after injection
             if let Some(mut job) = job_store.get(&job_id).await {
                 job.update_status(RelayStatus::Submitting);
-                job_store.update(&job_id, job).await;
+                job_store.update(job).await;
             }
 
             // TODO: Add monitoring/polling to detect when message is actually submitted

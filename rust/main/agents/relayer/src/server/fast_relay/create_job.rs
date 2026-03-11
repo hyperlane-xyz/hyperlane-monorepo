@@ -64,9 +64,8 @@ pub async fn create_fast_relay(
     // Phase 2: Extract message from transaction (if provider registry available)
     let (message_id, extracted_message) = if let Some(registry) = &state.provider_registry {
         // Convert H256 to H512 for RPC call
-        let tx_hash_h512 = hyperlane_core::H512::from_slice(
-            &[tx_hash_h256.as_bytes(), &[0u8; 32]].concat()
-        );
+        let tx_hash_h512 =
+            hyperlane_core::H512::from_slice(&[tx_hash_h256.as_bytes(), &[0u8; 32]].concat());
 
         // Extract Hyperlane message from transaction
         match registry.extract(&req.origin_chain, tx_hash_h512).await {
@@ -148,7 +147,8 @@ mod tests {
 
         let req = CreateFastRelayRequest {
             origin_chain: "ethereum".to_string(),
-            tx_hash: "0x0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            tx_hash: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_string(),
             priority: None,
         };
 

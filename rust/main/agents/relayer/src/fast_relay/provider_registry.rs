@@ -41,8 +41,7 @@ impl ProviderRegistry {
             + Sync
             + 'static,
     {
-        self.extractors
-            .insert(chain_name, Arc::new(extractor));
+        self.extractors.insert(chain_name, Arc::new(extractor));
     }
 
     /// Extract message from a transaction on the given chain

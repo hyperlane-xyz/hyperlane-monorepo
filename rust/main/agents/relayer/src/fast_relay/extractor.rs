@@ -28,18 +28,20 @@ pub async fn extract_hyperlane_message<M>(
 where
     M: Middleware + 'static,
 {
-    debug!(?tx_hash, ?locator, "Extracting Hyperlane message from transaction");
-
-    // Create indexer with zero reorg period (tx is already finalized if user has it)
-    let indexer = EthereumMailboxIndexer::new(
-        provider,
-        locator,
-        EthereumReorgPeriod::Blocks(0),
+    debug!(
+        ?tx_hash,
+        ?locator,
+        "Extracting Hyperlane message from transaction"
     );
 
+    // Create indexer with zero reorg period (tx is already finalized if user has it)
+    let indexer = EthereumMailboxIndexer::new(provider, locator, EthereumReorgPeriod::Blocks(0));
+
     // Fetch messages from the transaction
-    let messages: Vec<(hyperlane_core::Indexed<HyperlaneMessage>, hyperlane_core::LogMeta)> =
-        indexer.fetch_logs_by_tx_hash(tx_hash).await?;
+    let messages: Vec<(
+        hyperlane_core::Indexed<HyperlaneMessage>,
+        hyperlane_core::LogMeta,
+    )> = indexer.fetch_logs_by_tx_hash(tx_hash).await?;
 
     if messages.is_empty() {
         warn!(?tx_hash, "No Dispatch events found in transaction");
