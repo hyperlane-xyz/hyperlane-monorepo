@@ -84,7 +84,7 @@ export interface IToken extends TokenArgs {
   isHypToken(): boolean;
   isIbcToken(): boolean;
   isMultiChainToken(): boolean;
-  isMultiCollateralToken(): boolean;
+  isCrossCollateralToken(): boolean;
 
   getConnections(): TokenConnection[];
 

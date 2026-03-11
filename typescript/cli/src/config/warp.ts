@@ -75,7 +75,7 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
-  [TokenType.multiCollateral]:
+  [TokenType.crossCollateral]:
     'A collateral token that can route to multiple routers across chains',
 };
 
@@ -250,7 +250,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
-      case TokenType.multiCollateral:
+      case TokenType.crossCollateral:
         result[chain] = {
           type,
           owner,

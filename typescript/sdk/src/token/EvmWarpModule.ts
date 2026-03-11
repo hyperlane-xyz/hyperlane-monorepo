@@ -13,7 +13,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,
@@ -81,7 +81,7 @@ import {
   derivedIsmAddress,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
-  isMultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -201,11 +201,11 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       // MC unenroll before enroll for consistency with remote routers.
       // MC enrollment must come before gas setting so that MC-only domains
-      ...this.createUnenrollMultiCollateralRoutersTxs(
+      ...this.createUnenrollCrossCollateralRoutersTxs(
         actualConfig,
         expectedConfig,
       ),
-      ...this.createEnrollMultiCollateralRoutersTxs(
+      ...this.createEnrollCrossCollateralRoutersTxs(
         actualConfig,
         expectedConfig,
       ),
@@ -425,15 +425,15 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   /**
-   * Create transactions to enroll MultiCollateral routers.
+   * Create transactions to enroll CrossCollateralRouter routers.
    */
-  createEnrollMultiCollateralRoutersTxs(
+  createEnrollCrossCollateralRoutersTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     if (
-      !isMultiCollateralTokenConfig(expectedConfig) ||
-      !isMultiCollateralTokenConfig(actualConfig)
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
     ) {
       return [];
     }
@@ -477,10 +477,10 @@ export class EvmWarpModule extends HyperlaneModule<
     return [
       {
         chainId: this.chainId,
-        annotation: `Enrolling ${domainsToEnroll.length} MultiCollateral routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        annotation: `Enrolling ${domainsToEnroll.length} CrossCollateralRouter routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
         to: this.args.addresses.deployedTokenRoute,
-        data: MultiCollateral__factory.createInterface().encodeFunctionData(
-          'enrollRouters',
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'enrollCrossCollateralRouters',
           [domainsToEnroll, routersToEnroll],
         ),
       },
@@ -488,15 +488,15 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   /**
-   * Create transactions to unenroll MultiCollateral routers.
+   * Create transactions to unenroll CrossCollateralRouter routers.
    */
-  createUnenrollMultiCollateralRoutersTxs(
+  createUnenrollCrossCollateralRoutersTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     if (
-      !isMultiCollateralTokenConfig(expectedConfig) ||
-      !isMultiCollateralTokenConfig(actualConfig)
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
     ) {
       return [];
     }
@@ -536,10 +536,10 @@ export class EvmWarpModule extends HyperlaneModule<
     return [
       {
         chainId: this.chainId,
-        annotation: `Unenrolling ${domainsToUnenroll.length} MultiCollateral routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        annotation: `Unenrolling ${domainsToUnenroll.length} CrossCollateralRouter routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
         to: this.args.addresses.deployedTokenRoute,
-        data: MultiCollateral__factory.createInterface().encodeFunctionData(
-          'unenrollRouters',
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'unenrollCrossCollateralRouters',
           [domainsToUnenroll, routersToUnenroll],
         ),
       },
@@ -973,7 +973,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
 
     // Only set gas for domains that will have routers enrolled after the update.
-    // For MultiCollateral configs, also include domains from enrolledRouters.
+    // For CrossCollateralRouter configs, also include domains from enrolledRouters.
     const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
       this.multiProvider,
       expectedConfig.remoteRouters ?? {},
@@ -984,7 +984,7 @@ export class EvmWarpModule extends HyperlaneModule<
 
     // Include MC-enrolled router domains
     if (
-      isMultiCollateralTokenConfig(expectedConfig) &&
+      isCrossCollateralTokenConfig(expectedConfig) &&
       expectedConfig.enrolledRouters
     ) {
       const resolvedEnrolled = resolveRouterMapConfig(
@@ -1528,11 +1528,11 @@ export class EvmWarpModule extends HyperlaneModule<
     }
 
     if (
-      isMultiCollateralTokenConfig(config) &&
+      isCrossCollateralTokenConfig(config) &&
       config.enrolledRouters &&
       Object.keys(config.enrolledRouters).length > 0
     ) {
-      const enrollTxs = warpModule.createEnrollMultiCollateralRoutersTxs(
+      const enrollTxs = warpModule.createEnrollCrossCollateralRoutersTxs(
         actualConfig,
         config,
       );

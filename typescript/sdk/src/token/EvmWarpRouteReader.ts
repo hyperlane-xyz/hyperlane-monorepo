@@ -27,7 +27,10 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  CrossCollateralRouter,
+  CrossCollateralRouter__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
@@ -79,7 +82,7 @@ import {
   XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
-  isMultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -153,8 +156,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
-      [TokenType.multiCollateral]:
-        this.deriveMultiCollateralTokenConfig.bind(this),
+      [TokenType.crossCollateral]:
+        this.deriveCrossCollateralTokenConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -186,11 +189,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    // For MultiCollateral tokens, include domains from enrolledRouters so
+    // For CrossCollateralRouter tokens, include domains from enrolledRouters so
     // fetchDestinationGas also reads gas for MC-only enrolled domains.
     const mcEnrolledDomains: number[] = [];
     if (
-      isMultiCollateralTokenConfig(tokenConfig) &&
+      isCrossCollateralTokenConfig(tokenConfig) &&
       tokenConfig.enrolledRouters
     ) {
       for (const domain of Object.keys(tokenConfig.enrolledRouters)) {
@@ -551,16 +554,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             }
 
             try {
-              const mc = MultiCollateral__factory.connect(
-                warpRouteAddress,
-                this.provider,
+              const crossCollateralRouter =
+                CrossCollateralRouter__factory.connect(
+                  warpRouteAddress,
+                  this.provider,
+                );
+              // Method probe supports both renamed and legacy ABI.
+              await this.getCrossCollateralRoutersCompat(
+                crossCollateralRouter,
+                0,
               );
-              // getEnrolledRouters(uint32) is unique to MultiCollateral
-              await mc.getEnrolledRouters(0);
-              return TokenType.multiCollateral;
+              return TokenType.crossCollateral;
             } catch (error) {
               this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.multiCollateral}`,
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
                 error,
               );
             }
@@ -1153,12 +1160,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   /**
-   * Derives the configuration for a MultiCollateral router.
+   * Derives the configuration for a CrossCollateralRouter router.
    */
-  private async deriveMultiCollateralTokenConfig(
+  private async deriveCrossCollateralTokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const mc = MultiCollateral__factory.connect(hypTokenAddress, this.provider);
+    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
     const tokenRouter = TokenRouter__factory.connect(
       hypTokenAddress,
       this.provider,
@@ -1171,10 +1181,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       localDomain,
       scale,
     ] = await Promise.all([
-      mc.wrappedToken(),
+      crossCollateralRouter.wrappedToken(),
       tokenRouter.domains(),
-      mc.getEnrolledDomains(),
-      mc.localDomain(),
+      this.getCrossCollateralDomainsCompat(crossCollateralRouter),
+      crossCollateralRouter.localDomain(),
       this.fetchScale(hypTokenAddress),
     ]);
 
@@ -1194,7 +1204,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     await Promise.all(
       allDomains.map(async (domain) => {
-        const routers = await mc.getEnrolledRouters(domain);
+        const routers = await this.getCrossCollateralRoutersCompat(
+          crossCollateralRouter,
+          domain,
+        );
         if (routers.length > 0) {
           enrolledRouters[domain.toString()] = [...routers];
         }
@@ -1203,7 +1216,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     return {
       ...erc20TokenMetadata,
-      type: TokenType.multiCollateral,
+      type: TokenType.crossCollateral,
       token: collateralTokenAddress,
       scale,
       enrolledRouters:
@@ -1220,6 +1233,35 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     ]);
 
     return { name, symbol, decimals, isNft: false };
+  }
+
+  private async getCrossCollateralDomainsCompat(
+    crossCollateralRouter: CrossCollateralRouter,
+  ): Promise<number[]> {
+    try {
+      return await crossCollateralRouter.getCrossCollateralDomains();
+    } catch {
+      return await (
+        crossCollateralRouter as unknown as {
+          getEnrolledDomains: () => Promise<number[]>;
+        }
+      ).getEnrolledDomains();
+    }
+  }
+
+  private async getCrossCollateralRoutersCompat(
+    crossCollateralRouter: CrossCollateralRouter,
+    domain: number,
+  ): Promise<string[]> {
+    try {
+      return await crossCollateralRouter.getCrossCollateralRouters(domain);
+    } catch {
+      return await (
+        crossCollateralRouter as unknown as {
+          getEnrolledRouters: (domain: number) => Promise<string[]>;
+        }
+      ).getEnrolledRouters(domain);
+    }
   }
 
   /**
@@ -1336,7 +1378,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
      * @remark
      * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
      * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
-     * For MultiCollateral contracts, additionalDomains includes domains that only
+     * For CrossCollateralRouter contracts, additionalDomains includes domains that only
      * have MC-enrolled routers (not in Router._routers), so their gas is also read.
      */
     const routerDomains = await warpRoute.domains();

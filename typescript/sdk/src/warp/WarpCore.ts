@@ -33,7 +33,7 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
-import { EvmHypMultiCollateralAdapter } from '../token/adapters/EvmMultiCollateralAdapter.js';
+import { EvmHypCrossCollateralAdapter } from '../token/adapters/EvmCrossCollateralAdapter.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
@@ -169,7 +169,7 @@ export class WarpCore {
       // Otherwise, compute IGP quote via the adapter
       let quote: InterchainGasQuote;
       const destinationDomainId = this.multiProvider.getDomainId(destination);
-      if (this.isMultiCollateralTransfer(originToken, destinationToken)) {
+      if (this.isCrossCollateralTransfer(originToken, destinationToken)) {
         const resolvedDestinationToken = this.resolveDestinationToken({
           originToken,
           destination,
@@ -179,11 +179,11 @@ export class WarpCore {
           resolvedDestinationToken.addressOrDenom,
           'Destination token missing addressOrDenom',
         );
-        const multiCollateralAdapter = originToken.getHypAdapter(
+        const crossCollateralAdapter = originToken.getHypAdapter(
           this.multiProvider,
           destinationName,
-        ) as EvmHypMultiCollateralAdapter;
-        quote = await multiCollateralAdapter.quoteTransferRemoteToGas({
+        ) as EvmHypCrossCollateralAdapter;
+        quote = await crossCollateralAdapter.quoteTransferRemoteToGas({
           destination: destinationDomainId,
           recipient,
           amount,
@@ -417,12 +417,12 @@ export class WarpCore {
     tokenFeeQuote?: TokenAmount;
     destinationToken?: IToken;
   }): Promise<Array<WarpTypedTransaction>> {
-    // Check if this is a MultiCollateral transfer
+    // Check if this is a CrossCollateralRouter transfer
     if (
       destinationToken &&
-      this.isMultiCollateralTransfer(originTokenAmount.token, destinationToken)
+      this.isCrossCollateralTransfer(originTokenAmount.token, destinationToken)
     ) {
-      return this.getMultiCollateralTransferTxs({
+      return this.getCrossCollateralTransferTxs({
         originTokenAmount,
         destination,
         sender,
@@ -577,26 +577,26 @@ export class WarpCore {
   }
 
   /**
-   * Check if this is a MultiCollateral transfer.
-   * Returns true if both tokens are MultiCollateral tokens.
+   * Check if this is a CrossCollateralRouter transfer.
+   * Returns true if both tokens are CrossCollateralRouter tokens.
    */
-  protected isMultiCollateralTransfer(
+  protected isCrossCollateralTransfer(
     originToken: IToken,
     destinationToken?: IToken,
   ): destinationToken is IToken {
     if (!destinationToken) return false;
     return (
-      originToken.isMultiCollateralToken() &&
-      destinationToken.isMultiCollateralToken()
+      originToken.isCrossCollateralToken() &&
+      destinationToken.isCrossCollateralToken()
     );
   }
 
   /**
-   * Executes a MultiCollateral transfer between different collateral routers.
+   * Executes a CrossCollateralRouter transfer between different collateral routers.
    * Uses transferRemoteTo for both same-chain and cross-chain transfers.
    * Same-chain: calls handle() directly on target router (atomic, no relay needed).
    */
-  protected async getMultiCollateralTransferTxs({
+  protected async getCrossCollateralTransferTxs({
     originTokenAmount,
     destination,
     sender,
@@ -632,7 +632,7 @@ export class WarpCore {
     const adapter = originToken.getHypAdapter(
       this.multiProvider,
       destinationName,
-    ) as EvmHypMultiCollateralAdapter;
+    ) as EvmHypCrossCollateralAdapter;
 
     const transferQuote = await adapter.quoteTransferRemoteToGas({
       destination: this.multiProvider.getDomainId(destination),
@@ -643,7 +643,7 @@ export class WarpCore {
     assert(
       !transferQuote.igpQuote.addressOrDenom ||
         isZeroishAddress(transferQuote.igpQuote.addressOrDenom),
-      `MultiCollateral transferRemoteTo requires native IGP fee; got ${transferQuote.igpQuote.addressOrDenom}`,
+      `CrossCollateralRouter transferRemoteTo requires native IGP fee; got ${transferQuote.igpQuote.addressOrDenom}`,
     );
     const tokenFeeAmount = transferQuote.tokenFeeQuote?.amount ?? 0n;
     const totalDebit = amount + tokenFeeAmount;
@@ -719,9 +719,9 @@ export class WarpCore {
 
     const { token: originToken } = originTokenAmount;
 
-    // Handle MultiCollateral fee estimation
-    if (this.isMultiCollateralTransfer(originToken, destinationToken)) {
-      return this.estimateMultiCollateralFees({
+    // Handle CrossCollateralRouter fee estimation
+    if (this.isCrossCollateralTransfer(originToken, destinationToken)) {
+      return this.estimateCrossCollateralFees({
         originTokenAmount,
         destination,
         destinationToken,
@@ -758,9 +758,9 @@ export class WarpCore {
   }
 
   /**
-   * Estimate fees for a MultiCollateral transfer.
+   * Estimate fees for a CrossCollateralRouter transfer.
    */
-  protected async estimateMultiCollateralFees({
+  protected async estimateCrossCollateralFees({
     originTokenAmount,
     destination,
     destinationToken,

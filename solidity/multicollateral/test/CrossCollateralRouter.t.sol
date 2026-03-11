@@ -24,16 +24,16 @@ import {TestPostDispatchHook} from "@hyperlane-xyz/core/test/TestPostDispatchHoo
 import {ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 import {IPostDispatchHook} from "@hyperlane-xyz/core/interfaces/hooks/IPostDispatchHook.sol";
 
-import {MultiCollateral} from "../contracts/MultiCollateral.sol";
-import {MultiCollateralRoutingFee} from "../contracts/MultiCollateralRoutingFee.sol";
-import {IMultiCollateralFee} from "../contracts/interfaces/IMultiCollateralFee.sol";
+import {CrossCollateralRouter} from "../contracts/CrossCollateralRouter.sol";
+import {CrossCollateralRoutingFee} from "../contracts/CrossCollateralRoutingFee.sol";
+import {ICrossCollateralFee} from "../contracts/interfaces/ICrossCollateralFee.sol";
 import {HypERC20Collateral} from "@hyperlane-xyz/core/token/HypERC20Collateral.sol";
 import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
 import {LinearFee} from "@hyperlane-xyz/core/token/fees/LinearFee.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
-/// Implements both ITokenFee (for base transferRemote) and IMultiCollateralFee (for transferRemoteTo).
-contract MockDepositFee is ITokenFee, IMultiCollateralFee {
+/// Implements both ITokenFee (for base transferRemote) and ICrossCollateralFee (for transferRemoteTo).
+contract MockDepositFee is ITokenFee, ICrossCollateralFee {
     address public immutable token;
     uint256 public immutable feeBps;
 
@@ -51,7 +51,7 @@ contract MockDepositFee is ITokenFee, IMultiCollateralFee {
         quotes[0] = Quote(token, (_amount * feeBps) / 10000);
     }
 
-    function quoteTransferRemoteTo(
+    function quoteTransferRemoteToCrossCollateralRouter(
         uint32,
         bytes32,
         uint256 _amount,
@@ -62,8 +62,8 @@ contract MockDepositFee is ITokenFee, IMultiCollateralFee {
     }
 }
 
-/// @notice Mock fee contract that implements only IMultiCollateralFee.
-contract MockRouterOnlyFee is IMultiCollateralFee {
+/// @notice Mock fee contract that implements only ICrossCollateralFee.
+contract MockRouterOnlyFee is ICrossCollateralFee {
     address public immutable token;
     uint256 public immutable feeBps;
 
@@ -72,7 +72,7 @@ contract MockRouterOnlyFee is IMultiCollateralFee {
         feeBps = _feeBps;
     }
 
-    function quoteTransferRemoteTo(
+    function quoteTransferRemoteToCrossCollateralRouter(
         uint32,
         bytes32,
         uint256 _amount,
@@ -108,7 +108,7 @@ contract FixedQuoteHook is IPostDispatchHook {
     }
 }
 
-contract MultiCollateralTest is Test {
+contract CrossCollateralRouterTest is Test {
     using TypeCasts for address;
     using TypeCasts for bytes32;
 
@@ -139,10 +139,10 @@ contract MultiCollateralTest is Test {
     ERC20Test internal destUSDT; // 18 decimals
 
     // Routers (behind proxies)
-    MultiCollateral internal usdcRouterA; // domain 1, USDC
-    MultiCollateral internal usdtRouterA; // domain 1, USDT
-    MultiCollateral internal usdcRouterB; // domain 2, USDC
-    MultiCollateral internal usdtRouterB; // domain 2, USDT
+    CrossCollateralRouter internal usdcRouterA; // domain 1, USDC
+    CrossCollateralRouter internal usdtRouterA; // domain 1, USDT
+    CrossCollateralRouter internal usdcRouterB; // domain 2, USDC
+    CrossCollateralRouter internal usdtRouterB; // domain 2, USDT
 
     // Fee contracts
     MockDepositFee internal originUsdcFee;
@@ -285,8 +285,8 @@ contract MultiCollateralTest is Test {
         uint256 _scaleNum,
         uint256 _scaleDen,
         address _mailbox
-    ) internal returns (MultiCollateral) {
-        MultiCollateral impl = new MultiCollateral(
+    ) internal returns (CrossCollateralRouter) {
+        CrossCollateralRouter impl = new CrossCollateralRouter(
             _token,
             _scaleNum,
             _scaleDen,
@@ -302,7 +302,7 @@ contract MultiCollateralTest is Test {
                 address(this) // owner
             )
         );
-        return MultiCollateral(address(proxy));
+        return CrossCollateralRouter(address(proxy));
     }
 
     // ============ 1. Cross-chain same-stablecoin ============
@@ -392,10 +392,10 @@ contract MultiCollateralTest is Test {
         bytes32[] memory routers = new bytes32[](1);
         domains[0] = ORIGIN;
         routers[0] = address(0xdead).addressToBytes32();
-        usdcRouterA.enrollRouters(domains, routers);
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
 
         vm.prank(ALICE);
-        vm.expectRevert("MC: target router not contract");
+        vm.expectRevert("CCR: target router not contract");
         usdcRouterA.transferRemoteTo(
             ORIGIN,
             ALICE.addressToBytes32(),
@@ -407,7 +407,7 @@ contract MultiCollateralTest is Test {
     function test_revert_sameChain_swap_nonzeroMsgValue() public {
         vm.deal(ALICE, 1 ether);
         vm.prank(ALICE);
-        vm.expectRevert("MC: local transfer no msg.value");
+        vm.expectRevert("CCR: local transfer no msg.value");
         usdcRouterA.transferRemoteTo{value: 1}(
             ORIGIN,
             ALICE.addressToBytes32(),
@@ -433,7 +433,7 @@ contract MultiCollateralTest is Test {
         );
     }
 
-    function test_transferRemote_withImultiCollateralFeeOnlyRecipient() public {
+    function test_transferRemote_withICrossCollateralFeeOnlyRecipient() public {
         MockRouterOnlyFee routerOnlyFee = new MockRouterOnlyFee(
             address(originUSDC),
             DEFAULT_FEE_BPS
@@ -586,7 +586,7 @@ contract MultiCollateralTest is Test {
     // ============ 7. Reject unauthorized router in handle ============
 
     function test_revert_handle_unauthorizedRouter() public {
-        MultiCollateral rogue = _deployRouter(
+        CrossCollateralRouter rogue = _deployRouter(
             address(destUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -599,7 +599,7 @@ contract MultiCollateralTest is Test {
 
         destUSDC.mintTo(address(rogue), 100e6);
         vm.prank(address(destMailbox));
-        vm.expectRevert("MC: unauthorized router");
+        vm.expectRevert("CCR: unauthorized router");
         usdcRouterB.handle(
             ORIGIN,
             address(rogue).addressToBytes32(),
@@ -615,7 +615,7 @@ contract MultiCollateralTest is Test {
             uint256(100e18)
         );
         vm.prank(UNAUTHORIZED);
-        vm.expectRevert("MC: unauthorized router");
+        vm.expectRevert("CCR: unauthorized router");
         usdcRouterA.handle(ORIGIN, UNAUTHORIZED.addressToBytes32(), tokenMsg);
     }
 
@@ -623,7 +623,7 @@ contract MultiCollateralTest is Test {
 
     function test_revert_transferRemoteTo_unauthorizedRouter() public {
         vm.prank(ALICE);
-        vm.expectRevert("MC: unauthorized router");
+        vm.expectRevert("CCR: unauthorized router");
         usdcRouterA.transferRemoteTo(
             DESTINATION,
             BOB.addressToBytes32(),
@@ -642,7 +642,7 @@ contract MultiCollateralTest is Test {
 
         vm.prank(UNAUTHORIZED);
         vm.expectRevert("Ownable: caller is not the owner");
-        usdcRouterA.enrollRouters(domains, routers);
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
     }
 
     function test_revert_unenrollRouters_nonOwner() public {
@@ -653,7 +653,7 @@ contract MultiCollateralTest is Test {
 
         vm.prank(UNAUTHORIZED);
         vm.expectRevert("Ownable: caller is not the owner");
-        usdcRouterA.unenrollRouters(domains, routers);
+        usdcRouterA.unenrollCrossCollateralRouters(domains, routers);
     }
 
     // ============ 11. Bidirectional ============
@@ -679,9 +679,12 @@ contract MultiCollateralTest is Test {
         routers[0] = router;
 
         vm.expectEmit(true, true, false, true);
-        emit MultiCollateral.RouterEnrolled(DESTINATION, router);
-        usdcRouterA.enrollRouters(domains, routers);
-        assertTrue(usdcRouterA.enrolledRouters(DESTINATION, router));
+        emit CrossCollateralRouter.CrossCollateralRouterEnrolled(
+            DESTINATION,
+            router
+        );
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
+        assertTrue(usdcRouterA.crossCollateralRouters(DESTINATION, router));
     }
 
     function test_unenrollRouters_emitsEvent() public {
@@ -692,20 +695,24 @@ contract MultiCollateralTest is Test {
         routers[0] = router;
 
         vm.expectEmit(true, true, false, true);
-        emit MultiCollateral.RouterUnenrolled(DESTINATION, router);
-        usdcRouterA.unenrollRouters(domains, routers);
-        assertFalse(usdcRouterA.enrolledRouters(DESTINATION, router));
+        emit CrossCollateralRouter.CrossCollateralRouterUnenrolled(
+            DESTINATION,
+            router
+        );
+        usdcRouterA.unenrollCrossCollateralRouters(domains, routers);
+        assertFalse(usdcRouterA.crossCollateralRouters(DESTINATION, router));
     }
 
     // ============ Quoting ============
 
-    function test_quoteTransferRemoteTo() public view {
-        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            1000e6,
-            address(usdtRouterB).addressToBytes32()
-        );
+    function test_quoteTransferRemoteToCrossCollateralRouter() public view {
+        Quote[] memory quotes = usdcRouterA
+            .quoteTransferRemoteToCrossCollateralRouter(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                1000e6,
+                address(usdtRouterB).addressToBytes32()
+            );
 
         assertEq(quotes.length, 3);
         // [0] native gas quote
@@ -722,15 +729,16 @@ contract MultiCollateralTest is Test {
         public
     {
         // Remove default Router.sol mapping for DESTINATION while keeping
-        // usdtRouterB enrolled via MultiCollateral's per-domain set.
+        // usdtRouterB enrolled via CrossCollateralRouter's per-domain set.
         usdcRouterA.unenrollRemoteRouter(DESTINATION);
 
-        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            1000e6,
-            address(usdtRouterB).addressToBytes32()
-        );
+        Quote[] memory quotes = usdcRouterA
+            .quoteTransferRemoteToCrossCollateralRouter(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                1000e6,
+                address(usdtRouterB).addressToBytes32()
+            );
 
         assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
@@ -741,8 +749,8 @@ contract MultiCollateralTest is Test {
     }
 
     function test_quoteTransferRemoteTo_revert_unauthorizedRouter() public {
-        vm.expectRevert("MC: unauthorized router");
-        usdcRouterA.quoteTransferRemoteTo(
+        vm.expectRevert("CCR: unauthorized router");
+        usdcRouterA.quoteTransferRemoteToCrossCollateralRouter(
             DESTINATION,
             BOB.addressToBytes32(),
             1000e6,
@@ -757,10 +765,10 @@ contract MultiCollateralTest is Test {
         bytes32[] memory routers = new bytes32[](1);
         domains[0] = ORIGIN;
         routers[0] = address(0xdead).addressToBytes32();
-        usdcRouterA.enrollRouters(domains, routers);
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
 
-        vm.expectRevert("MC: target router not contract");
-        usdcRouterA.quoteTransferRemoteTo(
+        vm.expectRevert("CCR: target router not contract");
+        usdcRouterA.quoteTransferRemoteToCrossCollateralRouter(
             ORIGIN,
             ALICE.addressToBytes32(),
             1000e6,
@@ -827,10 +835,10 @@ contract MultiCollateralTest is Test {
         peers[0] = address(0x10).addressToBytes32();
         peers[1] = address(0x11).addressToBytes32();
 
-        usdcRouterA.enrollRouters(domains, peers);
+        usdcRouterA.enrollCrossCollateralRouters(domains, peers);
 
-        assertTrue(usdcRouterA.enrolledRouters(99, peers[0]));
-        assertTrue(usdcRouterA.enrolledRouters(100, peers[1]));
+        assertTrue(usdcRouterA.crossCollateralRouters(99, peers[0]));
+        assertTrue(usdcRouterA.crossCollateralRouters(100, peers[1]));
     }
 
     function test_revert_enrollRouters_lengthMismatch() public {
@@ -840,8 +848,8 @@ contract MultiCollateralTest is Test {
         domains[1] = 100;
         routers[0] = address(0x10).addressToBytes32();
 
-        vm.expectRevert("MC: length mismatch");
-        usdcRouterA.enrollRouters(domains, routers);
+        vm.expectRevert("CCR: length mismatch");
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
     }
 
     function test_unenrollRouters_batch() public {
@@ -851,12 +859,12 @@ contract MultiCollateralTest is Test {
         domains[1] = 100;
         routers[0] = address(0x10).addressToBytes32();
         routers[1] = address(0x11).addressToBytes32();
-        usdcRouterA.enrollRouters(domains, routers);
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
 
-        usdcRouterA.unenrollRouters(domains, routers);
+        usdcRouterA.unenrollCrossCollateralRouters(domains, routers);
 
-        assertFalse(usdcRouterA.enrolledRouters(99, routers[0]));
-        assertFalse(usdcRouterA.enrolledRouters(100, routers[1]));
+        assertFalse(usdcRouterA.crossCollateralRouters(99, routers[0]));
+        assertFalse(usdcRouterA.crossCollateralRouters(100, routers[1]));
     }
 
     function test_revert_unenrollRouters_lengthMismatch() public {
@@ -866,14 +874,14 @@ contract MultiCollateralTest is Test {
         domains[1] = 100;
         routers[0] = address(0x10).addressToBytes32();
 
-        vm.expectRevert("MC: length mismatch");
-        usdcRouterA.unenrollRouters(domains, routers);
+        vm.expectRevert("CCR: length mismatch");
+        usdcRouterA.unenrollCrossCollateralRouters(domains, routers);
     }
 
     // ============ Enumeration ============
 
-    function test_getEnrolledRouters_returnsCorrectList() public {
-        MultiCollateral fresh = _deployRouter(
+    function test_getCrossCollateralRouters_returnsCorrectList() public {
+        CrossCollateralRouter fresh = _deployRouter(
             address(originUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -893,23 +901,23 @@ contract MultiCollateralTest is Test {
         routers[1] = r2;
         routers[2] = r3;
 
-        fresh.enrollRouters(domains, routers);
+        fresh.enrollCrossCollateralRouters(domains, routers);
 
-        bytes32[] memory list10 = fresh.getEnrolledRouters(10);
+        bytes32[] memory list10 = fresh.getCrossCollateralRouters(10);
         assertEq(list10.length, 2);
         assertEq(list10[0], r1);
         assertEq(list10[1], r2);
 
-        bytes32[] memory list20 = fresh.getEnrolledRouters(20);
+        bytes32[] memory list20 = fresh.getCrossCollateralRouters(20);
         assertEq(list20.length, 1);
         assertEq(list20[0], r3);
 
-        bytes32[] memory listEmpty = fresh.getEnrolledRouters(99);
+        bytes32[] memory listEmpty = fresh.getCrossCollateralRouters(99);
         assertEq(listEmpty.length, 0);
     }
 
-    function test_getEnrolledRouters_afterUnenroll() public {
-        MultiCollateral fresh = _deployRouter(
+    function test_getCrossCollateralRouters_afterUnenroll() public {
+        CrossCollateralRouter fresh = _deployRouter(
             address(originUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -929,23 +937,23 @@ contract MultiCollateralTest is Test {
         routers[1] = r2;
         routers[2] = r3;
 
-        fresh.enrollRouters(domains, routers);
-        assertEq(fresh.getEnrolledRouters(10).length, 3);
+        fresh.enrollCrossCollateralRouters(domains, routers);
+        assertEq(fresh.getCrossCollateralRouters(10).length, 3);
 
         uint32[] memory ud = new uint32[](1);
         bytes32[] memory ur = new bytes32[](1);
         ud[0] = 10;
         ur[0] = r2;
-        fresh.unenrollRouters(ud, ur);
+        fresh.unenrollCrossCollateralRouters(ud, ur);
 
-        bytes32[] memory list = fresh.getEnrolledRouters(10);
+        bytes32[] memory list = fresh.getCrossCollateralRouters(10);
         assertEq(list.length, 2);
         assertEq(list[0], r1);
         assertEq(list[1], r3);
     }
 
     function test_enrollRouters_skipsDuplicates() public {
-        MultiCollateral fresh = _deployRouter(
+        CrossCollateralRouter fresh = _deployRouter(
             address(originUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -960,15 +968,15 @@ contract MultiCollateralTest is Test {
         routers[0] = r1;
         routers[1] = r1;
 
-        fresh.enrollRouters(domains, routers);
+        fresh.enrollCrossCollateralRouters(domains, routers);
 
-        bytes32[] memory list = fresh.getEnrolledRouters(10);
+        bytes32[] memory list = fresh.getCrossCollateralRouters(10);
         assertEq(list.length, 1);
         assertEq(list[0], r1);
     }
 
-    function test_getEnrolledDomains_tracksEnrollAndUnenroll() public {
-        MultiCollateral fresh = _deployRouter(
+    function test_getCrossCollateralDomains_tracksEnrollAndUnenroll() public {
+        CrossCollateralRouter fresh = _deployRouter(
             address(originUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -976,7 +984,7 @@ contract MultiCollateralTest is Test {
         );
 
         // Initially empty
-        assertEq(fresh.getEnrolledDomains().length, 0);
+        assertEq(fresh.getCrossCollateralDomains().length, 0);
 
         // Enroll routers on domains 10 and 20
         bytes32 r1 = address(0xD1).addressToBytes32();
@@ -991,9 +999,9 @@ contract MultiCollateralTest is Test {
         routers[0] = r1;
         routers[1] = r2;
         routers[2] = r3;
-        fresh.enrollRouters(domains, routers);
+        fresh.enrollCrossCollateralRouters(domains, routers);
 
-        uint32[] memory enrolled = fresh.getEnrolledDomains();
+        uint32[] memory enrolled = fresh.getCrossCollateralDomains();
         assertEq(enrolled.length, 2);
 
         // Unenroll one router from domain 10 — domain should persist
@@ -1001,17 +1009,17 @@ contract MultiCollateralTest is Test {
         bytes32[] memory ur = new bytes32[](1);
         ud[0] = 10;
         ur[0] = r1;
-        fresh.unenrollRouters(ud, ur);
-        assertEq(fresh.getEnrolledDomains().length, 2);
+        fresh.unenrollCrossCollateralRouters(ud, ur);
+        assertEq(fresh.getCrossCollateralDomains().length, 2);
 
         // Unenroll last router from domain 10 — domain should be removed
         ur[0] = r2;
-        fresh.unenrollRouters(ud, ur);
-        assertEq(fresh.getEnrolledDomains().length, 1);
-        assertEq(fresh.getEnrolledDomains()[0], 20);
+        fresh.unenrollCrossCollateralRouters(ud, ur);
+        assertEq(fresh.getCrossCollateralDomains().length, 1);
+        assertEq(fresh.getCrossCollateralDomains()[0], 20);
     }
 
-    // ============ MultiCollateralRoutingFee Tests ============
+    // ============ CrossCollateralRoutingFee Tests ============
 
     function test_routingFee_perRouterFee() public {
         LinearFee linearFee5bps = new LinearFee(
@@ -1027,7 +1035,7 @@ contract MultiCollateralTest is Test {
             address(this)
         );
 
-        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             address(this)
         );
         uint32[] memory destinations = new uint32[](2);
@@ -1040,7 +1048,7 @@ contract MultiCollateralTest is Test {
         feeContracts[0] = address(linearFee5bps);
         feeContracts[1] = address(linearFee10bps);
 
-        routingFee.setRouterFeeContracts(
+        routingFee.setCrossCollateralRouterFeeContracts(
             destinations,
             targetRouters,
             feeContracts
@@ -1084,7 +1092,7 @@ contract MultiCollateralTest is Test {
             10000e6,
             address(this)
         );
-        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             address(this)
         );
         uint32[] memory destinations = new uint32[](1);
@@ -1094,7 +1102,7 @@ contract MultiCollateralTest is Test {
         targetRouters[0] = routingFee.DEFAULT_ROUTER();
         feeContracts[0] = address(destFee);
 
-        routingFee.setRouterFeeContracts(
+        routingFee.setCrossCollateralRouterFeeContracts(
             destinations,
             targetRouters,
             feeContracts
@@ -1131,7 +1139,7 @@ contract MultiCollateralTest is Test {
             address(this)
         );
 
-        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             address(this)
         );
 
@@ -1145,7 +1153,7 @@ contract MultiCollateralTest is Test {
         feeContracts[0] = address(linearFee5bps);
         feeContracts[1] = address(linearFee10bps);
 
-        routingFee.setRouterFeeContracts(
+        routingFee.setCrossCollateralRouterFeeContracts(
             destinations,
             targetRouters,
             feeContracts
@@ -1159,12 +1167,13 @@ contract MultiCollateralTest is Test {
         assertEq(defaultQuotes.length, 1);
         assertEq(defaultQuotes[0].amount, 5e6, "default sentinel fee");
 
-        Quote[] memory routerQuotes = routingFee.quoteTransferRemoteTo(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            10000e6,
-            address(usdtRouterB).addressToBytes32()
-        );
+        Quote[] memory routerQuotes = routingFee
+            .quoteTransferRemoteToCrossCollateralRouter(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                10000e6,
+                address(usdtRouterB).addressToBytes32()
+            );
         assertEq(routerQuotes.length, 1);
         assertEq(routerQuotes[0].amount, 10e6, "router-specific fee");
     }
@@ -1176,7 +1185,7 @@ contract MultiCollateralTest is Test {
             10000e6,
             address(this)
         );
-        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             address(this)
         );
         uint32[] memory destinations = new uint32[](1);
@@ -1186,7 +1195,7 @@ contract MultiCollateralTest is Test {
         targetRouters[0] = address(usdtRouterB).addressToBytes32();
         feeContracts[0] = address(linearFee5bps);
 
-        routingFee.setRouterFeeContracts(
+        routingFee.setCrossCollateralRouterFeeContracts(
             destinations,
             targetRouters,
             feeContracts
@@ -1197,12 +1206,13 @@ contract MultiCollateralTest is Test {
         bytes32 targetRouter = address(usdtRouterB).addressToBytes32();
 
         // Get quote
-        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            amount,
-            targetRouter
-        );
+        Quote[] memory quotes = usdcRouterA
+            .quoteTransferRemoteToCrossCollateralRouter(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                amount,
+                targetRouter
+            );
         uint256 quotedFee = quotes[1].amount - amount;
 
         // Execute transfer and measure actual fee
@@ -1227,7 +1237,7 @@ contract MultiCollateralTest is Test {
             10000e6,
             address(this)
         );
-        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             address(this)
         );
         uint32[] memory destinations = new uint32[](1);
@@ -1236,7 +1246,7 @@ contract MultiCollateralTest is Test {
         destinations[0] = DESTINATION;
         targetRouters[0] = address(usdtRouterB).addressToBytes32();
         feeContracts[0] = address(linearFee5bps);
-        routingFee.setRouterFeeContracts(
+        routingFee.setCrossCollateralRouterFeeContracts(
             destinations,
             targetRouters,
             feeContracts
@@ -1261,7 +1271,7 @@ contract MultiCollateralTest is Test {
     }
 
     function test_revert_routingFee_claim_nonOwner() public {
-        MultiCollateralRoutingFee routingFee = new MultiCollateralRoutingFee(
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             address(this)
         );
         vm.prank(ALICE);
@@ -1274,7 +1284,7 @@ contract MultiCollateralTest is Test {
     function test_setDestinationGas_mcOnlyDomain() public {
         // Deploy a fresh MC router with NO default remote router for domain 99,
         // only MC-enrolled routers.
-        MultiCollateral fresh = _deployRouter(
+        CrossCollateralRouter fresh = _deployRouter(
             address(originUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -1284,7 +1294,7 @@ contract MultiCollateralTest is Test {
         bytes32[] memory routers = new bytes32[](1);
         domains[0] = 99;
         routers[0] = address(0xAA).addressToBytes32();
-        fresh.enrollRouters(domains, routers);
+        fresh.enrollCrossCollateralRouters(domains, routers);
 
         // Should succeed — domain 99 has MC-enrolled routers
         fresh.setDestinationGas(99, 200_000);
@@ -1298,12 +1308,12 @@ contract MultiCollateralTest is Test {
     }
 
     function test_revert_setDestinationGas_unknownDomain() public {
-        vm.expectRevert("MC: domain has no routers");
+        vm.expectRevert("CCR: domain has no routers");
         usdcRouterA.setDestinationGas(999, 200_000);
     }
 
     function test_revert_setDestinationGas_localDomain() public {
-        vm.expectRevert("MC: no gas for local domain");
+        vm.expectRevert("CCR: no gas for local domain");
         usdcRouterA.setDestinationGas(ORIGIN, 200_000);
     }
 
@@ -1314,7 +1324,7 @@ contract MultiCollateralTest is Test {
     }
 
     function test_setDestinationGas_batch() public {
-        MultiCollateral fresh = _deployRouter(
+        CrossCollateralRouter fresh = _deployRouter(
             address(originUSDC),
             USDC_SCALE_NUM,
             USDC_SCALE_DEN,
@@ -1327,7 +1337,7 @@ contract MultiCollateralTest is Test {
         enrollDomains[1] = 100;
         enrollRouters[0] = address(0xAA).addressToBytes32();
         enrollRouters[1] = address(0xBB).addressToBytes32();
-        fresh.enrollRouters(enrollDomains, enrollRouters);
+        fresh.enrollCrossCollateralRouters(enrollDomains, enrollRouters);
 
         GasRouter.GasRouterConfig[]
             memory configs = new GasRouter.GasRouterConfig[](2);
@@ -1344,7 +1354,7 @@ contract MultiCollateralTest is Test {
             memory configs = new GasRouter.GasRouterConfig[](1);
         configs[0] = GasRouter.GasRouterConfig({domain: ORIGIN, gas: 100_000});
 
-        vm.expectRevert("MC: no gas for local domain");
+        vm.expectRevert("CCR: no gas for local domain");
         usdcRouterA.setDestinationGas(configs);
     }
 
@@ -1353,18 +1363,18 @@ contract MultiCollateralTest is Test {
             memory configs = new GasRouter.GasRouterConfig[](1);
         configs[0] = GasRouter.GasRouterConfig({domain: 999, gas: 100_000});
 
-        vm.expectRevert("MC: domain has no routers");
+        vm.expectRevert("CCR: domain has no routers");
         usdcRouterA.setDestinationGas(configs);
     }
 
     // ============ Helpers ============
 
     function _batchEnroll(
-        MultiCollateral _router,
+        CrossCollateralRouter _router,
         uint32[] memory _domains,
         bytes32[] memory _routers
     ) internal {
-        _router.enrollRouters(_domains, _routers);
+        _router.enrollCrossCollateralRouters(_domains, _routers);
     }
 
     function _arr2(

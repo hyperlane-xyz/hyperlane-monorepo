@@ -52,7 +52,7 @@ import {
   getSubmitterBuilder,
   getTokenConnectionId,
   isCollateralTokenConfig,
-  isMultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isXERC20TokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
@@ -398,7 +398,7 @@ function generateTokenConfigs(
     const collateralAddressOrDenom =
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isMultiCollateralTokenConfig(config)
+      isCrossCollateralTokenConfig(config)
         ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 
@@ -1299,19 +1299,19 @@ function getCanonicalWholeTokenRatio(
 function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
   for (const route of routes) {
     const invalidDeployChains = Object.entries(route.deployConfig)
-      .filter(([, chainConfig]) => !isMultiCollateralTokenConfig(chainConfig))
+      .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
       .map(([chain]) => chain);
     assert(
       invalidDeployChains.length === 0,
-      `Route "${route.id}" contains non-MultiCollateral deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
+      `Route "${route.id}" contains non-CrossCollateralRouter deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
     );
 
     const invalidCoreTokens = route.coreConfig.tokens.filter(
-      (token) => token.standard !== TokenStandard.EvmHypMultiCollateral,
+      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
     );
     assert(
       invalidCoreTokens.length === 0,
-      `Route "${route.id}" contains non-MultiCollateral warp config token(s): ${invalidCoreTokens
+      `Route "${route.id}" contains non-CrossCollateralRouter warp config token(s): ${invalidCoreTokens
         .map((token) => `${token.chainName}:${token.addressOrDenom}`)
         .join(', ')}`,
     );
@@ -1394,7 +1394,7 @@ export async function runWarpRouteCombine({
     for (const [chain, chainConfig] of Object.entries(
       route.deployConfig,
     ) as Array<[string, HypTokenRouterConfig]>) {
-      if (!isMultiCollateralTokenConfig(chainConfig)) continue;
+      if (!isCrossCollateralTokenConfig(chainConfig)) continue;
 
       const enrolledRouters: Record<string, Set<string>> = {};
 
@@ -1409,7 +1409,7 @@ export async function runWarpRouteCombine({
             .toString();
           assert(
             otherToken.addressOrDenom,
-            `MultiCollateral token missing addressOrDenom on ${otherToken.chainName}`,
+            `CrossCollateralRouter token missing addressOrDenom on ${otherToken.chainName}`,
           );
           const otherRouter = addressToBytes32(otherToken.addressOrDenom);
 

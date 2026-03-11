@@ -9,7 +9,7 @@
 ### Patch Changes
 
 - f2620a1: Defensive null guards were added to RPC log field parsing, EvmEventLogsReader, and xerc20 receipt handling. fork.sh was hardened with variable quoting, stale anvil cleanup, and IGP-only --asDeployer. CLI e2e setup was updated with metadata-driven Tron config and private key normalization. Pre-existing lint warnings were fixed.
-- f7ebf6c: `quoteTransferRemoteTo` was fixed to work without a default `Router._routers` enrollment by adding a target-router-aware gas quote helper. `GasRouter._setDestinationGas` was made virtual and overridden in MultiCollateral to accept MC-enrolled-only domains, keeping the existing `setDestinationGas` function selector working for all domain types. Authorization checks were deduplicated into `_requireAuthorizedRouter`. SDK EvmWarpRouteReader was updated to include MC-enrolled domains when reading destination gas.
+- f7ebf6c: `quoteTransferRemoteTo` was fixed to work without a default `Router._routers` enrollment by adding a target-router-aware gas quote helper. `GasRouter._setDestinationGas` was made virtual and overridden in CrossCollateralRouter to accept MC-enrolled-only domains, keeping the existing `setDestinationGas` function selector working for all domain types. Authorization checks were deduplicated into `_requireAuthorizedRouter`. SDK EvmWarpRouteReader was updated to include MC-enrolled domains when reading destination gas.
 - 8a6f742: MultiProvider was updated to cache connected signers for stable instance identity and route setProviders() through setProvider() for consistent signer reconnection. ISM factory now simulates deploy address via eth_call when getAddress() returns incorrect results. Defensive null assertions were added across MultiProvider methods. HyperlaneCore onDispatch errors are now caught and logged separately.
 - aee625c: SmartProvider was updated to skip retry and stagger fanout for SendTransaction to prevent nonce errors from duplicate submissions. SendTransaction now breaks out of the provider fallback loop on any error. GetGasPrice and GetTransactionCount were excluded from etherscan routing.
 - Updated dependencies [4a816e3]
@@ -34,9 +34,9 @@
 
 ### Minor Changes
 
-- 43255a9: MultiCollateral warp route support was added across the SDK, CLI, and warp monitor.
+- 43255a9: CrossCollateralRouter warp route support was added across the SDK, CLI, and warp monitor.
 
-  SDK: WarpCore gained `transferRemoteTo` flows for multicollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles multicollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives multicollateral token config including on-chain scale. A new `EvmMultiCollateralAdapter` provides quote, approve, and transfer operations.
+  SDK: WarpCore gained `transferRemoteTo` flows for multicollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles multicollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives multicollateral token config including on-chain scale. A new `EvmCrossCollateralAdapter` provides quote, approve, and transfer operations.
 
   CLI: `warp deploy` and `warp extend` support multicollateral token types. A new `warp combine` command merges independent warp route configs into a single multicollateral route. `warp send` and `warp check` work with multicollateral routes.
 

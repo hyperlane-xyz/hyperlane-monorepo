@@ -1,8 +1,8 @@
 import { PopulatedTransaction } from 'ethers';
 
 import {
-  MultiCollateral,
-  MultiCollateral__factory,
+  CrossCollateralRouter,
+  CrossCollateralRouter__factory,
 } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
@@ -21,11 +21,11 @@ import { InterchainGasQuote } from './ITokenAdapter.js';
 import { EvmHypCollateralAdapter } from './EvmTokenAdapter.js';
 
 /**
- * Adapter for MultiCollateral routers.
+ * Adapter for CrossCollateralRouter routers.
  * Supports transferRemoteTo for both cross-chain and same-chain transfers.
  */
-export class EvmHypMultiCollateralAdapter extends EvmHypCollateralAdapter {
-  public readonly multiCollateralContract: MultiCollateral;
+export class EvmHypCrossCollateralAdapter extends EvmHypCollateralAdapter {
+  public readonly crossCollateralContract: CrossCollateralRouter;
 
   constructor(
     public readonly chainName: ChainName,
@@ -36,13 +36,13 @@ export class EvmHypMultiCollateralAdapter extends EvmHypCollateralAdapter {
     },
   ) {
     super(chainName, multiProvider, { token: addresses.token });
-    this.multiCollateralContract = MultiCollateral__factory.connect(
+    this.crossCollateralContract = CrossCollateralRouter__factory.connect(
       addresses.token,
       this.getProvider(),
     );
   }
 
-  // ============ MultiCollateral-specific methods ============
+  // ============ CrossCollateralRouter-specific methods ============
 
   /**
    * Populate cross-chain transfer to a specific target router.
@@ -56,7 +56,7 @@ export class EvmHypMultiCollateralAdapter extends EvmHypCollateralAdapter {
     const recipientBytes32 = addressToBytes32(params.recipient);
     const targetRouterBytes32 = addressToBytes32(params.targetRouter);
 
-    return this.multiCollateralContract.quoteTransferRemoteTo(
+    return this.crossCollateralContract.quoteTransferRemoteToCrossCollateralRouter(
       params.destination,
       recipientBytes32,
       params.amount.toString(),
@@ -79,7 +79,7 @@ export class EvmHypMultiCollateralAdapter extends EvmHypCollateralAdapter {
       ? quote.igpQuote.amount.toString()
       : '0';
 
-    return this.multiCollateralContract.populateTransaction.transferRemoteTo(
+    return this.crossCollateralContract.populateTransaction.transferRemoteTo(
       params.destination,
       recipientBytes32,
       params.amount.toString(),

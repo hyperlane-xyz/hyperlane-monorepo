@@ -14,7 +14,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   addressToBytes32,
@@ -71,7 +71,7 @@ import {
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
-  isMultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
@@ -161,7 +161,7 @@ abstract class TokenDeployer<
     if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isMultiCollateralTokenConfig(config)
+      isCrossCollateralTokenConfig(config)
     ) {
       return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
@@ -255,7 +255,7 @@ abstract class TokenDeployer<
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isNativeTokenConfig(config) ||
-      isMultiCollateralTokenConfig(config)
+      isCrossCollateralTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -644,13 +644,13 @@ abstract class TokenDeployer<
     );
   }
 
-  protected async enrollRouters(
+  protected async enrollCrossCollateralRouters(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
-        if (!isMultiCollateralTokenConfig(config)) {
+        if (!isCrossCollateralTokenConfig(config)) {
           return;
         }
         if (
@@ -661,7 +661,7 @@ abstract class TokenDeployer<
         }
 
         const router = this.router(deployedContractsMap[chain]).address;
-        const mc = MultiCollateral__factory.connect(
+        const crossCollateralRouter = CrossCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
@@ -688,7 +688,10 @@ abstract class TokenDeployer<
           );
           await this.multiProvider.handleTx(
             chain,
-            mc.enrollRouters(domains, routers),
+            crossCollateralRouter.enrollCrossCollateralRouters(
+              domains,
+              routers,
+            ),
           );
         }
       }),
@@ -739,7 +742,7 @@ abstract class TokenDeployer<
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
 
-    await this.enrollRouters(configMap, deployedContractsMap);
+    await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

@@ -21,7 +21,7 @@ import {
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 
 import { DeployableTokenType, TokenType } from './config.js';
 
@@ -44,7 +44,7 @@ export const hypERC20contracts = {
   [TokenType.nativeScaled]: 'HypNative',
   [TokenType.ethEverclear]: 'EverclearEthBridge',
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
-  [TokenType.multiCollateral]: 'MultiCollateral',
+  [TokenType.crossCollateral]: 'CrossCollateralRouter',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -72,7 +72,7 @@ export const hypERC20factories = {
 
   [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
   [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
-  [TokenType.multiCollateral]: new MultiCollateral__factory(),
+  [TokenType.crossCollateral]: new CrossCollateralRouter__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 

@@ -24,7 +24,7 @@ import {
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   EvmIsmModule,
   HookConfig,
@@ -171,8 +171,8 @@ describe('EvmWarpModule', async () => {
   const movableCollateralTypes = Object.values(TokenType).filter(
     (t) =>
       isMovableCollateralTokenType(t) &&
-      // MultiCollateral contract too large for hardhat; covered by forge tests
-      t !== TokenType.multiCollateral,
+      // CrossCollateralRouter contract too large for hardhat; covered by forge tests
+      t !== TokenType.crossCollateral,
   ) as MovableTokenType[];
 
   const everclearTokenBridgeTypes = [
@@ -219,9 +219,9 @@ describe('EvmWarpModule', async () => {
         type: TokenType.nativeScaled,
         allowedRebalancers,
       },
-      [TokenType.multiCollateral]: {
+      [TokenType.crossCollateral]: {
         ...baseConfig,
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: token.address,
         allowedRebalancers,
       },
@@ -911,7 +911,7 @@ describe('EvmWarpModule', async () => {
         chain,
         config: {
           ...baseConfig,
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           token: token.address,
         } as HypTokenRouterConfig,
         addresses: {
@@ -921,44 +921,44 @@ describe('EvmWarpModule', async () => {
 
       const actualConfig = {
         ...baseConfig,
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: token.address,
         enrolledRouters: {
           [destinationDomain]: [keepRouter, removeRouter],
         },
       } as Parameters<
-        EvmWarpModule['createEnrollMultiCollateralRoutersTxs']
+        EvmWarpModule['createEnrollCrossCollateralRoutersTxs']
       >[0];
       const expectedConfig = {
         ...baseConfig,
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: token.address,
         enrolledRouters: {
           [TestChainName.test2]: [keepRouterAddress.toUpperCase(), addRouter],
         },
       } as HypTokenRouterConfig;
 
-      const enrollTxs = module.createEnrollMultiCollateralRoutersTxs(
+      const enrollTxs = module.createEnrollCrossCollateralRoutersTxs(
         actualConfig,
         expectedConfig,
       );
       expect(enrollTxs.length).to.equal(1);
       const [enrollDomains, enrollRouters] =
-        MultiCollateral__factory.createInterface().decodeFunctionData(
-          'enrollRouters',
+        CrossCollateralRouter__factory.createInterface().decodeFunctionData(
+          'enrollCrossCollateralRouters',
           enrollTxs[0].data!,
         );
       expect(enrollDomains.map(Number)).to.deep.equal([destinationDomain]);
       expect(enrollRouters[0].toLowerCase()).to.equal(addRouter.toLowerCase());
 
-      const unenrollTxs = module.createUnenrollMultiCollateralRoutersTxs(
+      const unenrollTxs = module.createUnenrollCrossCollateralRoutersTxs(
         actualConfig,
         expectedConfig,
       );
       expect(unenrollTxs.length).to.equal(1);
       const [unenrollDomains, unenrollRouters] =
-        MultiCollateral__factory.createInterface().decodeFunctionData(
-          'unenrollRouters',
+        CrossCollateralRouter__factory.createInterface().decodeFunctionData(
+          'unenrollCrossCollateralRouters',
           unenrollTxs[0].data!,
         );
       expect(unenrollDomains.map(Number)).to.deep.equal([destinationDomain]);
@@ -977,7 +977,7 @@ describe('EvmWarpModule', async () => {
         chain,
         config: {
           ...baseConfig,
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           token: token.address,
         } as HypTokenRouterConfig,
         addresses: {
@@ -987,7 +987,7 @@ describe('EvmWarpModule', async () => {
 
       const actualConfig = {
         ...baseConfig,
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: token.address,
         destinationGas: {},
         enrolledRouters: {
@@ -998,7 +998,7 @@ describe('EvmWarpModule', async () => {
       // Config has destinationGas for test2, but no remoteRouters — only enrolledRouters
       const expectedConfig = {
         ...baseConfig,
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: token.address,
         enrolledRouters: {
           [TestChainName.test2]: [enrolledRouter],
