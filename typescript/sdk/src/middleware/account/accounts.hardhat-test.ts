@@ -192,6 +192,59 @@ describe('InterchainAccounts', async () => {
         'commitmentIsm is required for regular ICA router deployments',
       );
     });
+
+    it('forwards calls from interchain account via minimal router', async () => {
+      const minimalConfig = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          routerType: IcaRouterType.MINIMAL,
+        }),
+      );
+
+      const minimalContracts = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(minimalConfig);
+      const minLocal = minimalContracts[localChain].interchainAccountRouter;
+      const minRemote = minimalContracts[remoteChain].interchainAccountRouter;
+      const minApp = new InterchainAccount(minimalContracts, multiProvider);
+
+      const recipientF = new TestRecipient__factory(signer);
+      const recipient = await recipientF.deploy();
+      const fooMessage = 'TestMinimal';
+      const data = recipient.interface.encodeFunctionData('fooBar', [
+        1,
+        fooMessage,
+      ]);
+      const icaAddress = await minRemote[
+        'getLocalInterchainAccount(uint32,address,address,address)'
+      ](
+        multiProvider.getDomainId(localChain),
+        signer.address,
+        minLocal.address,
+        constants.AddressZero,
+      );
+
+      const call = {
+        to: recipient.address,
+        data,
+        value: '0',
+      };
+      const accountConfig: AccountConfig = {
+        origin: localChain,
+        owner: signer.address,
+        localRouter: minLocal.address,
+      };
+      await minApp.callRemote({
+        chain: localChain,
+        destination: remoteChain,
+        innerCalls: [call],
+        config: accountConfig,
+      });
+      await coreApp.processMessages();
+      expect(await recipient.lastCallMessage()).to.eql(fooMessage);
+      expect(await recipient.lastCaller()).to.eql(icaAddress);
+    });
   });
 
   describe('feeTokenApprovals', async () => {
