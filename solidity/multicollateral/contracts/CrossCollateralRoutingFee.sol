@@ -85,7 +85,7 @@ contract CrossCollateralRoutingFee is ICrossCollateralFee, ITokenFee, Ownable {
      * @inheritdoc ICrossCollateralFee
      * @dev Routes: specific router → destination default (DEFAULT_ROUTER).
      */
-    function quoteTransferRemoteToCrossCollateralRouter(
+    function quoteTransferRemoteTo(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,

@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 
 interface ICrossCollateralFee {
-    function quoteTransferRemoteToCrossCollateralRouter(
+    function quoteTransferRemoteTo(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,

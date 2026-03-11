@@ -56,7 +56,7 @@ export class EvmHypCrossCollateralAdapter extends EvmHypCollateralAdapter {
     const recipientBytes32 = addressToBytes32(params.recipient);
     const targetRouterBytes32 = addressToBytes32(params.targetRouter);
 
-    return this.crossCollateralContract.quoteTransferRemoteToCrossCollateralRouter(
+    return this.crossCollateralContract.quoteTransferRemoteTo(
       params.destination,
       recipientBytes32,
       params.amount.toString(),

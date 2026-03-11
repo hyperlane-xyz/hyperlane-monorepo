@@ -51,7 +51,7 @@ contract MockDepositFee is ITokenFee, ICrossCollateralFee {
         quotes[0] = Quote(token, (_amount * feeBps) / 10000);
     }
 
-    function quoteTransferRemoteToCrossCollateralRouter(
+    function quoteTransferRemoteTo(
         uint32,
         bytes32,
         uint256 _amount,
@@ -72,7 +72,7 @@ contract MockRouterOnlyFee is ICrossCollateralFee {
         feeBps = _feeBps;
     }
 
-    function quoteTransferRemoteToCrossCollateralRouter(
+    function quoteTransferRemoteTo(
         uint32,
         bytes32,
         uint256 _amount,
@@ -705,14 +705,13 @@ contract CrossCollateralRouterTest is Test {
 
     // ============ Quoting ============
 
-    function test_quoteTransferRemoteToCrossCollateralRouter() public view {
-        Quote[] memory quotes = usdcRouterA
-            .quoteTransferRemoteToCrossCollateralRouter(
-                DESTINATION,
-                BOB.addressToBytes32(),
-                1000e6,
-                address(usdtRouterB).addressToBytes32()
-            );
+    function test_quoteTransferRemoteTo() public view {
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
 
         assertEq(quotes.length, 3);
         // [0] native gas quote
@@ -725,28 +724,6 @@ contract CrossCollateralRouterTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
-    function test_quoteTransferRemoteTo_alias() public view {
-        Quote[] memory aliasQuotes = usdcRouterA.quoteTransferRemoteTo(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            1000e6,
-            address(usdtRouterB).addressToBytes32()
-        );
-        Quote[] memory canonicalQuotes = usdcRouterA
-            .quoteTransferRemoteToCrossCollateralRouter(
-                DESTINATION,
-                BOB.addressToBytes32(),
-                1000e6,
-                address(usdtRouterB).addressToBytes32()
-            );
-
-        assertEq(aliasQuotes.length, canonicalQuotes.length);
-        for (uint256 i = 0; i < canonicalQuotes.length; i++) {
-            assertEq(aliasQuotes[i].token, canonicalQuotes[i].token);
-            assertEq(aliasQuotes[i].amount, canonicalQuotes[i].amount);
-        }
-    }
-
     function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment()
         public
     {
@@ -754,13 +731,12 @@ contract CrossCollateralRouterTest is Test {
         // usdtRouterB enrolled via CrossCollateralRouter's per-domain set.
         usdcRouterA.unenrollRemoteRouter(DESTINATION);
 
-        Quote[] memory quotes = usdcRouterA
-            .quoteTransferRemoteToCrossCollateralRouter(
-                DESTINATION,
-                BOB.addressToBytes32(),
-                1000e6,
-                address(usdtRouterB).addressToBytes32()
-            );
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
 
         assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
@@ -772,7 +748,7 @@ contract CrossCollateralRouterTest is Test {
 
     function test_quoteTransferRemoteTo_revert_unauthorizedRouter() public {
         vm.expectRevert("CCR: unauthorized router");
-        usdcRouterA.quoteTransferRemoteToCrossCollateralRouter(
+        usdcRouterA.quoteTransferRemoteTo(
             DESTINATION,
             BOB.addressToBytes32(),
             1000e6,
@@ -790,7 +766,7 @@ contract CrossCollateralRouterTest is Test {
         usdcRouterA.enrollCrossCollateralRouters(domains, routers);
 
         vm.expectRevert("CCR: target router not contract");
-        usdcRouterA.quoteTransferRemoteToCrossCollateralRouter(
+        usdcRouterA.quoteTransferRemoteTo(
             ORIGIN,
             ALICE.addressToBytes32(),
             1000e6,
@@ -1189,13 +1165,12 @@ contract CrossCollateralRouterTest is Test {
         assertEq(defaultQuotes.length, 1);
         assertEq(defaultQuotes[0].amount, 5e6, "default sentinel fee");
 
-        Quote[] memory routerQuotes = routingFee
-            .quoteTransferRemoteToCrossCollateralRouter(
-                DESTINATION,
-                BOB.addressToBytes32(),
-                10000e6,
-                address(usdtRouterB).addressToBytes32()
-            );
+        Quote[] memory routerQuotes = routingFee.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            10000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
         assertEq(routerQuotes.length, 1);
         assertEq(routerQuotes[0].amount, 10e6, "router-specific fee");
     }
@@ -1228,13 +1203,12 @@ contract CrossCollateralRouterTest is Test {
         bytes32 targetRouter = address(usdtRouterB).addressToBytes32();
 
         // Get quote
-        Quote[] memory quotes = usdcRouterA
-            .quoteTransferRemoteToCrossCollateralRouter(
-                DESTINATION,
-                BOB.addressToBytes32(),
-                amount,
-                targetRouter
-            );
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            targetRouter
+        );
         uint256 quotedFee = quotes[1].amount - amount;
 
         // Execute transfer and measure actual fee
