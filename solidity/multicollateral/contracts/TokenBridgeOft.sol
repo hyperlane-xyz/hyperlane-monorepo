@@ -97,11 +97,6 @@ contract TokenBridgeOft is TokenRouter {
             "TokenBridgeOft: localDecimals < sharedDecimals"
         );
         decimalConversionRate = 10 ** (localDecimals - sharedDecimals);
-
-        // If the OFT is an adapter (lock/unlock), pre-approve it to spend tokens
-        if (IOFT(_oft).approvalRequired()) {
-            IERC20(_token).safeApprove(_oft, type(uint256).max);
-        }
     }
 
     function initialize(
@@ -110,6 +105,10 @@ contract TokenBridgeOft is TokenRouter {
         address _owner
     ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+
+        // Approve in initialize (not constructor) so the approval is set on the
+        // proxy's address, not the implementation's.
+        wrappedToken.safeApprove(address(oft), type(uint256).max);
     }
 
     // ============ TokenRouter Overrides ============
@@ -152,25 +151,31 @@ contract TokenBridgeOft is TokenRouter {
 
     /**
      * @dev Override to bridge via OFT.send() instead of Hyperlane dispatch.
-     * Computes the gross amount (net + OFT fee) via analytical inversion,
-     * pulls gross from sender, and sends to OFT with net _amount as minAmountLD.
+     * Reuses the base fee charging logic (_calculateFeesAndCharge) which pulls
+     * grossAmount (= _amount + externalFee) from sender and distributes any
+     * protocol fees. Then sends the gross amount through the OFT with
+     * dust-free _amount as the minimum received.
      */
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) internal override returns (bytes32 messageId) {
-        uint256 grossAmount = _grossOftAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
+        // 1. Charge fees — pulls _amount + externalFee (OFT fee) from sender
+        (
+            uint256 externalFee,
+            uint256 remainingNativeValue
+        ) = _calculateFeesAndCharge(
+                _destination,
+                _recipient,
+                _amount,
+                msg.value,
+                feeHook()
+            );
 
-        // Pull gross amount (net + OFT fee) from sender
-        _transferFromSender(grossAmount);
-
-        // Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
+        // 2. Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
         // minAmountLD uses _removeDust because the OFT cannot deliver sub-dust precision.
+        uint256 grossAmount = _amount + externalFee;
         SendParam memory sendParam = _buildSendParam(
             _destination,
             _recipient,
@@ -178,22 +183,28 @@ contract TokenBridgeOft is TokenRouter {
             _removeDust(_amount)
         );
 
-        // Get native gas fee
-        MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
+        // 3. Quote native gas fee and send via OFT
+        MessagingFee memory msgFee = MessagingFee({
+            nativeFee: _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                address(0)
+            ),
+            lzTokenFee: 0
+        });
 
-        // Emit before external call (CEI pattern)
         emit SentTransferRemote(_destination, _recipient, _amount);
 
-        // Execute the OFT send — LZ refunds go to msg.sender
         (MessagingReceipt memory msgReceipt, ) = oft.send{
             value: msgFee.nativeFee
         }(sendParam, msgFee, msg.sender);
 
-        // Refund excess native value back to caller
-        uint256 nativeExcess = msg.value - msgFee.nativeFee;
-        if (nativeExcess > 0) {
+        // 4. Refund excess native value back to caller
+        uint256 excessNative = remainingNativeValue - msgFee.nativeFee;
+        if (excessNative > 0) {
             // solhint-disable-next-line avoid-low-level-calls
-            (bool ok, ) = msg.sender.call{value: nativeExcess}("");
+            (bool ok, ) = msg.sender.call{value: excessNative}("");
             require(ok, "TokenBridgeOft: ETH refund failed");
         }
 
