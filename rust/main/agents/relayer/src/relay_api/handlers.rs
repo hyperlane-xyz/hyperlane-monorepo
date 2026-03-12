@@ -43,9 +43,15 @@ impl ServerState {
 
 impl ServerState {
     pub fn router(self) -> Router {
+        use axum::http::Method;
+        use tower_http::cors::CorsLayer;
+
+        let cors = CorsLayer::permissive();
+
         Router::new()
             .route("/relay", post(create_relay))
             .route("/relay/{id}", get(get_relay_status))
+            .layer(cors)
             .with_state(self)
     }
 }
@@ -183,7 +189,7 @@ async fn create_relay(
                     job.destination_chain = format!("domain-{}", extracted.destination_domain);
                     job_store.update(job.clone());
 
-                    // Inject into MessageProcessor
+                    // Inject into MessageProcessor (also spawns status tracker)
                     if let Err(e) = worker.inject_message(job, extracted).await {
                         error!(
                             job_id = %job_id,

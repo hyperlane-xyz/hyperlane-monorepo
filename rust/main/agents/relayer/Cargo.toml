@@ -48,6 +48,7 @@ tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
 uuid.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
 
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = [
