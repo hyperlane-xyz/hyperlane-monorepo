@@ -635,14 +635,12 @@ impl Relayer {
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
             .with_relay_send_channels(send_channels);
 
-        // Add relay API job store if enabled
-        let relay_api_env = std::env::var("HYPERLANE_RELAYER_RELAY_API_ENABLED");
-        info!(
-            env_var = ?relay_api_env,
-            "Checking HYPERLANE_RELAYER_RELAY_API_ENABLED"
-        );
-        let relay_api_enabled = relay_api_env.is_ok_and(|v| v == "true");
-        if relay_api_enabled {
+        // Add relay API job store (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
+        let relay_api_disabled =
+            std::env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
+        if !relay_api_disabled {
+            info!("Relay API enabled (default). Set HYPERLANE_RELAYER_DISABLE_RELAY_API=true to disable.");
+
             use crate::relay_api::{JobStore, RegistryBuilder};
             let job_store = JobStore::new();
 
@@ -715,9 +713,8 @@ impl Relayer {
             server = server
                 .with_relay_api(job_store)
                 .with_provider_registry(provider_registry);
-            info!("Relay API enabled - job store and provider registry initialized");
         } else {
-            info!("Relay API NOT enabled");
+            info!("Relay API disabled (HYPERLANE_RELAYER_DISABLE_RELAY_API=true)");
         }
 
         server.router()

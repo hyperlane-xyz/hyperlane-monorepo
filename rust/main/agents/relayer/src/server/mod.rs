@@ -168,10 +168,10 @@ impl Server {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
 
-        // Add relay API if enabled
-        let relay_api_enabled =
-            env::var("HYPERLANE_RELAYER_RELAY_API_ENABLED").is_ok_and(|v| v == "true");
-        if relay_api_enabled {
+        // Add relay API (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
+        let relay_api_disabled =
+            env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
+        if !relay_api_disabled {
             if let (Some(job_store), Some(send_channels)) =
                 (self.relay_job_store, self.relay_send_channels)
             {
