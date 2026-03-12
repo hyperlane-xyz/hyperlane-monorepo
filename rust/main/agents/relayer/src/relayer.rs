@@ -636,13 +636,88 @@ impl Relayer {
             .with_relay_send_channels(send_channels);
 
         // Add relay API job store if enabled
-        let relay_api_enabled =
-            std::env::var("HYPERLANE_RELAYER_RELAY_API_ENABLED").is_ok_and(|v| v == "true");
+        let relay_api_env = std::env::var("HYPERLANE_RELAYER_RELAY_API_ENABLED");
+        info!(
+            env_var = ?relay_api_env,
+            "Checking HYPERLANE_RELAYER_RELAY_API_ENABLED"
+        );
+        let relay_api_enabled = relay_api_env.is_ok_and(|v| v == "true");
         if relay_api_enabled {
-            use crate::relay_api::JobStore;
+            use crate::relay_api::{JobStore, RegistryBuilder};
             let job_store = JobStore::new();
-            server = server.with_relay_api(job_store);
-            info!("Relay API enabled - job store initialized");
+
+            // Build ProviderRegistry for relay API
+            // Note: Currently only supports chains where we have origin data
+            // For production, you'd want to support all chains
+            let mut registry_builder = RegistryBuilder::new();
+
+            for (domain, origin) in &self.origins {
+                // Only add EVM chains for now
+                if !crate::relay_api::registry_builder::is_protocol_supported(
+                    domain.domain_protocol(),
+                ) {
+                    debug!(
+                        domain = %domain.name(),
+                        protocol = ?domain.domain_protocol(),
+                        "Skipping non-EVM chain for relay API"
+                    );
+                    continue;
+                }
+
+                // Get RPC URL from connection
+                let rpc_url = match &origin.chain_conf.connection {
+                    hyperlane_base::settings::ChainConnectionConf::Ethereum(eth_conf) => {
+                        use hyperlane_ethereum::RpcConnectionConf;
+                        match &eth_conf.rpc_connection {
+                            RpcConnectionConf::Http { url } => url.to_string(),
+                            RpcConnectionConf::Ws { url } => url.to_string(),
+                            RpcConnectionConf::HttpQuorum { urls }
+                            | RpcConnectionConf::HttpFallback { urls } => {
+                                urls.first().map(|u| u.to_string()).unwrap_or_default()
+                            }
+                        }
+                    }
+                    _ => {
+                        debug!(domain = %domain.name(), "Non-EVM chain, skipping");
+                        continue;
+                    }
+                };
+
+                if rpc_url.is_empty() {
+                    error!(domain = %domain.name(), "Could not extract RPC URL from connection config");
+                    continue;
+                }
+
+                // Create EVM mailbox indexer
+                match self
+                    .create_evm_mailbox_indexer(domain, &origin.chain_conf, &rpc_url)
+                    .await
+                {
+                    Ok(indexer) => {
+                        registry_builder =
+                            registry_builder.add_chain(&domain, domain.name().to_string(), indexer);
+                        info!(
+                            domain = %domain.name(),
+                            "Added EVM chain to relay API registry"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            domain = %domain.name(),
+                            error = ?e,
+                            "Failed to create mailbox indexer for relay API"
+                        );
+                    }
+                }
+            }
+
+            let provider_registry = registry_builder.build();
+            server = server
+                .with_relay_api(job_store)
+                .with_provider_registry(provider_registry);
+            info!("Relay API enabled - job store and provider registry initialized");
+        } else {
+            info!("Relay API NOT enabled");
         }
 
         server.router()
@@ -1081,6 +1156,45 @@ impl Relayer {
             .origin_chains
             .iter()
             .for_each(|origin| chain_metrics.set_critical_error(origin.name(), false));
+    }
+
+    async fn create_evm_mailbox_indexer(
+        &self,
+        domain: &HyperlaneDomain,
+        chain_conf: &hyperlane_base::settings::ChainConf,
+        rpc_url: &str,
+    ) -> eyre::Result<Arc<dyn crate::relay_api::MailboxIndexer>> {
+        use crate::relay_api::EvmMailboxIndexer;
+        use hyperlane_ethereum::EthereumMailboxIndexer;
+
+        // Get mailbox address
+        let mailbox_address = chain_conf.addresses.mailbox;
+        let locator = hyperlane_core::ContractLocator {
+            domain,
+            address: mailbox_address.into(),
+        };
+
+        // Create ethers provider from RPC URL
+        // Note: This creates a new provider instance specifically for the relay API
+        use hyperlane_ethereum::EthereumReorgPeriod;
+
+        let provider = ethers::providers::Provider::try_from(rpc_url)?;
+
+        // Get reorg period and convert to EthereumReorgPeriod
+        let reorg_period = EthereumReorgPeriod::try_from(&chain_conf.reorg_period)?;
+
+        let provider = Arc::new(provider);
+
+        // Create EthereumMailboxIndexer
+        let eth_indexer = Arc::new(EthereumMailboxIndexer::new(
+            provider.clone(),
+            &locator,
+            reorg_period,
+        ));
+
+        // Wrap in EvmMailboxIndexer with provider for tx lookups
+        let evm_indexer = EvmMailboxIndexer::new(eth_indexer, provider, domain.id());
+        Ok(Arc::new(evm_indexer))
     }
 }
 

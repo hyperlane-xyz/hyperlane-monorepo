@@ -13,6 +13,7 @@ where
     M: Middleware + 'static,
 {
     indexer: Arc<EthereumMailboxIndexer<M>>,
+    provider: Arc<M>,
     domain: u32,
 }
 
@@ -20,8 +21,12 @@ impl<M> EvmMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    pub fn new(indexer: Arc<EthereumMailboxIndexer<M>>, domain: u32) -> Self {
-        Self { indexer, domain }
+    pub fn new(indexer: Arc<EthereumMailboxIndexer<M>>, provider: Arc<M>, domain: u32) -> Self {
+        Self {
+            indexer,
+            provider,
+            domain,
+        }
     }
 }
 
@@ -40,17 +45,24 @@ where
             ))
         })?;
 
-        // Convert H256 to H512 (EthereumMailboxIndexer expects H512)
-        let hash_512 = H512::from_slice(&{
+        // Convert H256 to H512 as expected by EthereumMailboxIndexer::fetch_logs_by_tx_hash
+        // The H256 hash goes in the LAST 32 bytes (see hyperlane-core/src/types/conversions.rs:37-38)
+        let tx_hash_512 = H512::from_slice(&{
             let mut bytes = [0u8; 64];
-            bytes[..32].copy_from_slice(hash_256.as_bytes());
+            bytes[32..].copy_from_slice(hash_256.as_bytes());
             bytes
         });
 
-        // Call the existing EthereumMailboxIndexer
-        let messages_with_meta = self.indexer.fetch_logs_by_tx_hash(hash_512).await?;
+        // Use existing EthereumMailboxIndexer implementation
+        // This method already handles:
+        // - Fetching transaction receipt
+        // - Filtering logs by contract address
+        // - Decoding DispatchFilter events
+        // - Converting to HyperlaneMessage
+        // - Retry logic with call_and_retry_indefinitely
+        let messages_with_meta = self.indexer.fetch_logs_by_tx_hash(tx_hash_512).await?;
 
-        // Extract just the messages (strip LogMeta)
+        // Extract just the messages from (Indexed<HyperlaneMessage>, LogMeta) tuples
         let messages: Vec<HyperlaneMessage> = messages_with_meta
             .into_iter()
             .map(

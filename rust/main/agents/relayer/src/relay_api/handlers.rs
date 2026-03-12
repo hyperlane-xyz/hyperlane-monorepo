@@ -45,7 +45,7 @@ impl ServerState {
     pub fn router(self) -> Router {
         Router::new()
             .route("/relay", post(create_relay))
-            .route("/relay/:id", get(get_relay_status))
+            .route("/relay/{id}", get(get_relay_status))
             .with_state(self)
     }
 }

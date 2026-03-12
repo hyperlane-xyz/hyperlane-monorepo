@@ -15,7 +15,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
-use crate::relay_api::JobStore;
+use crate::relay_api::{JobStore, ProviderRegistry};
 
 use crate::server::environment_variable::EnvironmentVariableApi;
 use hyperlane_core::QueueOperation;
@@ -53,6 +53,8 @@ pub struct Server {
     relay_job_store: Option<JobStore>,
     #[new(default)]
     relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
+    #[new(default)]
+    relay_provider_registry: Option<ProviderRegistry>,
 }
 
 impl Server {
@@ -116,6 +118,11 @@ impl Server {
         self
     }
 
+    pub fn with_provider_registry(mut self, registry: ProviderRegistry) -> Self {
+        self.relay_provider_registry = Some(registry);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -175,8 +182,14 @@ impl Server {
                     job_store.clone(),
                 ));
 
-                let relay_state = crate::relay_api::handlers::ServerState::new(job_store)
+                let mut relay_state = crate::relay_api::handlers::ServerState::new(job_store)
                     .with_relay_worker(relay_worker);
+
+                // Add provider registry if available
+                if let Some(registry) = self.relay_provider_registry {
+                    relay_state = relay_state.with_provider_registry(registry);
+                }
+
                 router = router.merge(relay_state.router());
             }
         }
