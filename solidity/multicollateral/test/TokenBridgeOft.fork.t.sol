@@ -8,20 +8,6 @@ import {IOFT, SendParam, MessagingFee, OFTReceipt, OFTLimit, OFTFeeDetail} from 
 import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
-address constant PROXY_ADMIN = address(0xc0Ff33);
-
-/// @dev Deploy TokenBridgeOft behind a TransparentUpgradeableProxy.
-function deployProxied(address _oft, address _owner) returns (TokenBridgeOft) {
-    TokenBridgeOft impl = new TokenBridgeOft(_oft);
-    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-        address(impl),
-        PROXY_ADMIN,
-        abi.encodeWithSelector(TokenBridgeOft.initialize.selector, _owner)
-    );
-    return TokenBridgeOft(payable(address(proxy)));
-}
 
 /**
  * @title TokenBridgeOftArbForkTest
@@ -47,7 +33,7 @@ contract TokenBridgeOftArbForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork("arbitrum");
-        bridge = deployProxied(USDT0_OFT, address(this));
+        bridge = new TokenBridgeOft(USDT0_OFT, address(this));
         bridge.addDomain(HYP_DOMAIN_ETHEREUM, LZ_EID_ETHEREUM);
         vm.deal(caller, 1 ether);
     }
@@ -57,13 +43,12 @@ contract TokenBridgeOftArbForkTest is Test {
         assertEq(bridge.token(), USDT0_TOKEN);
     }
 
-    function test_proxyApproval() public view {
-        // Approval must be on the proxy, not the implementation
+    function test_approval() public view {
         uint256 allowance = IERC20(USDT0_TOKEN).allowance(
             address(bridge),
             USDT0_OFT
         );
-        assertGt(allowance, 0, "proxy should have approved OFT");
+        assertGt(allowance, 0, "should have approved OFT");
     }
 
     function test_oftInterface() public view {
@@ -162,7 +147,7 @@ contract TokenBridgeOftArbForkTest is Test {
 
     function test_revert_zeroAddressOft() public {
         vm.expectRevert("TokenBridgeOft: zero OFT address");
-        new TokenBridgeOft(address(0));
+        new TokenBridgeOft(address(0), address(this));
     }
 
     // ============ Admin ============
@@ -222,7 +207,7 @@ contract TokenBridgeOftEthForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork("mainnet");
-        bridge = deployProxied(USDT0_OFT_ADAPTER, address(this));
+        bridge = new TokenBridgeOft(USDT0_OFT_ADAPTER, address(this));
         bridge.addDomain(HYP_DOMAIN_ARBITRUM, LZ_EID_ARBITRUM);
         vm.deal(USDT_WHALE, 1 ether);
     }
@@ -232,13 +217,12 @@ contract TokenBridgeOftEthForkTest is Test {
         assertEq(bridge.token(), USDT_TOKEN);
     }
 
-    function test_proxyApproval() public view {
-        // Approval must be on the proxy, not the implementation
+    function test_approval() public view {
         uint256 allowance = IERC20(USDT_TOKEN).allowance(
             address(bridge),
             USDT0_OFT_ADAPTER
         );
-        assertGt(allowance, 0, "proxy should have approved OFT adapter");
+        assertGt(allowance, 0, "should have approved OFT adapter");
     }
 
     function test_oftAdapterInterface() public view {
@@ -323,7 +307,7 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork("arbitrum");
-        bridge = deployProxied(PYUSD_OFT, address(this));
+        bridge = new TokenBridgeOft(PYUSD_OFT, address(this));
         bridge.addDomain(HYP_DOMAIN_ETHEREUM, LZ_EID_ETHEREUM);
         vm.deal(caller, 1 ether);
     }
@@ -430,7 +414,7 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork("mainnet");
-        bridge = deployProxied(PYUSD_OFT, address(this));
+        bridge = new TokenBridgeOft(PYUSD_OFT, address(this));
         bridge.addDomain(HYP_DOMAIN_ARBITRUM, LZ_EID_ARBITRUM);
         vm.deal(caller, 1 ether);
     }

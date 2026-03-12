@@ -200,8 +200,7 @@ contract TokenBridgeOftUnitTest is Test {
     function setUp() public {
         token = new ERC20Test("MockUSDT", "mUSDT", 0, 6);
         mockOft = new MockOFT(address(token), false);
-        bridge = new TokenBridgeOft(address(mockOft));
-        bridge.initialize(owner);
+        bridge = new TokenBridgeOft(address(mockOft), owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
@@ -222,7 +221,7 @@ contract TokenBridgeOftUnitTest is Test {
 
     function test_constructor_revertsOnZeroOft() public {
         vm.expectRevert("TokenBridgeOft: zero OFT address");
-        new TokenBridgeOft(address(0));
+        new TokenBridgeOft(address(0), owner);
     }
 
     // ---- Domain Mapping ----
@@ -476,8 +475,7 @@ contract TokenBridgeOftAdapterUnitTest is Test {
     function setUp() public {
         token = new ERC20Test("MockUSDC", "mUSDC", 0, 6);
         mockAdapter = new MockOFTAdapter(address(token));
-        bridge = new TokenBridgeOft(address(mockAdapter));
-        bridge.initialize(owner);
+        bridge = new TokenBridgeOft(address(mockAdapter), owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
@@ -527,8 +525,7 @@ contract TokenBridgeOftFeeInversionTest is Test {
     function setUp() public {
         token = new ERC20Test("MockUSDT", "mUSDT", 0, 6);
         mockOft = new MockOFT(address(token), false);
-        bridge = new TokenBridgeOft(address(mockOft));
-        bridge.initialize(owner);
+        bridge = new TokenBridgeOft(address(mockOft), owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
@@ -646,8 +643,7 @@ contract TokenBridgeOftDustTest is Test {
         token = new ERC20Test("MockWETH", "mWETH", 0, 18);
         mockOft = new MockOFT(address(token), false);
         mockOft.setDecimals(18, 6);
-        bridge = new TokenBridgeOft(address(mockOft));
-        bridge.initialize(owner);
+        bridge = new TokenBridgeOft(address(mockOft), owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);

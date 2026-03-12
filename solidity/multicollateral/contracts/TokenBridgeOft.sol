@@ -9,14 +9,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title TokenBridgeOft
  * @notice Warp route adapter for LayerZero OFT (Omnichain Fungible Token) contracts.
  *
- * @dev This contract implements ITokenBridge directly with OwnableUpgradeable for admin.
+ * @dev This contract implements ITokenBridge directly with Ownable for admin.
  *  It does NOT use Hyperlane messaging for transfers. Instead, transferRemote bridges
  *  via OFT.send() and there is no inbound message handling.
  *
@@ -42,7 +41,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  *  - Rebasing tokens: NOT supported — amounts may diverge across chains.
  *  - ERC-777: NOT explicitly supported — hook reentrancy not guarded.
  */
-contract TokenBridgeOft is ITokenBridge, Initializable, OwnableUpgradeable {
+contract TokenBridgeOft is ITokenBridge, Ownable {
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.UintToUintMap;
 
@@ -88,8 +87,9 @@ contract TokenBridgeOft is ITokenBridge, Initializable, OwnableUpgradeable {
 
     /**
      * @param _oft Address of the OFT / OFTAdapter / OFTWrapper contract
+     * @param _owner Initial owner of the contract
      */
-    constructor(address _oft) {
+    constructor(address _oft, address _owner) {
         require(_oft != address(0), "TokenBridgeOft: zero OFT address");
 
         oft = IOFT(_oft);
@@ -103,14 +103,8 @@ contract TokenBridgeOft is ITokenBridge, Initializable, OwnableUpgradeable {
             "TokenBridgeOft: localDecimals < sharedDecimals"
         );
         decimalConversionRate = 10 ** (localDecimals - sharedDecimals);
-    }
 
-    function initialize(address _owner) public initializer {
-        __Ownable_init();
-        transferOwnership(_owner);
-
-        // Approve in initialize (not constructor) so the approval is set on the
-        // proxy's address, not the implementation's.
+        _transferOwnership(_owner);
         wrappedToken.safeApprove(address(oft), type(uint256).max);
     }
 

@@ -204,7 +204,7 @@ abstract class TokenDeployer<
         collateralDomain,
       ];
     } else if (isOftTokenConfig(config)) {
-      return [config.oft];
+      return [config.oft, config.owner];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -259,7 +259,8 @@ abstract class TokenDeployer<
       signer,
     ];
     if (isOftTokenConfig(config)) {
-      return [signer];
+      // OFT is deployed unproxied — owner is set in constructor, no initialize
+      throw new Error('OFT does not use initialize');
     } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
@@ -790,26 +791,18 @@ abstract class TokenDeployer<
     // Deploy non-OFT contracts via full Router deployer flow
     const deployedContractsMap = await super.deploy(nonOftConfigMap);
 
-    // Deploy OFT contracts directly (no router enrollment / mailbox client config)
+    // Deploy OFT contracts directly — unproxied, no router enrollment / mailbox config
     for (const [chain, config] of Object.entries(oftConfigMap)) {
-      const contracts = await this.deployContracts(chain, config);
+      const contractKey = this.routerContractKey(config);
+      const constructorArgs = await this.constructorArgs(chain, config);
+      const contract = await this.deployContract(
+        chain,
+        contractKey,
+        constructorArgs,
+      );
+      const contracts = { [contractKey]: contract } as any;
       this.addDeployedContracts(chain, contracts);
       deployedContractsMap[chain] = contracts;
-
-      // Transfer ownership to configured owner
-      const ownables = Object.values(contracts);
-      for (const ownable of ownables) {
-        if ('transferOwnership' in ownable) {
-          const currentOwner = await (ownable as any).owner();
-          const targetOwner = config.owner;
-          if (currentOwner.toLowerCase() !== targetOwner.toLowerCase()) {
-            await this.multiProvider.handleTx(
-              chain,
-              (ownable as any).transferOwnership(targetOwner),
-            );
-          }
-        }
-      }
     }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
