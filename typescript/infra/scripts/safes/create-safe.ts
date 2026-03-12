@@ -58,11 +58,11 @@ function getContractNetworks(chainId: string): ContractNetworksConfig {
   return {
     [chainId]: {
       safeSingletonAddress: getAddress(
-        getSafeSingletonDeployment({
+        getSafeL2SingletonDeployment({
           version: SAFE_VERSION,
           network: chainId,
         }) ??
-          getSafeL2SingletonDeployment({
+          getSafeSingletonDeployment({
             version: SAFE_VERSION,
             network: chainId,
           }),
