@@ -27,6 +27,8 @@ import {
 } from '../fixtures/routes.js';
 import {
   MAILBOX_PROGRAM_ID,
+  MIXED_BALANCE_PRESETS,
+  MIXED_SIGNER_PRESETS,
   SVM_CHAIN_METADATA,
   SVM_CHAIN_NAME,
   SVM_NATIVE_MONITORED_ROUTE_ID,
@@ -40,8 +42,21 @@ import { MockExplorerClient } from './MockExplorerClient.js';
 import { MockExternalBridge } from './MockExternalBridge.js';
 import { SvmEvmLocalDeploymentManager } from './SvmEvmLocalDeploymentManager.js';
 import { SvmForkIndexer } from './SvmForkIndexer.js';
-import { computeMixedBlockTags, fundSvmWarpRoute } from './SvmTestHelpers.js';
+import {
+  computeMixedBlockTags,
+  drainSvmWarpRoute,
+  fundSvmWarpRoute,
+} from './SvmTestHelpers.js';
 import type { TestRebalancerContext } from './TestRebalancer.js';
+
+type MixedBalancePreset = keyof typeof MIXED_BALANCE_PRESETS;
+type MixedBalanceConfig =
+  | MixedBalancePreset
+  | { evmBalances: Record<string, string>; svmLamports: number };
+type MixedInventorySignerPreset = keyof typeof MIXED_SIGNER_PRESETS;
+type MixedInventorySignerBalanceConfig =
+  | MixedInventorySignerPreset
+  | Record<string, string>;
 
 export class MixedTestRebalancerBuilder {
   private manager?: SvmEvmLocalDeploymentManager;
@@ -52,6 +67,8 @@ export class MixedTestRebalancerBuilder {
   private evmBalances?: Record<string, string>;
   private svmLamports?: number;
   private inventorySignerKey: string = ANVIL_USER_PRIVATE_KEY;
+  private inventorySignerBalances?: Record<string, string>;
+  private mockBridge?: MockExternalBridge;
   private readonly logger: Logger;
 
   constructor(logger?: Logger) {
@@ -84,6 +101,32 @@ export class MixedTestRebalancerBuilder {
 
   withStrategyConfig(config: StrategyConfig[]): this {
     this.strategyConfig = config;
+    return this;
+  }
+
+  withBalances(preset: MixedBalanceConfig): this {
+    const config =
+      typeof preset === 'string' ? MIXED_BALANCE_PRESETS[preset] : preset;
+    this.evmBalances = config.evmBalances;
+    this.svmLamports = config.svmLamports;
+    return this;
+  }
+
+  withInventorySignerBalances(preset: MixedInventorySignerBalanceConfig): this {
+    const config =
+      typeof preset === 'string' ? MIXED_SIGNER_PRESETS[preset] : preset;
+    const balances: Record<string, string> = {};
+    for (const [chain, balance] of Object.entries(config)) {
+      if (balance !== undefined) {
+        balances[chain] = balance;
+      }
+    }
+    this.inventorySignerBalances = balances;
+    return this;
+  }
+
+  withMockExternalBridge(bridge: MockExternalBridge): this {
+    this.mockBridge = bridge;
     return this;
   }
 
@@ -232,11 +275,9 @@ export class MixedTestRebalancerBuilder {
       getConfirmedBlockTags,
     );
 
-    const mockBridge = new MockExternalBridge(
-      evmAddresses,
-      workingMP,
-      hyperlaneCore,
-    );
+    const mockBridge =
+      this.mockBridge ??
+      new MockExternalBridge(evmAddresses, workingMP, hyperlaneCore);
 
     const strategy = await contextFactory.createStrategy();
     const { tracker, adapter } =
@@ -277,6 +318,8 @@ export class MixedTestRebalancerBuilder {
       }
     }
 
+    await drainSvmWarpRoute(manager, svmAddresses.warpTokenAta);
+
     if (this.svmLamports !== undefined) {
       await fundSvmWarpRoute(
         manager.getSvmChainManager(),
@@ -285,12 +328,21 @@ export class MixedTestRebalancerBuilder {
       );
     }
 
-    for (const chain of TEST_CHAINS) {
+    const signerBalances =
+      this.inventorySignerBalances ??
+      Object.fromEntries(
+        TEST_CHAINS.map((chain) => [
+          chain,
+          ethers.utils.parseEther('20').toString(),
+        ]),
+      );
+
+    for (const [chain, balance] of Object.entries(signerBalances)) {
       const provider = evmCtx.providers.get(chain);
       if (provider) {
         await provider.send('anvil_setBalance', [
           evmSignerAddress,
-          ethers.utils.hexValue(ethers.utils.parseEther('20')),
+          ethers.utils.hexValue(ethers.BigNumber.from(balance)),
         ]);
       }
     }

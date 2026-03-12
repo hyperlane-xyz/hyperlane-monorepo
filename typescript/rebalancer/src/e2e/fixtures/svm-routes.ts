@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { BigNumber } from 'ethers';
+
 import {
   ChainMetadata,
   TokenStandard,
@@ -157,29 +159,83 @@ export const SVM_FUND_AMOUNT_LAMPORTS = 10 * 1_000_000_000; // 10 SOL
 export const SVM_DEFICIT_FUND_AMOUNT_LAMPORTS = 0;
 export const SVM_SURPLUS_FUND_AMOUNT_LAMPORTS = 5 * 1_000_000_000; // 5 SOL
 
-// ── Mixed balance preset builder ──
+// ── Mixed balance presets (EVM + SVM) ──
+export const MIXED_BALANCE_PRESETS: Record<
+  string,
+  { evmBalances: Record<string, string>; svmLamports: number }
+> = {
+  INVENTORY_EMPTY_DEST: {
+    evmBalances: {
+      anvil1: '5000000000000000000', // 5 ETH
+      anvil2: '0',
+      anvil3: '5000000000000000000', // 5 ETH
+    },
+    svmLamports: SVM_FUND_AMOUNT_LAMPORTS,
+  },
+  INVENTORY_MULTI_DEFICIT: {
+    evmBalances: {
+      anvil1: '5000000000000000000', // 5 ETH
+      anvil2: '0',
+      anvil3: '0',
+    },
+    svmLamports: SVM_DEFICIT_FUND_AMOUNT_LAMPORTS,
+  },
+  INVENTORY_SVM_DEFICIT: {
+    evmBalances: {
+      anvil1: '5000000000000000000', // 5 ETH
+      anvil2: '5000000000000000000', // 5 ETH
+      anvil3: '5000000000000000000', // 5 ETH
+    },
+    svmLamports: SVM_DEFICIT_FUND_AMOUNT_LAMPORTS,
+  },
+  INVENTORY_BALANCED: {
+    evmBalances: {
+      anvil1: '5000000000000000000', // 5 ETH
+      anvil2: '5000000000000000000', // 5 ETH
+      anvil3: '5000000000000000000', // 5 ETH
+    },
+    svmLamports: SVM_FUND_AMOUNT_LAMPORTS,
+  },
+};
+
+// ── Mixed signer balance presets (ETH balances for signer wallet) ──
+export const MIXED_SIGNER_PRESETS: Record<
+  string,
+  Partial<Record<string, string>>
+> = {
+  SIGNER_PARTIAL_ANVIL2: {
+    anvil2: '1000000000000000000', // 1 ETH
+  },
+  SIGNER_LOW_ALL: {
+    anvil1: '1000000000000000000', // 1 ETH
+    anvil2: '1000000000000000000', // 1 ETH
+    anvil3: '1000000000000000000', // 1 ETH
+  },
+  SIGNER_FUNDED_ANVIL1: {
+    anvil1: '20000000000000000000', // 20 ETH
+    anvil2: '0',
+    anvil3: '0',
+  },
+  SIGNER_SPLIT_SOURCES: {
+    anvil1: '10000000000000000000', // 10 ETH
+    anvil2: '0',
+    anvil3: '10000000000000000000', // 10 ETH
+  },
+};
+
+// ── Mixed min/target amount constants ──
+export const MIXED_MIN_AMOUNT_TARGET_WEI = BigNumber.from(
+  '2000000000000000000',
+); // 2 ETH
+export const MIXED_MIN_AMOUNT_TARGET_LAMPORTS = 2 * 1_000_000_000; // 2 SOL
+
+// ── Mixed balance preset builder (backward compat) ──
 export function buildMixedBalancePreset(
   scenario: 'evm-deficit' | 'svm-deficit',
 ): { evmBalances: Record<string, string>; svmLamports: number } {
   if (scenario === 'evm-deficit') {
-    // anvil1 is deficit (0 ETH), others surplus (5 ETH), SVM surplus (10 SOL)
-    return {
-      evmBalances: {
-        anvil1: '0x0',
-        anvil2: '0x4563918244F40000', // 5 ETH in hex
-        anvil3: '0x4563918244F40000', // 5 ETH in hex
-      },
-      svmLamports: SVM_FUND_AMOUNT_LAMPORTS,
-    };
+    return MIXED_BALANCE_PRESETS.INVENTORY_EMPTY_DEST;
   } else {
-    // SVM is deficit (0 SOL), EVM chains surplus (5 ETH each)
-    return {
-      evmBalances: {
-        anvil1: '0x4563918244F40000', // 5 ETH in hex
-        anvil2: '0x4563918244F40000', // 5 ETH in hex
-        anvil3: '0x4563918244F40000', // 5 ETH in hex
-      },
-      svmLamports: SVM_DEFICIT_FUND_AMOUNT_LAMPORTS,
-    };
+    return MIXED_BALANCE_PRESETS.INVENTORY_SVM_DEFICIT;
   }
 }
