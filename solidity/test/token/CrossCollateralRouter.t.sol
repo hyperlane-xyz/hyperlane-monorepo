@@ -16,20 +16,20 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
-import {MockHyperlaneEnvironment} from "@hyperlane-xyz/core/mock/MockHyperlaneEnvironment.sol";
-import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
-import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
-import {TestPostDispatchHook} from "@hyperlane-xyz/core/test/TestPostDispatchHook.sol";
-import {ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
-import {IPostDispatchHook} from "@hyperlane-xyz/core/interfaces/hooks/IPostDispatchHook.sol";
+import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {MockHyperlaneEnvironment} from "contracts/mock/MockHyperlaneEnvironment.sol";
+import {MockMailbox} from "contracts/mock/MockMailbox.sol";
+import {ERC20Test} from "contracts/test/ERC20Test.sol";
+import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
+import {ITokenFee, Quote} from "contracts/interfaces/ITokenBridge.sol";
+import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 
-import {CrossCollateralRouter} from "../contracts/CrossCollateralRouter.sol";
-import {CrossCollateralRoutingFee} from "../contracts/CrossCollateralRoutingFee.sol";
-import {ICrossCollateralFee} from "../contracts/interfaces/ICrossCollateralFee.sol";
-import {HypERC20Collateral} from "@hyperlane-xyz/core/token/HypERC20Collateral.sol";
-import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
-import {LinearFee} from "@hyperlane-xyz/core/token/fees/LinearFee.sol";
+import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
+import {CrossCollateralRoutingFee} from "contracts/token/CrossCollateralRoutingFee.sol";
+import {ICrossCollateralFee} from "contracts/token/interfaces/ICrossCollateralFee.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {GasRouter} from "contracts/client/GasRouter.sol";
+import {LinearFee} from "contracts/token/fees/LinearFee.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
 /// Implements both ITokenFee (for base transferRemote) and ICrossCollateralFee (for transferRemoteTo).
