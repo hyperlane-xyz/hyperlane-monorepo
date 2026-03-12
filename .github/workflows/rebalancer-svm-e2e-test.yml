@@ -122,4 +122,4 @@ jobs:
       # ── Run mixed SVM+EVM e2e tests ──
       - name: Run rebalancer SVM E2E tests
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json --grep 'Mixed EVM.SVM' --exit
+        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm.e2e-test.ts' --exit
