@@ -1,20 +1,39 @@
 #!/bin/bash
 
 # Measure Hyperlane message relay time with statistics
-# Usage: ./measure-relay-time.sh [num_transfers] [amount_in_wei]
+# Usage: ./measure-relay-time.sh [num_transfers] [amount_in_wei] [--use-relay-api] [--random-delay]
+#
+# Flags:
+#   --use-relay-api: Use fast relay API instead of normal indexing
+#   --random-delay: Add random 0-30s delay between messages (simulates real-world usage)
 
 set -e
 
 # Configuration
 ORIGIN_RPC="http://127.0.0.1:8545"
 DEST_RPC="http://127.0.0.1:8546"
+RELAY_API_URL="http://127.0.0.1:9090/relay"
 WARP_TOKEN="0x59b670e9fA9D0A427751Af201D676719a970857b"
 DEST_DOMAIN="31338"
 RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 RECIPIENT_BYTES32="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+ORIGIN_CHAIN="test4"
+
+# Parse arguments
 NUM_TRANSFERS="${1:-20}" # Default 20 transfers
 AMOUNT="${2:-1000000000000000000}" # Default 1 ETH
+USE_RELAY_API=false
+USE_RANDOM_DELAY=false
+MAX_RANDOM_DELAY=30
+
+if [[ "$*" == *"--use-relay-api"* ]]; then
+  USE_RELAY_API=true
+fi
+
+if [[ "$*" == *"--random-delay"* ]]; then
+  USE_RANDOM_DELAY=true
+fi
 
 echo "╔════════════════════════════════════════════════════════════╗"
 echo "║      Hyperlane Relay Time Measurement - Benchmark         ║"
@@ -25,6 +44,16 @@ echo "  Transfers: $NUM_TRANSFERS"
 echo "  Amount: $AMOUNT wei per transfer"
 echo "  Origin: ethereumlocal1 ($ORIGIN_RPC)"
 echo "  Destination: ethereumlocal2 ($DEST_RPC)"
+if [ "$USE_RELAY_API" = true ]; then
+  echo "  Relay Mode: ⚡ Fast Relay API ($RELAY_API_URL)"
+else
+  echo "  Relay Mode: 📡 Normal Indexing"
+fi
+if [ "$USE_RANDOM_DELAY" = true ]; then
+  echo "  Spacing: 🎲 Random delay (0-${MAX_RANDOM_DELAY}s between messages)"
+else
+  echo "  Spacing: ⏱️  Fixed 1s delay between messages"
+fi
 echo ""
 
 # Array to store relay times
@@ -63,6 +92,21 @@ measure_transfer() {
     --json 2>/dev/null | jq -r '.transactionHash')
 
   echo "✓ ($TX_HASH)"
+
+  # Submit to relay API if enabled
+  if [ "$USE_RELAY_API" = true ]; then
+    echo -n "  Submitting to relay API... "
+    RELAY_RESPONSE=$(curl -s -X POST $RELAY_API_URL \
+      -H "Content-Type: application/json" \
+      -d "{\"origin_chain\":\"$ORIGIN_CHAIN\",\"tx_hash\":\"$TX_HASH\"}")
+
+    JOB_ID=$(echo $RELAY_RESPONSE | jq -r '.job_id // empty')
+    if [ -n "$JOB_ID" ]; then
+      echo "✓ (job: $JOB_ID)"
+    else
+      echo "✗ Failed: $RELAY_RESPONSE"
+    fi
+  fi
 
   # Poll destination balance until it changes
   echo -n "Waiting for delivery... "
@@ -103,9 +147,17 @@ echo ""
 for i in $(seq 1 $NUM_TRANSFERS); do
   measure_transfer $i
 
-  # Small delay between transfers to avoid rate limiting
+  # Delay between transfers
   if [ $i -lt $NUM_TRANSFERS ]; then
-    sleep 1
+    if [ "$USE_RANDOM_DELAY" = true ]; then
+      # Random delay between 0 and MAX_RANDOM_DELAY seconds
+      DELAY=$((RANDOM % (MAX_RANDOM_DELAY + 1)))
+      echo "  Waiting ${DELAY}s before next transfer..."
+      sleep $DELAY
+    else
+      # Fixed 1 second delay
+      sleep 1
+    fi
   fi
 done
 
