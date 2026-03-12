@@ -15,7 +15,7 @@ import {
 } from '@safe-global/safe-deployments';
 import { BigNumber } from 'ethers';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getGovernanceSigners } from '../../config/environments/mainnet3/governance/utils.js';
@@ -50,6 +50,19 @@ function getAddress(
   return deployment?.networkAddresses[chainId] ?? deployment?.defaultAddress;
 }
 
+function getRequiredAddress(
+  deployment: ReturnType<typeof getMultiSendDeployment>,
+  chainId: string,
+  contractName: string,
+): string {
+  const address = getAddress(deployment, chainId);
+  assert(
+    address,
+    `No ${contractName} deployment found for chain ${chainId}. Add an override to safeContractOverrides.`,
+  );
+  return address;
+}
+
 function getContractNetworks(chainId: string): ContractNetworksConfig {
   if (safeContractOverrides[chainId]) {
     return { [chainId]: safeContractOverrides[chainId] };
@@ -57,7 +70,7 @@ function getContractNetworks(chainId: string): ContractNetworksConfig {
 
   return {
     [chainId]: {
-      safeSingletonAddress: getAddress(
+      safeSingletonAddress: getRequiredAddress(
         getSafeL2SingletonDeployment({
           version: SAFE_VERSION,
           network: chainId,
@@ -67,10 +80,12 @@ function getContractNetworks(chainId: string): ContractNetworksConfig {
             network: chainId,
           }),
         chainId,
+        'SafeSingleton',
       ),
-      safeProxyFactoryAddress: getAddress(
+      safeProxyFactoryAddress: getRequiredAddress(
         getProxyFactoryDeployment({ version: SAFE_VERSION, network: chainId }),
         chainId,
+        'ProxyFactory',
       ),
       multiSendAddress: getAddress(
         getMultiSendDeployment({ version: SAFE_VERSION, network: chainId }),
