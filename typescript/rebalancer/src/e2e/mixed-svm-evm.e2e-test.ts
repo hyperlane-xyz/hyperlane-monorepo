@@ -199,7 +199,15 @@ async function buildMixedTestContext(opts: {
     workingMP,
   );
 
-  const rebalancerAddresses = [deployerWallet.address, evmSignerAddress];
+  const svmDeployerAddress = manager
+    .getSvmChainManager()
+    .getDeployerKeypair()
+    .publicKey.toBase58();
+  const rebalancerAddresses = [
+    deployerWallet.address,
+    evmSignerAddress,
+    svmDeployerAddress,
+  ];
   const forkIndexer = new ForkIndexer(
     evmCtx.providers,
     hyperlaneCore,

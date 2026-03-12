@@ -189,7 +189,15 @@ export class MixedTestRebalancerBuilder {
       workingMP,
     );
 
-    const rebalancerAddresses = [deployerWallet.address, evmSignerAddress];
+    const svmDeployerAddress = manager
+      .getSvmChainManager()
+      .getDeployerKeypair()
+      .publicKey.toBase58();
+    const rebalancerAddresses = [
+      deployerWallet.address,
+      evmSignerAddress,
+      svmDeployerAddress,
+    ];
 
     const evmForkIndexer = new EvmForkIndexer(
       evmCtx.providers,
