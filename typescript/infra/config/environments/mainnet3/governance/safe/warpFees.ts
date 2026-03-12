@@ -12,5 +12,5 @@ export const warpFeesSafes: ChainMap<Address> = {
 
   // Mar 12, 2026 - Igra Chain Deployment
   // ----------------------------------------------------------
-  igra: '0xF4edD65e85122E50cb22A45c10FcA082F8a72396',
+  // igra: '0xF4edD65e85122E50cb22A45c10FcA082F8a72396',
 };

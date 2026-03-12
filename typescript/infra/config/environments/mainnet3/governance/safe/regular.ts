@@ -34,5 +34,5 @@ export const regularSafes: ChainMap<Address> = {
 
   // Mar 12, 2026 - Igra Chain Deployment
   // ----------------------------------------------------------
-  igra: '0xb511a9046A1F9Df17E3CEC3Ff9d937071B986935',
+  // igra: '0xb511a9046A1F9Df17E3CEC3Ff9d937071B986935',
 };
