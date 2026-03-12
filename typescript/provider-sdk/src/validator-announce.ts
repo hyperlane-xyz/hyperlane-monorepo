@@ -6,7 +6,7 @@ import { ArtifactDeployed, IArtifactManager } from './artifact.js';
  * Validator Announce configuration for the Artifact API.
  * Defines the parameters needed to deploy or configure a validator announce contract.
  */
-export interface ValidatorAnnounceConfig {
+export interface ValidatorAnnounceArtifactConfig {
   mailboxAddress: string; // Reference to the mailbox contract address
 }
 
@@ -22,20 +22,15 @@ export interface DeployedValidatorAnnounceAddress {
  * Describes the configuration of a deployed validator announce contract
  */
 export type DeployedValidatorAnnounceArtifact = ArtifactDeployed<
-  ValidatorAnnounceConfig,
+  ValidatorAnnounceArtifactConfig,
   DeployedValidatorAnnounceAddress
 >;
 
 /**
- * Validator announce artifact config type (single type for now, but supports future variants)
- */
-export type ValidatorAnnounceArtifactConfig = ValidatorAnnounceConfig;
-
-/**
- * Validator announce artifact configs map (supports future validator announce variants)
+ * Validator announce artifact configs map
  */
 export interface ValidatorAnnounceArtifactConfigs {
-  validatorAnnounce: ValidatorAnnounceConfig;
+  validatorAnnounce: ValidatorAnnounceArtifactConfig;
 }
 
 export type ValidatorAnnounceType = keyof ValidatorAnnounceArtifactConfigs;

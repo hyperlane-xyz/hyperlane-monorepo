@@ -99,7 +99,6 @@ export class RadixMailboxWriter
     const defaultHookAddress = config.defaultHook.deployed.address;
     const requiredHookAddress = config.requiredHook.deployed.address;
 
-    // Create the mailbox (mailbox is created with signer as initial owner)
     const createTx = await getCreateMailboxTx(
       this.base,
       this.signer.getAddress(),

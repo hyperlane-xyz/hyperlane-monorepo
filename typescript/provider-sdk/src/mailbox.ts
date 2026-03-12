@@ -25,7 +25,7 @@ import type {
  * Mailbox configuration for the Artifact API.
  * Defines the parameters needed to deploy or configure a mailbox.
  */
-export interface MailboxConfig {
+export interface MailboxArtifactConfig {
   owner: string;
   defaultIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>; // ISM artifact reference
   defaultHook: Artifact<HookArtifactConfig, DeployedHookAddress>; // Hook artifact reference
@@ -45,20 +45,15 @@ export interface DeployedMailboxAddress {
  * Describes the configuration of a deployed mailbox
  */
 export type DeployedMailboxArtifact = ArtifactDeployed<
-  ConfigOnChain<MailboxConfig>,
+  ConfigOnChain<MailboxArtifactConfig>,
   DeployedMailboxAddress
 >;
 
 /**
- * Mailbox artifact config type (single type for now, but supports future variants)
- */
-export type MailboxArtifactConfig = MailboxConfig;
-
-/**
- * Mailbox artifact configs map (supports future mailbox variants)
+ * Mailbox artifact configs map
  */
 export interface MailboxArtifactConfigs {
-  mailbox: MailboxConfig;
+  mailbox: MailboxArtifactConfig;
 }
 
 export type MailboxType = keyof MailboxArtifactConfigs;
