@@ -593,7 +593,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
     // ============ Hook Interface Tests ============
 
     function test_hookType_returnsPredicateRouterWrapper() public view {
-        assertEq(predicateWrapper.hookType(), 16); // PREDICATE_ROUTER_WRAPPER = 16
+        assertEq(predicateWrapper.hookType(), 17); // PREDICATE_ROUTER_WRAPPER = 17
     }
 
     function test_quoteDispatch_returnsZero() public view {
