@@ -1,5 +1,27 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 3.1.0
+
+### Minor Changes
+
+- b892e61: CoreArtifactReader was implemented as a composite artifact reader for core deployments. It takes a mailbox address and returns a fully expanded MailboxArtifactConfig with all nested ISM and hook artifacts read from chain. A backward-compatible deriveCoreConfig() method was provided. A mailboxArtifactToDerivedCoreConfig conversion helper was added to mailbox.ts and ismArtifactToDerivedConfig was exported from the ISM reader.
+
+### Patch Changes
+
+- abdbbf5: `createHookReader` accepted an optional mailbox context, which was threaded through `AltVMCoreReader` and `WarpTokenReader` for SVM merkle tree hook detection.
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/radix-sdk@27.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/aleo-sdk@27.1.0
+  - @hyperlane-xyz/cosmos-sdk@27.1.0
+  - @hyperlane-xyz/sealevel-sdk@27.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.1
+
 ## 3.0.1
 
 ### Patch Changes

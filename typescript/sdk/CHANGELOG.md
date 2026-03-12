@@ -1,5 +1,31 @@
 # @hyperlane-xyz/sdk
 
+## 27.1.0
+
+### Minor Changes
+
+- a1f9e41: Added Safe contract overrides for igra chain (chain ID 38833).
+- 7af7728: Added optional `warpRouteId` field to TokenConfigSchema for disambiguating tokens that share the same addressOrDenom on the same chain (e.g. M0 Portal tokens). When present, WarpCore.FromConfig uses it during connection resolution to ensure tokens connect only within their own warp route.
+
+### Patch Changes
+
+- de5f6b5: Fixed fetchScale version gate to compare against the contract version where scaling was first introduced (6.0.0) instead of the fraction scaling version (11.0.0), preventing failed scale() reads on pre-scaling contracts.
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [abdbbf5]
+- Updated dependencies [b892e61]
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/deploy-sdk@3.1.0
+  - @hyperlane-xyz/radix-sdk@27.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/aleo-sdk@27.1.0
+  - @hyperlane-xyz/cosmos-sdk@27.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.1
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/starknet-core@27.1.0
+
 ## 27.0.0
 
 ### Minor Changes
