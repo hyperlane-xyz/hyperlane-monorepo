@@ -38,7 +38,8 @@ Consumers can then install the chart with:
 ```bash
 helm repo add hyperlane https://hyperlane-xyz.github.io/hyperlane-monorepo
 helm repo update
-helm install my-agent hyperlane/hyperlane-agent --version 0.1.0
+# pick a released version from: helm search repo hyperlane/hyperlane-agent --versions
+helm install my-agent hyperlane/hyperlane-agent --version <chart-version>
 ```
 
 ## Releasing Chart Changes
