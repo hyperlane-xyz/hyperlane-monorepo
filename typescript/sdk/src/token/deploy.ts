@@ -780,10 +780,6 @@ abstract class TokenDeployer<
       })),
     );
     // Deploy OFT contracts directly (no Router/MailboxClient interfaces)
-    // CAST: OFT deploys a single contract keyed by routerContractKey, which is a
-    // subset of the full Factories map. The deployer framework expects the full
-    // Factories shape, but only the deployed contract key is accessed downstream.
-    const oftDeployedMap: HyperlaneContractsMap<Factories> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
       if (!isOftTokenConfig(config)) continue;
       const contractKey = this.routerContractKey(config);
@@ -793,17 +789,13 @@ abstract class TokenDeployer<
         contractKey,
         constructorArgs,
       );
-      const contracts = {
-        [contractKey]: contract,
-      } as unknown as HyperlaneContracts<Factories>;
-      this.addDeployedContracts(chain, contracts);
-      oftDeployedMap[chain] = contracts;
+      this.addDeployedContracts(chain, { [contractKey]: contract });
       delete resolvedConfigMap[chain];
     }
 
     // Deploy remaining (non-OFT) contracts via full Router deployer flow
+    // super.deploy() returns this.deployedContracts, which already includes OFT entries
     const deployedContractsMap = await super.deploy(resolvedConfigMap);
-    Object.assign(deployedContractsMap, oftDeployedMap);
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
