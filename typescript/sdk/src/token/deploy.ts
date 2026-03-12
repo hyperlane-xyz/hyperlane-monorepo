@@ -780,7 +780,10 @@ abstract class TokenDeployer<
       })),
     );
     // Deploy OFT contracts directly (no Router/MailboxClient interfaces)
-    const oftDeployedMap: Record<string, HyperlaneContracts<any>> = {};
+    // CAST: OFT deploys a single contract keyed by routerContractKey, which is a
+    // subset of the full Factories map. The deployer framework expects the full
+    // Factories shape, but only the deployed contract key is accessed downstream.
+    const oftDeployedMap: HyperlaneContractsMap<Factories> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
       if (!isOftTokenConfig(config)) continue;
       const contractKey = this.routerContractKey(config);
@@ -790,7 +793,9 @@ abstract class TokenDeployer<
         contractKey,
         constructorArgs,
       );
-      const contracts = { [contractKey]: contract } as any;
+      const contracts = {
+        [contractKey]: contract,
+      } as unknown as HyperlaneContracts<Factories>;
       this.addDeployedContracts(chain, contracts);
       oftDeployedMap[chain] = contracts;
       delete resolvedConfigMap[chain];
