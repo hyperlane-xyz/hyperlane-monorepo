@@ -43,4 +43,15 @@ jobs:
 
       - name: Run rebalancer E2E tests (EVM-only, serial)
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json --ignore 'src/e2e/mixed-*.e2e-test.ts' --exit
+        run: >
+          pnpm mocha --config .mocharc.e2e.json
+          'src/e2e/weighted.e2e-test.ts'
+          'src/e2e/minAmount.e2e-test.ts'
+          'src/e2e/inventory-weighted.e2e-test.ts'
+          'src/e2e/inventory-minAmount.e2e-test.ts'
+          'src/e2e/inventory-erc20-weighted.e2e-test.ts'
+          'src/e2e/inventory-erc20-minAmount.e2e-test.ts'
+          'src/e2e/composite.e2e-test.ts'
+          'src/e2e/collateral-deficit.e2e-test.ts'
+          'src/e2e/mixed-weighted.e2e-test.ts'
+          --exit
