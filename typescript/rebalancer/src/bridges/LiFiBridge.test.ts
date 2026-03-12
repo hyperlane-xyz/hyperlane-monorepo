@@ -627,6 +627,7 @@ describe('LiFiBridge Tron protocol handling', function () {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
         [ProtocolType.Tron]: TEST_PRIVATE_KEY,
       });
+      expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
       // Should NOT be a Tron-related error — just post-validation SDK/RPC error
