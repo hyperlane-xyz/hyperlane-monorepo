@@ -11,6 +11,8 @@ on:
         type: string
       has_tron:
         type: string
+      has_svm:
+        type: string
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -111,3 +113,33 @@ jobs:
           flags: tron-sdk
           files: typescript/tron-sdk/coverage/lcov.info
           fail_ci_if_error: false
+
+  svm-sdk-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_svm == 'true'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - ism
+          - hook
+          - native-token
+          - synthetic-token
+          - collateral-token
+          - provider
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/sealevel-sdk...'
+
+      - name: SVM SDK e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/svm-sdk test:e2e
+        env:
+          SVM_SDK_E2E_TEST: ${{ matrix.test }}
