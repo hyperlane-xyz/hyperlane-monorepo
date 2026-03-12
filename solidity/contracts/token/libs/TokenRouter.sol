@@ -387,7 +387,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @notice Returns the fee hook contract address.
      * @return The fee hook address.
      */
-    function feeHook() public view virtual returns (address) {
+    function feeHook() public view returns (address) {
         return FEE_HOOK_SLOT.getAddressSlot().value;
     }
 
