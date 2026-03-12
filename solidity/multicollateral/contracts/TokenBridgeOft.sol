@@ -59,7 +59,6 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
     event DomainAdded(uint32 indexed hyperlaneDomain, uint32 lzEid);
     event DomainRemoved(uint32 indexed hyperlaneDomain);
     event ExtraOptionsSet(bytes extraOptions);
-    event FeeRecipientSet(address indexed recipient);
 
     // ============ Storage ============
 
@@ -79,9 +78,6 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
 
     /// @notice Configurable LayerZero extra options (e.g., destination gas limits)
     bytes public extraOptions;
-
-    /// @notice Address that receives protocol fees (implements ITokenFee)
-    address public feeRecipient;
 
     // ============ Constructor ============
 
@@ -122,11 +118,6 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
         uint256 nativeFee = _quoteGasPayment(_destination, _recipient, _amount);
-        (, uint256 protocolFee) = _feeRecipientAndAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
         uint256 externalFee = _externalFeeAmount(
             _destination,
             _recipient,
@@ -135,10 +126,7 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
 
         quotes = new Quote[](3);
         quotes[0] = Quote({token: address(0), amount: nativeFee});
-        quotes[1] = Quote({
-            token: address(wrappedToken),
-            amount: _amount + protocolFee
-        });
+        quotes[1] = Quote({token: address(wrappedToken), amount: _amount});
         quotes[2] = Quote({token: address(wrappedToken), amount: externalFee});
     }
 
@@ -148,29 +136,16 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
         bytes32 _recipient,
         uint256 _amount
     ) external payable override returns (bytes32 messageId) {
-        // 1. Calculate fees
-        (address _feeRecipient, uint256 protocolFee) = _feeRecipientAndAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
+        // 1. Calculate OFT fee and pull total from sender
         uint256 externalFee = _externalFeeAmount(
             _destination,
             _recipient,
             _amount
         );
-        uint256 charge = _amount + protocolFee + externalFee;
-
-        // 2. Pull total charge from sender
-        wrappedToken.safeTransferFrom(msg.sender, address(this), charge);
-
-        // 3. Transfer protocol fee to recipient
-        if (protocolFee > 0) {
-            wrappedToken.safeTransfer(_feeRecipient, protocolFee);
-        }
-
-        // 4. Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
         uint256 grossAmount = _amount + externalFee;
+        wrappedToken.safeTransferFrom(msg.sender, address(this), grossAmount);
+
+        // 2. Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
         SendParam memory sendParam = _buildSendParam(
             _destination,
             _recipient,
@@ -178,7 +153,7 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
             _removeDust(_amount)
         );
 
-        // 5. Quote native gas fee and send via OFT
+        // 3. Quote native gas fee and send via OFT
         uint256 nativeFee = _quoteGasPayment(_destination, _recipient, _amount);
 
         MessagingFee memory msgFee = MessagingFee({
@@ -194,7 +169,7 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
             msg.sender
         );
 
-        // 6. Refund excess native value back to caller
+        // 4. Refund excess native value back to caller
         uint256 excessNative = msg.value - nativeFee;
         if (excessNative > 0) {
             Address.sendValue(payable(msg.sender), excessNative);
@@ -204,12 +179,6 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
     }
 
     // ============ Admin ============
-
-    function setFeeRecipient(address _recipient) external onlyOwner {
-        require(_recipient != address(this), "Fee recipient cannot be self");
-        feeRecipient = _recipient;
-        emit FeeRecipientSet(_recipient);
-    }
 
     function addDomain(
         uint32 _hyperlaneDomain,
@@ -305,33 +274,6 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
         uint256 _amount
     ) internal view returns (uint256) {
         return _grossOftAmount(_destination, _recipient, _amount) - _amount;
-    }
-
-    /// @dev Query fee recipient for protocol fee amount.
-    function _feeRecipientAndAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view returns (address _recipient_, uint256 feeAmount) {
-        _recipient_ = feeRecipient;
-        if (_recipient_ == address(0)) {
-            return (_recipient_, 0);
-        }
-
-        Quote[] memory quotes = ITokenFee(_recipient_).quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-        if (quotes.length == 0) {
-            return (_recipient_, 0);
-        }
-
-        require(
-            quotes.length == 1 && quotes[0].token == address(wrappedToken),
-            "TokenBridgeOft: fee must match token"
-        );
-        feeAmount = quotes[0].amount;
     }
 
     /**

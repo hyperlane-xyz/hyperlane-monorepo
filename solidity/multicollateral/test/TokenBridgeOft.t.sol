@@ -155,29 +155,6 @@ contract MockOFTAdapter is MockOFT {
     constructor(address _token) MockOFT(_token, true) {}
 }
 
-/**
- * @title MockFeeRecipient
- * @notice Mock ITokenFee that charges a fixed fee in the warp token.
- */
-contract MockFeeRecipient {
-    address public feeToken;
-    uint256 public feeAmount;
-
-    constructor(address _token, uint256 _fee) {
-        feeToken = _token;
-        feeAmount = _fee;
-    }
-
-    function quoteTransferRemote(
-        uint32,
-        bytes32,
-        uint256
-    ) external view returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({token: feeToken, amount: feeAmount});
-    }
-}
-
 // ============================================================
 //  Unit Tests
 // ============================================================
@@ -386,64 +363,6 @@ contract TokenBridgeOftUnitTest is Test {
             "excess ETH should be refunded"
         );
         assertEq(address(bridge).balance, 0, "bridge should have no ETH");
-    }
-
-    // ---- Fee Recipient ----
-
-    function test_transferRemote_feeRecipientReceivesFee() public {
-        uint256 protocolFee = 5e6; // 5 USDT fee
-        MockFeeRecipient feeRecip = new MockFeeRecipient(
-            address(token),
-            protocolFee
-        );
-
-        vm.prank(owner);
-        bridge.setFeeRecipient(address(feeRecip));
-
-        uint256 amount = 100e6;
-        uint256 nativeFee = mockOft.nativeFeeToReturn();
-
-        vm.startPrank(caller);
-        token.approve(address(bridge), type(uint256).max);
-        bridge.transferRemote{value: nativeFee}(DOMAIN_ETH, recipient, amount);
-        vm.stopPrank();
-
-        // Fee recipient should have received the protocol fee
-        assertEq(token.balanceOf(address(feeRecip)), protocolFee);
-        // Bridge holds only the amount destined for OFT (mock doesn't burn).
-        // Crucially, the fee is NOT stuck in the bridge — it went to the recipient.
-        assertEq(token.balanceOf(address(bridge)), amount);
-    }
-
-    function test_transferRemote_feeRecipientPlusOftFee() public {
-        // Configure both a protocol fee recipient AND an OFT fee
-        uint256 protocolFee = 2e6;
-        MockFeeRecipient feeRecip = new MockFeeRecipient(
-            address(token),
-            protocolFee
-        );
-        vm.prank(owner);
-        bridge.setFeeRecipient(address(feeRecip));
-
-        mockOft.setFeeBps(100); // 1% OFT fee
-
-        uint256 amount = 100e6;
-        uint256 nativeFee = mockOft.nativeFeeToReturn();
-
-        uint256 callerBalBefore = token.balanceOf(caller);
-
-        vm.startPrank(caller);
-        token.approve(address(bridge), type(uint256).max);
-        bridge.transferRemote{value: nativeFee}(DOMAIN_ETH, recipient, amount);
-        vm.stopPrank();
-
-        // Fee recipient gets protocol fee
-        assertEq(token.balanceOf(address(feeRecip)), protocolFee);
-
-        // Caller paid: amount + protocolFee + OFT external fee
-        // OFT fee = grossAmount - amount (1% inversion on 100e6 ≈ 1010102)
-        uint256 callerSpent = callerBalBefore - token.balanceOf(caller);
-        assertGt(callerSpent, amount + protocolFee); // more than amount + protocol fee
     }
 
     // ---- Initialize ----
