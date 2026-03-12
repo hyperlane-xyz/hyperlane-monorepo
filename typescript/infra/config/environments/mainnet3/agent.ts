@@ -41,7 +41,6 @@ import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
-import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
@@ -813,9 +812,6 @@ const scraperResources = {
 
 // Blacklist matching list intended to be used by all contexts.
 const blacklist: MatchingList = [
-  ...blacklistedMessageIds.map((messageId) => ({
-    messageId,
-  })),
   // legacy forma routes we are not relaying
   {
     destinationDomain: getDomainId('forma'),
@@ -854,6 +850,9 @@ const blacklist: MatchingList = [
   },
 ];
 
+const blacklistUrl =
+  'https://raw.githubusercontent.com/hyperlane-xyz/aw-registry/main/denylist/mainnet3/messages.json';
+
 const ismCacheConfigs: Array<IsmCacheConfig> = [
   {
     selector: {
@@ -885,6 +884,7 @@ const hyperlane: RootAgentConfig = {
       tag: mainnetDockerTags.relayer,
     },
     blacklist,
+    blacklistUrl,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -931,6 +931,7 @@ const releaseCandidate: RootAgentConfig = {
       tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
+    blacklistUrl,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -972,6 +973,7 @@ const neutron: RootAgentConfig = {
       tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
+    blacklistUrl,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,

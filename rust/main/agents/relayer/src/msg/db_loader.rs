@@ -17,6 +17,7 @@ use hyperlane_base::{
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace};
 
 use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
@@ -29,7 +30,7 @@ pub struct MessageDbLoader {
     /// A matching list of messages that should be whitelisted.
     message_whitelist: Arc<MatchingList>,
     /// A matching list of messages that should be blacklisted.
-    message_blacklist: Arc<MatchingList>,
+    message_blacklist: Arc<RwLock<MatchingList>>,
     /// Addresses that messages may not interact with.
     address_blacklist: Arc<AddressBlacklist>,
     metrics: MessageDbLoaderMetrics,
@@ -269,7 +270,7 @@ impl DbLoaderExt for MessageDbLoader {
             }
 
             // Skip if the message is blacklisted
-            if self.message_blacklist.msg_matches(&msg, false) {
+            if self.message_blacklist.read().await.msg_matches(&msg, false) {
                 debug!(?msg, "Message blacklisted, skipping");
                 return Ok(());
             }
@@ -330,7 +331,7 @@ impl MessageDbLoader {
     pub fn new(
         db: HyperlaneRocksDB,
         message_whitelist: Arc<MatchingList>,
-        message_blacklist: Arc<MatchingList>,
+        message_blacklist: Arc<RwLock<MatchingList>>,
         address_blacklist: Arc<AddressBlacklist>,
         metrics: MessageDbLoaderMetrics,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,

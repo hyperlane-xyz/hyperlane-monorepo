@@ -424,6 +424,13 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
     ),
+  blacklistUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      'Optional URL for message-id blacklist entries that are fetched by the relayer at runtime.',
+    ),
   addressBlacklist: z
     .string()
     .optional()

@@ -3,18 +3,19 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
-use eyre::Result;
+use eyre::{Context, Result};
 use futures_util::future::try_join_all;
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
+        RwLock,
     },
     task::JoinHandle,
 };
@@ -33,7 +34,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
-    QueueOperation, H512, U256,
+    QueueOperation, H256, H512, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -57,6 +58,7 @@ use crate::{
     server::{self as relayer_server},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
+use serde::Deserialize;
 
 use destination::{Destination, FactoryError};
 
@@ -66,6 +68,15 @@ mod origin;
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
+const REMOTE_BLACKLIST_REFRESH_INTERVAL: Duration = Duration::from_secs(60);
+
+#[derive(Debug, Deserialize)]
+struct RemoteDenylistEntry {
+    #[serde(rename = "messageId")]
+    message_id: String,
+    #[serde(rename = "context")]
+    _context: String,
+}
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -85,7 +96,9 @@ pub struct Relayer {
     /// The original reference to the relayer cache
     _cache: OptionalCache<MeteredCache<LocalCache>>,
     message_whitelist: Arc<MatchingList>,
-    message_blacklist: Arc<MatchingList>,
+    message_blacklist: Arc<RwLock<MatchingList>>,
+    inline_message_blacklist: Arc<MatchingList>,
+    remote_blacklist_url: Option<String>,
     address_blacklist: Arc<AddressBlacklist>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
@@ -188,14 +201,17 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
 
         let message_whitelist = Arc::new(settings.whitelist);
-        let message_blacklist = Arc::new(settings.blacklist);
+        let inline_message_blacklist = Arc::new(settings.blacklist);
+        let message_blacklist = Arc::new(RwLock::new((*inline_message_blacklist).clone()));
         let address_blacklist = Arc::new(AddressBlacklist::new(settings.address_blacklist));
         let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
         let transaction_gas_limit = settings.transaction_gas_limit;
+        let remote_blacklist_url = settings.blacklist_url;
 
         info!(
             %message_whitelist,
-            %message_blacklist,
+            inline_message_blacklist = %inline_message_blacklist,
+            remote_blacklist_url = ?remote_blacklist_url.as_deref(),
             ?address_blacklist,
             ?transaction_gas_limit,
             ?skip_transaction_gas_limit_for,
@@ -283,6 +299,8 @@ impl BaseAgent for Relayer {
             core,
             message_whitelist,
             message_blacklist,
+            inline_message_blacklist,
+            remote_blacklist_url,
             address_blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
@@ -324,6 +342,28 @@ impl BaseAgent for Relayer {
             tasks.push(console_server);
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started tokio console server", "Relayer startup duration measurement");
+
+        if let Some(blacklist_url) = self.remote_blacklist_url.clone() {
+            let name = "remote_message_id_blacklist_updater";
+            let message_blacklist = self.message_blacklist.clone();
+            let inline_message_blacklist = self.inline_message_blacklist.clone();
+            let blacklist_updater = tokio::task::Builder::new()
+                .name(name)
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor.clone(),
+                    async move {
+                        Self::run_remote_blacklist_updater(
+                            blacklist_url,
+                            inline_message_blacklist,
+                            message_blacklist,
+                        )
+                        .await;
+                    }
+                    .instrument(info_span!("RemoteMessageIdBlacklistUpdater")),
+                ))
+                .expect("spawning tokio task from Builder is infallible");
+            tasks.push(blacklist_updater);
+        }
 
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
@@ -876,6 +916,90 @@ impl Relayer {
         let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
         let db_loader = DbLoader::new(Box::new(message_db_loader), task_monitor.clone());
         Ok(db_loader.spawn(span))
+    }
+
+    async fn run_remote_blacklist_updater(
+        blacklist_url: String,
+        inline_blacklist: Arc<MatchingList>,
+        message_blacklist: Arc<RwLock<MatchingList>>,
+    ) {
+        let client = reqwest::Client::new();
+        info!(
+            blacklist_url,
+            "Starting remote message-id blacklist updater"
+        );
+        loop {
+            match Self::fetch_remote_message_ids(&client, &blacklist_url).await {
+                Ok(remote_message_ids) => {
+                    let merged_blacklist =
+                        Self::merge_message_blacklists(&inline_blacklist, &remote_message_ids);
+                    let remote_count = remote_message_ids.len();
+                    let merged_count = merged_blacklist.0.as_ref().map(|v| v.len()).unwrap_or(0);
+                    *message_blacklist.write().await = merged_blacklist;
+                    info!(
+                        blacklist_url,
+                        remote_message_ids = remote_count,
+                        merged_blacklist_rules = merged_count,
+                        "Updated relayer message blacklist from remote URL"
+                    );
+                }
+                Err(err) => {
+                    warn!(
+                        blacklist_url,
+                        error = ?err,
+                        "Failed to refresh remote message-id blacklist, keeping previous list"
+                    );
+                }
+            }
+            tokio::time::sleep(REMOTE_BLACKLIST_REFRESH_INTERVAL).await;
+        }
+    }
+
+    async fn fetch_remote_message_ids(
+        client: &reqwest::Client,
+        blacklist_url: &str,
+    ) -> Result<HashSet<H256>> {
+        let response = client
+            .get(blacklist_url)
+            .send()
+            .await
+            .with_context(|| format!("Failed to fetch remote blacklist from `{blacklist_url}`"))?
+            .error_for_status()
+            .with_context(|| format!("Remote blacklist request failed for `{blacklist_url}`"))?;
+        let entries = response
+            .json::<Vec<RemoteDenylistEntry>>()
+            .await
+            .with_context(|| {
+                format!("Failed to parse remote blacklist JSON from `{blacklist_url}`")
+            })?;
+        entries
+            .into_iter()
+            .map(|entry| {
+                entry.message_id.parse::<H256>().with_context(|| {
+                    format!(
+                        "Invalid messageId `{}` in remote blacklist payload",
+                        entry.message_id
+                    )
+                })
+            })
+            .collect()
+    }
+
+    fn merge_message_blacklists(
+        inline_blacklist: &MatchingList,
+        remote_message_ids: &HashSet<H256>,
+    ) -> MatchingList {
+        let mut rules = inline_blacklist.0.clone().unwrap_or_default();
+        for message_id in remote_message_ids {
+            if let Some(mut remote_rules) = MatchingList::with_message_id(*message_id).0 {
+                rules.append(&mut remote_rules);
+            }
+        }
+        if rules.is_empty() {
+            MatchingList(None)
+        } else {
+            MatchingList(Some(rules))
+        }
     }
 
     fn run_merkle_tree_db_loader(

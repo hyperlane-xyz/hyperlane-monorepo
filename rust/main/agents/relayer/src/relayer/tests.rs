@@ -137,6 +137,7 @@ fn generate_test_relayer_settings(
         gas_payment_enforcement: Vec::new(),
         whitelist: MatchingList::default(),
         blacklist: MatchingList::default(),
+        blacklist_url: None,
         address_blacklist: Vec::new(),
         transaction_gas_limit: None,
         skip_transaction_gas_limit_for: HashSet::new(),
