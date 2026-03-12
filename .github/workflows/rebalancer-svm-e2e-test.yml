@@ -48,6 +48,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v3-rebalancer-svm-e2e'
+          cache-provider: 'github'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/main
+            ./rust/sealevel
 
       - name: Install system dependencies
         run: |
@@ -85,10 +94,6 @@ jobs:
         run: |
           solana --version
           solana-test-validator --version
-
-      - name: Setup sccache
-        uses: ./.github/actions/setup-sccache
-
 
       # ── Build Sealevel programs (.so files → rust/main/target/dist/) ──
       - name: Build Sealevel programs
