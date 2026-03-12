@@ -779,7 +779,10 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
-    // Deploy OFT contracts directly (no Router/MailboxClient interfaces)
+    // Deploy OFT contracts separately — they lack Router/MailboxClient interfaces
+    // and must not be in this.deployedContracts during super.deploy(), which calls
+    // enrollRemoteRouters/configureClients on all entries.
+    const oftContracts: Record<string, Record<string, unknown>> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
       if (!isOftTokenConfig(config)) continue;
       const contractKey = this.routerContractKey(config);
@@ -789,13 +792,17 @@ abstract class TokenDeployer<
         contractKey,
         constructorArgs,
       );
-      this.addDeployedContracts(chain, { [contractKey]: contract });
+      oftContracts[chain] = { [contractKey]: contract };
       delete resolvedConfigMap[chain];
     }
 
     // Deploy remaining (non-OFT) contracts via full Router deployer flow
-    // super.deploy() returns this.deployedContracts, which already includes OFT entries
     const deployedContractsMap = await super.deploy(resolvedConfigMap);
+
+    // Now safe to merge OFT entries — Router-specific methods have already run
+    for (const [chain, contracts] of Object.entries(oftContracts)) {
+      this.addDeployedContracts(chain, contracts);
+    }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
