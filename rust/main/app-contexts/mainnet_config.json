@@ -41601,6 +41601,71 @@
       ]
     },
     {
+      "name": "ctUSD/citrea",
+      "matchingList": [
+        {
+          "originDomain": 4114,
+          "senderAddress": [
+            "0x000000000000000000000000ebeb7f52892df3066885f4d31137a76327f6348b"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000006372e1c8a08940c7e95af2891b9201ac48de6519"
+          ]
+        },
+        {
+          "originDomain": 4114,
+          "senderAddress": [
+            "0x000000000000000000000000ebeb7f52892df3066885f4d31137a76327f6348b"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0xf2d0d73b35d797c1a14f93c254e94bf14da2f127367dfc29649ca5aaa4bb2b15"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000006372e1c8a08940c7e95af2891b9201ac48de6519"
+          ],
+          "destinationDomain": 4114,
+          "recipientAddress": [
+            "0x000000000000000000000000ebeb7f52892df3066885f4d31137a76327f6348b"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000006372e1c8a08940c7e95af2891b9201ac48de6519"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0xf2d0d73b35d797c1a14f93c254e94bf14da2f127367dfc29649ca5aaa4bb2b15"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0xf2d0d73b35d797c1a14f93c254e94bf14da2f127367dfc29649ca5aaa4bb2b15"
+          ],
+          "destinationDomain": 4114,
+          "recipientAddress": [
+            "0x000000000000000000000000ebeb7f52892df3066885f4d31137a76327f6348b"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0xf2d0d73b35d797c1a14f93c254e94bf14da2f127367dfc29649ca5aaa4bb2b15"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000006372e1c8a08940c7e95af2891b9201ac48de6519"
+          ]
+        }
+      ]
+    },
+    {
       "name": "merkly_erc20",
       "matchingList": [
         {
