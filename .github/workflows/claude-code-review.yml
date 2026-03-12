@@ -28,7 +28,7 @@ jobs:
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request &&
         contains(github.event.comment.body, '@claude') &&
-        contains(github.event.comment.body, 'review') &&
+        contains(github.event.comment.body, ' review') &&
         !contains(github.event.comment.body, 'security') &&
         (
           github.event.comment.author_association == 'MEMBER' ||
@@ -82,12 +82,13 @@ jobs:
           use_sticky_comment: false
           claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
 
-  # Security-focused review: manual via @claude security comment only
+  # Security-focused review: manual via @claude + security comment
   security-review:
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude security') &&
+      contains(github.event.comment.body, '@claude') &&
+      contains(github.event.comment.body, 'security') &&
       (
         github.event.comment.author_association == 'MEMBER' ||
         github.event.comment.author_association == 'OWNER' ||
@@ -134,12 +135,13 @@ jobs:
           use_sticky_comment: false
           claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
 
-  # Trail of Bits security skills: manual via @claude security comment only
+  # Trail of Bits security skills: manual via @claude + security comment
   tob-security-skills:
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude security') &&
+      contains(github.event.comment.body, '@claude') &&
+      contains(github.event.comment.body, 'security') &&
       (
         github.event.comment.author_association == 'MEMBER' ||
         github.event.comment.author_association == 'OWNER' ||
@@ -205,7 +207,7 @@ jobs:
       (
         github.event_name == 'issue_comment' &&
         contains(github.event.comment.body, '@claude') &&
-        !contains(github.event.comment.body, 'review') &&
+        !contains(github.event.comment.body, ' review') &&
         !contains(github.event.comment.body, 'security') &&
         (
           github.event.comment.author_association == 'MEMBER' ||
