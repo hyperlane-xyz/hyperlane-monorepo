@@ -58,6 +58,14 @@ contract PredicateRouterWrapper is
 {
     using SafeERC20 for IERC20;
 
+    // ============ Enums ============
+
+    enum TokenType {
+        Native,
+        Synthetic,
+        Collateral
+    }
+
     // ============ Constants ============
 
     /// @notice Hook type identifier for Predicate router wrapper
@@ -71,6 +79,9 @@ contract PredicateRouterWrapper is
 
     /// @notice The ERC20 token managed by the warp route
     IERC20 public immutable token;
+
+    /// @notice The type of token being wrapped
+    TokenType public immutable tokenType;
 
     // ============ Storage ============
 
@@ -100,6 +111,9 @@ contract PredicateRouterWrapper is
 
     /// @notice Thrown when postDispatch was not executed during transfer
     error PredicateRouterWrapper__PostDispatchNotExecuted();
+
+    /// @notice Thrown when ETH withdrawal fails
+    error PredicateRouterWrapper__WithdrawFailed();
 
     // ============ Events ============
 
@@ -137,12 +151,20 @@ contract PredicateRouterWrapper is
         address tokenAddress = warpRoute.token();
         token = IERC20(tokenAddress);
 
+        // Determine token type
+        if (tokenAddress == address(0)) {
+            tokenType = TokenType.Native;
+        } else if (tokenAddress == _warpRoute) {
+            tokenType = TokenType.Synthetic;
+        } else {
+            tokenType = TokenType.Collateral;
+        }
+
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warp route for collateral routes only
-        // Skip for: synthetics (token address == warpRoute), native (token address == address(0))
-        if (tokenAddress != _warpRoute && tokenAddress != address(0)) {
+        if (tokenType == TokenType.Collateral) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
@@ -201,9 +223,7 @@ contract PredicateRouterWrapper is
         );
 
         // 5. Handle token transfer based on type, pulling total quoted amount
-        bool isNative = address(token) == address(0);
-
-        if (isNative) {
+        if (tokenType == TokenType.Native) {
             // For native tokens, sum all native quote amounts
             uint256 totalNativeRequired = 0;
             for (uint256 i = 0; i < quotes.length; i++) {
@@ -305,5 +325,24 @@ contract PredicateRouterWrapper is
             revert PredicateRouterWrapper__InvalidRegistry();
 
         _setRegistry(_registry);
+    }
+
+    // ============ ETH Refund Handling ============
+
+    /**
+     * @notice Accepts ETH refunds from the warp route's hook
+     * @dev The warp route sets msg.sender (this wrapper) as refund address.
+     *      Without this function, ETH refunds would revert or be trapped.
+     */
+    receive() external payable {}
+
+    /**
+     * @notice Withdraws trapped ETH to owner
+     * @dev Only callable by owner. Used to recover ETH refunds from hooks.
+     */
+    function withdrawETH() external onlyOwner {
+        uint256 balance = address(this).balance;
+        (bool success, ) = msg.sender.call{value: balance}("");
+        if (!success) revert PredicateRouterWrapper__WithdrawFailed();
     }
 }
