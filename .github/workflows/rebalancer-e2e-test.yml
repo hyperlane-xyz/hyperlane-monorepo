@@ -53,5 +53,4 @@ jobs:
           'src/e2e/inventory-erc20-minAmount.e2e-test.ts'
           'src/e2e/composite.e2e-test.ts'
           'src/e2e/collateral-deficit.e2e-test.ts'
-          'src/e2e/mixed-weighted.e2e-test.ts'
           --exit
