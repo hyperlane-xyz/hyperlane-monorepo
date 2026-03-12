@@ -370,4 +370,32 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
     }
   });
+
+  it('should parse AggLayer bridge settings in allowedRebalancingBridges', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      ethereum: {
+        type: TokenType.multiCollateral,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        token: SOME_ADDRESS,
+        allowedRebalancingBridges: {
+          katana: [
+            {
+              bridge: SOME_ADDRESS,
+              approvedTokens: [SOME_ADDRESS],
+              agglayer: {
+                agglayerBridgeAddress: SOME_ADDRESS,
+                destinationNetwork: 20,
+                nativeFee: 0,
+                tokenFee: 0,
+                forceUpdateGlobalExitRoot: false,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.true;
+  });
 });
