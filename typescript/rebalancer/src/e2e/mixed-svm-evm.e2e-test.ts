@@ -1,57 +1,42 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
-import { type Logger, pino } from 'pino';
-import { PublicKey } from '@solana/web3.js';
+import { Connection } from '@solana/web3.js';
+import { providers } from 'ethers';
+
+import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
 
 import {
-  HyperlaneCore,
-  MultiProvider,
-  type WarpCoreConfig,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
-
-import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import {
-  DEFAULT_INTENT_TTL_MS,
   ExecutionType,
   ExternalBridgeType,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
   type StrategyConfig,
 } from '../config/types.js';
-import {
-  RebalancerOrchestrator,
-  type RebalancerOrchestratorDeps,
-} from '../core/RebalancerOrchestrator.js';
-import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
-import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
-import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
-import type { StrategyRoute } from '../interfaces/IStrategy.js';
 
 import {
-  ANVIL_TEST_PRIVATE_KEY,
-  ANVIL_USER_PRIVATE_KEY,
   DOMAIN_IDS,
   type NativeDeployedAddresses,
   TEST_CHAINS,
 } from './fixtures/routes.js';
 import {
-  buildMixedBalancePreset,
-  buildMixedSvmEvmWarpCoreConfig,
   MAILBOX_PROGRAM_ID,
-  SVM_CHAIN_METADATA,
+  MIXED_MIN_AMOUNT_TARGET_WEI,
   SVM_CHAIN_NAME,
-  SVM_NATIVE_MONITORED_ROUTE_ID,
   type SvmDeployedAddresses,
 } from './fixtures/svm-routes.js';
-import { ForkIndexer } from './harness/ForkIndexer.js';
-import { MockExplorerClient } from './harness/MockExplorerClient.js';
 import { MockExternalBridge } from './harness/MockExternalBridge.js';
 import { MixedTestRebalancerBuilder } from './harness/MixedTestRebalancerBuilder.js';
+import { resetSnapshotsAndRefreshProviders } from './harness/SnapshotHelper.js';
+import {
+  classifyMixedChains,
+  drainSvmWarpRoute,
+  getMixedRouterBalances,
+  relayMixedInventoryDeposits,
+} from './harness/SvmTestHelpers.js';
 import { SvmEvmLocalDeploymentManager } from './harness/SvmEvmLocalDeploymentManager.js';
-import { relaySvmToEvmMessages } from './harness/SvmRelayHelper.js';
-import { getSvmWarpRouteBalance } from './harness/SvmTestHelpers.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
+import type { TestRebalancerContext } from './harness/TestRebalancer.js';
+// ── All chains: 3 EVM + 1 SVM ──
+const ALL_MIXED_CHAINS = [...TEST_CHAINS, SVM_CHAIN_NAME] as const;
 
 // ── Strategy config covering 3 EVM chains + 1 SVM chain ──
 
@@ -101,446 +86,729 @@ function buildMixedStrategyConfig(): StrategyConfig[] {
   ];
 }
 
-// ── Builder that wires up the full rebalancer context for mixed EVM+SVM ──
-
-interface MixedTestContext {
-  orchestrator: RebalancerOrchestrator;
-  contextFactory: RebalancerContextFactory;
-  createMonitor: (
-    checkFrequency: number,
-  ) => ReturnType<RebalancerContextFactory['createMonitor']>;
-}
-
-async function buildMixedTestContext(opts: {
-  manager: SvmEvmLocalDeploymentManager;
-  evmAddresses: NativeDeployedAddresses;
-  svmAddresses: SvmDeployedAddresses;
-  svmPrivateKey: string;
-  logger: Logger;
-}): Promise<MixedTestContext> {
-  const { manager, evmAddresses, svmAddresses, svmPrivateKey, logger } = opts;
-
-  const evmManager = manager.getEvmDeploymentManager();
-  const evmCtx = evmManager.getContext();
-  const evmMP = evmCtx.multiProvider;
-
-  // Build working MultiProvider with SVM chain metadata included
-  // so RebalancerContextFactory.create() can check protocol types
-  const combinedMetadata = {
-    ...evmMP.metadata,
-    [SVM_CHAIN_NAME]: SVM_CHAIN_METADATA,
-  };
-  const workingMP = new MultiProvider(combinedMetadata, {
-    providers: { ...evmMP.providers },
-    signers: { ...evmMP.signers },
-  });
-  const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-  for (const chain of TEST_CHAINS) {
-    const provider = evmCtx.providers.get(chain);
-    if (provider) {
-      workingMP.setSigner(chain, deployerWallet.connect(provider));
-    }
-  }
-
-  // MultiProtocolProvider with SVM chain included
-  const mpp = manager.getMultiProtocolProvider();
-  const registry = manager.getRegistry();
-
-  // WarpCoreConfig: 3 EVM HypNative + 1 SVM HypNative
-  const warpCoreConfig: WarpCoreConfig = buildMixedSvmEvmWarpCoreConfig(
-    evmAddresses,
-    svmAddresses,
-    TEST_CHAINS as unknown as string[],
-  );
-
-  // Inventory signers for BOTH protocols
-  const evmSignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY).address;
-  const rebalancerConfig = new RebalancerConfig(
-    SVM_NATIVE_MONITORED_ROUTE_ID,
-    buildMixedStrategyConfig(),
-    DEFAULT_INTENT_TTL_MS,
-    {
-      [ProtocolType.Ethereum]: {
-        address: evmSignerAddress,
-        key: ANVIL_USER_PRIVATE_KEY,
-      },
-      [ProtocolType.Sealevel]: {
-        address: manager
-          .getSvmChainManager()
-          .getDeployerKeypair()
-          .publicKey.toBase58(),
-        key: svmPrivateKey,
-      },
-    },
-    { lifi: { integrator: 'test' } },
-  );
-
-  // Context factory — warpCoreConfigOverride skips registry lookup
-  const contextFactory = await RebalancerContextFactory.create(
-    rebalancerConfig,
-    workingMP,
-    mpp,
-    registry,
-    logger,
-    undefined,
-    warpCoreConfig,
-  );
-
-  // ForkIndexer — EVM providers ONLY (SVM would crash it)
-  const coreAddresses: Record<string, Record<string, string>> = {};
-  for (const chain of TEST_CHAINS) {
-    coreAddresses[chain] = {
-      mailbox: evmAddresses.chains[chain].mailbox,
-      interchainSecurityModule: evmAddresses.chains[chain].ism,
-    };
-  }
-  const hyperlaneCore = HyperlaneCore.fromAddressesMap(
-    coreAddresses,
-    workingMP,
-  );
-
-  const svmDeployerAddress = manager
-    .getSvmChainManager()
-    .getDeployerKeypair()
-    .publicKey.toBase58();
-  const rebalancerAddresses = [
-    deployerWallet.address,
-    evmSignerAddress,
-    svmDeployerAddress,
-  ];
-  const forkIndexer = new ForkIndexer(
-    evmCtx.providers,
-    hyperlaneCore,
-    rebalancerAddresses,
-    logger,
-  );
-
-  const evmBlockTags: ConfirmedBlockTags = {};
-  for (const [chain, provider] of evmCtx.providers) {
-    const hex = await provider.send('eth_blockNumber', []);
-    evmBlockTags[chain] = parseInt(hex, 16);
-  }
-  await forkIndexer.initialize(evmBlockTags);
-
-  const computeBlockTags = async (): Promise<ConfirmedBlockTags> => {
-    const tags: ConfirmedBlockTags = {};
-    for (const [chain, provider] of evmCtx.providers) {
-      const hex = await provider.send('eth_blockNumber', []);
-      tags[chain] = parseInt(hex, 16);
-    }
-    return tags;
-  };
-
-  const mockExplorer = new MockExplorerClient(
-    { userTransfers: [], rebalanceActions: [] },
-    forkIndexer,
-    computeBlockTags,
-  );
-
-  // Mock external bridge for EVM-only LiFi movements
-  const mockBridge = new MockExternalBridge(
-    evmAddresses,
-    workingMP,
-    hyperlaneCore,
-  );
-
-  // Build rebalancers (inventory mode)
-  const strategy = await contextFactory.createStrategy();
-  const { tracker, adapter } =
-    await contextFactory.createActionTracker(mockExplorer);
-  await tracker.initialize();
-
-  const rebalancerComponents = await contextFactory.createRebalancers(
-    tracker,
-    undefined,
-    {
-      [ExternalBridgeType.LiFi]: mockBridge,
-    } as Partial<ExternalBridgeRegistry>,
-  );
-
-  const orchestratorDeps: RebalancerOrchestratorDeps = {
-    strategy,
-    rebalancers: rebalancerComponents?.rebalancers ?? [],
-    actionTracker: tracker,
-    inflightContextAdapter: adapter,
-    rebalancerConfig,
-    externalBridgeRegistry: rebalancerComponents?.externalBridgeRegistry,
-    logger,
-  };
-  const orchestrator = new RebalancerOrchestrator(orchestratorDeps);
-
-  return {
-    orchestrator,
-    contextFactory,
-    createMonitor: (checkFrequency: number) =>
-      contextFactory.createMonitor(
-        checkFrequency,
-        rebalancerComponents?.inventoryConfig,
-      ),
-  };
-}
-
 // ── Test suite ──
 
 describe('Mixed EVM+SVM Inventory Rebalancer E2E', function () {
   this.timeout(600_000);
 
-  const logger: Logger = pino({ level: 'debug' }).child({
-    module: 'mixed-svm-evm-e2e',
-  });
-
   let manager: SvmEvmLocalDeploymentManager;
   let evmAddresses: NativeDeployedAddresses;
   let svmAddresses: SvmDeployedAddresses;
   let svmPrivateKey: string;
+  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let multiProvider: MultiProvider;
+  let hyperlaneCore: HyperlaneCore;
+  let svmConnection: Connection;
+  let snapshotIds: Map<string, string>;
+  let mockBridge: MockExternalBridge;
+
+  const expectedDeficit = MIXED_MIN_AMOUNT_TARGET_WEI.toBigInt();
+
+  async function executeCycle(context: TestRebalancerContext): Promise<void> {
+    const monitor = context.createMonitor(0);
+    const event = await getFirstMonitorEvent(monitor);
+    await context.orchestrator.executeCycle(event);
+  }
 
   before(async function () {
-    manager = new SvmEvmLocalDeploymentManager(logger);
+    manager = new SvmEvmLocalDeploymentManager();
     await manager.setup();
 
     const evmManager = manager.getEvmDeploymentManager();
     evmAddresses = evmManager.getContext().deployedAddresses;
     svmAddresses = manager.getSvmDeployedAddresses();
-
-    // SVM private key in JSON array format (parseSolanaPrivateKey expects this)
-    const keypair = manager.getSvmChainManager().getDeployerKeypair();
-    svmPrivateKey = JSON.stringify(Array.from(keypair.secretKey));
-
-    // ── Balance setup ──
-    // anvil1: 0 ETH (below min of 1 → deficit)
-    // anvil2: 5 ETH (above min)
-    // anvil3: 5 ETH (above min)
-    const evmCtx = evmManager.getContext();
-    for (const chain of TEST_CHAINS) {
-      const provider = evmCtx.providers.get(chain)!;
-      const balance =
-        chain === 'anvil1'
-          ? '0x0'
-          : ethers.utils.hexValue(ethers.utils.parseEther('5'));
-      await provider.send('anvil_setBalance', [
-        evmAddresses.monitoredRoute[chain],
-        balance,
-      ]);
-    }
-
-    // Fund EVM inventory signer with 20 ETH on each chain
-    const evmSignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY).address;
-    for (const chain of TEST_CHAINS) {
-      const provider = evmCtx.providers.get(chain)!;
-      await provider.send('anvil_setBalance', [
-        evmSignerAddress,
-        ethers.utils.hexValue(ethers.utils.parseEther('20')),
-      ]);
-    }
-
-    // Fund SVM warp route ATA with 10 SOL
-    await manager
-      .getSvmChainManager()
-      .fundWarpRoute(svmAddresses.warpTokenAta, 10 * 1_000_000_000);
-
-    logger.info(
-      {
-        evmMonitoredRoutes: evmAddresses.monitoredRoute,
-        svmWarpToken: svmAddresses.warpToken,
-        svmWarpTokenAta: svmAddresses.warpTokenAta,
-      },
-      'Mixed EVM+SVM test environment ready',
+    svmPrivateKey = JSON.stringify(
+      Array.from(manager.getSvmChainManager().getDeployerKeypair().secretKey),
     );
+
+    localProviders = evmManager.getContext().providers;
+    multiProvider = evmManager.getContext().multiProvider;
+    svmConnection = manager.getSvmChainManager().getConnection();
+
+    const coreAddresses: Record<string, Record<string, string>> = {};
+    for (const chain of TEST_CHAINS) {
+      coreAddresses[chain] = {
+        mailbox: evmAddresses.chains[chain].mailbox,
+        interchainSecurityModule: evmAddresses.chains[chain].ism,
+      };
+    }
+    hyperlaneCore = HyperlaneCore.fromAddressesMap(
+      coreAddresses,
+      multiProvider,
+    );
+
+    mockBridge = new MockExternalBridge(
+      evmAddresses,
+      multiProvider,
+      hyperlaneCore,
+    );
+
+    snapshotIds = new Map();
+    for (const [chain, provider] of localProviders) {
+      snapshotIds.set(chain, await snapshot(provider));
+    }
+  });
+
+  afterEach(async function () {
+    mockBridge.reset();
+    await resetSnapshotsAndRefreshProviders({
+      localProviders,
+      multiProvider,
+      snapshotIds,
+    });
+    await drainSvmWarpRoute(manager, svmAddresses.warpTokenAta);
   });
 
   after(async function () {
-    if (manager) {
-      await manager.teardown();
+    if (manager) await manager.teardown();
+  });
+
+  // ── Scenario 1 ──
+
+  it('executes transferRemote when destination collateral is below minimum and inventory exists locally', async function () {
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EMPTY_DEST')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    const initialBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+
+    await executeCycle(context);
+
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
+
+    const inProgressActions = await context.tracker.getInProgressActions();
+    expect(inProgressActions.length).to.equal(1);
+    const depositAction = inProgressActions.find(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(depositAction).to.exist;
+
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    const completedAction = await context.tracker.getRebalanceAction(
+      depositAction!.id,
+    );
+    expect(completedAction!.status).to.equal('complete');
+
+    const completedIntent = await context.tracker.getRebalanceIntent(
+      activeIntents[0].id,
+    );
+    expect(completedIntent!.status).to.equal('complete');
+
+    const finalBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+
+    const { surplusChain, neutralChains } = classifyMixedChains(
+      'anvil2',
+      depositAction!,
+      ALL_MIXED_CHAINS,
+    );
+
+    expect(
+      finalBalances.anvil2.gt(initialBalances.anvil2),
+      'Destination router balance should increase',
+    ).to.be.true;
+    expect(
+      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    for (const chain of neutralChains) {
+      expect(
+        finalBalances[chain].eq(initialBalances[chain]),
+        `Uninvolved router (${chain}) balance should remain unchanged`,
+      ).to.be.true;
     }
   });
 
-  it('should include SVM chain in strategy evaluation and execute rebalancing cycle', async function () {
-    const context = await buildMixedTestContext({
-      manager,
+  // ── Scenario 2 ──
+
+  it('handles partial deposit, bridges inventory, then completes final deposit', async function () {
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_PARTIAL_ANVIL2')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    const initialBalances = await getMixedRouterBalances(
+      localProviders,
       evmAddresses,
-      svmAddresses,
-      svmPrivateKey,
-      logger,
-    });
-
-    // Get SVM balance before cycle
-    const connection = manager.getSvmChainManager().getConnection();
-    const svmBalanceBefore = await connection.getBalance(
-      new PublicKey(svmAddresses.warpTokenAta),
-    );
-    logger.info(
-      { svmBalanceBefore },
-      'SVM warp route ATA balance before cycle',
-    );
-
-    // Run monitor to get token balances across all 4 chains
-    const monitor = context.createMonitor(0);
-    const event = await getFirstMonitorEvent(monitor);
-
-    // Verify the monitor sees all 4 chains (3 EVM + 1 SVM)
-    const chainNames = event.tokensInfo.map((t) => t.token.chainName);
-    expect(chainNames).to.include('anvil1');
-    expect(chainNames).to.include('anvil2');
-    expect(chainNames).to.include('anvil3');
-    expect(chainNames).to.include(SVM_CHAIN_NAME);
-    logger.info({ chainNames }, 'Monitor reported balances for chains');
-
-    // Execute full rebalancing cycle
-    const result = await context.orchestrator.executeCycle(event);
-
-    // Strategy should propose routes (anvil1 is below min)
-    expect(result.proposedRoutes.length).to.be.greaterThan(0);
-    logger.info(
-      {
-        routes: result.proposedRoutes.map((r: StrategyRoute) => ({
-          origin: r.origin,
-          destination: r.destination,
-          amount: r.amount.toString(),
-        })),
-      },
-      'Proposed rebalancing routes',
-    );
-
-    // Verify balances were read for all chains including SVM
-    expect(Object.keys(result.balances)).to.include(SVM_CHAIN_NAME);
-    // SVM router balance is 0 (no collateral deposited yet) — that's expected.
-    // The key proof is that the strategy SAW sealeveltest1 and included it in evaluation.
-    expect(result.balances[SVM_CHAIN_NAME]).to.equal(BigInt(0));
-
-    // The deficit chain should be anvil1 (balance 0, min 1)
-    const anvil1Route = result.proposedRoutes.find(
-      (r: StrategyRoute) => r.destination === 'anvil1',
-    );
-    expect(anvil1Route, 'Should propose route TO deficit chain anvil1').to
-      .exist;
-
-    // Strategy should also propose a route TO SVM chain (it's in deficit too)
-    const svmRoute = result.proposedRoutes.find(
-      (r: StrategyRoute) => r.destination === SVM_CHAIN_NAME,
-    );
-    expect(svmRoute, 'Should propose route TO SVM deficit chain').to.exist;
-
-    // executedCount only tracks movableCollateral routes, not inventory.
-    // For inventory routes, the proof is the transferRemote tx confirmation
-    // logged above. Verify no failures occurred:
-    expect(result.failedCount).to.equal(0);
-  });
-
-  it('should rebalance EVM deficit via SVM bridge and transferRemote SVM\u2192EVM', async function () {
-    const preset = buildMixedBalancePreset('evm-deficit');
-    const context = await new MixedTestRebalancerBuilder(logger)
-      .withManager(manager)
-      .withEvmAddresses(evmAddresses)
-      .withSvmAddresses(svmAddresses)
-      .withSvmPrivateKey(svmPrivateKey)
-      .withStrategyConfig(buildMixedStrategyConfig())
-      .withEvmBalances(preset.evmBalances)
-      .withSvmBalance(preset.svmLamports)
-      .build();
-
-    const connection = manager.getSvmChainManager().getConnection();
-    const svmBalanceBefore = await getSvmWarpRouteBalance(
-      connection,
+      svmConnection,
       svmAddresses.warpTokenAta,
     );
-    // fundWarpRoute is additive (SOL transfer), not absolute like anvil_setBalance.
-    // ATA balance accumulates across tests. Just verify it has funds.
+
+    // Cycle 1: partial deposit from limited signer balance on anvil2
+    await executeCycle(context);
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    const partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].completedAmount > 0n).to.be.true;
+    expect(partialIntents[0].remaining > 0n).to.be.true;
     expect(
-      svmBalanceBefore > 0n,
-      'SVM ATA should have funds (additive across tests)',
-    ).to.be.true;
+      partialIntents[0].completedAmount + partialIntents[0].remaining,
+    ).to.equal(expectedDeficit);
+    expect(partialIntents[0].intent.amount).to.equal(expectedDeficit);
+    expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil2);
 
-    // Run monitor to get token balances across all 4 chains
-    const monitor = context.createMonitor(0);
-    const event = await getFirstMonitorEvent(monitor);
-
-    // Verify the monitor sees all 4 chains
-    const chainNames = event.tokensInfo.map((t) => t.token.chainName);
-    expect(chainNames).to.include('anvil1');
-    expect(chainNames).to.include(SVM_CHAIN_NAME);
-
-    // Execute full rebalancing cycle
-    const result = await context.orchestrator.executeCycle(event);
-
-    // Strategy should propose a route to the deficit chain (anvil1 has 0 ETH)
-    expect(result.proposedRoutes.length).to.be.greaterThan(0);
-    const anvil1Route = result.proposedRoutes.find(
-      (r: StrategyRoute) => r.destination === 'anvil1',
+    const deposits = await context.tracker.getActionsForIntent(
+      partialIntents[0].intent.id,
     );
-    expect(anvil1Route, 'Should propose route TO deficit chain anvil1').to
-      .exist;
+    expect(deposits.length).to.equal(1);
+    expect(deposits[0].type).to.equal('inventory_deposit');
+    expect(deposits[0].origin).to.equal(DOMAIN_IDS.anvil2);
+    expect(deposits[0].amount).to.equal(partialIntents[0].completedAmount);
 
-    // No failures during cycle execution
-    expect(result.failedCount).to.equal(0);
+    // Cycle 2: bridge movement from another chain
+    await executeCycle(context);
 
-    // Relay any SVM\u2192EVM messages that were dispatched during the cycle
-    const evmCtx = manager.getEvmDeploymentManager().getContext();
-    const relayedCount = await relaySvmToEvmMessages({
-      connection,
-      mailboxProgramId: new PublicKey(MAILBOX_PROGRAM_ID),
-      evmMailboxAddresses: {
-        anvil1: evmAddresses.chains.anvil1.mailbox,
-        anvil2: evmAddresses.chains.anvil2.mailbox,
-        anvil3: evmAddresses.chains.anvil3.mailbox,
-      },
-      evmProviders: evmCtx.providers,
-      evmDomainToChain: {
-        [DOMAIN_IDS.anvil1]: 'anvil1',
-        [DOMAIN_IDS.anvil2]: 'anvil2',
-        [DOMAIN_IDS.anvil3]: 'anvil3',
-      },
-      logger,
+    const preSync = await context.tracker.getInProgressActions();
+    expect(preSync.length).to.equal(1);
+    const preSyncMovement = preSync.find(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(preSyncMovement).to.exist;
+    expect(preSyncMovement!.status).to.equal('in_progress');
+
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
     });
-    logger.info({ relayedCount }, 'SVM\u2192EVM relay complete');
-    // relayedCount === 0: the evm-deficit scenario routes through EVM-only
-    // paths (transferRemote from EVM chains), so no SVM Mailbox dispatch occurs.
-    expect(relayedCount).to.equal(0);
+
+    const movementState = await context.tracker.getRebalanceAction(
+      preSyncMovement!.id,
+    );
+    expect(movementState?.status).to.equal('complete');
+
+    const activeIntent = partialIntents[0].intent;
+    const actionsAfterBridge = await context.tracker.getActionsForIntent(
+      activeIntent.id,
+    );
+    expect(actionsAfterBridge.length).to.equal(2);
+    const movementAction = actionsAfterBridge.find(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(movementAction).to.exist;
+    expect(movementAction!.origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(movementAction!.destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(movementAction!.status).to.equal('complete');
+    expect(movementAction!.amount >= partialIntents[0].remaining).to.be.true;
+
+    // Cycle 3: final deposit completes the intent
+    await executeCycle(context);
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    const completedIntent = await context.tracker.getRebalanceIntent(
+      activeIntent.id,
+    );
+    expect(completedIntent!.status).to.equal('complete');
+
+    const partialAfterFinalCycle =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialAfterFinalCycle.length).to.equal(0);
+    const finalActions = await context.tracker.getActionsForIntent(
+      activeIntent.id,
+    );
+    expect(finalActions.length).to.equal(3);
+    const allDeposits = finalActions.filter(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(allDeposits.length).to.equal(2);
+    const totalDeposited = allDeposits.reduce((sum, a) => sum + a.amount, 0n);
+    expect(totalDeposited).to.equal(activeIntent.amount);
+
+    const finalBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+
+    const { surplusChain, neutralChains } = classifyMixedChains(
+      'anvil2',
+      allDeposits[0],
+      ALL_MIXED_CHAINS,
+    );
+
+    expect(
+      finalBalances.anvil2.gt(initialBalances.anvil2),
+      'Destination router balance should increase',
+    ).to.be.true;
+    expect(
+      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    for (const chain of neutralChains) {
+      expect(
+        finalBalances[chain].eq(initialBalances[chain]),
+        `Uninvolved router (${chain}) balance should remain unchanged`,
+      ).to.be.true;
+    }
   });
 
-  it('should rebalance SVM deficit via EVM bridge and deposit on SVM', async function () {
-    const preset = buildMixedBalancePreset('svm-deficit');
-    const context = await new MixedTestRebalancerBuilder(logger)
+  // ── Scenario 3 ──
+
+  it('loops across multiple cycles with partial fills before final completion', async function () {
+    const context = await new MixedTestRebalancerBuilder()
       .withManager(manager)
       .withEvmAddresses(evmAddresses)
       .withSvmAddresses(svmAddresses)
       .withSvmPrivateKey(svmPrivateKey)
       .withStrategyConfig(buildMixedStrategyConfig())
-      .withEvmBalances(preset.evmBalances)
-      .withSvmBalance(preset.svmLamports)
+      .withBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_LOW_ALL')
+      .withMockExternalBridge(mockBridge)
       .build();
 
-    const connection = manager.getSvmChainManager().getConnection();
-    const svmBalanceBefore = await getSvmWarpRouteBalance(
-      connection,
+    // Cycle 1: partial deposit from local signer inventory on anvil2
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    let activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
+    const targetIntentId = activeIntents[0].id;
+
+    let partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].completedAmount > 0n).to.be.true;
+    expect(partialIntents[0].remaining > 0n).to.be.true;
+    expect(
+      partialIntents[0].completedAmount + partialIntents[0].remaining,
+    ).to.equal(expectedDeficit);
+    const c1Amount = partialIntents[0].completedAmount;
+
+    let actions = await context.tracker.getActionsForIntent(targetIntentId);
+    let movementActions = actions.filter(
+      (a) => a.type === 'inventory_movement',
+    );
+    let depositActions = actions.filter((a) => a.type === 'inventory_deposit');
+    expect(actions.length).to.equal(1);
+    expect(movementActions.length).to.equal(0);
+    expect(depositActions.length).to.equal(1);
+
+    // Cycle 2: bridge movements from other chains
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(1);
+    expect(
+      partialIntents[0].completedAmount + partialIntents[0].remaining,
+    ).to.equal(expectedDeficit);
+    expect(partialIntents[0].completedAmount).to.equal(c1Amount);
+
+    actions = await context.tracker.getActionsForIntent(targetIntentId);
+    movementActions = actions.filter((a) => a.type === 'inventory_movement');
+    depositActions = actions.filter((a) => a.type === 'inventory_deposit');
+    expect(actions.length).to.equal(3);
+    expect(movementActions.length).to.equal(2);
+    expect(depositActions.length).to.equal(1);
+    const origins = new Set(movementActions.map((a) => a.origin));
+    expect(origins.has(DOMAIN_IDS.anvil1)).to.be.true;
+    expect(origins.has(DOMAIN_IDS.anvil3)).to.be.true;
+    movementActions.forEach((a) => {
+      expect(a.destination).to.equal(DOMAIN_IDS.anvil2);
+      expect(a.status).to.equal('complete');
+    });
+
+    // Cycle 3: final deposit covers remaining amount — intent completes
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(0);
+    partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(0);
+
+    actions = await context.tracker.getActionsForIntent(targetIntentId);
+    movementActions = actions.filter((a) => a.type === 'inventory_movement');
+    depositActions = actions.filter((a) => a.type === 'inventory_deposit');
+    expect(actions.length).to.equal(4);
+    expect(movementActions.length).to.equal(2);
+    expect(depositActions.length).to.equal(2);
+
+    const finalIntent =
+      await context.tracker.getRebalanceIntent(targetIntentId);
+    expect(finalIntent!.status).to.equal('complete');
+  });
+
+  // ── Scenario 4 ──
+
+  it('retries after bridge execution failure', async function () {
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_FUNDED_ANVIL1')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    const initialBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
       svmAddresses.warpTokenAta,
     );
-    // fundWarpRoute(0) is a no-op — ATA retains balance from prior tests.
-    // The strategy still detects SVM as deficit because ~20 SOL ≈ 0.5 ETH < min 1 ETH.
-    logger.info({ svmBalanceBefore }, 'SVM ATA balance before cycle');
 
-    // Run monitor to get token balances across all 4 chains
-    const monitor = context.createMonitor(0);
-    const event = await getFirstMonitorEvent(monitor);
+    // Cycle 1: Bridge fails — intent created but stays not_started, no actions
+    mockBridge.failNextExecute();
+    await executeCycle(context);
 
-    // Verify the monitor sees all 4 chains
-    const chainNames = event.tokensInfo.map((t) => t.token.chainName);
-    expect(chainNames).to.include(SVM_CHAIN_NAME);
-    expect(chainNames).to.include('anvil1');
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(0);
 
-    // Execute full rebalancing cycle
-    const result = await context.orchestrator.executeCycle(event);
+    const partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].intent.status).to.equal('not_started');
+    expect(partialIntents[0].completedAmount).to.equal(0n);
+    expect(partialIntents[0].remaining).to.equal(expectedDeficit);
 
-    // Strategy should propose a route to the SVM deficit chain (0 SOL)
-    expect(result.proposedRoutes.length).to.be.greaterThan(0);
-    const svmRoute = result.proposedRoutes.find(
-      (r: StrategyRoute) => r.destination === SVM_CHAIN_NAME,
+    const intentId = partialIntents[0].intent.id;
+    const actionsAfterFailure =
+      await context.tracker.getActionsForIntent(intentId);
+    expect(actionsAfterFailure.length).to.equal(0);
+
+    // Cycle 2: Bridge succeeds — creates movement, intent becomes in_progress
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
     );
-    expect(svmRoute, 'Should propose route TO SVM deficit chain').to.exist;
 
-    // SVM balance is below min threshold (0.5 ETH < 1 ETH min)
-    // The route to SVM was proposed, confirming deficit detection
+    const cycle2Active = await context.tracker.getActiveRebalanceIntents();
+    expect(cycle2Active.length).to.equal(1);
+    const cycle2Partial =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(cycle2Partial.length).to.equal(1);
 
-    // No failures during cycle execution
-    expect(result.failedCount).to.equal(0);
+    const cycle2Actions = await context.tracker.getActionsForIntent(intentId);
+    expect(cycle2Actions.length).to.equal(1);
+    const movementAction = cycle2Actions.find(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(movementAction).to.exist;
+    expect(movementAction!.status).to.equal('complete');
+
+    const cycle2Intent = await context.tracker.getRebalanceIntent(intentId);
+    expect(cycle2Intent!.status).to.equal('in_progress');
+
+    // Cycle 3: Deposit completes the intent
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    const completedIntent = await context.tracker.getRebalanceIntent(intentId);
+    expect(completedIntent!.status).to.equal('complete');
+
+    const finalActions = await context.tracker.getActionsForIntent(intentId);
+    expect(finalActions.length).to.equal(2);
+    const finalMovement = finalActions.find(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(finalMovement).to.exist;
+    const depositAction = finalActions.find(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(depositAction).to.exist;
+
+    const finalBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+    const { surplusChain, neutralChains } = classifyMixedChains(
+      'anvil2',
+      depositAction!,
+      ALL_MIXED_CHAINS,
+    );
+
+    expect(
+      finalBalances.anvil2.gt(initialBalances.anvil2),
+      'Destination router balance should increase',
+    ).to.be.true;
+    expect(
+      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    for (const chain of neutralChains) {
+      expect(
+        finalBalances[chain].eq(initialBalances[chain]),
+        `Uninvolved router (${chain}) balance should remain unchanged`,
+      ).to.be.true;
+    }
+  });
+
+  // ── Scenario 5 ──
+
+  it('enforces single active inventory intent when multiple deficit chains exist', async function () {
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_MULTI_DEFICIT')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    const initialBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+
+    // Cycle 1: first intent for anvil2
+    await executeCycle(context);
+
+    let activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
+    const firstIntentId = activeIntents[0].id;
+
+    const partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].hasInflightDeposit).to.equal(true);
+
+    const actions = await context.tracker.getActionsForIntent(firstIntentId);
+    expect(actions.length).to.equal(1);
+    expect(
+      actions.filter((a) => a.type === 'inventory_movement').length,
+    ).to.equal(0);
+    expect(
+      actions.filter((a) => a.type === 'inventory_deposit').length,
+    ).to.equal(1);
+
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    const completedFirstIntent =
+      await context.tracker.getRebalanceIntent(firstIntentId);
+    expect(completedFirstIntent!.status).to.equal('complete');
+
+    const depositAction = actions.find((a) => a.type === 'inventory_deposit');
+    const midBalances = await getMixedRouterBalances(
+      localProviders,
+      evmAddresses,
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+    const { surplusChain, neutralChains } = classifyMixedChains(
+      'anvil2',
+      depositAction!,
+      ALL_MIXED_CHAINS,
+    );
+
+    expect(
+      midBalances.anvil2.gt(initialBalances.anvil2),
+      'Deficit router (anvil2) balance should increase',
+    ).to.be.true;
+    expect(
+      midBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    for (const chain of neutralChains) {
+      expect(
+        midBalances[chain].eq(initialBalances[chain]),
+        `Uninvolved router (${chain}) balance should remain unchanged`,
+      ).to.be.true;
+    }
+
+    // Cycle 2: second intent for anvil3
+    await executeCycle(context);
+    activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
+  });
+
+  // ── Scenario 6 ──
+
+  it('uses multiple bridge movements from different sources before completing deposit', async function () {
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_SPLIT_SOURCES')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    // Cycle 1: creates intent + both bridge movements from anvil1 and anvil3
+    await executeCycle(context);
+
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
+    const intentId = activeIntents[0].id;
+
+    // Sync: both movements should be complete after a single cycle
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    let actions = await context.tracker.getActionsForIntent(intentId);
+    expect(actions.length).to.equal(2);
+    const movementActions = actions.filter(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(movementActions.length).to.equal(2);
+
+    // Verify movements from different sources, both targeting anvil2
+    const origins = new Set(movementActions.map((a) => a.origin));
+    expect(origins.has(DOMAIN_IDS.anvil1)).to.be.true;
+    expect(origins.has(DOMAIN_IDS.anvil3)).to.be.true;
+    movementActions.forEach((a) => {
+      expect(a.destination).to.equal(DOMAIN_IDS.anvil2);
+      expect(a.status).to.equal('complete');
+    });
+
+    // Cycle 2: deposit from bridged funds completes the intent
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    const finalActiveIntents =
+      await context.tracker.getActiveRebalanceIntents();
+    expect(finalActiveIntents.length).to.equal(0);
+    const partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(0);
+
+    actions = await context.tracker.getActionsForIntent(intentId);
+    expect(actions.length).to.equal(3);
+    expect(
+      actions.filter((a) => a.type === 'inventory_movement').length,
+    ).to.equal(2);
+    expect(
+      actions.filter((a) => a.type === 'inventory_deposit').length,
+    ).to.equal(1);
+
+    const finalIntent = await context.tracker.getRebalanceIntent(intentId);
+    expect(finalIntent!.status).to.equal('complete');
   });
 });
