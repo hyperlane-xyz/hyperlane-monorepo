@@ -1,5 +1,20 @@
 # @hyperlane-xyz/relayer
 
+## 1.1.8
+
+### Patch Changes
+
+- 5d69cc8: ccipread revert data extraction was hardened with BFS traversal, isRecord type guard, minimum 64-byte hex threshold, and iteration guard. Relay catch block now logs the error object. Governor SAFE retry was moved to per-batch level to prevent duplicate proposals, and errors are now re-thrown after logging.
+- Updated dependencies [f2620a1]
+- Updated dependencies [f7ebf6c]
+- Updated dependencies [8a6f742]
+- Updated dependencies [b05e242]
+- Updated dependencies [aee625c]
+  - @hyperlane-xyz/sdk@27.0.0
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/metrics@0.2.1
+  - @hyperlane-xyz/utils@27.0.0
+
 ## 1.1.7
 
 ### Patch Changes

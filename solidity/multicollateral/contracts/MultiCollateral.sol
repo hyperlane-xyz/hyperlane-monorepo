@@ -43,6 +43,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.UintSet;
 
     // ============ Events ============
 
@@ -54,6 +55,10 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     /// @notice Additional enrolled routers by domain (beyond the standard
     /// enrolled remote router). Local routers use localDomain as key.
     mapping(uint32 => EnumerableSet.Bytes32Set) private _enrolledRouters;
+
+    /// @notice Tracks which domains have at least one MC-enrolled router,
+    /// enabling on-chain enumeration for the SDK reader.
+    EnumerableSet.UintSet private _enrolledDomains;
 
     // ============ Constructor ============
 
@@ -73,6 +78,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         require(_domains.length == _routers.length, "MC: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
             if (_enrolledRouters[_domains[i]].add(_routers[i])) {
+                _enrolledDomains.add(uint256(_domains[i]));
                 emit RouterEnrolled(_domains[i], _routers[i]);
             }
         }
@@ -85,6 +91,9 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         require(_domains.length == _routers.length, "MC: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
             if (_enrolledRouters[_domains[i]].remove(_routers[i])) {
+                if (_enrolledRouters[_domains[i]].length() == 0) {
+                    _enrolledDomains.remove(uint256(_domains[i]));
+                }
                 emit RouterUnenrolled(_domains[i], _routers[i]);
             }
         }
@@ -105,6 +114,50 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         return _enrolledRouters[_domain].values();
     }
 
+    /// @notice Returns all domains that have at least one MC-enrolled router.
+    function getEnrolledDomains()
+        external
+        view
+        returns (uint32[] memory domains)
+    {
+        uint256 len = _enrolledDomains.length();
+        domains = new uint32[](len);
+        for (uint256 i = 0; i < len; i++) {
+            domains[i] = uint32(_enrolledDomains.at(i));
+        }
+    }
+
+    // ============ Destination Gas Override ============
+
+    /// @dev Overrides GasRouter._setDestinationGas to also accept MC-enrolled
+    /// domains (not just default Router._routers). Excludes localDomain since
+    /// same-chain transfers skip mailbox dispatch.
+    function _setDestinationGas(uint32 domain, uint256 gas) internal override {
+        require(domain != localDomain, "MC: no gas for local domain");
+        require(
+            routers(domain) != bytes32(0) ||
+                _enrolledRouters[domain].length() > 0,
+            "MC: domain has no routers"
+        );
+        destinationGas[domain] = gas;
+        emit GasSet(domain, gas);
+    }
+
+    // ============ Internal Helpers ============
+
+    /// @dev Reverts unless `_router` is enrolled for `_domain` (either via the
+    /// standard Router._routers map or via the MC-specific _enrolledRouters set).
+    function _requireAuthorizedRouter(
+        uint32 _domain,
+        bytes32 _router
+    ) internal view {
+        require(
+            _isRemoteRouter(_domain, _router) ||
+                _enrolledRouters[_domain].contains(_router),
+            "MC: unauthorized router"
+        );
+    }
+
     // ============ Handle Override ============
 
     /// @dev Overrides `Router.handle` from core (`client/Router.sol`) via
@@ -119,11 +172,7 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
     ) external payable override {
         if (msg.sender == address(mailbox)) {
             // Cross-chain via mailbox: sender must be enrolled
-            require(
-                _isRemoteRouter(_origin, _sender) ||
-                    _enrolledRouters[_origin].contains(_sender),
-                "MC: unauthorized router"
-            );
+            _requireAuthorizedRouter(_origin, _sender);
         } else {
             // Same-chain direct call: caller must be an enrolled router
             require(
@@ -197,11 +246,12 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         // Same-domain transferRemoteTo calls handle() directly and does not dispatch
         // through mailbox hooks, so do not charge hook fees in that path.
         if (_feeHook != address(0) && _destination != localDomain) {
-            uint256 hookFee = _quoteGasPayment(
+            uint256 hookFee = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
-                _amount,
-                _token
+                _outboundAmount(_amount),
+                _token,
+                _targetRouter
             );
             if (hookFee > 0) {
                 if (_token != address(this)) {
@@ -263,12 +313,10 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount,
         bytes32 _targetRouter
     ) public payable returns (bytes32 messageId) {
-        require(
-            _isRemoteRouter(_destination, _targetRouter) ||
-                _enrolledRouters[_destination].contains(_targetRouter),
-            "MC: unauthorized router"
-        );
+        _requireAuthorizedRouter(_destination, _targetRouter);
         if (_destination == localDomain) {
+            // Local transfers call handle() directly without mailbox dispatch,
+            // so any msg.value would be stuck in this contract permanently.
             require(msg.value == 0, "MC: local transfer no msg.value");
         }
 
@@ -317,17 +365,26 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
         uint256 _amount,
         bytes32 _targetRouter
     ) external view override returns (Quote[] memory quotes) {
+        _requireAuthorizedRouter(_destination, _targetRouter);
+        if (_destination == localDomain) {
+            require(
+                _targetRouter.bytes32ToAddress().code.length > 0,
+                "MC: target router not contract"
+            );
+        }
+
         quotes = new Quote[](3);
 
         // Same-domain: handle() called directly, no interchain gas
         uint256 gasQuote = 0;
         address _feeToken = feeToken();
         if (_destination != localDomain) {
-            gasQuote = _quoteGasPayment(
+            gasQuote = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
                 _outboundAmount(_amount),
-                _feeToken
+                _feeToken,
+                _targetRouter
             );
         }
         quotes[0] = Quote({token: _feeToken, amount: gasQuote});
@@ -345,5 +402,24 @@ contract MultiCollateral is HypERC20Collateral, IMultiCollateralFee {
             token: token(),
             amount: _externalFeeAmount(_destination, _recipient, _amount)
         });
+    }
+
+    /// @dev Target-router-aware gas quote helper. Avoids Router._mustHaveRemoteRouter().
+    /// Caller must validate `_targetRouter` is authorized for `_destination`.
+    function _quoteGasPaymentTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        address _feeToken,
+        bytes32 _targetRouter
+    ) internal view returns (uint256) {
+        return
+            mailbox.quoteDispatch(
+                _destination,
+                _targetRouter,
+                TokenMessage.format(_recipient, _amount),
+                _generateHookMetadata(_destination, _feeToken),
+                IPostDispatchHook(address(hook))
+            );
     }
 }

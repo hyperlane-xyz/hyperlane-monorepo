@@ -7,7 +7,9 @@ import Sinon, { type SinonStubbedInstance } from 'sinon';
 import {
   type ChainName,
   type MultiProvider,
+  ProviderType,
   TokenStandard,
+  WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -50,10 +52,14 @@ describe('InventoryRebalancer E2E', () => {
   beforeEach(() => {
     // Config
     config = {
-      inventorySigner: INVENTORY_SIGNER,
+      inventorySigners: {
+        [ProtocolType.Ethereum]: {
+          address: INVENTORY_SIGNER,
+          key: TEST_PRIVATE_KEY,
+        },
+      },
       inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
-      // inventoryMultiProvider set below after multiProvider is initialized
-    } as unknown as InventoryRebalancerConfig;
+    };
 
     // Mock IActionTracker
     actionTracker = {
@@ -136,12 +142,22 @@ describe('InventoryRebalancer E2E', () => {
       multiProvider: {
         getProvider: Sinon.stub(),
         getSigner: Sinon.stub(),
+        getChainMetadata: Sinon.stub().callsFake((chain: ChainName) => ({
+          name: chain,
+          protocol: ProtocolType.Ethereum,
+        })),
+        getEthersV5Provider: Sinon.stub().returns({
+          getTransactionReceipt: Sinon.stub().resolves({
+            transactionHash: '0xTransferRemoteTxHash',
+            logs: [],
+          }),
+        }),
       },
       findToken: Sinon.stub().returns(null),
       getTransferRemoteTxs: Sinon.stub().resolves([
         {
           category: 'transfer',
-          type: 'ethersV5',
+          type: ProviderType.EthersV5,
           transaction: {
             to: '0xRouterAddress',
             data: '0xTransferRemoteData',
@@ -187,16 +203,22 @@ describe('InventoryRebalancer E2E', () => {
         protocol: ProtocolType.Ethereum,
         blocks: { reorgPeriod: 1 }, // Quick confirmations for tests
       })),
+      getProtocol: Sinon.stub().callsFake((_: ChainName) => {
+        // Return Ethereum protocol for all chains in tests
+        return 'ethereum';
+      }),
       getProvider: Sinon.stub().returns(mockProvider),
       getSigner: Sinon.stub().returns(TEST_WALLET),
       sendTransaction: Sinon.stub().resolves({
         transactionHash: '0xTransferRemoteTxHash',
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
       }),
+      setSigner: Sinon.stub(),
     };
 
-    // Assign inventoryMultiProvider AFTER multiProvider is initialized
-    config.inventoryMultiProvider = multiProvider;
+    // Wire toMultiProvider so EvmMultiProtocolSignerAdapter returns our mock multiProvider
+    warpCore.multiProvider.toMultiProvider =
+      Sinon.stub().returns(multiProvider);
 
     // Create InventoryRebalancer
     inventoryRebalancer = new InventoryRebalancer(
@@ -318,6 +340,61 @@ describe('InventoryRebalancer E2E', () => {
       expect(txParams.sender).to.equal(INVENTORY_SIGNER);
       expect(txParams.recipient).to.equal(INVENTORY_SIGNER);
       expect(txParams.originTokenAmount.amount).to.equal(5000000000n);
+    });
+
+    it('uses IMultiProtocolSigner path for solana transfer txs', async () => {
+      const route = createTestRoute({ amount: 5000000000n });
+      createTestIntent({ amount: 5000000000n });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 5000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      config.inventorySigners[ProtocolType.Sealevel] = {
+        address: INVENTORY_SIGNER,
+        key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
+      };
+
+      warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+        name: chain,
+        protocol:
+          chain === SOLANA_CHAIN
+            ? ProtocolType.Sealevel
+            : ProtocolType.Ethereum,
+        blocks: { reorgPeriod: 1 },
+      }));
+
+      const sendAndConfirmStub = Sinon.stub(
+        InventoryRebalancer.prototype as any,
+        'sendAndConfirmInventoryTx',
+      ).resolves({ txHash: '0xSolanaTxHash' });
+
+      warpCore.multiProvider.getSolanaWeb3Provider = Sinon.stub().returns({
+        getTransaction: Sinon.stub().resolves({
+          meta: { logMessages: [] },
+        }),
+      });
+
+      multiProvider.sendTransaction.resetHistory();
+      warpCore.getTransferRemoteTxs.resolves([
+        {
+          category: WarpTxCategory.Transfer,
+          type: ProviderType.SolanaWeb3,
+          transaction: {} as any,
+        },
+      ]);
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(sendAndConfirmStub.calledOnce).to.be.true;
+      expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
+      expect(multiProvider.sendTransaction.called).to.be.false;
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.txHash).to.equal('0xSolanaTxHash');
     });
   });
 
@@ -608,13 +685,17 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('Gas quote failed');
     });
 
-    it('throws when signer is not a Wallet instance', async () => {
-      multiProvider.getSigner = Sinon.stub().returns({
-        getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
-      });
+    it('throws when inventory signer key is missing', async () => {
+      // Config without signer keys (no key field)
+      const configWithoutKeys: InventoryRebalancerConfig = {
+        inventorySigners: {
+          [ProtocolType.Ethereum]: { address: INVENTORY_SIGNER },
+        },
+        inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
+      };
 
       inventoryRebalancer = new InventoryRebalancer(
-        config,
+        configWithoutKeys,
         actionTracker as unknown as IActionTracker,
         { lifi: bridge as unknown as IExternalBridge },
         warpCore as unknown as WarpCore,
@@ -641,7 +722,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Wallet');
+      expect(results[0].error).to.include('Missing inventory signer key');
       expect(bridge.execute.called).to.be.false;
     });
   });

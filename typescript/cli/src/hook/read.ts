@@ -42,7 +42,10 @@ export async function readHookConfig({
     }
     default: {
       const metadata = context.multiProvider.getChainMetadata(chain);
-      const hookReader = createHookReader(metadata, context.multiProvider);
+      const addresses = await context.registry.getChainAddresses(chain);
+      const hookReader = createHookReader(metadata, context.multiProvider, {
+        mailbox: addresses?.mailbox,
+      });
       const config = await hookReader.deriveHookConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

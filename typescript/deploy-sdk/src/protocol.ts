@@ -32,6 +32,12 @@ export async function loadProtocolProviders(
         registerProtocol(protocol, () => new AleoProtocolProvider());
         break;
       }
+      case ProtocolType.Sealevel: {
+        const { SealevelProtocolProvider } =
+          await import('@hyperlane-xyz/sealevel-sdk');
+        registerProtocol(protocol, () => new SealevelProtocolProvider());
+        break;
+      }
     }
   }
 }

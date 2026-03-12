@@ -34,7 +34,7 @@ export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
-  inventorySignerAddress?: Address; // Optional - for excluding inventory signer from user transfers query
+  inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
   intentTTL: number; // Max age in ms before in-progress intent is expired
 }
 
@@ -74,7 +74,7 @@ export class ActionTracker implements IActionTracker {
           bridges: this.config.bridges,
           routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
-          inventorySignerAddress: this.config.inventorySignerAddress,
+          inventorySignerAddresses: this.config.inventorySignerAddresses,
         },
         this.logger,
       );
@@ -107,8 +107,8 @@ export class ActionTracker implements IActionTracker {
 
     // Build list of addresses to exclude (rebalancer + optional inventory signer)
     const excludeTxSenders = [this.config.rebalancerAddress];
-    if (this.config.inventorySignerAddress) {
-      excludeTxSenders.push(this.config.inventorySignerAddress);
+    if (this.config.inventorySignerAddresses) {
+      excludeTxSenders.push(...this.config.inventorySignerAddresses);
     }
 
     const inflightMessages = await this.explorerClient.getInflightUserTransfers(
@@ -279,7 +279,7 @@ export class ActionTracker implements IActionTracker {
           bridges: this.config.bridges,
           routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
-          inventorySignerAddress: this.config.inventorySignerAddress,
+          inventorySignerAddresses: this.config.inventorySignerAddresses,
         },
         this.logger,
       );

@@ -29,6 +29,7 @@ import {
   Address,
   addressToBytes32,
   assert,
+  isNullish,
   isObjEmpty,
   mapAllSettled,
   mustGet,
@@ -95,6 +96,18 @@ export function validateWarpConfigForAltVM(
     );
   }
 
+  let scale: number | undefined;
+  if (typeof config.scale === 'number') {
+    scale = config.scale;
+  } else if (!isNullish(config.scale)) {
+    assert(
+      Number(config.scale.denominator) !== 0,
+      'scale denominator must be non-zero',
+    );
+
+    scale = Number(config.scale.numerator) / Number(config.scale.denominator);
+  }
+
   const baseConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -105,6 +118,7 @@ export function validateWarpConfigForAltVM(
     hook: config.hook as ProviderHookConfig | string | undefined,
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
+    scale,
   };
 
   if (config.type === TokenType.collateral) {
@@ -126,6 +140,7 @@ export function validateWarpConfigForAltVM(
       name: config.name,
       symbol: config.symbol,
       decimals: config.decimals,
+      metadataUri: config.metadataUri,
     };
     return result;
   } else {

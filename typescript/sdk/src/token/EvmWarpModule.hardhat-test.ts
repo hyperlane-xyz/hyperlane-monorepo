@@ -13,6 +13,7 @@ import {
   ERC4626Test,
   ERC4626Test__factory,
   GasRouter,
+  GasRouter__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
@@ -70,6 +71,7 @@ import {
   isMovableCollateralTokenType,
 } from './config.js';
 import {
+  DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
@@ -963,6 +965,100 @@ describe('EvmWarpModule', async () => {
       expect(unenrollRouters[0].toLowerCase()).to.equal(
         removeRouter.toLowerCase(),
       );
+    });
+
+    it('includes MC enrolledRouters domains in destination gas txs', async () => {
+      const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+      const enrolledRouter = addressToBytes32(
+        '0x4444444444444444444444444444444444444444',
+      );
+
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.multiCollateral,
+          token: token.address,
+        } as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: randomAddress(),
+        },
+      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+      const actualConfig = {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        destinationGas: {},
+        enrolledRouters: {
+          [destinationDomain]: [enrolledRouter],
+        },
+      } as DerivedTokenRouterConfig;
+
+      // Config has destinationGas for test2, but no remoteRouters — only enrolledRouters
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        enrolledRouters: {
+          [TestChainName.test2]: [enrolledRouter],
+        },
+        destinationGas: {
+          [TestChainName.test2]: '200000',
+        },
+      } as HypTokenRouterConfig;
+
+      const gasTxs = module.createSetDestinationGasUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      );
+
+      // Should produce a tx (not throw) even without remoteRouters
+      expect(gasTxs.length).to.equal(1);
+
+      // Should use standard setDestinationGas (MC overrides _setDestinationGas)
+      const gasRouterIface = GasRouter__factory.createInterface();
+      const decoded = gasRouterIface.decodeFunctionData(
+        'setDestinationGas((uint32,uint256)[])',
+        gasTxs[0].data!,
+      );
+      expect(decoded[0].length).to.equal(1);
+      expect(decoded[0][0].domain).to.equal(destinationDomain);
+      expect(decoded[0][0].gas.toString()).to.equal('200000');
+    });
+
+    it('throws when destinationGas set but no remoteRouters or enrolledRouters', async () => {
+      const module = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.collateral,
+          token: token.address,
+        } as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: randomAddress(),
+        },
+      } as ConstructorParameters<typeof EvmWarpModule>[1]);
+
+      const actualConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        destinationGas: {},
+      } as DerivedTokenRouterConfig;
+
+      const expectedConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        destinationGas: {
+          [TestChainName.test2]: '200000',
+        },
+      } as HypTokenRouterConfig;
+
+      expect(() =>
+        module.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
+      ).to.throw(/remoteRouters and enrolledRouters are empty/);
     });
 
     it('should update the owner only if they are different', async () => {

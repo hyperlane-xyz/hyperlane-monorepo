@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { pino } from 'pino';
 
 import type { LiFiStep } from '@lifi/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -17,6 +18,20 @@ const TEST_PRIVATE_KEY =
 
 const BRIDGE_CONFIG: ExternalBridgeConfig = {
   integrator: 'test-rebalancer',
+};
+
+const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
+  integrator: 'test-rebalancer',
+  chainMetadata: {
+    solana: {
+      chainId: 1399811149,
+      protocol: ProtocolType.Sealevel,
+      name: 'solana',
+      displayName: 'Solana',
+      domainId: 1399811149,
+      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+    },
+  },
 };
 
 // Use all-digit hex addresses to avoid EIP-55 checksum case mutations
@@ -39,7 +54,7 @@ function createLiFiStep(overrides?: {
   fromAddress?: string;
 }): LiFiStep {
   const fromChainId = overrides?.fromChainId ?? 42161;
-  const toChainId = overrides?.toChainId ?? 1399811149;
+  const toChainId = overrides?.toChainId ?? 1151111081099710;
   const fromTokenAddress = overrides?.fromTokenAddress ?? TOKEN_ADDR;
   const toTokenAddress = overrides?.toTokenAddress ?? TOKEN_ADDR;
   const fromAmount = overrides?.fromAmount ?? '10000000000';
@@ -118,7 +133,7 @@ function createTestQuote(
 
   const defaultParams: BridgeQuoteParams = {
     fromChain: 42161,
-    toChain: 1399811149,
+    toChain: 1151111081099710,
     fromToken: TOKEN_ADDR,
     toToken: TOKEN_ADDR,
     fromAddress: SENDER_ADDR,
@@ -174,7 +189,9 @@ describe('LiFiBridge.execute() route validation', function () {
     const quote = createTestQuote();
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       // If it resolves, validation definitely passed
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -190,7 +207,9 @@ describe('LiFiBridge.execute() route validation', function () {
     const quote = createTestQuote({ fromChainId: 999 }, { fromChain: 42161 });
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -201,15 +220,20 @@ describe('LiFiBridge.execute() route validation', function () {
   });
 
   it('should throw when route toChainId does not match requested', async () => {
-    const quote = createTestQuote({ toChainId: 888 }, { toChain: 1399811149 });
+    const quote = createTestQuote(
+      { toChainId: 888 },
+      { toChain: 1151111081099710 },
+    );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(msg).to.include('888');
-      expect(msg).to.include('1399811149');
+      expect(msg).to.include('1151111081099710');
       expect(msg).to.include('toChainId');
     }
   });
@@ -221,7 +245,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -238,7 +264,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -254,7 +282,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -269,7 +299,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -287,7 +319,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -304,7 +338,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -323,7 +359,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -355,7 +393,9 @@ describe('LiFiBridge.execute() route validation', function () {
     );
 
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -371,7 +411,9 @@ describe('LiFiBridge.execute() route validation', function () {
     // With `!== undefined`, a 0n request is correctly compared against the route amount.
     const quote = createTestQuote({ fromAmount: '1' }, { fromAmount: 0n });
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -388,7 +430,9 @@ describe('LiFiBridge.execute() route validation', function () {
       { fromAmount: undefined, toAmount: 5000000000n },
     );
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -405,7 +449,9 @@ describe('LiFiBridge.execute() route validation', function () {
       { fromAmount: undefined, toAmount: 123n },
     );
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
@@ -424,7 +470,9 @@ describe('LiFiBridge.execute() route validation', function () {
       { fromAmount: undefined, toAmount: 1000000n },
     );
     try {
-      await bridge.execute(quote, TEST_PRIVATE_KEY);
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
     } catch (error: unknown) {
       const msg = (error as Error).message;
       expect(
@@ -446,7 +494,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -464,7 +512,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -480,7 +528,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -497,7 +545,7 @@ describe('LiFiBridge.quote() input validation', function () {
     try {
       await bridge.quote({
         fromChain: 42161,
-        toChain: 1399811149,
+        toChain: 1151111081099710,
         fromToken: TOKEN_ADDR,
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
@@ -505,6 +553,63 @@ describe('LiFiBridge.quote() input validation', function () {
       expect.fail('Expected quote to throw');
     } catch (error: unknown) {
       expect((error as Error).message).to.include('Must specify either');
+    }
+  });
+});
+
+describe('LiFiBridge.getStatus()', function () {
+  let bridge: LiFiBridge;
+
+  beforeEach(() => {
+    bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+  });
+
+  it('should translate Hyperlane domain IDs to LiFi chain IDs before SDK status lookup', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl = '';
+
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      requestUrl = String(input);
+      return {
+        ok: true,
+        json: async () => ({ status: 'NOT_FOUND' }),
+      } as Response;
+    }) as typeof fetch;
+
+    try {
+      const result = await bridge.getStatus('0x1234', 1399811149, 1399811149);
+      const params = new URL(requestUrl).searchParams;
+
+      expect(result.status).to.equal('not_found');
+      expect(params.get('fromChain')).to.equal('1151111081099710');
+      expect(params.get('toChain')).to.equal('1151111081099710');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('LiFiBridge constructor chainMetadataByChainId', function () {
+  it('should resolve Sealevel protocol using a LiFi chain ID mapped from Hyperlane metadata', async () => {
+    const bridge = new LiFiBridge(SOLANA_CHAIN_METADATA_CONFIG, testLogger);
+    const quote = createTestQuote(
+      {
+        toTokenAddress: 'Abcdef123456789ABCDEFGHijklmnopQRSTUVwx',
+      },
+      {
+        toToken: 'abcdef123456789abcdefghijklmnopqrstuvwx',
+      },
+    );
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('toToken');
+      expect(msg).to.include('does not match requested');
     }
   });
 });

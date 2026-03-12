@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "26.0.0",
+  "version": "27.0.0",
   "description": "A command-line utility for common Hyperlane operations",
   "keywords": [
     "CLI",
@@ -61,6 +61,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/sealevel-sdk": "workspace:*",
     "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@hyperlane-xyz/utils": "workspace:*",

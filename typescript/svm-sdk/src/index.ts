@@ -1,19 +1,19 @@
 // Clients
-export { SvmProvider } from './clients/provider.js';
-export { SvmSigner } from './clients/signer.js';
-export { SvmProtocolProvider } from './clients/protocol.js';
+export { SvmProvider as SealevelProvider } from './clients/provider.js';
+export { SvmSigner as SealevelSigner } from './clients/signer.js';
+export { SvmProtocolProvider as SealevelProtocolProvider } from './clients/protocol.js';
 
 // Types
 export type {
-  SvmInstruction,
-  SvmRpc,
-  SvmTransaction,
-  SvmReceipt,
-  AnnotatedSvmTransaction,
-  SvmProgramTarget,
-  SvmDeployedIsm,
-  SvmDeployedHook,
-  SvmDeployedIgpHook,
+  SvmInstruction as SealevelInstruction,
+  SvmRpc as SealevelRpc,
+  SvmTransaction as SealevelTransaction,
+  SvmReceipt as SealevelReceipt,
+  AnnotatedSvmTransaction as AnnotatedSealevelTransaction,
+  SvmProgramTarget as SealevelProgramTarget,
+  SvmDeployedIsm as SealevelDeployedIsm,
+  SvmDeployedHook as SealevelDeployedHook,
+  SvmDeployedIgpHook as SealevelDeployedIgpHook,
 } from './types.js';
 export type { SolanaRpcClient } from './rpc.js';
 
@@ -21,21 +21,27 @@ export type { SolanaRpcClient } from './rpc.js';
 export { createRpc } from './rpc.js';
 
 // Artifact managers
-export { SvmIsmArtifactManager } from './ism/ism-artifact-manager.js';
-export { SvmHookArtifactManager } from './hook/hook-artifact-manager.js';
+export { SvmIsmArtifactManager as SealevelIsmArtifactManager } from './ism/ism-artifact-manager.js';
+export { SvmHookArtifactManager as SealevelHookArtifactManager } from './hook/hook-artifact-manager.js';
 
 // ISM readers/writers
 export {
-  SvmMessageIdMultisigIsmReader,
-  SvmMessageIdMultisigIsmWriter,
+  SvmMessageIdMultisigIsmReader as SealevelMessageIdMultisigIsmReader,
+  SvmMessageIdMultisigIsmWriter as SealevelMessageIdMultisigIsmWriter,
 } from './ism/multisig-ism.js';
-export { SvmTestIsmReader, SvmTestIsmWriter } from './ism/test-ism.js';
+export {
+  SvmTestIsmReader as SealevelTestIsmReader,
+  SvmTestIsmWriter as SealevelTestIsmWriter,
+} from './ism/test-ism.js';
 
 // Hook readers/writers
-export { SvmIgpHookReader, SvmIgpHookWriter } from './hook/igp-hook.js';
 export {
-  SvmMerkleTreeHookReader,
-  SvmMerkleTreeHookWriter,
+  SvmIgpHookReader as SealevelIgpHookReader,
+  SvmIgpHookWriter as SealevelIgpHookWriter,
+} from './hook/igp-hook.js';
+export {
+  SvmMerkleTreeHookReader as SealevelMerkleTreeHookReader,
+  SvmMerkleTreeHookWriter as SealevelMerkleTreeHookWriter,
 } from './hook/merkle-tree-hook.js';
 
 // Deploy

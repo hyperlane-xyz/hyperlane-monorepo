@@ -404,6 +404,10 @@ function generateTokenConfigs(
 
     const protocol = multiProvider.getProtocol(chainName);
 
+    if (protocol === ProtocolType.Unknown) {
+      continue;
+    }
+
     warpCoreConfig.tokens.push({
       chainName,
       standard: tokenTypeToStandard(protocol as ProtocolType, config.type),

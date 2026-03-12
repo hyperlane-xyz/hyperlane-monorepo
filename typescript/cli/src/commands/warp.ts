@@ -681,7 +681,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Create rebalancer service
       const service = new RebalancerService(
         context.multiProvider,
-        undefined,
         context.multiProtocolProvider,
         context.registry,
         rebalancerConfig,
