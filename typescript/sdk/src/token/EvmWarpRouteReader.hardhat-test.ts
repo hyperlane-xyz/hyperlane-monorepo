@@ -30,7 +30,7 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -1025,12 +1025,14 @@ describe('EvmWarpRouteReader', async () => {
     };
 
     const mcConnectStub = sinon
-      .stub(MultiCollateral__factory, 'connect')
+      .stub(CrossCollateralRouter__factory, 'connect')
       .returns({
         wrappedToken: sinon.stub().resolves(wrappedTokenAddress),
         localDomain: sinon.stub().resolves(localDomain),
-        getEnrolledDomains: sinon.stub().resolves([localDomain, remoteDomain]),
-        getEnrolledRouters: sinon
+        getCrossCollateralDomains: sinon
+          .stub()
+          .resolves([localDomain, remoteDomain]),
+        getCrossCollateralRouters: sinon
           .stub()
           .callsFake(async (domain: number) =>
             domain === localDomain ? [localRouter] : [remoteRouter],
@@ -1053,18 +1055,18 @@ describe('EvmWarpRouteReader', async () => {
       .stub(evmERC20WarpRouteReader, 'fetchScale')
       .resolves(expectedScale);
 
-    const deriveMultiCollateralTokenConfig = (evmERC20WarpRouteReader as any)
-      .deriveMultiCollateralTokenConfig as (address: string) => Promise<any>;
+    const deriveCrossCollateralTokenConfig = (evmERC20WarpRouteReader as any)
+      .deriveCrossCollateralTokenConfig as (address: string) => Promise<any>;
     try {
-      const derivedConfig = await deriveMultiCollateralTokenConfig.call(
+      const derivedConfig = await deriveCrossCollateralTokenConfig.call(
         evmERC20WarpRouteReader,
         routerAddress,
       );
 
-      expect(derivedConfig.type).to.equal(TokenType.multiCollateral);
+      expect(derivedConfig.type).to.equal(TokenType.crossCollateral);
       expect(derivedConfig.token).to.equal(wrappedTokenAddress);
       expect(derivedConfig.scale).to.deep.equal(expectedScale);
-      expect(derivedConfig.enrolledRouters).to.deep.equal({
+      expect(derivedConfig.crossCollateralRouters).to.deep.equal({
         [localDomain.toString()]: [localRouter],
         [remoteDomain.toString()]: [remoteRouter],
       });

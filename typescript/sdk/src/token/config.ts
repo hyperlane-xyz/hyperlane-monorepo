@@ -17,8 +17,8 @@ export const TokenType = {
   ethEverclear: 'ethEverclear',
   // backwards compatible alias to native
   nativeScaled: 'nativeScaled',
-  // Multi-router collateral (direct 1-message atomic transfers between collateral routers)
-  multiCollateral: 'multiCollateral',
+  // Canonical value for cross-collateral routing tokens
+  crossCollateral: 'crossCollateral',
   unknown: 'unknown',
 } as const;
 
@@ -46,7 +46,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
-  [TokenType.multiCollateral]: true, // MultiCollateral extends HypERC20Collateral
+  [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
   [TokenType.unknown]: false,
 } as const;
 

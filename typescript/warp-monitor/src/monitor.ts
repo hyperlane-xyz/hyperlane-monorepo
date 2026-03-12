@@ -133,7 +133,7 @@ export class WarpMonitor {
         checkFrequency,
         tokenCount: warpCore.tokens.length,
         chains: warpCore.getTokenChains(),
-        multiCollateralNodeCount: routerNodes.length,
+        crossCollateralNodeCount: routerNodes.length,
         explorerEnabled: !!pendingTransfersClient,
         inventoryTrackingEnabled: !!inventoryAddress,
       },

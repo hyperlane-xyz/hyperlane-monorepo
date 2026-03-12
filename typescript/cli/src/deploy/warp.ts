@@ -52,7 +52,7 @@ import {
   getSubmitterBuilder,
   getTokenConnectionId,
   isCollateralTokenConfig,
-  isMultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isXERC20TokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
@@ -398,7 +398,7 @@ function generateTokenConfigs(
     const collateralAddressOrDenom =
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isMultiCollateralTokenConfig(config)
+      isCrossCollateralTokenConfig(config)
         ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 
@@ -1299,19 +1299,19 @@ function getCanonicalWholeTokenRatio(
 function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
   for (const route of routes) {
     const invalidDeployChains = Object.entries(route.deployConfig)
-      .filter(([, chainConfig]) => !isMultiCollateralTokenConfig(chainConfig))
+      .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
       .map(([chain]) => chain);
     assert(
       invalidDeployChains.length === 0,
-      `Route "${route.id}" contains non-MultiCollateral deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
+      `Route "${route.id}" contains non-CrossCollateralRouter deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
     );
 
     const invalidCoreTokens = route.coreConfig.tokens.filter(
-      (token) => token.standard !== TokenStandard.EvmHypMultiCollateral,
+      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
     );
     assert(
       invalidCoreTokens.length === 0,
-      `Route "${route.id}" contains non-MultiCollateral warp config token(s): ${invalidCoreTokens
+      `Route "${route.id}" contains non-CrossCollateralRouter warp config token(s): ${invalidCoreTokens
         .map((token) => `${token.chainName}:${token.addressOrDenom}`)
         .join(', ')}`,
     );
@@ -1351,7 +1351,7 @@ function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
 
 /**
  * Combines multiple warp routes into a single merged WarpCoreConfig and updates
- * each route's deploy config with cross-route enrolledRouters.
+ * each route's deploy config with cross-route crossCollateralRouters.
  */
 export async function runWarpRouteCombine({
   context,
@@ -1389,44 +1389,44 @@ export async function runWarpRouteCombine({
 
   assertCombineRoutesAreValid(routes);
 
-  // 2. For each route, update enrolledRouters with routers from other routes
+  // 2. For each route, update crossCollateralRouters with routers from other routes
   for (const route of routes) {
     for (const [chain, chainConfig] of Object.entries(
       route.deployConfig,
     ) as Array<[string, HypTokenRouterConfig]>) {
-      if (!isMultiCollateralTokenConfig(chainConfig)) continue;
+      if (!isCrossCollateralTokenConfig(chainConfig)) continue;
 
-      const enrolledRouters: Record<string, Set<string>> = {};
+      const crossCollateralRouters: Record<string, Set<string>> = {};
 
       // Look at all OTHER routes
       for (const otherRoute of routes) {
         if (otherRoute.id === route.id) continue;
 
-        // For each token in the other route, add its router to this route's enrolledRouters
+        // For each token in the other route, add its router to this route's crossCollateralRouters
         for (const otherToken of otherRoute.coreConfig.tokens) {
           const otherDomain = context.multiProvider
             .getDomainId(otherToken.chainName)
             .toString();
           assert(
             otherToken.addressOrDenom,
-            `MultiCollateral token missing addressOrDenom on ${otherToken.chainName}`,
+            `CrossCollateralRouter token missing addressOrDenom on ${otherToken.chainName}`,
           );
           const otherRouter = addressToBytes32(otherToken.addressOrDenom);
 
-          enrolledRouters[otherDomain] ??= new Set();
-          enrolledRouters[otherDomain].add(otherRouter);
+          crossCollateralRouters[otherDomain] ??= new Set();
+          crossCollateralRouters[otherDomain].add(otherRouter);
         }
       }
 
       const reconciledEnrolledRouters = Object.fromEntries(
-        Object.entries(enrolledRouters).map(([domain, routers]) => [
+        Object.entries(crossCollateralRouters).map(([domain, routers]) => [
           domain,
           [...routers],
         ]),
       );
 
       const routersRemovedByCombine = Object.entries(
-        chainConfig.enrolledRouters ?? {},
+        chainConfig.crossCollateralRouters ?? {},
       ).reduce((acc, [domain, routers]) => {
         const enrolledAfterCombine = new Set(
           reconciledEnrolledRouters[domain] ?? [],
@@ -1443,7 +1443,7 @@ export async function runWarpRouteCombine({
         );
       }
 
-      chainConfig.enrolledRouters =
+      chainConfig.crossCollateralRouters =
         Object.keys(reconciledEnrolledRouters).length > 0
           ? reconciledEnrolledRouters
           : undefined;
