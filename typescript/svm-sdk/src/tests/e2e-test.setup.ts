@@ -34,11 +34,14 @@ before(async function () {
   const { programs, cleanup } = getPreloadedPrograms(ALL_PRELOADED_PROGRAMS);
   programCleanup = cleanup;
 
-  rootLogger.info('Starting Solana test validator...');
-  validator = await runSolanaNode(TEST_SVM_CHAIN_METADATA, programs);
-  rootLogger.info(
-    `Solana test validator started at ${TEST_SVM_CHAIN_METADATA.rpcUrl}`,
-  );
+  try {
+    rootLogger.info('Starting Solana test validator...');
+    validator = await runSolanaNode(TEST_SVM_CHAIN_METADATA, programs);
+    rootLogger.info(`Solana test validator started at ${validator.rpcUrl}`);
+  } catch (error: unknown) {
+    cleanup();
+    throw error;
+  }
 });
 
 after(async function () {

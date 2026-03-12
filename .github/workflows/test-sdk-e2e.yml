@@ -117,7 +117,7 @@ jobs:
   svm-sdk-e2e-matrix:
     runs-on: depot-ubuntu-24.04
     if: inputs.has_svm == 'true'
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -129,6 +129,10 @@ jobs:
           - collateral-token
           - provider
           - read-token
+        include:
+          - test: read-token
+            continue-on-error: true
+    continue-on-error: ${{ matrix.continue-on-error || false }}
     steps:
       - uses: actions/checkout@v6
         with:

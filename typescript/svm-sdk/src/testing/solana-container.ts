@@ -13,7 +13,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { isNullish } from '@hyperlane-xyz/utils';
+import { isNullish, retryAsync } from '@hyperlane-xyz/utils';
 import {
   GenericContainer,
   type StartedTestContainer,
@@ -21,6 +21,55 @@ import {
 } from 'testcontainers';
 
 import { TEST_SVM_CHAIN_METADATA } from './constants.js';
+
+const DOCKER_SECCOMP_URL =
+  'https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json';
+
+const IO_URING_SYSCALLS = [
+  'io_uring_enter',
+  'io_uring_register',
+  'io_uring_setup',
+];
+
+/**
+ * Fetches Docker's default seccomp profile and patches in io_uring syscalls.
+ * Agave v2.0+ requires io_uring which Docker's default profile blocks.
+ * See https://github.com/moby/moby/issues/47532
+ */
+async function getSeccompProfile(): Promise<string> {
+  const profile = await retryAsync(
+    async () => {
+      const response = await fetch(DOCKER_SECCOMP_URL);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch Docker seccomp profile: ${response.status} ${response.statusText}`,
+        );
+      }
+      return response.json();
+    },
+    3,
+    1000,
+  );
+
+  const mainRule = profile.syscalls?.find(
+    (rule: { action: string; includes?: unknown; args?: unknown }) =>
+      rule.action === 'SCMP_ACT_ALLOW' && !rule.includes && !rule.args,
+  );
+  if (!mainRule) {
+    throw new Error(
+      'Could not find main SCMP_ACT_ALLOW rule in seccomp profile',
+    );
+  }
+
+  for (const syscall of IO_URING_SYSCALLS) {
+    if (!mainRule.names.includes(syscall)) {
+      mainRule.names.push(syscall);
+    }
+  }
+  mainRule.names.sort();
+
+  return JSON.stringify(profile);
+}
 
 // Agave v3.0.x activates stricter_abi_and_runtime_constraints which rejects
 // the old Token-2022 program's non-zero-init realloc calls. The test setup
@@ -293,13 +342,16 @@ async function startDockerValidator(
     ...validatorArgs,
   ];
 
-  // TODO: replace seccomp=unconfined with a custom profile that only allows io_uring syscalls
-  // Agave v3.0+ uses io_uring which Docker's default seccomp profile blocks.
+  // Agave v2.0+ uses io_uring which Docker's default seccomp profile blocks.
+  // Fetch Docker's default profile and patch in io_uring syscalls at runtime
+  // so the profile stays current as Docker updates their defaults.
+  // See https://github.com/moby/moby/issues/47532
+  const seccompProfile = await getSeccompProfile();
   let builder = new GenericContainer(image)
     .withEntrypoint(entrypoint)
     .withExposedPorts({ container: rpcPort, host: rpcPort })
     .withCommand(command)
-    .withSecurityOpt('seccomp=unconfined')
+    .withSecurityOpt(`seccomp=${seccompProfile}`)
     .withWaitStrategy(Wait.forLogMessage(/rpc bound to/, 1))
     .withStartupTimeout(120_000);
 
