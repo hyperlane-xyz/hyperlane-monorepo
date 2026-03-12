@@ -58,7 +58,7 @@ function getRequiredAddress(
   const address = getAddress(deployment, chainId);
   assert(
     address,
-    `No ${contractName} deployment found for chain ${chainId}. Add an override to safeContractOverrides.`,
+    `No ${contractName} deployment found for chain ${chainId} in @safe-global/safe-deployments. Add a full chain entry to safeContractOverrides to bypass.`,
   );
   return address;
 }
