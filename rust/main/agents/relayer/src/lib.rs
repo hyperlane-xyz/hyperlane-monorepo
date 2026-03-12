@@ -2,6 +2,7 @@
 #![deny(clippy::arithmetic_side_effects)]
 
 pub mod msg;
+pub mod relay_api;
 
 mod db_loader;
 mod merkle_tree;

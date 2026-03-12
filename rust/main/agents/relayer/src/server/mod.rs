@@ -15,7 +15,11 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
+use crate::relay_api::JobStore;
+
 use crate::server::environment_variable::EnvironmentVariableApi;
+use hyperlane_core::QueueOperation;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
@@ -45,6 +49,10 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
+    #[new(default)]
+    relay_job_store: Option<JobStore>,
+    #[new(default)]
+    relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
 }
 
 impl Server {
@@ -95,6 +103,19 @@ impl Server {
         self
     }
 
+    pub fn with_relay_api(mut self, job_store: JobStore) -> Self {
+        self.relay_job_store = Some(job_store);
+        self
+    }
+
+    pub fn with_relay_send_channels(
+        mut self,
+        channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) -> Self {
+        self.relay_send_channels = Some(channels);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -139,6 +160,27 @@ impl Server {
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
+
+        // Add relay API if enabled
+        let relay_api_enabled =
+            env::var("HYPERLANE_RELAYER_RELAY_API_ENABLED").is_ok_and(|v| v == "true");
+        if relay_api_enabled {
+            if let (Some(job_store), Some(send_channels)) =
+                (self.relay_job_store, self.relay_send_channels)
+            {
+                // Create RelayWorker with send_channels and msg_ctxs
+                let relay_worker = Arc::new(crate::relay_api::RelayWorker::new(
+                    send_channels,
+                    self.msg_ctxs.clone(),
+                    job_store.clone(),
+                ));
+
+                let relay_state = crate::relay_api::handlers::ServerState::new(job_store)
+                    .with_relay_worker(relay_worker);
+                router = router.merge(relay_state.router());
+            }
+        }
+
         router
     }
 }

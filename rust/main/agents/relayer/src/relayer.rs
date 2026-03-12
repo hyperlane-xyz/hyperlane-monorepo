@@ -424,8 +424,23 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
+        // Check if indexing should be disabled (for relay API testing)
+        let indexing_disabled =
+            std::env::var("HYPERLANE_RELAYER_DISABLE_INDEXING").is_ok_and(|v| v == "true");
+        if indexing_disabled {
+            info!("Contract indexing disabled (HYPERLANE_RELAYER_DISABLE_INDEXING=true). Only relay API will function.");
+        }
+
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
+            // Skip indexing tasks if disabled
+            if indexing_disabled {
+                info!(
+                    origin = %origin_domain.name(),
+                    "Skipping contract sync and db loader tasks (indexing disabled)"
+                );
+                continue;
+            }
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
             let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
@@ -524,7 +539,9 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
-        let relayer_router = self.build_router(prep_queues, sender.clone()).await;
+        let relayer_router = self
+            .build_router(prep_queues, send_channels, sender.clone())
+            .await;
         let server = self
             .core
             .settings
@@ -564,6 +581,7 @@ impl Relayer {
     async fn build_router(
         &self,
         prep_queues: PrepQueue,
+        send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> Router {
         // create a db mapping for server handlers
@@ -606,7 +624,8 @@ impl Relayer {
                 })
             })
             .collect();
-        relayer_server::Server::new(self.destinations.len())
+
+        let mut server = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -614,7 +633,19 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
-            .router()
+            .with_relay_send_channels(send_channels);
+
+        // Add relay API job store if enabled
+        let relay_api_enabled =
+            std::env::var("HYPERLANE_RELAYER_RELAY_API_ENABLED").is_ok_and(|v| v == "true");
+        if relay_api_enabled {
+            use crate::relay_api::JobStore;
+            let job_store = JobStore::new();
+            server = server.with_relay_api(job_store);
+            info!("Relay API enabled - job store initialized");
+        }
+
+        server.router()
     }
 
     fn record_critical_error(
