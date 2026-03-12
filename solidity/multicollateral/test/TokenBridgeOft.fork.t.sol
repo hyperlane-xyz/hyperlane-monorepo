@@ -100,29 +100,25 @@ contract TokenBridgeOftArbForkTest is Test {
     }
 
     function test_transferRemote() public {
-        // Deal USDT0 to caller via the OFT's token
-        deal(USDT0_TOKEN, caller, AMOUNT);
-
-        // Get quote
+        // Get quote — use quotes[1] for total token charge (includes OFT fees)
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ETHEREUM,
             recipient,
             AMOUNT
         );
         uint256 nativeFee = quotes[0].amount;
+        uint256 totalTokenCharge = quotes[1].amount;
+
+        deal(USDT0_TOKEN, caller, totalTokenCharge);
 
         vm.startPrank(caller);
+        IERC20(USDT0_TOKEN).approve(address(bridge), totalTokenCharge);
 
-        // Approve bridge to pull tokens
-        IERC20(USDT0_TOKEN).approve(address(bridge), AMOUNT);
-
-        // Execute transfer
         bytes32 guid = bridge.transferRemote{value: nativeFee}(
             HYP_DOMAIN_ETHEREUM,
             recipient,
             AMOUNT
         );
-
         vm.stopPrank();
 
         assertNotEq(guid, bytes32(0), "guid non-zero");
@@ -251,20 +247,21 @@ contract TokenBridgeOftEthForkTest is Test {
     }
 
     function test_transferRemote() public {
-        // Get quote
+        // Get quote — use quotes[1] for total token charge (includes OFT fees)
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ARBITRUM,
             recipient,
             AMOUNT
         );
         uint256 nativeFee = quotes[0].amount;
+        uint256 totalTokenCharge = quotes[1].amount;
 
         uint256 balBefore = IERC20(USDT_TOKEN).balanceOf(USDT_WHALE);
 
         vm.startPrank(USDT_WHALE);
 
         // Use safeApprove — USDT's approve() returns void (non-standard)
-        IERC20(USDT_TOKEN).safeApprove(address(bridge), AMOUNT);
+        IERC20(USDT_TOKEN).safeApprove(address(bridge), totalTokenCharge);
 
         // Execute transfer — locks USDT in the OFT adapter
         bytes32 guid = bridge.transferRemote{value: nativeFee}(
@@ -278,7 +275,7 @@ contract TokenBridgeOftEthForkTest is Test {
         assertNotEq(guid, bytes32(0), "guid non-zero");
         assertEq(
             IERC20(USDT_TOKEN).balanceOf(USDT_WHALE),
-            balBefore - AMOUNT,
+            balBefore - totalTokenCharge,
             "tokens pulled from whale"
         );
     }
@@ -364,18 +361,18 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
     }
 
     function test_transferRemote() public {
-        // Deal pyUSD to caller
-        deal(PYUSD_TOKEN, caller, AMOUNT);
-
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ETHEREUM,
             recipient,
             AMOUNT
         );
         uint256 nativeFee = quotes[0].amount;
+        uint256 totalTokenCharge = quotes[1].amount;
+
+        deal(PYUSD_TOKEN, caller, totalTokenCharge);
 
         vm.startPrank(caller);
-        IERC20(PYUSD_TOKEN).approve(address(bridge), AMOUNT);
+        IERC20(PYUSD_TOKEN).approve(address(bridge), totalTokenCharge);
 
         bytes32 guid = bridge.transferRemote{value: nativeFee}(
             HYP_DOMAIN_ETHEREUM,
@@ -449,17 +446,18 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
     }
 
     function test_transferRemote() public {
-        deal(PYUSD_TOKEN, caller, AMOUNT);
-
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ARBITRUM,
             recipient,
             AMOUNT
         );
         uint256 nativeFee = quotes[0].amount;
+        uint256 totalTokenCharge = quotes[1].amount;
+
+        deal(PYUSD_TOKEN, caller, totalTokenCharge);
 
         vm.startPrank(caller);
-        IERC20(PYUSD_TOKEN).approve(address(bridge), AMOUNT);
+        IERC20(PYUSD_TOKEN).approve(address(bridge), totalTokenCharge);
 
         bytes32 guid = bridge.transferRemote{value: nativeFee}(
             HYP_DOMAIN_ARBITRUM,
