@@ -11,6 +11,7 @@ export const TokenType = {
   collateralUri: 'collateralUri',
   collateralCctp: 'collateralCctp',
   collateralEverclear: 'collateralEverclear',
+  collateralOft: 'collateralOft',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
   nativeOpL1: 'nativeOpL1',
@@ -46,6 +47,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
+  [TokenType.collateralOft]: false,
   [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
   [TokenType.unknown]: false,
 } as const;

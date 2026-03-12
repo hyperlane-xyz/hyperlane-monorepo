@@ -226,6 +226,25 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
+export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.literal(TokenType.collateralOft),
+  token: z
+    .string()
+    .describe('Underlying ERC20 token address (resolved from OFT)'),
+  oft: z.string().describe('OFT / OFTAdapter / OFTWrapper contract address'),
+  domainMappings: z
+    .record(
+      RemoteRouterDomainOrChainNameSchema,
+      z.number().int().nonnegative().max(4294967295),
+    )
+    .describe(
+      'Mapping of Hyperlane domain (or chain name) to LayerZero endpoint ID',
+    ),
+  extraOptions: z.string().optional().describe('LayerZero extra options (hex)'),
+});
+export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
+export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -360,6 +379,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  OftTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
   CrossCollateralTokenConfigSchema,
@@ -469,7 +489,8 @@ export const WarpRouteDeployConfigSchema = z
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config) ||
-          isCrossCollateralTokenConfig(config),
+          isCrossCollateralTokenConfig(config) ||
+          isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)

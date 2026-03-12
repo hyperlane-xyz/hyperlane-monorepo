@@ -27,7 +27,10 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
+import {
+  CrossCollateralRouter__factory,
+  TokenBridgeOft__factory,
+} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
@@ -72,6 +75,7 @@ import {
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
   MovableTokenConfig,
+  OftTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
   OwnerStatus,
@@ -153,6 +157,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.collateralOft]:
+        this.deriveHypCollateralOftTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
     };
@@ -180,27 +186,43 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const routerConfig = await this.readRouterConfig(warpRouteAddress);
+
+    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
+    const isOft = type === TokenType.collateralOft;
+    const routerConfig = isOft
+      ? {
+          owner: await Ownable__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).owner(),
+        }
+      : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
+    // OFT contracts don't have destination gas config
     // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
     // fetchDestinationGas also reads gas for MC-only enrolled domains.
-    const mcEnrolledDomains: number[] = [];
-    if (
-      isCrossCollateralTokenConfig(tokenConfig) &&
-      tokenConfig.crossCollateralRouters
-    ) {
-      for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
-        mcEnrolledDomains.push(Number(domain));
+    let destinationGas: Record<string, string> | undefined;
+    if (isOft) {
+      destinationGas = undefined;
+    } else {
+      const mcEnrolledDomains: number[] = [];
+      if (
+        isCrossCollateralTokenConfig(tokenConfig) &&
+        tokenConfig.crossCollateralRouters
+      ) {
+        for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
+          mcEnrolledDomains.push(Number(domain));
+        }
       }
+      destinationGas = await this.fetchDestinationGas(
+        warpRouteAddress,
+        mcEnrolledDomains,
+      );
     }
-    const destinationGas = await this.fetchDestinationGas(
-      warpRouteAddress,
-      mcEnrolledDomains,
-    );
 
     const hasRebalancingInterface =
       compareVersions(
@@ -265,7 +287,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
-    if (type === TokenType.collateralCctp) {
+    if (
+      type === TokenType.collateralCctp &&
+      'interchainSecurityModule' in routerConfig
+    ) {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
@@ -451,6 +476,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.XERC20Lockbox]: {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
+      },
+      [TokenType.collateralOft]: {
+        factory: TokenBridgeOft__factory,
+        method: 'oft',
       },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
@@ -864,6 +893,39 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
     }
+  }
+
+  private async deriveHypCollateralOftTokenConfig(
+    hypToken: Address,
+  ): Promise<OftTokenConfig> {
+    const tokenBridge = TokenBridgeOft__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [oft, token, extraOptions, domainMappingsRaw] = await Promise.all([
+      tokenBridge.oft(),
+      tokenBridge.token(),
+      tokenBridge.extraOptions(),
+      tokenBridge.getDomainMappings(),
+    ]);
+
+    const erc20Metadata = await this.fetchERC20Metadata(token);
+
+    const domainMappings: Record<string, number> = {};
+    const [domains, lzEids] = domainMappingsRaw;
+    for (let i = 0; i < domains.length; i++) {
+      domainMappings[domains[i].toString()] = lzEids[i];
+    }
+
+    return {
+      ...erc20Metadata,
+      type: TokenType.collateralOft,
+      token,
+      oft,
+      domainMappings,
+      extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
+    };
   }
 
   private async deriveHypCollateralTokenConfig(
