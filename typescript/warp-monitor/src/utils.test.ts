@@ -36,7 +36,6 @@ describe('Warp Monitor Utils', () => {
       expect(executed).to.be.true;
     });
 
-    // eslint-disable-next-line jest/expect-expect -- testing no-throw behavior
     it('should catch and log errors without throwing', async () => {
       const logger = getLogger();
       const errorFn = async () => {
