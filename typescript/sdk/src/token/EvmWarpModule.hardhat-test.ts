@@ -24,7 +24,7 @@ import {
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
   HookConfig,
