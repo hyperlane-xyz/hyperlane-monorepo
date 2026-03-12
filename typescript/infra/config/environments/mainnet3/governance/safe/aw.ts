@@ -65,4 +65,8 @@ export const awSafes: ChainMap<Address> = {
   // Feb 4, 2026 - FPWR ProxyAdmin on Safes
   // ----------------------------------------------------------
   monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
+
+  // Mar 12, 2026 - Igra Chain Deployment
+  // ----------------------------------------------------------
+  igra: '0x0c205894f0cA786AB1693f232F4e19a60Af5c72B',
 };

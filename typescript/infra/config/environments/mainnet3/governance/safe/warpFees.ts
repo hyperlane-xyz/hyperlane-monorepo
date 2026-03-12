@@ -9,4 +9,8 @@ export const warpFeesSafes: ChainMap<Address> = {
   // Jan 29, 2026 - Migrating Viction to Safes
   // ----------------------------------------------------------
   viction: '0xdE008b9E50C20a59f407CE92A27b1578ef14933D',
+
+  // Mar 12, 2026 - Igra Chain Deployment
+  // ----------------------------------------------------------
+  igra: '0xF4edD65e85122E50cb22A45c10FcA082F8a72396',
 };
