@@ -10,6 +10,7 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {PackageVersioned} from "@hyperlane-xyz/core/PackageVersioned.sol";
 
 /**
  * @title TokenBridgeOft
@@ -41,7 +42,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *  - Rebasing tokens: NOT supported — amounts may diverge across chains.
  *  - ERC-777: NOT explicitly supported — hook reentrancy not guarded.
  */
-contract TokenBridgeOft is ITokenBridge, Ownable {
+contract TokenBridgeOft is ITokenBridge, Ownable, PackageVersioned {
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.UintToUintMap;
 
@@ -298,7 +299,6 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
      *
      * If the OFT charges no fee (amountSentLD == amountReceivedLD), returns _amount
      * rounded up to the nearest dust-free value (to handle dusty input amounts).
-     * Reverts if the OFT returns amountReceivedLD == 0 (would indicate 100% fee).
      */
     function _grossOftAmount(
         uint32 _destination,
@@ -319,9 +319,8 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
         // No fee (or zero amount): return _amount rounded up to dust-free boundary
         if (sent == received) return _roundUpDust(_amount);
 
-        require(received > 0, "TokenBridgeOft: OFT 100% fee");
-
         // Analytical inversion, then round up to dust-free boundary
+        // If received == 0 (100% fee), Math.mulDiv reverts with division by zero
         uint256 gross = Math.mulDiv(_amount, sent, received, Math.Rounding.Up);
         return _roundUpDust(gross);
     }

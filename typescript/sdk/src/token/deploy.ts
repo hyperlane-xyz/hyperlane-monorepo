@@ -776,23 +776,10 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
-    // Split OFT configs out — they don't have Router/MailboxClient interfaces
-    // and must skip enrollRemoteRouters/configureClients in super.deploy()
-    const nonOftConfigMap: typeof resolvedConfigMap = {};
-    const oftConfigMap: typeof resolvedConfigMap = {};
+    // Deploy OFT contracts directly (no Router/MailboxClient interfaces)
+    const oftDeployedMap: Record<string, HyperlaneContracts<any>> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
-      if (isOftTokenConfig(config)) {
-        oftConfigMap[chain] = config;
-      } else {
-        nonOftConfigMap[chain] = config;
-      }
-    }
-
-    // Deploy non-OFT contracts via full Router deployer flow
-    const deployedContractsMap = await super.deploy(nonOftConfigMap);
-
-    // Deploy OFT contracts directly — unproxied, no router enrollment / mailbox config
-    for (const [chain, config] of Object.entries(oftConfigMap)) {
+      if (!isOftTokenConfig(config)) continue;
       const contractKey = this.routerContractKey(config);
       const constructorArgs = await this.constructorArgs(chain, config);
       const contract = await this.deployContract(
@@ -802,8 +789,13 @@ abstract class TokenDeployer<
       );
       const contracts = { [contractKey]: contract } as any;
       this.addDeployedContracts(chain, contracts);
-      deployedContractsMap[chain] = contracts;
+      oftDeployedMap[chain] = contracts;
+      delete resolvedConfigMap[chain];
     }
+
+    // Deploy remaining (non-OFT) contracts via full Router deployer flow
+    const deployedContractsMap = await super.deploy(resolvedConfigMap);
+    Object.assign(deployedContractsMap, oftDeployedMap);
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
