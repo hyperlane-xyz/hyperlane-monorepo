@@ -1,9 +1,9 @@
 warpRouteId: USDC/tron
 
 # Tron inventory signer address
-# Note: Tron addresses start with 'T' and are base58-encoded
+# Note: Rebalancer requires 0x-prefixed hex addresses (not base58 'T...' format)
 inventorySigners:
-  tron: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
+  tron: "0x0000000000000000000000000000000000000001"
 
 externalBridges:
   lifi:
@@ -27,7 +27,7 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       # Placeholder bridge address (would be actual Tron contract address in production)
-      bridge: "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
+      bridge: "0x0000000000000000000000000000000000000001"
       # Note: LiFi bridge will skip Tron chains as there is no Tron-compatible aggregator yet
       # The rebalancer will gracefully handle this by using inventory-based rebalancing
       override: {}
