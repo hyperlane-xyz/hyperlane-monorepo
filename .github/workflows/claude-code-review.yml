@@ -80,7 +80,7 @@ jobs:
           prompt: "Use agent teams to run /claude-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments"
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }} --allowedTools Bash(gh api:*)"
+          claude_args: '--model ${{ env.CLAUDE_OPUS_MODEL }} --allowedTools "Bash(gh api:*)"'
 
   # Security-focused review: manual via @claude + security comment
   security-review:
@@ -133,7 +133,7 @@ jobs:
           prompt: "Use agent teams to run /claude-security-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments"
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }} --allowedTools Bash(gh api:*)"
+          claude_args: '--model ${{ env.CLAUDE_OPUS_MODEL }} --allowedTools "Bash(gh api:*)"'
 
   # Trail of Bits security skills: manual via @claude + security comment
   tob-security-skills:
@@ -199,7 +199,7 @@ jobs:
           prompt: "Use agent teams to run /claude-tob-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments"
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }} --allowedTools Bash(gh api:*)"
+          claude_args: '--model ${{ env.CLAUDE_OPUS_MODEL }} --allowedTools "Bash(gh api:*)"'
 
   # Interactive @claude mentions in comments (excludes review/security keywords)
   interactive:
