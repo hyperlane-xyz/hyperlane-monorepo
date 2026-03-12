@@ -186,7 +186,7 @@ export class WarpCore {
         const crossCollateralAdapter = originToken.getHypAdapter(
           this.multiProvider,
           destinationName,
-        ) as EvmHypCrossCollateralAdapter;
+        ) as EvmHypCrossCollateralAdapter; // CAST: getHypAdapter returns IHypTokenAdapter<unknown>; narrowed by isCrossCollateralTransfer + isEVMLike assert above
         quote = await crossCollateralAdapter.quoteTransferRemoteToGas({
           destination: destinationDomainId,
           recipient,
@@ -640,7 +640,7 @@ export class WarpCore {
     const adapter = originToken.getHypAdapter(
       this.multiProvider,
       destinationName,
-    ) as EvmHypCrossCollateralAdapter;
+    ) as EvmHypCrossCollateralAdapter; // CAST: getHypAdapter returns IHypTokenAdapter<unknown>; narrowed by isCrossCollateralTransfer + isEVMLike assert above
 
     const transferQuote = await adapter.quoteTransferRemoteToGas({
       destination: this.multiProvider.getDomainId(destination),

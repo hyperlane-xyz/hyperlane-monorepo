@@ -500,9 +500,8 @@ export class EvmWarpModule extends HyperlaneModule<
     ) {
       return [];
     }
-    if (!expectedConfig.crossCollateralRouters) {
-      expectedConfig = { ...expectedConfig, crossCollateralRouters: {} };
-    }
+    const expectedCrossCollateralRouters =
+      expectedConfig.crossCollateralRouters ?? {};
 
     const actualEnrolled = resolveRouterMapConfig(
       this.multiProvider,
@@ -510,7 +509,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
     const expectedEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.crossCollateralRouters,
+      expectedCrossCollateralRouters,
     );
 
     const domainsToUnenroll: number[] = [];
