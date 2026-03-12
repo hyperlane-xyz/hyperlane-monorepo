@@ -157,16 +157,14 @@ async function main(): Promise<void> {
 
       let derivedAddress: string;
 
-      if (protocol === ProtocolType.Ethereum) {
+      if (isEVMLike(protocol as ProtocolType)) {
+        // Tron uses same hex private key format as Ethereum.
+        // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
         derivedAddress = new Wallet(privateKey).address;
       } else if (protocol === ProtocolType.Sealevel) {
         const keyBytes = parseSolanaPrivateKey(privateKey);
         const keypair = Keypair.fromSecretKey(keyBytes);
         derivedAddress = keypair.publicKey.toBase58();
-      } else if (protocol === ProtocolType.Tron) {
-        // Tron uses same hex private key format as Ethereum.
-        // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
-        derivedAddress = new Wallet(privateKey).address;
       } else {
         logger.warn(
           { protocol },
