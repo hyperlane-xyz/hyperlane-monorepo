@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {Quote} from "../../interfaces/ITokenBridge.sol";
 
 // ============ Predicate Imports ============
 import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
@@ -165,8 +166,8 @@ contract PredicateRouterWrapper is
         uint256 _amount
     ) external payable returns (bytes32 messageId) {
         // 1. Build encoded signature for Predicate validation (full PredicateClient pattern)
-        bytes memory encodedSigAndArgs = abi.encodeWithSignature(
-            "transferRemote(uint32,bytes32,uint256)",
+        bytes memory encodedSigAndArgs = abi.encodeWithSelector(
+            TokenRouter.transferRemote.selector,
             _destination,
             _recipient,
             _amount
@@ -192,19 +193,43 @@ contract PredicateRouterWrapper is
         // 3. Set flag BEFORE calling warpRoute (checked in postDispatch)
         pendingAttestation = true;
 
-        // 4. Handle token transfer based on type
+        // 4. Quote total amount needed from router (includes fees)
+        Quote[] memory quotes = warpRoute.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        // 5. Handle token transfer based on type, pulling total quoted amount
         bool isNative = address(token) == address(0);
 
         if (isNative) {
-            // For native tokens, validate msg.value >= amount (excess is for gas)
-            if (msg.value < _amount)
+            // For native tokens, sum all native quote amounts
+            uint256 totalNativeRequired = 0;
+            for (uint256 i = 0; i < quotes.length; i++) {
+                if (quotes[i].token == address(0)) {
+                    totalNativeRequired += quotes[i].amount;
+                }
+            }
+            if (msg.value < totalNativeRequired)
                 revert PredicateRouterWrapper__InsufficientValue();
         } else {
-            // For ERC20 tokens, pull from user (warp route has approval for collateral)
-            token.safeTransferFrom(msg.sender, address(this), _amount);
+            // For ERC20 tokens, sum all token quote amounts and pull from user
+            uint256 totalTokenRequired = 0;
+            address tokenAddr = address(token);
+            for (uint256 i = 0; i < quotes.length; i++) {
+                if (quotes[i].token == tokenAddr) {
+                    totalTokenRequired += quotes[i].amount;
+                }
+            }
+            token.safeTransferFrom(
+                msg.sender,
+                address(this),
+                totalTokenRequired
+            );
         }
 
-        // 5. Call warp route using already-encoded calldata (avoids re-encoding)
+        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(warpRoute).call{
             value: msg.value
