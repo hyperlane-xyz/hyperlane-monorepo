@@ -492,9 +492,9 @@ describe('Mixed EVM+SVM Inventory Rebalancer E2E', function () {
       logger,
     });
     logger.info({ relayedCount }, 'SVM\u2192EVM relay complete');
-    // relayedCount >= 0: relay may find 0 messages if the rebalancer used
-    // EVM-only paths; the key assertion is the route was proposed above.
-    expect(relayedCount).to.be.greaterThanOrEqual(0);
+    // relayedCount === 0: the evm-deficit scenario routes through EVM-only
+    // paths (transferRemote from EVM chains), so no SVM Mailbox dispatch occurs.
+    expect(relayedCount).to.equal(0);
   });
 
   it('should rebalance SVM deficit via EVM bridge and deposit on SVM', async function () {
