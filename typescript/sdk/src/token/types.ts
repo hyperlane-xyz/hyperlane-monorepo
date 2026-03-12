@@ -56,6 +56,16 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+export const AggLayerRemoteBridgeConfigSchema = z.object({
+  agglayerNetworkId: z.number().int().nonnegative(),
+  remoteToken: ZHash,
+  nativeFee: z.coerce.bigint().nonnegative().optional(),
+  forceUpdateGlobalExitRoot: z.boolean().optional(),
+});
+export type AggLayerRemoteBridgeConfig = z.infer<
+  typeof AggLayerRemoteBridgeConfigSchema
+>;
+
 const MovableTokenRebalancingBridgeConfigSchema = z.object({
   bridge: ZHash,
   approvedTokens: z
@@ -226,6 +236,27 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
+export const AggLayerTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
+    type: z.literal(TokenType.collateralAggLayer),
+    token: z.string().describe('AggLayer route local token'),
+    agglayerBridge: z.string().describe('AggLayer bridge contract address'),
+    vaultBridgeToken: z
+      .string()
+      .optional()
+      .describe('Vault bridge token address on redeeming chains'),
+    remoteBridgeConfigs: z
+      .record(
+        RemoteRouterDomainOrChainNameSchema,
+        AggLayerRemoteBridgeConfigSchema,
+      )
+      .optional(),
+  })
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+
+export type AggLayerTokenConfig = z.infer<typeof AggLayerTokenConfigSchema>;
+export const isAggLayerTokenConfig = isCompliant(AggLayerTokenConfigSchema);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -251,6 +282,27 @@ export type SyntheticRebaseTokenConfig = z.infer<
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
+);
+
+/**
+ * Configuration for MultiCollateral (multi-router collateral routing).
+ * Direct 1-message atomic transfers between collateral routers.
+ */
+export const MultiCollateralTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.multiCollateral),
+    token: z.string().describe('Collateral token address'),
+    /** Map of domain → router addresses to enroll */
+    enrolledRouters: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    ...BaseMovableTokenConfigSchema.shape,
+  });
+export type MultiCollateralTokenConfig = z.infer<
+  typeof MultiCollateralTokenConfigSchema
+>;
+export const isMultiCollateralTokenConfig = isCompliant(
+  MultiCollateralTokenConfigSchema,
 );
 
 export const EverclearCollateralTokenConfigSchema = z.object({
@@ -338,8 +390,10 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  AggLayerTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  MultiCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 
@@ -443,9 +497,11 @@ export const WarpRouteDeployConfigSchema = z
           isCollateralTokenConfig(config) ||
           isCollateralRebaseTokenConfig(config) ||
           isCctpTokenConfig(config) ||
+          isAggLayerTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
-          isEverclearTokenBridgeConfig(config),
+          isEverclearTokenBridgeConfig(config) ||
+          isMultiCollateralTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
@@ -678,6 +734,7 @@ function extractCCIPIsmMap(
 
 const MovableTokenSchema = z.discriminatedUnion('type', [
   CollateralTokenConfigSchema,
+  MultiCollateralTokenConfigSchema,
   NativeTokenConfigSchema,
 ]);
 export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;

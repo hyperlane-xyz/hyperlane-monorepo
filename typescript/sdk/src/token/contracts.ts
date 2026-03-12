@@ -21,6 +21,10 @@ import {
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
+import {
+  MultiCollateral__factory,
+  TokenBridgeAggLayer__factory,
+} from '@hyperlane-xyz/multicollateral';
 
 import { DeployableTokenType, TokenType } from './config.js';
 
@@ -36,6 +40,7 @@ export const hypERC20contracts = {
   [TokenType.collateralVault]: 'HypERC4626OwnerCollateral',
   [TokenType.collateralVaultRebase]: 'HypERC4626Collateral',
   [TokenType.collateralCctp]: 'TokenBridgeCctp',
+  [TokenType.collateralAggLayer]: 'TokenBridgeAggLayer',
   [TokenType.native]: 'HypNative',
   [TokenType.nativeOpL2]: 'OPL2TokenBridgeNative',
   [TokenType.nativeOpL1]: 'OpL1TokenBridgeNative',
@@ -43,6 +48,7 @@ export const hypERC20contracts = {
   [TokenType.nativeScaled]: 'HypNative',
   [TokenType.ethEverclear]: 'EverclearEthBridge',
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
+  [TokenType.multiCollateral]: 'MultiCollateral',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -56,6 +62,7 @@ export const hypERC20factories = {
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   // use V1 here to satisfy type requirements
   [TokenType.collateralCctp]: new TokenBridgeCctpV1__factory(),
+  [TokenType.collateralAggLayer]: new TokenBridgeAggLayer__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),
   [TokenType.collateralVaultRebase]: new HypERC4626Collateral__factory(),
   [TokenType.syntheticRebase]: new HypERC4626__factory(),
@@ -70,6 +77,7 @@ export const hypERC20factories = {
 
   [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
   [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
+  [TokenType.multiCollateral]: new MultiCollateral__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 

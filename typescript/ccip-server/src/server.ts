@@ -9,6 +9,7 @@ import { createServiceLogger } from '@hyperlane-xyz/utils';
 import { getEnabledModules } from './config.js';
 import { ServiceFactory } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
+import { AggLayerService } from './services/AggLayerService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
@@ -19,6 +20,7 @@ import {
 } from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, ServiceFactory> = {
+  agglayer: AggLayerService,
   callCommitments: CallCommitmentsService,
   cctp: CCTPService,
   opstack: OPStackService,

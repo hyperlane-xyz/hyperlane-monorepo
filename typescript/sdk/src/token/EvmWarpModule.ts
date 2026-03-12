@@ -14,6 +14,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  MultiCollateral__factory,
+  TokenBridgeAggLayer__factory,
+} from '@hyperlane-xyz/multicollateral';
+import {
   Address,
   Domain,
   EvmChainId,
@@ -24,6 +28,7 @@ import {
   deepEquals,
   difference,
   eqAddress,
+  isAddressEvm,
   isNullish,
   isObjEmpty,
   isZeroishAddress,
@@ -77,8 +82,10 @@ import {
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
   derivedIsmAddress,
+  isAggLayerTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isMultiCollateralTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -102,6 +109,7 @@ const getAllowedRebalancingBridgesByDomain = (
     },
   );
 };
+
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -203,6 +211,14 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
+      ...this.createSetAggLayerRemoteBridgeConfigTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createRemoveAggLayerRemoteBridgeConfigTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
 
       ...this.createAddRemoteOutputAssetsTxs(actualConfig, expectedConfig),
@@ -211,6 +227,14 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
 
+      ...this.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createUnenrollMultiCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -412,6 +436,136 @@ export class EvmWarpModule extends HyperlaneModule<
     }));
   }
 
+  /**
+   * Create transactions to enroll MultiCollateral routers.
+   */
+  createEnrollMultiCollateralRoutersTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMultiCollateralTokenConfig(expectedConfig) ||
+      !isMultiCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.enrolledRouters) {
+      return [];
+    }
+
+    const actualEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.enrolledRouters ?? {},
+    );
+    const expectedEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.enrolledRouters,
+    );
+
+    const domainsToEnroll: number[] = [];
+    const routersToEnroll: string[] = [];
+
+    for (const [domain, expectedRouters] of Object.entries(expectedEnrolled)) {
+      const domainId = Number(domain);
+      const actualRouters = new Set(
+        (actualEnrolled[domainId] ?? []).map((router) =>
+          this.toCanonicalRouterId(router),
+        ),
+      );
+      for (const router of expectedRouters) {
+        const canonicalRouter = this.toCanonicalRouterId(router);
+        if (!actualRouters.has(canonicalRouter)) {
+          domainsToEnroll.push(domainId);
+          routersToEnroll.push(canonicalRouter);
+        }
+      }
+    }
+
+    if (domainsToEnroll.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Enrolling ${domainsToEnroll.length} MultiCollateral routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MultiCollateral__factory.createInterface().encodeFunctionData(
+          'enrollRouters',
+          [domainsToEnroll, routersToEnroll],
+        ),
+      },
+    ];
+  }
+
+  /**
+   * Create transactions to unenroll MultiCollateral routers.
+   */
+  createUnenrollMultiCollateralRoutersTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMultiCollateralTokenConfig(expectedConfig) ||
+      !isMultiCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const actualEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.enrolledRouters ?? {},
+    );
+    const expectedEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.enrolledRouters ?? {},
+    );
+
+    const domainsToUnenroll: number[] = [];
+    const routersToUnenroll: string[] = [];
+
+    for (const [domain, actualRouters] of Object.entries(actualEnrolled)) {
+      const domainId = Number(domain);
+      const expectedRouters = new Set(
+        (expectedEnrolled[domainId] ?? []).map((router) =>
+          this.toCanonicalRouterId(router),
+        ),
+      );
+      for (const router of actualRouters) {
+        const canonicalRouter = this.toCanonicalRouterId(router);
+        if (!expectedRouters.has(canonicalRouter)) {
+          domainsToUnenroll.push(domainId);
+          routersToUnenroll.push(canonicalRouter);
+        }
+      }
+    }
+
+    if (domainsToUnenroll.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Unenrolling ${domainsToUnenroll.length} MultiCollateral routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MultiCollateral__factory.createInterface().encodeFunctionData(
+          'unenrollRouters',
+          [domainsToUnenroll, routersToUnenroll],
+        ),
+      },
+    ];
+  }
+
+  private toCanonicalRouterId(router: string): string {
+    const lower = router.toLowerCase();
+    if (isAddressEvm(lower)) {
+      return addressToBytes32(lower);
+    }
+    return lower;
+  }
+
   async getAllowedBridgesApprovalTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
@@ -590,6 +744,95 @@ export class EvmWarpModule extends HyperlaneModule<
         });
       },
     );
+  }
+
+  createSetAggLayerRemoteBridgeConfigTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isAggLayerTokenConfig(expectedConfig) ||
+      !isAggLayerTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteBridgeConfigs ?? {},
+    );
+    const actualRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.remoteBridgeConfigs ?? {},
+    );
+
+    const txs: AnnotatedEV5Transaction[] = [];
+
+    for (const [domain, config] of Object.entries(
+      expectedRemoteBridgeConfigs,
+    )) {
+      const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
+      if (
+        actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
+        eqAddress(actualDomainConfig.remoteToken, config.remoteToken) &&
+        `${actualDomainConfig.nativeFee ?? 0}` === `${config.nativeFee ?? 0}` &&
+        (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
+          (config.forceUpdateGlobalExitRoot ?? false)
+      ) {
+        continue;
+      }
+
+      txs.push({
+        chainId: this.chainId,
+        annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+          'setRemoteBridgeConfig',
+          [
+            Number(domain),
+            config.agglayerNetworkId,
+            config.remoteToken,
+            config.nativeFee ?? 0,
+            config.forceUpdateGlobalExitRoot ?? false,
+          ],
+        ),
+      });
+    }
+
+    return txs;
+  }
+
+  createRemoveAggLayerRemoteBridgeConfigTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isAggLayerTokenConfig(expectedConfig) ||
+      !isAggLayerTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteBridgeConfigs ?? {},
+    );
+    const actualRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.remoteBridgeConfigs ?? {},
+    );
+
+    return Object.keys(actualRemoteBridgeConfigs)
+      .filter((domain) => !expectedRemoteBridgeConfigs[Number(domain)])
+      .map((domain) => ({
+        chainId: this.chainId,
+        annotation: `Removing AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+          'removeRemoteBridgeConfig',
+          [Number(domain)],
+        ),
+      }));
   }
 
   createAddRemoteOutputAssetsTxs(
@@ -1367,6 +1610,21 @@ export class EvmWarpModule extends HyperlaneModule<
       ];
 
       for (const tx of everclearTxs) {
+        await multiProvider.sendTransaction(chain, tx);
+      }
+    }
+
+    if (
+      isMultiCollateralTokenConfig(config) &&
+      config.enrolledRouters &&
+      Object.keys(config.enrolledRouters).length > 0
+    ) {
+      const enrollTxs = warpModule.createEnrollMultiCollateralRoutersTxs(
+        actualConfig,
+        config,
+      );
+
+      for (const tx of enrollTxs) {
         await multiProvider.sendTransaction(chain, tx);
       }
     }

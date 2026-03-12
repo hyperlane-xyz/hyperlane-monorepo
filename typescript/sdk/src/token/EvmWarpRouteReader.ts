@@ -28,6 +28,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  MultiCollateral__factory,
+  TokenBridgeAggLayer__factory,
+} from '@hyperlane-xyz/multicollateral';
+import {
   Address,
   arrayToObject,
   assert,
@@ -61,6 +65,7 @@ import { NormalizedScale } from '../utils/decimals.js';
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  AggLayerTokenConfig,
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
@@ -128,6 +133,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralVaultTokenConfig.bind(this),
       [TokenType.collateralCctp]:
         this.deriveHypCollateralCctpTokenConfig.bind(this),
+      [TokenType.collateralAggLayer]: this.deriveAggLayerTokenConfig.bind(this),
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
@@ -144,6 +150,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.multiCollateral]:
+        this.deriveMultiCollateralTokenConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -220,8 +228,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         );
 
         allowedRebalancingBridges = objFilter(
-          objMap(allowedBridgesByDomain, (_domain, bridges) =>
-            bridges.map((bridge) => ({ bridge })),
+          await promiseObjAll(
+            objMap(allowedBridgesByDomain, async (domain, bridges) => {
+              return Promise.all(
+                bridges.map(async (bridge) => {
+                  return { bridge };
+                }),
+              );
+            }),
           ),
           // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
@@ -240,7 +254,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
-    if (type === TokenType.collateralCctp) {
+    if (
+      type === TokenType.collateralCctp ||
+      type === TokenType.collateralAggLayer
+    ) {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
@@ -431,6 +448,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         factory: TokenBridgeCctpBase__factory,
         method: 'messageTransmitter',
       },
+      [TokenType.collateralAggLayer]: {
+        factory: TokenBridgeAggLayer__factory,
+        method: 'agglayerBridge',
+      },
       [TokenType.collateral]: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
@@ -521,6 +542,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             } catch (error) {
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+                error,
+              );
+            }
+
+            try {
+              const mc = MultiCollateral__factory.connect(
+                warpRouteAddress,
+                this.provider,
+              );
+              // getEnrolledRouters(uint32) is unique to MultiCollateral
+              await mc.getEnrolledRouters(0);
+              return TokenType.multiCollateral;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.multiCollateral}`,
                 error,
               );
             }
@@ -849,6 +885,62 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async deriveAggLayerTokenConfig(
+    hypToken: Address,
+  ): Promise<AggLayerTokenConfig> {
+    const tokenBridge = TokenBridgeAggLayer__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [localTokenAddress, agglayerBridge, vaultBridgeToken, urls, domains] =
+      await Promise.all([
+        tokenBridge.token(),
+        tokenBridge.agglayerBridge(),
+        tokenBridge.vaultBridgeToken(),
+        tokenBridge.urls(),
+        tokenBridge.domains().catch(() => []),
+      ]);
+
+    const [erc20TokenMetadata, scale] = await Promise.all([
+      this.fetchERC20Metadata(localTokenAddress),
+      this.fetchScale(hypToken),
+    ]);
+
+    const remoteBridgeConfigs = Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain: any) => {
+          const cfg = await tokenBridge.remoteBridgeConfigs(domain);
+          return [
+            domain.toString(),
+            {
+              agglayerNetworkId: Number(cfg.agglayerNetworkId),
+              remoteToken: cfg.remoteToken,
+              nativeFee: cfg.nativeFee.toString(),
+              forceUpdateGlobalExitRoot: cfg.forceUpdateGlobalExitRoot,
+            },
+          ];
+        }),
+      ),
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralAggLayer,
+      token: localTokenAddress,
+      agglayerBridge,
+      vaultBridgeToken: isZeroishAddress(vaultBridgeToken)
+        ? undefined
+        : vaultBridgeToken,
+      urls,
+      remoteBridgeConfigs:
+        Object.keys(remoteBridgeConfigs).length > 0
+          ? remoteBridgeConfigs
+          : undefined,
+      scale,
+    };
+  }
+
   private async deriveHypCollateralFiatTokenConfig(
     hypToken: Address,
   ): Promise<HypTokenConfig> {
@@ -1109,6 +1201,53 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       everclearFeeParams,
       outputAssets,
       scale,
+    };
+  }
+
+  /**
+   * Derives the configuration for a MultiCollateral router.
+   */
+  private async deriveMultiCollateralTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const mc = MultiCollateral__factory.connect(hypTokenAddress, this.provider);
+    const tokenRouter = TokenRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const [collateralTokenAddress, remoteDomains, localDomain, scale] =
+      await Promise.all([
+        mc.wrappedToken(),
+        tokenRouter.domains(),
+        mc.localDomain(),
+        this.fetchScale(hypTokenAddress),
+      ]);
+
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
+
+    // Build enrolledRouters: domain → bytes32[] for all domains (remote + local)
+    const allDomains = [...remoteDomains.map(Number), localDomain];
+    const enrolledRouters: Record<string, string[]> = {};
+
+    await Promise.all(
+      allDomains.map(async (domain) => {
+        const routers = await mc.getEnrolledRouters(domain);
+        if (routers.length > 0) {
+          enrolledRouters[domain.toString()] = [...routers];
+        }
+      }),
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.multiCollateral,
+      token: collateralTokenAddress,
+      scale,
+      enrolledRouters:
+        Object.keys(enrolledRouters).length > 0 ? enrolledRouters : undefined,
     };
   }
 

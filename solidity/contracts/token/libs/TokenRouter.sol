@@ -120,7 +120,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
+    ) external view virtual override returns (Quote[] memory quotes) {
         address _feeToken = feeToken();
         quotes = new Quote[](3);
         quotes[0] = Quote({

@@ -31,6 +31,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  MultiCollateral__factory,
+  TokenBridgeAggLayer__factory,
+} from '@hyperlane-xyz/multicollateral';
+import {
   ContractVerifier,
   ExplorerLicenseType,
   HyperlaneContractsMap,
@@ -684,6 +688,63 @@ describe('EvmWarpRouteReader', async () => {
     });
   }
 
+  it('should derive standalone AggLayer token config', async () => {
+    const routeAddress = '0x1111111111111111111111111111111111111111';
+    const agglayerBridgeAddress = '0x2222222222222222222222222222222222222222';
+    const vaultBridgeToken = '0x3333333333333333333333333333333333333333';
+    const localToken = '0x4444444444444444444444444444444444444444';
+
+    const connectStub = sinon
+      .stub(TokenBridgeAggLayer__factory, 'connect')
+      .returns({
+        token: sinon.stub().resolves(localToken),
+        agglayerBridge: sinon.stub().resolves(agglayerBridgeAddress),
+        vaultBridgeToken: sinon.stub().resolves(vaultBridgeToken),
+        urls: sinon.stub().resolves(['https://lookup.example']),
+        domains: sinon.stub().resolves([747474]),
+        remoteBridgeConfigs: sinon.stub().resolves({
+          agglayerNetworkId: 20,
+          remoteToken: '0x5555555555555555555555555555555555555555',
+          nativeFee: { toString: () => '1234' },
+          forceUpdateGlobalExitRoot: true,
+        }),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'fetchERC20Metadata')
+      .resolves({ name: 'USDC', symbol: 'USDC', decimals: 6 });
+    const scaleStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'fetchScale')
+      .resolves(undefined);
+
+    const config = await (
+      evmERC20WarpRouteReader as any
+    ).deriveAggLayerTokenConfig(routeAddress);
+
+    expect(config).to.deep.equal({
+      name: 'USDC',
+      symbol: 'USDC',
+      decimals: 6,
+      type: TokenType.collateralAggLayer,
+      token: localToken,
+      agglayerBridge: agglayerBridgeAddress,
+      vaultBridgeToken,
+      urls: ['https://lookup.example'],
+      remoteBridgeConfigs: {
+        '747474': {
+          agglayerNetworkId: 20,
+          remoteToken: '0x5555555555555555555555555555555555555555',
+          nativeFee: '1234',
+          forceUpdateGlobalExitRoot: true,
+        },
+      },
+      scale: undefined,
+    });
+
+    connectStub.restore();
+    metadataStub.restore();
+    scaleStub.restore();
+  });
+
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
@@ -1005,6 +1066,73 @@ describe('EvmWarpRouteReader', async () => {
 
     fetchPackageVersionStub.restore();
     fetchScaleStub.restore();
+  });
+
+  it('derives multicollateral config with scale from the router', async () => {
+    const routerAddress = '0x1000000000000000000000000000000000000001';
+    const wrappedTokenAddress = '0x2000000000000000000000000000000000000002';
+    const localDomain = 31337;
+    const remoteDomain = 31338;
+    const localRouter = addressToBytes32(
+      '0x3000000000000000000000000000000000000003',
+    );
+    const remoteRouter = addressToBytes32(
+      '0x4000000000000000000000000000000000000004',
+    );
+    const expectedScale = {
+      numerator: 1n,
+      denominator: 1_000_000_000_000n,
+    };
+
+    const mcConnectStub = sinon
+      .stub(MultiCollateral__factory, 'connect')
+      .returns({
+        wrappedToken: sinon.stub().resolves(wrappedTokenAddress),
+        localDomain: sinon.stub().resolves(localDomain),
+        getEnrolledRouters: sinon
+          .stub()
+          .callsFake(async (domain: number) =>
+            domain === localDomain ? [localRouter] : [remoteRouter],
+          ),
+      } as any);
+    const tokenRouterConnectStub = sinon
+      .stub(TokenRouter__factory, 'connect')
+      .returns({
+        domains: sinon.stub().resolves([remoteDomain]),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
+      .resolves({
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
+        isNft: false,
+      });
+    const scaleStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchScale')
+      .resolves(expectedScale);
+
+    const deriveMultiCollateralTokenConfig = (evmERC20WarpRouteReader as any)
+      .deriveMultiCollateralTokenConfig as (address: string) => Promise<any>;
+    try {
+      const derivedConfig = await deriveMultiCollateralTokenConfig.call(
+        evmERC20WarpRouteReader,
+        routerAddress,
+      );
+
+      expect(derivedConfig.type).to.equal(TokenType.multiCollateral);
+      expect(derivedConfig.token).to.equal(wrappedTokenAddress);
+      expect(derivedConfig.scale).to.deep.equal(expectedScale);
+      expect(derivedConfig.enrolledRouters).to.deep.equal({
+        [localDomain.toString()]: [localRouter],
+        [remoteDomain.toString()]: [remoteRouter],
+      });
+    } finally {
+      mcConnectStub.restore();
+      tokenRouterConnectStub.restore();
+      metadataStub.restore();
+      scaleStub.restore();
+    }
   });
 
   describe('Backward compatibility for token type detection', () => {

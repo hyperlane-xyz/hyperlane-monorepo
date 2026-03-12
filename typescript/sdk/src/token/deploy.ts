@@ -15,9 +15,13 @@ import {
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
+  MultiCollateral__factory,
+  TokenBridgeAggLayer__factory,
+} from '@hyperlane-xyz/multicollateral';
+import {
   Address,
-  ProtocolType,
   addressToBytes32,
+  isEVMLike,
   assert,
   objFilter,
   objKeys,
@@ -64,12 +68,14 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isAggLayerTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isMultiCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
@@ -84,6 +90,7 @@ const OP_L2_INITIALIZE_SIGNATURE = 'initialize(address,address)';
 const OP_L1_INITIALIZE_SIGNATURE = 'initialize(address,string[])';
 // initialize(address _hook, address _owner, string[] memory __urls)
 const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
+const AGGLAYER_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
 // initialize(address _hook, address _owner)
 const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
@@ -109,13 +116,17 @@ export const TOKEN_INITIALIZE_SIGNATURE = (
       );
       return OP_L1_INITIALIZE_SIGNATURE;
     case 'TokenBridgeCctp':
+    case 'TokenBridgeAggLayer':
       assert(
         TokenBridgeCctpBase__factory.createInterface().functions[
           CCTP_INITIALIZE_SIGNATURE
-        ],
+        ] ||
+          TokenBridgeAggLayer__factory.createInterface().functions[
+            AGGLAYER_INITIALIZE_SIGNATURE
+          ],
         'missing expected initialize function',
       );
-      return CCTP_INITIALIZE_SIGNATURE;
+      return AGGLAYER_INITIALIZE_SIGNATURE;
     case 'EverclearTokenBridge':
     case 'EverclearEthBridge':
       assert(
@@ -156,7 +167,11 @@ abstract class TokenDeployer<
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const { numerator, denominator } = normalizeScale(config.scale);
 
-    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isMultiCollateralTokenConfig(config)
+    ) {
       return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
       return [
@@ -225,6 +240,13 @@ abstract class TokenDeployer<
         default:
           throw new Error('Unsupported CCTP version');
       }
+    } else if (isAggLayerTokenConfig(config)) {
+      return [
+        config.token,
+        config.mailbox,
+        config.agglayerBridge,
+        config.vaultBridgeToken ?? constants.AddressZero,
+      ];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -248,7 +270,8 @@ abstract class TokenDeployer<
     if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isNativeTokenConfig(config)
+      isNativeTokenConfig(config) ||
+      isMultiCollateralTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -261,6 +284,8 @@ abstract class TokenDeployer<
     } else if (isOpL1TokenConfig(config)) {
       return [config.owner, config.urls];
     } else if (isCctpTokenConfig(config)) {
+      return [config.hook ?? constants.AddressZero, config.owner, config.urls];
+    } else if (isAggLayerTokenConfig(config)) {
       return [config.hook ?? constants.AddressZero, config.owner, config.urls];
     } else if (isSyntheticTokenConfig(config)) {
       return [
@@ -560,6 +585,44 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setAggLayerRemoteBridgeConfigs(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isAggLayerTokenConfig(config) || !config.remoteBridgeConfigs) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeAggLayer__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+        const resolvedRemoteBridgeConfigs = resolveRouterMapConfig(
+          this.multiProvider,
+          config.remoteBridgeConfigs,
+        );
+
+        for (const [domain, remoteConfig] of Object.entries(
+          resolvedRemoteBridgeConfigs,
+        )) {
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.setRemoteBridgeConfig(
+              Number(domain),
+              remoteConfig.agglayerNetworkId,
+              remoteConfig.remoteToken,
+              remoteConfig.nativeFee ?? 0,
+              remoteConfig.forceUpdateGlobalExitRoot ?? false,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   protected async setEverclearFeeParams(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -637,6 +700,57 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async enrollRouters(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isMultiCollateralTokenConfig(config)) {
+          return;
+        }
+        if (
+          !config.enrolledRouters ||
+          Object.keys(config.enrolledRouters).length === 0
+        ) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const mc = MultiCollateral__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedRouters = resolveRouterMapConfig(
+          this.multiProvider,
+          config.enrolledRouters,
+        );
+
+        const domains: number[] = [];
+        const routers: string[] = [];
+        for (const [domainId, routerAddresses] of Object.entries(
+          resolvedRouters,
+        )) {
+          for (const routerAddr of routerAddresses) {
+            domains.push(Number(domainId));
+            routers.push(addressToBytes32(routerAddr));
+          }
+        }
+
+        if (domains.length > 0) {
+          this.logger.info(
+            `Batch enrolling ${domains.length} routers for ${chain}`,
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            mc.enrollRouters(domains, routers),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -675,11 +789,15 @@ abstract class TokenDeployer<
 
     await this.setAllowedBridges(configMap, deployedContractsMap);
 
+    await this.setAggLayerRemoteBridgeConfigs(configMap, deployedContractsMap);
+
     await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
 
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.enrollRouters(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 
@@ -707,7 +825,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as TokenRouter;
       }
     }
     throw new Error('No matching contract found');
@@ -765,7 +883,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         const tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
-        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        if (!isEVMLike(this.multiProvider.getProtocol(chain))) {
           this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
           return;
         }
