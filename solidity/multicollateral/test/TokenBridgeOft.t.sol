@@ -6,7 +6,6 @@ import "forge-std/Test.sol";
 import {TokenBridgeOft} from "../contracts/TokenBridgeOft.sol";
 import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt, OFTLimit, OFTFeeDetail} from "../contracts/interfaces/layerzero/IOFT.sol";
 import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
-import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
 
@@ -191,7 +190,6 @@ contract TokenBridgeOftUnitTest is Test {
 
     ERC20Test internal token;
     MockOFT internal mockOft;
-    MockMailbox internal mailbox;
     TokenBridgeOft internal bridge;
 
     address internal owner = makeAddr("owner");
@@ -202,9 +200,8 @@ contract TokenBridgeOftUnitTest is Test {
     function setUp() public {
         token = new ERC20Test("MockUSDT", "mUSDT", 0, 6);
         mockOft = new MockOFT(address(token), false);
-        mailbox = new MockMailbox(1);
-        bridge = new TokenBridgeOft(address(mockOft), address(mailbox));
-        bridge.initialize(address(0), address(0), owner);
+        bridge = new TokenBridgeOft(address(mockOft));
+        bridge.initialize(owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
@@ -225,7 +222,7 @@ contract TokenBridgeOftUnitTest is Test {
 
     function test_constructor_revertsOnZeroOft() public {
         vm.expectRevert("TokenBridgeOft: zero OFT address");
-        new TokenBridgeOft(address(0), address(mailbox));
+        new TokenBridgeOft(address(0));
     }
 
     // ---- Domain Mapping ----
@@ -285,7 +282,6 @@ contract TokenBridgeOftUnitTest is Test {
             100e6
         );
 
-        // TokenRouter returns 3: native gas, token fee, external fee
         assertEq(quotes.length, 3, "3 quotes");
         assertEq(quotes[0].token, address(0), "native fee token");
         assertEq(quotes[0].amount, 0.001 ether, "native fee from mock");
@@ -393,34 +389,6 @@ contract TokenBridgeOftUnitTest is Test {
         assertEq(address(bridge).balance, 0, "bridge should have no ETH");
     }
 
-    // ---- Handle (inbound) ----
-
-    function test_handle_revertsFromMailbox() public {
-        // Enroll a router so it passes the router check
-        bytes32 router = bytes32(uint256(uint160(makeAddr("router"))));
-        vm.prank(owner);
-        bridge.enrollRemoteRouter(DOMAIN_ETH, router);
-
-        vm.prank(address(mailbox));
-        vm.expectRevert("TokenBridgeOft: no inbound handling");
-        bridge.handle(DOMAIN_ETH, router, "");
-    }
-
-    function test_handle_revertsFromNonMailbox() public {
-        vm.prank(caller);
-        vm.expectRevert("MailboxClient: sender not mailbox");
-        bridge.handle(1, bytes32(0), "");
-    }
-
-    // ---- Receive ----
-
-    function test_receiveEth() public {
-        vm.deal(address(this), 1 ether);
-        (bool ok, ) = address(bridge).call{value: 0.5 ether}("");
-        assertTrue(ok);
-        assertEq(address(bridge).balance, 0.5 ether);
-    }
-
     // ---- Fee Recipient ----
 
     function test_transferRemote_feeRecipientReceivesFee() public {
@@ -498,7 +466,6 @@ contract TokenBridgeOftAdapterUnitTest is Test {
 
     ERC20Test internal token;
     MockOFTAdapter internal mockAdapter;
-    MockMailbox internal mailbox;
     TokenBridgeOft internal bridge;
 
     address internal owner = makeAddr("owner");
@@ -509,9 +476,8 @@ contract TokenBridgeOftAdapterUnitTest is Test {
     function setUp() public {
         token = new ERC20Test("MockUSDC", "mUSDC", 0, 6);
         mockAdapter = new MockOFTAdapter(address(token));
-        mailbox = new MockMailbox(1);
-        bridge = new TokenBridgeOft(address(mockAdapter), address(mailbox));
-        bridge.initialize(address(0), address(0), owner);
+        bridge = new TokenBridgeOft(address(mockAdapter));
+        bridge.initialize(owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
@@ -551,7 +517,6 @@ contract TokenBridgeOftFeeInversionTest is Test {
 
     ERC20Test internal token;
     MockOFT internal mockOft;
-    MockMailbox internal mailbox;
     TokenBridgeOft internal bridge;
 
     address internal owner = makeAddr("owner");
@@ -562,9 +527,8 @@ contract TokenBridgeOftFeeInversionTest is Test {
     function setUp() public {
         token = new ERC20Test("MockUSDT", "mUSDT", 0, 6);
         mockOft = new MockOFT(address(token), false);
-        mailbox = new MockMailbox(1);
-        bridge = new TokenBridgeOft(address(mockOft), address(mailbox));
-        bridge.initialize(address(0), address(0), owner);
+        bridge = new TokenBridgeOft(address(mockOft));
+        bridge.initialize(owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);
@@ -670,7 +634,6 @@ contract TokenBridgeOftDustTest is Test {
 
     ERC20Test internal token;
     MockOFT internal mockOft;
-    MockMailbox internal mailbox;
     TokenBridgeOft internal bridge;
 
     address internal owner = makeAddr("owner");
@@ -683,9 +646,8 @@ contract TokenBridgeOftDustTest is Test {
         token = new ERC20Test("MockWETH", "mWETH", 0, 18);
         mockOft = new MockOFT(address(token), false);
         mockOft.setDecimals(18, 6);
-        mailbox = new MockMailbox(1);
-        bridge = new TokenBridgeOft(address(mockOft), address(mailbox));
-        bridge.initialize(address(0), address(0), owner);
+        bridge = new TokenBridgeOft(address(mockOft));
+        bridge.initialize(owner);
 
         vm.prank(owner);
         bridge.addDomain(DOMAIN_ETH, LZ_EID_ETH);

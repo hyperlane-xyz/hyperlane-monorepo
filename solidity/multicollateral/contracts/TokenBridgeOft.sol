@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "@hyperlane-xyz/core/token/libs/TokenRouter.sol";
+import {ITokenBridge, ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt} from "./interfaces/layerzero/IOFT.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title TokenBridgeOft
  * @notice Warp route adapter for LayerZero OFT (Omnichain Fungible Token) contracts.
  *
- * @dev TokenRouter coupling:
- *  This contract extends TokenRouter to integrate with the Hyperlane warp route
- *  deployer and SDK. However, it does NOT use Hyperlane messaging for transfers.
- *  Instead, _transferRemote bridges via OFT.send() and _handle reverts on inbound
- *  Hyperlane messages. The Mailbox address passed to the constructor is required by
- *  TokenRouter's initializer but is not used for dispatching. The scale factors
- *  (1, 1) passed to TokenRouter(...) avoid decimal conversion since OFT handles
- *  its own decimal normalization via sharedDecimals.
+ * @dev This contract implements ITokenBridge directly with OwnableUpgradeable for admin.
+ *  It does NOT use Hyperlane messaging for transfers. Instead, transferRemote bridges
+ *  via OFT.send() and there is no inbound message handling.
  *
  * @dev Dust and decimal handling:
  *  OFTs use "sharedDecimals" (typically 6) as a wire format, regardless of the
@@ -44,7 +42,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *  - Rebasing tokens: NOT supported — amounts may diverge across chains.
  *  - ERC-777: NOT explicitly supported — hook reentrancy not guarded.
  */
-contract TokenBridgeOft is TokenRouter {
+contract TokenBridgeOft is ITokenBridge, Initializable, OwnableUpgradeable {
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.UintToUintMap;
 
@@ -54,9 +52,15 @@ contract TokenBridgeOft is TokenRouter {
 
     // ============ Events ============
 
+    event SentTransferRemote(
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        uint256 amount
+    );
     event DomainAdded(uint32 indexed hyperlaneDomain, uint32 lzEid);
     event DomainRemoved(uint32 indexed hyperlaneDomain);
     event ExtraOptionsSet(bytes extraOptions);
+    event FeeRecipientSet(address indexed recipient);
 
     // ============ Storage ============
 
@@ -77,13 +81,15 @@ contract TokenBridgeOft is TokenRouter {
     /// @notice Configurable LayerZero extra options (e.g., destination gas limits)
     bytes public extraOptions;
 
+    /// @notice Address that receives protocol fees (implements ITokenFee)
+    address public feeRecipient;
+
     // ============ Constructor ============
 
     /**
      * @param _oft Address of the OFT / OFTAdapter / OFTWrapper contract
-     * @param _mailbox Address of the Hyperlane Mailbox (for deployer compatibility)
      */
-    constructor(address _oft, address _mailbox) TokenRouter(1, 1, _mailbox) {
+    constructor(address _oft) {
         require(_oft != address(0), "TokenBridgeOft: zero OFT address");
 
         oft = IOFT(_oft);
@@ -99,89 +105,77 @@ contract TokenBridgeOft is TokenRouter {
         decimalConversionRate = 10 ** (localDecimals - sharedDecimals);
     }
 
-    function initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) public initializer {
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    function initialize(address _owner) public initializer {
+        __Ownable_init();
+        transferOwnership(_owner);
 
         // Approve in initialize (not constructor) so the approval is set on the
         // proxy's address, not the implementation's.
         wrappedToken.safeApprove(address(oft), type(uint256).max);
     }
 
-    // ============ TokenRouter Overrides ============
+    // ============ ITokenBridge ============
 
     /// @notice Returns the address of the underlying ERC20 token.
-    function token() public view override returns (address) {
+    function token() public view returns (address) {
         return address(wrappedToken);
     }
 
-    /// @dev ERC20 fee hooks are incompatible: _quoteGasPayment returns LZ native
-    /// fees in wei, which _calculateFeesAndCharge would misinterpret as ERC20
-    /// amounts if a feeHook were set. Always return address(0) to disable.
-    function feeHook() public pure override returns (address) {
-        return address(0);
-    }
-
-    /**
-     * @dev Override to return LayerZero OFT native fee instead of Hyperlane IGP fee.
-     */
-    function _quoteGasPayment(
+    /// @inheritdoc ITokenFee
+    function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        address /* _feeToken */
-    ) internal view override returns (uint256) {
-        SendParam memory sendParam = _buildSendParam(
+        uint256 _amount
+    ) external view override returns (Quote[] memory quotes) {
+        uint256 nativeFee = _quoteGasPayment(_destination, _recipient, _amount);
+        (, uint256 protocolFee) = _feeRecipientAndAmount(
             _destination,
             _recipient,
-            _amount,
-            0
+            _amount
         );
-        MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
-        return msgFee.nativeFee;
+        uint256 externalFee = _externalFeeAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        quotes = new Quote[](3);
+        quotes[0] = Quote({token: address(0), amount: nativeFee});
+        quotes[1] = Quote({
+            token: address(wrappedToken),
+            amount: _amount + protocolFee
+        });
+        quotes[2] = Quote({token: address(wrappedToken), amount: externalFee});
     }
 
-    /**
-     * @dev Override to surface OFT token fees as an external fee in quoteTransferRemote.
-     * This is the difference between what we must send the OFT and what the recipient gets.
-     */
-    function _externalFeeAmount(
+    /// @inheritdoc ITokenBridge
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view override returns (uint256) {
-        return _grossOftAmount(_destination, _recipient, _amount) - _amount;
-    }
+    ) external payable override returns (bytes32 messageId) {
+        // 1. Calculate fees
+        (address _feeRecipient, uint256 protocolFee) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 externalFee = _externalFeeAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 charge = _amount + protocolFee + externalFee;
 
-    /**
-     * @dev Override to bridge via OFT.send() instead of Hyperlane dispatch.
-     * Reuses the base fee charging logic (_calculateFeesAndCharge) which pulls
-     * grossAmount (= _amount + externalFee) from sender and distributes any
-     * protocol fees. Then sends the gross amount through the OFT with
-     * dust-free _amount as the minimum received.
-     */
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal override returns (bytes32 messageId) {
-        // 1. Charge fees — pulls _amount + externalFee (OFT fee) from sender
-        (
-            uint256 externalFee,
-            uint256 remainingNativeValue
-        ) = _calculateFeesAndCharge(
-                _destination,
-                _recipient,
-                _amount,
-                msg.value,
-                feeHook()
-            );
+        // 2. Pull total charge from sender
+        wrappedToken.safeTransferFrom(msg.sender, address(this), charge);
 
-        // 2. Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
-        // minAmountLD uses _removeDust because the OFT cannot deliver sub-dust precision.
+        // 3. Transfer protocol fee to recipient
+        if (protocolFee > 0) {
+            wrappedToken.safeTransfer(_feeRecipient, protocolFee);
+        }
+
+        // 4. Build OFT send params: send grossAmount, enforce dust-free _amount as minimum received.
         uint256 grossAmount = _amount + externalFee;
         SendParam memory sendParam = _buildSendParam(
             _destination,
@@ -190,60 +184,38 @@ contract TokenBridgeOft is TokenRouter {
             _removeDust(_amount)
         );
 
-        // 3. Quote native gas fee and send via OFT
+        // 5. Quote native gas fee and send via OFT
+        uint256 nativeFee = _quoteGasPayment(_destination, _recipient, _amount);
+
         MessagingFee memory msgFee = MessagingFee({
-            nativeFee: _quoteGasPayment(
-                _destination,
-                _recipient,
-                _amount,
-                address(0)
-            ),
+            nativeFee: nativeFee,
             lzTokenFee: 0
         });
 
         emit SentTransferRemote(_destination, _recipient, _amount);
 
-        (MessagingReceipt memory msgReceipt, ) = oft.send{
-            value: msgFee.nativeFee
-        }(sendParam, msgFee, msg.sender);
+        (MessagingReceipt memory msgReceipt, ) = oft.send{value: nativeFee}(
+            sendParam,
+            msgFee,
+            msg.sender
+        );
 
-        // 4. Refund excess native value back to caller
-        uint256 excessNative = remainingNativeValue - msgFee.nativeFee;
+        // 6. Refund excess native value back to caller
+        uint256 excessNative = msg.value - nativeFee;
         if (excessNative > 0) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool ok, ) = msg.sender.call{value: excessNative}("");
-            require(ok, "TokenBridgeOft: ETH refund failed");
+            Address.sendValue(payable(msg.sender), excessNative);
         }
 
         return msgReceipt.guid;
     }
 
-    /// @dev Pull tokens from msg.sender to this contract.
-    function _transferFromSender(uint256 _amount) internal override {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-    }
-
-    /// @dev No-op — OFT delivers tokens directly to recipients on the destination chain.
-    function _transferTo(address, uint256) internal pure override {
-        // Intentionally empty: OFT handles token delivery
-    }
-
-    /// @dev Override to transfer fees via ERC20 instead of _transferTo (which is a no-op).
-    function _transferFee(
-        address _recipient,
-        uint256 _amount
-    ) internal override {
-        wrappedToken.safeTransfer(_recipient, _amount);
-    }
-
-    /**
-     * @dev Revert on inbound Hyperlane messages — tokens arrive via LayerZero, not Hyperlane.
-     */
-    function _handle(uint32, bytes32, bytes calldata) internal pure override {
-        revert("TokenBridgeOft: no inbound handling");
-    }
-
     // ============ Admin ============
+
+    function setFeeRecipient(address _recipient) external onlyOwner {
+        require(_recipient != address(this), "Fee recipient cannot be self");
+        feeRecipient = _recipient;
+        emit FeeRecipientSet(_recipient);
+    }
 
     function addDomain(
         uint32 _hyperlaneDomain,
@@ -316,6 +288,58 @@ contract TokenBridgeOft is TokenRouter {
             });
     }
 
+    /// @dev Return the LZ native fee for sending via OFT.
+    function _quoteGasPayment(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (uint256) {
+        SendParam memory sendParam = _buildSendParam(
+            _destination,
+            _recipient,
+            _amount,
+            0
+        );
+        MessagingFee memory msgFee = oft.quoteSend(sendParam, false);
+        return msgFee.nativeFee;
+    }
+
+    /// @dev Return the OFT token fee (difference between gross input and net output).
+    function _externalFeeAmount(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (uint256) {
+        return _grossOftAmount(_destination, _recipient, _amount) - _amount;
+    }
+
+    /// @dev Query fee recipient for protocol fee amount.
+    function _feeRecipientAndAmount(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (address _recipient_, uint256 feeAmount) {
+        _recipient_ = feeRecipient;
+        if (_recipient_ == address(0)) {
+            return (_recipient_, 0);
+        }
+
+        Quote[] memory quotes = ITokenFee(_recipient_).quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+        if (quotes.length == 0) {
+            return (_recipient_, 0);
+        }
+
+        require(
+            quotes.length == 1 && quotes[0].token == address(wrappedToken),
+            "TokenBridgeOft: fee must match token"
+        );
+        feeAmount = quotes[0].amount;
+    }
+
     /**
      * @dev Analytically invert the OFT fee to compute the gross input amount
      * such that the recipient receives at least _amount after OFT deductions.
@@ -354,13 +378,13 @@ contract TokenBridgeOft is TokenRouter {
         uint256 sent = receipt.amountSentLD;
         uint256 received = receipt.amountReceivedLD;
 
-        // No fee: return _amount rounded up to dust-free boundary
+        // No fee (or zero amount): return _amount rounded up to dust-free boundary
         if (sent == received) return _roundUpDust(_amount);
 
         require(received > 0, "TokenBridgeOft: OFT 100% fee");
 
         // Analytical inversion, then round up to dust-free boundary
-        uint256 gross = Math.ceilDiv(_amount * sent, received);
+        uint256 gross = Math.mulDiv(_amount, sent, received, Math.Rounding.Up);
         return _roundUpDust(gross);
     }
 
@@ -374,7 +398,4 @@ contract TokenBridgeOft is TokenRouter {
         uint256 rate = decimalConversionRate;
         return ((_amount + rate - 1) / rate) * rate;
     }
-
-    /// @notice Allow contract to receive native token refunds from OFT
-    receive() external payable {}
 }

@@ -82,6 +82,7 @@ import {
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isMultiCollateralTokenConfig,
+  isOftTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -247,6 +248,10 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // OFT contracts don't have Router interface — no remote router enrollment
+    if (isOftTokenConfig(expectedConfig)) {
+      return [];
+    }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -301,6 +306,10 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // OFT contracts don't have Router interface — no remote router unenrollment
+    if (isOftTokenConfig(expectedConfig)) {
+      return [];
+    }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -960,6 +969,10 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // OFT contracts don't have GasRouter interface — no destination gas config
+    if (isOftTokenConfig(expectedConfig)) {
+      return [];
+    }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];

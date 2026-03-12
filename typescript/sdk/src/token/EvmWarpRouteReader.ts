@@ -178,13 +178,25 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const routerConfig = await this.readRouterConfig(warpRouteAddress);
+
+    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
+    const isOft = type === TokenType.collateralOft;
+    const routerConfig = isOft
+      ? {
+          owner: await Ownable__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).owner(),
+        }
+      : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
+    const destinationGas = isOft
+      ? undefined
+      : await this.fetchDestinationGas(warpRouteAddress);
 
     const hasRebalancingInterface =
       compareVersions(
@@ -249,7 +261,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
-    if (type === TokenType.collateralCctp) {
+    if (
+      type === TokenType.collateralCctp &&
+      'interchainSecurityModule' in routerConfig
+    ) {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 

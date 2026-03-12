@@ -204,7 +204,7 @@ abstract class TokenDeployer<
         collateralDomain,
       ];
     } else if (isOftTokenConfig(config)) {
-      return [config.oft, config.mailbox];
+      return [config.oft];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -258,12 +258,13 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (
+    if (isOftTokenConfig(config)) {
+      return [signer];
+    } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isNativeTokenConfig(config) ||
-      isMultiCollateralTokenConfig(config) ||
-      isOftTokenConfig(config)
+      isMultiCollateralTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -774,7 +775,42 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
-    const deployedContractsMap = await super.deploy(resolvedConfigMap);
+    // Split OFT configs out — they don't have Router/MailboxClient interfaces
+    // and must skip enrollRemoteRouters/configureClients in super.deploy()
+    const nonOftConfigMap: typeof resolvedConfigMap = {};
+    const oftConfigMap: typeof resolvedConfigMap = {};
+    for (const [chain, config] of Object.entries(resolvedConfigMap)) {
+      if (isOftTokenConfig(config)) {
+        oftConfigMap[chain] = config;
+      } else {
+        nonOftConfigMap[chain] = config;
+      }
+    }
+
+    // Deploy non-OFT contracts via full Router deployer flow
+    const deployedContractsMap = await super.deploy(nonOftConfigMap);
+
+    // Deploy OFT contracts directly (no router enrollment / mailbox client config)
+    for (const [chain, config] of Object.entries(oftConfigMap)) {
+      const contracts = await this.deployContracts(chain, config);
+      this.addDeployedContracts(chain, contracts);
+      deployedContractsMap[chain] = contracts;
+
+      // Transfer ownership to configured owner
+      const ownables = Object.values(contracts);
+      for (const ownable of ownables) {
+        if ('transferOwnership' in ownable) {
+          const currentOwner = await (ownable as any).owner();
+          const targetOwner = config.owner;
+          if (currentOwner.toLowerCase() !== targetOwner.toLowerCase()) {
+            await this.multiProvider.handleTx(
+              chain,
+              (ownable as any).transferOwnership(targetOwner),
+            );
+          }
+        }
+      }
+    }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
