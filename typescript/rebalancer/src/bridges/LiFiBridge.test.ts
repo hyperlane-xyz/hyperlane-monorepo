@@ -672,4 +672,20 @@ describe('LiFiBridge Tron protocol handling', function () {
       ),
     ).to.be.false;
   });
+
+  it('throws for genuinely unknown protocol type', async () => {
+    const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+    const quote = createTestQuote();
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+        [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Should have thrown for unknown protocol Cosmos');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('Unsupported protocol');
+    }
+  });
 });
