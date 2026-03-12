@@ -13,9 +13,9 @@ import {
   MailboxOnChain,
   mailboxArtifactToDerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, isEmptyAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HookReader, createHookReader } from '../hook/hook-reader.js';
+import { createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
 import { ismArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -41,14 +41,12 @@ export class CoreArtifactReader implements ArtifactReader<
     module: CoreArtifactReader.name,
   });
   private readonly ismReader: IsmReader;
-  protected readonly hookReader: HookReader;
 
   constructor(
     protected readonly mailboxArtifactManager: IRawMailboxArtifactManager,
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly chainLookup: ChainLookup,
   ) {
-    this.hookReader = createHookReader(this.chainMetadata, this.chainLookup);
     this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 
@@ -67,12 +65,27 @@ export class CoreArtifactReader implements ArtifactReader<
       await this.mailboxArtifactManager.readMailbox(mailboxAddress);
 
     // 2. Expand nested ISM and hooks using specialized readers
-    // The readers handle type detection and recursive expansion automatically
+    // Hook reader is created per-read with mailbox context (needed for SVM hook detection)
+    // Skip reading when address is empty (undefined, null, empty string, or zeroish)
+    const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {
+      mailbox: mailboxAddress,
+    });
+
+    const defaultIsmAddr = rawMailbox.config.defaultIsm.deployed.address;
+    const defaultHookAddr = rawMailbox.config.defaultHook.deployed.address;
+    const requiredHookAddr = rawMailbox.config.requiredHook.deployed.address;
+
     const [defaultIsmArtifact, defaultHookArtifact, requiredHookArtifact] =
       await Promise.all([
-        this.ismReader.read(rawMailbox.config.defaultIsm.deployed.address),
-        this.hookReader.read(rawMailbox.config.defaultHook.deployed.address),
-        this.hookReader.read(rawMailbox.config.requiredHook.deployed.address),
+        isEmptyAddress(defaultIsmAddr)
+          ? rawMailbox.config.defaultIsm
+          : this.ismReader.read(defaultIsmAddr),
+        isEmptyAddress(defaultHookAddr)
+          ? rawMailbox.config.defaultHook
+          : hookReader.read(defaultHookAddr),
+        isEmptyAddress(requiredHookAddr)
+          ? rawMailbox.config.requiredHook
+          : hookReader.read(requiredHookAddr),
       ]);
 
     // 3. Return fully expanded mailbox artifact
@@ -80,9 +93,9 @@ export class CoreArtifactReader implements ArtifactReader<
       artifactState: ArtifactState.DEPLOYED,
       config: {
         owner: rawMailbox.config.owner,
-        defaultIsm: defaultIsmArtifact, // Now DEPLOYED with full config
-        defaultHook: defaultHookArtifact, // Now DEPLOYED with full config
-        requiredHook: requiredHookArtifact, // Now DEPLOYED with full config
+        defaultIsm: defaultIsmArtifact,
+        defaultHook: defaultHookArtifact,
+        requiredHook: requiredHookArtifact,
       },
       deployed: rawMailbox.deployed,
     };

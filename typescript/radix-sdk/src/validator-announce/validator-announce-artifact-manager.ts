@@ -14,8 +14,10 @@ import {
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
 
-import { RadixValidatorAnnounceReader } from './validator-announce-reader.js';
-import { RadixValidatorAnnounceWriter } from './validator-announce-writer.js';
+import {
+  RadixValidatorAnnounceReader,
+  RadixValidatorAnnounceWriter,
+} from './validator-announce.js';
 
 export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnounceArtifactManager {
   constructor(

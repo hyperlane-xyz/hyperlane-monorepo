@@ -16,6 +16,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   eqAddressRadix,
   eqOptionalAddress,
+  isEmptyAddress,
 } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
@@ -109,8 +110,8 @@ export class RadixMailboxWriter
     const address = await this.base.getNewComponent(createReceipt);
     allReceipts.push(createReceipt);
 
-    // Set default ISM (only if not zero address)
-    if (defaultIsmAddress !== ZERO_ADDRESS_HEX_32) {
+    // Set default ISM (only if address is set)
+    if (!isEmptyAddress(defaultIsmAddress)) {
       const setIsmTx = await getSetMailboxDefaultIsmTx(
         this.base,
         this.signer.getAddress(),
@@ -123,14 +124,8 @@ export class RadixMailboxWriter
       allReceipts.push(ismReceipt);
     }
 
-    // Set default hook (only if not zero address)
-    if (
-      !eqOptionalAddress(
-        defaultHookAddress,
-        ZERO_ADDRESS_HEX_32,
-        eqAddressRadix,
-      )
-    ) {
+    // Set default hook (only if address is set)
+    if (!isEmptyAddress(defaultHookAddress)) {
       const setDefaultHookTx = await getSetMailboxDefaultHookTx(
         this.base,
         this.signer.getAddress(),
@@ -144,14 +139,8 @@ export class RadixMailboxWriter
       allReceipts.push(defaultHookReceipt);
     }
 
-    // Set required hook (only if not zero address)
-    if (
-      !eqOptionalAddress(
-        requiredHookAddress,
-        ZERO_ADDRESS_HEX_32,
-        eqAddressRadix,
-      )
-    ) {
+    // Set required hook (only if address is set)
+    if (!isEmptyAddress(requiredHookAddress)) {
       const setRequiredHookTx = await getSetMailboxRequiredHookTx(
         this.base,
         this.signer.getAddress(),
@@ -175,7 +164,10 @@ export class RadixMailboxWriter
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
-      config: artifact.config,
+      config: {
+        ...artifact.config,
+        owner: this.signer.getAddress(),
+      },
       deployed: {
         address,
         domainId: this.domainId,

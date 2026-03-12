@@ -1,11 +1,13 @@
 import {
   Artifact,
   ArtifactDeployed,
+  ArtifactState,
   ConfigOnChain,
   IArtifactManager,
   isArtifactDeployed,
 } from './artifact.js';
 import type { ChainLookup } from './chain.js';
+import type { DerivedCoreConfig } from './core.js';
 import type {
   DeployedHookAddress,
   DeployedHookArtifact,
@@ -139,28 +141,23 @@ export function mailboxArtifactToDerivedCoreConfig(
       chainLookup: ChainLookup,
     ) => DerivedHookConfig;
   },
-): {
-  owner: string;
-  defaultIsm: DerivedIsmConfig;
-  defaultHook: DerivedHookConfig;
-  requiredHook: DerivedHookConfig;
-} {
+): DerivedCoreConfig {
   const { defaultIsm, defaultHook, requiredHook, owner } = artifact.config;
 
   // All nested artifacts should be in DEPLOYED state after CoreArtifactReader.read()
   if (!isArtifactDeployed(defaultIsm)) {
     throw new Error(
-      'Expected defaultIsm to be DEPLOYED, got ' + defaultIsm.artifactState,
+      `Expected defaultIsm to be ${ArtifactState.DEPLOYED}, got ${defaultIsm.artifactState}`,
     );
   }
   if (!isArtifactDeployed(defaultHook)) {
     throw new Error(
-      'Expected defaultHook to be DEPLOYED, got ' + defaultHook.artifactState,
+      `Expected defaultHook to be ${ArtifactState.DEPLOYED}, got ${defaultHook.artifactState}`,
     );
   }
   if (!isArtifactDeployed(requiredHook)) {
     throw new Error(
-      'Expected requiredHook to be DEPLOYED, got ' + requiredHook.artifactState,
+      `Expected requiredHook to be ${ArtifactState.DEPLOYED}, got ${requiredHook.artifactState}`,
     );
   }
 

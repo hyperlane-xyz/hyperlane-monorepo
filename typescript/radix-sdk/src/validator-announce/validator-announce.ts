@@ -1,60 +1,115 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { TransactionManifest, address } from '@radixdlt/radix-engine-toolkit';
 
 import {
-  getComponentState,
-  getFieldValueFromEntityState,
-  getRadixComponentDetails,
-} from '../utils/base-query.js';
+  ArtifactDeployed,
+  ArtifactNew,
+  ArtifactReader,
+  ArtifactState,
+  ArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  DeployedValidatorAnnounceAddress,
+  RawValidatorAnnounceConfig,
+} from '@hyperlane-xyz/provider-sdk/validator-announce';
+
 import { RadixBase } from '../utils/base.js';
-import { INSTRUCTIONS } from '../utils/types.js';
+import { RadixBaseSigner } from '../utils/signer.js';
+import { AnnotatedRadixTransaction } from '../utils/types.js';
 
-/**
- * Query functions
- */
+import { getValidatorAnnounceConfig } from './validator-announce-query.js';
+import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
 
-export async function getValidatorAnnounceConfig(
-  gateway: Readonly<GatewayApiClient>,
-  validatorAnnounceAddress: string,
-): Promise<{
-  address: string;
-  mailboxAddress: string;
-}> {
-  const validatorAnnounceDetails = await getRadixComponentDetails(
-    gateway,
-    validatorAnnounceAddress,
-    'validator_announce',
-  );
+export class RadixValidatorAnnounceReader implements ArtifactReader<
+  RawValidatorAnnounceConfig,
+  DeployedValidatorAnnounceAddress
+> {
+  constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
-  const validatorAnnounceState = getComponentState(
-    validatorAnnounceAddress,
-    validatorAnnounceDetails,
-  );
+  async read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >
+  > {
+    const validatorAnnounceConfig = await getValidatorAnnounceConfig(
+      this.gateway,
+      address,
+    );
 
-  return {
-    address: validatorAnnounceAddress,
-    mailboxAddress: getFieldValueFromEntityState(
-      'mailbox',
-      validatorAnnounceAddress,
-      validatorAnnounceState,
-    ),
-  };
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        mailboxAddress: validatorAnnounceConfig.mailboxAddress,
+      },
+      deployed: {
+        address: validatorAnnounceConfig.address,
+      },
+    };
+  }
 }
 
-/**
- * Transaction functions
- */
+export class RadixValidatorAnnounceWriter
+  extends RadixValidatorAnnounceReader
+  implements
+    ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
+{
+  constructor(
+    gateway: Readonly<GatewayApiClient>,
+    private readonly signer: RadixBaseSigner,
+    private readonly base: RadixBase,
+  ) {
+    super(gateway);
+  }
 
-export async function getCreateValidatorAnnounceTx(
-  base: Readonly<RadixBase>,
-  fromAddress: string,
-  mailboxAddress: string,
-): Promise<TransactionManifest> {
-  return base.createCallFunctionManifest(
-    fromAddress,
-    base.getHyperlanePackageDefAddress(),
-    'ValidatorAnnounce',
-    INSTRUCTIONS.INSTANTIATE,
-    [address(mailboxAddress)],
-  );
+  async create(
+    artifact: ArtifactNew<RawValidatorAnnounceConfig>,
+  ): Promise<
+    [
+      ArtifactDeployed<
+        RawValidatorAnnounceConfig,
+        DeployedValidatorAnnounceAddress
+      >,
+      TxReceipt[],
+    ]
+  > {
+    const { config } = artifact;
+    const allReceipts: TxReceipt[] = [];
+
+    // Create the validator announce contract
+    const createTx = await getCreateValidatorAnnounceTx(
+      this.base,
+      this.signer.getAddress(),
+      config.mailboxAddress,
+    );
+
+    const createReceipt = await this.signer.signAndBroadcast(createTx);
+    const address = await this.base.getNewComponent(createReceipt);
+    allReceipts.push(createReceipt);
+
+    const deployedArtifact: ArtifactDeployed<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address,
+      },
+    };
+
+    return [deployedArtifact, allReceipts];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    >,
+  ): Promise<AnnotatedRadixTransaction[]> {
+    // ValidatorAnnounce has no mutable state - mailbox address is set at creation
+    return [];
+  }
 }
