@@ -12,12 +12,15 @@ import * as os from 'os';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { isNullish } from '@hyperlane-xyz/utils';
 import {
   GenericContainer,
   type StartedTestContainer,
   Wait,
 } from 'testcontainers';
+
+import { TEST_SVM_CHAIN_METADATA } from './constants.js';
 
 // Agave v3.0.x activates stricter_abi_and_runtime_constraints which rejects
 // the old Token-2022 program's non-zero-init realloc calls. The test setup
@@ -402,3 +405,25 @@ export async function waitForRpcReady(
 export const APPLE_SILICON_SKIP_MESSAGE =
   'Skipping: No local solana-test-validator found and Docker unavailable. ' +
   'Install from https://docs.anza.xyz/cli/install';
+
+/**
+ * Starts a Solana test validator using chain metadata configuration.
+ * Follows the same pattern as runAleoNode/runCosmosNode for consistency
+ * across AltVM SDK test setups.
+ *
+ * @param chainMetadata - Test chain metadata (defaults to TEST_SVM_CHAIN_METADATA)
+ * @param preloadedPrograms - Programs to preload into the validator
+ */
+export async function runSolanaNode(
+  chainMetadata: TestChainMetadata = TEST_SVM_CHAIN_METADATA,
+  preloadedPrograms: PreloadedProgram[] = [],
+): Promise<SolanaTestValidator> {
+  const validator = await startSolanaTestValidator({
+    rpcPort: chainMetadata.rpcPort,
+    preloadedPrograms,
+  });
+
+  await waitForRpcReady(validator.rpcUrl);
+
+  return validator;
+}
