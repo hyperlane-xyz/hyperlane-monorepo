@@ -25,7 +25,12 @@ jobs:
       - name: Read Agave version from Dockerfile
         id: version
         run: |
+          set -euo pipefail
           version=$(grep -oP '(?<=AGAVE_VERSION=)v[\d.]+' typescript/svm-sdk/Dockerfile | head -1)
+          test -n "$version" || {
+            echo "Failed to parse AGAVE_VERSION from typescript/svm-sdk/Dockerfile" >&2
+            exit 1
+          }
           echo "agave_version=$version" >> "$GITHUB_OUTPUT"
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
