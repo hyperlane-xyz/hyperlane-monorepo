@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
 import {ITokenFee, Quote} from "../interfaces/ITokenBridge.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -15,7 +16,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * transfers. Rebasing, fee-on-transfer, and ERC777 tokens are not supported
  * for deterministic fee accounting.
  */
-contract CrossCollateralRoutingFee is ICrossCollateralFee, ITokenFee, Ownable {
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
+contract CrossCollateralRoutingFee is
+    ICrossCollateralFee,
+    ITokenFee,
+    Ownable,
+    PackageVersioned
+{
     using SafeERC20 for IERC20;
 
     /// @notice Sentinel key for destination-level default fee contracts.

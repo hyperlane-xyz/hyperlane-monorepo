@@ -41,6 +41,7 @@ import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
  *  - handle(): accepts messages from the mailbox (cross-chain) or directly
  *    from enrolled routers on the same chain.
  */
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     using TypeCasts for address;
     using TypeCasts for bytes32;
@@ -63,7 +64,8 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
 
     /// @notice Additional enrolled routers by domain (beyond the standard
     /// enrolled remote router). Local routers use localDomain as key.
-    mapping(uint32 => EnumerableSet.Bytes32Set) private _crossCollateralRouters;
+    mapping(uint32 domain => EnumerableSet.Bytes32Set routers)
+        private _crossCollateralRouters;
 
     /// @notice Tracks which domains have at least one CrossCollateral-enrolled router,
     /// enabling on-chain enumeration for the SDK reader.
