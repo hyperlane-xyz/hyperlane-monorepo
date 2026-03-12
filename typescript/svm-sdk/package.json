@@ -62,7 +62,7 @@
     "eslint-plugin-import": "catalog:",
     "mocha": "^10.4.0",
     "oxfmt": "catalog:",
-    "testcontainers": "^10.13.2",
+    "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"

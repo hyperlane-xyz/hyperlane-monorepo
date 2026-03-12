@@ -27,7 +27,8 @@ import { TEST_SVM_CHAIN_METADATA } from './constants.js';
 // overrides the built-in Token-2022 with v10.0.0 (via --bpf-program) which
 // uses zero-init realloc and is compatible with the stricter runtime.
 // See https://github.com/anza-xyz/agave/issues/9799
-export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v3.0.14';
+export const SOLANA_VALIDATOR_IMAGE =
+  'ghcr.io/hyperlane-xyz/hyperlane-solana-validator:v3.0.14';
 export const SOLANA_RPC_PORT = 8899;
 
 export function isAppleSilicon(): boolean {
@@ -284,8 +285,6 @@ async function startDockerValidator(
   const command = [
     '--rpc-port',
     String(rpcPort),
-    '--bind-address',
-    '0.0.0.0',
     '--ledger',
     '/tmp/solana-ledger',
     '--reset',
@@ -294,11 +293,14 @@ async function startDockerValidator(
     ...validatorArgs,
   ];
 
+  // TODO: replace seccomp=unconfined with a custom profile that only allows io_uring syscalls
+  // Agave v3.0+ uses io_uring which Docker's default seccomp profile blocks.
   let builder = new GenericContainer(image)
     .withEntrypoint(entrypoint)
-    .withExposedPorts(rpcPort)
+    .withExposedPorts({ container: rpcPort, host: rpcPort })
     .withCommand(command)
-    .withWaitStrategy(Wait.forLogMessage(/Processed Slot:/, 1))
+    .withSecurityOpt('seccomp=unconfined')
+    .withWaitStrategy(Wait.forLogMessage(/rpc bound to/, 1))
     .withStartupTimeout(120_000);
 
   const effectivePlatform =
