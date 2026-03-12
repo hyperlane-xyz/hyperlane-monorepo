@@ -124,10 +124,12 @@ contract TokenBridgeOft is ITokenBridge, Ownable {
             _amount
         );
 
-        quotes = new Quote[](3);
+        quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: nativeFee});
-        quotes[1] = Quote({token: address(wrappedToken), amount: _amount});
-        quotes[2] = Quote({token: address(wrappedToken), amount: externalFee});
+        quotes[1] = Quote({
+            token: address(wrappedToken),
+            amount: _amount + externalFee
+        });
     }
 
     /// @inheritdoc ITokenBridge

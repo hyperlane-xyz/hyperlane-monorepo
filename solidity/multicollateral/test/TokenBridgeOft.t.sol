@@ -251,14 +251,14 @@ contract TokenBridgeOftUnitTest is Test {
 
     // ---- Quote ----
 
-    function test_quoteTransferRemote_returnsThreeQuotes() public view {
+    function test_quoteTransferRemote_returnsTwoQuotes() public view {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             DOMAIN_ETH,
             recipient,
             100e6
         );
 
-        assertEq(quotes.length, 3, "3 quotes");
+        assertEq(quotes.length, 2, "2 quotes");
         assertEq(quotes[0].token, address(0), "native fee token");
         assertEq(quotes[0].amount, 0.001 ether, "native fee from mock");
     }
@@ -460,8 +460,12 @@ contract TokenBridgeOftFeeInversionTest is Test {
             recipient,
             100e6
         );
-        // External fee (quotes[2]) should be 0
-        assertEq(quotes[2].amount, 0, "no external fee when OFT has no fee");
+        // No external fee: quotes[1] should equal just the amount
+        assertEq(
+            quotes[1].amount,
+            100e6,
+            "no external fee when OFT has no fee"
+        );
     }
 
     function test_linearFee_externalFeeInQuote() public {
@@ -478,7 +482,7 @@ contract TokenBridgeOftFeeInversionTest is Test {
         // Probe: send 100e6, receive 99e6
         // Gross = ceil(100e6 * 100e6 / 99e6) = 101010102
         // External fee = 101010102 - 100e6 = 1010102
-        uint256 externalFee = quotes[2].amount;
+        uint256 externalFee = quotes[1].amount - 100e6;
         assertGt(externalFee, 0, "external fee should be positive");
         // Fee should be ~1% of net amount (slightly more due to inversion)
         assertApproxEqRel(externalFee, 1e6, 0.02e18); // within 2%
@@ -512,7 +516,7 @@ contract TokenBridgeOftFeeInversionTest is Test {
             1_000e6 // 1000 USDT
         );
 
-        uint256 externalFee = quotes[2].amount;
+        uint256 externalFee = quotes[1].amount - 1_000e6;
         // ~0.06% of 1000e6 = ~600_036 (0.6 USDT + inversion rounding)
         assertApproxEqRel(externalFee, 600361, 0.01e18);
     }
@@ -525,7 +529,7 @@ contract TokenBridgeOftFeeInversionTest is Test {
             recipient,
             0
         );
-        assertEq(quotes[2].amount, 0, "zero amount = zero fee");
+        assertEq(quotes[1].amount, 0, "zero amount = zero fee");
     }
 
     function test_linearFee_100pct_reverts() public {
@@ -596,8 +600,8 @@ contract TokenBridgeOftDustTest is Test {
             1e18
         );
 
-        // grossAmount = _amount + externalFee, should be dust-free (divisible by 1e12)
-        uint256 grossAmount = 1e18 + quotes[2].amount;
+        // quotes[1].amount is the total token charge (amount + externalFee), should be dust-free
+        uint256 grossAmount = quotes[1].amount;
         assertEq(grossAmount % 1e12, 0, "gross amount must be dust-free");
     }
 
@@ -610,9 +614,13 @@ contract TokenBridgeOftDustTest is Test {
             1e18 + 1
         );
 
-        uint256 grossAmount = (1e18 + 1) + quotes[2].amount;
+        uint256 grossAmount = quotes[1].amount;
         assertEq(grossAmount % 1e12, 0, "dusty input rounded up to dust-free");
-        // External fee should be the rounding cost
-        assertGt(quotes[2].amount, 0, "rounding produces nonzero external fee");
+        // Total charge should exceed the dusty input (rounding cost)
+        assertGt(
+            quotes[1].amount,
+            1e18 + 1,
+            "rounding produces nonzero external fee"
+        );
     }
 }

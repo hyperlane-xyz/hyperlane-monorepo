@@ -71,7 +71,7 @@ contract TokenBridgeOftArbForkTest is Test {
             AMOUNT
         );
 
-        assertEq(quotes.length, 3, "should have 3 quotes");
+        assertEq(quotes.length, 2, "should have 2 quotes");
         assertEq(quotes[0].token, address(0), "gas fee should be native");
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
@@ -245,7 +245,7 @@ contract TokenBridgeOftEthForkTest is Test {
             AMOUNT
         );
 
-        assertEq(quotes.length, 3, "should have 3 quotes");
+        assertEq(quotes.length, 2, "should have 2 quotes");
         assertEq(quotes[0].token, address(0), "gas fee should be native");
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
@@ -337,7 +337,7 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
             AMOUNT
         );
 
-        assertEq(quotes.length, 3, "should have 3 quotes");
+        assertEq(quotes.length, 2, "should have 2 quotes");
         assertEq(quotes[0].token, address(0), "gas fee should be native");
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
@@ -443,7 +443,7 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
             AMOUNT
         );
 
-        assertEq(quotes.length, 3, "should have 3 quotes");
+        assertEq(quotes.length, 2, "should have 2 quotes");
         assertEq(quotes[0].token, address(0), "gas fee should be native");
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
