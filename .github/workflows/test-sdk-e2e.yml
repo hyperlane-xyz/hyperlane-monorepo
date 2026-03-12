@@ -128,6 +128,7 @@ jobs:
           - synthetic-token
           - collateral-token
           - provider
+          - read-token
     steps:
       - uses: actions/checkout@v6
         with:

@@ -11,6 +11,10 @@ import {
 } from '../testing/solana-container.js';
 
 const SETUP_TIMEOUT_MS = 150_000;
+const TESTS_WITHOUT_VALIDATOR = new Set(['read-token']);
+const SKIP_VALIDATOR = TESTS_WITHOUT_VALIDATOR.has(
+  process.env.SVM_SDK_E2E_TEST ?? '',
+);
 
 const ALL_PRELOADED_PROGRAMS: Array<PreloadableProgram> = [
   'mailbox',
@@ -23,6 +27,7 @@ let validator: SolanaTestValidator | undefined;
 let programCleanup: (() => void) | undefined;
 
 before(async function () {
+  if (SKIP_VALIDATOR) return;
   this.timeout(SETUP_TIMEOUT_MS);
 
   rootLogger.info('Preparing SVM programs...');
@@ -37,6 +42,7 @@ before(async function () {
 });
 
 after(async function () {
+  if (SKIP_VALIDATOR) return;
   this.timeout(SETUP_TIMEOUT_MS);
 
   if (validator) {
