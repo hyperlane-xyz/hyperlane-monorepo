@@ -13,62 +13,29 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { isNullish, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 import {
   GenericContainer,
   type StartedTestContainer,
   Wait,
 } from 'testcontainers';
 
-import { TEST_SVM_CHAIN_METADATA } from './constants.js';
+import { AGAVE_VERSION, TEST_SVM_CHAIN_METADATA } from './constants.js';
 
-const DOCKER_SECCOMP_URL =
-  'https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json';
+// Vendored Docker seccomp profile with io_uring syscalls pre-patched.
+// Agave v2.0+ requires io_uring which Docker's default profile blocks.
+// To update: fetch https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json,
+// add io_uring_enter/io_uring_register/io_uring_setup to the main SCMP_ACT_ALLOW rule,
+// and save to src/testing/fixtures/docker-seccomp.json.
+// See https://github.com/moby/moby/issues/47532
+const DOCKER_SECCOMP_PATH = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  'fixtures',
+  'docker-seccomp.json',
+);
 
-const IO_URING_SYSCALLS = [
-  'io_uring_enter',
-  'io_uring_register',
-  'io_uring_setup',
-];
-
-/**
- * Fetches Docker's default seccomp profile and patches in io_uring syscalls.
- * Agave v2.0+ requires io_uring which Docker's default profile blocks.
- * See https://github.com/moby/moby/issues/47532
- */
-async function getSeccompProfile(): Promise<string> {
-  const profile = await retryAsync(
-    async () => {
-      const response = await fetch(DOCKER_SECCOMP_URL);
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch Docker seccomp profile: ${response.status} ${response.statusText}`,
-        );
-      }
-      return response.json();
-    },
-    3,
-    1000,
-  );
-
-  const mainRule = profile.syscalls?.find(
-    (rule: { action: string; includes?: unknown; args?: unknown }) =>
-      rule.action === 'SCMP_ACT_ALLOW' && !rule.includes && !rule.args,
-  );
-  if (!mainRule) {
-    throw new Error(
-      'Could not find main SCMP_ACT_ALLOW rule in seccomp profile',
-    );
-  }
-
-  for (const syscall of IO_URING_SYSCALLS) {
-    if (!mainRule.names.includes(syscall)) {
-      mainRule.names.push(syscall);
-    }
-  }
-  mainRule.names.sort();
-
-  return JSON.stringify(profile);
+function getSeccompProfile(): string {
+  return fs.readFileSync(DOCKER_SECCOMP_PATH, 'utf-8');
 }
 
 // Agave v3.0.x activates stricter_abi_and_runtime_constraints which rejects
@@ -76,8 +43,7 @@ async function getSeccompProfile(): Promise<string> {
 // overrides the built-in Token-2022 with v10.0.0 (via --bpf-program) which
 // uses zero-init realloc and is compatible with the stricter runtime.
 // See https://github.com/anza-xyz/agave/issues/9799
-export const SOLANA_VALIDATOR_IMAGE =
-  'ghcr.io/hyperlane-xyz/hyperlane-solana-validator:v3.0.14';
+export const SOLANA_VALIDATOR_IMAGE = `ghcr.io/hyperlane-xyz/hyperlane-solana-validator:${AGAVE_VERSION}`;
 export const SOLANA_RPC_PORT = 8899;
 
 export function isAppleSilicon(): boolean {
@@ -125,9 +91,15 @@ function getValidatorVersion(binaryPath: string): string | null {
   }
 }
 
+// Strip leading 'v' for the filesystem path (releases use bare semver).
+const AGAVE_SEMVER = AGAVE_VERSION.replace(/^v/, '');
+
 const SOLANA_BINARY_PATHS = [
   path.join(os.homedir(), '.local/share/solana/install/active_release/bin'),
-  path.join(os.homedir(), '.local/share/solana/install/releases/3.0.14/bin'),
+  path.join(
+    os.homedir(),
+    `.local/share/solana/install/releases/${AGAVE_SEMVER}/bin`,
+  ),
   '/tmp/solana-release/bin',
   '/opt/homebrew/bin',
   '/usr/local/bin',
@@ -191,7 +163,6 @@ export interface SolanaValidatorConfig {
   binaryPath?: string;
   rpcPort?: number;
   preloadedPrograms?: PreloadedProgram[];
-  platform?: string;
 }
 
 export interface SolanaTestValidator {
@@ -201,8 +172,6 @@ export interface SolanaTestValidator {
   container?: StartedTestContainer;
   process?: ChildProcess;
 }
-
-export type SolanaTestContainer = SolanaTestValidator;
 
 async function startLocalValidator(
   config: SolanaValidatorConfig,
@@ -309,7 +278,6 @@ async function startDockerValidator(
     validatorArgs = [],
     rpcPort = SOLANA_RPC_PORT,
     preloadedPrograms = [],
-    platform,
   } = config;
 
   const bpfProgramArgs: string[] = [];
@@ -343,10 +311,9 @@ async function startDockerValidator(
   ];
 
   // Agave v2.0+ uses io_uring which Docker's default seccomp profile blocks.
-  // Fetch Docker's default profile and patch in io_uring syscalls at runtime
-  // so the profile stays current as Docker updates their defaults.
+  // Use vendored seccomp profile with io_uring syscalls pre-patched.
   // See https://github.com/moby/moby/issues/47532
-  const seccompProfile = await getSeccompProfile();
+  const seccompProfile = getSeccompProfile();
   let builder = new GenericContainer(image)
     .withEntrypoint(entrypoint)
     .withExposedPorts({ container: rpcPort, host: rpcPort })
@@ -355,11 +322,12 @@ async function startDockerValidator(
     .withWaitStrategy(Wait.forLogMessage(/rpc bound to/, 1))
     .withStartupTimeout(120_000);
 
-  const effectivePlatform =
-    platform ?? (isAppleSilicon() ? 'linux/amd64' : undefined);
-  if (effectivePlatform) {
-    builder = builder.withPlatform(effectivePlatform);
-  }
+  assert(
+    os.platform() === 'linux',
+    'Docker-based Solana validator requires Linux. ' +
+      'Solana needs AVX instructions that cannot be emulated on other platforms. ' +
+      'Install solana-test-validator locally: https://docs.anza.xyz/cli/install',
+  );
 
   const bindMounts = [...hostDirToContainerDir.entries()].map(
     ([hostDir, containerDir]) => ({
@@ -372,7 +340,7 @@ async function startDockerValidator(
     builder = builder.withBindMounts(bindMounts);
   }
 
-  const container = await builder.start();
+  const container = await retryAsync(() => builder.start(), 3, 5000);
 
   const mappedPort = container.getMappedPort(rpcPort);
   const host = container.getHost();
@@ -410,7 +378,7 @@ export async function startSolanaTestValidator(
         'Docker is not supported: Solana requires AVX instructions that Rosetta 2 cannot emulate.\n' +
         'Install natively from: https://docs.anza.xyz/cli/install\n' +
         'Or download directly:\n' +
-        '  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/v3.0.14/solana-release-aarch64-apple-darwin.tar.bz2\n' +
+        `  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-aarch64-apple-darwin.tar.bz2\n` +
         '  tar jxf /tmp/solana.tar.bz2 -C /tmp',
     );
   }
@@ -455,10 +423,6 @@ export async function waitForRpcReady(
     `RPC endpoint not ready after ${maxAttempts} attempts. Last error: ${lastError}`,
   );
 }
-
-export const APPLE_SILICON_SKIP_MESSAGE =
-  'Skipping: No local solana-test-validator found and Docker unavailable. ' +
-  'Install from https://docs.anza.xyz/cli/install';
 
 /**
  * Starts a Solana test validator using chain metadata configuration.

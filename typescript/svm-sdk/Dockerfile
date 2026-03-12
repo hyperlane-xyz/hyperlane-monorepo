@@ -4,6 +4,7 @@
 
 FROM ubuntu:24.04
 
+# When bumping, also update AGAVE_VERSION in src/testing/constants.ts.
 ARG AGAVE_VERSION=v3.0.14
 ARG AGAVE_SHA256=65614325423316a48f57f1ceeaa91ca78f4516e165e305b38c01873cf8c6b8b4
 

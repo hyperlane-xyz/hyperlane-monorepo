@@ -1,10 +1,6 @@
 name: Build and Push Solana Validator Image
 on:
   workflow_dispatch:
-    inputs:
-      agave_version:
-        description: 'Agave release version to build'
-        default: 'v3.0.14'
 
 concurrency:
   group: build-push-solana-validator-${{ github.ref }}
@@ -24,6 +20,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
+      # Extract AGAVE_VERSION from the Dockerfile so the version and its
+      # SHA256 hash are always defined in a single place.
+      - name: Read Agave version from Dockerfile
+        id: version
+        run: |
+          version=$(grep -oP '(?<=AGAVE_VERSION=)v[\d.]+' typescript/svm-sdk/Dockerfile | head -1)
+          echo "agave_version=$version" >> "$GITHUB_OUTPUT"
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
       - name: Login to GHCR
@@ -41,7 +44,5 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/hyperlane-xyz/hyperlane-solana-validator:${{ github.event.inputs.agave_version || 'v3.0.14' }}
-          build-args: |
-            AGAVE_VERSION=${{ github.event.inputs.agave_version || 'v3.0.14' }}
+            ghcr.io/hyperlane-xyz/hyperlane-solana-validator:${{ steps.version.outputs.agave_version }}
           platforms: linux/amd64

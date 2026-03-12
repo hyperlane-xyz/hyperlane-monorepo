@@ -90,14 +90,17 @@ export function getPreloadedPrograms(programs: Array<PreloadableProgram>): {
 
   // Override the built-in Token-2022 with v10.0.0 to fix realloc on v3.0+.
   // Copy to tmpDir so all .so files are in one directory for Docker bind-mount.
-  if (fs.existsSync(TOKEN_2022_V10_SO_PATH)) {
-    const destPath = path.join(tmpDir, 'spl_token_2022_v10.so');
-    fs.copyFileSync(TOKEN_2022_V10_SO_PATH, destPath);
-    preloaded.push({
-      programId: TOKEN_2022_PROGRAM_ADDRESS,
-      soPath: destPath,
-    });
-  }
+  assert(
+    fs.existsSync(TOKEN_2022_V10_SO_PATH),
+    `Token-2022 v10 fixture not found at ${TOKEN_2022_V10_SO_PATH}. ` +
+      'Without it, Agave v3.0+ will fail with InvalidRealloc errors.',
+  );
+  const destPath = path.join(tmpDir, 'spl_token_2022_v10.so');
+  fs.copyFileSync(TOKEN_2022_V10_SO_PATH, destPath);
+  preloaded.push({
+    programId: TOKEN_2022_PROGRAM_ADDRESS,
+    soPath: destPath,
+  });
 
   const cleanup = () => {
     try {
