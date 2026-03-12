@@ -94,9 +94,12 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       // so persist the address for crash-recovery.
       // Key must match the contractName passed to deployContractFromFactory above
       // so that readCache finds it on recovery.
+      // CAST: writeCache is typed to keyof Factories, but deployContractFromFactory
+      // operates outside the factory type system with a free-form contractName string.
+      // readCache already accepts arbitrary string keys — this just matches it.
       this.writeCache(
         chain,
-        'minimalInterchainAccountRouter',
+        'minimalInterchainAccountRouter' as keyof InterchainAccountFactories,
         interchainAccountRouter.address,
       );
     }
