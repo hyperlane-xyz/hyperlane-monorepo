@@ -1,5 +1,17 @@
 # @hyperlane-xyz/cli
 
+## 27.1.0
+
+## 27.0.0
+
+### Patch Changes
+
+- 22cb5cb: The `@hyperlane-xyz/sealevel-sdk` package (renamed from `@hyperlane-xyz/svm-sdk`) was published as a Solana/SVM client for Hyperlane Sealevel programs. It provides `SealevelProtocolProvider`, `SealevelProvider`, and `SealevelSigner` implementing the AltVM provider-sdk interfaces, along with warp token readers/writers (native, synthetic, collateral), ISM readers/writers (multisig message-ID, test), hook readers/writers (IGP, merkle tree), BPF program deployment/upgrade plans, PDA derivation utilities, and account decoders. ISM and hook deployment are not yet functional.
+
+  `SealevelProtocolProvider` was registered in the deploy-sdk for `ProtocolType.Sealevel`, and `ProtocolType.Sealevel` was added to the CLI's supported protocols list, enabling `hyperlane warp deploy` for Solana chains.
+
+- 98ac676: The `status` command resolved all EVM chains instead of only the origin/destination chains, causing crashes when unrelated chains had bad RPCs. Chain resolution was narrowed to only explicitly provided chains, with destination chains from the dispatch tx getting signers lazily via `ensureEvmSignersForChains`.
+
 ## 26.0.0
 
 ### Major Changes
@@ -8,13 +20,13 @@
 
 ### Minor Changes
 
-- 43255a9: MultiCollateral warp route support was added across the SDK, CLI, and warp monitor.
+- 43255a9: CrossCollateralRouter warp route support was added across the SDK, CLI, and warp monitor.
 
-  SDK: WarpCore gained `transferRemoteTo` flows for multicollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles multicollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives multicollateral token config including on-chain scale. A new `EvmMultiCollateralAdapter` provides quote, approve, and transfer operations.
+  SDK: WarpCore gained `transferRemoteTo` flows for crossCollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles CrossCollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives crossCollateral token config including on-chain scale. A new `EvmCrossCollateralAdapter` provides quote, approve, and transfer operations.
 
-  CLI: `warp deploy` and `warp extend` support multicollateral token types. A new `warp combine` command merges independent warp route configs into a single multicollateral route. `warp send` and `warp check` work with multicollateral routes.
+  CLI: `warp deploy` and `warp extend` support crossCollateral token types. A new `warp combine` command merges independent warp route configs into a single crossCollateral route. `warp send` and `warp check` work with crossCollateral routes.
 
-  Warp monitor: Pending-transfer and inventory metrics were added for multicollateral routes, with projected deficit scoped to collateralized routes only.
+  Warp monitor: Pending-transfer and inventory metrics were added for crossCollateral routes, with projected deficit scoped to collateralized routes only.
 
 ## 25.5.0
 

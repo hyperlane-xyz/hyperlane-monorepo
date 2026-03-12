@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/rebalancer",
-  "version": "26.0.0",
+  "version": "27.1.0",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
   "keywords": [
     "blockchain",
@@ -46,7 +46,9 @@
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
     "@lifi/sdk": "catalog:",
+    "@solana/web3.js": "catalog:",
     "bignumber.js": "catalog:",
+    "bs58": "catalog:",
     "ethers": "catalog:",
     "express": "^5.1.0",
     "pino": "catalog:",

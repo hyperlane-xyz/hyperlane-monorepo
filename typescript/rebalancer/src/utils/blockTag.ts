@@ -6,7 +6,7 @@ import {
   EthJsonRpcBlockParameterTag,
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-
+import { ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
 /**
@@ -25,8 +25,13 @@ export async function getConfirmedBlockTag(
 ): Promise<ConfirmedBlockTag> {
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
-    const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
 
+    // Only EVM chains support block tag queries
+    if (metadata.protocol !== ProtocolType.Ethereum) {
+      return undefined;
+    }
+
+    const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
     if (typeof reorgPeriod === 'string') {
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }

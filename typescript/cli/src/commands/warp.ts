@@ -193,7 +193,7 @@ const combine: CommandModuleWithWriteContext<{
 }> = {
   command: 'combine',
   describe:
-    'Combine multiple MultiCollateral warp routes, updating deploy configs with cross-route enrolledRouters',
+    'Combine multiple CrossCollateralRouter warp routes, updating deploy configs with cross-route crossCollateralRouters',
   builder: {
     routes: {
       type: 'string',
@@ -376,12 +376,13 @@ const send: CommandModuleWithWriteContext<
     },
     'source-token': {
       type: 'string',
-      description: 'Source token router address (for MultiCollateral routes)',
+      description:
+        'Source token router address (for CrossCollateralRouter routes)',
     },
     'destination-token': {
       type: 'string',
       description:
-        'Destination token router address (for MultiCollateral cross-stablecoin transfers)',
+        'Destination token router address (for CrossCollateralRouter cross-stablecoin transfers)',
     },
   },
   handler: async ({
@@ -681,7 +682,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Create rebalancer service
       const service = new RebalancerService(
         context.multiProvider,
-        undefined,
         context.multiProtocolProvider,
         context.registry,
         rebalancerConfig,

@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 27.1.0
+
+### Patch Changes
+
+- b892e61: Added `isEmptyAddress` utility function that returns true when an address is undefined, null, empty string, or matches a known zero address pattern.
+
+## 27.0.0
+
 ## 26.0.0
 
 ### Major Changes

@@ -78,7 +78,7 @@ abstract contract GasRouter is Router {
             StandardHookMetadata.overrideGasLimit(destinationGas[_destination]);
     }
 
-    function _setDestinationGas(uint32 domain, uint256 gas) internal {
+    function _setDestinationGas(uint32 domain, uint256 gas) internal virtual {
         require(
             _routers.contains(uint256(domain)),
             _domainNotFoundError(domain)

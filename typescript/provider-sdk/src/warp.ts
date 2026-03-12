@@ -52,6 +52,7 @@ export interface BaseWarpConfig {
   hook?: HookConfig | string;
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
+  scale?: number;
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
@@ -64,6 +65,7 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
@@ -82,6 +84,7 @@ export interface BaseDerivedWarpConfig {
   hook: DerivedHookConfig | string;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
+  scale?: number;
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
@@ -97,6 +100,7 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  metadataUri?: string;
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
@@ -133,6 +137,7 @@ interface BaseWarpArtifactConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  scale?: number;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -145,6 +150,7 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   name: string;
   symbol: string;
   decimals: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -329,6 +335,7 @@ export function warpConfigToArtifact(
     hook: hookArtifact,
     remoteRouters,
     destinationGas,
+    scale: config.scale,
   };
 
   switch (config.type) {
@@ -362,6 +369,7 @@ export function warpConfigToArtifact(
           name: config.name,
           symbol: config.symbol,
           decimals: config.decimals,
+          metadataUri: config.metadataUri,
         },
       };
 
@@ -464,6 +472,7 @@ export function warpArtifactToDerivedConfig(
     name: config.name,
     symbol: config.symbol,
     decimals: config.decimals,
+    scale: config.scale,
   };
 
   switch (config.type) {
@@ -478,6 +487,7 @@ export function warpArtifactToDerivedConfig(
       return {
         ...baseDerivedConfig,
         type: TokenType.synthetic,
+        metadataUri: config.metadataUri,
       };
 
     case 'native':

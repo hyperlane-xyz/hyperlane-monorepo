@@ -256,6 +256,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
+  metadataUri: z.string().url().optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -273,24 +274,24 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
 );
 
 /**
- * Configuration for MultiCollateral (multi-router collateral routing).
+ * Configuration for CrossCollateralRouter (multi-router collateral routing).
  * Direct 1-message atomic transfers between collateral routers.
  */
-export const MultiCollateralTokenConfigSchema =
+export const CrossCollateralTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
-    type: z.literal(TokenType.multiCollateral),
+    type: z.literal(TokenType.crossCollateral),
     token: z.string().describe('Collateral token address'),
     /** Map of domain → router addresses to enroll */
-    enrolledRouters: z
+    crossCollateralRouters: z
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
       .optional(),
     ...BaseMovableTokenConfigSchema.shape,
   });
-export type MultiCollateralTokenConfig = z.infer<
-  typeof MultiCollateralTokenConfigSchema
+export type CrossCollateralTokenConfig = z.infer<
+  typeof CrossCollateralTokenConfigSchema
 >;
-export const isMultiCollateralTokenConfig = isCompliant(
-  MultiCollateralTokenConfigSchema,
+export const isCrossCollateralTokenConfig = isCompliant(
+  CrossCollateralTokenConfigSchema,
 );
 
 export const EverclearCollateralTokenConfigSchema = z.object({
@@ -381,7 +382,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   OftTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
-  MultiCollateralTokenConfigSchema,
+  CrossCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 
@@ -488,7 +489,7 @@ export const WarpRouteDeployConfigSchema = z
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config) ||
-          isMultiCollateralTokenConfig(config) ||
+          isCrossCollateralTokenConfig(config) ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
@@ -722,7 +723,7 @@ function extractCCIPIsmMap(
 
 const MovableTokenSchema = z.discriminatedUnion('type', [
   CollateralTokenConfigSchema,
-  MultiCollateralTokenConfigSchema,
+  CrossCollateralTokenConfigSchema,
   NativeTokenConfigSchema,
 ]);
 export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;

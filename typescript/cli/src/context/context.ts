@@ -169,6 +169,7 @@ export async function getContext({
     ProtocolType.CosmosNative,
     ProtocolType.Radix,
     ProtocolType.Aleo,
+    ProtocolType.Sealevel,
   ];
 
   return {

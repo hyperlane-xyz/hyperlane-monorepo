@@ -1,5 +1,23 @@
 # @hyperlane-xyz/provider-sdk
 
+## 3.1.0
+
+### Minor Changes
+
+- b892e61: Added mailbox and validator announce artifact interfaces in provider-sdk. The new interfaces establish the contract for mailbox and validator announce artifacts, including MailboxConfig with ISM and Hook artifact references, ValidatorAnnounceConfig with mailbox address reference, and raw artifact variants for protocol implementation use.
+- b892e61: CoreArtifactReader was implemented as a composite artifact reader for core deployments. It takes a mailbox address and returns a fully expanded MailboxArtifactConfig with all nested ISM and hook artifacts read from chain. A backward-compatible deriveCoreConfig() method was provided. A mailboxArtifactToDerivedCoreConfig conversion helper was added to mailbox.ts and ismArtifactToDerivedConfig was exported from the ISM reader.
+
+### Patch Changes
+
+- Updated dependencies [b892e61]
+  - @hyperlane-xyz/utils@27.1.0
+
+## 3.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@27.0.0
+
 ## 3.0.0
 
 ### Major Changes

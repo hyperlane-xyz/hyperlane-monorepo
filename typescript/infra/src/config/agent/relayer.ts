@@ -249,7 +249,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    const sanctionedEthereumAdresses = allSanctionedAddresses
+    const sanctionedEthereumAddresses = allSanctionedAddresses
       .flat()
       .filter((address) => {
         if (!isValidAddressEvm(address)) {
@@ -276,7 +276,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const uniqueAddresses = new Set(
       [
-        ...sanctionedEthereumAdresses,
+        ...sanctionedEthereumAddresses,
         ...radiantExploiter,
         ...flowAddresses,
       ].map((address) => address.toLowerCase()),

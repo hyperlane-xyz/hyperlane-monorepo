@@ -6,7 +6,7 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, sleep } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, sleep } from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -23,7 +23,7 @@ import { getConfirmedBlockTag } from '../utils/blockTag.js';
  * Configuration for the Monitor's inventory tracking.
  */
 export interface InventoryMonitorConfig {
-  inventoryAddress: Address;
+  inventoryAddresses: Partial<Record<ProtocolType, Address>>;
   chains: ChainName[];
 }
 
@@ -266,10 +266,17 @@ export class Monitor implements IMonitor {
       }
 
       try {
+        const address =
+          this.inventoryConfig!.inventoryAddresses[token.protocol];
+        if (!address) {
+          this.logger.warn(
+            { chain: chainName, protocol: token.protocol },
+            'No inventory address for chain protocol, skipping',
+          );
+          return { chainName, balance: 0n };
+        }
         const adapter = token.getAdapter(this.warpCore.multiProvider);
-        const balance = await adapter.getBalance(
-          this.inventoryConfig!.inventoryAddress,
-        );
+        const balance = await adapter.getBalance(address);
         this.logger.debug(
           {
             chain: chainName,

@@ -12,7 +12,6 @@ import {
   type ChainMap,
   type DerivedWarpRouteDeployConfig,
   TokenType,
-  type WarpCoreConfig,
   type WarpRouteDeployConfig,
   randomAddress,
   randomStarknetAddress,
@@ -279,17 +278,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
           addressToBytes32(unsupportedChainAddress),
         );
       }
-
-      const warpCoreConfig: WarpCoreConfig = readYamlOrJson(WARP_CORE_PATH);
-      const unsuportedChainData = warpCoreConfig.tokens.find(
-        (tokenConfig) =>
-          tokenConfig.chainName ===
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name,
-      );
-      expect(
-        unsuportedChainData,
-        `Expected warp core config for chain ${TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name} to be defined in the deployment output file`,
-      ).not.to.be.undefined;
     });
   }
 });
