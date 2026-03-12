@@ -113,9 +113,13 @@ export class WarpCore {
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
+        // If token1 has a warpRouteId, token2 must share it — disambiguates
+        // tokens at the same address (e.g. M0 Portal: mUSD, wM, USDSC)
         const token2 = tokens.find(
           (t) =>
-            t.chainName === chainName && t.addressOrDenom === addressOrDenom,
+            t.chainName === chainName &&
+            t.addressOrDenom === addressOrDenom &&
+            (!token1.warpRouteId || t.warpRouteId === token1.warpRouteId),
         );
         assert(
           token2,
