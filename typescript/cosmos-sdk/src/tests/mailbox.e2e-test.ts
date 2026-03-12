@@ -377,6 +377,22 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       [deployedMailbox] = await writer.create({ config });
     });
 
+    function verifyFullConfig(
+      readMailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
+      expectedConfig: MailboxOnChain,
+    ) {
+      expect(readMailbox.config.owner).to.equal(expectedConfig.owner);
+      expect(readMailbox.config.defaultIsm.deployed.address).to.equal(
+        expectedConfig.defaultIsm.deployed.address,
+      );
+      expect(readMailbox.config.defaultHook.deployed.address).to.equal(
+        expectedConfig.defaultHook.deployed.address,
+      );
+      expect(readMailbox.config.requiredHook.deployed.address).to.equal(
+        expectedConfig.requiredHook.deployed.address,
+      );
+    }
+
     const updateTestCases: Array<{
       name: string;
       setupNewValue: () => Promise<string>;
@@ -384,10 +400,6 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         mailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
         newValue: string,
       ) => ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>;
-      verifyUpdate: (
-        readMailbox: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
-        newValue: string,
-      ) => void;
     }> = [
       {
         name: 'default ISM',
@@ -411,11 +423,6 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
             },
           },
         }),
-        verifyUpdate: (readMailbox, newValue) => {
-          expect(readMailbox.config.defaultIsm.deployed.address).to.equal(
-            newValue,
-          );
-        },
       },
       {
         name: 'default hook',
@@ -439,11 +446,6 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
             },
           },
         }),
-        verifyUpdate: (readMailbox, newValue) => {
-          expect(readMailbox.config.defaultHook.deployed.address).to.equal(
-            newValue,
-          );
-        },
       },
       {
         name: 'required hook',
@@ -467,11 +469,6 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
             },
           },
         }),
-        verifyUpdate: (readMailbox, newValue) => {
-          expect(readMailbox.config.requiredHook.deployed.address).to.equal(
-            newValue,
-          );
-        },
       },
       {
         name: 'owner',
@@ -486,36 +483,29 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
             owner: newValue,
           },
         }),
-        verifyUpdate: (readMailbox, newValue) => {
-          expect(readMailbox.config.owner).to.equal(newValue);
-        },
       },
     ];
 
-    updateTestCases.forEach(
-      ({ name, setupNewValue, updateConfig, verifyUpdate }) => {
-        it(`should update ${name}`, async () => {
-          const newValue = await setupNewValue();
-          const updatedConfig = updateConfig(deployedMailbox, newValue);
+    updateTestCases.forEach(({ name, setupNewValue, updateConfig }) => {
+      it(`should update ${name}`, async () => {
+        const newValue = await setupNewValue();
+        const updatedArtifact = updateConfig(deployedMailbox, newValue);
 
-          const txs = await writer.update(updatedConfig);
+        const txs = await writer.update(updatedArtifact);
 
-          expect(txs).to.be.an('array').with.length(1);
-          expect(txs[0].typeUrl).to.equal(
-            MessageRegistry.MsgSetMailbox.proto.type,
-          );
+        expect(txs).to.be.an('array').with.length(1);
+        expect(txs[0].typeUrl).to.equal(
+          MessageRegistry.MsgSetMailbox.proto.type,
+        );
 
-          const receipt = await signer.sendAndConfirmTransaction(txs[0]);
-          expect(receipt.code).to.equal(0);
+        const receipt = await signer.sendAndConfirmTransaction(txs[0]);
+        expect(receipt.code).to.equal(0);
 
-          const reader = mailboxArtifactManager.createReader('mailbox');
-          const readMailbox = await reader.read(
-            deployedMailbox.deployed.address,
-          );
-          verifyUpdate(readMailbox, newValue);
-        });
-      },
-    );
+        const reader = mailboxArtifactManager.createReader('mailbox');
+        const readMailbox = await reader.read(deployedMailbox.deployed.address);
+        verifyFullConfig(readMailbox, updatedArtifact.config);
+      });
+    });
 
     it('should return no transactions when no updates needed', async () => {
       const txs = await writer.update(deployedMailbox);

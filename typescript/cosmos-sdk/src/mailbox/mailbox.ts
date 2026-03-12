@@ -167,7 +167,7 @@ export class CosmosMailboxWriter
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
-      config,
+      config: { ...config, owner: signerAddress },
       deployed: {
         address: mailboxAddress,
         domainId: this.domainId,

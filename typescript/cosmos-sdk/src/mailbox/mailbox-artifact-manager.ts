@@ -12,6 +12,7 @@ import {
   type MailboxType,
   type RawMailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
+import { LazyAsync } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupCoreExtension } from '../hyperlane/core/query.js';
@@ -30,7 +31,7 @@ import { CosmosMailboxReader, CosmosMailboxWriter } from './mailbox.js';
  * deferring the async query client creation until actually needed.
  */
 export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager {
-  private queryPromise?: Promise<CosmosMailboxQueryClient>;
+  private readonly query = new LazyAsync(() => this.createQuery());
 
   constructor(
     private readonly config: {
@@ -38,17 +39,6 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
       domainId: number;
     },
   ) {}
-
-  /**
-   * Lazy initialization - creates query client on first use.
-   * Subsequent calls return the cached promise.
-   */
-  private async getQuery(): Promise<CosmosMailboxQueryClient> {
-    if (!this.queryPromise) {
-      this.queryPromise = this.createQuery();
-    }
-    return this.queryPromise;
-  }
 
   /**
    * Creates a Cosmos query client with Core extension.
@@ -65,7 +55,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
    * @returns Deployed mailbox artifact with configuration
    */
   async readMailbox(address: string): Promise<DeployedRawMailboxArtifact> {
-    const query = await this.getQuery();
+    const query = await this.query.get();
     const reader = new CosmosMailboxReader(query);
     return reader.read(address);
   }
@@ -81,7 +71,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     return {
       read: async (address: string) => {
-        const query = await this.getQuery();
+        const query = await this.query.get();
         const reader = new CosmosMailboxReader(query);
         return reader.read(address);
       },
@@ -104,7 +94,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     return {
       read: async (address: string) => {
-        const query = await this.getQuery();
+        const query = await this.query.get();
         const writer = new CosmosMailboxWriter(
           query,
           signer,
@@ -113,7 +103,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
         return writer.read(address);
       },
       create: async (artifact) => {
-        const query = await this.getQuery();
+        const query = await this.query.get();
         const writer = new CosmosMailboxWriter(
           query,
           signer,
@@ -122,7 +112,7 @@ export class CosmosMailboxArtifactManager implements IRawMailboxArtifactManager 
         return writer.create(artifact);
       },
       update: async (artifact) => {
-        const query = await this.getQuery();
+        const query = await this.query.get();
         const writer = new CosmosMailboxWriter(
           query,
           signer,

@@ -69,6 +69,10 @@ export {
 
 // Mailbox Artifact Management
 export { CosmosMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
+export {
+  type CosmosMailboxQueryClient,
+  getMailboxConfig,
+} from './mailbox/mailbox-query.js';
 export { CosmosMailboxReader, CosmosMailboxWriter } from './mailbox/mailbox.js';
 
 export {
