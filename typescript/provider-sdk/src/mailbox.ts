@@ -20,6 +20,7 @@ import type {
   DerivedIsmConfig,
   IsmArtifactConfig,
 } from './ism.js';
+import { assert } from '@hyperlane-xyz/utils';
 
 // Artifact API types
 
@@ -145,21 +146,18 @@ export function mailboxArtifactToDerivedCoreConfig(
   const { defaultIsm, defaultHook, requiredHook, owner } = artifact.config;
 
   // All nested artifacts should be in DEPLOYED state after CoreArtifactReader.read()
-  if (!isArtifactDeployed(defaultIsm)) {
-    throw new Error(
-      `Expected defaultIsm to be ${ArtifactState.DEPLOYED}, got ${defaultIsm.artifactState}`,
-    );
-  }
-  if (!isArtifactDeployed(defaultHook)) {
-    throw new Error(
-      `Expected defaultHook to be ${ArtifactState.DEPLOYED}, got ${defaultHook.artifactState}`,
-    );
-  }
-  if (!isArtifactDeployed(requiredHook)) {
-    throw new Error(
-      `Expected requiredHook to be ${ArtifactState.DEPLOYED}, got ${requiredHook.artifactState}`,
-    );
-  }
+  assert(
+    isArtifactDeployed(defaultIsm),
+    `Expected defaultIsm to be ${ArtifactState.DEPLOYED}, got ${defaultIsm.artifactState}`,
+  );
+  assert(
+    isArtifactDeployed(defaultHook),
+    `Expected defaultHook to be ${ArtifactState.DEPLOYED}, got ${defaultHook.artifactState}`,
+  );
+  assert(
+    isArtifactDeployed(requiredHook),
+    `Expected requiredHook to be ${ArtifactState.DEPLOYED}, got ${requiredHook.artifactState}`,
+  );
 
   return {
     owner,
