@@ -36,7 +36,7 @@ export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
-    private readonly mailboxAddress: Address,
+    private readonly mailboxAddress?: Address,
     private readonly salt: Uint8Array = DEFAULT_IGP_SALT,
   ) {}
 
@@ -50,6 +50,10 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
 
     // The only other supported hook on SVM is the merkle tree hook, which IS
     // the mailbox program. Validate the address matches before assuming.
+    assert(
+      this.mailboxAddress,
+      'Mailbox address is required to detect merkle tree hooks on SVM',
+    );
     assert(
       addr === this.mailboxAddress,
       `Unknown hook address ${address}: not an IGP program; expected the configured mailbox (${this.mailboxAddress}) for Merkle detection`,
