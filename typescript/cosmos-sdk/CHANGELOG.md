@@ -1,5 +1,14 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 28.0.0
+
+### Patch Changes
+
+- 228ed9f: Added the mailbox artifact API to cosmos-sdk, providing read and create/update capabilities for mailbox deployments.
+  - @hyperlane-xyz/cosmos-types@28.0.0
+  - @hyperlane-xyz/utils@28.0.0
+  - @hyperlane-xyz/provider-sdk@3.1.1
+
 ## 27.1.0
 
 ### Patch Changes
