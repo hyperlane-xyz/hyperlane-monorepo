@@ -72,6 +72,7 @@ export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  blacklistUrl?: string;
   addressBlacklist?: string;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
@@ -161,6 +162,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     }
     if (baseConfig.blacklist) {
       relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
+    }
+    if (baseConfig.blacklistUrl) {
+      relayerConfig.blacklistUrl = baseConfig.blacklistUrl;
     }
 
     relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
