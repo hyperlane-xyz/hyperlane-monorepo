@@ -21,6 +21,7 @@ import {
   MAILBOX_PROGRAM_ID,
   MIXED_MIN_AMOUNT_TARGET_WEI,
   SVM_CHAIN_NAME,
+  SVM_DOMAIN_ID,
   type SvmDeployedAddresses,
 } from './fixtures/svm-routes.js';
 import { MockExternalBridge } from './harness/MockExternalBridge.js';
@@ -810,5 +811,39 @@ describe('Mixed EVM+SVM Inventory Rebalancer E2E', function () {
 
     const finalIntent = await context.tracker.getRebalanceIntent(intentId);
     expect(finalIntent!.status).to.equal('complete');
+  });
+
+  // ── Scenario 7 ──
+
+  it('bridges inventory from SVM when all EVM chains are in deficit', async function () {
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EVM_ALL_DEFICIT')
+      .withInventorySignerBalances('SIGNER_ZERO_ALL')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    await executeCycle(context);
+
+    const inProgressActions = await context.tracker.getInProgressActions();
+    expect(inProgressActions.length).to.equal(1);
+    const movementAction = inProgressActions.find(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(movementAction).to.exist;
+    expect(movementAction!.origin).to.equal(SVM_DOMAIN_ID);
+
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    const completedMovement = await context.tracker.getRebalanceAction(
+      movementAction!.id,
+    );
+    expect(completedMovement!.status).to.equal('complete');
   });
 });

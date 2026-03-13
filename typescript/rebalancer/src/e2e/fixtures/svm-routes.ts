@@ -200,6 +200,14 @@ export const MIXED_BALANCE_PRESETS: Record<
     },
     svmLamports: SVM_FUND_AMOUNT_LAMPORTS,
   },
+  INVENTORY_EVM_ALL_DEFICIT: {
+    evmBalances: {
+      anvil1: '0',
+      anvil2: '0',
+      anvil3: '0',
+    },
+    svmLamports: SVM_FUND_AMOUNT_LAMPORTS,
+  },
 };
 
 // ── Mixed signer balance presets (ETH balances for signer wallet) ──
@@ -218,6 +226,11 @@ export const MIXED_SIGNER_PRESETS: Record<
   },
   SIGNER_FUNDED_ANVIL1: {
     anvil1: '20000000000000000000', // 20 ETH
+    anvil2: '0',
+    anvil3: '0',
+  },
+  SIGNER_ZERO_ALL: {
+    anvil1: '0',
     anvil2: '0',
     anvil3: '0',
   },
