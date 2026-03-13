@@ -1,15 +1,21 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
-import { writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  HYPERLANE_SVM_PROGRAM_BYTES,
+  SvmNativeTokenWriter,
+} from '@hyperlane-xyz/svm-sdk';
 import type { Logger } from 'pino';
 
 import type { SvmDeployedAddresses } from '../fixtures/svm-routes.js';
 import {
   AGAVE_BIN_DIR,
+  MAILBOX_PROGRAM_ID,
   DEPLOYER_ACCOUNT,
   DEPLOYER_KEYPAIR,
   GAS_ORACLE_CONFIG,
@@ -18,7 +24,8 @@ import {
   SEALEVEL_DIR,
   SO_DIR,
   SVM_RPC_PORT,
-  WARP_ROUTE_PROGRAM_ID,
+  createSvmRpc,
+  createSvmSigner,
 } from '../fixtures/svm-routes.js';
 
 const VALIDATOR_BINARY = path.join(AGAVE_BIN_DIR, 'solana-test-validator');
@@ -104,6 +111,7 @@ export class SealevelLocalChainManager {
   private solanaConfigPath = '';
   private ledgerDir = '';
   private deployedAddresses: SvmDeployedAddresses | undefined;
+  private warpRouteProgramId = '';
   private readonly rpcPort: number;
 
   constructor(
@@ -259,51 +267,37 @@ export class SealevelLocalChainManager {
       throw new Error(`Unsupported local Sealevel domain: ${localDomain}`);
     }
 
-    const tokenConfig = JSON.stringify(
+    const rpc = createSvmRpc();
+    const signer = await createSvmSigner();
+    const writer = new SvmNativeTokenWriter(
       {
-        [localChain]: { type: 'native', decimals: 9 },
+        program: {
+          programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative,
+        },
+        ataPayerFundingAmount: 1_000_000_000n,
       },
-      null,
-      2,
+      rpc,
+      signer,
     );
 
-    const tmpTokenConfigPath = path.join(
-      os.tmpdir(),
-      `token-config-${Date.now()}.json`,
-    );
-    await writeFile(tmpTokenConfigPath, tokenConfig, 'utf8');
-
-    try {
-      runSealevelClient(this.solanaConfigPath, [
-        '--compute-budget',
-        '200000',
-        'warp-route',
-        'deploy',
-        '--environment',
-        'local-e2e',
-        '--environments-dir',
-        'environments',
-        '--built-so-dir',
-        SO_DIR,
-        '--warp-route-name',
-        'testwarproute-rebalancer',
-        '--token-config-file',
-        tmpTokenConfigPath,
-        '--registry',
-        MOCK_REGISTRY,
-        '--ata-payer-funding-amount',
-        '1000000000',
-      ]);
-    } finally {
-      fs.unlinkSync(tmpTokenConfigPath);
-    }
+    const [artifact] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: TokenType.native,
+        owner: signer.getSignerAddress(),
+        mailbox: MAILBOX_PROGRAM_ID,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
+    this.warpRouteProgramId = String(artifact.deployed.address);
 
     this.logger.info(
       { remoteRouterCount: remoteRoutersByDomain.size },
       'Sealevel warp route deployed',
     );
 
-    const warpProgram = new PublicKey(WARP_ROUTE_PROGRAM_ID);
+    const warpProgram = new PublicKey(this.warpRouteProgramId);
     const [tokenPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('hyperlane_message_recipient'),
@@ -331,7 +325,6 @@ export class SealevelLocalChainManager {
       throw new Error('Token PDA account must exist after deployment');
     }
 
-    const mailboxPubkey = new PublicKey(tokenAccount.data.subarray(2, 34));
     const [ataPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('hyperlane_token'),
@@ -342,7 +335,7 @@ export class SealevelLocalChainManager {
     );
 
     this.deployedAddresses = {
-      mailbox: mailboxPubkey.toBase58(),
+      mailbox: MAILBOX_PROGRAM_ID,
       ism: MULTISIG_ISM_PROGRAM_ID,
       warpToken: tokenPda.toBase58(),
       warpTokenAta: ataPda.toBase58(),
@@ -403,6 +396,15 @@ export class SealevelLocalChainManager {
     return this.deployedAddresses;
   }
 
+  getWarpRouteProgramId(): string {
+    if (!this.warpRouteProgramId) {
+      throw new Error(
+        'Warp route not deployed yet. Call deployWarpRoute first.',
+      );
+    }
+    return this.warpRouteProgramId;
+  }
+
   getConnection(): Connection {
     if (!this.connection) {
       throw new Error('Connection not initialized. Call start first.');
@@ -446,6 +448,7 @@ export class SealevelLocalChainManager {
     this.solanaConfigPath = '';
     this.ledgerDir = '';
     this.deployedAddresses = undefined;
+    this.warpRouteProgramId = '';
   }
 
   private ensureStarted(): void {
