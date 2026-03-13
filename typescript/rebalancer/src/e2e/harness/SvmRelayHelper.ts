@@ -6,7 +6,6 @@ import {
 } from '@solana/web3.js';
 import type { Logger } from 'pino';
 
-import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   type MultiProvider,
@@ -19,8 +18,6 @@ import {
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
-import { ANVIL_TEST_PRIVATE_KEY } from '../fixtures/routes.js';
-
 export interface SvmToEvmRelayOpts {
   connection: Connection;
   mailboxProgramId: PublicKey;
@@ -29,26 +26,11 @@ export interface SvmToEvmRelayOpts {
   logger: Logger;
 }
 
-interface LegacySvmToEvmRelayOpts {
-  connection: Connection;
-  mailboxProgramId: PublicKey;
-  evmMailboxAddresses: Record<string, string>;
-  evmProviders: Map<string, ethers.providers.JsonRpcProvider>;
-  evmDomainToChain: Record<number, string>;
-  logger: Logger;
-}
-
 const DISPATCHED_MESSAGE_DISCRIMINATOR = Buffer.from('DISPATCH');
 const DISPATCHED_MESSAGE_HEADER_SIZE = 8 + 4 + 8 + 32;
 
 export async function relaySvmToEvmMessages(
   opts: SvmToEvmRelayOpts,
-): Promise<number>;
-export async function relaySvmToEvmMessages(
-  opts: LegacySvmToEvmRelayOpts,
-): Promise<number>;
-export async function relaySvmToEvmMessages(
-  opts: SvmToEvmRelayOpts | LegacySvmToEvmRelayOpts,
 ): Promise<number> {
   const signatures = await opts.connection.getSignaturesForAddress(
     opts.mailboxProgramId,
@@ -110,28 +92,9 @@ export async function relaySvmToEvmMessages(
 }
 
 function resolveTarget(
-  opts: SvmToEvmRelayOpts | LegacySvmToEvmRelayOpts,
+  opts: SvmToEvmRelayOpts,
   destinationDomain: number,
 ): { chain: string; mailbox: ethers.Contract } | null {
-  if (isLegacyOpts(opts)) {
-    const chain = opts.evmDomainToChain[destinationDomain];
-    if (!chain) return null;
-
-    const provider = opts.evmProviders.get(chain);
-    const mailboxAddress = opts.evmMailboxAddresses[chain];
-    if (!provider || !mailboxAddress) {
-      throw new Error(
-        `Missing legacy mailbox/provider for destination chain ${chain}`,
-      );
-    }
-
-    const signer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
-    return {
-      chain,
-      mailbox: Mailbox__factory.connect(mailboxAddress, signer),
-    };
-  }
-
   const chain = opts.multiProvider.tryGetChainName(destinationDomain);
   if (!chain) return null;
   if (opts.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum)
@@ -146,7 +109,7 @@ function resolveTarget(
 }
 
 async function relaySingle(
-  opts: SvmToEvmRelayOpts | LegacySvmToEvmRelayOpts,
+  opts: SvmToEvmRelayOpts,
   svmTx: VersionedTransactionResponse,
   signature: string,
   messageIdHex: string,
@@ -186,7 +149,7 @@ async function relaySingle(
 }
 
 async function extractRawMessage(
-  opts: SvmToEvmRelayOpts | LegacySvmToEvmRelayOpts,
+  opts: SvmToEvmRelayOpts,
   tx: VersionedTransactionResponse,
   expectedMessageId: string,
   expectedDestinationDomain: number,
@@ -260,10 +223,4 @@ function getCandidateKeys(tx: VersionedTransactionResponse): PublicKey[] {
   }
 
   return [...keys.values()];
-}
-
-function isLegacyOpts(
-  opts: SvmToEvmRelayOpts | LegacySvmToEvmRelayOpts,
-): opts is LegacySvmToEvmRelayOpts {
-  return 'evmDomainToChain' in opts;
 }
