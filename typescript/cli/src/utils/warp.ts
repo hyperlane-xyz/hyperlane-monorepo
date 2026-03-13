@@ -255,7 +255,7 @@ export function filterWarpConfigsToMatchingChains(
       Object.entries(warpDeployConfig).filter(([chain]) =>
         matchingChains.has(chain),
       ),
-    ) as WarpRouteDeployConfigMailboxRequired;
+    ) as WarpRouteDeployConfigMailboxRequired; // CAST: Object.fromEntries loses the original record type
     const filteredWarpCoreConfig = {
       ...warpCoreConfig,
       tokens: warpCoreConfig.tokens.filter((token: { chainName: string }) =>
