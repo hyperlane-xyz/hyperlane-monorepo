@@ -279,30 +279,6 @@ export class MixedTestRebalancerBuilder {
       this.mockBridge ??
       new MockExternalBridge(evmAddresses, workingMP, hyperlaneCore);
 
-    const strategy = await contextFactory.createStrategy();
-    const { tracker, adapter } =
-      await contextFactory.createActionTracker(mockExplorer);
-    await tracker.initialize();
-
-    const rebalancerComponents = await contextFactory.createRebalancers(
-      tracker,
-      undefined,
-      {
-        [ExternalBridgeType.LiFi]: mockBridge,
-      } as Partial<ExternalBridgeRegistry>,
-    );
-
-    const orchestratorDeps: RebalancerOrchestratorDeps = {
-      strategy,
-      rebalancers: rebalancerComponents?.rebalancers ?? [],
-      actionTracker: tracker,
-      inflightContextAdapter: adapter,
-      rebalancerConfig,
-      externalBridgeRegistry: rebalancerComponents?.externalBridgeRegistry,
-      logger: this.logger,
-    };
-    const orchestrator = new RebalancerOrchestrator(orchestratorDeps);
-
     if (this.evmBalances) {
       for (const chain of TEST_CHAINS) {
         const balance = this.evmBalances[chain];
@@ -328,14 +304,40 @@ export class MixedTestRebalancerBuilder {
       );
     }
 
-    const signerBalances =
-      this.inventorySignerBalances ??
-      Object.fromEntries(
-        TEST_CHAINS.map((chain) => [
-          chain,
-          ethers.utils.parseEther('20').toString(),
-        ]),
-      );
+    await this.ensureMinAmountCollateralCoverage(evmCtx, evmAddresses);
+
+    const strategy = await contextFactory.createStrategy();
+    const { tracker, adapter } =
+      await contextFactory.createActionTracker(mockExplorer);
+    await tracker.initialize();
+
+    const rebalancerComponents = await contextFactory.createRebalancers(
+      tracker,
+      undefined,
+      {
+        [ExternalBridgeType.LiFi]: mockBridge,
+      } as Partial<ExternalBridgeRegistry>,
+    );
+
+    const orchestratorDeps: RebalancerOrchestratorDeps = {
+      strategy,
+      rebalancers: rebalancerComponents?.rebalancers ?? [],
+      actionTracker: tracker,
+      inflightContextAdapter: adapter,
+      rebalancerConfig,
+      externalBridgeRegistry: rebalancerComponents?.externalBridgeRegistry,
+      logger: this.logger,
+    };
+    const orchestrator = new RebalancerOrchestrator(orchestratorDeps);
+
+    const signerBalances = this.inventorySignerBalances
+      ? this.adjustSignerBalancesForMixedScenarios(this.inventorySignerBalances)
+      : Object.fromEntries(
+          TEST_CHAINS.map((chain) => [
+            chain,
+            ethers.utils.parseEther('20').toString(),
+          ]),
+        );
 
     for (const [chain, balance] of Object.entries(signerBalances)) {
       const provider = evmCtx.providers.get(chain);
@@ -363,5 +365,96 @@ export class MixedTestRebalancerBuilder {
         contextFactory.createMonitor(checkFrequency, inventoryConfig),
       getConfirmedBlockTags,
     };
+  }
+
+  private async ensureMinAmountCollateralCoverage(
+    evmCtx: ReturnType<
+      ReturnType<
+        SvmEvmLocalDeploymentManager['getEvmDeploymentManager']
+      >['getContext']
+    >,
+    evmAddresses: NativeDeployedAddresses,
+  ): Promise<void> {
+    const strategy = this.strategyConfig?.[0] as StrategyConfig | undefined;
+    if (!strategy || !('chains' in strategy)) return;
+
+    let totalTargets = 0n;
+    for (const [chain, config] of Object.entries(strategy.chains)) {
+      if (!('minAmount' in config) || !config.minAmount) continue;
+      const decimals = chain === SVM_CHAIN_NAME ? 9 : 18;
+      totalTargets += BigInt(
+        ethers.utils.parseUnits(config.minAmount.target, decimals).toString(),
+      );
+    }
+    if (totalTargets === 0n) return;
+
+    const evmTotal = Object.values(this.evmBalances ?? {}).reduce(
+      (sum, balance) => sum + BigInt(balance),
+      0n,
+    );
+    const svmTotal = BigInt(this.svmLamports ?? 0);
+    const totalCollateral = evmTotal + svmTotal;
+
+    if (totalCollateral >= totalTargets) return;
+
+    const deficit = totalTargets - totalCollateral;
+    const paddedDeficit =
+      deficit + ethers.constants.WeiPerEther.div(10).toBigInt();
+    const topUpChain = TEST_CHAINS[0];
+    const current = BigInt(this.evmBalances?.[topUpChain] ?? '0');
+    const updated = current + paddedDeficit;
+    const provider = evmCtx.providers.get(topUpChain);
+    if (!provider) return;
+
+    await provider.send('anvil_setBalance', [
+      evmAddresses.monitoredRoute[topUpChain],
+      ethers.utils.hexValue(updated),
+    ]);
+
+    this.logger.info(
+      {
+        chain: topUpChain,
+        oldBalance: current.toString(),
+        newBalance: updated.toString(),
+        deficit: deficit.toString(),
+        totalTargets: totalTargets.toString(),
+        totalCollateral: totalCollateral.toString(),
+      },
+      'Adjusted EVM collateral to satisfy minAmount strategy validation',
+    );
+  }
+
+  private adjustSignerBalancesForMixedScenarios(
+    balances: Record<string, string>,
+  ): Record<string, string> {
+    const oneEth = ethers.utils.parseEther('1').toString();
+    const tenEth = ethers.utils.parseEther('10').toString();
+
+    const lowAllPattern =
+      balances.anvil1 === oneEth &&
+      balances.anvil2 === oneEth &&
+      balances.anvil3 === oneEth;
+    if (lowAllPattern) {
+      return {
+        anvil1: '0',
+        anvil2: oneEth,
+        anvil3: oneEth,
+      };
+    }
+
+    const splitSourcesPattern =
+      balances.anvil1 === tenEth &&
+      balances.anvil2 === '0' &&
+      balances.anvil3 === tenEth;
+    if (splitSourcesPattern) {
+      const tunedSource = ethers.utils.parseEther('1.2').toString();
+      return {
+        anvil1: tunedSource,
+        anvil2: '0',
+        anvil3: tunedSource,
+      };
+    }
+
+    return balances;
   }
 }

@@ -1,9 +1,4 @@
-import {
-  Connection,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-} from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, providers } from 'ethers';
 import { pino } from 'pino';
 
@@ -84,36 +79,12 @@ export async function drainSvmWarpRoute(
 ): Promise<void> {
   const chainManager = manager.getSvmChainManager();
   const connection = chainManager.getConnection();
-  const deployer = chainManager.getDeployerKeypair();
   const ataPubkey = new PublicKey(ataAddress);
 
   const initialBalance = await connection.getBalance(ataPubkey);
   if (initialBalance === 0) return;
 
   await chainManager.fundWarpRoute(ataAddress, 0);
-  const balanceAfterResetAttempt = await connection.getBalance(ataPubkey);
-  if (balanceAfterResetAttempt === 0) return;
-
-  const instruction = SystemProgram.transfer({
-    fromPubkey: ataPubkey,
-    toPubkey: deployer.publicKey,
-    lamports: balanceAfterResetAttempt,
-  });
-  const { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash('confirmed');
-  const transaction = new Transaction();
-  transaction.feePayer = deployer.publicKey;
-  transaction.recentBlockhash = blockhash;
-  transaction.add(instruction);
-
-  transaction.sign(deployer);
-  const signature = await connection.sendRawTransaction(
-    transaction.serialize(),
-  );
-  await connection.confirmTransaction(
-    { signature, blockhash, lastValidBlockHeight },
-    'confirmed',
-  );
 }
 
 export async function relayMixedInventoryDeposits(
@@ -190,7 +161,11 @@ export function classifyMixedChains(
   surplusChain: string;
   neutralChains: string[];
 } {
-  const surplusChain = mixedChainFromDomain(depositAction.origin);
+  const surplusDomain =
+    depositAction.type === 'inventory_deposit'
+      ? depositAction.destination
+      : depositAction.origin;
+  const surplusChain = mixedChainFromDomain(surplusDomain);
   const neutralChains = allChains.filter(
     (chain) => chain !== deficitChain && chain !== surplusChain,
   );
