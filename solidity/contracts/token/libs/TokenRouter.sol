@@ -234,7 +234,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             uint256 hookFee = _quoteGasPayment(
                 _destination,
                 _recipient,
-                _amount,
+                _outboundAmount(_amount),
                 _token
             );
 

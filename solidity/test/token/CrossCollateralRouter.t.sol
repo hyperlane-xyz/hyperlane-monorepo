@@ -17,6 +17,7 @@ import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {Message} from "contracts/libs/Message.sol";
 import {MockHyperlaneEnvironment} from "contracts/mock/MockHyperlaneEnvironment.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "contracts/test/ERC20Test.sol";
@@ -28,6 +29,7 @@ import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
 import {CrossCollateralRoutingFee} from "contracts/token/CrossCollateralRoutingFee.sol";
 import {ICrossCollateralFee} from "contracts/token/interfaces/ICrossCollateralFee.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 import {GasRouter} from "contracts/client/GasRouter.sol";
 import {LinearFee} from "contracts/token/fees/LinearFee.sol";
 
@@ -105,6 +107,28 @@ contract FixedQuoteHook is IPostDispatchHook {
         bytes calldata
     ) external view returns (uint256) {
         return quote;
+    }
+}
+
+contract MessageAmountQuoteHook is IPostDispatchHook {
+    using Message for bytes;
+    using TokenMessage for bytes;
+
+    function hookType() external pure returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function supportsMetadata(bytes calldata) external pure returns (bool) {
+        return true;
+    }
+
+    function postDispatch(bytes calldata, bytes calldata) external payable {}
+
+    function quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) external pure returns (uint256) {
+        return message.body().amount();
     }
 }
 
@@ -1277,6 +1301,41 @@ contract CrossCollateralRouterTest is Test {
         assertEq(quotedFee, 10e6, "quote uses primary router fee");
         assertEq(actualFee, 10e6, "charge uses primary router fee");
         assertEq(quotedFee, actualFee, "quote matches actual charge");
+    }
+
+    function test_quoteTransferRemote_usesScaledOutboundAmountForHookFee()
+        public
+    {
+        MessageAmountQuoteHook hook = new MessageAmountQuoteHook();
+        usdcRouterA.setHook(address(hook));
+        usdcRouterA.setFeeHook(address(hook));
+        usdcRouterA.setFeeRecipient(address(0));
+
+        uint256 amount = 10_000e6;
+        uint256 scaledAmount = amount * USDC_SCALE_NUM;
+        originUSDC.mintTo(ALICE, scaledAmount);
+
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount
+        );
+
+        uint256 aliceBalanceBefore = originUSDC.balanceOf(ALICE);
+        vm.prank(ALICE);
+        usdcRouterA.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+        uint256 aliceBalanceAfter = originUSDC.balanceOf(ALICE);
+
+        assertEq(
+            quotes[0].amount,
+            scaledAmount,
+            "quote uses scaled outbound amount"
+        );
+        assertEq(
+            aliceBalanceBefore - aliceBalanceAfter,
+            amount + scaledAmount,
+            "charge uses scaled outbound amount"
+        );
     }
 
     function test_routingFee_claim() public {
