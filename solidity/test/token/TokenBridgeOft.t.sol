@@ -3,11 +3,11 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import {TokenBridgeOft} from "../contracts/TokenBridgeOft.sol";
-import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt, OFTLimit, OFTFeeDetail} from "../contracts/interfaces/layerzero/IOFT.sol";
-import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
+import {TokenBridgeOft} from "contracts/token/TokenBridgeOft.sol";
+import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt, OFTLimit, OFTFeeDetail} from "contracts/token/interfaces/layerzero/IOFT.sol";
+import {Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
+import {ERC20Test} from "contracts/test/ERC20Test.sol";
 
 /**
  * @title MockOFT
