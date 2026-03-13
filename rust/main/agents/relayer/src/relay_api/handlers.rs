@@ -1,32 +1,28 @@
 use axum::{
-    extract::{Path, State},
+    extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::post,
     Json, Router,
 };
 use derive_new::new;
+use hyperlane_base::db::HyperlaneRocksDB;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{error, info};
-use uuid::Uuid;
 
-use super::{
-    extractor::ProviderRegistry,
-    job::{RelayJob, RelayStatus},
-    store::JobStore,
-};
+use super::extractor::ProviderRegistry;
 
 #[derive(Clone, new)]
 pub struct ServerState {
-    job_store: JobStore,
     #[new(default)]
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
     #[new(default)]
     provider_registry: Option<ProviderRegistry>,
     #[new(default)]
-    relay_worker: Option<Arc<super::worker::RelayWorker>>,
+    dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
 }
 
 impl ServerState {
@@ -35,22 +31,20 @@ impl ServerState {
         self
     }
 
-    pub fn with_relay_worker(mut self, worker: Arc<super::worker::RelayWorker>) -> Self {
-        self.relay_worker = Some(worker);
+    pub fn with_dbs(mut self, dbs: HashMap<u32, HyperlaneRocksDB>) -> Self {
+        self.dbs = Some(dbs);
         self
     }
 }
 
 impl ServerState {
     pub fn router(self) -> Router {
-        use axum::http::Method;
         use tower_http::cors::CorsLayer;
 
         let cors = CorsLayer::permissive();
 
         Router::new()
             .route("/relay", post(create_relay))
-            .route("/relay/{id}", get(get_relay_status))
             .layer(cors)
             .with_state(self)
     }
@@ -65,7 +59,10 @@ pub struct RelayRequest {
 
 #[derive(Debug, Serialize)]
 pub struct RelayResponse {
-    pub job_id: Uuid,
+    pub message_id: String,
+    pub origin: u32,
+    pub destination: u32,
+    pub nonce: u32,
 }
 
 // Error handling
@@ -129,7 +126,7 @@ impl RateLimiter {
     }
 }
 
-// POST /relay - Create a new relay job
+// POST /relay - Extract message and insert into database
 async fn create_relay(
     State(state): State<ServerState>,
     Json(req): Json<RelayRequest>,
@@ -155,79 +152,56 @@ async fn create_relay(
         ));
     }
 
-    // Create relay job
-    let mut job = RelayJob::new(req.origin_chain.clone(), req.tx_hash.clone());
-    let job_id = job.id;
-    state.job_store.insert(job.clone());
+    // 1. Extract message using ProviderRegistry
+    let registry = state.provider_registry.as_ref().ok_or_else(|| {
+        ServerError::InternalError("Provider registry not configured".to_string())
+    })?;
 
-    // Extract message and inject asynchronously
-    if let (Some(registry), Some(worker)) =
-        (state.provider_registry.clone(), state.relay_worker.clone())
-    {
-        let job_store = state.job_store.clone();
-        tokio::spawn(async move {
-            // Update status to extracting
-            job.update_status(RelayStatus::Extracting);
-            job_store.update(job.clone());
+    let extracted = registry
+        .extract_message(&req.origin_chain, &req.tx_hash)
+        .await
+        .map_err(|e| ServerError::InvalidRequest(format!("Failed to extract message: {}", e)))?;
 
-            // Extract message from transaction
-            match registry
-                .extract_message(&req.origin_chain, &req.tx_hash)
-                .await
-            {
-                Ok(extracted) => {
-                    info!(
-                        job_id = %job_id,
-                        message_id = ?extracted.message_id,
-                        origin = extracted.origin_domain,
-                        destination = extracted.destination_domain,
-                        "Successfully extracted message"
-                    );
+    info!(
+        message_id = ?extracted.message_id,
+        origin = extracted.origin_domain,
+        destination = extracted.destination_domain,
+        "Successfully extracted message"
+    );
 
-                    // Update job with extracted info
-                    job.message_id = extracted.message_id;
-                    job.destination_chain = format!("domain-{}", extracted.destination_domain);
-                    job_store.update(job.clone());
+    // 2. Get database for origin chain
+    let dbs = state
+        .dbs
+        .as_ref()
+        .ok_or_else(|| ServerError::InternalError("Databases not configured".to_string()))?;
 
-                    // Inject into MessageProcessor (also spawns status tracker)
-                    if let Err(e) = worker.inject_message(job, extracted).await {
-                        error!(
-                            job_id = %job_id,
-                            error = %e,
-                            "Failed to inject message"
-                        );
-                    }
-                }
-                Err(e) => {
-                    error!(
-                        job_id = %job_id,
-                        error = %e,
-                        "Failed to extract message"
-                    );
-                    job.set_error(format!("Failed to extract message: {}", e));
-                    job_store.update(job);
-                }
-            }
-        });
-    } else {
-        error!(job_id = %job_id, "Provider registry or relay worker not configured");
-        let mut job = state.job_store.get(&job_id).unwrap();
-        job.set_error("Provider registry or relay worker not configured".to_string());
-        state.job_store.update(job);
-    }
+    let db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
+        ServerError::InternalError(format!(
+            "No database for origin domain {}",
+            extracted.origin_domain
+        ))
+    })?;
 
-    info!(job_id = %job_id, "Created relay job");
+    // 3. Insert message into DB with a block number that ensures it gets processed
+    // Using u64::MAX - 1000 to be ahead of any indexer cursor but not overflow
+    // This is a workaround since we don't fetch the actual block number from the tx
+    // The relayer uses cursor-based indexing, so we need to be ahead of the current cursor
+    let block_number = u64::MAX - 1000;
 
-    Ok(Json(RelayResponse { job_id }))
-}
+    db.upsert_message(&extracted.message, block_number)
+        .map_err(|e| ServerError::InternalError(format!("Failed to insert message: {}", e)))?;
 
-// GET /relay/:id - Get relay job status
-async fn get_relay_status(
-    State(state): State<ServerState>,
-    Path(id): Path<Uuid>,
-) -> ServerResult<Json<RelayJob>> {
-    match state.job_store.get(&id) {
-        Some(job) => Ok(Json(job)),
-        None => Err(ServerError::NotFound),
-    }
+    info!(
+        message_id = ?extracted.message_id,
+        block_number = block_number,
+        "Successfully inserted message into database"
+    );
+
+    // 4. Return success immediately
+    Ok(Json(RelayResponse {
+        message_id: format!("{:x}", extracted.message_id),
+        origin: extracted.origin_domain,
+        destination: extracted.destination_domain,
+        nonce: extracted.message.nonce,
+    }))
 }

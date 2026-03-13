@@ -100,9 +100,9 @@ measure_transfer() {
       -H "Content-Type: application/json" \
       -d "{\"origin_chain\":\"$ORIGIN_CHAIN\",\"tx_hash\":\"$TX_HASH\"}")
 
-    JOB_ID=$(echo $RELAY_RESPONSE | jq -r '.job_id // empty')
-    if [ -n "$JOB_ID" ]; then
-      echo "✓ (job: $JOB_ID)"
+    MESSAGE_ID=$(echo $RELAY_RESPONSE | jq -r '.message_id // empty')
+    if [ -n "$MESSAGE_ID" ]; then
+      echo "✓ (message: $MESSAGE_ID)"
     else
       echo "✗ Failed: $RELAY_RESPONSE"
     fi

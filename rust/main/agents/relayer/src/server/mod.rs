@@ -172,23 +172,10 @@ impl Server {
         let relay_api_disabled =
             env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
         if !relay_api_disabled {
-            if let (Some(job_store), Some(send_channels)) =
-                (self.relay_job_store, self.relay_send_channels)
-            {
-                // Create RelayWorker with send_channels and msg_ctxs
-                let relay_worker = Arc::new(crate::relay_api::RelayWorker::new(
-                    send_channels,
-                    self.msg_ctxs.clone(),
-                    job_store.clone(),
-                ));
-
-                let mut relay_state = crate::relay_api::handlers::ServerState::new(job_store)
-                    .with_relay_worker(relay_worker);
-
-                // Add provider registry if available
-                if let Some(registry) = self.relay_provider_registry {
-                    relay_state = relay_state.with_provider_registry(registry);
-                }
+            if let (Some(dbs), Some(registry)) = (self.dbs.as_ref(), self.relay_provider_registry) {
+                let relay_state = crate::relay_api::handlers::ServerState::new()
+                    .with_provider_registry(registry)
+                    .with_dbs(dbs.clone());
 
                 router = router.merge(relay_state.router());
             }
