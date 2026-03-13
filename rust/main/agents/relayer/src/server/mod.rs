@@ -165,10 +165,16 @@ impl Server {
         let relay_api_disabled =
             env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
         if !relay_api_disabled {
-            if let (Some(dbs), Some(registry)) = (self.dbs.as_ref(), self.relay_provider_registry) {
+            if let (Some(dbs), Some(registry), Some(send_channels)) = (
+                self.dbs.as_ref(),
+                self.relay_provider_registry,
+                self.relay_send_channels.as_ref(),
+            ) {
                 let relay_state = crate::relay_api::handlers::ServerState::new()
                     .with_provider_registry(registry)
-                    .with_dbs(dbs.clone());
+                    .with_dbs(dbs.clone())
+                    .with_send_channels(send_channels.clone())
+                    .with_msg_ctxs(self.msg_ctxs.clone());
 
                 router = router.merge(relay_state.router());
             }

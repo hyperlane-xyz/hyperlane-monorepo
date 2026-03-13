@@ -7,13 +7,16 @@ use axum::{
 };
 use derive_new::new;
 use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_core::{PendingOperationStatus, QueueOperation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info};
 
 use super::extractor::ProviderRegistry;
+use crate::msg::pending_message::{MessageContext, PendingMessage};
 
 #[derive(Clone, new)]
 pub struct ServerState {
@@ -23,6 +26,10 @@ pub struct ServerState {
     provider_registry: Option<ProviderRegistry>,
     #[new(default)]
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
+    #[new(default)]
+    send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
+    #[new(default)]
+    msg_ctxs: Option<HashMap<(u32, u32), Arc<MessageContext>>>,
 }
 
 impl ServerState {
@@ -33,6 +40,19 @@ impl ServerState {
 
     pub fn with_dbs(mut self, dbs: HashMap<u32, HyperlaneRocksDB>) -> Self {
         self.dbs = Some(dbs);
+        self
+    }
+
+    pub fn with_send_channels(
+        mut self,
+        channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) -> Self {
+        self.send_channels = Some(channels);
+        self
+    }
+
+    pub fn with_msg_ctxs(mut self, ctxs: HashMap<(u32, u32), Arc<MessageContext>>) -> Self {
+        self.msg_ctxs = Some(ctxs);
         self
     }
 }
@@ -169,35 +189,59 @@ async fn create_relay(
         "Successfully extracted message"
     );
 
-    // 2. Get database for origin chain
-    let dbs = state
-        .dbs
+    // 2. Get send channel for destination
+    let send_channels = state
+        .send_channels
         .as_ref()
-        .ok_or_else(|| ServerError::InternalError("Databases not configured".to_string()))?;
+        .ok_or_else(|| ServerError::InternalError("Send channels not configured".to_string()))?;
 
-    let db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
-        ServerError::InternalError(format!(
-            "No database for origin domain {}",
-            extracted.origin_domain
-        ))
-    })?;
+    let send_channel = send_channels
+        .get(&extracted.destination_domain)
+        .ok_or_else(|| {
+            ServerError::InvalidRequest(format!(
+                "No send channel for destination domain {}",
+                extracted.destination_domain
+            ))
+        })?;
 
-    // 3. Insert message into DB with a block number that ensures it gets processed
-    // Using u64::MAX - 1000 to be ahead of any indexer cursor but not overflow
-    // This is a workaround since we don't fetch the actual block number from the tx
-    // The relayer uses cursor-based indexing, so we need to be ahead of the current cursor
-    let block_number = u64::MAX - 1000;
+    // 3. Get message context for (origin, destination)
+    let msg_ctxs = state
+        .msg_ctxs
+        .as_ref()
+        .ok_or_else(|| ServerError::InternalError("Message contexts not configured".to_string()))?;
 
-    db.upsert_message(&extracted.message, block_number)
-        .map_err(|e| ServerError::InternalError(format!("Failed to insert message: {}", e)))?;
+    let msg_ctx = msg_ctxs
+        .get(&(extracted.origin_domain, extracted.destination_domain))
+        .ok_or_else(|| {
+            ServerError::InternalError(format!(
+                "No message context for origin {} to destination {}",
+                extracted.origin_domain, extracted.destination_domain
+            ))
+        })?;
+
+    // 4. Create PendingMessage and inject directly into processor channel
+    let pending_msg = PendingMessage::new(
+        extracted.message.clone(),
+        msg_ctx.clone(),
+        PendingOperationStatus::FirstPrepareAttempt,
+        None, // No app context for relay API
+        10,   // Max retries
+    );
+
+    // 5. Send to MessageProcessor via channel (bypasses MessageDbLoader iterator)
+    send_channel
+        .send(Box::new(pending_msg) as QueueOperation)
+        .map_err(|e| {
+            ServerError::InternalError(format!("Failed to send message to processor: {}", e))
+        })?;
 
     info!(
         message_id = ?extracted.message_id,
-        block_number = block_number,
-        "Successfully inserted message into database"
+        destination = extracted.destination_domain,
+        "Successfully injected message into processor channel"
     );
 
-    // 4. Return success immediately
+    // 6. Return success immediately
     Ok(Json(RelayResponse {
         message_id: format!("{:x}", extracted.message_id),
         origin: extracted.origin_domain,
