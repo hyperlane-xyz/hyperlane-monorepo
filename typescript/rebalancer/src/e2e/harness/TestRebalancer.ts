@@ -625,15 +625,6 @@ export class TestRebalancerBuilder {
           );
           await tx2.wait();
         }
-
-        if (BigNumber.from(balance).gt(0)) {
-          await (
-            await tokenAsDeployer.transfer(
-              signerAddress,
-              BigNumber.from(balance),
-            )
-          ).wait();
-        }
       }
 
       this.logger.info(
