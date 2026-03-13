@@ -369,6 +369,21 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     // Differences: (1) router-aware fee lookup, (2) same-domain returns 0 gas
     // since handle() is called directly without mailbox dispatch.
 
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public view override returns (Quote[] memory quotes) {
+        bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
+        return
+            quoteTransferRemoteTo(
+                _destination,
+                _recipient,
+                _amount,
+                targetRouter
+            );
+    }
+
     /// @inheritdoc ICrossCollateralFee
     function quoteTransferRemoteTo(
         uint32 _destination,

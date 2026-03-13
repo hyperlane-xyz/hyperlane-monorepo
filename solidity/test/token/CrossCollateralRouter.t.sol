@@ -1226,6 +1226,59 @@ contract CrossCollateralRouterTest is Test {
         assertEq(quotedFee, actualFee, "quote matches actual charge");
     }
 
+    function test_quoteTransferRemote_matchesTransferRemoteCharge() public {
+        LinearFee defaultFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6,
+            10000e6,
+            address(this)
+        );
+        LinearFee primaryRouterFee10bps = new LinearFee(
+            address(originUSDC),
+            20e6,
+            10000e6,
+            address(this)
+        );
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            address(this)
+        );
+
+        uint32[] memory destinations = new uint32[](2);
+        bytes32[] memory targetRouters = new bytes32[](2);
+        address[] memory feeContracts = new address[](2);
+        destinations[0] = DESTINATION;
+        destinations[1] = DESTINATION;
+        targetRouters[0] = routingFee.DEFAULT_ROUTER();
+        targetRouters[1] = address(usdcRouterB).addressToBytes32();
+        feeContracts[0] = address(defaultFee5bps);
+        feeContracts[1] = address(primaryRouterFee10bps);
+
+        routingFee.setCrossCollateralRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
+        );
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        uint256 amount = 10000e6;
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount
+        );
+        uint256 quotedFee = quotes[1].amount - amount;
+
+        uint256 feeBalBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+        uint256 actualFee = originUSDC.balanceOf(address(routingFee)) -
+            feeBalBefore;
+
+        assertEq(quotedFee, 10e6, "quote uses primary router fee");
+        assertEq(actualFee, 10e6, "charge uses primary router fee");
+        assertEq(quotedFee, actualFee, "quote matches actual charge");
+    }
+
     function test_routingFee_claim() public {
         LinearFee linearFee5bps = new LinearFee(
             address(originUSDC),
