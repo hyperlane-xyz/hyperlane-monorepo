@@ -151,14 +151,18 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
         tokens[chain.name].address,
         deployer,
       );
-      await token.transfer(
-        bridgeRouters1[chain.name].address,
-        bridgeSeedAmount,
-      );
-      await token.transfer(
-        bridgeRouters2[chain.name].address,
-        bridgeSeedAmount,
-      );
+      await (
+        await token.transfer(
+          bridgeRouters1[chain.name].address,
+          bridgeSeedAmount,
+        )
+      ).wait();
+      await (
+        await token.transfer(
+          bridgeRouters2[chain.name].address,
+          bridgeSeedAmount,
+        )
+      ).wait();
     }
 
     return {

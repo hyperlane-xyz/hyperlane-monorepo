@@ -498,7 +498,7 @@ export class TestRebalancerBuilder {
           provider,
         );
         const token = ERC20Test__factory.connect(tokenAddress, deployerSigner);
-        await token.transfer(monitoredRouteAddress, balance);
+        await (await token.transfer(monitoredRouteAddress, balance)).wait();
       }
 
       this.logger.info(
@@ -610,14 +610,18 @@ export class TestRebalancerBuilder {
 
         const current = await tokenAsSigner.balanceOf(signerAddress);
         if (current.gt(0)) {
-          await tokenAsSigner.transfer(deployerSigner.address, current);
+          await (
+            await tokenAsSigner.transfer(deployerSigner.address, current)
+          ).wait();
         }
 
         if (BigNumber.from(balance).gt(0)) {
-          await tokenAsDeployer.transfer(
-            signerAddress,
-            BigNumber.from(balance),
-          );
+          await (
+            await tokenAsDeployer.transfer(
+              signerAddress,
+              BigNumber.from(balance),
+            )
+          ).wait();
         }
       }
 

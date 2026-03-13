@@ -160,8 +160,15 @@ export class MixedLocalDeploymentManager extends BaseLocalDeploymentManager<Erc2
         tokens[chain.name].address,
         deployer,
       );
-      await token.transfer(bridgeRouters[chain.name].address, bridgeSeedAmount);
-      await token.transfer(this.inventorySignerAddress, signerErc20Amount);
+      await (
+        await token.transfer(
+          bridgeRouters[chain.name].address,
+          bridgeSeedAmount,
+        )
+      ).wait();
+      await (
+        await token.transfer(this.inventorySignerAddress, signerErc20Amount)
+      ).wait();
     }
 
     return {

@@ -26,7 +26,7 @@ export async function setupCollateralBalances(
     // We need to set the exact balance, so transfer (targetBalance - currentBalance) if needed
     if (targetBalance.gt(currentBalance)) {
       const diff = targetBalance.sub(currentBalance);
-      await token.transfer(routersByChain[chain], diff);
+      await (await token.transfer(routersByChain[chain], diff)).wait();
     }
 
     // Verify
