@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 28.0.0
+
 ## 27.1.0
 
 ### Patch Changes
