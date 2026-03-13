@@ -15,7 +15,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
-use crate::relay_api::{JobStore, ProviderRegistry};
+use crate::relay_api::ProviderRegistry;
 
 use crate::server::environment_variable::EnvironmentVariableApi;
 use hyperlane_core::QueueOperation;
@@ -49,8 +49,6 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
-    #[new(default)]
-    relay_job_store: Option<JobStore>,
     #[new(default)]
     relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
     #[new(default)]
@@ -102,11 +100,6 @@ impl Server {
         entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>>,
     ) -> Self {
         self.dispatcher_command_entrypoints = Some(entrypoints);
-        self
-    }
-
-    pub fn with_relay_api(mut self, job_store: JobStore) -> Self {
-        self.relay_job_store = Some(job_store);
         self
     }
 

@@ -641,8 +641,7 @@ impl Relayer {
         if !relay_api_disabled {
             info!("Relay API enabled (default). Set HYPERLANE_RELAYER_DISABLE_RELAY_API=true to disable.");
 
-            use crate::relay_api::{JobStore, RegistryBuilder};
-            let job_store = JobStore::new();
+            use crate::relay_api::RegistryBuilder;
 
             // Build ProviderRegistry for relay API
             // Note: Currently only supports chains where we have origin data
@@ -737,9 +736,7 @@ impl Relayer {
             }
 
             let provider_registry = registry_builder.build();
-            server = server
-                .with_relay_api(job_store)
-                .with_provider_registry(provider_registry);
+            server = server.with_provider_registry(provider_registry);
         } else {
             info!("Relay API disabled (HYPERLANE_RELAYER_DISABLE_RELAY_API=true)");
         }
