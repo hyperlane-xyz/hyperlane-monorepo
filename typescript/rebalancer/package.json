@@ -67,6 +67,7 @@
   "devDependencies": {
     "@ethersproject/constants": "*",
     "@hyperlane-xyz/relayer": "workspace:*",
+    "@hyperlane-xyz/svm-sdk": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "catalog:",
     "@types/express": "^5.0.3",

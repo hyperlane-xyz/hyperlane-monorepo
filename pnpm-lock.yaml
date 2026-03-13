@@ -2088,6 +2088,9 @@ importers:
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
         version: link:../relayer
+      '@hyperlane-xyz/svm-sdk':
+        specifier: workspace:*
+        version: link:../svm-sdk
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig

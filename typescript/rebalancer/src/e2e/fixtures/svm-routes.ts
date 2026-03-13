@@ -1,7 +1,10 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { BigNumber } from 'ethers';
+
+import { SvmSigner, createRpc } from '@hyperlane-xyz/svm-sdk';
 
 import {
   ChainMetadata,
@@ -238,4 +241,25 @@ export function buildMixedBalancePreset(
   } else {
     return MIXED_BALANCE_PRESETS.INVENTORY_SVM_DEFICIT;
   }
+}
+
+// ── svm-sdk helpers for warp route deployment ──
+
+/**
+ * Creates an SvmSigner from the local-e2e deployer keypair file.
+ * The keypair JSON is a 64-byte array (Solana format).
+ */
+export async function createSvmSigner(): Promise<SvmSigner> {
+  const keypairBytes: number[] = JSON.parse(
+    fs.readFileSync(DEPLOYER_KEYPAIR, 'utf8'),
+  );
+  const privateKeyHex = Buffer.from(keypairBytes).toString('hex');
+  return SvmSigner.connectWithSigner([SVM_RPC_URL], privateKeyHex);
+}
+
+/**
+ * Creates an SvmRpc client pointing at the local solana-test-validator.
+ */
+export function createSvmRpc() {
+  return createRpc(SVM_RPC_URL);
 }
