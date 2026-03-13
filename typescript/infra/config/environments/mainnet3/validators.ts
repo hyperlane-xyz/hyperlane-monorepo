@@ -1593,15 +1593,5 @@ export const validatorChainConfig = (
         'eden',
       ),
     },
-    igra: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('igra'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x485f0739639e46d3b06b1b92debe2ade56d8bfb1'],
-        },
-        'igra',
-      ),
-    },
   };
 };
