@@ -509,7 +509,6 @@ export class LayerZeroBridge implements IExternalBridge {
       }
       try {
         const response = await fetch(url, options);
-        if (response.status === 404) return response;
         if (
           response.status >= 400 &&
           response.status < 500 &&
