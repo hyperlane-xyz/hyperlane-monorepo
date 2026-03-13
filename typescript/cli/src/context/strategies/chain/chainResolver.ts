@@ -14,7 +14,6 @@ import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getTransactions } from '../../../config/submit.js';
-import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import { readChainSubmissionStrategy } from '../../../deploy/warp.js';
 import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 import {
@@ -23,6 +22,7 @@ import {
 } from '../../../utils/chains.js';
 import {
   getWarpConfigs,
+  getWarpRouteDeployConfig,
   getWarpCoreConfigOrExit,
 } from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../apiKeys.js';

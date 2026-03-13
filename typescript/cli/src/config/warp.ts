@@ -41,8 +41,6 @@ import {
   getWarpRouteIdFromWarpDeployConfig,
   setProxyAdminConfig,
 } from '../utils/input.js';
-import { resolveWarpRouteId } from '../utils/warp.js';
-
 import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
@@ -461,28 +459,4 @@ function createFallbackRoutingConfig(owner: Address): IsmConfig {
     domains: {},
     owner,
   };
-}
-
-export async function getWarpRouteDeployConfig({
-  context,
-  warpRouteId,
-}: {
-  context: CommandContext;
-  warpRouteId?: string;
-}): Promise<{
-  config: WarpRouteDeployConfigMailboxRequired;
-  resolvedWarpRouteId: string;
-}> {
-  const resolvedWarpRouteId = await resolveWarpRouteId({
-    warpRouteId,
-    context,
-    promptByDeploymentConfigs: true,
-  });
-
-  const config = await readWarpRouteDeployConfig({
-    context,
-    warpRouteId: resolvedWarpRouteId,
-  });
-
-  return { config, resolvedWarpRouteId };
 }
