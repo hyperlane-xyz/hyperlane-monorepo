@@ -120,6 +120,11 @@ export class SvmForkIndexer implements IForkIndexer {
           origin_tx_hash: signature,
           origin_tx_sender: senderAddress,
           origin_tx_recipient: '',
+          // TODO: SVM-origin messages are never marked is_delivered=true here.
+          // Unlike EvmForkIndexer which checks mailbox.delivered() on the EVM destination,
+          // SVM-origin delivery happens on the EVM side and requires an EVM HyperlaneCore
+          // reference. ActionTracker performs the authoritative delivery completion checks,
+          // so this gap does not affect correctness for current test scenarios.
           is_delivered: false,
           message_body: '',
           send_occurred_at: null,
