@@ -113,6 +113,7 @@ export class SealevelLocalChainManager {
   private deployedAddresses: SvmDeployedAddresses | undefined;
   private warpRouteProgramId = '';
   private readonly rpcPort: number;
+  private exitHandler?: () => void;
 
   constructor(
     private readonly logger: Logger,
@@ -149,6 +150,13 @@ export class SealevelLocalChainManager {
       ],
       { stdio: ['ignore', 'pipe', 'pipe'], detached: false },
     );
+
+    this.exitHandler = () => {
+      if (this.validatorProc?.exitCode === null) {
+        this.validatorProc.kill('SIGKILL');
+      }
+    };
+    process.once('exit', this.exitHandler);
 
     let validatorOutput = '';
     this.validatorProc.stdout?.on('data', (data: Buffer) => {
@@ -422,6 +430,11 @@ export class SealevelLocalChainManager {
   }
 
   async stop(): Promise<void> {
+    if (this.exitHandler) {
+      process.off('exit', this.exitHandler);
+      this.exitHandler = undefined;
+    }
+
     if (this.validatorProc && this.validatorProc.exitCode === null) {
       this.validatorProc.kill('SIGTERM');
       await sleep(1000);
