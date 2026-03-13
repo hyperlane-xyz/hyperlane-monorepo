@@ -7,13 +7,14 @@ use async_trait::async_trait;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
 
-use crate::transaction::{Transaction, TransactionUuid};
+use crate::transaction::{Transaction, TransactionStatus, TransactionUuid};
 
 const TRANSACTION_BY_UUID_STORAGE_PREFIX: &str = "transaction_by_uuid_";
 
 const TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX: &str = "tx_index_by_uuid_";
 const TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX: &str = "tx_uuid_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
+const FINALIZED_TRANSACTION_COUNT_STORAGE_PREFIX: &str = "finalized_tx_count_";
 
 #[async_trait]
 pub trait TransactionDb: Send + Sync {
@@ -67,6 +68,64 @@ pub trait TransactionDb: Send + Sync {
 
     /// Retrieve the highest transaction index
     async fn retrieve_highest_transaction_index(&self) -> DbResult<u32>;
+
+    /// Retrieve persisted finalized transaction count.
+    async fn retrieve_finalized_transaction_count(&self) -> DbResult<Option<u64>> {
+        Ok(None)
+    }
+
+    /// Persist finalized transaction count.
+    async fn store_finalized_transaction_count(&self, _count: u64) -> DbResult<()> {
+        Ok(())
+    }
+
+    /// Count transactions currently matching a status.
+    async fn count_transactions_by_status(&self, status: &TransactionStatus) -> DbResult<u64> {
+        let mut count = 0_u64;
+        let highest_index = self.retrieve_highest_transaction_index().await?;
+        for index in 1..=highest_index {
+            if let Some(tx) = self.retrieve_transaction_by_index(index).await? {
+                if &tx.status == status {
+                    count = count.saturating_add(1);
+                }
+            }
+            // This recount loop can iterate over many records when recovering legacy
+            // state; yield so startup work does not monopolize runtime threads.
+            tokio::task::yield_now().await;
+        }
+        Ok(count)
+    }
+
+    /// Recount finalized transactions from DB and persist the value.
+    async fn recount_finalized_transaction_count(&self) -> DbResult<u64> {
+        let count = self
+            .count_transactions_by_status(&TransactionStatus::Finalized)
+            .await?;
+        self.store_finalized_transaction_count(count).await?;
+        Ok(count)
+    }
+
+    /// Increment persisted finalized transaction count.
+    async fn increment_finalized_transaction_count(&self) -> DbResult<u64> {
+        let count = self
+            .retrieve_finalized_transaction_count()
+            .await?
+            .unwrap_or_default()
+            .saturating_add(1);
+        self.store_finalized_transaction_count(count).await?;
+        Ok(count)
+    }
+
+    /// Decrement persisted finalized transaction count.
+    async fn decrement_finalized_transaction_count(&self) -> DbResult<u64> {
+        let count = self
+            .retrieve_finalized_transaction_count()
+            .await?
+            .unwrap_or_default()
+            .saturating_sub(1);
+        self.store_finalized_transaction_count(count).await?;
+        Ok(count)
+    }
 }
 
 #[async_trait]
@@ -139,6 +198,18 @@ impl TransactionDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX, &bool::default())
             .map(|index| index.unwrap_or_default())
     }
+
+    async fn retrieve_finalized_transaction_count(&self) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(FINALIZED_TRANSACTION_COUNT_STORAGE_PREFIX, &bool::default())
+    }
+
+    async fn store_finalized_transaction_count(&self, count: u64) -> DbResult<()> {
+        self.store_value_by_key(
+            FINALIZED_TRANSACTION_COUNT_STORAGE_PREFIX,
+            &bool::default(),
+            &count,
+        )
+    }
 }
 
 impl Encode for Transaction {
@@ -176,7 +247,7 @@ mod tests {
     use hyperlane_core::KnownHyperlaneDomain;
 
     use crate::tests::test_utils::dummy_tx;
-    use crate::transaction::TransactionUuid;
+    use crate::transaction::{DropReason, TransactionUuid};
     use crate::{payload::FullPayload, transaction::TransactionStatus};
 
     use super::TransactionDb;
@@ -187,6 +258,28 @@ mod tests {
         let domain = KnownHyperlaneDomain::Arbitrum.into();
 
         (Arc::new(HyperlaneRocksDB::new(&domain, db))) as _
+    }
+
+    #[tokio::test]
+    async fn test_transaction_indexing_is_one_based() {
+        let db = tmp_db();
+
+        assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 0);
+        assert_eq!(db.retrieve_transaction_by_index(0).await.unwrap(), None);
+
+        let payload = FullPayload::random();
+        let tx = dummy_tx(vec![payload], TransactionStatus::PendingInclusion);
+        db.store_transaction_by_uuid(&tx).await.unwrap();
+
+        assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 1);
+        assert_eq!(
+            db.retrieve_transaction_index_by_uuid(&tx.uuid)
+                .await
+                .unwrap(),
+            Some(1)
+        );
+        assert_eq!(db.retrieve_transaction_by_index(1).await.unwrap(), Some(tx));
+        assert_eq!(db.retrieve_transaction_by_index(0).await.unwrap(), None);
     }
 
     #[tokio::test]
@@ -223,5 +316,75 @@ mod tests {
             let highest_index = db.retrieve_highest_transaction_index().await.unwrap();
             assert_eq!(highest_index, expected_index as u32);
         }
+    }
+
+    #[tokio::test]
+    async fn test_count_transactions_by_status() {
+        let db = tmp_db();
+        let statuses = vec![
+            TransactionStatus::PendingInclusion,
+            TransactionStatus::Finalized,
+            TransactionStatus::Included,
+            TransactionStatus::Finalized,
+            TransactionStatus::Dropped(DropReason::DroppedByChain),
+        ];
+
+        for status in statuses {
+            let payload = FullPayload::random();
+            let tx = dummy_tx(vec![payload], status);
+            db.store_transaction_by_uuid(&tx).await.unwrap();
+        }
+
+        let finalized_count = db
+            .count_transactions_by_status(&TransactionStatus::Finalized)
+            .await
+            .unwrap();
+        let included_count = db
+            .count_transactions_by_status(&TransactionStatus::Included)
+            .await
+            .unwrap();
+
+        assert_eq!(finalized_count, 2);
+        assert_eq!(included_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_recount_finalized_transaction_count_persists_value() {
+        let db = tmp_db();
+        for status in [
+            TransactionStatus::Finalized,
+            TransactionStatus::Included,
+            TransactionStatus::Finalized,
+        ] {
+            let payload = FullPayload::random();
+            let tx = dummy_tx(vec![payload], status);
+            db.store_transaction_by_uuid(&tx).await.unwrap();
+        }
+
+        let recounted = db.recount_finalized_transaction_count().await.unwrap();
+        let stored = db.retrieve_finalized_transaction_count().await.unwrap();
+        assert_eq!(recounted, 2);
+        assert_eq!(stored, Some(2));
+    }
+
+    #[tokio::test]
+    async fn test_increment_and_decrement_finalized_transaction_count() {
+        let db = tmp_db();
+        assert_eq!(
+            db.retrieve_finalized_transaction_count().await.unwrap(),
+            None
+        );
+
+        let c1 = db.increment_finalized_transaction_count().await.unwrap();
+        let c2 = db.increment_finalized_transaction_count().await.unwrap();
+        let c3 = db.decrement_finalized_transaction_count().await.unwrap();
+        let c4 = db.decrement_finalized_transaction_count().await.unwrap();
+        let c5 = db.decrement_finalized_transaction_count().await.unwrap();
+
+        assert_eq!((c1, c2, c3, c4, c5), (1, 2, 1, 0, 0));
+        assert_eq!(
+            db.retrieve_finalized_transaction_count().await.unwrap(),
+            Some(0)
+        );
     }
 }

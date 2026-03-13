@@ -6,9 +6,9 @@ use maplit::hashmap;
 use crate::{
     config::Config,
     invariants::{
-        provider_metrics_invariant_met, relayer_termination_invariants_met,
-        scraper_termination_invariants_met, RelayerTerminationInvariantParams,
-        ScraperTerminationInvariantParams,
+        finalized_transactions_per_destination_invariants_met, provider_metrics_invariant_met,
+        relayer_termination_invariants_met, scraper_termination_invariants_met,
+        RelayerTerminationInvariantParams, ScraperTerminationInvariantParams,
     },
     logging::log,
     sealevel::{
@@ -95,6 +95,14 @@ pub fn termination_invariants_met(
 
     if !scraper_termination_invariants_met(params)? {
         log!("Scraper termination invariants not met");
+        return Ok(false);
+    }
+
+    if !finalized_transactions_per_destination_invariants_met(
+        RELAYER_METRICS_PORT,
+        &["sealeveltest1", "sealeveltest2", "sealeveltest3"],
+    )? {
+        log!("Finalized transaction count invariants not met");
         return Ok(false);
     }
 
