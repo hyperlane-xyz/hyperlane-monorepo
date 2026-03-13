@@ -171,8 +171,11 @@ export class ForkIndexer {
               'ForkIndexer marked message as delivered',
             );
           }
-        } catch {
-          // Ignore delivery check failures
+        } catch (error) {
+          this.logger.debug(
+            { msgId: msg.msg_id, destChain, error },
+            'Failed to check delivery status',
+          );
         }
       }),
     );
