@@ -519,17 +519,17 @@ describe('WarpCore', () => {
     quoteStubs.forEach((s) => s.restore());
   });
 
-  it('Includes token fee in MultiCollateral approval debit', async () => {
+  it('Includes token fee in CrossCollateralRouter approval debit', async () => {
     const tokenFeeAmount = 123n;
     const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;
     (evmHypNative as any).collateralAddressOrDenom =
       evmHypNative.addressOrDenom;
 
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .stub(evmHypSynthetic, 'isCrossCollateralToken')
       .returns(true);
 
     const quoteTransferRemoteToGas = sinon.stub().resolves({
@@ -580,16 +580,16 @@ describe('WarpCore', () => {
     }
   });
 
-  it('Rejects MultiCollateral transfer tx generation when IGP fee denom is non-native', async () => {
+  it('Rejects CrossCollateralRouter transfer tx generation when IGP fee denom is non-native', async () => {
     const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;
     (evmHypNative as any).collateralAddressOrDenom =
       evmHypNative.addressOrDenom;
 
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .stub(evmHypSynthetic, 'isCrossCollateralToken')
       .returns(true);
 
     const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
@@ -624,7 +624,7 @@ describe('WarpCore', () => {
 
       expect(thrown).to.not.equal(undefined);
       expect(thrown!.message).to.contain(
-        'MultiCollateral transferRemoteTo requires native IGP fee',
+        'CrossCollateralRouter transferRemoteTo requires native IGP fee',
       );
     } finally {
       adapterStub.restore();
@@ -635,12 +635,12 @@ describe('WarpCore', () => {
     }
   });
 
-  it('Checks destination collateral for MultiCollateral route using explicit destination token', async () => {
+  it('Checks destination collateral for CrossCollateralRouter route using explicit destination token', async () => {
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(cwHypCollateral, 'isMultiCollateralToken')
+      .stub(cwHypCollateral, 'isCrossCollateralToken')
       .returns(true);
     const destinationAdapterStub = sinon
       .stub(cwHypCollateral, 'getAdapter')
@@ -669,17 +669,17 @@ describe('WarpCore', () => {
     }
   });
 
-  it('Adds revoke before approval for MultiCollateral when allowance must be reset', async () => {
+  it('Adds revoke before approval for CrossCollateralRouter when allowance must be reset', async () => {
     const tokenFeeAmount = 123n;
     const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;
     (evmHypNative as any).collateralAddressOrDenom =
       evmHypNative.addressOrDenom;
 
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .stub(evmHypSynthetic, 'isCrossCollateralToken')
       .returns(true);
 
     const quoteTransferRemoteToGas = sinon.stub().resolves({
@@ -731,12 +731,12 @@ describe('WarpCore', () => {
     }
   });
 
-  it('Uses destination router-aware quote for MultiCollateral fees', async () => {
+  it('Uses destination router-aware quote for CrossCollateralRouter fees', async () => {
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .stub(evmHypSynthetic, 'isCrossCollateralToken')
       .returns(true);
 
     const quoteTransferRemoteToGas = sinon.stub().resolves({
@@ -775,12 +775,12 @@ describe('WarpCore', () => {
     }
   });
 
-  it('uses quoted interchain fee token for MultiCollateral estimateTransferRemoteFees', async () => {
+  it('uses quoted interchain fee token for CrossCollateralRouter estimateTransferRemoteFees', async () => {
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .stub(evmHypSynthetic, 'isCrossCollateralToken')
       .returns(true);
     const quoteTransferRemoteToGas = sinon.stub().resolves({
       igpQuote: {
@@ -817,9 +817,9 @@ describe('WarpCore', () => {
     }
   });
 
-  it('Rejects non-connected destination token for MultiCollateral fee quote', async () => {
+  it('Rejects non-connected destination token for CrossCollateralRouter fee quote', async () => {
     const originMultiStub = sinon
-      .stub(evmHypNative, 'isMultiCollateralToken')
+      .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const quoteTransferRemoteToGas = sinon.stub().resolves({
       igpQuote: { amount: 42n },
@@ -833,7 +833,7 @@ describe('WarpCore', () => {
       addressOrDenom: '0x9999999999999999999999999999999999999999',
     });
     const invalidDestinationMultiStub = sinon
-      .stub(invalidDestinationToken, 'isMultiCollateralToken')
+      .stub(invalidDestinationToken, 'isCrossCollateralToken')
       .returns(true);
 
     try {

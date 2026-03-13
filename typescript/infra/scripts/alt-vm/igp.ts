@@ -129,7 +129,9 @@ async function main() {
       let signer = await createAltVMSigner(multiProvider, chain, key);
 
       // Create the core module connected to the existing deployment
-      const reader = createHookReader(metadata, multiProvider);
+      const reader = createHookReader(metadata, multiProvider, {
+        mailbox: chainAddresses.mailbox,
+      });
 
       // Read current on-chain config
       logger.info(`Read current IGP config for chain: ${chain}`);

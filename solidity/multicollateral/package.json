@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/multicollateral",
-  "description": "MultiCollateral solidity contracts and typechain artifacts for Hyperlane",
-  "version": "0.1.0",
+  "description": "CrossCollateralRouter solidity contracts and typechain artifacts for Hyperlane",
+  "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,17 +24,18 @@
   "keywords": [
     "Hyperlane",
     "Solidity",
-    "MultiCollateral"
+    "CrossCollateralRouter"
   ],
   "license": "Apache-2.0",
   "scripts": {
     "deps:soldeer": "[ -d ../dependencies/@openzeppelin-contracts-4.9.3 ] || pnpm -C ../ deps:soldeer",
     "build": "pnpm clean && pnpm deps:soldeer && forge build && pnpm build:typechain && tsc -p tsconfig.json",
-    "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/MultiCollateral.sol/MultiCollateral.json out/MultiCollateralRoutingFee.sol/MultiCollateralRoutingFee.json out/interfaces/IMultiCollateralFee.sol/IMultiCollateralFee.json",
+    "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/CrossCollateralRouter.sol/CrossCollateralRouter.json out/CrossCollateralRoutingFee.sol/CrossCollateralRoutingFee.json out/interfaces/ICrossCollateralFee.sol/ICrossCollateralFee.json out/TokenBridgeOft.sol/TokenBridgeOft.json",
     "clean": "rm -rf ./artifacts ./cache ./dist ./typechain ./forge-cache ./out",
     "lint": "eslint -c ./eslint.config.mjs ./index.ts",
     "test": "pnpm deps:soldeer && forge test -vvv",
-    "test:ci": "pnpm test"
+    "test:ci": "pnpm deps:soldeer && forge test -vvv --no-match-contract ForkTest",
+    "test:fork": "pnpm deps:soldeer && sh -c '. ../.env.default && forge test -vvv --match-contract ForkTest'"
   },
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*"

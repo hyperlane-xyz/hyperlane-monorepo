@@ -20,7 +20,7 @@ const DOMAIN_BY_CHAIN: Record<string, number> = {
   anvil4: 31339,
 };
 
-function buildMultiCollateralToken({
+function buildCrossCollateralToken({
   chainName,
   symbol,
   address,
@@ -35,7 +35,7 @@ function buildMultiCollateralToken({
 }) {
   return {
     chainName,
-    standard: TokenStandard.EvmHypMultiCollateral,
+    standard: TokenStandard.EvmHypCrossCollateralRouter,
     decimals,
     symbol,
     name: symbol,
@@ -94,7 +94,7 @@ describe('runWarpRouteCombine', () => {
     const routeA = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil2',
             symbol: 'USDC',
             address: ROUTER_A,
@@ -104,10 +104,10 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil2: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_A,
           token: ROUTER_A,
-          enrolledRouters: {
+          crossCollateralRouters: {
             [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_C)],
           },
         },
@@ -116,7 +116,7 @@ describe('runWarpRouteCombine', () => {
     const routeB = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil3',
             symbol: 'USDT',
             address: ROUTER_B,
@@ -126,7 +126,7 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil3: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_B,
           token: ROUTER_B,
         },
@@ -156,7 +156,7 @@ describe('runWarpRouteCombine', () => {
     ).to.equal(true);
 
     const updatedRouteAConfig = addWarpRouteConfig.getCall(0).args[0];
-    expect(updatedRouteAConfig.anvil2.enrolledRouters).to.deep.equal({
+    expect(updatedRouteAConfig.anvil2.crossCollateralRouters).to.deep.equal({
       [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_B)],
     });
   });
@@ -191,11 +191,11 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include('Route IDs must be non-empty strings');
   });
 
-  it('rejects routes that are not MultiCollateral', async () => {
+  it('rejects routes that are not CrossCollateralRouter', async () => {
     const routeA = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil2',
             symbol: 'USDC',
             address: ROUTER_A,
@@ -205,7 +205,7 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil2: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_A,
           token: ROUTER_A,
         },
@@ -251,7 +251,7 @@ describe('runWarpRouteCombine', () => {
     }
 
     expect(thrown?.message).to.include(
-      'contains non-MultiCollateral deploy configs',
+      'contains non-CrossCollateralRouter deploy configs',
     );
   });
 
@@ -259,7 +259,7 @@ describe('runWarpRouteCombine', () => {
     const routeA = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil2',
             symbol: 'USDC',
             address: ROUTER_A,
@@ -270,7 +270,7 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil2: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_A,
           token: ROUTER_A,
           scale: 1_000_000_000_000,
@@ -280,7 +280,7 @@ describe('runWarpRouteCombine', () => {
     const routeB = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil2',
             symbol: 'USDT',
             address: ROUTER_B,
@@ -291,7 +291,7 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil2: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_B,
           token: ROUTER_B,
           scale: 2,
@@ -324,7 +324,7 @@ describe('runWarpRouteCombine', () => {
     const routeA = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil2',
             symbol: 'USDC',
             address: ROUTER_A,
@@ -335,7 +335,7 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil2: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_A,
           token: ROUTER_A,
           scale: { numerator: 3, denominator: 2 },
@@ -345,7 +345,7 @@ describe('runWarpRouteCombine', () => {
     const routeB = {
       coreConfig: {
         tokens: [
-          buildMultiCollateralToken({
+          buildCrossCollateralToken({
             chainName: 'anvil2',
             symbol: 'USDT',
             address: ROUTER_B,
@@ -356,7 +356,7 @@ describe('runWarpRouteCombine', () => {
       } as WarpCoreConfig,
       deployConfig: {
         anvil2: {
-          type: TokenType.multiCollateral,
+          type: TokenType.crossCollateral,
           owner: ROUTER_B,
           token: ROUTER_B,
           scale: 1,

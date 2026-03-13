@@ -401,6 +401,13 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
   }
 }
 
+/**
+ * Returns true if the address is effectively not set: undefined, null, empty string, or a known zero address pattern.
+ */
+export function isEmptyAddress(address: Address | undefined | null): boolean {
+  return !address || isZeroishAddress(address);
+}
+
 export function isZeroishAddress(address: Address) {
   return (
     EVM_ZEROISH_ADDRESS_REGEX.test(address) ||

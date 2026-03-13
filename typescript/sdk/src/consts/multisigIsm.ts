@@ -991,6 +991,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  igra: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x485f0739639e46d3b06b1b92debe2ade56d8bfb1',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   immutablezkevmmainnet: {
     threshold: 2,
     validators: [

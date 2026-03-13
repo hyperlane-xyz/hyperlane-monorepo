@@ -475,7 +475,9 @@ export function generateWarpConfigs(
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
     // Collateral-only, can't pair with synthetics; tested separately
-    TokenType.multiCollateral,
+    TokenType.crossCollateral,
+    // Requires a real OFT contract, can't be generated randomly
+    TokenType.collateralOft,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
   ]);

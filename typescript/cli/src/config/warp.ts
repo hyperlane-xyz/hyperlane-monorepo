@@ -75,12 +75,23 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
-  [TokenType.multiCollateral]:
+  [TokenType.collateralOft]:
+    'A collateral token that bridges via LayerZero OFT',
+  [TokenType.crossCollateral]:
     'A collateral token that can route to multiple routers across chains',
 };
 
+// Types that are only configurable via YAML, not the interactive prompt
+const YAML_ONLY_TYPES: TokenType[] = [
+  TokenType.collateralOft,
+  TokenType.collateralCctp,
+];
+
 const TYPE_CHOICES = Object.values(TokenType)
-  .filter((type): type is DeployableTokenType => type !== TokenType.unknown)
+  .filter(
+    (type): type is DeployableTokenType =>
+      type !== TokenType.unknown && !YAML_ONLY_TYPES.includes(type),
+  )
   .map((type) => ({
     name: type,
     value: type,
@@ -250,7 +261,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
-      case TokenType.multiCollateral:
+      case TokenType.crossCollateral:
         result[chain] = {
           type,
           owner,

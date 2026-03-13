@@ -5,23 +5,23 @@ import sinon from 'sinon';
 import { test1 } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 
-import { EvmHypMultiCollateralAdapter } from './EvmMultiCollateralAdapter.js';
+import { EvmHypCrossCollateralAdapter } from './EvmCrossCollateralAdapter.js';
 
-describe('EvmHypMultiCollateralAdapter', () => {
+describe('EvmHypCrossCollateralAdapter', () => {
   const ROUTER_ADDRESS = '0x1111111111111111111111111111111111111111';
   const COLLATERAL_ADDRESS = '0x2222222222222222222222222222222222222222';
   const TARGET_ROUTER = '0x3333333333333333333333333333333333333333';
   const RECIPIENT = '0x4444444444444444444444444444444444444444';
   const DESTINATION_DOMAIN = 31337;
 
-  let adapter: EvmHypMultiCollateralAdapter;
+  let adapter: EvmHypCrossCollateralAdapter;
   let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     const multiProvider =
       MultiProtocolProvider.createTestMultiProtocolProvider();
-    adapter = new EvmHypMultiCollateralAdapter(test1.name, multiProvider, {
+    adapter = new EvmHypCrossCollateralAdapter(test1.name, multiProvider, {
       token: ROUTER_ADDRESS,
       collateralToken: COLLATERAL_ADDRESS,
     });
@@ -35,7 +35,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
       { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
       { amount: BigNumber.from('25'), token: COLLATERAL_ADDRESS },
     ] as any);
-    (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
+    (adapter as any).crossCollateralContract = {
+      quoteTransferRemoteTo,
+    };
 
     const quote = await adapter.quoteTransferRemoteToGas({
       destination: DESTINATION_DOMAIN,
@@ -55,7 +57,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
       { amount: BigNumber.from('123456'), token: COLLATERAL_ADDRESS },
       { amount: BigNumber.from('0'), token: COLLATERAL_ADDRESS },
     ] as any);
-    (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
+    (adapter as any).crossCollateralContract = {
+      quoteTransferRemoteTo,
+    };
 
     const quote = await adapter.quoteTransferRemoteToGas({
       destination: DESTINATION_DOMAIN,
@@ -76,7 +80,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
       { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
       { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
     ] as any);
-    (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
+    (adapter as any).crossCollateralContract = {
+      quoteTransferRemoteTo,
+    };
 
     const quote = await adapter.quoteTransferRemoteToGas({
       destination: DESTINATION_DOMAIN,
@@ -97,7 +103,7 @@ describe('EvmHypMultiCollateralAdapter', () => {
       { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
     ] as any);
     const transferRemoteTo = sinon.stub().resolves({});
-    (adapter as any).multiCollateralContract = {
+    (adapter as any).crossCollateralContract = {
       quoteTransferRemoteTo,
       populateTransaction: { transferRemoteTo },
     };
@@ -124,7 +130,7 @@ describe('EvmHypMultiCollateralAdapter', () => {
       { amount: BigNumber.from('10'), token: COLLATERAL_ADDRESS },
     ] as any);
     const transferRemoteTo = sinon.stub().resolves({});
-    (adapter as any).multiCollateralContract = {
+    (adapter as any).crossCollateralContract = {
       quoteTransferRemoteTo,
       populateTransaction: { transferRemoteTo },
     };
@@ -150,7 +156,9 @@ describe('EvmHypMultiCollateralAdapter', () => {
       { amount: BigNumber.from('1500'), token: COLLATERAL_ADDRESS },
       { amount: BigNumber.from('10'), token: TARGET_ROUTER },
     ] as any);
-    (adapter as any).multiCollateralContract = { quoteTransferRemoteTo };
+    (adapter as any).crossCollateralContract = {
+      quoteTransferRemoteTo,
+    };
 
     let thrown: Error | undefined;
     try {

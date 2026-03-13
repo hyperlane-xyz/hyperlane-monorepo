@@ -59,6 +59,7 @@ export {
   isValidTransactionHashRadix,
   isValidTransactionHashAleo,
   isValidTransactionHashTron,
+  isEmptyAddress,
   isZeroishAddress,
   normalizeAddress,
   normalizeAddressCosmos,

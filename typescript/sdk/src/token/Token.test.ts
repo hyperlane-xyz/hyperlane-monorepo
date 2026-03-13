@@ -135,7 +135,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.EvmHypEverclearCollateral]: null,
   [TokenStandard.EvmHypEverclearEth]: null,
-  [TokenStandard.EvmHypMultiCollateral]: null,
+  [TokenStandard.EvmHypCrossCollateralRouter]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
@@ -265,7 +265,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.TronM0PortalLite]: null,
   [TokenStandard.TronHypEverclearCollateral]: null,
   [TokenStandard.TronHypEverclearEth]: null,
-  [TokenStandard.TronHypMultiCollateral]: null,
+  [TokenStandard.TronHypCrossCollateralRouter]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
