@@ -1,0 +1,125 @@
+name: Rebalancer SVM E2E Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "typescript/rebalancer/**"
+      - "typescript/sdk/**"
+      - "typescript/utils/**"
+      - "typescript/metrics/**"
+      - "rust/sealevel/**"
+      - "rust/main/chains/hyperlane-sealevel/**"
+      - ".github/workflows/rebalancer-svm-e2e-test.yml"
+  pull_request:
+    paths:
+      - "typescript/rebalancer/**"
+      - "typescript/sdk/**"
+      - "typescript/utils/**"
+      - "typescript/metrics/**"
+      - "rust/sealevel/**"
+      - "rust/main/chains/hyperlane-sealevel/**"
+      - ".github/workflows/rebalancer-svm-e2e-test.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: rebalancer-svm-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+  AGAVE_VERSION: 3.0.14
+
+jobs:
+  rebalancer-svm-e2e-test:
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      # ── Rust toolchain (for building sealevel programs + client) ──
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v3-rebalancer-svm-e2e'
+          cache-provider: 'github'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/main
+            ./rust/sealevel
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
+
+      - name: Install OpenSSL 1.1 for Solana toolchain
+        run: |
+          wget --tries=3 --retry-connrefused -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          sudo dpkg -i libssl1.1.deb
+
+      # ── Install Agave v3.0.14 (solana-test-validator, solana CLI) ──
+      - name: Cache Agave toolchain
+        id: cache-agave
+        uses: actions/cache@v5
+        with:
+          path: .local-tools/agave-v${{ env.AGAVE_VERSION }}
+          key: agave-${{ env.AGAVE_VERSION }}-linux-x86_64
+
+      - name: Install Agave toolchain
+        if: steps.cache-agave.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .local-tools/agave-v${AGAVE_VERSION}
+          TARBALL="solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          wget --tries=3 --retry-connrefused -q \
+            "https://github.com/anza-xyz/agave/releases/download/v${AGAVE_VERSION}/${TARBALL}"
+          tar -xjf "${TARBALL}"
+          mv solana-release/* .local-tools/agave-v${AGAVE_VERSION}/
+          rm -rf solana-release "${TARBALL}"
+
+      - name: Add Agave to PATH
+        run: echo "${GITHUB_WORKSPACE}/.local-tools/agave-v${AGAVE_VERSION}/bin" >> $GITHUB_PATH
+
+      - name: Verify Agave installation
+        run: |
+          solana --version
+          solana-test-validator --version
+
+      # ── Build Sealevel programs (.so files → rust/main/target/dist/) ──
+      - name: Build Sealevel programs
+        run: |
+          mkdir -p rust/main/target/dist
+          cd rust/sealevel/programs
+          bash build-programs.sh
+        env:
+          RUST_BACKTRACE: '1'
+          SBF_OUT_PATH: ${{ github.workspace }}/rust/main/target/dist
+      # ── Download SPL programs (.so files needed by solana-test-validator) ──
+      - name: Download SPL programs
+        run: |
+          mkdir -p rust/main/target/dist
+          curl -sL https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz | tar -xz -C rust/main/target/dist
+
+      # ── Build hyperlane-sealevel-client ──
+      - name: Build Sealevel client
+        run: cargo build --package hyperlane-sealevel-client
+        working-directory: ./rust/sealevel
+
+      # ── TypeScript build ──
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      # ── Run mixed SVM+EVM e2e tests ──
+      - name: Run rebalancer SVM E2E tests
+        working-directory: typescript/rebalancer
+        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm.e2e-test.ts' --exit

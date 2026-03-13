@@ -44,6 +44,16 @@ export {
   SvmMerkleTreeHookWriter as SealevelMerkleTreeHookWriter,
 } from './hook/merkle-tree-hook.js';
 
+// Warp token writers
+export { SvmNativeTokenWriter } from './warp/native-token.js';
+export { SvmSyntheticTokenWriter } from './warp/synthetic-token.js';
+export { SvmCollateralTokenWriter } from './warp/collateral-token.js';
+export { computeWarpTokenUpdateInstructions } from './warp/warp-tx.js';
+export type { SvmWarpTokenConfig } from './warp/types.js';
+
+// Hyperlane program bytes
+export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
+
 // Deploy
 export {
   createDeployProgramPlan,

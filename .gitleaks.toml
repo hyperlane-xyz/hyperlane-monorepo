@@ -3,7 +3,7 @@
 paths = [
     '''node_modules''',
     '''.git''',
-    '''rust/sealevel/environments/local-e2e/.*/keys/.*-keypair\.json'''
+    '''rust/sealevel/environments/local-e2e/.*/keys/.*\.(json)'''
 ]
 
 # Custom rules

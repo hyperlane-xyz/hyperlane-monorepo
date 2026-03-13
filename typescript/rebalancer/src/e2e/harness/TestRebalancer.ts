@@ -49,6 +49,7 @@ import {
 import { setupCollateralBalances } from './BridgeSetup.js';
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 import { ForkIndexer } from './ForkIndexer.js';
+import type { IForkIndexer } from './IForkIndexer.js';
 import {
   MockExplorerClient,
   type MockExplorerConfig,
@@ -76,7 +77,7 @@ export interface TestRebalancerContext {
   strategy: IStrategy;
   tracker: IActionTracker;
   mockExplorer: MockExplorerClient;
-  forkIndexer: ForkIndexer;
+  forkIndexer: IForkIndexer;
   multiProvider: MultiProvider;
   rebalancerConfig: RebalancerConfig;
   contextFactory: RebalancerContextFactory;

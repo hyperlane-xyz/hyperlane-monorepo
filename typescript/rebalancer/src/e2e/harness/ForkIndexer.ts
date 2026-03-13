@@ -10,8 +10,9 @@ import {
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
+import type { IForkIndexer } from './IForkIndexer.js';
 
-export class ForkIndexer {
+export class EvmForkIndexer implements IForkIndexer {
   private lastScannedBlock: Map<string, number> = new Map();
   private seenMessageIds: Set<string> = new Set();
   private initialized: boolean = false;
@@ -181,3 +182,5 @@ export class ForkIndexer {
     );
   }
 }
+
+export { EvmForkIndexer as ForkIndexer };
