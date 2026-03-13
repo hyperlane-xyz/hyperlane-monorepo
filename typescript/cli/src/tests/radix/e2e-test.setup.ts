@@ -103,19 +103,21 @@ beforeEach(() => {
 after(async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
-  // Restore the original test metadata
-  for (const [chainName, originalMetadata] of Object.entries(
-    originalRadixTestMetadata ?? {},
-  )) {
-    const metadataPath =
-      TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][
-        chainName as keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
-      ];
+  try {
+    // Restore the original test metadata
+    for (const [chainName, originalMetadata] of Object.entries(
+      originalRadixTestMetadata ?? {},
+    )) {
+      const metadataPath =
+        TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][
+          chainName as keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
+        ];
 
-    writeYamlOrJson(metadataPath, originalMetadata);
-  }
-
-  if (radixNodeInstance) {
-    await radixNodeInstance.down();
+      writeYamlOrJson(metadataPath, originalMetadata);
+    }
+  } finally {
+    if (radixNodeInstance) {
+      await radixNodeInstance.down();
+    }
   }
 });

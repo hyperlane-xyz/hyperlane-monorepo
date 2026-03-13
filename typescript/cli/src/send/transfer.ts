@@ -201,8 +201,9 @@ export async function sendTestTransfer({
           selfRelay,
           skipValidation,
           timeoutSec,
-          sourceToken,
-          destinationToken,
+          sourceToken: i === 0 ? sourceToken : undefined,
+          destinationToken:
+            i === chains.length - 2 ? destinationToken : undefined,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -299,7 +300,9 @@ async function executeDelivery({
   } else {
     logBlue(`Please select a token from the Warp config`);
     const routerAddress = await runTokenSelectionStep(tokensForRoute);
-    token = warpCore.findToken(origin, routerAddress)!;
+    const found = warpCore.findToken(origin, routerAddress);
+    assert(found, `Token not found for ${routerAddress} on ${origin}`);
+    token = found;
   }
 
   let destToken: Token | undefined;
@@ -347,7 +350,7 @@ async function executeDelivery({
     destination,
     sender: signerAddress,
     recipient: recipientAddress,
-    destinationToken: destToken ?? undefined,
+    destinationToken: destToken,
   });
 
   const txReceipts: TypedTransactionReceipt[] = [];
