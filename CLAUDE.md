@@ -351,6 +351,42 @@ Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 - Ensure return values are always assigned
 - Don't assume `msg.sender` is the operated-upon user
 
+### Default Value Footguns
+
+Solidity mappings return the type's zero value for unset keys. This creates subtle authorization bypasses:
+
+```solidity
+// DANGEROUS: passes when the key is unset (both sides are bytes32(0))
+require(lookup[key] == _param, "unauthorized");
+
+// SAFE: explicitly reject zero values first
+require(_param != bytes32(0), "zero value");
+require(lookup[key] == _param, "unauthorized");
+```
+
+When reviewing mapping lookups used in authorization or comparison:
+
+- What happens when the key is unset? Can a caller pass the zero value to match?
+- Does the derived contract handle the "not found" case identically to the base?
+
+### Quote-Execute Parity
+
+View functions that quote fees/costs must validate identically to their mutating counterparts. Otherwise callers get valid-looking quotes that revert on execution.
+
+When reviewing quote/execute function pairs:
+
+- Diff the validation logic line-by-line
+- Check that parameters are scaled/transformed identically in both paths
+- Verify the same metadata is constructed for both paths
+
+### Inheritance Model Mismatch
+
+When a derived contract extends the base contract's model (e.g., adding a second enrollment mechanism), every inherited method that assumes the original model is a potential bug. Review by:
+
+1. Listing base class methods that touch the extended state
+2. For each, asking: does the base method's assumption still hold?
+3. Checking if the derived contract needs to override or wrap the base method
+
 ### External Calls
 
 - Verify external call necessity and assess DoS risk from errors (SWC-113)
@@ -404,6 +440,16 @@ Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 - Include tests for new functionality (especially edge cases)
 - Gas efficiency for Solidity (avoid unnecessary storage writes)
 - Use `ChainMap` for per-chain configurations in TypeScript
+
+### Solidity Review Checklist
+
+| Issue                              | What to check                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Default-value authorization bypass | Mapping lookups compared against parameters — does `bytes32(0)`/`address(0)` match an unset key?         |
+| Quote-execute validation mismatch  | Diff the quote `view` function against its mutating counterpart — same checks, same parameter scaling?   |
+| Inheritance model mismatch         | Derived contract extends base model — do all inherited methods still hold?                               |
+| Dual setters to same storage       | Base and derived both write a storage slot — which is canonical? Does the SDK use the right one?         |
+| Read/write path asymmetry          | SDK reader and writer use different data sources — can the reader discover all state the writer creates? |
 
 ### TypeScript Review Checklist
 
