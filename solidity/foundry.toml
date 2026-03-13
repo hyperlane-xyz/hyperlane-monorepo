@@ -38,10 +38,10 @@ remappings = [
 ]
 
 [rpc_endpoints]
-mainnet = "${RPC_URL_MAINNET}"
+mainnet = "${MAINNET3_ETHEREUM_RPC_URLS}"
 optimism = "${RPC_URL_OPTIMISM}"
 polygon = "${RPC_URL_POLYGON}"
-arbitrum = "${RPC_URL_ARBITRUM}"
+arbitrum = "${MAINNET3_ARBITRUM_RPC_URLS}"
 base = "${RPC_URL_BASE}"
 
 [fuzz]
