@@ -31,7 +31,7 @@ import { AleoNetworkId } from '../utils/types.js';
 
 chai.use(chaiAsPromised);
 
-describe('7. aleo sdk Mailbox artifacts e2e tests', async function () {
+describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
   this.timeout(100_000);
 
   let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;

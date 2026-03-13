@@ -15,7 +15,9 @@ interface ValidatorAnnounceData {
  *
  * @param aleoClient - The Aleo network client
  * @param validatorAnnounceAddress - The full validator announce address (e.g., "validator_announce.aleo/aleo1...")
- * @returns The validator announce configuration with address and mailbox address
+ * @returns The validator announce configuration with address and plain mailbox address (aleo1... format).
+ *   Note: The mailbox address is returned as a plain address because the validator announce program
+ *   does not import the mailbox program, so the program ID cannot be resolved from on-chain state.
  */
 export async function getValidatorAnnounceConfig(
   aleoClient: AnyAleoNetworkClient,
@@ -44,6 +46,8 @@ export async function getValidatorAnnounceConfig(
 
   // Convert mailbox address from bytes to human-readable string
   // The mailbox field is stored as [u8; 32u32] bytes on chain
+  // Note: Only the plain address is available because the validator announce
+  // program does not import the mailbox program on chain.
   const mailboxAddress = Address.fromBytesLe(
     Uint8Array.from(validatorAnnounceData.mailbox),
   ).to_string();

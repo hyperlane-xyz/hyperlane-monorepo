@@ -186,7 +186,7 @@ export class AleoMailboxWriter
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
-      config: artifact.config,
+      config: { ...config, owner: this.signer.getSignerAddress() },
       deployed: {
         address: mailboxAddress,
         domainId: this.config.domainId,

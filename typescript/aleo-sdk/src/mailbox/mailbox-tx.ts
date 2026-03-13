@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import { fromAleoAddress } from '../utils/helper.js';
 import { type AleoTransaction } from '../utils/types.js';
 
@@ -33,6 +35,7 @@ export function getSetMailboxOwnerTx(
   newOwner: string,
 ): AleoTransaction {
   const { programId } = fromAleoAddress(mailboxAddress);
+  assert(programId, `Expected programId in mailbox address: ${mailboxAddress}`);
 
   return {
     programName: programId,
@@ -55,6 +58,7 @@ export function getSetMailboxDefaultIsmTx(
   ismAddress: string,
 ): AleoTransaction {
   const { programId } = fromAleoAddress(mailboxAddress);
+  assert(programId, `Expected programId in mailbox address: ${mailboxAddress}`);
   const { address } = fromAleoAddress(ismAddress);
 
   return {
@@ -78,6 +82,7 @@ export function getSetMailboxDefaultHookTx(
   hookAddress: string,
 ): AleoTransaction {
   const { programId } = fromAleoAddress(mailboxAddress);
+  assert(programId, `Expected programId in mailbox address: ${mailboxAddress}`);
   const { address } = fromAleoAddress(hookAddress);
 
   return {
@@ -101,6 +106,7 @@ export function getSetMailboxRequiredHookTx(
   hookAddress: string,
 ): AleoTransaction {
   const { programId } = fromAleoAddress(mailboxAddress);
+  assert(programId, `Expected programId in mailbox address: ${mailboxAddress}`);
   const { address } = fromAleoAddress(hookAddress);
 
   return {

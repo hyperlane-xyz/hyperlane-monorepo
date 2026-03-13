@@ -23,7 +23,7 @@ import { AleoValidatorAnnounceArtifactManager } from '../validator-announce/vali
 
 chai.use(chaiAsPromised);
 
-describe('8. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () {
+describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () {
   this.timeout(100_000);
 
   let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
