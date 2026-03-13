@@ -167,7 +167,7 @@ contract PredicateRouterWrapper is
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warp route for collateral routes only
-        if (tokenType == TokenType.Collateral) {
+        if (tokenType == TokenType.Collateral || tokenType == TokenType.Synthetic) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
