@@ -17,6 +17,9 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 
+// Store the Radix node instance to tear it down in the after hook
+let radixNodeInstance: StartedDockerComposeEnvironment;
+
 let originalRadixTestMetadata:
   | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
   | undefined;
