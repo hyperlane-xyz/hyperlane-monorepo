@@ -53,6 +53,9 @@ export class ForkIndexer {
       return; // No-op: nothing to scan yet
     }
 
+    // Check delivery status for previously discovered messages
+    await this.updateDeliveryStatus(confirmedBlockTags);
+
     for (const [chain] of this.providers) {
       const currentBlock = confirmedBlockTags[chain];
       if (currentBlock === undefined) {
@@ -137,6 +140,38 @@ export class ForkIndexer {
       }
 
       this.lastScannedBlock.set(chain, currentBlockNumber);
+    }
+  }
+
+  private async updateDeliveryStatus(
+    confirmedBlockTags: ConfirmedBlockTags,
+  ): Promise<void> {
+    const allMessages = [...this.rebalanceActions, ...this.userTransfers];
+    for (const msg of allMessages) {
+      if (msg.is_delivered) continue;
+
+      const destChain = this.core.multiProvider.tryGetChainName(
+        msg.destination_domain_id,
+      );
+      if (!destChain) continue;
+
+      const blockTag = confirmedBlockTags[destChain];
+      if (blockTag === undefined) continue;
+
+      try {
+        const delivered = await this.core
+          .adapter(destChain)
+          .isDelivered(msg.msg_id, blockTag);
+        if (delivered) {
+          msg.is_delivered = true;
+          this.logger.debug(
+            { msgId: msg.msg_id, destChain },
+            'ForkIndexer marked message as delivered',
+          );
+        }
+      } catch {
+        // Ignore delivery check failures
+      }
     }
   }
 }
