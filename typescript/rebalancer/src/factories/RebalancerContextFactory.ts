@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { LayerZeroBridge } from '../bridges/LayerZeroBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -627,6 +628,19 @@ export class RebalancerContextFactory {
               {
                 integrator: lifiConfig.integrator,
                 defaultSlippage: lifiConfig.defaultSlippage,
+                chainMetadata: this.multiProvider.metadata,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.LayerZero: {
+          const lzConfig = externalBridges?.layerzero;
+          if (lzConfig !== undefined) {
+            registry[ExternalBridgeType.LayerZero] = new LayerZeroBridge(
+              {
+                integrator: 'hyperlane-rebalancer',
                 chainMetadata: this.multiProvider.metadata,
               },
               this.logger,
