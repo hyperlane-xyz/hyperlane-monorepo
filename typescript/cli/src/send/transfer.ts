@@ -35,7 +35,7 @@ import {
 import { EXPLORER_URL } from '../consts.js';
 import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
-import { log, logBlue, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -455,7 +455,7 @@ async function executeDelivery({
     try {
       await waitForExplorerDelivery(messageId, timeoutMs);
     } catch (error) {
-      const message = (error as Error).message;
+      const message = error instanceof Error ? error.message : String(error);
       if (
         message.startsWith('Explorer has no record') ||
         message.startsWith('Explorer query failed') ||
@@ -464,18 +464,25 @@ async function executeDelivery({
         message.startsWith('Timed out waiting for message delivery') ||
         message.toLowerCase().includes('fetch failed')
       ) {
-        log(
-          `Explorer delivery check failed (${message}). Falling back to on-chain wait.`,
-        );
-        const delayMs = 10000;
-        const maxAttempts = Math.ceil(timeoutMs / delayMs);
-        await core.waitForMessagesProcessed(
-          origin,
-          destination,
-          transferReceipt,
-          delayMs,
-          maxAttempts,
-        );
+        try {
+          log(
+            `Explorer delivery check failed (${message}). Falling back to on-chain wait.`,
+          );
+          const delayMs = 10000;
+          const maxAttempts = Math.ceil(timeoutMs / delayMs);
+          await core.waitForMessagesProcessed(
+            origin,
+            destination,
+            transferReceipt,
+            delayMs,
+            maxAttempts,
+          );
+        } catch (fallbackError) {
+          warnYellow(
+            `On-chain delivery polling not supported for '${destination}' (${destinationProtocol}). ` +
+              `Track at ${EXPLORER_URL}/message/${messageId}`,
+          );
+        }
       } else {
         throw error;
       }
