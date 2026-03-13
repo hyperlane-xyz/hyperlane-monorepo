@@ -459,18 +459,6 @@ jobs:
       base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
       current_sha: ${{ needs.set-base-sha.outputs.current_sha }}
 
-  coverage:
-    runs-on: ubuntu-latest
-    needs: [coverage-tests]
-    if: always()
-    steps:
-      - uses: actions/checkout@v6
-      - name: Check coverage status
-        uses: ./.github/actions/check-job-status
-        with:
-          job_name: 'Coverage'
-          result: ${{ needs.coverage-tests.result }}
-
   agent-configs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
