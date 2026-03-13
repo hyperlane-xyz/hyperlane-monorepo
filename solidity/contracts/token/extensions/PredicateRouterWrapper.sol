@@ -167,7 +167,10 @@ contract PredicateRouterWrapper is
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warp route for collateral routes only
-        if (tokenType == TokenType.Collateral || tokenType == TokenType.Synthetic) {
+        if (
+            tokenType == TokenType.Collateral ||
+            tokenType == TokenType.Synthetic
+        ) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
@@ -219,7 +222,10 @@ contract PredicateRouterWrapper is
             _attestation.uuid
         );
 
-        // 3. Quote total amount needed from router (includes fees)
+        // 3. Set flag before external calls (CEI pattern - checked in postDispatch)
+        pendingAttestation = true;
+
+        // 4. Quote total amount needed from router (includes fees)
         Quote[] memory quotes = warpRoute.quoteTransferRemote(
             _destination,
             _recipient,
@@ -253,10 +259,7 @@ contract PredicateRouterWrapper is
             );
         }
 
-        // 4. Set flag immediately before calling warpRoute (checked in postDispatch)
-        pendingAttestation = true;
-
-        // 5. Call warp route using already-encoded calldata (avoids re-encoding)
+        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(warpRoute).call{
             value: msg.value
