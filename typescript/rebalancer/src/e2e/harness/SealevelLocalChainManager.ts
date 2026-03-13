@@ -286,7 +286,7 @@ export class SealevelLocalChainManager {
         '--built-so-dir',
         SO_DIR,
         '--warp-route-name',
-        'testwarproute',
+        'testwarproute-rebalancer',
         '--token-config-file',
         tmpTokenConfigPath,
         '--registry',
