@@ -63,28 +63,40 @@ export async function computeMixedBlockTags(
 }
 
 /**
- * Fund an SVM warp route token account with lamports.
+ * Fund an SVM warp route token account to a target lamport balance.
+ * Idempotent: reads current balance and only transfers the delta needed.
  */
 export async function fundSvmWarpRoute(
   chainManager: SealevelLocalChainManager,
   warpTokenAta: string,
-  amountLamports: number,
+  targetLamports: number,
 ): Promise<void> {
-  await chainManager.fundWarpRoute(warpTokenAta, amountLamports);
+  const currentBalance = await chainManager
+    .getConnection()
+    .getBalance(new PublicKey(warpTokenAta));
+  const delta = targetLamports - currentBalance;
+  if (delta <= 0) return;
+  await chainManager.fundWarpRoute(warpTokenAta, delta);
 }
 
+/**
+ * Attempts to drain the SVM warp route ATA balance to zero.
+ *
+ * NOTE: This is intentionally a no-op. The ATA is a program-derived address (PDA)
+ * and has no private key, so `solana transfer --from` cannot sign transactions from it.
+ * True draining via the Solana CLI is not possible.
+ *
+ * Test isolation is instead achieved by `fundSvmWarpRoute` being idempotent:
+ * it reads the current balance and only transfers the delta needed to reach the
+ * target amount. Tests that set exact SVM balances via `build()` will always
+ * reach their target regardless of prior test state, as long as the target
+ * is >= the current balance.
+ */
 export async function drainSvmWarpRoute(
-  manager: SvmEvmLocalDeploymentManager,
-  ataAddress: string,
+  _manager: SvmEvmLocalDeploymentManager,
+  _ataAddress: string,
 ): Promise<void> {
-  const chainManager = manager.getSvmChainManager();
-  const connection = chainManager.getConnection();
-  const ataPubkey = new PublicKey(ataAddress);
-
-  const initialBalance = await connection.getBalance(ataPubkey);
-  if (initialBalance === 0) return;
-
-  await chainManager.fundWarpRoute(ataAddress, 0);
+  // No-op: see JSDoc above for explanation
 }
 
 export async function relayMixedInventoryDeposits(
