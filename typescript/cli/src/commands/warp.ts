@@ -449,18 +449,11 @@ const send: CommandModuleWithWriteContext<
       chains = [origin, destination];
     } else {
       // Order EVM chains first so non-EVM chains are final destinations
-      const orderedDefaultChains = [
-        ...[...supportedChains]
-          .filter((chain) =>
-            isEVMLike(context.multiProvider.getProtocol(chain)),
-          )
-          .sort((a, b) => a.localeCompare(b)),
-        ...[...supportedChains]
-          .filter(
-            (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
-          )
-          .sort((a, b) => a.localeCompare(b)),
-      ];
+      const orderedDefaultChains = [...supportedChains].sort((a, b) => {
+        const aEvm = isEVMLike(context.multiProvider.getProtocol(a)) ? 0 : 1;
+        const bEvm = isEVMLike(context.multiProvider.getProtocol(b)) ? 0 : 1;
+        return aEvm - bEvm || a.localeCompare(b);
+      });
 
       chains =
         chains.length === 0
