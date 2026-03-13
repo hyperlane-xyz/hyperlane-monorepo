@@ -52,8 +52,6 @@ export const SVM_RPC_PORT = 8899;
 export const SVM_RPC_URL = 'http://127.0.0.1:8899';
 
 // ── Well-known program IDs ──
-export const WARP_ROUTE_PROGRAM_ID =
-  'CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga';
 export const MAILBOX_PROGRAM_ID =
   '692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1';
 
