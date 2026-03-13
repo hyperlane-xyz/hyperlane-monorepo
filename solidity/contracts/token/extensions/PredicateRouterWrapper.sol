@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {Quote} from "../../interfaces/ITokenBridge.sol";
 
 // ============ Predicate Imports ============
 import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
@@ -57,6 +58,14 @@ contract PredicateRouterWrapper is
 {
     using SafeERC20 for IERC20;
 
+    // ============ Enums ============
+
+    enum TokenType {
+        Native,
+        Synthetic,
+        Collateral
+    }
+
     // ============ Constants ============
 
     /// @notice Hook type identifier for Predicate router wrapper
@@ -70,6 +79,9 @@ contract PredicateRouterWrapper is
 
     /// @notice The ERC20 token managed by the warp route
     IERC20 public immutable token;
+
+    /// @notice The type of token being wrapped
+    TokenType public immutable tokenType;
 
     // ============ Storage ============
 
@@ -85,6 +97,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when attestation validation fails
     error PredicateRouterWrapper__AttestationInvalid();
 
+    /// @notice Thrown when warp route address is zero
+    error PredicateRouterWrapper__InvalidWarpRoute();
+
     /// @notice Thrown when registry address is zero
     error PredicateRouterWrapper__InvalidRegistry();
 
@@ -93,6 +108,15 @@ contract PredicateRouterWrapper is
 
     /// @notice Thrown when insufficient ETH sent for native token transfer
     error PredicateRouterWrapper__InsufficientValue();
+
+    /// @notice Thrown when postDispatch was not executed during transfer
+    error PredicateRouterWrapper__PostDispatchNotExecuted();
+
+    /// @notice Thrown when ETH withdrawal fails
+    error PredicateRouterWrapper__WithdrawFailed();
+
+    /// @notice Thrown when re-entry is detected
+    error PredicateRouterWrapper__ReentryDetected();
 
     // ============ Events ============
 
@@ -119,6 +143,8 @@ contract PredicateRouterWrapper is
         address _registry,
         string memory _policyID
     ) {
+        if (_warpRoute == address(0))
+            revert PredicateRouterWrapper__InvalidWarpRoute();
         if (_registry == address(0))
             revert PredicateRouterWrapper__InvalidRegistry();
         if (bytes(_policyID).length == 0)
@@ -128,12 +154,20 @@ contract PredicateRouterWrapper is
         address tokenAddress = warpRoute.token();
         token = IERC20(tokenAddress);
 
+        // Determine token type
+        if (tokenAddress == address(0)) {
+            tokenType = TokenType.Native;
+        } else if (tokenAddress == _warpRoute) {
+            tokenType = TokenType.Synthetic;
+        } else {
+            tokenType = TokenType.Collateral;
+        }
+
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warp route for collateral routes only
-        // Skip for: synthetics (token address == warpRoute), native (token address == address(0))
-        if (tokenAddress != _warpRoute && tokenAddress != address(0)) {
+        if (tokenType == TokenType.Collateral) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
@@ -156,9 +190,13 @@ contract PredicateRouterWrapper is
         bytes32 _recipient,
         uint256 _amount
     ) external payable returns (bytes32 messageId) {
+        // 0. Defensive check against re-entry
+        if (pendingAttestation)
+            revert PredicateRouterWrapper__ReentryDetected();
+
         // 1. Build encoded signature for Predicate validation (full PredicateClient pattern)
-        bytes memory encodedSigAndArgs = abi.encodeWithSignature(
-            "transferRemote(uint32,bytes32,uint256)",
+        bytes memory encodedSigAndArgs = abi.encodeWithSelector(
+            TokenRouter.transferRemote.selector,
             _destination,
             _recipient,
             _amount
@@ -181,20 +219,42 @@ contract PredicateRouterWrapper is
             _attestation.uuid
         );
 
-        // 3. Set flag BEFORE calling warpRoute (checked in postDispatch)
-        pendingAttestation = true;
+        // 3. Quote total amount needed from router (includes fees)
+        Quote[] memory quotes = warpRoute.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
 
-        // 4. Handle token transfer based on type
-        bool isNative = address(token) == address(0);
-
-        if (isNative) {
-            // For native tokens, validate msg.value >= amount (excess is for gas)
-            if (msg.value < _amount)
+        // 5. Handle token transfer based on type, pulling total quoted amount
+        if (tokenType == TokenType.Native) {
+            // For native tokens, sum all native quote amounts
+            uint256 totalNativeRequired = 0;
+            for (uint256 i = 0; i < quotes.length; i++) {
+                if (quotes[i].token == address(0)) {
+                    totalNativeRequired += quotes[i].amount;
+                }
+            }
+            if (msg.value < totalNativeRequired)
                 revert PredicateRouterWrapper__InsufficientValue();
         } else {
-            // For ERC20 tokens, pull from user (warp route has approval for collateral)
-            token.safeTransferFrom(msg.sender, address(this), _amount);
+            // For ERC20 tokens, sum all token quote amounts and pull from user
+            uint256 totalTokenRequired = 0;
+            address tokenAddr = address(token);
+            for (uint256 i = 0; i < quotes.length; i++) {
+                if (quotes[i].token == tokenAddr) {
+                    totalTokenRequired += quotes[i].amount;
+                }
+            }
+            token.safeTransferFrom(
+                msg.sender,
+                address(this),
+                totalTokenRequired
+            );
         }
+
+        // 4. Set flag immediately before calling warpRoute (checked in postDispatch)
+        pendingAttestation = true;
 
         // 5. Call warp route using already-encoded calldata (avoids re-encoding)
         // This reuses the same calldata that was validated in the attestation
@@ -210,6 +270,11 @@ contract PredicateRouterWrapper is
         }
 
         messageId = abi.decode(returnData, (bytes32));
+
+        // postDispatch should have consumed the authorization flag synchronously
+        if (pendingAttestation) {
+            revert PredicateRouterWrapper__PostDispatchNotExecuted();
+        }
 
         // Note: pendingAttestation is cleared in _postDispatch()
         // If we reach here, the transfer succeeded
@@ -267,5 +332,24 @@ contract PredicateRouterWrapper is
             revert PredicateRouterWrapper__InvalidRegistry();
 
         _setRegistry(_registry);
+    }
+
+    // ============ ETH Refund Handling ============
+
+    /**
+     * @notice Accepts ETH refunds from the warp route's hook
+     * @dev The warp route sets msg.sender (this wrapper) as refund address.
+     *      Without this function, ETH refunds would revert or be trapped.
+     */
+    receive() external payable {}
+
+    /**
+     * @notice Withdraws trapped ETH to owner
+     * @dev Only callable by owner. Used to recover ETH refunds from hooks.
+     */
+    function withdrawETH() external onlyOwner {
+        uint256 balance = address(this).balance;
+        (bool success, ) = msg.sender.call{value: balance}("");
+        if (!success) revert PredicateRouterWrapper__WithdrawFailed();
     }
 }
