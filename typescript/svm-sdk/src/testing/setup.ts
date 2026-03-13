@@ -8,6 +8,8 @@ import {
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 // eslint-disable-next-line import/no-nodejs-modules
+import * as os from 'os';
+// eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
@@ -16,26 +18,11 @@ import {
   SPL_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '../constants.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { buildInstruction, writableAccount } from '../instructions/utils.js';
 import type { SvmRpc } from '../types.js';
 
 import type { PreloadedProgram } from './solana-container.js';
-
-function findMonorepoRoot(): string {
-  let dir = process.cwd();
-  while (dir !== '/') {
-    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) {
-      return dir;
-    }
-    dir = path.dirname(dir);
-  }
-  return process.cwd();
-}
-
-export const DEFAULT_PROGRAMS_PATH = path.join(
-  findMonorepoRoot(),
-  'rust/sealevel/target/deploy',
-);
 
 export const TEST_PROGRAM_IDS = {
   mailbox: '2Zvzyv2sstAhs9wu1xaLpH5X17dVouEb8zjkBRPKsSy5' as Address,
@@ -72,28 +59,58 @@ const TOKEN_2022_V10_SO_PATH = path.join(
   'spl_token_2022_v10.so',
 );
 
-export function getPreloadedPrograms(
-  programs: Array<PreloadableProgram>,
-  programsPath: string = DEFAULT_PROGRAMS_PATH,
-): PreloadedProgram[] {
+/**
+ * Writes embedded program bytes to temp .so files for the test validator.
+ * The solana-test-validator CLI requires file paths for --bpf-program,
+ * so we materialize the embedded Uint8Array bytes to disk.
+ *
+ * Returns the programs array and a cleanup function to remove the temp dir.
+ */
+export function getPreloadedPrograms(programs: Array<PreloadableProgram>): {
+  programs: PreloadedProgram[];
+  cleanup: () => void;
+} {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'svm-programs-'));
+
   const preloaded = programs.map((program) => {
     const programId = TEST_PROGRAM_IDS[program];
     assert(programId, `Program '${program}' not found in TEST_PROGRAM_IDS`);
-    return {
-      programId,
-      soPath: path.join(programsPath, PROGRAM_BINARIES[program]),
-    };
+
+    const bytes = HYPERLANE_SVM_PROGRAM_BYTES[program];
+    assert(
+      bytes,
+      `Program '${program}' not found in HYPERLANE_SVM_PROGRAM_BYTES`,
+    );
+
+    const soPath = path.join(tmpDir, PROGRAM_BINARIES[program]);
+    fs.writeFileSync(soPath, bytes);
+
+    return { programId, soPath };
   });
 
   // Override the built-in Token-2022 with v10.0.0 to fix realloc on v3.0+.
-  if (fs.existsSync(TOKEN_2022_V10_SO_PATH)) {
-    preloaded.push({
-      programId: TOKEN_2022_PROGRAM_ADDRESS,
-      soPath: TOKEN_2022_V10_SO_PATH,
-    });
-  }
+  // Copy to tmpDir so all .so files are in one directory for Docker bind-mount.
+  assert(
+    fs.existsSync(TOKEN_2022_V10_SO_PATH),
+    `Token-2022 v10 fixture not found at ${TOKEN_2022_V10_SO_PATH}. ` +
+      'Without it, Agave v3.0+ will fail with InvalidRealloc errors.',
+  );
+  const destPath = path.join(tmpDir, 'spl_token_2022_v10.so');
+  fs.copyFileSync(TOKEN_2022_V10_SO_PATH, destPath);
+  preloaded.push({
+    programId: TOKEN_2022_PROGRAM_ADDRESS,
+    soPath: destPath,
+  });
 
-  return preloaded;
+  const cleanup = () => {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup
+    }
+  };
+
+  return { programs: preloaded, cleanup };
 }
 
 export async function airdropSol(

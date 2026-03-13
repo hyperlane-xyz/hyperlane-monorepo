@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { after, before, describe, it } from 'mocha';
+import { before, describe, it } from 'mocha';
 
 import { AccountRole, address as parseAddress } from '@solana/kit';
 
@@ -7,30 +7,18 @@ import { LAMPORTS_PER_SIGNATURE } from '../constants.js';
 import { SvmProvider } from '../clients/provider.js';
 import { DEFAULT_COMPUTE_UNITS } from '../tx.js';
 import type { SvmTransaction } from '../types.js';
-import {
-  type SolanaTestValidator,
-  startSolanaTestValidator,
-  waitForRpcReady,
-} from '../testing/solana-container.js';
+import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 
 describe('SVM Provider E2E Tests', function () {
   this.timeout(180_000);
 
-  let solana: SolanaTestValidator;
   let provider: SvmProvider;
 
   before(async () => {
-    solana = await startSolanaTestValidator();
-
-    await waitForRpcReady(solana.rpcUrl);
-
-    provider = await SvmProvider.connect([solana.rpcUrl], '1');
-  });
-
-  after(async () => {
-    if (solana) {
-      await solana.stop();
-    }
+    provider = await SvmProvider.connect(
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      String(TEST_SVM_CHAIN_METADATA.domainId),
+    );
   });
 
   describe('estimateTransactionFee', () => {
