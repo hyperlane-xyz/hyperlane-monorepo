@@ -36,6 +36,7 @@ import {
 import {
   ProviderBuilderMap,
   defaultProviderBuilderMap,
+  defaultTronEthersProviderBuilder,
 } from './providerBuilders.js';
 import {
   TransactionFeeEstimate,
@@ -140,7 +141,18 @@ export class MultiProtocolProvider<
 
     if (this.providers[name]?.[type]) return this.providers[name][type]!;
 
-    const builder = this.providerBuilders[type];
+    // Tron chains requesting EthersV5 must use TronJsonRpcProvider (appends
+    // /jsonrpc to the RPC URL). The default EthersV5 builder creates a
+    // HyperlaneSmartProvider that uses the bare URL, which Tron nodes reject.
+    let builder;
+    if (protocol === ProtocolType.Tron && type === ProviderType.EthersV5) {
+      builder = (urls: ChainMetadata['rpcUrls'], network: number | string) => ({
+        type: ProviderType.EthersV5 as const,
+        provider: defaultTronEthersProviderBuilder(urls, network),
+      });
+    } else {
+      builder = this.providerBuilders[type];
+    }
     if (!rpcUrls.length || !builder) return null;
 
     const provider = builder(rpcUrls, chainId);
