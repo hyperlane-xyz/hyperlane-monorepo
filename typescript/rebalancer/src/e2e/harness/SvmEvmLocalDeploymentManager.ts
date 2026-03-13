@@ -228,12 +228,14 @@ export class SvmEvmLocalDeploymentManager {
     );
 
     const remoteRouters: Record<number, { address: string }> = {};
+    const destinationGas: Record<number, string> = {};
     for (const chain of TEST_CHAIN_CONFIGS) {
       const router = ethers.utils.hexZeroPad(
         deployedAddresses.monitoredRoute[chain.name],
         32,
       );
       remoteRouters[chain.domainId] = { address: router };
+      destinationGas[chain.domainId] = '0';
     }
 
     const currentArtifact = await writer.read(warpProgramId);
@@ -242,6 +244,7 @@ export class SvmEvmLocalDeploymentManager {
       config: {
         ...currentArtifact.config,
         remoteRouters,
+        destinationGas,
       },
     });
 
