@@ -19,13 +19,27 @@ lsof -i :8899 -t >/dev/null 2>&1 && { echo "Error: Port 8899 is in use. Kill the
 
 echo "Pre-flight checks passed."
 
-# Step 1: Install Agave v3.0.14 (macOS arm64)
+# Detect platform for Agave binary
+OS=$(uname -s)
+ARCH=$(uname -m)
+if [ "$OS" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
+  AGAVE_PLATFORM="aarch64-apple-darwin"
+elif [ "$OS" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
+  AGAVE_PLATFORM="x86_64-apple-darwin"
+elif [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
+  AGAVE_PLATFORM="x86_64-unknown-linux-gnu"
+else
+  echo "Error: Unsupported platform: $OS $ARCH" >&2
+  exit 1
+fi
+
+# Step 1: Install Agave v3.0.14
 if [ -f "${AGAVE_DIR}/bin/solana-test-validator" ]; then
   echo "Agave v${AGAVE_VERSION} already installed at ${AGAVE_DIR}"
 else
   echo "Installing Agave v${AGAVE_VERSION}..."
   mkdir -p "${AGAVE_DIR}"
-  curl -fSL "https://github.com/anza-xyz/agave/releases/download/v${AGAVE_VERSION}/solana-release-aarch64-apple-darwin.tar.bz2" -o /tmp/agave.tar.bz2
+  curl -fSL "https://github.com/anza-xyz/agave/releases/download/v${AGAVE_VERSION}/solana-release-${AGAVE_PLATFORM}.tar.bz2" -o /tmp/agave.tar.bz2
   tar -xjf /tmp/agave.tar.bz2 -C /tmp
   mv /tmp/solana-release/* "${AGAVE_DIR}/"
   rm -rf /tmp/solana-release /tmp/agave.tar.bz2
