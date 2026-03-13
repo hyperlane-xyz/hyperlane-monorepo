@@ -77,7 +77,8 @@ function toTypedAltVmReceipt(
     case ProviderType.Starknet:
     case ProviderType.Radix:
     case ProviderType.Aleo:
-      // Provider SDK receipts are protocol-specific at runtime, but typed as TxReceipt.
+      // CAST: Provider SDK receipts are the correct protocol-specific shape at runtime,
+      // but TxReceipt is typed as { [key: string]: any } so the union cast is unavoidable.
       return {
         type: providerType,
         receipt,
@@ -275,6 +276,8 @@ async function executeDelivery({
   const warpMultiProvider =
     multiProtocolProvider.extendChainMetadata(mailboxes);
 
+  // CAST: Registry addresses include CoreAddresses fields (mailbox) for all deployed chains.
+  // The warp route config guarantees origin/destination have core deployments.
   const core = MultiProtocolCore.fromAddressesMap(
     chainAddresses as ChainMap<CoreAddresses>,
     warpMultiProvider,
@@ -356,7 +359,7 @@ async function executeDelivery({
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       const typedReceipt: TypedTransactionReceipt = {
-        type: ProviderType.EthersV5,
+        type: tx.type,
         receipt: txReceipt,
       };
       txReceipts.push(typedReceipt);
@@ -388,6 +391,11 @@ async function executeDelivery({
   const extracted = core.extractMessageIds(origin, transferReceipt);
   const messageId = extracted[0]?.messageId;
   if (!messageId) {
+    // Same-chain transfers don't dispatch an interchain message.
+    if (origin === destination) {
+      logGreen(`Same-chain transfer on ${origin} completed.`);
+      return;
+    }
     throw new Error('No dispatched message found in transfer receipt');
   }
 
@@ -453,6 +461,7 @@ async function executeDelivery({
         message.startsWith('Explorer query failed') ||
         message.startsWith('Explorer query error') ||
         message.startsWith('Explorer query returned invalid JSON') ||
+        message.startsWith('Timed out waiting for message delivery') ||
         message.toLowerCase().includes('fetch failed')
       ) {
         log(

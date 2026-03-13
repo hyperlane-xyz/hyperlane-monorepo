@@ -24,17 +24,6 @@ let originalRadixTestMetadata:
   | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
   | undefined;
 
-function isRadixPackageDeployment(
-  value: unknown,
-): value is { packageAddress: string; xrdAddress: string } {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    'packageAddress' in value &&
-    'xrdAddress' in value
-  );
-}
-
 before(async function () {
   // Use 3x timeout for setup since Docker container startup can be slow in CI
   // (image pulling, postgres init, fullnode sync, gateway sync)
@@ -73,19 +62,13 @@ before(async function () {
   ) as (keyof typeof TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix)[];
 
   for (const chain of t) {
-    const deployedPackage = (await deployHyperlaneRadixPackage(
+    const { packageAddress, xrdAddress } = await deployHyperlaneRadixPackage(
       TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain],
       {
         code: new Uint8Array(code),
         packageDefinition: new Uint8Array(packageDefinition),
       },
-    )) as unknown;
-    const packageAddress = isRadixPackageDeployment(deployedPackage)
-      ? deployedPackage.packageAddress
-      : String(deployedPackage);
-    const xrdAddress = isRadixPackageDeployment(deployedPackage)
-      ? deployedPackage.xrdAddress
-      : undefined;
+    );
 
     // Write back to registry file so CLI can read the package address field injected
     // when starting the node
