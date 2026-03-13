@@ -28,7 +28,7 @@ import {
   DeployedMailboxArtifact,
   DeployedRawMailboxArtifact,
   IRawMailboxArtifactManager,
-  MailboxConfig,
+  MailboxArtifactConfig,
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -268,7 +268,7 @@ describe('CoreWriter', () => {
   describe('create', () => {
     it('should deploy mailbox with NEW ISM and NEW hooks', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -345,7 +345,7 @@ describe('CoreWriter', () => {
 
     it('should use existing ISM when DEPLOYED', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -384,7 +384,7 @@ describe('CoreWriter', () => {
         signer,
       );
 
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -414,7 +414,7 @@ describe('CoreWriter', () => {
 
     it('should create mailbox with signer as initial owner', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -449,7 +449,7 @@ describe('CoreWriter', () => {
 
     it('should create mailbox with zero-address hooks initially', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -512,7 +512,7 @@ describe('CoreWriter', () => {
 
     it('should update mailbox with hooks and owner after deployment', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -597,7 +597,7 @@ describe('CoreWriter', () => {
         .stub()
         .returns(mockMailboxWriter);
 
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -627,7 +627,7 @@ describe('CoreWriter', () => {
 
     it('should collect receipts from all steps', async () => {
       // ARRANGE
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -664,7 +664,7 @@ describe('CoreWriter', () => {
     it('should propagate ISM deployment errors', async () => {
       // ARRANGE
       const error = new Error('ISM deployment failed');
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -707,7 +707,7 @@ describe('CoreWriter', () => {
         .stub()
         .returns(mockMailboxWriter);
 
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -761,7 +761,7 @@ describe('CoreWriter', () => {
         deployed: { address: mockNewIsmAddress },
       };
 
-      const expectedArtifact: ArtifactNew<MailboxConfig> = {
+      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -824,7 +824,7 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
-      const expectedArtifact: ArtifactNew<MailboxConfig> = {
+      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -884,7 +884,7 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
-      const expectedArtifact: ArtifactNew<MailboxConfig> = {
+      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: currentMailbox.config,
       };
@@ -938,7 +938,7 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox as any);
 
-      const expectedArtifact: ArtifactNew<MailboxConfig> = {
+      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -957,7 +957,7 @@ describe('CoreWriter', () => {
     it('should propagate ISM deployment errors', async () => {
       // ARRANGE
       const error = new Error('ISM deployment failed');
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,
@@ -1000,7 +1000,7 @@ describe('CoreWriter', () => {
         .stub()
         .returns(mockMailboxWriter);
 
-      const artifact: ArtifactNew<MailboxConfig> = {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
           owner: mockOwner,

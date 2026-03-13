@@ -90,7 +90,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
-    const { gateway, base } = this.getCommonSetup(chainMetadata);
+    const { gateway, base } = this.configureNetworkConnection(chainMetadata);
     return new RadixWarpArtifactManager(gateway, base);
   }
 

@@ -28,7 +28,7 @@ import {
 import {
   DeployedMailboxArtifact,
   IRawMailboxArtifactManager,
-  MailboxConfig,
+  MailboxArtifactConfig,
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -129,7 +129,7 @@ export class CoreWriter extends CoreArtifactReader {
    * @param artifact Mailbox artifact with nested ISM and hook artifacts
    * @returns Object containing deployed mailbox, validator announce artifacts, and receipts
    */
-  async create(artifact: ArtifactNew<MailboxConfig>): Promise<{
+  async create(artifact: ArtifactNew<MailboxArtifactConfig>): Promise<{
     mailbox: DeployedMailboxArtifact;
     validatorAnnounce: DeployedValidatorAnnounceArtifact | null;
     receipts: TxReceipt[];
@@ -310,7 +310,7 @@ export class CoreWriter extends CoreArtifactReader {
    */
   async update(
     mailboxAddress: string,
-    expectedArtifact: ArtifactNew<MailboxConfig>,
+    expectedArtifact: ArtifactNew<MailboxArtifactConfig>,
   ): Promise<AnnotatedTx[]> {
     const { config: expectedConfig } = expectedArtifact;
     const updateTxs: AnnotatedTx[] = [];
