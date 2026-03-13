@@ -325,7 +325,6 @@ export class LayerZeroBridge implements IExternalBridge {
     const key = privateKeys[tronProtocol];
     assert(key, 'Missing private key for Tron chain');
 
-    // @ts-expect-error tronweb is optional runtime dependency
     const { TronWeb } = await import('tronweb');
     const strippedKey = key.replace(/^0x/, '');
     const tronWeb = new TronWeb({
