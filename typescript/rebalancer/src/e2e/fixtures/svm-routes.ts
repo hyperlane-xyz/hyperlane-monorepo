@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 
 import { BigNumber } from 'ethers';
 
-import { SvmSigner, createRpc } from '@hyperlane-xyz/svm-sdk';
+import {
+  SealevelSigner as SvmSigner,
+  createRpc,
+} from '@hyperlane-xyz/sealevel-sdk';
 
 import {
   ChainMetadata,

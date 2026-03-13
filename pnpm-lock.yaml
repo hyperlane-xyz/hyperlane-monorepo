@@ -2088,7 +2088,7 @@ importers:
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
         version: link:../relayer
-      '@hyperlane-xyz/svm-sdk':
+      '@hyperlane-xyz/sealevel-sdk':
         specifier: workspace:*
         version: link:../svm-sdk
       '@hyperlane-xyz/tsconfig':

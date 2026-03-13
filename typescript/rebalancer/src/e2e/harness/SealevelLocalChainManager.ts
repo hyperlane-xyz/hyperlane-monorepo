@@ -9,7 +9,7 @@ import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   HYPERLANE_SVM_PROGRAM_BYTES,
   SvmNativeTokenWriter,
-} from '@hyperlane-xyz/svm-sdk';
+} from '@hyperlane-xyz/sealevel-sdk';
 import type { Logger } from 'pino';
 
 import type { SvmDeployedAddresses } from '../fixtures/svm-routes.js';

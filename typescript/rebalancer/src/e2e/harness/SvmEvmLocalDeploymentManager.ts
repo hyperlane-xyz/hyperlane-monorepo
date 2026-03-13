@@ -11,8 +11,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   SvmNativeTokenWriter,
-  type SvmProgramTarget,
-} from '@hyperlane-xyz/svm-sdk';
+  type SealevelProgramTarget as SvmProgramTarget,
+} from '@hyperlane-xyz/sealevel-sdk';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
