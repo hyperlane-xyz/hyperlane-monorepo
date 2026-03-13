@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {ITokenBridge, ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
+import {ITokenBridge, ITokenFee, Quote} from "../interfaces/ITokenBridge.sol";
 import {IOFT, SendParam, MessagingFee, MessagingReceipt, OFTReceipt} from "./interfaces/layerzero/IOFT.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -10,7 +10,7 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {PackageVersioned} from "@hyperlane-xyz/core/PackageVersioned.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 
 /**
  * @title TokenBridgeOft

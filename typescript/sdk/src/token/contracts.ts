@@ -18,13 +18,11 @@ import {
   HypXERC20__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
+  TokenBridgeOft__factory,
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
-import {
-  CrossCollateralRouter__factory,
-  TokenBridgeOft__factory,
-} from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 
 import { DeployableTokenType, TokenType } from './config.js';
 

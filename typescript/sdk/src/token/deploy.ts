@@ -10,14 +10,12 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
+  TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import {
-  CrossCollateralRouter__factory,
-  TokenBridgeOft__factory,
-} from '@hyperlane-xyz/multicollateral';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   addressToBytes32,
