@@ -10,8 +10,8 @@ optimizer_runs = 200
 allow_paths = [".."]
 
 [rpc_endpoints]
-mainnet = "${MAINNET3_ETHEREUM_RPC_URLS}"
-arbitrum = "${MAINNET3_ARBITRUM_RPC_URLS}"
+mainnet = "${RPC_URL_MAINNET}"
+arbitrum = "${RPC_URL_ARBITRUM}"
 
 [fuzz]
 runs = 50
