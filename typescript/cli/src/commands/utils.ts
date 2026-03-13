@@ -47,7 +47,7 @@ const addressToBytes32Command: CommandModule<{}, AddressToBytes32Args> = {
         description:
           'Protocol type (ethereum, sealevel, cosmos, cosmosnative, starknet, radix, aleo, tron). Auto-detected if not specified.',
         choices: Object.values(ProtocolType),
-      }) as any,
+      }),
   handler: async (argv) => {
     const { address, protocol } = argv;
     try {
@@ -55,8 +55,9 @@ const addressToBytes32Command: CommandModule<{}, AddressToBytes32Args> = {
       logGreen(`Address: ${address}`);
       if (protocol) log(`Protocol: ${protocol}`);
       log(`Bytes32: ${bytes32}`);
-    } catch (error: any) {
-      throw new Error(`Failed to convert address: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to convert address: ${message}`);
     }
   },
 };
@@ -90,7 +91,7 @@ const bytes32ToAddressCommand: CommandModule<{}, Bytes32ToAddressArgs> = {
         type: 'string',
         description:
           'Address prefix (required for Cosmos chains, e.g., "osmo", "neutron", "cosmos")',
-      }) as any,
+      }),
   handler: async (argv) => {
     const { bytes32, protocol, prefix } = argv;
     try {
@@ -160,8 +161,9 @@ const bytes32ToAddressCommand: CommandModule<{}, Bytes32ToAddressArgs> = {
       log(`Protocol: ${protocol}`);
       if (prefix) log(`Prefix: ${prefix}`);
       log(`Address: ${address}`);
-    } catch (error: any) {
-      throw new Error(`Failed to convert bytes32: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to convert bytes32: ${message}`);
     }
   },
 };
