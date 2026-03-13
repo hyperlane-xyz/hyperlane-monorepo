@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, stdJson} from "forge-std/Test.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 
 import {BaseFee, FeeType} from "../../contracts/token/fees/BaseFee.sol";
@@ -329,6 +329,87 @@ contract RegressiveFeeTest is BaseFeeTest {
         // Verify percentages continuously decrease
         assertGt(percentage1, percentage2, "Percentage should decrease");
         assertGt(percentage2, percentage3, "Percentage should decrease");
+    }
+}
+
+// --- Fee Fixture Tests (shared with Sealevel) ---
+
+// must have keys ordered alphabetically for abi.decode
+struct FeeVector {
+    uint256 amount;
+    string description;
+    uint256 expected_fee;
+    uint256 half_amount;
+    uint256 max_fee;
+}
+
+struct FeeGroup {
+    FeeVector[] vectors;
+}
+
+contract FeeFixtureTest is Test {
+    using stdJson for string;
+
+    ERC20Test token = new ERC20Test("Test Token", "TST", 0, 18);
+    address internal constant OWNER = address(0x123);
+    uint32 internal constant destination = 1;
+    bytes32 internal constant recipient =
+        bytes32(uint256(uint160(address(0x789))));
+
+    string json = vm.readFile("../vectors/fees.json");
+
+    function test_LinearFee_Fixtures() public {
+        bytes memory data = json.parseRaw(".linear");
+        FeeGroup memory group = abi.decode(data, (FeeGroup));
+
+        for (uint256 i = 0; i < group.vectors.length; i++) {
+            FeeVector memory v = group.vectors[i];
+            LinearFee fee = new LinearFee(
+                address(token),
+                v.max_fee,
+                v.half_amount,
+                OWNER
+            );
+            uint256 actual = fee
+            .quoteTransferRemote(destination, recipient, v.amount)[0].amount;
+            assertEq(actual, v.expected_fee, v.description);
+        }
+    }
+
+    function test_ProgressiveFee_Fixtures() public {
+        bytes memory data = json.parseRaw(".progressive");
+        FeeGroup memory group = abi.decode(data, (FeeGroup));
+
+        for (uint256 i = 0; i < group.vectors.length; i++) {
+            FeeVector memory v = group.vectors[i];
+            ProgressiveFee fee = new ProgressiveFee(
+                address(token),
+                v.max_fee,
+                v.half_amount,
+                OWNER
+            );
+            uint256 actual = fee
+            .quoteTransferRemote(destination, recipient, v.amount)[0].amount;
+            assertEq(actual, v.expected_fee, v.description);
+        }
+    }
+
+    function test_RegressiveFee_Fixtures() public {
+        bytes memory data = json.parseRaw(".regressive");
+        FeeGroup memory group = abi.decode(data, (FeeGroup));
+
+        for (uint256 i = 0; i < group.vectors.length; i++) {
+            FeeVector memory v = group.vectors[i];
+            RegressiveFee fee = new RegressiveFee(
+                address(token),
+                v.max_fee,
+                v.half_amount,
+                OWNER
+            );
+            uint256 actual = fee
+            .quoteTransferRemote(destination, recipient, v.amount)[0].amount;
+            assertEq(actual, v.expected_fee, v.description);
+        }
     }
 }
 
