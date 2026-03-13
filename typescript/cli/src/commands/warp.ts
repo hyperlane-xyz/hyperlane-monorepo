@@ -407,8 +407,8 @@ const send: CommandModuleWithWriteContext<
     destinationToken,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
-      .filter(Boolean)
-      .filter((v, i, a) => a.indexOf(v) === i) as string[];
+      .filter((v): v is string => Boolean(v))
+      .filter((v, i, a) => a.indexOf(v) === i);
 
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       warpRouteId,

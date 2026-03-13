@@ -165,7 +165,8 @@ export async function resolveWarpRouteId(args: {
   if (chains && chains.length > 0) {
     const warpConfigs = await context.registry.getWarpRoutes();
     const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
-    routeIds = Object.keys(filtered);
+    const sourceIds = new Set(Object.keys(source));
+    routeIds = Object.keys(filtered).filter((id) => sourceIds.has(id));
   } else {
     const result = filterWarpRoutesIds(source);
     routeIds = result.ids;
