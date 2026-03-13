@@ -1,21 +1,16 @@
 import { expect } from 'chai';
 
 import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import {
-  type ArtifactDeployed,
-  ArtifactState,
-} from '@hyperlane-xyz/provider-sdk/artifact';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   AnnotatedTx,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import type {
-  DeployedWarpAddress,
+  DeployedRawWarpArtifact,
   RawCollateralWarpArtifactConfig,
   RawNativeWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
-  RawWarpArtifactConfig,
-  WarpArtifactConfig,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
@@ -41,7 +36,7 @@ export interface WarpTokenTestCase {
     | RawNativeWarpArtifactConfig
     | RawCollateralWarpArtifactConfig
     | RawSyntheticWarpArtifactConfig;
-  expectedFields?: Record<string, any>;
+  expectedFields?: Record<string, unknown>;
 }
 
 /**
@@ -50,10 +45,15 @@ export interface WarpTokenTestCase {
  * the context in a `before` hook.
  */
 export function warpArtifactTestSuite(
-  ctx: WarpTestSuiteContext,
+  getContext: () => WarpTestSuiteContext,
   testCase: WarpTokenTestCase,
 ): void {
   const { type, getConfig, expectedFields } = testCase;
+  let ctx: WarpTestSuiteContext;
+
+  before(() => {
+    ctx = getContext();
+  });
 
   it('should create and read token', async () => {
     const config = getConfig();
@@ -77,7 +77,9 @@ export function warpArtifactTestSuite(
     // Verify expected fields
     if (expectedFields) {
       for (const [field, expectedValue] of Object.entries(expectedFields)) {
-        expect((readToken.config as any)[field]).to.equal(expectedValue);
+        expect((readToken.config as Record<string, unknown>)[field]).to.equal(
+          expectedValue,
+        );
       }
     }
   });
@@ -91,7 +93,7 @@ export function warpArtifactTestSuite(
     });
 
     // Update with remote routers
-    const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+    const updatedConfig: DeployedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -156,7 +158,7 @@ export function warpArtifactTestSuite(
     });
 
     // Remove DOMAIN_2
-    const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+    const updatedConfig: DeployedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -211,7 +213,7 @@ export function warpArtifactTestSuite(
     expect(readToken1.config.destinationGas[DOMAIN_1]).to.equal('100000');
 
     // Update only gas (router address unchanged)
-    const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+    const updatedConfig: DeployedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -254,10 +256,7 @@ export function warpArtifactTestSuite(
     const customIsmAddress = TEST_ALEO_BURN_ADDRESS;
 
     // Update routers, ISM, AND ownership
-    const updatedConfig: ArtifactDeployed<
-      WarpArtifactConfig,
-      DeployedWarpAddress
-    > = {
+    const updatedConfig: DeployedRawWarpArtifact = {
       ...deployedToken,
       config: {
         ...deployedToken.config,
@@ -280,7 +279,7 @@ export function warpArtifactTestSuite(
       },
     };
 
-    const txs = await writer.update(updatedConfig as any);
+    const txs = await writer.update(updatedConfig);
     expect(txs).to.be.an('array').with.length.greaterThan(0);
 
     // Verify ownership transfer is the LAST transaction
@@ -350,7 +349,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to clear ISM (set to undefined)
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -390,7 +389,7 @@ export function warpArtifactTestSuite(
       const { ismAddress } = await ctx.aleoSigner.createNoopIsm({});
       const customIsmAddress = ismAddress;
 
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -462,7 +461,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to second ISM
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -546,10 +545,7 @@ export function warpArtifactTestSuite(
         config: initialConfig,
       });
 
-      const updatedConfig: ArtifactDeployed<
-        RawWarpArtifactConfig,
-        DeployedWarpAddress
-      > = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -607,7 +603,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to clear hook (set to undefined)
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -649,7 +645,7 @@ export function warpArtifactTestSuite(
       });
       const customHookAddress = hookAddress;
 
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -725,7 +721,7 @@ export function warpArtifactTestSuite(
       ).to.be.true;
 
       // Update to second hook
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -839,7 +835,7 @@ export function warpArtifactTestSuite(
 
       // Update to zero address (should unset hook)
       const zeroAddress = TEST_ALEO_BURN_ADDRESS;
-      const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,
@@ -873,10 +869,7 @@ export function warpArtifactTestSuite(
         config: initialConfig,
       });
 
-      const updatedConfig: ArtifactDeployed<
-        RawWarpArtifactConfig,
-        DeployedWarpAddress
-      > = {
+      const updatedConfig: DeployedRawWarpArtifact = {
         ...deployedToken,
         config: {
           ...deployedToken.config,

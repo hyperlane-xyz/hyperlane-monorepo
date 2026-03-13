@@ -3,10 +3,6 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import {
-  type AnnotatedTx,
-  type TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
 import { eqAddressAleo } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
@@ -26,7 +22,6 @@ chai.use(chaiAsPromised);
 describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   let aleoSigner: AleoSigner;
   let aleoClient: AnyAleoNetworkClient;
   let validatorAnnounceArtifactManager: AleoValidatorAnnounceArtifactManager;
@@ -36,7 +31,7 @@ describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () 
   const domainId = 1234;
 
   before(async () => {
-    signer = await AleoSigner.connectWithSigner(
+    aleoSigner = await AleoSigner.connectWithSigner(
       [TEST_ALEO_CHAIN_METADATA.rpcUrl],
       TEST_ALEO_PRIVATE_KEY,
       {
@@ -47,8 +42,7 @@ describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () 
       },
     );
 
-    aleoSigner = signer as AleoSigner;
-    aleoClient = (aleoSigner as any).aleoClient;
+    aleoClient = aleoSigner.getAleoClient();
 
     validatorAnnounceArtifactManager = new AleoValidatorAnnounceArtifactManager(
       aleoClient,

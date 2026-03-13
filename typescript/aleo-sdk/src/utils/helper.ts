@@ -9,7 +9,7 @@ import {
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
 
-import { AleoNetworkId, AleoTokenType } from './types.js';
+import { AleoTokenType } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
@@ -361,22 +361,6 @@ export function generateSuffix(n: number): string {
   }
 
   return result;
-}
-
-export function getAleoIsmManagerProgramId(
-  aleoNetworkId: AleoNetworkId,
-): string {
-  // Determine prefix from chain ID
-  const prefix =
-    aleoNetworkId === AleoNetworkId.TESTNET ? TESTNET_PREFIX : MAINNET_PREFIX;
-
-  // Construct ISM manager address (same logic as AleoBase)
-  const ismManagerSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-  const ismManagerProgramId = ismManagerSuffix
-    ? `${prefix}_ism_manager_${ismManagerSuffix}.aleo`
-    : `${prefix}_ism_manager.aleo`;
-
-  return ismManagerProgramId;
 }
 
 /**

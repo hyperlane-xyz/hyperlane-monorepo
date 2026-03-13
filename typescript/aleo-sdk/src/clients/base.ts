@@ -81,6 +81,10 @@ export class AleoBase {
     this.warpSuffix = process.env['ALEO_WARP_SUFFIX'] || '';
   }
 
+  getAleoClient(): AnyAleoNetworkClient {
+    return this.aleoClient;
+  }
+
   protected getProgramManager(privateKey?: string): AnyProgramManager {
     if (this.chainId) {
       const account = privateKey

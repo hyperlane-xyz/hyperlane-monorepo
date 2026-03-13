@@ -24,6 +24,7 @@ import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   this.timeout(100_000);
 
+  let aleoSigner: AleoSigner;
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
   let providerSdkSigner: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: AleoHookArtifactManager;
@@ -35,23 +36,24 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
-    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
+    aleoSigner = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
       metadata: {
         chainId: 1,
       },
     });
+    signer = aleoSigner;
 
     providerSdkSigner = signer as any;
 
     // Create a mailbox for hook testing
     const domainId = 1234;
-    const mailbox = await signer.createMailbox({
+    const mailbox = await aleoSigner.createMailbox({
       domainId: domainId,
     });
     mailboxAddress = mailbox.mailboxAddress;
 
     // Access the aleoClient from the signer to create the artifact manager
-    const aleoClient = (signer as any).aleoClient;
+    const aleoClient = aleoSigner.getAleoClient();
     artifactManager = new AleoHookArtifactManager(aleoClient, mailboxAddress);
   });
 

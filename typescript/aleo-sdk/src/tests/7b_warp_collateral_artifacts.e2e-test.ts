@@ -1,6 +1,7 @@
 import {
   Account,
   AleoKeyProvider,
+  AleoNetworkClient,
   NetworkRecordProvider,
   ProgramManager,
 } from '@provablehq/sdk';
@@ -8,7 +9,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
@@ -24,10 +25,7 @@ import {
 } from '../utils/helper.js';
 import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
-import {
-  type WarpTestSuiteContext,
-  warpArtifactTestSuite,
-} from './warp-artifact-test-suite.js';
+import { warpArtifactTestSuite } from './warp-artifact-test-suite.js';
 
 chai.use(chaiAsPromised);
 
@@ -39,31 +37,32 @@ const COLLATERAL_TOKEN_DECIMALS = 6;
 describe('7b. Aleo Warp Collateral Token Artifact API (e2e)', function () {
   this.timeout(300_000);
 
-  const ctx = {} as WarpTestSuiteContext;
+  let aleoSigner: AleoSigner;
+  let artifactManager: AleoWarpArtifactManager;
+  let mailboxAddress: string;
+  let savedWarpSuffix: string | undefined;
 
   before(async () => {
+    savedWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
     delete process.env['ALEO_WARP_SUFFIX'];
 
-    const aleoSigner = (await AleoSigner.connectWithSigner(
+    aleoSigner = await AleoSigner.connectWithSigner(
       [TEST_ALEO_CHAIN_METADATA.rpcUrl],
       TEST_ALEO_PRIVATE_KEY,
       { metadata: { chainId: 1 } },
-    )) as AleoSigner;
-
-    ctx.aleoSigner = aleoSigner;
-    ctx.providerSdkSigner = aleoSigner;
+    );
 
     const ismManagerProgramId = await aleoSigner.getIsmManager();
 
     const mailbox = await aleoSigner.createMailbox({ domainId: 1234 });
-    ctx.mailboxAddress = mailbox.mailboxAddress;
+    mailboxAddress = mailbox.mailboxAddress;
 
-    const { programId } = fromAleoAddress(ctx.mailboxAddress);
+    const { programId } = fromAleoAddress(mailboxAddress);
     const suffix = getProgramSuffix(programId);
     const hookManagerProgramId = await aleoSigner.getHookManager(suffix);
 
-    const aleoClient = (aleoSigner as any).aleoClient;
-    ctx.artifactManager = new AleoWarpArtifactManager(aleoClient, {
+    const aleoClient = aleoSigner.getAleoClient();
+    artifactManager = new AleoWarpArtifactManager(aleoClient, {
       ismManagerAddress: ismManagerProgramId,
       hookManagerAddress: hookManagerProgramId,
     });
@@ -78,7 +77,7 @@ describe('7b. Aleo Warp Collateral Token Artifact API (e2e)', function () {
 
     const networkRecordProvider = new NetworkRecordProvider(
       aleoAccount,
-      aleoClient,
+      new AleoNetworkClient(TEST_ALEO_CHAIN_METADATA.rpcUrl),
     );
 
     const programManager = new ProgramManager(
@@ -129,22 +128,36 @@ describe('7b. Aleo Warp Collateral Token Artifact API (e2e)', function () {
     }
   });
 
-  warpArtifactTestSuite(ctx, {
-    type: AltVM.TokenType.collateral,
-    name: 'collateral',
-    getConfig: () => ({
-      type: AltVM.TokenType.collateral,
-      owner: ctx.aleoSigner.getSignerAddress(),
-      mailbox: ctx.mailboxAddress,
-      token: COLLATERAL_TOKEN_DENOM,
-      remoteRouters: {},
-      destinationGas: {},
-    }),
-    expectedFields: {
-      token: COLLATERAL_TOKEN_DENOM,
-      name: COLLATERAL_TOKEN_NAME,
-      symbol: COLLATERAL_TOKEN_SYMBOL,
-      decimals: COLLATERAL_TOKEN_DECIMALS,
-    },
+  after(() => {
+    if (!isNullish(savedWarpSuffix)) {
+      process.env['ALEO_WARP_SUFFIX'] = savedWarpSuffix;
+    }
   });
+
+  warpArtifactTestSuite(
+    () => ({
+      aleoSigner,
+      providerSdkSigner: aleoSigner,
+      artifactManager,
+      mailboxAddress,
+    }),
+    {
+      type: AltVM.TokenType.collateral,
+      name: 'collateral',
+      getConfig: () => ({
+        type: AltVM.TokenType.collateral,
+        owner: aleoSigner.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: COLLATERAL_TOKEN_DENOM,
+        remoteRouters: {},
+        destinationGas: {},
+      }),
+      expectedFields: {
+        token: COLLATERAL_TOKEN_DENOM,
+        name: COLLATERAL_TOKEN_NAME,
+        symbol: COLLATERAL_TOKEN_SYMBOL,
+        decimals: COLLATERAL_TOKEN_DECIMALS,
+      },
+    },
+  );
 });

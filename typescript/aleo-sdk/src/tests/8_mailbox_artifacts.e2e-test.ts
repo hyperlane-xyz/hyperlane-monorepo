@@ -47,7 +47,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
     'aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah';
 
   before(async () => {
-    signer = await AleoSigner.connectWithSigner(
+    aleoSigner = await AleoSigner.connectWithSigner(
       [TEST_ALEO_CHAIN_METADATA.rpcUrl],
       TEST_ALEO_PRIVATE_KEY,
       {
@@ -58,8 +58,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       },
     );
 
-    aleoSigner = signer as AleoSigner;
-    aleoClient = (aleoSigner as any).aleoClient;
+    signer = aleoSigner;
+    aleoClient = aleoSigner.getAleoClient();
 
     mailboxArtifactManager = new AleoMailboxArtifactManager(
       {

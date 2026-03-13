@@ -46,10 +46,8 @@ export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
       mailbox: () => new AleoMailboxReader(this.aleoClient),
     };
 
-    const maybeReader = readers[type]();
-
-    assert(maybeReader, `Mailbox reader for ${type} not found`);
-    return maybeReader;
+    assert(readers[type], `Mailbox reader for ${type} not found`);
+    return readers[type]();
   }
 
   createWriter<T extends MailboxType>(
@@ -66,9 +64,7 @@ export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
         new AleoMailboxWriter(this.config, this.aleoClient, signer),
     };
 
-    const maybeWriter = writers[type]();
-
-    assert(maybeWriter, `Mailbox writer for ${type} not found`);
-    return maybeWriter;
+    assert(writers[type], `Mailbox writer for ${type} not found`);
+    return writers[type]();
   }
 }
