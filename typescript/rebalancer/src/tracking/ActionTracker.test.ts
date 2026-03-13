@@ -1622,4 +1622,141 @@ describe('ActionTracker', () => {
       expect(call.args[1]).to.be.undefined;
     });
   });
+
+  describe('getRecentTransfers', () => {
+    it('returns only transfers within time window', async () => {
+      const now = Date.now();
+      await transferStore.save({
+        id: 'transfer-old',
+        status: 'in_progress',
+        messageId: '0xold',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender1',
+        recipient: '0xrecipient1',
+        createdAt: now - 120_000,
+        updatedAt: now - 120_000,
+      });
+      await transferStore.save({
+        id: 'transfer-recent-1',
+        status: 'in_progress',
+        messageId: '0xrecent1',
+        origin: 1,
+        destination: 2,
+        amount: 200n,
+        sender: '0xsender2',
+        recipient: '0xrecipient2',
+        createdAt: now - 30_000,
+        updatedAt: now - 30_000,
+      });
+      await transferStore.save({
+        id: 'transfer-recent-2',
+        status: 'complete',
+        messageId: '0xrecent2',
+        origin: 2,
+        destination: 3,
+        amount: 300n,
+        sender: '0xsender3',
+        recipient: '0xrecipient3',
+        createdAt: now - 5_000,
+        updatedAt: now - 5_000,
+      });
+      const result = await tracker.getRecentTransfers(60_000);
+      expect(result.map((t) => t.id)).to.have.members([
+        'transfer-recent-1',
+        'transfer-recent-2',
+      ]);
+      expect(result).to.have.lengthOf(2);
+    });
+
+    it('returns empty array when no transfers in window', async () => {
+      const now = Date.now();
+      await transferStore.save({
+        id: 'transfer-old',
+        status: 'in_progress',
+        messageId: '0xold',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender1',
+        recipient: '0xrecipient1',
+        createdAt: now - 120_000,
+        updatedAt: now - 120_000,
+      });
+      const result = await tracker.getRecentTransfers(60_000);
+      expect(result).to.deep.equal([]);
+    });
+
+    it('returns all transfers with very large window', async () => {
+      const now = Date.now();
+      await transferStore.save({
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: '0x1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender1',
+        recipient: '0xrecipient1',
+        createdAt: now - 500_000,
+        updatedAt: now - 500_000,
+      });
+      await transferStore.save({
+        id: 'transfer-2',
+        status: 'complete',
+        messageId: '0x2',
+        origin: 2,
+        destination: 3,
+        amount: 200n,
+        sender: '0xsender2',
+        recipient: '0xrecipient2',
+        createdAt: now - 10_000,
+        updatedAt: now - 10_000,
+      });
+      const result = await tracker.getRecentTransfers(1_000_000_000);
+      expect(result.map((t) => t.id)).to.have.members([
+        'transfer-1',
+        'transfer-2',
+      ]);
+      expect(result).to.have.lengthOf(2);
+    });
+
+    it('handles boundary correctly (transfer exactly at cutoff is included)', async () => {
+      const now = 1_000_000;
+      const sinceMs = 60_000;
+      const cutoff = now - sinceMs;
+      const nowStub = Sinon.stub(Date, 'now').returns(now);
+      try {
+        await transferStore.save({
+          id: 'transfer-at-cutoff',
+          status: 'in_progress',
+          messageId: '0xcutoff',
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          sender: '0xsender1',
+          recipient: '0xrecipient1',
+          createdAt: cutoff,
+          updatedAt: cutoff,
+        });
+        await transferStore.save({
+          id: 'transfer-before-cutoff',
+          status: 'in_progress',
+          messageId: '0xbefore',
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          sender: '0xsender2',
+          recipient: '0xrecipient2',
+          createdAt: cutoff - 1,
+          updatedAt: cutoff - 1,
+        });
+        const result = await tracker.getRecentTransfers(sinceMs);
+        expect(result.map((t) => t.id)).to.deep.equal(['transfer-at-cutoff']);
+      } finally {
+        nowStub.restore();
+      }
+    });
+  });
 });
