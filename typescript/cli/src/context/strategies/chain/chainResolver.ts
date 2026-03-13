@@ -9,7 +9,7 @@ import {
   EvmCoreModule,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
@@ -43,7 +43,9 @@ export async function resolveChains(
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
     case CommandType.WARP_SEND:
+      return resolveWarpSendChains(argv);
     case CommandType.STATUS:
+      return resolveStatusChains(argv);
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
@@ -75,14 +77,13 @@ export async function resolveChains(
 async function resolveWarpRouteConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const warpDeployConfig = await getWarpRouteDeployConfig({
+  const { config, resolvedWarpRouteId } = await getWarpRouteDeployConfig({
     context: argv.context,
-    warpRouteDeployConfigPath: argv.config,
     warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
   });
-  argv.context.warpDeployConfig = warpDeployConfig;
-  argv.context.chains = Object.keys(warpDeployConfig);
+  argv.context.warpDeployConfig = config;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
+  argv.context.chains = Object.keys(config);
   assert(
     argv.context.chains.length !== 0,
     'No chains found in warp route deployment config',
@@ -97,12 +98,12 @@ async function resolveWarpReadChains(
     argv.context.chains = await resolveChain(argv);
   }
 
-  if (argv.symbol || argv.warpRouteId) {
+  if (argv.warpRouteId) {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
-      symbol: argv.symbol,
       warpRouteId: argv.warpRouteId,
     });
+    argv.context.warpCoreConfig = warpCoreConfig;
     argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
   }
 
@@ -123,15 +124,14 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
 async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-    context: argv.context,
-    warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
-    warpDeployConfigPath: argv.config,
-    warpCoreConfigPath: argv.warp,
-  });
+  const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
+    await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
   argv.context.warpCoreConfig = warpCoreConfig;
   argv.context.warpDeployConfig = warpDeployConfig;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
   argv.context.chains = Object.keys(warpDeployConfig);
 
   assert(
@@ -172,7 +172,7 @@ async function resolveSendMessageChains(
 
   if (selectedChains.length > 0) {
     const nonEvmChains = selectedChains.filter(
-      (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+      (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
     );
     if (nonEvmChains.length > 0) {
       const chainDetails = nonEvmChains
@@ -187,6 +187,19 @@ async function resolveSendMessageChains(
   // Return only explicitly provided chains - signers for interactively
   // selected chains will be created after selection
   return selectedChains;
+}
+
+/**
+ * Resolves chains for the 'status' command.
+ * Returns only explicitly provided chains (origin/destination).
+ * Destination chains discovered from the dispatch tx are resolved lazily.
+ */
+async function resolveStatusChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  // Only origin is declared by the status command builder (messageOptions).
+  // Destination chains are discovered lazily from the dispatch tx.
+  return argv.origin ? [argv.origin] : [];
 }
 
 async function resolveRelayerChains(
@@ -211,14 +224,60 @@ async function resolveRelayerChains(
   if (!argv.destination) {
     const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
-    return chains.filter(
-      (chain: string) =>
-        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+    return chains.filter((chain: string) =>
+      isEVMLike(multiProvider.getProtocol(chain)),
     );
   }
 
   chains.add(argv.destination);
   return Array.from(chains);
+}
+
+/**
+ * Resolves chains for warp send.
+ * Returns only EVM chains that may submit transactions for this invocation.
+ */
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+
+  // Validate origin is EVM if specified
+  if (argv.origin && !isEVMLike(multiProvider.getProtocol(argv.origin))) {
+    throw new Error(
+      `'hyperlane warp send' requires an EVM origin chain. '${argv.origin}' is ${multiProvider.getProtocol(argv.origin)}`,
+    );
+  }
+
+  const selectedChains = new Set<ChainName>();
+  if (argv.chains?.length) {
+    argv.chains.forEach((chain: ChainName) => selectedChains.add(chain));
+  } else {
+    [argv.origin, argv.destination]
+      .filter(Boolean)
+      .forEach((chain) => selectedChains.add(chain as ChainName));
+  }
+
+  // If no explicit origin was provided (destination-only or fully implicit),
+  // derive signer chains from the resolved route so middleware signer setup
+  // matches the path warp send will execute.
+  if (selectedChains.size === 0 || (!argv.origin && !argv.chains?.length)) {
+    const filterChains = Array.from(selectedChains);
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains,
+    });
+    argv.preResolvedWarpCoreConfig = warpCoreConfig;
+    selectedChains.clear();
+    warpCoreConfig.tokens.forEach((token) =>
+      selectedChains.add(token.chainName),
+    );
+  }
+
+  return Array.from(selectedChains).filter((chain) =>
+    isEVMLike(multiProvider.getProtocol(chain)),
+  );
 }
 
 async function resolveCoreApplyChains(
@@ -239,6 +298,7 @@ async function resolveCoreApplyChains(
     const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
     switch (protocolType) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
           chain: argv.chain,

@@ -1,4 +1,9 @@
-import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  HexString,
+  ProtocolType,
+  isEVMLike,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -40,7 +45,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
   override protocolToAdapter(
     protocol: ProtocolType,
   ): AdapterClassType<ICoreAdapter> {
-    if (protocol === ProtocolType.Ethereum) return EvmCoreAdapter;
+    if (isEVMLike(protocol)) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     if (protocol === ProtocolType.CosmosNative) return CosmNativeCoreAdapter;

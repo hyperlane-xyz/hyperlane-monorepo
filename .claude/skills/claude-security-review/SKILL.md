@@ -22,4 +22,4 @@ Report findings with severity ratings (Critical/High/Medium/Low/Informational) a
 
 ### For PR Reviews
 
-When reviewing a PR, deliver feedback using `/inline-pr-comments` to post inline comments on specific lines.
+When reviewing a PR, deliver feedback as a **single consolidated GitHub review** using `/inline-pr-comments`. Each run produces a separate review. The skill fetches prior reviews/comments for context — avoid duplicating previously raised issues.

@@ -23,6 +23,12 @@ export {
   loadScenario,
   loadScenarioFile,
 } from './ScenarioLoader.js';
+export {
+  saveSimulationResults,
+  type SaveSimulationResultsOptions,
+  type SaveSimulationResultsOutput,
+  type SimulationComparison,
+} from './ResultsExporter.js';
 
 // Rebalancer runners
 export { NoOpRebalancer } from './runners/NoOpRebalancer.js';

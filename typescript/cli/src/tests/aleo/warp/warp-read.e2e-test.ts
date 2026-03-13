@@ -120,7 +120,7 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
   });
 
-  describe('hyperlane warp read --config ...', () => {
+  describe('hyperlane warp read (no args)', () => {
     it('should exit early if no symbol or no chain and address', async () => {
       await hyperlaneWarp
         .deployRaw({
@@ -172,7 +172,7 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
     });
   });
 
-  describe('hyperlane warp read --chain ... --warp ...', () => {
+  describe('hyperlane warp read --chain ... --warp-route-id ...', () => {
     it('should be able to read a warp route from a single chain', async function () {
       await hyperlaneWarp
         .deployRaw({

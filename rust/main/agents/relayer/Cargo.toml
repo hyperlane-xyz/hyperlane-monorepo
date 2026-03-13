@@ -24,6 +24,7 @@ ethers.workspace = true
 eyre.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+hex.workspace = true
 itertools.workspace = true
 maplit.workspace = true
 num-derive.workspace = true
@@ -44,6 +45,7 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ] }
 tokio-metrics.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
 tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
@@ -53,8 +55,12 @@ hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "agent",
     "async",
+    "matching-list",
 ] }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" }
+solana-sdk.workspace = true
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 lander = { path = "../../lander" }
@@ -70,7 +76,7 @@ tracing-test.workspace = true
 tracing-subscriber.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
-hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "matching-list", "test-utils"] }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 tempfile.workspace = true
 

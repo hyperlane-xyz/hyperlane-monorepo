@@ -1,6 +1,7 @@
 {
   "name": "@hyperlane-xyz/rebalancer-sim",
-  "version": "0.1.9",
+  "version": "0.2.2",
+  "private": true,
   "description": "Fast real-time simulation framework for testing Hyperlane warp route rebalancers",
   "keywords": [
     "hyperlane",
@@ -14,7 +15,8 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist",
-    "src"
+    "src",
+    "scenarios"
   ],
   "type": "module",
   "main": "./dist/index.js",

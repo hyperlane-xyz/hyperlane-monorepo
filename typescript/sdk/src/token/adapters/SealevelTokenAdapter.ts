@@ -455,10 +455,13 @@ export abstract class SealevelHypTokenAdapter
     destination,
     recipient,
     fromAccountOwner,
+    extraSigners,
   }: TransferRemoteParams): Promise<Transaction> {
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
-    const randomWallet = Keypair.generate();
+    const randomWallet = extraSigners?.length
+      ? extraSigners[0]
+      : Keypair.generate();
     const fromWalletPubKey = new PublicKey(fromAccountOwner);
     const mailboxPubKey = new PublicKey(this.addresses.mailbox);
 

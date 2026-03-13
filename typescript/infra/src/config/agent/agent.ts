@@ -267,7 +267,8 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
     case ProtocolType.Starknet: {
       return { type: AgentSignerKeyType.Starknet, legacy: false };
     }
-    // For Ethereum and Sealevel use a hex key
+    // For Ethereum, Tron, and Sealevel use a hex key
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:

@@ -43,6 +43,10 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     return QueryClient.withExtensions(cometClient, setupWarpExtension);
   }
 
+  supportsHookUpdates(): boolean {
+    return false;
+  }
+
   async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
     const query = await this.getQuery();
     const altVMType = await getWarpTokenType(query, address);

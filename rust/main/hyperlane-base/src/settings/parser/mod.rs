@@ -18,6 +18,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
+use hyperlane_core::matching_list::MatchingList;
+
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
@@ -588,6 +590,44 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
     val
 }
 
+/// Parse a JSON array from a ValueParser, handling both stringified JSON and native arrays.
+pub fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
+    let mut err = ConfigParsingError::default();
+
+    match p {
+        ValueParser {
+            val: Value::String(array_str),
+            cwp,
+        } => serde_json::from_str::<Value>(array_str)
+            .context("Expected JSON string")
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
+        ValueParser {
+            val: value @ Value::Array(_),
+            cwp,
+        } => Some((cwp, value.clone())),
+        _ => Err(eyre!("Expected JSON array or stringified JSON"))
+            .take_err(&mut err, || p.cwp.clone()),
+    }
+}
+
+/// Parse a matching list from a ValueParser.
+pub fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
+    let mut err = ConfigParsingError::default();
+
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(MatchingList::default());
+    };
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+    let ml = p
+        .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
+
+    err.into_result(ml)
+}
+
 /// Expects AgentSigner.
 fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmount> {
     let mut err = ConfigParsingError::default();
@@ -688,4 +728,23 @@ fn ethereum_to_tron_connection_conf(
         eth_conf.solidity_grpc_urls.unwrap_or_default(),
         eth_conf.energy_multiplier,
     ))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn supports_sequence_h256s() {
+        let json_str = r#"[{"origindomain":1399811151,"senderaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"],"destinationdomain":11155111,"recipientaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"]}]"#;
+
+        // Test parsing directly into MatchingList
+        serde_json::from_str::<MatchingList>(json_str).unwrap();
+
+        // Test parsing into a Value and then into MatchingList, which is the path used
+        // by the agent config parser.
+        let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let value_parser = ValueParser::new(Default::default(), &val);
+        parse_matching_list(value_parser).unwrap();
+    }
 }

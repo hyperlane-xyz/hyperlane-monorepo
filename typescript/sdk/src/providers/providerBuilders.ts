@@ -25,6 +25,7 @@ import {
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
+  TronProvider,
   TypedProvider,
   ViemProvider,
   ZKSyncProvider,
@@ -194,6 +195,17 @@ export function defaultTronEthersProviderBuilder(
   return new TronJsonRpcProvider(rpcUrls[0].http);
 }
 
+export function defaultTronProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: string | number,
+): TronProvider {
+  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
+  return {
+    provider: new TronJsonRpcProvider(rpcUrls[0].http),
+    type: ProviderType.Tron,
+  };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -225,6 +237,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
   [ProviderType.Radix]: defaultRadixProviderBuilder,
   [ProviderType.Aleo]: defaultAleoProviderBuilder,
+  [ProviderType.Tron]: defaultTronProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -238,4 +251,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProtocolType.Radix]: defaultRadixProviderBuilder,
   [ProtocolType.Aleo]: defaultAleoProviderBuilder,
+  [ProtocolType.Tron]: defaultTronProviderBuilder,
 };

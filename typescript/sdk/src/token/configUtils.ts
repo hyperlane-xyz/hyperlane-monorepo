@@ -11,6 +11,7 @@ import {
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
+  isEVMLike,
   isObjEmpty,
   objFilter,
   objMap,
@@ -129,6 +130,48 @@ export function getRouterAddressesFromWarpCoreConfig(
 }
 
 /**
+ * Gets the chain names from a WarpCoreConfig
+ */
+export function getChainsFromWarpCoreConfig(
+  warpCoreConfig: WarpCoreConfig,
+): string[] {
+  return warpCoreConfig.tokens.map((token) => token.chainName);
+}
+
+/**
+ * Checks if a WarpCoreConfig includes all specified chains
+ * @param config - The warp core config to check
+ * @param chains - Array of chain names that must all be present
+ * @returns true if the config spans all specified chains
+ */
+export function warpCoreConfigMatchesChains(
+  config: WarpCoreConfig,
+  chains: string[],
+): boolean {
+  const configChains = new Set(getChainsFromWarpCoreConfig(config));
+  return chains.every((chain) => configChains.has(chain));
+}
+
+/**
+ * Filters a map of WarpCoreConfigs to only include routes that span all specified chains
+ * @param configMap - Record of route IDs to WarpCoreConfig
+ * @param chains - Array of chain names that must all be present in each route
+ * @returns Filtered record containing only routes that span all specified chains.
+ * If `chains` is empty, returns `configMap` unchanged (treated as no filter).
+ */
+export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
+  configMap: Record<string, T>,
+  chains: string[],
+): Record<string, T> {
+  if (chains.length === 0) {
+    return configMap;
+  }
+  return objFilter(configMap, (_, config): config is T =>
+    warpCoreConfigMatchesChains(config, chains),
+  );
+}
+
+/**
  * Expands a Warp deploy config with additional data
  *
  * @param multiProvider
@@ -159,7 +202,7 @@ export async function expandWarpDeployConfig(params: {
   // to expand the proxy config too
   const isDeployedAsProxyByChain = await promiseObjAll(
     objMap(deployedRoutersAddresses, async (chain, address) => {
-      if (!(multiProvider.getProtocol(chain) === ProtocolType.Ethereum)) {
+      if (!isEVMLike(multiProvider.getProtocol(chain))) {
         return false;
       }
 
@@ -223,7 +266,7 @@ export async function expandWarpDeployConfig(params: {
       chainConfig.destinationGas = formattedDestinationGas;
 
       const protocol = multiProvider.getProtocol(chain);
-      const isEVMChain = protocol === ProtocolType.Ethereum;
+      const isEVMChain = isEVMLike(protocol);
 
       // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
       // For contractVerificationStatus, all values should be 'verified'
@@ -272,6 +315,7 @@ export async function expandWarpDeployConfig(params: {
       // (not just an address string for EVM - those are left as-is to avoid deriving)
       if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
         switch (protocol) {
+          case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
             const reader = new EvmHookReader(multiProvider, chain);
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
@@ -292,6 +336,7 @@ export async function expandWarpDeployConfig(params: {
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
         switch (protocol) {
+          case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
             const reader = new EvmIsmReader(multiProvider, chain);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(

@@ -39,3 +39,15 @@ export interface CosmosSyntheticWarpTokenConfig extends BaseCosmosWarpTokenConfi
 export type CosmosWarpTokenConfig =
   | CosmosCollateralWarpTokenConfig
   | CosmosSyntheticWarpTokenConfig;
+
+/*
+ * Internal mailbox configuration type.
+ */
+export interface CosmosMailboxConfig {
+  address: string;
+  owner: string;
+  localDomain: number;
+  defaultIsm: string;
+  defaultHook: string;
+  requiredHook: string;
+}

@@ -12,15 +12,6 @@ import {
 import { widgetLogger } from '../logger.js';
 
 import {
-  useAleoAccount,
-  useAleoActiveChain,
-  useAleoConnectFn,
-  useAleoDisconnectFn,
-  useAleoTransactionFns,
-  useAleoWalletDetails,
-  useAleoWatchAsset,
-} from './aleo.js';
-import {
   useCosmosAccount,
   useCosmosActiveChain,
   useCosmosConnectFn,
@@ -66,12 +57,30 @@ import {
   useStarknetWatchAsset,
 } from './starknet.js';
 import {
+  useTronAccount,
+  useTronActiveChain,
+  useTronConnectFn,
+  useTronDisconnectFn,
+  useTronTransactionFns,
+  useTronWalletDetails,
+  useTronWatchAsset,
+} from './tron.js';
+import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
+import {
+  useAleoAccount,
+  useAleoActiveChain,
+  useAleoConnectFn,
+  useAleoDisconnectFn,
+  useAleoTransactionFns,
+  useAleoWalletDetails,
+  useAleoWatchAsset,
+} from './aleo.js';
 
 const logger = widgetLogger.child({
   module: 'walletIntegrations/multiProtocol',
@@ -90,6 +99,7 @@ export function useAccounts(
   const starknetAccountInfo = useStarknetAccount(multiProvider);
   const radixAccountInfo = useRadixAccount(multiProvider);
   const aleoAccountInfo = useAleoAccount(multiProvider);
+  const tronAccountInfo = useTronAccount(multiProvider);
 
   // Filtered ready accounts
   const readyAccounts = useMemo(
@@ -101,6 +111,7 @@ export function useAccounts(
         starknetAccountInfo,
         radixAccountInfo,
         aleoAccountInfo,
+        tronAccountInfo,
       ].filter((a) => a.isReady),
     [
       evmAccountInfo,
@@ -109,6 +120,7 @@ export function useAccounts(
       starknetAccountInfo,
       radixAccountInfo,
       aleoAccountInfo,
+      tronAccountInfo,
     ],
   );
 
@@ -131,6 +143,7 @@ export function useAccounts(
         [ProtocolType.Starknet]: starknetAccountInfo,
         [ProtocolType.Radix]: radixAccountInfo,
         [ProtocolType.Aleo]: aleoAccountInfo,
+        [ProtocolType.Tron]: tronAccountInfo,
       },
       readyAccounts,
     }),
@@ -141,6 +154,7 @@ export function useAccounts(
       starknetAccountInfo,
       radixAccountInfo,
       aleoAccountInfo,
+      tronAccountInfo,
       readyAccounts,
     ],
   );
@@ -236,6 +250,7 @@ export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
   const starknetWallet = useStarknetWalletDetails();
   const radixWallet = useRadixWalletDetails();
   const aleoWallet = useAleoWalletDetails();
+  const tronWallet = useTronWalletDetails();
 
   return useMemo(
     () => ({
@@ -246,6 +261,7 @@ export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
       [ProtocolType.Starknet]: starknetWallet,
       [ProtocolType.Radix]: radixWallet,
       [ProtocolType.Aleo]: aleoWallet,
+      [ProtocolType.Tron]: tronWallet,
     }),
     [
       evmWallet,
@@ -254,6 +270,7 @@ export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
       starknetWallet,
       radixWallet,
       aleoWallet,
+      tronWallet,
     ],
   );
 }
@@ -265,6 +282,7 @@ export function useConnectFns(): Record<KnownProtocolType, () => void> {
   const onConnectStarknet = useStarknetConnectFn();
   const onConnectRadix = useRadixConnectFn();
   const onConnectAleo = useAleoConnectFn();
+  const onConnectTron = useTronConnectFn();
 
   return useMemo(
     () => ({
@@ -275,6 +293,7 @@ export function useConnectFns(): Record<KnownProtocolType, () => void> {
       [ProtocolType.Starknet]: onConnectStarknet,
       [ProtocolType.Radix]: onConnectRadix,
       [ProtocolType.Aleo]: onConnectAleo,
+      [ProtocolType.Tron]: onConnectTron,
     }),
     [
       onConnectEthereum,
@@ -283,6 +302,7 @@ export function useConnectFns(): Record<KnownProtocolType, () => void> {
       onConnectStarknet,
       onConnectRadix,
       onConnectAleo,
+      onConnectTron,
     ],
   );
 }
@@ -297,6 +317,7 @@ export function useDisconnectFns(): Record<
   const disconnectStarknet = useStarknetDisconnectFn();
   const disconnectRadix = useRadixDisconnectFn();
   const disconnectAleo = useAleoDisconnectFn();
+  const disconnectTron = useTronDisconnectFn();
 
   const onClickDisconnect =
     (env: ProtocolType, disconnectFn?: () => Promise<void> | void) =>
@@ -336,6 +357,7 @@ export function useDisconnectFns(): Record<
         disconnectRadix,
       ),
       [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, disconnectAleo),
+      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, disconnectTron),
     }),
     [
       disconnectEvm,
@@ -344,6 +366,7 @@ export function useDisconnectFns(): Record<
       disconnectStarknet,
       disconnectRadix,
       disconnectAleo,
+      disconnectTron,
     ],
   );
 }
@@ -358,6 +381,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
   const starknetChain = useStarknetActiveChain(multiProvider);
   const radixChain = useRadixActiveChain(multiProvider);
   const aleoChain = useAleoActiveChain(multiProvider);
+  const tronChain = useTronActiveChain(multiProvider);
 
   const readyChains = useMemo(
     () =>
@@ -368,8 +392,17 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         starknetChain,
         radixChain,
         aleoChain,
+        tronChain,
       ].filter((c) => !!c.chainDisplayName),
-    [evmChain, solChain, cosmChain, starknetChain, radixChain, aleoChain],
+    [
+      evmChain,
+      solChain,
+      cosmChain,
+      starknetChain,
+      radixChain,
+      aleoChain,
+      tronChain,
+    ],
   );
 
   return useMemo(
@@ -382,6 +415,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Starknet]: starknetChain,
         [ProtocolType.Radix]: radixChain,
         [ProtocolType.Aleo]: aleoChain,
+        [ProtocolType.Tron]: tronChain,
       },
       readyChains,
     }),
@@ -393,6 +427,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
       starknetChain,
       radixChain,
       aleoChain,
+      tronChain,
     ],
   );
 }
@@ -430,6 +465,11 @@ export function useTransactionFns(
     sendTransaction: onSendAleoTx,
     sendMultiTransaction: onSendMultiAleoTx,
   } = useAleoTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchTronNetwork,
+    sendTransaction: onSendTronTx,
+    sendMultiTransaction: onSendMultiTronTx,
+  } = useTronTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
@@ -468,6 +508,11 @@ export function useTransactionFns(
         sendMultiTransaction: onSendMultiAleoTx,
         switchNetwork: onSwitchAleoNetwork,
       },
+      [ProtocolType.Tron]: {
+        sendTransaction: onSendTronTx,
+        sendMultiTransaction: onSendMultiTronTx,
+        switchNetwork: onSwitchTronNetwork,
+      },
     }),
     [
       onSendEvmTx,
@@ -482,6 +527,8 @@ export function useTransactionFns(
       onSwitchRadixNetwork,
       onSendAleoTx,
       onSwitchAleoNetwork,
+      onSendTronTx,
+      onSwitchTronNetwork,
     ],
   );
 }
@@ -495,6 +542,7 @@ export function useWatchAsset(
   const { addAsset: starknetAddAsset } = useStarknetWatchAsset(multiProvider);
   const { addAsset: radixAddAsset } = useRadixWatchAsset(multiProvider);
   const { addAsset: aleoAddAsset } = useAleoWatchAsset(multiProvider);
+  const { addAsset: tronAddAsset } = useTronWatchAsset(multiProvider);
 
   return useMemo(
     () => ({
@@ -519,6 +567,9 @@ export function useWatchAsset(
       [ProtocolType.Aleo]: {
         addAsset: aleoAddAsset,
       },
+      [ProtocolType.Tron]: {
+        addAsset: tronAddAsset,
+      },
     }),
     [
       evmAddAsset,
@@ -527,6 +578,7 @@ export function useWatchAsset(
       starknetAddAsset,
       radixAddAsset,
       aleoAddAsset,
+      tronAddAsset,
     ],
   );
 }

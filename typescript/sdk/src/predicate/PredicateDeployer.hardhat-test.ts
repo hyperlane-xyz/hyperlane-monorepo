@@ -82,6 +82,7 @@ describe('PredicateWrapperDeployer', async () => {
     const collateral = await new HypERC20Collateral__factory(signer).deploy(
       testTokenAddress,
       1,
+      1,
       mailboxAddress,
     );
     await collateral.deployed();
@@ -156,7 +157,7 @@ describe('PredicateWrapperDeployer', async () => {
     it('should deploy wrapper and aggregate with mailbox default hook when no existing hook', async () => {
       const newCollateral = await new HypERC20Collateral__factory(
         signer,
-      ).deploy(testTokenAddress, 1, mailboxAddress);
+      ).deploy(testTokenAddress, 1, 1, mailboxAddress);
       await newCollateral.deployed();
       await newCollateral.initialize(
         constants.AddressZero,
@@ -203,7 +204,7 @@ describe('PredicateWrapperDeployer', async () => {
 
       const newCollateral = await new HypERC20Collateral__factory(
         signer,
-      ).deploy(testTokenAddress, 1, mailboxAddress);
+      ).deploy(testTokenAddress, 1, 1, mailboxAddress);
       await newCollateral.deployed();
       await newCollateral.initialize(
         existingHook.address,
@@ -247,7 +248,7 @@ describe('PredicateWrapperDeployer', async () => {
 
       collateralWithWrapper = await new HypERC20Collateral__factory(
         signer,
-      ).deploy(testTokenAddress, 1, mailboxAddress);
+      ).deploy(testTokenAddress, 1, 1, mailboxAddress);
       await collateralWithWrapper.deployed();
       await collateralWithWrapper.initialize(
         constants.AddressZero,

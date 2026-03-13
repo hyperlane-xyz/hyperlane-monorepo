@@ -123,7 +123,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: warpCoreConfigPath,
+        warpRouteId: warpCoreConfigPath,
         value: 1,
         attestation: mockAttestation,
       });
@@ -193,7 +193,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: warpCoreConfigPath,
+        warpRouteId: warpCoreConfigPath,
         value: 1,
         predicateApiKey: 'test-api-key',
       });
@@ -245,7 +245,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stderr } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: warpCoreConfigPath,
+        warpRouteId: warpCoreConfigPath,
         value: 1,
         attestation: mockAttestation,
       }).nothrow();
@@ -292,7 +292,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stderr } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: warpCoreConfigPath,
+        warpRouteId: warpCoreConfigPath,
         value: 1,
         attestation: mockAttestation,
       }).nothrow();

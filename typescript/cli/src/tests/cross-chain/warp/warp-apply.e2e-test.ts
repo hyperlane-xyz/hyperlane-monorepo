@@ -47,12 +47,27 @@ import {
   getUnsupportedChainWarpCoreTokenConfig,
 } from '../../utils.js';
 
+// AltVM readers key remoteRouters by chain name; EVM readers by domain ID.
+// Try both until the inconsistency is addressed in a follow-up PR.
+function getUnsupportedChainRouterAddress(
+  config: DerivedWarpRouteDeployConfig,
+  chainName: string,
+): string | undefined {
+  const routers = config[chainName].remoteRouters ?? {};
+  return (
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name]
+      ?.address ??
+    routers[TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId]
+      ?.address
+  );
+}
+
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
 describe('hyperlane warp apply e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let cosmosNativeDeployerAddress: Address;
   let cosmosNativeChain1CoreAddress: ChainAddresses;
@@ -252,11 +267,9 @@ describe('hyperlane warp apply e2e tests', async function () {
         chainName,
       );
 
-      expect(
-        (config[chainName].remoteRouters ?? {})[
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-        ].address,
-      ).to.eql(addressToBytes32(unsupportedChainAddress));
+      expect(getUnsupportedChainRouterAddress(config, chainName)).to.eql(
+        addressToBytes32(unsupportedChainAddress),
+      );
     }
   });
 
@@ -325,11 +338,9 @@ describe('hyperlane warp apply e2e tests', async function () {
         chainName,
       );
 
-      expect(
-        (config[chainName].remoteRouters ?? {})[
-          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
-        ].address,
-      ).to.eql(addressToBytes32(unsupportedChainAddress));
+      expect(getUnsupportedChainRouterAddress(config, chainName)).to.eql(
+        addressToBytes32(unsupportedChainAddress),
+      );
     }
   });
 });

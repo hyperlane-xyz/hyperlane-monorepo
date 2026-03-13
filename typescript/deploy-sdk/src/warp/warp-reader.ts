@@ -40,7 +40,6 @@ export class WarpTokenReader implements ArtifactReader<
   DeployedWarpAddress
 > {
   protected readonly ismReader: IsmReader;
-  protected readonly hookReader: HookReader;
 
   constructor(
     protected readonly artifactManager: IRawWarpArtifactManager,
@@ -48,12 +47,16 @@ export class WarpTokenReader implements ArtifactReader<
     protected readonly chainLookup: ChainLookup,
   ) {
     this.ismReader = createIsmReader(chainMetadata, chainLookup);
-    this.hookReader = createHookReader(chainMetadata, chainLookup);
   }
 
   async read(address: string): Promise<DeployedWarpArtifact> {
     // Read warp token via artifactManager - detects type and returns raw config
     const rawArtifact = await this.artifactManager.readWarpToken(address);
+
+    // Create hook reader with mailbox context from the warp config
+    const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {
+      mailbox: rawArtifact.config.mailbox,
+    });
 
     // Expand nested ISM artifact if present
     const expandedIsmArtifact = await this.expandIsmArtifact(
@@ -62,6 +65,7 @@ export class WarpTokenReader implements ArtifactReader<
 
     // Expand nested Hook artifact if present
     const expandedHookArtifact = await this.expandHookArtifact(
+      hookReader,
       rawArtifact.config.hook,
     );
 
@@ -107,6 +111,7 @@ export class WarpTokenReader implements ArtifactReader<
    * Returns undefined if no Hook is configured.
    */
   private async expandHookArtifact(
+    hookReader: HookReader,
     hookArtifact?: Artifact<HookArtifactConfig, DeployedHookAddress>,
   ): Promise<DeployedHookArtifact | undefined> {
     if (!hookArtifact) {
@@ -115,7 +120,7 @@ export class WarpTokenReader implements ArtifactReader<
 
     // If Hook is underived (just an address), read it recursively to get full config
     if (isArtifactUnderived(hookArtifact)) {
-      return this.hookReader.read(hookArtifact.deployed.address);
+      return hookReader.read(hookArtifact.deployed.address);
     }
 
     // If already a full deployed artifact, use as-is

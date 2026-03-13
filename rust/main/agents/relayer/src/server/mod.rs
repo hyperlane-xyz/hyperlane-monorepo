@@ -15,7 +15,10 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
+use crate::relay_api::ProviderRegistry;
 use crate::server::environment_variable::EnvironmentVariableApi;
+use hyperlane_core::QueueOperation;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
@@ -45,6 +48,10 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
+    #[new(default)]
+    relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
+    #[new(default)]
+    relay_provider_registry: Option<ProviderRegistry>,
 }
 
 impl Server {
@@ -95,6 +102,19 @@ impl Server {
         self
     }
 
+    pub fn with_relay_send_channels(
+        mut self,
+        channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) -> Self {
+        self.relay_send_channels = Some(channels);
+        self
+    }
+
+    pub fn with_provider_registry(mut self, registry: ProviderRegistry) -> Self {
+        self.relay_provider_registry = Some(registry);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -139,6 +159,26 @@ impl Server {
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
+
+        // Add relay API (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
+        let relay_api_disabled =
+            env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
+        if !relay_api_disabled {
+            if let (Some(dbs), Some(registry), Some(send_channels)) = (
+                self.dbs.as_ref(),
+                self.relay_provider_registry,
+                self.relay_send_channels.as_ref(),
+            ) {
+                let relay_state = crate::relay_api::handlers::ServerState::new()
+                    .with_provider_registry(registry)
+                    .with_dbs(dbs.clone())
+                    .with_send_channels(send_channels.clone())
+                    .with_msg_ctxs(self.msg_ctxs.clone());
+
+                router = router.merge(relay_state.router());
+            }
+        }
+
         router
     }
 }

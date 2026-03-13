@@ -19,7 +19,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,

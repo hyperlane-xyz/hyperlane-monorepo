@@ -1,5 +1,53 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.1.1
+
+### Patch Changes
+
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/core@11.0.2
+
+## 22.1.0
+
+### Minor Changes
+
+- 4a816e3: Add retry logic to TronJsonProvider
+
+### Patch Changes
+
+- Updated dependencies [f7ebf6c]
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/utils@27.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.1
+
+## 22.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 21.1.5
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 21.1.4
 
 ### Patch Changes

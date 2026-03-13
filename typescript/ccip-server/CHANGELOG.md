@@ -1,5 +1,60 @@
 # @hyperlane-xyz/ccip-server
 
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [de5f6b5]
+- Updated dependencies [a1f9e41]
+- Updated dependencies [b892e61]
+- Updated dependencies [7af7728]
+  - @hyperlane-xyz/sdk@27.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/metrics@0.2.2
+  - @hyperlane-xyz/core@11.0.2
+
+## 27.0.0
+
+### Patch Changes
+
+- Updated dependencies [f2620a1]
+- Updated dependencies [f7ebf6c]
+- Updated dependencies [8a6f742]
+- Updated dependencies [b05e242]
+- Updated dependencies [aee625c]
+  - @hyperlane-xyz/sdk@27.0.0
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/metrics@0.2.1
+  - @hyperlane-xyz/utils@27.0.0
+
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/metrics@0.2.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.5.0
+
+### Patch Changes
+
+- 69b48fa: The PostCallsSchema was tightened to validate `to` and `relayers` fields with ZHash regex, rejecting malicious input (empty strings, URLs, injection payloads) at parse time. A try/catch was added around `normalizeCalls` in `CallCommitmentsService` as defense-in-depth to return 400 instead of crashing the pod.
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/metrics@0.1.11
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 25.4.1
 
 ### Patch Changes

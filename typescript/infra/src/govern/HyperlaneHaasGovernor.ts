@@ -11,8 +11,8 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   hasValidRefundAddress,
+  isEVMLike,
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -113,8 +113,9 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
       chains
         .filter(
           (chain) =>
-            this.coreChecker.multiProvider.getChainMetadata(chain).protocol ===
-              ProtocolType.Ethereum && !chainsToSkip.includes(chain),
+            isEVMLike(
+              this.coreChecker.multiProvider.getChainMetadata(chain).protocol,
+            ) && !chainsToSkip.includes(chain),
         )
         .map(async (chain) => {
           try {

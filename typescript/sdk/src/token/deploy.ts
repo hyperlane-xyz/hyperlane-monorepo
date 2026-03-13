@@ -15,9 +15,13 @@ import {
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
+  CrossCollateralRouter__factory,
+  TokenBridgeOft__factory,
+} from '@hyperlane-xyz/multicollateral';
+import {
   Address,
-  ProtocolType,
   addressToBytes32,
+  isEVMLike,
   assert,
   objFilter,
   objKeys,
@@ -64,6 +68,7 @@ import {
   HypTokenConfig,
   HypTokenRouterConfig,
   PredicateWrapperConfig,
+  OftTokenConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
@@ -72,7 +77,9 @@ import {
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -158,7 +165,11 @@ abstract class TokenDeployer<
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const { numerator, denominator } = normalizeScale(config.scale);
 
-    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isCrossCollateralTokenConfig(config)
+    ) {
       return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
       return [
@@ -194,6 +205,8 @@ abstract class TokenDeployer<
         config.mailbox,
         collateralDomain,
       ];
+    } else if (isOftTokenConfig(config)) {
+      return [config.oft, config.owner];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -247,10 +260,14 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (
+    if (isOftTokenConfig(config)) {
+      // OFT is deployed unproxied — owner is set in constructor, no initialize
+      throw new Error('OFT does not use initialize');
+    } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isNativeTokenConfig(config)
+      isNativeTokenConfig(config) ||
+      isCrossCollateralTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -409,6 +426,51 @@ abstract class TokenDeployer<
               }),
             );
           }
+        }
+      }),
+    );
+  }
+
+  protected async configureOftDomains(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const oftConfigs = objFilter(
+      configMap,
+      (_, config): config is OftTokenConfig => isOftTokenConfig(config),
+    );
+
+    await promiseObjAll(
+      objMap(oftConfigs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeOft__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedMappings = resolveRouterMapConfig(
+          this.multiProvider,
+          config.domainMappings,
+        );
+
+        for (const [domainId, lzEid] of Object.entries(resolvedMappings)) {
+          this.logger.info(`Adding OFT domain mapping on ${chain}`, {
+            hyperlaneDomain: domainId,
+            lzEid,
+          });
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.addDomain(Number(domainId), lzEid),
+          );
+        }
+
+        // Set extra options if configured
+        if (config.extraOptions) {
+          this.logger.info(`Setting OFT extra options on ${chain}`);
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.setExtraOptions(config.extraOptions),
+          );
         }
       }),
     );
@@ -676,6 +738,60 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async enrollCrossCollateralRouters(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isCrossCollateralTokenConfig(config)) {
+          return;
+        }
+        if (
+          !config.crossCollateralRouters ||
+          Object.keys(config.crossCollateralRouters).length === 0
+        ) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedRouters = resolveRouterMapConfig(
+          this.multiProvider,
+          config.crossCollateralRouters,
+        );
+
+        const domains: number[] = [];
+        const routers: string[] = [];
+        for (const [domainId, routerAddresses] of Object.entries(
+          resolvedRouters,
+        )) {
+          for (const routerAddr of routerAddresses) {
+            domains.push(Number(domainId));
+            routers.push(addressToBytes32(routerAddr));
+          }
+        }
+
+        if (domains.length > 0) {
+          this.logger.info(
+            `Batch enrolling ${domains.length} routers for ${chain}`,
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            crossCollateralRouter.enrollCrossCollateralRouters(
+              domains,
+              routers,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -702,13 +818,39 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
+    // Deploy OFT contracts separately — they lack Router/MailboxClient interfaces
+    // and must not be in this.deployedContracts during super.deploy(), which calls
+    // enrollRemoteRouters/configureClients on all entries.
+    const oftContracts: Record<string, Record<string, unknown>> = {};
+    for (const [chain, config] of Object.entries(resolvedConfigMap)) {
+      if (!isOftTokenConfig(config)) continue;
+      const contractKey = this.routerContractKey(config);
+      const constructorArgs = await this.constructorArgs(chain, config);
+      const contract = await this.deployContract(
+        chain,
+        contractKey,
+        constructorArgs,
+      );
+      oftContracts[chain] = { [contractKey]: contract };
+      delete resolvedConfigMap[chain];
+    }
+
+    // Deploy remaining (non-OFT) contracts via full Router deployer flow
     const deployedContractsMap = await super.deploy(resolvedConfigMap);
+
+    // Now safe to merge OFT entries — Router-specific methods have already run
+    for (const [chain, contracts] of Object.entries(oftContracts)) {
+      this.addDeployedContracts(chain, contracts);
+    }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
 
     // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
     await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
+
+    // Configure OFT domain mappings (Hyperlane domain → LZ EID)
+    await this.configureOftDomains(configMap, deployedContractsMap);
 
     await this.setRebalancers(configMap, deployedContractsMap);
 
@@ -721,6 +863,8 @@ abstract class TokenDeployer<
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
 
     await this.deployPredicateWrappers(configMap, deployedContractsMap);
+
+    await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 
@@ -748,7 +892,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as TokenRouter;
       }
     }
     throw new Error('No matching contract found');
@@ -806,7 +950,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         const tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
-        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        if (!isEVMLike(this.multiProvider.getProtocol(chain))) {
           this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
           return;
         }

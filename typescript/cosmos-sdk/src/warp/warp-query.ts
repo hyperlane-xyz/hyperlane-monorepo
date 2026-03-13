@@ -2,7 +2,7 @@ import { type QueryClient } from '@cosmjs/stargate';
 
 import { warpTypes } from '@hyperlane-xyz/cosmos-types';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { type WarpExtension } from '../hyperlane/warp/query.js';
 import {
@@ -89,6 +89,10 @@ export async function getCollateralWarpTokenConfig(
       tokenAddress,
     );
 
+    // Cosmos SDK tokens do not store token metadata on chain yet
+    rootLogger.warn(
+      `Token metadata (name, symbol, decimals) is not stored on-chain for Cosmos collateral token at ${tokenAddress}. Falling back to placeholder values.`,
+    );
     return {
       type: AltVM.TokenType.collateral,
       address: token.id,
@@ -96,8 +100,9 @@ export async function getCollateralWarpTokenConfig(
       mailbox: token.origin_mailbox,
       interchainSecurityModule: token.ism_id,
       token: token.origin_denom,
-      name: '',
-      symbol: '',
+      // Cosmos SDK tokens do not store token metadata on chain yet
+      name: 'Unknown',
+      symbol: 'Unknown',
       decimals: 0,
       remoteRouters,
       destinationGas,
@@ -129,14 +134,19 @@ export async function getSyntheticWarpTokenConfig(
       tokenAddress,
     );
 
+    // Cosmos SDK tokens do not store token metadata on chain yet
+    rootLogger.warn(
+      `Token metadata (name, symbol, decimals) is not stored on-chain for Cosmos synthetic token at ${tokenAddress}. Falling back to placeholder values.`,
+    );
     return {
       type: AltVM.TokenType.synthetic,
       address: token.id,
       owner: token.owner,
       mailbox: token.origin_mailbox,
       interchainSecurityModule: token.ism_id,
-      name: '',
-      symbol: '',
+      // Cosmos SDK tokens do not store token metadata on chain yet
+      name: 'Unknown',
+      symbol: 'Unknown',
       decimals: 0,
       remoteRouters,
       destinationGas,

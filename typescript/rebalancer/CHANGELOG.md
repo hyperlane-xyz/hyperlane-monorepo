@@ -1,5 +1,85 @@
 # @hyperlane-xyz/rebalancer
 
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [de5f6b5]
+- Updated dependencies [a1f9e41]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [7af7728]
+  - @hyperlane-xyz/sdk@27.1.0
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/metrics@0.2.2
+  - @hyperlane-xyz/core@11.0.2
+
+## 27.0.0
+
+### Major Changes
+
+- b05e242: Mixed-mode rebalancing was added to enable simultaneous movable collateral (EVM) and inventory (multi-VM) execution within a single rebalancer configuration, enabling cross-protocol rebalancing across EVM and Sealevel chains.
+
+  **BREAKING CHANGES:**
+  - `inventorySigner` config field was replaced with `inventorySigners`, a per-protocol map (`Partial<Record<ProtocolType, { address: string; key?: string } | string>>`). Existing configs using `inventorySigner` must migrate to the new schema.
+  - `IExternalBridge.execute()` signature changed from `(quote, privateKey: string)` to `(quote, privateKeys: Partial<Record<ProtocolType, string>>)`. All `IExternalBridge` implementations must update their `execute` method to accept the new multi-protocol key map.
+
+  **New features:**
+  - Per-protocol signer architecture supporting EVM + Sealevel keys simultaneously.
+  - `transferRemote` execution refactored to use `WarpCore.getTransferRemoteTxs()` for multi-VM compatibility, with protocol-aware receipt parsing and `SealevelCoreAdapter.parseMessageDispatchLogs` for Sealevel message ID extraction.
+  - LiFi bridge extended with Sealevel support via `KeypairWalletAdapter`, Hyperlane domain ID to LiFi chain ID translation, and mutex around configure+execute to prevent race conditions.
+  - Startup validation for signer coverage against all inventory route protocols, per-protocol address format validation, and Solana pubkey cross-check.
+  - `parseSolanaPrivateKey()` utility with strict 64-byte validation and base58 normalization.
+  - Zod schemas hardened for strategy configs, external bridges, and inventory signers with per-protocol address validation.
+  - Private key redaction in log statements and EVM-only filtering for Explorer signer addresses.
+
+### Patch Changes
+
+- 354668e: SnapshotHelper was extracted for shared e2e snapshot reset with timeout/retry logic. blockTag was changed to use raw eth_blockNumber RPC to bypass stale provider cache. TestHelpers race condition in getFirstMonitorEvent() was fixed with a settled flag.
+- Updated dependencies [f2620a1]
+- Updated dependencies [f7ebf6c]
+- Updated dependencies [8a6f742]
+- Updated dependencies [b05e242]
+- Updated dependencies [aee625c]
+  - @hyperlane-xyz/sdk@27.0.0
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/metrics@0.2.1
+  - @hyperlane-xyz/utils@27.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.1
+
+## 26.0.0
+
+### Patch Changes
+
+- 279b714: Provider initialization in `RebalancerContextFactory.create()` was restricted to EVM chains only. Non-EVM warp route chains (e.g. StarkNet, Sealevel) are now skipped, preventing crashes from ethers v5 rejecting non-numeric chainIds.
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/metrics@0.2.0
+  - @hyperlane-xyz/core@11.0.1
+
+## 25.5.0
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/metrics@0.1.11
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 3.2.1
 
 ### Patch Changes
