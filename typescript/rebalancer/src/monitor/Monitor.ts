@@ -137,7 +137,10 @@ export class Monitor implements IMonitor {
             });
           }
 
-          const inventoryBalances = await this.fetchInventoryBalances();
+          const {
+            balances: inventoryBalances,
+            failedChains: inventoryFetchFailures,
+          } = await this.fetchInventoryBalances();
           if (Object.keys(inventoryBalances).length > 0) {
             event.inventoryBalances = inventoryBalances;
             this.logger.info(
@@ -153,6 +156,9 @@ export class Monitor implements IMonitor {
               },
               'Inventory balances fetched',
             );
+          }
+          if (inventoryFetchFailures.length > 0) {
+            event.inventoryFetchFailures = inventoryFetchFailures;
           }
 
           if (this.tokenInfoHandler) {
@@ -250,10 +256,14 @@ export class Monitor implements IMonitor {
     return bridgedSupply;
   }
 
-  private async fetchInventoryBalances(): Promise<ChainMap<bigint>> {
-    if (!this.inventoryConfig) return {};
+  private async fetchInventoryBalances(): Promise<{
+    balances: ChainMap<bigint>;
+    failedChains: ChainName[];
+  }> {
+    if (!this.inventoryConfig) return { balances: {}, failedChains: [] };
 
     const balances: ChainMap<bigint> = {};
+    const failedChains: ChainName[] = [];
 
     const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
       const token = this.warpCore.tokens.find((t) => t.chainName === chainName);
@@ -291,6 +301,7 @@ export class Monitor implements IMonitor {
           { chain: chainName, error: (error as Error).message },
           'Failed to read inventory balance',
         );
+        failedChains.push(chainName);
         return { chainName, balance: 0n };
       }
     });
@@ -301,7 +312,7 @@ export class Monitor implements IMonitor {
       balances[chainName] = balance;
     }
 
-    return balances;
+    return { balances, failedChains };
   }
 
   stop(): Promise<void> {

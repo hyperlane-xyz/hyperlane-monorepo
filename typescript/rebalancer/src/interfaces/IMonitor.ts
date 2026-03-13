@@ -1,5 +1,6 @@
 import {
   type ChainMap,
+  type ChainName,
   EthJsonRpcBlockParameterTag,
   type Token,
 } from '@hyperlane-xyz/sdk';
@@ -34,6 +35,7 @@ export type MonitorEvent = {
   }[];
   confirmedBlockTags: ConfirmedBlockTags;
   inventoryBalances?: ChainMap<bigint>;
+  inventoryFetchFailures?: ChainName[];
 };
 
 /**
