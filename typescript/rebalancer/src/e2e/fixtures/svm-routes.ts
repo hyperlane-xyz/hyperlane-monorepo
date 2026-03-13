@@ -211,7 +211,8 @@ export const MIXED_SIGNER_PRESETS: Record<
     anvil2: '1000000000000000000', // 1 ETH
   },
   SIGNER_LOW_ALL: {
-    anvil1: '1000000000000000000', // 1 ETH
+    // Effective balances after adjustment: anvil1 starved to force bridge movement
+    anvil1: '0',
     anvil2: '1000000000000000000', // 1 ETH
     anvil3: '1000000000000000000', // 1 ETH
   },
@@ -221,9 +222,10 @@ export const MIXED_SIGNER_PRESETS: Record<
     anvil3: '0',
   },
   SIGNER_SPLIT_SOURCES: {
-    anvil1: '10000000000000000000', // 10 ETH
+    // Effective balances after tuning: reduced to 1.2 ETH to allow bridge movement
+    anvil1: '1200000000000000000', // 1.2 ETH
     anvil2: '0',
-    anvil3: '10000000000000000000', // 10 ETH
+    anvil3: '1200000000000000000', // 1.2 ETH
   },
 };
 

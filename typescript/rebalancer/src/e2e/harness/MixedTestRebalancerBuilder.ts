@@ -331,7 +331,7 @@ export class MixedTestRebalancerBuilder {
     const orchestrator = new RebalancerOrchestrator(orchestratorDeps);
 
     const signerBalances = this.inventorySignerBalances
-      ? this.adjustSignerBalancesForMixedScenarios(this.inventorySignerBalances)
+      ? this.inventorySignerBalances
       : Object.fromEntries(
           TEST_CHAINS.map((chain) => [
             chain,
@@ -422,39 +422,5 @@ export class MixedTestRebalancerBuilder {
       },
       'Adjusted EVM collateral to satisfy minAmount strategy validation',
     );
-  }
-
-  private adjustSignerBalancesForMixedScenarios(
-    balances: Record<string, string>,
-  ): Record<string, string> {
-    const oneEth = ethers.utils.parseEther('1').toString();
-    const tenEth = ethers.utils.parseEther('10').toString();
-
-    const lowAllPattern =
-      balances.anvil1 === oneEth &&
-      balances.anvil2 === oneEth &&
-      balances.anvil3 === oneEth;
-    if (lowAllPattern) {
-      return {
-        anvil1: '0',
-        anvil2: oneEth,
-        anvil3: oneEth,
-      };
-    }
-
-    const splitSourcesPattern =
-      balances.anvil1 === tenEth &&
-      balances.anvil2 === '0' &&
-      balances.anvil3 === tenEth;
-    if (splitSourcesPattern) {
-      const tunedSource = ethers.utils.parseEther('1.2').toString();
-      return {
-        anvil1: tunedSource,
-        anvil2: '0',
-        anvil3: tunedSource,
-      };
-    }
-
-    return balances;
   }
 }
