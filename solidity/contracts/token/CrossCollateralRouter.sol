@@ -14,11 +14,11 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Core Imports ============
-import {HypERC20Collateral} from "@hyperlane-xyz/core/token/HypERC20Collateral.sol";
-import {TokenMessage} from "@hyperlane-xyz/core/token/libs/TokenMessage.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
-import {IPostDispatchHook} from "@hyperlane-xyz/core/interfaces/hooks/IPostDispatchHook.sol";
-import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
+import {HypERC20Collateral} from "./HypERC20Collateral.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {Quote} from "../interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -41,6 +41,7 @@ import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
  *  - handle(): accepts messages from the mailbox (cross-chain) or directly
  *    from enrolled routers on the same chain.
  */
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     using TypeCasts for address;
     using TypeCasts for bytes32;
@@ -63,7 +64,8 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
 
     /// @notice Additional enrolled routers by domain (beyond the standard
     /// enrolled remote router). Local routers use localDomain as key.
-    mapping(uint32 => EnumerableSet.Bytes32Set) private _crossCollateralRouters;
+    mapping(uint32 domain => EnumerableSet.Bytes32Set routers)
+        private _crossCollateralRouters;
 
     /// @notice Tracks which domains have at least one CrossCollateral-enrolled router,
     /// enabling on-chain enumeration for the SDK reader.
@@ -366,6 +368,21 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     // Mirrors TokenRouter.quoteTransferRemote. Same 3-element quote structure.
     // Differences: (1) router-aware fee lookup, (2) same-domain returns 0 gas
     // since handle() is called directly without mailbox dispatch.
+
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public view override returns (Quote[] memory quotes) {
+        bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
+        return
+            quoteTransferRemoteTo(
+                _destination,
+                _recipient,
+                _amount,
+                targetRouter
+            );
+    }
 
     /// @inheritdoc ICrossCollateralFee
     function quoteTransferRemoteTo(

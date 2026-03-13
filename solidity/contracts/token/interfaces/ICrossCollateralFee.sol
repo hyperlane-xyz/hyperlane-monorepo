@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
+import {Quote} from "../../interfaces/ITokenBridge.sol";
 
 interface ICrossCollateralFee {
     function quoteTransferRemoteTo(

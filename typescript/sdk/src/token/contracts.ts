@@ -1,6 +1,7 @@
 import { ContractFactory } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearEthBridge__factory,
   EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
@@ -21,10 +22,7 @@ import {
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
-import {
-  CrossCollateralRouter__factory,
-  TokenBridgeOft__factory,
-} from '@hyperlane-xyz/multicollateral';
+import { TokenBridgeOft__factory } from '@hyperlane-xyz/multicollateral';
 
 import { DeployableTokenType, TokenType } from './config.js';
 

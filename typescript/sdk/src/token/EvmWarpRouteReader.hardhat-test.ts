@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import {
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626,
@@ -30,7 +31,6 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,

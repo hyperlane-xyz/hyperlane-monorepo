@@ -4,6 +4,7 @@ import { BigNumberish, constants } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearTokenBridge__factory,
   GasRouter__factory,
   IERC20__factory,
@@ -13,7 +14,6 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,

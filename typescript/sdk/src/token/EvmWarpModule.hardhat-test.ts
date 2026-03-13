@@ -8,6 +8,7 @@ import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test,
@@ -24,7 +25,6 @@ import {
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   EvmIsmModule,
   HookConfig,
