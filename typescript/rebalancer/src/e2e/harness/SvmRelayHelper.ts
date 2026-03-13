@@ -11,12 +11,9 @@ import {
   type MultiProvider,
   SealevelCoreAdapter,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  ensure0x,
-  messageId,
-  parseMessage,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
+
+import { extractRawMessage } from './SvmMessageParser.js';
 
 export interface SvmToEvmRelayOpts {
   connection: Connection;
@@ -25,9 +22,6 @@ export interface SvmToEvmRelayOpts {
   multiProvider: MultiProvider;
   logger: Logger;
 }
-
-const DISPATCHED_MESSAGE_DISCRIMINATOR = Buffer.from('DISPATCH');
-const DISPATCHED_MESSAGE_HEADER_SIZE = 8 + 4 + 8 + 32;
 
 export async function relaySvmToEvmMessages(
   opts: SvmToEvmRelayOpts,
@@ -119,7 +113,8 @@ async function relaySingle(
   if (await target.mailbox.delivered(messageIdHex)) return;
 
   const message = await extractRawMessage(
-    opts,
+    opts.connection,
+    opts.mailboxProgramId,
     svmTx,
     messageIdHex,
     destinationDomain,
@@ -146,81 +141,4 @@ async function relaySingle(
     { messageId: messageIdHex, destinationChain: target.chain, signature },
     'Relayed SVM-origin message to EVM mailbox',
   );
-}
-
-async function extractRawMessage(
-  opts: SvmToEvmRelayOpts,
-  tx: VersionedTransactionResponse,
-  expectedMessageId: string,
-  expectedDestinationDomain: number,
-): Promise<string | null> {
-  for (const key of getCandidateKeys(tx)) {
-    const pda = SealevelCoreAdapter.deriveMailboxDispatchedMessagePda(
-      opts.mailboxProgramId,
-      key,
-    );
-
-    const accountInfo = await opts.connection.getAccountInfo(pda, 'confirmed');
-    if (!accountInfo?.data) continue;
-
-    const maybeMessage = parseDispatchedMessageAccount(
-      Buffer.from(accountInfo.data),
-      expectedMessageId,
-      expectedDestinationDomain,
-    );
-    if (maybeMessage) return maybeMessage;
-  }
-
-  return null;
-}
-
-function parseDispatchedMessageAccount(
-  data: Buffer,
-  expectedMessageId: string,
-  expectedDestinationDomain: number,
-): string | null {
-  if (data.length <= DISPATCHED_MESSAGE_HEADER_SIZE) return null;
-
-  const discriminator = data.subarray(0, 8);
-  if (!discriminator.equals(DISPATCHED_MESSAGE_DISCRIMINATOR)) return null;
-
-  const encodedMessage = ensure0x(
-    data.subarray(DISPATCHED_MESSAGE_HEADER_SIZE).toString('hex'),
-  );
-  if (
-    messageId(encodedMessage).toLowerCase() !== expectedMessageId.toLowerCase()
-  ) {
-    return null;
-  }
-
-  const parsed = parseMessage(encodedMessage);
-  if (parsed.destination !== expectedDestinationDomain) return null;
-
-  return encodedMessage;
-}
-
-function getCandidateKeys(tx: VersionedTransactionResponse): PublicKey[] {
-  const keys = new Map<string, PublicKey>();
-
-  const message = tx.transaction.message as {
-    staticAccountKeys?: ReadonlyArray<PublicKey>;
-    accountKeys?: ReadonlyArray<PublicKey>;
-  };
-
-  for (const key of message.staticAccountKeys ?? []) {
-    keys.set(key.toBase58(), key);
-  }
-  for (const key of message.accountKeys ?? []) {
-    keys.set(key.toBase58(), key);
-  }
-  for (const key of tx.meta?.loadedAddresses?.readonly ?? []) {
-    const pubkey = new PublicKey(key);
-    keys.set(pubkey.toBase58(), pubkey);
-  }
-  for (const key of tx.meta?.loadedAddresses?.writable ?? []) {
-    const pubkey = new PublicKey(key);
-    keys.set(pubkey.toBase58(), pubkey);
-  }
-
-  return [...keys.values()];
 }

@@ -1,25 +1,15 @@
-import {
-  Connection,
-  PublicKey,
-  type VersionedTransactionResponse,
-} from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import type { Logger } from 'pino';
 
 import { SealevelCoreAdapter } from '@hyperlane-xyz/sdk';
-import {
-  bytes32ToAddress,
-  ensure0x,
-  messageId,
-  parseMessage,
-} from '@hyperlane-xyz/utils';
+import { bytes32ToAddress, parseMessage } from '@hyperlane-xyz/utils';
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import type { IForkIndexer } from './IForkIndexer.js';
+import { extractRawMessage } from './SvmMessageParser.js';
 
 const SVM_DOMAIN_ID = 13375;
-const DISPATCHED_MESSAGE_DISCRIMINATOR = Buffer.from('DISPATCH');
-const DISPATCHED_MESSAGE_HEADER_SIZE = 8 + 4 + 8 + 32;
 
 export class SvmForkIndexer implements IForkIndexer {
   private lastScannedSlot: number = 0;
@@ -135,7 +125,9 @@ export class SvmForkIndexer implements IForkIndexer {
           send_occurred_at: null,
         };
 
-        const rawMessage = await this.extractRawMessage(
+        const rawMessage = await extractRawMessage(
+          this.connection,
+          this.mailboxProgramId,
           tx,
           msgId,
           destinationDomain,
@@ -169,75 +161,5 @@ export class SvmForkIndexer implements IForkIndexer {
       this.lastSignature = signatures[0].signature;
     }
     this.lastScannedSlot = currentSlot;
-  }
-
-  private getCandidateKeys(tx: VersionedTransactionResponse): PublicKey[] {
-    const keys = new Map<string, PublicKey>();
-    const message = tx.transaction.message as {
-      staticAccountKeys?: ReadonlyArray<PublicKey>;
-      accountKeys?: ReadonlyArray<PublicKey>;
-    };
-    for (const key of message.staticAccountKeys ?? []) {
-      keys.set(key.toBase58(), key);
-    }
-    for (const key of message.accountKeys ?? []) {
-      keys.set(key.toBase58(), key);
-    }
-    for (const key of tx.meta?.loadedAddresses?.readonly ?? []) {
-      const pubkey = new PublicKey(key);
-      keys.set(pubkey.toBase58(), pubkey);
-    }
-    for (const key of tx.meta?.loadedAddresses?.writable ?? []) {
-      const pubkey = new PublicKey(key);
-      keys.set(pubkey.toBase58(), pubkey);
-    }
-    return [...keys.values()];
-  }
-
-  private parseDispatchedMessageAccount(
-    data: Buffer,
-    expectedMessageId: string,
-    expectedDestinationDomain: number,
-  ): string | null {
-    if (data.length <= DISPATCHED_MESSAGE_HEADER_SIZE) return null;
-    const discriminator = data.subarray(0, 8);
-    if (!discriminator.equals(DISPATCHED_MESSAGE_DISCRIMINATOR)) return null;
-    const encodedMessage = ensure0x(
-      data.subarray(DISPATCHED_MESSAGE_HEADER_SIZE).toString('hex'),
-    );
-    if (
-      messageId(encodedMessage).toLowerCase() !==
-      expectedMessageId.toLowerCase()
-    ) {
-      return null;
-    }
-    const parsed = parseMessage(encodedMessage);
-    if (parsed.destination !== expectedDestinationDomain) return null;
-    return encodedMessage;
-  }
-
-  private async extractRawMessage(
-    tx: VersionedTransactionResponse,
-    expectedMessageId: string,
-    expectedDestinationDomain: number,
-  ): Promise<string | null> {
-    for (const key of this.getCandidateKeys(tx)) {
-      const pda = SealevelCoreAdapter.deriveMailboxDispatchedMessagePda(
-        this.mailboxProgramId,
-        key,
-      );
-      const accountInfo = await this.connection.getAccountInfo(
-        pda,
-        'confirmed',
-      );
-      if (!accountInfo?.data) continue;
-      const maybeMessage = this.parseDispatchedMessageAccount(
-        Buffer.from(accountInfo.data),
-        expectedMessageId,
-        expectedDestinationDomain,
-      );
-      if (maybeMessage) return maybeMessage;
-    }
-    return null;
   }
 }
