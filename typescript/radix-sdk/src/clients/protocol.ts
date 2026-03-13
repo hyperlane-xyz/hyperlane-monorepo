@@ -12,7 +12,9 @@ import {
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
+import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -94,13 +96,17 @@ export class RadixProtocolProvider implements ProtocolProvider {
     return new RadixWarpArtifactManager(gateway, base);
   }
 
-  createMailboxArtifactManager(chainMetadata: ChainMetadataForAltVM) {
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager {
     const { gateway, base, domainId } =
       this.configureNetworkConnection(chainMetadata);
     return new RadixMailboxArtifactManager(gateway, base, domainId);
   }
 
-  createValidatorAnnounceArtifactManager(chainMetadata: ChainMetadataForAltVM) {
+  createValidatorAnnounceArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager {
     const { gateway, base } = this.configureNetworkConnection(chainMetadata);
     return new RadixValidatorAnnounceArtifactManager(gateway, base);
   }

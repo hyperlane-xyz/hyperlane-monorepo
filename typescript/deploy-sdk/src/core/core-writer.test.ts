@@ -920,6 +920,86 @@ describe('CoreWriter', () => {
       expect(result).to.be.an('array').with.lengthOf(0);
     });
 
+    it('should deploy NEW ISM when current is zero-address UNDERIVED', async () => {
+      // ARRANGE
+      const currentMailbox = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox as any);
+
+      const newIsm: DeployedIsmArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'merkleRootMultisigIsm',
+          validators: ['0xVALIDATOR1'],
+          threshold: 1,
+        },
+        deployed: { address: mockNewIsmAddress },
+      };
+
+      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.NEW,
+            config: newIsm.config,
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+      };
+
+      const ismCreateStub = sinon
+        .stub<
+          [ArtifactNew<IsmArtifactConfig>],
+          Promise<[DeployedIsmArtifact, TxReceipt[]]>
+        >()
+        .callsFake(async () => [newIsm, [mockReceipt]]);
+
+      const mockIsmWriter = {
+        create: ismCreateStub,
+        update: sinon.stub(),
+        read: sinon.stub(),
+      };
+
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: mockIsmWriter,
+        writable: true,
+      });
+
+      const mockHookWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      // ACT
+      const result = await coreWriter.update(
+        mockMailboxAddress,
+        expectedArtifact,
+      );
+
+      // ASSERT
+      sinon.assert.calledOnce(ismCreateStub);
+      expect(result).to.be.an('array');
+    });
+
     it('should assert artifacts are expanded before updating', async () => {
       // ARRANGE
       const currentMailbox = {
@@ -951,7 +1031,9 @@ describe('CoreWriter', () => {
       // ACT & ASSERT
       await expect(
         coreWriter.update(mockMailboxAddress, expectedArtifact),
-      ).to.be.rejectedWith('Expected Core Reader to expand the ISM config');
+      ).to.be.rejectedWith(
+        'Expected defaultIsm to be DEPLOYED or UNDERIVED with zero address',
+      );
     });
 
     it('should propagate ISM deployment errors', async () => {

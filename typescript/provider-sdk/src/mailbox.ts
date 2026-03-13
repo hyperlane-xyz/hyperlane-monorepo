@@ -6,6 +6,7 @@ import {
   ConfigOnChain,
   IArtifactManager,
   isArtifactDeployed,
+  UnsetArtifactAddress,
 } from './artifact.js';
 import type { ChainLookup } from './chain.js';
 import type { DerivedCoreConfig } from './core.js';
@@ -164,11 +165,11 @@ export function mailboxArtifactToDerivedCoreConfig(
   };
 }
 
-function fromOnChainArtifact<C, D, R>(
-  artifact: ArtifactOnChain<C, D & { address: string }>,
+function fromOnChainArtifact<C, D extends { address: string }, R>(
+  artifact: ArtifactOnChain<C, D>,
   fieldName: keyof DerivedCoreConfig,
-  convert: (artifact: ArtifactDeployed<C, D & { address: string }>) => R,
-): R | typeof ZERO_ADDRESS_HEX_32 {
+  convert: (artifact: ArtifactDeployed<C, D>) => R,
+): R | UnsetArtifactAddress {
   if (isArtifactDeployed(artifact)) {
     return convert(artifact);
   }
