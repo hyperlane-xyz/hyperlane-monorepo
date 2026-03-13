@@ -1,3 +1,4 @@
+import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 import { ISigner } from './altvm.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 
@@ -210,3 +211,5 @@ export interface IArtifactManager<
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<ConfigMap[T], D>;
 }
+
+export type DefaultArtifactAddress = typeof ZERO_ADDRESS_HEX_32;

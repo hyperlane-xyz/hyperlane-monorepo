@@ -15,6 +15,7 @@ import {
   IRawMailboxArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk/protocol';
+import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { CoreArtifactReader } from './core-artifact-reader.js';
 
@@ -105,6 +106,9 @@ describe('CoreArtifactReader', () => {
     deployed: { address: mockRequiredHookAddress },
   };
 
+  let mockIsmReader: { read: sinon.SinonStub };
+  let mockHookReader: { read: sinon.SinonStub };
+
   beforeEach(() => {
     readMailboxStub = sinon
       .stub<[string], Promise<DeployedRawMailboxArtifact>>()
@@ -134,11 +138,22 @@ describe('CoreArtifactReader', () => {
       getKnownChainNames: sinon.stub<[], string[]>().returns([chainName]),
     } satisfies ChainLookup;
 
-    coreReader = new CoreArtifactReader(
+    mockIsmReader = {
+      read: sinon.stub<[string], Promise<DeployedIsmArtifact>>(),
+    };
+
+    mockHookReader = {
+      read: sinon.stub<[string], Promise<DeployedHookArtifact>>(),
+    };
+
+    coreReader = Object.create(CoreArtifactReader.prototype);
+    Object.assign(coreReader, {
       mailboxArtifactManager,
       chainMetadata,
       chainLookup,
-    );
+      ismReader: mockIsmReader,
+      hookReaderFactory: () => mockHookReader,
+    });
   });
 
   afterEach(() => {
@@ -148,29 +163,12 @@ describe('CoreArtifactReader', () => {
   describe('read', () => {
     it('should read mailbox and expand nested ISM/hook artifacts', async () => {
       // ARRANGE
-      const mockIsmReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedIsmArtifact>>()
-          .resolves(mockExpandedIsm),
-      };
-
-      const mockHookReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedHookArtifact>>()
-          .onFirstCall()
-          .resolves(mockExpandedDefaultHook)
-          .onSecondCall()
-          .resolves(mockExpandedRequiredHook),
-      };
-
-      Object.defineProperty(coreReader, 'ismReader', {
-        value: mockIsmReader,
-        writable: true,
-      });
-      Object.defineProperty(coreReader, 'hookReader', {
-        value: mockHookReader,
-        writable: true,
-      });
+      mockIsmReader.read.resolves(mockExpandedIsm);
+      mockHookReader.read
+        .onFirstCall()
+        .resolves(mockExpandedDefaultHook)
+        .onSecondCall()
+        .resolves(mockExpandedRequiredHook);
 
       // ACT
       const result = await coreReader.read(mockMailboxAddress);
@@ -203,35 +201,18 @@ describe('CoreArtifactReader', () => {
       // ARRANGE
       const callOrder: string[] = [];
 
-      const mockIsmReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedIsmArtifact>>()
-          .callsFake(async () => {
-            callOrder.push('ism');
-            return mockExpandedIsm;
-          }),
-      };
-
-      const mockHookReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedHookArtifact>>()
-          .callsFake(async (address: string) => {
-            if (address === mockDefaultHookAddress) {
-              callOrder.push('defaultHook');
-              return mockExpandedDefaultHook;
-            }
-            callOrder.push('requiredHook');
-            return mockExpandedRequiredHook;
-          }),
-      };
-
-      Object.defineProperty(coreReader, 'ismReader', {
-        value: mockIsmReader,
-        writable: true,
+      mockIsmReader.read.callsFake(async () => {
+        callOrder.push('ism');
+        return mockExpandedIsm;
       });
-      Object.defineProperty(coreReader, 'hookReader', {
-        value: mockHookReader,
-        writable: true,
+
+      mockHookReader.read.callsFake(async (address: string) => {
+        if (address === mockDefaultHookAddress) {
+          callOrder.push('defaultHook');
+          return mockExpandedDefaultHook;
+        }
+        callOrder.push('requiredHook');
+        return mockExpandedRequiredHook;
       });
 
       // ACT
@@ -257,30 +238,60 @@ describe('CoreArtifactReader', () => {
       );
     });
 
+    it('should skip ISM/hook reader expansion for zero-address artifacts', async () => {
+      // ARRANGE
+      const zeroAddressMailbox: DeployedRawMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+          requiredHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      readMailboxStub.resolves(zeroAddressMailbox);
+      mockIsmReader.read.resolves(mockExpandedIsm);
+      mockHookReader.read.resolves(mockExpandedDefaultHook);
+
+      // ACT
+      const result = await coreReader.read(mockMailboxAddress);
+
+      // ASSERT
+      expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(result.config.owner).to.equal(mockOwner);
+
+      // Nested artifacts should remain UNDERIVED (not expanded)
+      expect(result.config.defaultIsm.artifactState).to.equal(
+        ArtifactState.UNDERIVED,
+      );
+      expect(result.config.defaultHook.artifactState).to.equal(
+        ArtifactState.UNDERIVED,
+      );
+      expect(result.config.requiredHook.artifactState).to.equal(
+        ArtifactState.UNDERIVED,
+      );
+
+      // Readers should NOT have been called
+      sinon.assert.notCalled(mockIsmReader.read);
+      sinon.assert.notCalled(mockHookReader.read);
+    });
+
     it('should propagate ISM reader errors', async () => {
       // ARRANGE
       const error = new Error('ISM read failed');
-
-      const mockIsmReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedIsmArtifact>>()
-          .rejects(error),
-      };
-
-      const mockHookReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedHookArtifact>>()
-          .resolves(mockExpandedDefaultHook),
-      };
-
-      Object.defineProperty(coreReader, 'ismReader', {
-        value: mockIsmReader,
-        writable: true,
-      });
-      Object.defineProperty(coreReader, 'hookReader', {
-        value: mockHookReader,
-        writable: true,
-      });
+      mockIsmReader.read.rejects(error);
+      mockHookReader.read.resolves(mockExpandedDefaultHook);
 
       // ACT & ASSERT
       await expect(coreReader.read(mockMailboxAddress)).to.be.rejectedWith(
@@ -291,27 +302,8 @@ describe('CoreArtifactReader', () => {
     it('should propagate hook reader errors', async () => {
       // ARRANGE
       const error = new Error('Hook read failed');
-
-      const mockIsmReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedIsmArtifact>>()
-          .resolves(mockExpandedIsm),
-      };
-
-      const mockHookReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedHookArtifact>>()
-          .rejects(error),
-      };
-
-      Object.defineProperty(coreReader, 'ismReader', {
-        value: mockIsmReader,
-        writable: true,
-      });
-      Object.defineProperty(coreReader, 'hookReader', {
-        value: mockHookReader,
-        writable: true,
-      });
+      mockIsmReader.read.resolves(mockExpandedIsm);
+      mockHookReader.read.rejects(error);
 
       // ACT & ASSERT
       await expect(coreReader.read(mockMailboxAddress)).to.be.rejectedWith(
@@ -323,29 +315,12 @@ describe('CoreArtifactReader', () => {
   describe('deriveCoreConfig', () => {
     it('should convert artifact to DerivedCoreConfig format', async () => {
       // ARRANGE
-      const mockIsmReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedIsmArtifact>>()
-          .resolves(mockExpandedIsm),
-      };
-
-      const mockHookReader = {
-        read: sinon
-          .stub<[string], Promise<DeployedHookArtifact>>()
-          .onFirstCall()
-          .resolves(mockExpandedDefaultHook)
-          .onSecondCall()
-          .resolves(mockExpandedRequiredHook),
-      };
-
-      Object.defineProperty(coreReader, 'ismReader', {
-        value: mockIsmReader,
-        writable: true,
-      });
-      Object.defineProperty(coreReader, 'hookReader', {
-        value: mockHookReader,
-        writable: true,
-      });
+      mockIsmReader.read.resolves(mockExpandedIsm);
+      mockHookReader.read
+        .onFirstCall()
+        .resolves(mockExpandedDefaultHook)
+        .onSecondCall()
+        .resolves(mockExpandedRequiredHook);
 
       // ACT
       const result = await coreReader.deriveCoreConfig(mockMailboxAddress);
@@ -370,6 +345,44 @@ describe('CoreArtifactReader', () => {
       await expect(
         coreReader.deriveCoreConfig(mockMailboxAddress),
       ).to.be.rejectedWith('Mailbox read failed');
+    });
+
+    it('should return ZERO_ADDRESS_HEX_32 for zero-address ISM/hooks', async () => {
+      // ARRANGE
+      const zeroAddressMailbox: DeployedRawMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+          requiredHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      readMailboxStub.resolves(zeroAddressMailbox);
+
+      // ACT
+      const result = await coreReader.deriveCoreConfig(mockMailboxAddress);
+
+      // ASSERT
+      expect(result.owner).to.equal(mockOwner);
+      expect(result.defaultIsm).to.equal(ZERO_ADDRESS_HEX_32);
+      expect(result.defaultHook).to.equal(ZERO_ADDRESS_HEX_32);
+      expect(result.requiredHook).to.equal(ZERO_ADDRESS_HEX_32);
+
+      // Readers should NOT have been called
+      sinon.assert.notCalled(mockIsmReader.read);
+      sinon.assert.notCalled(mockHookReader.read);
     });
   });
 });
