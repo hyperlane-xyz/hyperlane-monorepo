@@ -18,7 +18,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  CallData,
   assert,
   bytes32ToAddress,
   eqAddress,
@@ -32,11 +31,8 @@ import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/
 import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
-import {
-  GovernanceType,
-  Owner,
-  determineGovernanceType,
-} from '../governance.js';
+import { Owner, determineGovernanceType } from '../governance.js';
+import { GovernanceType } from '../governanceTypes.js';
 
 import {
   ManualMultiSend,
@@ -44,27 +40,11 @@ import {
   SafeMultiSend,
   SignerMultiSend,
 } from './multisend.js';
+import type { AnnotatedCallData, InferredCall } from './types.js';
+import { SubmissionType } from './types.js';
 
-export enum SubmissionType {
-  MANUAL = 0,
-  SAFE = 1,
-  SIGNER = 2,
-}
-
-export type AnnotatedCallData = CallData & {
-  submissionType?: SubmissionType;
-  description: string;
-  expandedDescription?: string;
-  callRemoteArgs?: GetCallRemoteSettings;
-  governanceType?: GovernanceType;
-};
-
-export type InferredCall = {
-  type: SubmissionType;
-  chain: ChainName;
-  call: AnnotatedCallData;
-  callRemoteArgs?: GetCallRemoteSettings;
-};
+export type { AnnotatedCallData, InferredCall };
+export { SubmissionType };
 
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,

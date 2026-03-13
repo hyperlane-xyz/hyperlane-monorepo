@@ -10,15 +10,8 @@ import {
   getLegacyGovernanceIcas,
 } from '../config/environments/mainnet3/governance/utils.js';
 
-import { DeployEnvironment } from './config/environment.js';
-
-export enum GovernanceType {
-  AbacusWorks = 'abacusWorks',
-  WarpFees = 'warpFees',
-  Regular = 'regular',
-  Irregular = 'irregular',
-  OUSDT = 'ousdt',
-}
+import { DeployEnvironment } from './config/deploy-environment.js';
+import { GovernanceType } from './governanceTypes.js';
 
 export enum Owner {
   ICA = 'ICA',

@@ -38,16 +38,22 @@ describe('AggregationMetadataBuilder', () => {
     it(`should decode fixture ${i}`, () => {
       const count = fixture.decoded.submoduleMetadata.length;
       expect(
-        AggregationMetadataBuilder.decode(fixture.encoded, {
-          ism: {
-            type: IsmType.AGGREGATION,
-            modules: Array.from(
-              { length: count },
-              () => ethers.constants.AddressZero,
-            ),
-            threshold: count,
+        AggregationMetadataBuilder.decode(
+          fixture.encoded,
+          {
+            ism: {
+              type: IsmType.AGGREGATION,
+              modules: Array.from(
+                { length: count },
+                () => ethers.constants.AddressZero,
+              ),
+              threshold: count,
+            },
+          } as any,
+          () => {
+            throw new Error('Should not be called for string modules');
           },
-        } as any),
+        ),
       ).to.deep.equal(fixture.decoded);
     });
   });

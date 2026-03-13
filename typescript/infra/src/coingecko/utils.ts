@@ -1,6 +1,6 @@
 import { Logger } from 'pino';
 
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { fetchGCPSecret } from '../utils/gcloud.js';
 
 export async function getCoinGeckoApiKey(
