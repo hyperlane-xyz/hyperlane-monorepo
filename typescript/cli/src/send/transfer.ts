@@ -478,10 +478,18 @@ async function executeDelivery({
             maxAttempts,
           );
         } catch (fallbackError) {
-          warnYellow(
-            `On-chain delivery polling not supported for '${destination}' (${destinationProtocol}). ` +
-              `Track at ${EXPLORER_URL}/message/${messageId}`,
-          );
+          const fallbackMsg =
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError);
+          if (fallbackMsg.includes('not implemented')) {
+            warnYellow(
+              `On-chain delivery polling not supported for '${destination}' (${destinationProtocol}). ` +
+                `Track at ${EXPLORER_URL}/message/${messageId}`,
+            );
+          } else {
+            throw fallbackError;
+          }
         }
       } else {
         throw error;
