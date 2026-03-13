@@ -147,30 +147,34 @@ export class ForkIndexer {
     confirmedBlockTags: ConfirmedBlockTags,
   ): Promise<void> {
     const allMessages = [...this.rebalanceActions, ...this.userTransfers];
-    for (const msg of allMessages) {
-      if (msg.is_delivered) continue;
+    await Promise.all(
+      allMessages.map(async (msg) => {
+        if (msg.is_delivered) return;
 
-      const destChain = this.core.multiProvider.tryGetChainName(
-        msg.destination_domain_id,
-      );
-      if (!destChain) continue;
+        const destChain = this.core.multiProvider.tryGetChainName(
+          msg.destination_domain_id,
+        );
+        if (!destChain) return;
 
-      const blockTag = confirmedBlockTags[destChain];
-      if (blockTag === undefined) continue;
+        const blockTag = confirmedBlockTags[destChain];
+        if (blockTag === undefined) return;
 
-      try {
-        const mailbox = this.core.getContracts(destChain).mailbox;
-        const delivered = await mailbox.delivered(msg.msg_id, { blockTag });
-        if (delivered) {
-          msg.is_delivered = true;
-          this.logger.debug(
-            { msgId: msg.msg_id, destChain },
-            'ForkIndexer marked message as delivered',
-          );
+        try {
+          const mailbox = this.core.getContracts(destChain).mailbox;
+          const delivered = await mailbox.delivered(msg.msg_id, {
+            blockTag,
+          });
+          if (delivered) {
+            msg.is_delivered = true;
+            this.logger.debug(
+              { msgId: msg.msg_id, destChain },
+              'ForkIndexer marked message as delivered',
+            );
+          }
+        } catch {
+          // Ignore delivery check failures
         }
-      } catch {
-        // Ignore delivery check failures
-      }
-    }
+      }),
+    );
   }
 }
