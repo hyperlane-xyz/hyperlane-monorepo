@@ -41,12 +41,12 @@ import {
  * - Contract version 10.1.3
  */
 const awProxyAdminAddresses: ChainMap<string> = {
-  arbitrum: '0x80Cebd56A65e46c474a1A101e89E76C4c51D179c',
-  base: '0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1',
-  ethereum: '0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659',
-  optimism: '0xE047cb95FB3b7117989e911c6afb34771183fC35',
-  polygon: '0xC4F7590C5d30BE959225dC75640657954A86b980',
-  unichain: '0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7',
+  arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
+  base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
+  ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
+  optimism: '0x51ec280B550be2999995f0d931Ac2974B9D9304E',
+  polygon: '0xD65217cA148C1074DdF59Bd95079Da76c65e130E',
+  unichain: '0xe175575c38726fd2B62b12e01D92e3F170a90059',
   avalanche: '0x75a06e84226311B71749EF4F33B1e628D7999b83',
   linea: '0x71644C723D205E9Bc9C1939ee7bffECf7b5C9687',
   monad: '0x8F8FEf4Af7575c0A0f9455565ab807484Bb55987',
@@ -56,12 +56,12 @@ const awProxyAdminAddresses: ChainMap<string> = {
 } as const;
 
 const awProxyAdminOwners: ChainMap<string | undefined> = {
-  arbitrum: chainOwners.arbitrum.ownerOverrides?.proxyAdmin,
-  base: chainOwners.base.ownerOverrides?.proxyAdmin,
-  ethereum: chainOwners.ethereum.ownerOverrides?.proxyAdmin,
-  optimism: chainOwners.optimism.ownerOverrides?.proxyAdmin,
-  polygon: chainOwners.polygon.ownerOverrides?.proxyAdmin,
-  unichain: chainOwners.unichain.ownerOverrides?.proxyAdmin,
+  arbitrum: awSafes.arbitrum,
+  base: awSafes.base,
+  ethereum: awSafes.ethereum,
+  optimism: awSafes.optimism,
+  polygon: awSafes.polygon,
+  unichain: awSafes.unichain,
   avalanche: awSafes.avalanche,
   linea: awSafes.linea,
   monad: awSafes.monad,
