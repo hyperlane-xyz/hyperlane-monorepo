@@ -253,6 +253,18 @@ export class SvmEvmLocalDeploymentManager {
     }
   }
 
+  /**
+   * Derives a deterministic EVM address from a Solana deployer public key.
+   *
+   * This method creates a unique, reproducible test signer address by:
+   * 1. Computing the keccak256 hash of the raw Solana pubkey bytes
+   * 2. Taking the last 20 bytes of the hash (via hexDataSlice at offset 12)
+   * 3. Converting to a valid EVM address
+   *
+   * Note: There is no cryptographic relationship between the Solana and EVM keys.
+   * The EVM address is purely arbitrary and deterministic, used only to create
+   * a unique signer address per test environment.
+   */
   private deriveInventorySignerAddress(svmDeployerBytes: Uint8Array): string {
     const digest = ethers.utils.keccak256(svmDeployerBytes);
     return ethers.utils.getAddress(ethers.utils.hexDataSlice(digest, 12));
