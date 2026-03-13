@@ -56,11 +56,13 @@ pub fn log_unsupported_protocol(chain_name: &str, protocol: HyperlaneDomainProto
         protocol = ?protocol,
         "Chain protocol not yet supported for relay API. \
          Fast relay will not be available for this chain. \
-         Supported protocols: EVM"
+         Supported protocols: EVM (Cosmos/CosmosNative coming soon)"
     );
 }
 
 /// Check if a protocol is supported for relay API
 pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
+    // TODO: Add Cosmos and CosmosNative support
+    // Blocked on: proper provider/indexer initialization from chain config
     matches!(protocol, HyperlaneDomainProtocol::Ethereum)
 }

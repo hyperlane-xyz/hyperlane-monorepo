@@ -650,53 +650,69 @@ impl Relayer {
             let mut registry_builder = RegistryBuilder::new();
 
             for (domain, origin) in &self.origins {
-                // Only add EVM chains for now
+                // Check if protocol is supported
                 if !crate::relay_api::registry_builder::is_protocol_supported(
                     domain.domain_protocol(),
                 ) {
                     debug!(
                         domain = %domain.name(),
                         protocol = ?domain.domain_protocol(),
-                        "Skipping non-EVM chain for relay API"
+                        "Skipping unsupported chain for relay API"
                     );
                     continue;
                 }
 
-                // Get RPC URL from connection
-                let rpc_url = match &origin.chain_conf.connection {
-                    hyperlane_base::settings::ChainConnectionConf::Ethereum(eth_conf) => {
-                        use hyperlane_ethereum::RpcConnectionConf;
-                        match &eth_conf.rpc_connection {
-                            RpcConnectionConf::Http { url } => url.to_string(),
-                            RpcConnectionConf::Ws { url } => url.to_string(),
-                            RpcConnectionConf::HttpQuorum { urls }
-                            | RpcConnectionConf::HttpFallback { urls } => {
-                                urls.first().map(|u| u.to_string()).unwrap_or_default()
+                // Create indexer based on protocol type
+                let indexer_result = match domain.domain_protocol() {
+                    hyperlane_core::HyperlaneDomainProtocol::Ethereum => {
+                        // Get RPC URL for EVM
+                        let rpc_url = match &origin.chain_conf.connection {
+                            hyperlane_base::settings::ChainConnectionConf::Ethereum(eth_conf) => {
+                                use hyperlane_ethereum::RpcConnectionConf;
+                                match &eth_conf.rpc_connection {
+                                    RpcConnectionConf::Http { url } => url.to_string(),
+                                    RpcConnectionConf::Ws { url } => url.to_string(),
+                                    RpcConnectionConf::HttpQuorum { urls }
+                                    | RpcConnectionConf::HttpFallback { urls } => {
+                                        urls.first().map(|u| u.to_string()).unwrap_or_default()
+                                    }
+                                }
                             }
+                            _ => {
+                                error!(domain = %domain.name(), "Invalid connection config for EVM chain");
+                                continue;
+                            }
+                        };
+
+                        if rpc_url.is_empty() {
+                            error!(domain = %domain.name(), "Could not extract RPC URL from connection config");
+                            continue;
                         }
+
+                        self.create_evm_mailbox_indexer(domain, &origin.chain_conf, &rpc_url)
+                            .await
+                    }
+                    hyperlane_core::HyperlaneDomainProtocol::Cosmos => {
+                        self.create_cosmos_mailbox_indexer(domain, origin).await
+                    }
+                    hyperlane_core::HyperlaneDomainProtocol::CosmosNative => {
+                        self.create_cosmosnative_mailbox_indexer(domain, origin)
+                            .await
                     }
                     _ => {
-                        debug!(domain = %domain.name(), "Non-EVM chain, skipping");
+                        debug!(domain = %domain.name(), protocol = ?domain.domain_protocol(), "Unsupported protocol");
                         continue;
                     }
                 };
 
-                if rpc_url.is_empty() {
-                    error!(domain = %domain.name(), "Could not extract RPC URL from connection config");
-                    continue;
-                }
-
-                // Create EVM mailbox indexer
-                match self
-                    .create_evm_mailbox_indexer(domain, &origin.chain_conf, &rpc_url)
-                    .await
-                {
+                match indexer_result {
                     Ok(indexer) => {
                         registry_builder =
                             registry_builder.add_chain(&domain, domain.name().to_string(), indexer);
                         info!(
                             domain = %domain.name(),
-                            "Added EVM chain to relay API registry"
+                            protocol = ?domain.domain_protocol(),
+                            "Added chain to relay API registry"
                         );
                     }
                     Err(e) => {
@@ -1192,6 +1208,42 @@ impl Relayer {
         // Wrap in EvmMailboxIndexer with provider for tx lookups
         let evm_indexer = EvmMailboxIndexer::new(eth_indexer, provider, domain.id());
         Ok(Arc::new(evm_indexer))
+    }
+
+    async fn create_cosmos_mailbox_indexer(
+        &self,
+        _domain: &HyperlaneDomain,
+        _origin: &crate::relayer::origin::Origin,
+    ) -> eyre::Result<Arc<dyn crate::relay_api::MailboxIndexer>> {
+        // TODO: Implement Cosmos mailbox indexer creation
+        // This requires:
+        // 1. Creating a CwQueryClient from the Cosmos connection config
+        // 2. Creating a CosmosProvider with the query client
+        // 3. Creating a CwMailboxDispatchIndexer
+        // 4. Wrapping it in CosmosMailboxIndexer
+        //
+        // For now, Cosmos chains will be skipped for relay API
+        // The standard relayer contract indexing path will still work
+        Err(eyre::eyre!("Cosmos relay API support not yet implemented"))
+    }
+
+    async fn create_cosmosnative_mailbox_indexer(
+        &self,
+        _domain: &HyperlaneDomain,
+        _origin: &crate::relayer::origin::Origin,
+    ) -> eyre::Result<Arc<dyn crate::relay_api::MailboxIndexer>> {
+        // TODO: Implement CosmosNative mailbox indexer creation
+        // This requires:
+        // 1. Creating a ModuleQueryClient from the Cosmos connection config
+        // 2. Creating a CosmosProvider with the module query client
+        // 3. Creating a CosmosNativeDispatchIndexer
+        // 4. Wrapping it in CosmosNativeMailboxIndexer
+        //
+        // For now, CosmosNative chains will be skipped for relay API
+        // The standard relayer contract indexing path will still work
+        Err(eyre::eyre!(
+            "CosmosNative relay API support not yet implemented"
+        ))
     }
 }
 

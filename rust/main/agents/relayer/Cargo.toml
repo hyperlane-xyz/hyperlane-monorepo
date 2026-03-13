@@ -57,8 +57,10 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "matching-list",
 ] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" }
 solana-sdk.workspace = true
+hex.workspace = true
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 lander = { path = "../../lander" }
