@@ -1,8 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-
 import { PublicKey } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { type Logger, pino } from 'pino';
@@ -14,6 +9,10 @@ import {
   MultiProtocolProvider,
   ProviderType,
 } from '@hyperlane-xyz/sdk';
+import {
+  SvmNativeTokenWriter,
+  type SvmProgramTarget,
+} from '@hyperlane-xyz/svm-sdk';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -21,15 +20,12 @@ import {
   TEST_CHAIN_CONFIGS,
 } from '../fixtures/routes.js';
 import {
-  AGAVE_BIN_DIR,
-  DEPLOYER_KEYPAIR,
   type SvmDeployedAddresses,
-  SEALEVEL_CLIENT,
-  SEALEVEL_DIR,
   SVM_CHAIN_METADATA,
   SVM_CHAIN_NAME,
   SVM_DOMAIN_ID,
-  WARP_ROUTE_PROGRAM_ID,
+  createSvmRpc,
+  createSvmSigner,
 } from '../fixtures/svm-routes.js';
 
 import { NativeLocalDeploymentManager } from './NativeLocalDeploymentManager.js';
@@ -42,7 +38,6 @@ export class SvmEvmLocalDeploymentManager {
   private evmManager?: NativeLocalDeploymentManager;
   private svmManager?: SealevelLocalChainManager;
   private svmDeployedAddresses?: SvmDeployedAddresses;
-  private sealevelClientConfigPath?: string;
 
   constructor(logger?: Logger) {
     this.logger =
@@ -70,10 +65,6 @@ export class SvmEvmLocalDeploymentManager {
       await evmManager.start();
       await svmManager.start();
 
-      this.sealevelClientConfigPath = this.createSealevelClientConfig(
-        svmManager.getRpcUrl(),
-      );
-
       await svmManager.deployCore(SVM_DOMAIN_ID, [REMOTE_SEALEVEL_DOMAIN]);
       const { tokenPda } = await svmManager.deployWarpRoute(
         SVM_DOMAIN_ID,
@@ -90,8 +81,6 @@ export class SvmEvmLocalDeploymentManager {
   }
 
   async teardown(): Promise<void> {
-    this.cleanupSealevelClientConfig();
-
     const svmManager = this.svmManager;
     const evmManager = this.evmManager;
 
@@ -224,77 +213,40 @@ export class SvmEvmLocalDeploymentManager {
   private async enrollSvmRouterToEvmRouters(): Promise<void> {
     const deployedAddresses: NativeDeployedAddresses =
       this.getEvmDeploymentManager().getContext().deployedAddresses;
+    const svmManager = this.getSvmChainManager();
+    const warpProgramId = svmManager.getWarpRouteProgramId();
 
+    const rpc = createSvmRpc();
+    const signer = await createSvmSigner();
+    const writer = new SvmNativeTokenWriter(
+      {
+        program: { programId: warpProgramId } as SvmProgramTarget,
+        ataPayerFundingAmount: 1_000_000_000n,
+      },
+      rpc,
+      signer,
+    );
+
+    const remoteRouters: Record<number, { address: string }> = {};
     for (const chain of TEST_CHAIN_CONFIGS) {
       const router = ethers.utils.hexZeroPad(
         deployedAddresses.monitoredRoute[chain.name],
         32,
       );
-
-      this.runSealevelClient([
-        'token',
-        'enroll-remote-router',
-        String(chain.domainId),
-        router,
-        '--program-id',
-        WARP_ROUTE_PROGRAM_ID,
-      ]);
-    }
-  }
-
-  private runSealevelClient(args: string[]): string {
-    if (!this.sealevelClientConfigPath) {
-      throw new Error(
-        'Sealevel client config not initialized. Call setup first.',
-      );
+      remoteRouters[chain.domainId] = { address: router };
     }
 
-    const fullArgs = [
-      '--config',
-      this.sealevelClientConfigPath,
-      '--keypair',
-      DEPLOYER_KEYPAIR,
-      ...args,
-    ];
-    const env = {
-      ...process.env,
-      PATH: `${AGAVE_BIN_DIR}:${process.env.PATH}`,
-      RUST_BACKTRACE: '1',
-    };
-
-    return execFileSync(SEALEVEL_CLIENT, fullArgs, {
-      cwd: SEALEVEL_DIR,
-      env,
-      encoding: 'utf8',
-      timeout: 300_000,
-      maxBuffer: 10 * 1024 * 1024,
+    const currentArtifact = await writer.read(warpProgramId);
+    const updateTxs = await writer.update({
+      ...currentArtifact,
+      config: {
+        ...currentArtifact.config,
+        remoteRouters,
+      },
     });
-  }
 
-  private createSealevelClientConfig(rpcUrl: string): string {
-    const configPath = path.join(
-      os.tmpdir(),
-      `solana-config-svm-evm-${Date.now()}.yml`,
-    );
-    const solanaCliPath = path.join(AGAVE_BIN_DIR, 'solana');
-
-    execFileSync(
-      solanaCliPath,
-      ['config', 'set', '--config', configPath, '--url', rpcUrl],
-      { encoding: 'utf8' },
-    );
-
-    return configPath;
-  }
-
-  private cleanupSealevelClientConfig(): void {
-    if (this.sealevelClientConfigPath) {
-      try {
-        fs.unlinkSync(this.sealevelClientConfigPath);
-      } catch {
-        /* ignore cleanup errors */
-      }
-      this.sealevelClientConfigPath = undefined;
+    for (const tx of updateTxs) {
+      await signer.send(tx);
     }
   }
 
