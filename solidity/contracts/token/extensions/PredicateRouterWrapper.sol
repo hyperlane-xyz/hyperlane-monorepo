@@ -115,6 +115,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when ETH withdrawal fails
     error PredicateRouterWrapper__WithdrawFailed();
 
+    /// @notice Thrown when re-entry is detected
+    error PredicateRouterWrapper__ReentryDetected();
+
     // ============ Events ============
 
     /// @notice Emitted when a transfer is authorized via attestation
@@ -187,6 +190,10 @@ contract PredicateRouterWrapper is
         bytes32 _recipient,
         uint256 _amount
     ) external payable returns (bytes32 messageId) {
+        // 0. Defensive check against re-entry
+        if (pendingAttestation)
+            revert PredicateRouterWrapper__ReentryDetected();
+
         // 1. Build encoded signature for Predicate validation (full PredicateClient pattern)
         bytes memory encodedSigAndArgs = abi.encodeWithSelector(
             TokenRouter.transferRemote.selector,
@@ -212,10 +219,7 @@ contract PredicateRouterWrapper is
             _attestation.uuid
         );
 
-        // 3. Set flag BEFORE calling warpRoute (checked in postDispatch)
-        pendingAttestation = true;
-
-        // 4. Quote total amount needed from router (includes fees)
+        // 3. Quote total amount needed from router (includes fees)
         Quote[] memory quotes = warpRoute.quoteTransferRemote(
             _destination,
             _recipient,
@@ -249,7 +253,10 @@ contract PredicateRouterWrapper is
             );
         }
 
-        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
+        // 4. Set flag immediately before calling warpRoute (checked in postDispatch)
+        pendingAttestation = true;
+
+        // 5. Call warp route using already-encoded calldata (avoids re-encoding)
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(warpRoute).call{
             value: msg.value
