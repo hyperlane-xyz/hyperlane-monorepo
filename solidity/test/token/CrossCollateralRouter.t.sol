@@ -16,20 +16,22 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
-import {MockHyperlaneEnvironment} from "@hyperlane-xyz/core/mock/MockHyperlaneEnvironment.sol";
-import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
-import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
-import {TestPostDispatchHook} from "@hyperlane-xyz/core/test/TestPostDispatchHook.sol";
-import {ITokenFee, Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
-import {IPostDispatchHook} from "@hyperlane-xyz/core/interfaces/hooks/IPostDispatchHook.sol";
+import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {Message} from "contracts/libs/Message.sol";
+import {MockHyperlaneEnvironment} from "contracts/mock/MockHyperlaneEnvironment.sol";
+import {MockMailbox} from "contracts/mock/MockMailbox.sol";
+import {ERC20Test} from "contracts/test/ERC20Test.sol";
+import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
+import {ITokenFee, Quote} from "contracts/interfaces/ITokenBridge.sol";
+import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 
-import {CrossCollateralRouter} from "../contracts/CrossCollateralRouter.sol";
-import {CrossCollateralRoutingFee} from "../contracts/CrossCollateralRoutingFee.sol";
-import {ICrossCollateralFee} from "../contracts/interfaces/ICrossCollateralFee.sol";
-import {HypERC20Collateral} from "@hyperlane-xyz/core/token/HypERC20Collateral.sol";
-import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
-import {LinearFee} from "@hyperlane-xyz/core/token/fees/LinearFee.sol";
+import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
+import {CrossCollateralRoutingFee} from "contracts/token/CrossCollateralRoutingFee.sol";
+import {ICrossCollateralFee} from "contracts/token/interfaces/ICrossCollateralFee.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
+import {GasRouter} from "contracts/client/GasRouter.sol";
+import {LinearFee} from "contracts/token/fees/LinearFee.sol";
 
 /// @notice Mock fee contract: fixed percentage fee.
 /// Implements both ITokenFee (for base transferRemote) and ICrossCollateralFee (for transferRemoteTo).
@@ -105,6 +107,28 @@ contract FixedQuoteHook is IPostDispatchHook {
         bytes calldata
     ) external view returns (uint256) {
         return quote;
+    }
+}
+
+contract MessageAmountQuoteHook is IPostDispatchHook {
+    using Message for bytes;
+    using TokenMessage for bytes;
+
+    function hookType() external pure returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function supportsMetadata(bytes calldata) external pure returns (bool) {
+        return true;
+    }
+
+    function postDispatch(bytes calldata, bytes calldata) external payable {}
+
+    function quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) external pure returns (uint256) {
+        return message.body().amount();
     }
 }
 
@@ -1224,6 +1248,94 @@ contract CrossCollateralRouterTest is Test {
             feeBalBefore;
 
         assertEq(quotedFee, actualFee, "quote matches actual charge");
+    }
+
+    function test_quoteTransferRemote_matchesTransferRemoteCharge() public {
+        LinearFee defaultFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6,
+            10000e6,
+            address(this)
+        );
+        LinearFee primaryRouterFee10bps = new LinearFee(
+            address(originUSDC),
+            20e6,
+            10000e6,
+            address(this)
+        );
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            address(this)
+        );
+
+        uint32[] memory destinations = new uint32[](2);
+        bytes32[] memory targetRouters = new bytes32[](2);
+        address[] memory feeContracts = new address[](2);
+        destinations[0] = DESTINATION;
+        destinations[1] = DESTINATION;
+        targetRouters[0] = routingFee.DEFAULT_ROUTER();
+        targetRouters[1] = address(usdcRouterB).addressToBytes32();
+        feeContracts[0] = address(defaultFee5bps);
+        feeContracts[1] = address(primaryRouterFee10bps);
+
+        routingFee.setCrossCollateralRouterFeeContracts(
+            destinations,
+            targetRouters,
+            feeContracts
+        );
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        uint256 amount = 10000e6;
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount
+        );
+        uint256 quotedFee = quotes[1].amount - amount;
+
+        uint256 feeBalBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+        uint256 actualFee = originUSDC.balanceOf(address(routingFee)) -
+            feeBalBefore;
+
+        assertEq(quotedFee, 10e6, "quote uses primary router fee");
+        assertEq(actualFee, 10e6, "charge uses primary router fee");
+        assertEq(quotedFee, actualFee, "quote matches actual charge");
+    }
+
+    function test_quoteTransferRemote_usesScaledOutboundAmountForHookFee()
+        public
+    {
+        MessageAmountQuoteHook hook = new MessageAmountQuoteHook();
+        usdcRouterA.setHook(address(hook));
+        usdcRouterA.setFeeHook(address(hook));
+        usdcRouterA.setFeeRecipient(address(0));
+
+        uint256 amount = 10_000e6;
+        uint256 scaledAmount = amount * USDC_SCALE_NUM;
+        originUSDC.mintTo(ALICE, scaledAmount);
+
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount
+        );
+
+        uint256 aliceBalanceBefore = originUSDC.balanceOf(ALICE);
+        vm.prank(ALICE);
+        usdcRouterA.transferRemote(DESTINATION, BOB.addressToBytes32(), amount);
+        uint256 aliceBalanceAfter = originUSDC.balanceOf(ALICE);
+
+        assertEq(
+            quotes[0].amount,
+            scaledAmount,
+            "quote uses scaled outbound amount"
+        );
+        assertEq(
+            aliceBalanceBefore - aliceBalanceAfter,
+            amount + scaledAmount,
+            "charge uses scaled outbound amount"
+        );
     }
 
     function test_routingFee_claim() public {

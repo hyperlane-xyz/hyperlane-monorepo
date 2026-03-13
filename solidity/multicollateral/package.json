@@ -30,6 +30,7 @@
   "scripts": {
     "deps:soldeer": "[ -d ../dependencies/@openzeppelin-contracts-4.9.3 ] || pnpm -C ../ deps:soldeer",
     "build": "pnpm clean && pnpm deps:soldeer && forge build && pnpm build:typechain && tsc -p tsconfig.json",
+<<<<<<< HEAD
     "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/CrossCollateralRouter.sol/CrossCollateralRouter.json out/CrossCollateralRoutingFee.sol/CrossCollateralRoutingFee.json out/interfaces/ICrossCollateralFee.sol/ICrossCollateralFee.json",
     "clean": "rm -rf ./artifacts ./cache ./dist ./typechain ./forge-cache ./out",
     "lint": "eslint -c ./eslint.config.mjs ./index.ts",

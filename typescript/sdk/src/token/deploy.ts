@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, constants } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   ERC20__factory,
   EverclearTokenBridge__factory,
   GasRouter,
@@ -15,7 +16,6 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   addressToBytes32,

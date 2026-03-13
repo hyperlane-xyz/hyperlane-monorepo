@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
@@ -28,7 +29,6 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
