@@ -11,6 +11,7 @@ import {
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
+import { type AleoArtifactNetworkConfig } from '../utils/types.js';
 
 import {
   AleoValidatorAnnounceReader,
@@ -25,7 +26,10 @@ import {
  * - Handles validator announce deployment
  */
 export class AleoValidatorAnnounceArtifactManager implements IRawValidatorAnnounceArtifactManager {
-  constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(
+    private readonly config: AleoArtifactNetworkConfig,
+    private readonly aleoClient: AnyAleoNetworkClient,
+  ) {}
 
   async readValidatorAnnounce(address: string) {
     const reader = this.createReader('validatorAnnounce');
@@ -48,6 +52,10 @@ export class AleoValidatorAnnounceArtifactManager implements IRawValidatorAnnoun
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new AleoValidatorAnnounceWriter(this.aleoClient, signer);
+    return new AleoValidatorAnnounceWriter(
+      this.config,
+      this.aleoClient,
+      signer,
+    );
   }
 }

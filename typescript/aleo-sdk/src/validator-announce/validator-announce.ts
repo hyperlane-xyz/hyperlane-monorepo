@@ -15,11 +15,13 @@ import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
 import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 import {
+  getNetworkPrefix,
+  getUnusedSuffix,
   SUFFIX_LENGTH_SHORT,
-  generateSuffix,
   toAleoAddress,
 } from '../utils/helper.js';
 import {
+  type AleoArtifactNetworkConfig,
   type AleoReceipt,
   type AnnotatedAleoTransaction,
 } from '../utils/types.js';
@@ -72,6 +74,7 @@ export class AleoValidatorAnnounceWriter
     ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
 {
   constructor(
+    private readonly config: AleoArtifactNetworkConfig,
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
   ) {
@@ -93,7 +96,13 @@ export class AleoValidatorAnnounceWriter
     const allReceipts: AleoReceipt[] = [];
 
     // 1. Deploy validator_announce program
-    const validatorAnnounceSuffix = generateSuffix(SUFFIX_LENGTH_SHORT);
+    const prefix = getNetworkPrefix(this.config.aleoNetworkId);
+    const validatorAnnounceSuffix = await getUnusedSuffix(
+      this.aleoClient,
+      prefix,
+      'validator_announce',
+      SUFFIX_LENGTH_SHORT,
+    );
     const programs = await this.signer.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
