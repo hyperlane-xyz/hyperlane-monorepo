@@ -217,7 +217,7 @@ hyperlane utils bytes32ToAddress $RECIPIENT_BYTES32 cosmosnative hyp
 hyperlane utils bytes32ToAddress 0x... cosmos
 
 # Correct
-hyperlane utils bytes32ToAddress 0x... cosmos osmosis
+hyperlane utils bytes32ToAddress 0x... cosmos osmo
 ```
 
 ### Error: "addresses are 20 bytes and must have 12 zero bytes of padding"

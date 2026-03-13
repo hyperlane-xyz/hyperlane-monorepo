@@ -1,4 +1,4 @@
-import { CommandModule } from 'yargs';
+import type { CommandModule } from 'yargs';
 
 import {
   ProtocolType,
@@ -55,7 +55,7 @@ const addressToBytes32Command: CommandModule<{}, AddressToBytes32Args> = {
       logGreen(`Address: ${address}`);
       if (protocol) log(`Protocol: ${protocol}`);
       log(`Bytes32: ${bytes32}`);
-    } catch (error) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to convert address: ${message}`);
     }
@@ -127,11 +127,9 @@ const bytes32ToAddressCommand: CommandModule<{}, Bytes32ToAddressArgs> = {
         bytes.length === 32
       ) {
         const first12Bytes = bytes.slice(0, 12);
-        const zeroByteCount = Array.from(first12Bytes).filter(
-          (b) => b === 0,
-        ).length;
+        const hasCorrectPadding = first12Bytes.every((b) => b === 0);
 
-        if (zeroByteCount !== 12) {
+        if (!hasCorrectPadding) {
           const protocolName =
             protocol === ProtocolType.Ethereum
               ? 'Ethereum (EVM)'
@@ -148,7 +146,6 @@ const bytes32ToAddressCommand: CommandModule<{}, Bytes32ToAddressArgs> = {
 
           throw new Error(
             `${protocolName} addresses are 20 bytes and must have 12 zero bytes (24 hex characters) of padding at the start.\n` +
-              `Your input has only ${zeroByteCount} zero bytes at the start.\n` +
               `Expected format: 0x${'0'.repeat(24)}<20-byte-address>\n` +
               `Your input:       ${normalizedBytes32}${additionalInfo}`,
           );
@@ -161,7 +158,7 @@ const bytes32ToAddressCommand: CommandModule<{}, Bytes32ToAddressArgs> = {
       log(`Protocol: ${protocol}`);
       if (prefix) log(`Prefix: ${prefix}`);
       log(`Address: ${address}`);
-    } catch (error) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to convert bytes32: ${message}`);
     }
