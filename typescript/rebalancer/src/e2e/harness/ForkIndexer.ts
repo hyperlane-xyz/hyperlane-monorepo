@@ -159,9 +159,8 @@ export class ForkIndexer {
       if (blockTag === undefined) continue;
 
       try {
-        const delivered = await this.core
-          .adapter(destChain)
-          .isDelivered(msg.msg_id, blockTag);
+        const mailbox = this.core.getContracts(destChain).mailbox;
+        const delivered = await mailbox.delivered(msg.msg_id, { blockTag });
         if (delivered) {
           msg.is_delivered = true;
           this.logger.debug(
