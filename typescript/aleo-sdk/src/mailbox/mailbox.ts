@@ -15,7 +15,8 @@ import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
 import {
   ALEO_NULL_ADDRESS,
-  generateSuffix,
+  getNetworkPrefix,
+  getUnusedSuffix,
   SUFFIX_LENGTH_LONG,
   toAleoAddress,
 } from '../utils/helper.js';
@@ -105,10 +106,14 @@ export class AleoMailboxWriter
     const allReceipts: AleoReceipt[] = [];
 
     // Deploy mailbox programs (mailbox, dispatch_proxy, ism_manager, hook_manager)
-    const programs = await this.signer.deployProgram(
+    const prefix = getNetworkPrefix(this.config.aleoNetworkId);
+    const suffix = await getUnusedSuffix(
+      this.aleoClient,
+      prefix,
       'dispatch_proxy',
-      generateSuffix(SUFFIX_LENGTH_LONG),
+      SUFFIX_LENGTH_LONG,
     );
+    const programs = await this.signer.deployProgram('dispatch_proxy', suffix);
 
     const mailboxProgramId = programs['mailbox'];
     assert(mailboxProgramId, 'mailbox program not deployed');

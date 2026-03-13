@@ -8,8 +8,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 
-import { AleoTokenType } from './types.js';
+import { AleoNetworkId, AleoTokenType } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
@@ -21,6 +22,12 @@ function getCustomWarpSuffixFromEnv(): string | undefined {
 
 export const MAINNET_PREFIX = 'hyp';
 export const TESTNET_PREFIX = 'test_hyp';
+
+export function getNetworkPrefix(aleoNetworkId: AleoNetworkId): string {
+  return aleoNetworkId === AleoNetworkId.TESTNET
+    ? TESTNET_PREFIX
+    : MAINNET_PREFIX;
+}
 
 export const RETRY_ATTEMPTS = 10;
 export const RETRY_DELAY_MS = 100;
@@ -361,6 +368,44 @@ export function generateSuffix(n: number): string {
   }
 
   return result;
+}
+
+/**
+ * Check if a program is already deployed on chain.
+ */
+export async function isProgramDeployed(
+  aleoClient: AnyAleoNetworkClient,
+  programId: string,
+): Promise<boolean> {
+  try {
+    await aleoClient.getProgram(programId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Generate a random suffix and verify it is not already deployed on chain.
+ */
+export async function getUnusedSuffix(
+  aleoClient: AnyAleoNetworkClient,
+  prefix: string,
+  programName: AleoProgram,
+  length: number,
+  maxAttempts = 20,
+): Promise<string> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const suffix = generateSuffix(length);
+    const programId = getProgramIdFromSuffix(prefix, programName, suffix);
+    if (!(await isProgramDeployed(aleoClient, programId))) {
+      return suffix;
+    }
+  }
+
+  throw new Error(
+    `Could not find an unused suffix for ${programName} after ${maxAttempts} attempts`,
+  );
 }
 
 /**

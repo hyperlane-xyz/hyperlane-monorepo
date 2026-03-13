@@ -5,7 +5,7 @@ import {
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { type RawWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
-import { type Annotated } from '@hyperlane-xyz/utils';
+import { type Annotated, assert } from '@hyperlane-xyz/utils';
 
 export interface AleoTransaction extends ExecuteOptions {}
 export type AnnotatedAleoTransaction = Annotated<AleoTransaction>;
@@ -41,6 +41,14 @@ export const AleoNetworkId = {
 } as const;
 
 export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
+
+export function toAleoNetworkId(chainId: number): AleoNetworkId {
+  assert(
+    chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+    `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+  );
+  return chainId;
+}
 
 /**
  * Internal Aleo-specific warp token configuration types.
