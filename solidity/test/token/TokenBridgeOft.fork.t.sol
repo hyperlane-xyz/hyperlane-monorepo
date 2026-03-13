@@ -38,12 +38,12 @@ contract TokenBridgeOftArbForkTest is Test {
         vm.deal(caller, 1 ether);
     }
 
-    function test_constructor() public view {
+    function testFork_constructor() public view {
         assertEq(address(bridge.oft()), USDT0_OFT);
         assertEq(bridge.token(), USDT0_TOKEN);
     }
 
-    function test_approval() public view {
+    function testFork_approval() public view {
         uint256 allowance = IERC20(USDT0_TOKEN).allowance(
             address(bridge),
             USDT0_OFT
@@ -51,7 +51,7 @@ contract TokenBridgeOftArbForkTest is Test {
         assertGt(allowance, 0, "should have approved OFT");
     }
 
-    function test_oftInterface() public view {
+    function testFork_oftInterface() public view {
         (bytes4 interfaceId, uint64 version) = IOFT(USDT0_OFT).oftVersion();
         assertEq(interfaceId, bytes4(0x02e49c2c), "IOFT interface ID");
         assertEq(version, 1, "OFT version");
@@ -64,7 +64,7 @@ contract TokenBridgeOftArbForkTest is Test {
         assertEq(IOFT(USDT0_OFT).sharedDecimals(), 6);
     }
 
-    function test_quoteTransferRemote() public view {
+    function testFork_quoteTransferRemote() public view {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ETHEREUM,
             recipient,
@@ -76,7 +76,7 @@ contract TokenBridgeOftArbForkTest is Test {
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
 
-    function test_quoteOftFees() public view {
+    function testFork_quoteOftFees() public view {
         SendParam memory sendParam = SendParam({
             dstEid: LZ_EID_ETHEREUM,
             to: recipient,
@@ -99,7 +99,7 @@ contract TokenBridgeOftArbForkTest is Test {
         assertGt(limit.maxAmountLD, 0, "max amount > 0");
     }
 
-    function test_transferRemote() public {
+    function testFork_transferRemote() public {
         // Get quote — use quotes[1] for total token charge (includes OFT fees)
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ETHEREUM,
@@ -131,7 +131,7 @@ contract TokenBridgeOftArbForkTest is Test {
 
     // ============ Error Cases ============
 
-    function test_revert_unconfiguredDomain() public {
+    function testFork_revert_unconfiguredDomain() public {
         vm.expectRevert(
             abi.encodeWithSelector(
                 TokenBridgeOft.LzEidNotConfigured.selector,
@@ -141,14 +141,14 @@ contract TokenBridgeOftArbForkTest is Test {
         bridge.quoteTransferRemote(999, recipient, AMOUNT);
     }
 
-    function test_revert_zeroAddressOft() public {
+    function testFork_revert_zeroAddressOft() public {
         vm.expectRevert("TokenBridgeOft: zero OFT address");
         new TokenBridgeOft(address(0), address(this));
     }
 
     // ============ Admin ============
 
-    function test_addRemoveDomain() public {
+    function testFork_addRemoveDomain() public {
         bridge.addDomain(100, 30200);
         assertEq(bridge.hyperlaneDomainToLzEid(100), 30200);
 
@@ -162,13 +162,13 @@ contract TokenBridgeOftArbForkTest is Test {
         bridge.hyperlaneDomainToLzEid(100);
     }
 
-    function test_setExtraOptions() public {
+    function testFork_setExtraOptions() public {
         bytes memory opts = hex"deadbeef";
         bridge.setExtraOptions(opts);
         assertEq(bridge.extraOptions(), opts);
     }
 
-    function test_revert_nonOwnerAddDomain() public {
+    function testFork_revert_nonOwnerAddDomain() public {
         vm.prank(caller);
         vm.expectRevert("Ownable: caller is not the owner");
         bridge.addDomain(100, 30200);
@@ -208,12 +208,12 @@ contract TokenBridgeOftEthForkTest is Test {
         vm.deal(USDT_WHALE, 1 ether);
     }
 
-    function test_constructor_adapter() public view {
+    function testFork_constructor_adapter() public view {
         assertEq(address(bridge.oft()), USDT0_OFT_ADAPTER);
         assertEq(bridge.token(), USDT_TOKEN);
     }
 
-    function test_approval() public view {
+    function testFork_approval() public view {
         uint256 allowance = IERC20(USDT_TOKEN).allowance(
             address(bridge),
             USDT0_OFT_ADAPTER
@@ -221,7 +221,7 @@ contract TokenBridgeOftEthForkTest is Test {
         assertGt(allowance, 0, "should have approved OFT adapter");
     }
 
-    function test_oftAdapterInterface() public view {
+    function testFork_oftAdapterInterface() public view {
         (bytes4 interfaceId, uint64 version) = IOFT(USDT0_OFT_ADAPTER)
             .oftVersion();
         assertEq(interfaceId, bytes4(0x02e49c2c), "IOFT interface ID");
@@ -234,7 +234,7 @@ contract TokenBridgeOftEthForkTest is Test {
         );
     }
 
-    function test_quoteTransferRemote() public view {
+    function testFork_quoteTransferRemote() public view {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ARBITRUM,
             recipient,
@@ -246,7 +246,7 @@ contract TokenBridgeOftEthForkTest is Test {
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
 
-    function test_transferRemote() public {
+    function testFork_transferRemote() public {
         // Get quote — use quotes[1] for total token charge (includes OFT fees)
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ARBITRUM,
@@ -309,12 +309,12 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
         vm.deal(caller, 1 ether);
     }
 
-    function test_constructor() public view {
+    function testFork_constructor() public view {
         assertEq(address(bridge.oft()), PYUSD_OFT);
         assertEq(bridge.token(), PYUSD_TOKEN);
     }
 
-    function test_oftInterface() public view {
+    function testFork_oftInterface() public view {
         (bytes4 interfaceId, uint64 version) = IOFT(PYUSD_OFT).oftVersion();
         assertEq(interfaceId, bytes4(0x02e49c2c), "IOFT interface ID");
         assertEq(version, 1, "OFT version");
@@ -327,7 +327,7 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
         assertEq(IOFT(PYUSD_OFT).sharedDecimals(), 6);
     }
 
-    function test_quoteTransferRemote() public view {
+    function testFork_quoteTransferRemote() public view {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ETHEREUM,
             recipient,
@@ -339,7 +339,7 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
 
-    function test_quoteOftNoTokenFees() public view {
+    function testFork_quoteOftNoTokenFees() public view {
         SendParam memory sendParam = SendParam({
             dstEid: LZ_EID_ETHEREUM,
             to: recipient,
@@ -360,7 +360,7 @@ contract TokenBridgeOftPyusdArbForkTest is Test {
         );
     }
 
-    function test_transferRemote() public {
+    function testFork_transferRemote() public {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ETHEREUM,
             recipient,
@@ -416,12 +416,12 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
         vm.deal(caller, 1 ether);
     }
 
-    function test_constructor() public view {
+    function testFork_constructor() public view {
         assertEq(address(bridge.oft()), PYUSD_OFT);
         assertEq(bridge.token(), PYUSD_TOKEN);
     }
 
-    function test_oftInterface() public view {
+    function testFork_oftInterface() public view {
         (bytes4 interfaceId, uint64 version) = IOFT(PYUSD_OFT).oftVersion();
         assertEq(interfaceId, bytes4(0x02e49c2c), "IOFT interface ID");
         assertEq(version, 1, "OFT version");
@@ -433,7 +433,7 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
         );
     }
 
-    function test_quoteTransferRemote() public view {
+    function testFork_quoteTransferRemote() public view {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ARBITRUM,
             recipient,
@@ -445,7 +445,7 @@ contract TokenBridgeOftPyusdEthForkTest is Test {
         assertGt(quotes[0].amount, 0, "native fee > 0");
     }
 
-    function test_transferRemote() public {
+    function testFork_transferRemote() public {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             HYP_DOMAIN_ARBITRUM,
             recipient,
