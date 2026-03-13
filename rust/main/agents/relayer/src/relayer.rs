@@ -649,7 +649,18 @@ impl Relayer {
             // For production, you'd want to support all chains
             let mut registry_builder = RegistryBuilder::new();
 
+            info!(
+                origin_count = self.origins.len(),
+                "Setting up relay API registry"
+            );
+
             for (domain, origin) in &self.origins {
+                info!(
+                    domain = %domain.name(),
+                    protocol = ?domain.domain_protocol(),
+                    "Processing chain for relay API"
+                );
+
                 // Check if protocol is supported
                 if !crate::relay_api::registry_builder::is_protocol_supported(
                     domain.domain_protocol(),
@@ -1212,38 +1223,87 @@ impl Relayer {
 
     async fn create_cosmos_mailbox_indexer(
         &self,
-        _domain: &HyperlaneDomain,
-        _origin: &crate::relayer::origin::Origin,
+        domain: &HyperlaneDomain,
+        origin: &crate::relayer::origin::Origin,
     ) -> eyre::Result<Arc<dyn crate::relay_api::MailboxIndexer>> {
-        // TODO: Implement Cosmos mailbox indexer creation
-        // This requires:
-        // 1. Creating a CwQueryClient from the Cosmos connection config
-        // 2. Creating a CosmosProvider with the query client
-        // 3. Creating a CwMailboxDispatchIndexer
-        // 4. Wrapping it in CosmosMailboxIndexer
-        //
-        // For now, Cosmos chains will be skipped for relay API
-        // The standard relayer contract indexing path will still work
-        Err(eyre::eyre!("Cosmos relay API support not yet implemented"))
+        use crate::relay_api::CosmosMailboxIndexer;
+        use hyperlane_base::settings::ChainConnectionConf;
+        use hyperlane_cosmos::cw::{CwMailbox, CwMailboxDispatchIndexer, CwQueryClient};
+        use hyperlane_cosmos::{ConnectionConf as CosmosConnectionConf, CosmosProvider};
+
+        // Extract Cosmos connection config
+        let cosmos_conf = match &origin.chain_conf.connection {
+            ChainConnectionConf::Cosmos(conf) => conf,
+            _ => return Err(eyre::eyre!("Expected Cosmos connection config")),
+        };
+
+        // Create contract locator
+        let locator = hyperlane_core::ContractLocator {
+            domain,
+            address: origin.chain_conf.addresses.mailbox.into(),
+        };
+
+        // Build Cosmos provider
+        let middleware_metrics = origin.chain_conf.metrics_conf();
+        let client_metrics = self.core_metrics.client_metrics();
+        let provider = CosmosProvider::<CwQueryClient>::new(
+            cosmos_conf,
+            &locator,
+            None, // No signer needed for indexing
+            client_metrics,
+            middleware_metrics.chain.clone(),
+        )?;
+
+        // Create CwMailbox
+        let mailbox = CwMailbox::new(provider.clone(), cosmos_conf.clone(), locator.clone())?;
+
+        // Create dispatch indexer
+        let indexer = Arc::new(CwMailboxDispatchIndexer::new(provider, mailbox, &locator)?);
+
+        // Wrap in CosmosMailboxIndexer
+        let cosmos_indexer = CosmosMailboxIndexer::new(indexer, domain.id());
+        Ok(Arc::new(cosmos_indexer))
     }
 
     async fn create_cosmosnative_mailbox_indexer(
         &self,
-        _domain: &HyperlaneDomain,
-        _origin: &crate::relayer::origin::Origin,
+        domain: &HyperlaneDomain,
+        origin: &crate::relayer::origin::Origin,
     ) -> eyre::Result<Arc<dyn crate::relay_api::MailboxIndexer>> {
-        // TODO: Implement CosmosNative mailbox indexer creation
-        // This requires:
-        // 1. Creating a ModuleQueryClient from the Cosmos connection config
-        // 2. Creating a CosmosProvider with the module query client
-        // 3. Creating a CosmosNativeDispatchIndexer
-        // 4. Wrapping it in CosmosNativeMailboxIndexer
-        //
-        // For now, CosmosNative chains will be skipped for relay API
-        // The standard relayer contract indexing path will still work
-        Err(eyre::eyre!(
-            "CosmosNative relay API support not yet implemented"
-        ))
+        use crate::relay_api::CosmosNativeMailboxIndexer;
+        use hyperlane_base::settings::ChainConnectionConf;
+        use hyperlane_cosmos::native::{CosmosNativeDispatchIndexer, ModuleQueryClient};
+        use hyperlane_cosmos::{ConnectionConf as CosmosConnectionConf, CosmosProvider};
+
+        // Extract CosmosNative connection config
+        let cosmos_conf = match &origin.chain_conf.connection {
+            ChainConnectionConf::CosmosNative(conf) => conf,
+            _ => return Err(eyre::eyre!("Expected CosmosNative connection config")),
+        };
+
+        // Create contract locator
+        let locator = hyperlane_core::ContractLocator {
+            domain,
+            address: origin.chain_conf.addresses.mailbox.into(),
+        };
+
+        // Build Cosmos provider
+        let middleware_metrics = origin.chain_conf.metrics_conf();
+        let client_metrics = self.core_metrics.client_metrics();
+        let provider = CosmosProvider::<ModuleQueryClient>::new(
+            cosmos_conf,
+            &locator,
+            None, // No signer needed for indexing
+            client_metrics,
+            middleware_metrics.chain.clone(),
+        )?;
+
+        // Create dispatch indexer
+        let indexer = Arc::new(CosmosNativeDispatchIndexer::new(provider, locator)?);
+
+        // Wrap in CosmosNativeMailboxIndexer
+        let cosmos_indexer = CosmosNativeMailboxIndexer::new(indexer, domain.id());
+        Ok(Arc::new(cosmos_indexer))
     }
 }
 
