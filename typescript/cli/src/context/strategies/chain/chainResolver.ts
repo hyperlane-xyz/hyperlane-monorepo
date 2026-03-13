@@ -42,9 +42,10 @@ export async function resolveChains(
       return resolveWarpRouteConfigChains(argv);
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
+    case CommandType.WARP_SEND:
+      return resolveWarpSendChains(argv);
     case CommandType.STATUS:
       return resolveStatusChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
@@ -230,6 +231,53 @@ async function resolveRelayerChains(
 
   chains.add(argv.destination);
   return Array.from(chains);
+}
+
+/**
+ * Resolves chains for warp send.
+ * Returns only EVM chains that may submit transactions for this invocation.
+ */
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+
+  // Validate origin is EVM if specified
+  if (argv.origin && !isEVMLike(multiProvider.getProtocol(argv.origin))) {
+    throw new Error(
+      `'hyperlane warp send' requires an EVM origin chain. '${argv.origin}' is ${multiProvider.getProtocol(argv.origin)}`,
+    );
+  }
+
+  const selectedChains = new Set<ChainName>();
+  if (argv.chains?.length) {
+    argv.chains.forEach((chain: ChainName) => selectedChains.add(chain));
+  } else {
+    [argv.origin, argv.destination]
+      .filter(Boolean)
+      .forEach((chain) => selectedChains.add(chain as ChainName));
+  }
+
+  // If no explicit origin was provided (destination-only or fully implicit),
+  // derive signer chains from the resolved route so middleware signer setup
+  // matches the path warp send will execute.
+  if (selectedChains.size === 0 || (!argv.origin && !argv.chains?.length)) {
+    const filterChains = Array.from(selectedChains);
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains,
+    });
+    argv.preResolvedWarpCoreConfig = warpCoreConfig;
+    selectedChains.clear();
+    warpCoreConfig.tokens.forEach((token) =>
+      selectedChains.add(token.chainName),
+    );
+  }
+
+  return Array.from(selectedChains).filter((chain) =>
+    isEVMLike(multiProvider.getProtocol(chain)),
+  );
 }
 
 async function resolveCoreApplyChains(

@@ -6,6 +6,7 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
+  type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -353,6 +354,7 @@ const send: CommandModuleWithWriteContext<
       skipValidation?: boolean;
       sourceToken?: string;
       destinationToken?: string;
+      preResolvedWarpCoreConfig?: WarpCoreConfig;
     }
 > = {
   command: 'send',
@@ -367,7 +369,8 @@ const send: CommandModuleWithWriteContext<
     },
     recipient: {
       type: 'string',
-      description: 'Token recipient address (defaults to sender)',
+      description:
+        'Token recipient address. Required for non-EVM destinations. Defaults to destination signer for EVM destinations.',
     },
     chains: stringArrayOptionConfig({
       description: 'List of chains to send messages to',
@@ -405,16 +408,19 @@ const send: CommandModuleWithWriteContext<
     skipValidation,
     sourceToken,
     destinationToken,
+    preResolvedWarpCoreConfig,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter((v): v is string => Boolean(v))
       .filter((v, i, a) => a.indexOf(v) === i);
 
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      warpRouteId,
-      context,
-      chains: filterChains.length > 0 ? filterChains : undefined,
-    });
+    const warpCoreConfig =
+      preResolvedWarpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        warpRouteId,
+        context,
+        chains: filterChains.length > 0 ? filterChains : undefined,
+      }));
     let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {
@@ -423,9 +429,7 @@ const send: CommandModuleWithWriteContext<
     }
 
     const supportedChains = new Set(
-      warpCoreConfig.tokens
-        .map((t) => t.chainName)
-        .sort((a, b) => a.localeCompare(b)),
+      warpCoreConfig.tokens.map((t) => t.chainName),
     );
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
@@ -444,13 +448,30 @@ const send: CommandModuleWithWriteContext<
     if (origin && destination) {
       chains = [origin, destination];
     } else {
+      // Order EVM chains first so non-EVM chains are final destinations
+      const orderedDefaultChains = [...supportedChains].sort((a, b) => {
+        const aEvm = isEVMLike(context.multiProvider.getProtocol(a)) ? 0 : 1;
+        const bEvm = isEVMLike(context.multiProvider.getProtocol(b)) ? 0 : 1;
+        return aEvm - bEvm || a.localeCompare(b);
+      });
+
       chains =
         chains.length === 0
-          ? [...supportedChains]
+          ? orderedDefaultChains
           : [...intersection(new Set(chains), supportedChains)];
     }
 
     if (roundTrip) {
+      // Round-trip requires all chains to be EVM-like since non-EVM chains
+      // become intermediate origins in the reversed path.
+      const nonEvmChains = chains.filter(
+        (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
+      );
+      assert(
+        nonEvmChains.length === 0,
+        `--round-trip is not supported with non-EVM chains (${nonEvmChains.join(', ')}). ` +
+          `Non-EVM chains cannot be intermediate hop origins.`,
+      );
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
       const reversed = [...chains].reverse().slice(1, chains.length + 1);
       chains = [...chains, ...reversed];
