@@ -42,6 +42,7 @@ export class MockExternalBridge implements IExternalBridge {
     BridgeTransferStatus
   >();
   private _failNextExecute = false;
+  private readonly svmBridgeResults = new Map<string, bigint>();
   private readonly deployedAddresses:
     | NativeDeployedAddresses
     | Erc20InventoryDeployedAddresses;
@@ -127,6 +128,29 @@ export class MockExternalBridge implements IExternalBridge {
     const fromChainName = this.resolveChainName(fromChain);
     const toChainName = this.resolveChainName(toChain);
 
+    // SVM source: simulate bridge by directly crediting the destination EVM bridge route
+    if (fromChainName === SVM_CHAIN_NAME) {
+      const destBridgeRoute =
+        this.deployedAddresses.bridgeRoute[toChainName as TestChain];
+      const destProvider = this.multiProvider.getProvider(
+        toChainName,
+      ) as ethers.providers.JsonRpcProvider;
+      const currentBalance = await destProvider.getBalance(destBridgeRoute);
+      const newBalance = currentBalance.add(
+        BigNumber.from(quote.fromAmount.toString()),
+      );
+      await destProvider.send('anvil_setBalance', [
+        destBridgeRoute,
+        ethers.utils.hexValue(newBalance),
+      ]);
+      const syntheticTxHash = `0x${'0'.repeat(62)}${(Date.now() % 0xffff).toString(16).padStart(2, '0')}`;
+      this.svmBridgeResults.set(
+        syntheticTxHash,
+        BigInt(quote.fromAmount.toString()),
+      );
+      return { txHash: syntheticTxHash, fromChain, toChain };
+    }
+
     const bridgeRouteAddress =
       this.deployedAddresses.bridgeRoute[fromChainName as TestChain];
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
@@ -205,6 +229,15 @@ export class MockExternalBridge implements IExternalBridge {
     const override = this.failStatusOverrides.get(txHash);
     if (override) {
       return override;
+    }
+
+    const svmResult = this.svmBridgeResults.get(txHash);
+    if (svmResult !== undefined) {
+      return {
+        status: 'complete',
+        receivingTxHash: txHash,
+        receivedAmount: svmResult,
+      };
     }
 
     try {
@@ -291,6 +324,7 @@ export class MockExternalBridge implements IExternalBridge {
   reset(): void {
     this.failStatusOverrides.clear();
     this._failNextExecute = false;
+    this.svmBridgeResults.clear();
   }
 
   /**
@@ -305,6 +339,10 @@ export class MockExternalBridge implements IExternalBridge {
   ): Promise<bigint> {
     const fromChainName = this.resolveChainName(fromChain);
     const toChainName = this.resolveChainName(toChain);
+
+    if (fromChainName === SVM_CHAIN_NAME) {
+      return 0n;
+    }
 
     const bridgeRouteAddress =
       this.deployedAddresses.bridgeRoute[fromChainName as TestChain];
