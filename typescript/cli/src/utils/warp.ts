@@ -269,11 +269,11 @@ export function filterWarpConfigsToMatchingChains(
       ).join(', ')}\n`,
     );
 
-    const filteredWarpDeployConfig = Object.fromEntries(
-      Object.entries(warpDeployConfig).filter(([chain]) =>
+    const filteredWarpDeployConfig = objFilter(
+      warpDeployConfig,
+      (chain, config): config is (typeof warpDeployConfig)[string] =>
         matchingChains.has(chain),
-      ),
-    ) as WarpRouteDeployConfigMailboxRequired; // CAST: Object.fromEntries loses the original record type
+    );
     const filteredWarpCoreConfig = {
       ...warpCoreConfig,
       tokens: warpCoreConfig.tokens.filter((token: { chainName: string }) =>
