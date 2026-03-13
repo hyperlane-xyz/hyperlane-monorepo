@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/multicollateral",
-  "description": "CrossCollateralRouter solidity contracts and typechain artifacts for Hyperlane",
+  "description": "TokenBridgeOft typechain compatibility package for Hyperlane",
   "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,13 +8,10 @@
   "exports": {
     ".": "./dist/index.js",
     "./typechain": "./dist/typechain/index.js",
-    "./typechain/*": "./dist/typechain/*",
-    "./contracts": "./contracts",
-    "./contracts/*": "./contracts/*"
+    "./typechain/*": "./dist/typechain/*"
   },
   "files": [
-    "/dist",
-    "/contracts"
+    "/dist"
   ],
   "engines": {
     "node": ">=18"
@@ -24,18 +21,13 @@
   "keywords": [
     "Hyperlane",
     "Solidity",
-    "CrossCollateralRouter"
+    "TokenBridgeOft"
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "deps:soldeer": "[ -d ../dependencies/@openzeppelin-contracts-4.9.3 ] || pnpm -C ../ deps:soldeer",
-    "build": "pnpm clean && pnpm deps:soldeer && forge build && pnpm build:typechain && tsc -p tsconfig.json",
-    "build:typechain": "mkdir -p typechain && find typechain -mindepth 1 -delete && pnpm exec typechain --target ethers-v5 --node16-modules --out-dir typechain out/TokenBridgeOft.sol/TokenBridgeOft.json",
-    "clean": "rm -rf ./artifacts ./cache ./dist ./typechain ./forge-cache ./out",
-    "lint": "eslint -c ./eslint.config.mjs ./index.ts",
-    "test": "pnpm deps:soldeer && forge test -vvv",
-    "test:ci": "pnpm deps:soldeer && forge test -vvv --no-match-contract ForkTest",
-    "test:fork": "pnpm deps:soldeer && sh -c '. ../.env.default && forge test -vvv --match-contract ForkTest'"
+    "build": "pnpm clean && tsc -p tsconfig.json",
+    "clean": "rm -rf ./artifacts ./cache ./dist ./forge-cache ./out",
+    "lint": "eslint -c ./eslint.config.mjs ./index.ts ./typechain/**/*.ts"
   },
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*"
