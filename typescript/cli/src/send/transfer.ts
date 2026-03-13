@@ -1,5 +1,6 @@
 import { stringify as yamlStringify } from 'yaml';
 
+import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type ChainMap,
@@ -7,14 +8,17 @@ import {
   type DispatchedMessage,
   HyperlaneCore,
   MultiProtocolProvider,
+  PredicateApiClient,
+  type PredicateAttestation,
   ProviderType,
   type Token,
-  TokenAmount,
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 import {
+  addressToByteHexString,
+  addressToBytes32,
   isEVMLike,
   assert,
   parseWarpRouteMessage,
@@ -43,6 +47,8 @@ export async function sendTestTransfer({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  predicateApiKey,
+  attestation,
   sourceToken,
   destinationToken,
 }: {
@@ -55,6 +61,8 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  predicateApiKey?: string;
+  attestation?: string;
   sourceToken?: string;
   destinationToken?: string;
 }) {
@@ -106,6 +114,16 @@ export async function sendTestTransfer({
     minGas: GasAction.TEST_SEND_GAS,
   });
 
+  // Parse attestation if provided as JSON string
+  let parsedAttestation: PredicateAttestation | undefined;
+  if (attestation) {
+    try {
+      parsedAttestation = JSON.parse(attestation);
+    } catch (e) {
+      throw new Error(`Invalid attestation JSON: ${e}`);
+    }
+  }
+
   for (let i = 0; i < chains.length; i++) {
     const origin = chains[i];
     const destination = chains[i + 1];
@@ -125,6 +143,8 @@ export async function sendTestTransfer({
           skipWaitForDelivery,
           selfRelay,
           skipValidation,
+          predicateApiKey,
+          attestation: parsedAttestation,
           sourceToken,
           destinationToken,
         }),
@@ -145,6 +165,8 @@ async function executeDelivery({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  predicateApiKey,
+  attestation,
   sourceToken: sourceTokenAddr,
   destinationToken: destTokenAddr,
 }: {
@@ -157,6 +179,8 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  predicateApiKey?: string;
+  attestation?: PredicateAttestation;
   sourceToken?: string;
   destinationToken?: string;
 }) {
@@ -224,6 +248,75 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
+  let finalAttestation: PredicateAttestation | undefined;
+  let quote:
+    | Awaited<ReturnType<typeof warpCore.getInterchainTransferFee>>
+    | undefined;
+  let tokenAmount = token.amount(amount); // Hoist to reuse for transaction
+
+  if (attestation) {
+    finalAttestation = attestation;
+  } else if (predicateApiKey) {
+    logBlue('Fetching Predicate attestation...');
+    const predicateClient = new PredicateApiClient(predicateApiKey);
+
+    const destinationDomain = multiProvider.getDomainId(destination);
+    const recipientBytes32 = addressToBytes32(
+      addressToByteHexString(recipientAddress),
+    );
+
+    const calldata = TokenRouter__factory.createInterface().encodeFunctionData(
+      'transferRemote(uint32,bytes32,uint256)',
+      [destinationDomain, recipientBytes32, tokenAmount.amount],
+    );
+
+    quote = await warpCore.getInterchainTransferFee({
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient: recipientAddress,
+    });
+
+    const hypAdapter = token.getHypAdapter(
+      MultiProtocolProvider.fromMultiProvider(multiProvider),
+      origin,
+    );
+    let predicateTarget = token.addressOrDenom;
+    if ('getPredicateWrapperAddress' in hypAdapter) {
+      const wrapperAddress = await (
+        hypAdapter as {
+          getPredicateWrapperAddress: () => Promise<string | null>;
+        }
+      ).getPredicateWrapperAddress();
+      if (wrapperAddress) {
+        predicateTarget = wrapperAddress;
+        log(`Using PredicateRouterWrapper address: ${wrapperAddress}`);
+      }
+    }
+
+    // For native/HypNative tokens, msg_value = amount + gas fees
+    // For ERC20 tokens, msg_value = gas fees only
+    const msgValue =
+      token.isNative() || token.isHypNative()
+        ? (
+            BigInt(tokenAmount.amount.toString()) + quote.igpQuote.amount
+          ).toString()
+        : quote.igpQuote.amount.toString();
+
+    const attestationRequest = {
+      to: predicateTarget,
+      from: signerAddress,
+      data: calldata,
+      msg_value: msgValue,
+      chain: origin,
+    };
+
+    const response = await predicateClient.fetchAttestation(attestationRequest);
+
+    finalAttestation = response.attestation;
+    logGreen('Predicate attestation obtained successfully');
+  }
+
   let destToken: Token | undefined;
   if (destTokenAddr) {
     const found = warpCore.findToken(destination, destTokenAddr);
@@ -236,10 +329,11 @@ async function executeDelivery({
 
   if (!skipValidation) {
     const errors = await warpCore.validateTransfer({
-      originTokenAmount: token.amount(amount),
+      originTokenAmount: tokenAmount,
       destination,
       recipient: recipientAddress,
       sender: signerAddress,
+      attestation: finalAttestation,
       destinationToken: destToken,
     });
     if (errors) {
@@ -250,9 +344,15 @@ async function executeDelivery({
 
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
-    originTokenAmount: new TokenAmount(amount, token),
+    originTokenAmount: tokenAmount, // Use same tokenAmount as attestation
     destination,
     sender: signerAddress,
+    attestation: finalAttestation,
+    ...(finalAttestation &&
+      quote && {
+        interchainFee: quote.igpQuote,
+        tokenFeeQuote: quote.tokenFeeQuote,
+      }),
     recipient: recipientAddress,
     destinationToken: destToken ?? undefined,
   });

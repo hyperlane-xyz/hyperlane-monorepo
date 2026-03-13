@@ -1,0 +1,25 @@
+    base:
+      owner: "0x380ad2e410688e0153125d01a6af9c4C27F7F0eC"
+      mailbox: "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+      hook:
+        type: predicateHook
+        address: "0x9995F95aaA827347Bc2AAbF862dF75Ead6E8b97a"
+      interchainSecurityModule: "0x0000000000000000000000000000000000000000"
+      remoteRouters:
+        "1":
+          address: "0x0000000000000000000000005f72c2d341884ddf0f8a18155d8172f56ae1eeec"
+      name: USD Coin
+      symbol: USDC
+      decimals: 6
+      isNft: false
+      contractVersion: 10.1.5
+      type: collateral
+      token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      allowedRebalancers: []
+      allowedRebalancingBridges: {}
+      proxyAdmin:
+        address: "0x475bB419502213fdb44d89ad94A1234fA3d7B2f9"
+        owner: "0x380ad2e410688e0153125d01a6af9c4C27F7F0eC"
+      destinationGas:
+        "1": "64000"
+    

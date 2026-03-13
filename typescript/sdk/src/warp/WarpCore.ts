@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Keypair } from '@solana/web3.js';
 
+import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import {
@@ -261,6 +262,8 @@ export class WarpCore {
     senderPubKey,
     interchainFee,
     tokenFeeQuote,
+    attestation,
+    amount,
     destinationToken,
   }: {
     originToken: IToken;
@@ -269,6 +272,8 @@ export class WarpCore {
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    attestation?: PredicateAttestation;
+    amount: bigint;
     destinationToken?: IToken;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
@@ -312,6 +317,7 @@ export class WarpCore {
       recipient,
       interchainFee,
       tokenFeeQuote,
+      attestation,
       destinationToken,
     });
 
@@ -367,6 +373,8 @@ export class WarpCore {
     senderPubKey,
     interchainFee,
     tokenFeeQuote,
+    attestation,
+    amount,
     destinationToken,
   }: {
     originToken: IToken;
@@ -375,6 +383,8 @@ export class WarpCore {
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    attestation?: PredicateAttestation;
+    amount: bigint;
     destinationToken?: IToken;
   }): Promise<TokenAmount> {
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -395,6 +405,8 @@ export class WarpCore {
       senderPubKey,
       interchainFee,
       tokenFeeQuote,
+      attestation,
+      amount,
       destinationToken,
     });
 
@@ -415,6 +427,7 @@ export class WarpCore {
     recipient,
     interchainFee,
     tokenFeeQuote,
+    attestation,
     destinationToken,
   }: {
     originTokenAmount: TokenAmount;
@@ -423,6 +436,8 @@ export class WarpCore {
     recipient: Address;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    /** Optional Predicate attestation for compliance-gated warp routes */
+    attestation?: PredicateAttestation;
     destinationToken?: IToken;
   }): Promise<Array<WarpTypedTransaction>> {
     // Check if this is a CrossCollateralRouter transfer
@@ -557,6 +572,7 @@ export class WarpCore {
         transactions.push(approveTx);
       }
     }
+
     const extraSignerKeypairs =
       providerType === ProviderType.SolanaWeb3
         ? [Keypair.generate()]
@@ -568,6 +584,7 @@ export class WarpCore {
       recipient,
       interchainGas,
       customHook: token.igpTokenAddressOrDenom,
+      attestation,
       extraSigners: extraSignerKeypairs,
     });
 
@@ -718,6 +735,7 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    attestation,
     destinationToken,
   }: {
     originTokenAmount: TokenAmount;
@@ -725,6 +743,7 @@ export class WarpCore {
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    attestation?: PredicateAttestation;
     destinationToken?: IToken;
   }): Promise<WarpCoreFeeEstimate> {
     this.logger.debug('Fetching remote transfer fee estimates');
@@ -760,6 +779,8 @@ export class WarpCore {
       senderPubKey,
       interchainFee: igpQuote,
       tokenFeeQuote,
+      attestation,
+      amount: originTokenAmount.amount,
     });
 
     return {
@@ -810,6 +831,7 @@ export class WarpCore {
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,
+      amount: originTokenAmount.amount,
       destinationToken: resolvedDestinationToken,
     });
 
@@ -1003,6 +1025,7 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    attestation,
     destinationToken,
   }: {
     originTokenAmount: TokenAmount;
@@ -1010,6 +1033,7 @@ export class WarpCore {
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    attestation?: PredicateAttestation;
     destinationToken?: IToken;
   }): Promise<Record<string, string> | null> {
     const chainError = this.validateChains(
@@ -1070,6 +1094,7 @@ export class WarpCore {
       sender,
       recipient,
       senderPubKey,
+      attestation,
       resolvedDestinationToken,
     );
     if (balancesError) return balancesError;
@@ -1194,6 +1219,7 @@ export class WarpCore {
     sender: Address,
     recipient: Address,
     senderPubKey?: HexString,
+    attestation?: PredicateAttestation,
     destinationToken?: IToken,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
@@ -1249,6 +1275,8 @@ export class WarpCore {
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,
+      attestation,
+      amount,
       destinationToken,
     });
 
@@ -1485,5 +1513,30 @@ export class WarpCore {
     return this.tokens.filter(
       (t) => t.chainName === origin && t.getConnectionForChain(destination),
     );
+  }
+
+  /**
+   * Check if a token supports Predicate attestations
+   * @param token The token to check
+   * @param destination Optional destination chain for the route
+   * @returns True if the token's warp route has a PredicateRouterWrapper configured
+   */
+  async isPredicateSupported(
+    token: IToken,
+    destination?: ChainName,
+  ): Promise<boolean> {
+    try {
+      const adapter = token.getHypAdapter(this.multiProvider, destination);
+
+      // Only EVM adapters support predicate currently
+      if (!('supportsAttestation' in adapter)) {
+        return false;
+      }
+
+      return await (adapter as any).supportsAttestation();
+    } catch (error) {
+      this.logger.debug('Error checking predicate support', { error });
+      return false;
+    }
   }
 }
