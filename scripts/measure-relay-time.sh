@@ -18,7 +18,7 @@ DEST_DOMAIN="31338"
 RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 RECIPIENT_BYTES32="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-ORIGIN_CHAIN="test4"
+ORIGIN_CHAIN="ethereumlocal1"
 
 # Parse arguments
 NUM_TRANSFERS="${1:-20}" # Default 20 transfers
@@ -96,15 +96,24 @@ measure_transfer() {
   # Submit to relay API if enabled
   if [ "$USE_RELAY_API" = true ]; then
     echo -n "  Submitting to relay API... "
-    RELAY_RESPONSE=$(curl -s -X POST $RELAY_API_URL \
+    RELAY_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST $RELAY_API_URL \
       -H "Content-Type: application/json" \
       -d "{\"origin_chain\":\"$ORIGIN_CHAIN\",\"tx_hash\":\"$TX_HASH\"}")
 
-    MESSAGE_ID=$(echo $RELAY_RESPONSE | jq -r '.message_id // empty')
-    if [ -n "$MESSAGE_ID" ]; then
-      echo "✓ (message: $MESSAGE_ID)"
+    HTTP_CODE=$(echo "$RELAY_RESPONSE" | tail -n1)
+    BODY=$(echo "$RELAY_RESPONSE" | sed '$d')
+
+    if [ "$HTTP_CODE" != "200" ]; then
+      echo "✗ HTTP $HTTP_CODE: $BODY"
+    elif echo "$BODY" | jq -e . >/dev/null 2>&1; then
+      MESSAGE_ID=$(echo "$BODY" | jq -r '.message_id // empty')
+      if [ -n "$MESSAGE_ID" ]; then
+        echo "✓ (message: $MESSAGE_ID)"
+      else
+        echo "✗ No message_id in response: $BODY"
+      fi
     else
-      echo "✗ Failed: $RELAY_RESPONSE"
+      echo "✗ Invalid JSON response: $BODY"
     fi
   fi
 
