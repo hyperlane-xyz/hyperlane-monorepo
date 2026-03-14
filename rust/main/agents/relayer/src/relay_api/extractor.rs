@@ -1,27 +1,12 @@
 use eyre::{eyre, Result};
-use hyperlane_core::{ChainResult, HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
 use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, error};
 
 /// Registry of providers for different chains
 #[derive(Clone)]
 pub struct ProviderRegistry {
-    indexers: Arc<HashMap<String, Arc<dyn MailboxIndexer>>>,
-}
-
-/// Trait for chain-specific mailbox indexers
-/// This trait abstracts over different protocol types (EVM, Cosmos, Sealevel, etc.)
-#[async_trait::async_trait]
-pub trait MailboxIndexer: Send + Sync {
-    /// Fetch Hyperlane messages from a transaction by its hash
-    /// tx_hash format is protocol-specific:
-    /// - EVM: hex string (0x...)
-    /// - Cosmos: hex or base64 string
-    /// - Sealevel: base58 string
-    async fn fetch_logs_by_tx_hash(&self, tx_hash: &str) -> ChainResult<Vec<HyperlaneMessage>>;
-
-    /// Get the domain ID for this chain
-    fn domain(&self) -> u32;
+    indexers: Arc<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
 }
 
 impl ProviderRegistry {
@@ -31,7 +16,11 @@ impl ProviderRegistry {
         }
     }
 
-    pub fn with_indexer(mut self, chain_name: String, indexer: Arc<dyn MailboxIndexer>) -> Self {
+    pub fn with_indexer(
+        mut self,
+        chain_name: String,
+        indexer: Arc<dyn Indexer<HyperlaneMessage>>,
+    ) -> Self {
         Arc::get_mut(&mut self.indexers)
             .expect("Cannot modify registry after cloning")
             .insert(chain_name, indexer);
@@ -55,16 +44,41 @@ impl ProviderRegistry {
             "Extracting message from transaction"
         );
 
-        // Fetch messages from transaction
-        let messages = indexer.fetch_logs_by_tx_hash(tx_hash).await.map_err(|e| {
-            error!(
-                chain = %chain_name,
-                tx_hash = %tx_hash,
-                error = ?e,
-                "Failed to fetch logs from transaction"
-            );
-            eyre!("Failed to fetch transaction logs: {}", e)
+        let tx_hash_clean = tx_hash.trim_start_matches("0x");
+
+        // Try parsing as hex (most common format)
+        let hash_bytes = hex::decode(tx_hash_clean).map_err(|e| {
+            hyperlane_core::ChainCommunicationError::from_other_str(&format!(
+                "Invalid tx hash format: {}",
+                e
+            ))
         })?;
+
+        // Pad to 64 bytes if needed
+        let mut padded_bytes = [0u8; 64];
+        let start_pos = 64 - hash_bytes.len();
+        padded_bytes[start_pos..].copy_from_slice(&hash_bytes);
+        let tx_hash_512 = H512::from_slice(&padded_bytes);
+
+        // Fetch messages from transaction
+        let messages_with_meta = indexer
+            .fetch_logs_by_tx_hash(tx_hash_512)
+            .await
+            .map_err(|e| {
+                error!(
+                    chain = %chain_name,
+                    tx_hash = %tx_hash,
+                    error = ?e,
+                    "Failed to fetch logs from transaction"
+                );
+                eyre!("Failed to fetch transaction logs: {}", e)
+            })?;
+
+        // Extract just the messages
+        let messages: Vec<HyperlaneMessage> = messages_with_meta
+            .into_iter()
+            .map(|(indexed_msg, _log_meta)| indexed_msg.inner().clone())
+            .collect();
 
         if messages.is_empty() {
             error!(
@@ -79,6 +93,7 @@ impl ProviderRegistry {
         // TODO: Handle multiple messages in single tx if needed
         let message = messages.into_iter().next().unwrap();
 
+        let origin_domain = message.origin;
         let destination_domain = message.destination;
         let message_id = message.id();
 
@@ -86,13 +101,14 @@ impl ProviderRegistry {
             chain = %chain_name,
             tx_hash = %tx_hash,
             message_id = ?message_id,
+            origin_domain = origin_domain,
             destination_domain = destination_domain,
             "Successfully extracted message"
         );
 
         Ok(ExtractedMessage {
             message,
-            origin_domain: indexer.domain(),
+            origin_domain,
             destination_domain,
             message_id,
         })

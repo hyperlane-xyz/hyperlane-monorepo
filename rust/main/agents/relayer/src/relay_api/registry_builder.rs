@@ -1,10 +1,9 @@
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
+use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, Indexer};
 
-use super::{EvmMailboxIndexer, MailboxIndexer, ProviderRegistry};
+use super::ProviderRegistry;
 
 /// Builds a ProviderRegistry by creating appropriate indexers for each configured chain
 pub struct RegistryBuilder {
@@ -24,7 +23,7 @@ impl RegistryBuilder {
         mut self,
         domain: &HyperlaneDomain,
         chain_name: String,
-        indexer: Arc<dyn MailboxIndexer>,
+        indexer: Arc<dyn Indexer<HyperlaneMessage>>,
     ) -> Self {
         info!(
             chain = %chain_name,
