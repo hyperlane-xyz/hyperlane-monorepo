@@ -139,6 +139,9 @@ export class CoreWriter extends CoreArtifactReader {
       this.signer,
     );
 
+    // Create mailbox with ISM but zero hooks initially.
+    // Hooks require the mailbox address for deployment (circular dependency),
+    // so we create mailbox first, deploy hooks in Step 3, then update mailbox in Step 4.
     const initialMailboxArtifact: ArtifactNew<MailboxOnChain> = {
       artifactState: ArtifactState.NEW,
       config: {
