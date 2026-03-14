@@ -15,7 +15,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { Logger, isEmptyAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { createHookReader } from '../hook/hook-reader.js';
+import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
 import { ismArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -40,7 +40,8 @@ export class CoreArtifactReader implements ArtifactReader<
   protected readonly logger: Logger = rootLogger.child({
     module: CoreArtifactReader.name,
   });
-  private readonly ismReader: IsmReader;
+  protected readonly ismReader: IsmReader;
+  protected readonly hookReaderFactory: (mailbox: string) => HookReader;
 
   constructor(
     protected readonly mailboxArtifactManager: IRawMailboxArtifactManager,
@@ -48,6 +49,8 @@ export class CoreArtifactReader implements ArtifactReader<
     protected readonly chainLookup: ChainLookup,
   ) {
     this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
+    this.hookReaderFactory = (mailbox) =>
+      createHookReader(this.chainMetadata, this.chainLookup, { mailbox });
   }
 
   /**
@@ -67,9 +70,7 @@ export class CoreArtifactReader implements ArtifactReader<
     // 2. Expand nested ISM and hooks using specialized readers
     // Hook reader is created per-read with mailbox context (needed for SVM hook detection)
     // Skip reading when address is empty (undefined, null, empty string, or zeroish)
-    const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {
-      mailbox: mailboxAddress,
-    });
+    const hookReader = this.hookReaderFactory(mailboxAddress);
 
     const defaultIsmAddr = rawMailbox.config.defaultIsm.deployed.address;
     const defaultHookAddr = rawMailbox.config.defaultHook.deployed.address;

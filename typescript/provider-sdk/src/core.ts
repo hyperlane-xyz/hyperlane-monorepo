@@ -1,3 +1,4 @@
+import { UnsetArtifactAddress } from './artifact.js';
 import type { DerivedHookConfig, HookConfig } from './hook.js';
 import type { DerivedIsmConfig, IsmConfig } from './ism.js';
 
@@ -15,9 +16,9 @@ export interface CoreConfig {
 }
 
 export interface DerivedCoreConfig extends CoreConfig {
-  defaultIsm: DerivedIsmConfig;
-  defaultHook: DerivedHookConfig;
-  requiredHook: DerivedHookConfig;
+  defaultIsm: DerivedIsmConfig | UnsetArtifactAddress;
+  defaultHook: DerivedHookConfig | UnsetArtifactAddress;
+  requiredHook: DerivedHookConfig | UnsetArtifactAddress;
 }
 
 export type DeployedCoreAddresses = {

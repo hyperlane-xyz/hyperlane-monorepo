@@ -1,10 +1,12 @@
 import {
   Artifact,
   ArtifactDeployed,
+  ArtifactOnChain,
   ArtifactState,
   ConfigOnChain,
   IArtifactManager,
   isArtifactDeployed,
+  UnsetArtifactAddress,
 } from './artifact.js';
 import type { ChainLookup } from './chain.js';
 import type { DerivedCoreConfig } from './core.js';
@@ -20,7 +22,11 @@ import type {
   DerivedIsmConfig,
   IsmArtifactConfig,
 } from './ism.js';
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  isEmptyAddress,
+} from '@hyperlane-xyz/utils';
 
 // Artifact API types
 
@@ -145,30 +151,33 @@ export function mailboxArtifactToDerivedCoreConfig(
 ): DerivedCoreConfig {
   const { defaultIsm, defaultHook, requiredHook, owner } = artifact.config;
 
-  // All nested artifacts should be in DEPLOYED state after CoreArtifactReader.read()
-  assert(
-    isArtifactDeployed(defaultIsm),
-    `Expected defaultIsm to be ${ArtifactState.DEPLOYED}, got ${defaultIsm.artifactState}`,
-  );
-  assert(
-    isArtifactDeployed(defaultHook),
-    `Expected defaultHook to be ${ArtifactState.DEPLOYED}, got ${defaultHook.artifactState}`,
-  );
-  assert(
-    isArtifactDeployed(requiredHook),
-    `Expected requiredHook to be ${ArtifactState.DEPLOYED}, got ${requiredHook.artifactState}`,
-  );
-
   return {
     owner,
-    defaultIsm: converters.ismArtifactToDerivedConfig(defaultIsm, chainLookup),
-    defaultHook: converters.hookArtifactToDerivedConfig(
-      defaultHook,
-      chainLookup,
+    defaultIsm: fromOnChainArtifact(defaultIsm, 'defaultIsm', (a) =>
+      converters.ismArtifactToDerivedConfig(a, chainLookup),
     ),
-    requiredHook: converters.hookArtifactToDerivedConfig(
-      requiredHook,
-      chainLookup,
+    defaultHook: fromOnChainArtifact(defaultHook, 'defaultHook', (a) =>
+      converters.hookArtifactToDerivedConfig(a, chainLookup),
+    ),
+    requiredHook: fromOnChainArtifact(requiredHook, 'requiredHook', (a) =>
+      converters.hookArtifactToDerivedConfig(a, chainLookup),
     ),
   };
+}
+
+function fromOnChainArtifact<C, D extends { address: string }, R>(
+  artifact: ArtifactOnChain<C, D>,
+  fieldName: keyof DerivedCoreConfig,
+  convert: (artifact: ArtifactDeployed<C, D>) => R,
+): R | UnsetArtifactAddress {
+  if (isArtifactDeployed(artifact)) {
+    return convert(artifact);
+  }
+
+  assert(
+    isEmptyAddress(artifact.deployed.address),
+    `Expected ${fieldName} to be ${ArtifactState.DEPLOYED}, got ${artifact.artifactState} with non-zero address ${artifact.deployed.address}`,
+  );
+
+  return ZERO_ADDRESS_HEX_32;
 }
