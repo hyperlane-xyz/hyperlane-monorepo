@@ -85,6 +85,8 @@ export function SearchMenu<
       sortOrder: SortOrderOption.Asc,
     },
   );
+  // Initialized from prop intentionally: filter state is managed internally,
+  // defaultFilterState is only used as initial/reset value
   const [filterState, setFilterState] =
     useState<FilterState>(defaultFilterState);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +172,7 @@ export function SearchMenu<
       </div>
       <div className="htw-flex htw-flex-col htw-divide-y htw-divide-gray-100">
         {results.length ? (
+          /* Index key: generic ListItemData has no guaranteed stable id field */
           results.map((data, i) => (
             <ListItem
               key={i}
@@ -261,10 +264,18 @@ function SortDropdown<SortBy extends string>({
         buttonClassname="htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
         menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm htw-border htw-border-gray-100"
         menuItems={options.map((o) => (
-          // eslint-disable-next-line react/jsx-key
           <div
+            key={o}
+            role="button"
+            tabIndex={0}
             className="htw-rounded htw-p-1.5 hover:htw-bg-gray-200"
             onClick={() => onSetSortBy(o)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSetSortBy(o);
+              }
+            }}
           >
             {toTitleCase(o)}
           </div>

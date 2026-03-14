@@ -57,9 +57,9 @@ export function AccountList({
 
   return (
     <div className={clsx('htw-space-y-2', className)}>
-      {readyAccounts.map((acc, i) => (
+      {readyAccounts.map((acc) => (
         <AccountSummary
-          key={i}
+          key={acc.protocol}
           account={acc}
           walletDetails={walletDetails[acc.protocol]}
           onCopySuccess={onCopySuccess}

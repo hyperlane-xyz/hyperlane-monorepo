@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import React, { PropsWithChildren, useMemo, useRef, useState } from 'react';
 import { stringify as yamlStringify } from 'yaml';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -36,6 +36,8 @@ import { useConnectionHealthTest } from '../utils/useChainConnectionTest.js';
 
 import { ChainLogo } from './ChainLogo.js';
 import { ChainConnectionType } from './types.js';
+
+const EMPTY_OVERRIDE_METADATA: Partial<ChainMetadata> = {};
 
 export interface ChainDetailsMenuProps {
   chainMetadata: ChainMetadata;
@@ -182,9 +184,9 @@ function ConnectionsSection({
   return (
     <div className="htw-space-y-1.5">
       <SectionHeader tooltip={tooltip}>{header}</SectionHeader>
-      {values.map((_, i) => (
+      {values.map((value, i) => (
         <ConnectionRow
-          key={i}
+          key={value}
           chainMetadata={chainMetadata}
           overrideChainMetadata={overrideChainMetadata}
           onChangeOverrideMetadata={onChangeOverrideMetadata}
@@ -340,13 +342,16 @@ function MetadataOverride({
     ? yamlStringify(overrideChainMetadata)
     : '';
   const [overrideInput, setOverrideInput] = useState(stringified);
-  const showButton = overrideInput !== stringified;
   const [isInvalid, setIsInvalid] = useState(false);
 
-  // Keep input in sync with external changes
-  useEffect(() => {
+  // Derive state during render: keep input in sync with external changes
+  const prevStringified = useRef(stringified);
+  if (prevStringified.current !== stringified) {
+    prevStringified.current = stringified;
     setOverrideInput(stringified);
-  }, [stringified]);
+  }
+
+  const showButton = overrideInput !== stringified;
 
   const onChangeInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setOverrideInput(e.target.value);
@@ -415,7 +420,7 @@ function SectionHeader({
 
 function ConnectionRow({
   chainMetadata,
-  overrideChainMetadata = {},
+  overrideChainMetadata = EMPTY_OVERRIDE_METADATA,
   onChangeOverrideMetadata,
   index,
   type,
