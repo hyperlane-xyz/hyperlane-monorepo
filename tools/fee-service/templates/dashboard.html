@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyperlane Fee Autopilot</title>
+<style>
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #22d3ee;
+    --accent-green: #22c55e;
+    --accent-yellow: #eab308;
+    --accent-red: #ef4444;
+    --accent-orange: #f97316;
+    --accent-purple: #a855f7;
+    --border: #334155;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+    font-size: 2rem;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.scan-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.scan-controls .scan-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.btn:hover { border-color: var(--accent-cyan); background: rgba(34, 211, 238, 0.1); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.btn-primary { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.2); }
+.btn.btn-danger { border-color: var(--accent-red); background: rgba(239, 68, 68, 0.1); }
+.btn.btn-success { border-color: var(--accent-green); background: rgba(34, 197, 94, 0.15); }
+
+.section { margin-bottom: 2rem; }
+
+.section h2 {
+    color: var(--accent-cyan);
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.section p {
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.summary-grid, .safety-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.card-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.card-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.data-table th {
+    background: rgba(51, 65, 85, 0.5);
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.data-table tr:hover { background: rgba(51, 65, 85, 0.3); }
+
+.data-table .num {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: right;
+}
+
+.badge {
+    display: inline-block;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #fff;
+}
+
+.sortable th[data-sort] {
+    cursor: pointer;
+    user-select: none;
+}
+.sortable th[data-sort]:hover { color: var(--accent-cyan); }
+.sortable th.sort-asc::after { content: ' \25B2'; }
+.sortable th.sort-desc::after { content: ' \25BC'; }
+
+.safety-list {
+    list-style: none;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+.safety-list li {
+    padding: 0.25rem 0;
+    color: var(--text-muted);
+}
+.safety-list li::before {
+    content: '\2022 ';
+    color: var(--accent-cyan);
+}
+
+.token-group { margin-bottom: 2rem; }
+.token-group h3 {
+    color: var(--accent-blue);
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+.fee-curve-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 1rem;
+}
+.fee-curve-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+.fee-curve-block h4 {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.fee-curve-table { font-size: 0.8rem; }
+.fee-curve-table td, .fee-curve-table th { padding: 0.35rem 0.6rem; }
+
+/* Modal */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.modal h3 { color: var(--accent-cyan); margin-bottom: 1rem; }
+.modal pre {
+    background: var(--bg-primary);
+    padding: 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+.modal .btn-group {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+.toast.success { background: rgba(34, 197, 94, 0.9); color: #fff; }
+.toast.error { background: rgba(239, 68, 68, 0.9); color: #fff; }
+
+@media (max-width: 768px) {
+    body { padding: 1rem; }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .data-table { font-size: 0.75rem; }
+    .data-table th, .data-table td { padding: 0.4rem 0.5rem; }
+    .fee-curve-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+{# ── Macros ── #}
+{% macro fmt_usd(val, compact=false) -%}
+    {%- if val is none or val == '' -%}N/A
+    {%- elif compact and val|abs >= 1000000 -%}${{ "%.1f"|format(val / 1000000) }}M
+    {%- elif compact and val|abs >= 1000 -%}${{ "%.1f"|format(val / 1000) }}K
+    {%- elif val|abs < 1 -%}${{ "%.4f"|format(val) }}
+    {%- else -%}${{ "{:,.2f}".format(val) }}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro fmt_bps(val) -%}
+    {%- if val is none -%}N/A{%- else -%}{{ "%.1f"|format(val) }} bps{%- endif -%}
+{%- endmacro %}
+
+{% macro fmt_gwei(val) -%}
+    {%- if val is none -%}N/A{%- else -%}{{ "%.2f"|format(val) }} gwei{%- endif -%}
+{%- endmacro %}
+
+{% macro fmt_pct(val) -%}
+    {%- if val is none -%}N/A
+    {%- elif val > 0 -%}+{{ "%.1f"|format(val) }}%
+    {%- else -%}{{ "%.1f"|format(val) }}%
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro badge(status, text=none) -%}
+    {%- set colors = {
+        'ok': '#22c55e', 'warning': '#eab308', 'stale': '#f97316',
+        'error': '#ef4444', 'cheapest': '#22c55e', 'competitive': '#3b82f6',
+        'expensive': '#ef4444', 'needs_update': '#eab308', 'current': '#22c55e'
+    } -%}
+    <span class="badge" style="background:{{ colors.get(status, '#6b7280') }};">{{ text or status|upper }}</span>
+{%- endmacro %}
+
+
+{# ── Header ── #}
+<header>
+    <h1>Hyperlane Fee Autopilot</h1>
+    {% if scan %}
+        {% set circuit = scan.get('safety', {}).get('circuit_breaker', {}) %}
+        {% set halted = circuit.get('halt', false) %}
+        <p class="subtitle">
+            Last scan: {{ scan.timestamp | int | timestamp_fmt }}
+            {{ badge('error' if halted else 'ok', 'HALTED' if halted else 'ACTIVE') }}
+        </p>
+    {% else %}
+        <p class="subtitle">No scan data yet. Run a scan to get started.</p>
+    {% endif %}
+
+    <div class="scan-controls">
+        <span class="scan-info" id="last-scan-info"></span>
+        <button class="btn btn-primary" id="btn-scan-default" onclick="triggerScan(false)">
+            Scan Now (+ competitors)
+        </button>
+        <button class="btn" id="btn-scan-no-comp" onclick="triggerScan(true)">
+            Scan w/o competitors
+        </button>
+        <span class="scan-info" id="scan-status-text"></span>
+        <span class="scan-info" id="next-scan-info"></span>
+    </div>
+</header>
+
+
+{% if scan %}
+{% set gas_data = scan.get('gas_prices', {}) %}
+{% set token_prices = scan.get('token_prices', {}) %}
+{% set delivery_costs = scan.get('delivery_costs', {}) %}
+{% set hyperlane_state = scan.get('hyperlane_state', {}) %}
+{% set competitor_quotes = scan.get('competitor_quotes', {}) %}
+{% set competitive = scan.get('competitive_summary', {}) %}
+{% set igp_recommendations = scan.get('igp_recommendations', {}) %}
+{% set warp_recommendations = scan.get('warp_recommendations', {}) %}
+{% set safety = scan.get('safety', {}) %}
+
+
+{# ── Summary Cards ── #}
+{% set eth_price = token_prices.get('ethereum', {}).get('usd', 0) %}
+{% set sol_price = token_prices.get('solana', {}).get('usd', 0) %}
+{% set eth_gas = gas_data.get('ethereum', {}).get('gas_price_gwei', 0) %}
+{% set arb_gas = gas_data.get('arbitrum', {}).get('gas_price_gwei', 0) %}
+{% set n_chains = gas_data|length %}
+{% set n_routes = competitive.get('n_routes_analyzed', 0) %}
+{% set position = competitive.get('overall_position', 'unknown') %}
+
+<section class="summary-grid">
+    <div class="card">
+        <div class="card-label">ETH Price</div>
+        <div class="card-value">{{ fmt_usd(eth_price) }}</div>
+        <div class="card-sub">Gas: {{ fmt_gwei(eth_gas) }}</div>
+    </div>
+    <div class="card">
+        <div class="card-label">SOL Price</div>
+        <div class="card-value">{{ fmt_usd(sol_price) }}</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Chains Monitored</div>
+        <div class="card-value">{{ n_chains }}</div>
+        <div class="card-sub">Arb gas: {{ fmt_gwei(arb_gas) }}</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Avg Delivery Cost</div>
+        {% set costs_list = [] %}
+        {% for chain, data in delivery_costs.items() if data is mapping and data.get('igp_quote_usd') %}
+            {% if costs_list.append(data.igp_quote_usd) %}{% endif %}
+        {% endfor %}
+        <div class="card-value">{{ fmt_usd((costs_list|sum / costs_list|length) if costs_list else 0) }}</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Competitive Position</div>
+        <div class="card-value">
+            {% if position and position != 'unknown' %}
+                {{ badge(position, position|title) }}
+            {% else %}
+                <span style="color:#888">No data</span>
+            {% endif %}
+        </div>
+        <div class="card-sub">{{ '%d routes analyzed' % n_routes if n_routes else 'Run scan (competitors included by default)' }}</div>
+    </div>
+</section>
+
+
+{# ── Gas Prices ── #}
+<section class="section">
+    <h2>Live Gas Prices</h2>
+    <table class="data-table">
+        <thead><tr><th>Chain</th><th>Type</th><th>Gas Price</th><th>Raw Gas Cost (USD/msg)</th><th>Details</th></tr></thead>
+        <tbody>
+        {% for chain, data in gas_data|dictsort if data is mapping %}
+            {% set chain_type = data.get('type', 'evm') %}
+            {% set dcost = delivery_costs.get(chain, {}) if delivery_costs else {} %}
+            {% set raw_cost = dcost.get('raw_cost_usd') if dcost is mapping else none %}
+            <tr>
+                <td>{{ chain }}</td>
+                <td>{{ chain_type|upper }}</td>
+                <td class="num">
+                    {% if chain_type == 'sealevel' %}
+                        {{ data.get('base_fee_lamports', 0) }} lamports base
+                    {% else %}
+                        {{ fmt_gwei(data.get('gas_price_gwei', 0)) }}
+                    {% endif %}
+                </td>
+                <td class="num">{{ fmt_usd(raw_cost) if raw_cost is not none else 'N/A' }}</td>
+                <td>
+                    {% if chain_type == 'sealevel' %}
+                        Priority: {{ data.get('priority_fee_microlamports', 0) }} &mu;lamports/CU
+                    {% elif data.get('l1_fee_scalar') %}
+                        L1 base: {{ "%.2f"|format(data.l1_fee_scalar) }} gwei
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+
+{# ── Token Prices ── #}
+<section class="section">
+    <h2>Token Prices</h2>
+    <table class="data-table">
+        <thead><tr><th>Token</th><th>USD Price</th><th>Source</th></tr></thead>
+        <tbody>
+        {% for token, data in token_prices|dictsort if data is mapping %}
+            <tr>
+                <td>{{ token|upper }}</td>
+                <td class="num">{{ fmt_usd(data.get('usd', 0)) }}</td>
+                <td>{{ data.get('source', '') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+
+{# ── Delivery Costs ── #}
+<section class="section">
+    <h2>Delivery Costs (per message)</h2>
+    <p><strong>Raw cost</strong> = actual gas. <strong>IGP quote</strong> = what user pays for gas delivery (raw + margin, floored).</p>
+    <table class="data-table">
+        <thead><tr>
+            <th>Destination</th><th>Raw Gas Cost</th><th>IGP Quote</th>
+            <th>Margin</th><th>Floor?</th><th>Notes</th>
+        </tr></thead>
+        <tbody>
+        {% for chain, data in delivery_costs|dictsort if data is mapping %}
+            {% set raw = data.get('raw_cost_usd') %}
+            {% set igp = data.get('igp_quote_usd') %}
+            {% set margin = data.get('igp_margin_pct', 0) %}
+            {% set min_applied = data.get('min_usd_applied', false) %}
+            <tr>
+                <td>{{ chain }}</td>
+                <td class="num">{{ fmt_usd(raw) if raw is not none else 'N/A' }}</td>
+                <td class="num">{{ fmt_usd(igp) if igp is not none else 'N/A' }}</td>
+                <td class="num">{{ margin }}%</td>
+                <td>{{ 'Yes' if min_applied else '' }}</td>
+                <td>
+                    {% if data.get('error') %}{{ data.error }}
+                    {% else %}{{ "{:,}".format(data.get('gas_overhead', 0)) }} gas
+                        {% if min_applied %} | IGP floored to ${{ data.get('min_usd_value', 0) }}{% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+
+{# ── Rebalancing Costs ── #}
+{% set rebalancing_costs = scan.get('rebalancing_costs', {}) %}
+{% if rebalancing_costs %}
+<section class="section">
+    <h2>Rebalancing Costs</h2>
+    <p>Amortized cost of rebalancing liquidity across chains. This feeds into the warp fee floor.</p>
+    <table class="data-table">
+        <thead><tr>
+            <th>Chain</th>
+            <th data-sort="num">Cost (bps)</th>
+            <th data-sort="num">Gas Cost ($)</th>
+            <th data-sort="num">Volume ($)</th>
+            <th data-sort="num">Txs</th>
+            <th>Source</th>
+        </tr></thead>
+        <tbody>
+        {% for chain, data in rebalancing_costs|dictsort if data is mapping %}
+            <tr>
+                <td>{{ chain }}</td>
+                <td class="num">{{ "%.2f"|format(data.get('bps', 0)) }} bps</td>
+                <td class="num">{{ fmt_usd(data.get('total_gas_cost_usd', 0)) }}</td>
+                <td class="num">{{ fmt_usd(data.get('total_volume_usd', 0), compact=true) }}</td>
+                <td class="num">{{ data.get('tx_count', 0) }}</td>
+                <td>{{ data.get('source', 'fallback') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+
+{# ── IGP Status ── #}
+<section class="section">
+    <h2>IGP Gas Oracle Status</h2>
+    <p>Current vs recommended IGP parameters. Updates flagged when drift &gt;5%.</p>
+    <table class="data-table sortable">
+        <thead><tr>
+            <th>Chain</th>
+            <th data-sort="num">Current Gas</th>
+            <th data-sort="num">Recommended</th>
+            <th data-sort="num">Gas Drift</th>
+            <th data-sort="num">Current Token</th>
+            <th data-sort="num">Recommended</th>
+            <th data-sort="num">Token Drift</th>
+            <th>Status</th>
+        </tr></thead>
+        <tbody>
+        {% set igp = hyperlane_state.get('igp', {}) %}
+        {% set igp_gas = igp.get('gas_prices', {}) %}
+        {% set igp_tok = igp.get('token_prices', {}) %}
+        {% set seen = [] %}
+        {% for route_key, rec in igp_recommendations|dictsort %}
+            {% set remote = rec.get('remote_chain', '') %}
+            {% if remote and remote not in seen %}
+                {% if seen.append(remote) %}{% endif %}
+                {% set needs = rec.get('needs_update', false) %}
+                <tr>
+                    <td>{{ remote }}</td>
+                    <td class="num">{{ igp_gas.get(remote, {}).get('gas_price', '?') }}</td>
+                    <td class="num">{{ rec.get('gas_price', '?') }}</td>
+                    <td class="num">{{ fmt_pct(rec.get('gas_price_diff_pct')) if rec.get('gas_price_diff_pct') is not none else '—' }}</td>
+                    <td class="num">{{ igp_tok.get(remote, {}).get('token_price', '?') }}</td>
+                    <td class="num">{{ rec.get('token_exchange_rate', '?') }}</td>
+                    <td class="num">{{ fmt_pct(rec.get('token_price_diff_pct')) if rec.get('token_price_diff_pct') is not none else '—' }}</td>
+                    <td>{{ badge('needs_update' if needs else 'current') }}</td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+
+{# ── Competitor Comparison ── #}
+{% set routes_analysis = competitive.get('routes', {}) %}
+{% if routes_analysis %}
+    {# Discover all amounts #}
+    {% set all_amounts = [] %}
+    {% for rk, analysis in routes_analysis.items() if analysis is mapping %}
+        {% for k in analysis.keys() %}
+            {% if k|int(default=0) > 0 and k|int not in all_amounts %}
+                {% if all_amounts.append(k|int) %}{% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+    {% set amounts_sorted = all_amounts|sort %}
+
+    <section class="section">
+        <h2>Competitor Fee Overview</h2>
+        <p>Cheapest competitor fee in bps at each transfer size. Hover for USD amount.
+           Colors: <span style="color:#22c55e;">cheapest</span>,
+           <span style="color:#3b82f6;">competitive</span>,
+           <span style="color:#ef4444;">expensive</span> vs Hyperlane all-in fee to user (IGP + warp fee).</p>
+        <table class="data-table sortable">
+            <thead><tr>
+                <th>Route</th>
+                {% for amt in amounts_sorted %}
+                    <th data-sort="num">{{ '$%dK' % (amt // 1000) if amt >= 1000 else '$%d' % amt }}</th>
+                {% endfor %}
+            </tr></thead>
+            <tbody>
+            {% for route_key in routes_analysis.keys()|sort %}
+                {% set analysis = routes_analysis[route_key] %}
+                {% if analysis is mapping and 'error' not in analysis %}
+                <tr>
+                    <td>{{ route_key }}</td>
+                    {% for amt in amounts_sorted %}
+                        {% set tier = analysis.get(amt) or analysis.get(amt|string) %}
+                        {% if tier %}
+                            {% set cheapest = tier.get('cheapest', {}) %}
+                            {% set pos = tier.get('position', 'unknown') %}
+                            {% set pos_colors = {'cheapest': '#22c55e', 'competitive': '#3b82f6', 'expensive': '#ef4444'} %}
+                            <td class="num" style="color:{{ pos_colors.get(pos, '#94a3b8') }};"
+                                title="{{ cheapest.get('name', '') }}: {{ fmt_usd(cheapest.get('fee_usd', 0)) }}">
+                                {{ "%.1f"|format(cheapest.get('fee_bps', 0)) }}
+                            </td>
+                        {% else %}
+                            <td class="num">&mdash;</td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+                {% endif %}
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    {# ── Fee Curves by Route ── #}
+    <section class="section">
+        <h2>Fee Curves by Route (bps)</h2>
+        <p>All competitor fees at each transfer size.
+           <span style="color:var(--accent-purple);font-weight:700;">Purple</span> = Hyperlane all-in fee to user (IGP + warp fee). Hover for breakdown.</p>
+
+        {# Group routes by token #}
+        {% set token_routes = {} %}
+        {% for route_key in routes_analysis.keys()|sort %}
+            {% set token = route_key.split(':')[0] %}
+            {% if token_routes.update({token: token_routes.get(token, []) + [route_key]}) %}{% endif %}
+        {% endfor %}
+
+        {% for token, route_keys in token_routes|dictsort %}
+            <div class="token-group">
+                <h3>{{ token }} Routes</h3>
+                <div class="fee-curve-grid">
+                {% for route_key in route_keys %}
+                    {% set analysis = routes_analysis[route_key] %}
+                    {% if analysis is mapping and 'error' not in analysis %}
+                        {# Collect competitors #}
+                        {% set competitors = [] %}
+                        {% for amt in amounts_sorted %}
+                            {% set tier = analysis.get(amt) or analysis.get(amt|string) %}
+                            {% if tier %}
+                                {% for q in tier.get('quotes', []) %}
+                                    {% if q.name not in competitors %}
+                                        {% if competitors.append(q.name) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if competitors %}
+                        <div class="fee-curve-block">
+                            <h4>{{ route_key }}</h4>
+                            <table class="data-table fee-curve-table">
+                                <thead><tr>
+                                    <th>Bridge</th>
+                                    {% for amt in amounts_sorted %}
+                                        <th data-sort="num">{{ '$%dK' % (amt // 1000) if amt >= 1000 else '$%d' % amt }}</th>
+                                    {% endfor %}
+                                </tr></thead>
+                                <tbody>
+                                {% for comp in competitors|sort %}
+                                    <tr>
+                                        <td>{{ comp }}</td>
+                                        {% for amt in amounts_sorted %}
+                                            {% set tier = analysis.get(amt) or analysis.get(amt|string) %}
+                                            {% if tier %}
+                                                {% set match = tier.get('quotes', [])|selectattr('name', 'eq', comp)|list %}
+                                                {% if match %}
+                                                    <td class="num" title="{{ fmt_usd(match[0].fee_usd) }}">{{ "%.1f"|format(match[0].fee_bps) }}</td>
+                                                {% else %}
+                                                    <td class="num">&mdash;</td>
+                                                {% endif %}
+                                            {% else %}
+                                                <td class="num">&mdash;</td>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                                {# Hyperlane row #}
+                                <tr style="border-top:2px solid var(--border);">
+                                    <td style="color:var(--accent-purple);font-weight:700;">Hyperlane (fee to user)</td>
+                                    {% for amt in amounts_sorted %}
+                                        {% set tier = analysis.get(amt) or analysis.get(amt|string) %}
+                                        {% set hl_fee = tier.get('hyperlane_fee_to_user_usd', 0) if tier else 0 %}
+                                        {% if hl_fee and amt > 0 %}
+                                            {% set hl_bps = hl_fee / amt * 10000 %}
+                                            {% set igp_usd = tier.get('hyperlane_igp_usd', 0) if tier else 0 %}
+                                            {% set warp_usd = tier.get('hyperlane_warp_fee_usd', 0) if tier else 0 %}
+                                            <td class="num" style="color:var(--accent-purple);font-weight:700;"
+                                                title="IGP: {{ fmt_usd(igp_usd) }} + Warp: {{ fmt_usd(warp_usd) }} = {{ fmt_usd(hl_fee) }}">
+                                                {{ "%.1f"|format(hl_bps) }}
+                                            </td>
+                                        {% else %}
+                                            <td class="num">&mdash;</td>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </section>
+{% else %}
+    <section class="section">
+        <h2>Competitor Comparison</h2>
+        <p>No competitor quotes collected yet. Run <code>python main.py scan</code> or click "Scan Now (+ competitors)".</p>
+    </section>
+{% endif %}
+
+
+{# ── Warp Recommendations ── #}
+{% if warp_recommendations %}
+<section class="section">
+    <h2>Warp Fee Analysis — FPWR USDC</h2>
+    <p>User pays <strong>IGP (gas) + Warp Fee (token)</strong>. Competitors charge one all-in fee.<br>
+       <span style="color:var(--accent-cyan);">Cyan</span> = current on-chain warp fee (live from feeRecipient contract).
+       Total colored by competitiveness vs p35 competitor.</p>
+    <table class="data-table sortable">
+        <thead><tr>
+            <th>Route</th>
+            <th data-sort="num">IGP ($)</th>
+            <th data-sort="num">Current (on-chain)</th>
+            <th data-sort="num">Recommended</th>
+            <th data-sort="num">Comp. Target</th>
+            <th data-sort="num">Cost Floor</th>
+            <th data-sort="num">Rebalancing</th>
+            <th>Rationale</th>
+            <th>Action</th>
+        </tr></thead>
+        <tbody>
+        {% for route_key, rec in warp_recommendations|dictsort %}
+            {% if not rec.get('error') %}
+                {% set igp_usd = rec.get('igp_quote_usd', 0) %}
+                {% set current_bps = rec.get('current_fee_bps') %}
+                {% set rec_bps = rec.get('recommended_bps', 0) %}
+                {% set comp_target = rec.get('competitive_target_bps') %}
+                {% set cost_floor = rec.get('cost_floor_bps', 0) %}
+                {% set rebal_bps = rec.get('rebalancing_bps', 0) %}
+                {% set rationale = rec.get('rationale', '') %}
+
+                {# Color recommended: green if matches current, yellow if different #}
+                {% if current_bps is not none and current_bps == rec_bps %}
+                    {% set change_color = 'var(--accent-green)' %}
+                {% else %}
+                    {% set change_color = 'var(--accent-yellow)' %}
+                {% endif %}
+
+                <tr>
+                    <td>{{ route_key }}</td>
+                    <td class="num">{{ fmt_usd(igp_usd) }}</td>
+                    <td class="num" style="font-weight:700;color:var(--accent-cyan);">
+                        {{ fmt_bps(current_bps) if current_bps is not none else '<span style="color:#666;">N/A</span>' }}
+                    </td>
+                    <td class="num" style="font-weight:700;color:{{ change_color }};">
+                        {{ fmt_bps(rec_bps) }}
+                    </td>
+                    <td class="num">{{ fmt_bps(comp_target) if comp_target is not none else '—' }}</td>
+                    <td class="num">{{ fmt_bps(cost_floor) }}</td>
+                    <td class="num" style="color:var(--accent-orange);">{{ fmt_bps(rebal_bps) if rebal_bps else '—' }}</td>
+                    <td class="rationale">{{ rationale }}</td>
+                    <td>
+                        <button class="btn btn-success" onclick="applyFee('{{ route_key }}', {{ rec_bps }}, {{ current_bps if current_bps is not none else 'null' }})">
+                            Apply
+                        </button>
+                    </td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+
+{# ── IGP Recommendations ── #}
+{% set igp_needing_update = {} %}
+{% for k, v in igp_recommendations.items() if v.get('needs_update') %}
+    {% if igp_needing_update.update({k: v}) %}{% endif %}
+{% endfor %}
+
+{% if igp_needing_update %}
+<section class="section">
+    <h2>IGP Recommendations ({{ igp_needing_update|length }} updates needed)</h2>
+    <table class="data-table sortable">
+        <thead><tr>
+            <th>Route</th>
+            <th>Gas Price Change</th>
+            <th data-sort="num">Gas Drift</th>
+            <th>Token Price Change</th>
+            <th data-sort="num">Token Drift</th>
+            <th>Status</th>
+        </tr></thead>
+        <tbody>
+        {% for route_key, rec in igp_needing_update|dictsort %}
+            {% set gas_diff = rec.get('gas_price_diff_pct', 0) or 0 %}
+            {% set token_diff = rec.get('token_price_diff_pct', 0) or 0 %}
+            {% set max_diff = [gas_diff, token_diff]|max %}
+            <tr>
+                <td>{{ route_key }}</td>
+                <td class="num">{{ rec.get('current_gas_price', '?') }} &rarr; {{ rec.get('gas_price', '?') }}</td>
+                <td class="num">{{ fmt_pct(gas_diff) }}</td>
+                <td class="num">{{ rec.get('current_token_price', '?') }} &rarr; {{ rec.get('token_exchange_rate', '?') }}</td>
+                <td class="num">{{ fmt_pct(token_diff) }}</td>
+                <td>{{ badge('needs_update', '%.0f%% drift'|format(max_diff)) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% else %}
+<section class="section">
+    <h2>IGP Recommendations</h2>
+    <p style="color:var(--accent-green);">All IGP parameters are within 5% of live values. No updates needed.</p>
+</section>
+{% endif %}
+
+
+{# ── Rebalancer Status ── #}
+<section class="section">
+    <h2>Rebalancer Integration</h2>
+    <div class="safety-grid">
+        <div class="card">
+            <div class="card-label">Smart Rebalancer</div>
+            <div class="card-value">
+                {% set rebal_connected = scan.get('rebalancer_connected', false) %}
+                {% if rebal_connected %}
+                    {{ badge('ok', 'CONNECTED') }}
+                {% else %}
+                    {{ badge('warning', 'NOT CONNECTED') }}
+                {% endif %}
+            </div>
+            <div class="card-sub">
+                {% if rebal_connected %}
+                    Live cost data from ~/selfrelay
+                {% else %}
+                    Using {{ 'on-chain tx analysis' if rebalancing_costs else 'config fallback estimates' }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-label">Cost Data Source</div>
+            {% if rebalancing_costs %}
+                {% set total_txs = 0 %}
+                {% for chain, data in rebalancing_costs.items() if data is mapping %}
+                    {% set total_txs = total_txs + data.get('tx_count', 0) %}
+                {% endfor %}
+                <div class="card-value">{{ rebalancing_costs|length }} chains</div>
+                <div class="card-sub">{{ total_txs }} txs analyzed ({{ scan.get('rebalancing', {}).get('summary', {}).get('lookback_days', 30) }}d lookback)</div>
+            {% else %}
+                <div class="card-value">Fallback</div>
+                <div class="card-sub">{{ config.get('rebalancing', {}).get('fallback_default_bps', 1.5) }} bps default</div>
+            {% endif %}
+        </div>
+        <div class="card">
+            <div class="card-label">Rebalancer Addresses</div>
+            <div class="card-sub" style="font-family:monospace;font-size:0.7rem;">
+                {% set addrs = config.get('rebalancing', {}).get('addresses', {}) %}
+                {% for role, addr in addrs.items() if addr %}
+                    {{ role }}: {{ addr[:6] }}...{{ addr[-4:] }}<br>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+
+{# ── Safety Status ── #}
+{% set cb = safety.get('circuit_breaker', {}) %}
+{% set stale = safety.get('stale_sources', []) %}
+<section class="section">
+    <h2>Safety Status</h2>
+    <div class="safety-grid">
+        <div class="card">
+            <div class="card-label">Circuit Breaker</div>
+            <div class="card-value">{{ badge('error' if cb.get('halt') else 'ok', 'HALTED' if cb.get('halt') else 'OK') }}</div>
+            <ul class="safety-list">
+                {% for issue in cb.get('issues', []) %}
+                    <li>{{ issue }}</li>
+                {% else %}
+                    <li>None</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="card">
+            <div class="card-label">Data Freshness</div>
+            <ul class="safety-list">
+                {% for s in stale %}
+                    <li>{{ s }}</li>
+                {% else %}
+                    <li>All fresh</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</section>
+
+{% else %}
+{# No scan data #}
+<section class="section">
+    <h2>Getting Started</h2>
+    <p>Click "Scan Now" above or run <code>python main.py scan</code> from the terminal to collect data.</p>
+</section>
+{% endif %}
+
+
+{# ── Apply Confirmation Modal ── #}
+<div class="modal-overlay" id="apply-modal">
+    <div class="modal">
+        <h3>Apply Fee Change</h3>
+        <div id="apply-modal-body"></div>
+        <div class="btn-group">
+            <button class="btn" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-success" id="apply-modal-confirm">Confirm &amp; Apply</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer style="text-align:center;color:var(--text-muted);font-size:0.75rem;margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);">
+    Hyperlane Fee Autopilot &mdash; Live Dashboard
+</footer>
+
+
+<script>
+// ── Auto-refresh ──
+let refreshTimer = null;
+
+function formatDuration(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.round(seconds/60)}m`;
+    return `${Math.round(seconds/3600)}h`;
+}
+
+function updateScanInfo(status) {
+    const statusEl = document.getElementById('scan-status-text');
+    const lastEl = document.getElementById('last-scan-info');
+    const nextEl = document.getElementById('next-scan-info');
+
+    if (status.running) {
+        statusEl.textContent = 'Scanning...';
+        statusEl.style.color = 'var(--accent-yellow)';
+    } else {
+        statusEl.textContent = '';
+    }
+
+    if (status.last_scan_time) {
+        const ago = Math.round((Date.now()/1000) - status.last_scan_time);
+        lastEl.textContent = `Last scan: ${formatDuration(ago)} ago`;
+        if (status.last_scan_duration) {
+            lastEl.textContent += ` (${status.last_scan_duration}s)`;
+        }
+    }
+
+    if (status.next_scan_seconds !== undefined && status.next_scan_seconds > 0) {
+        nextEl.textContent = `Next: ${formatDuration(status.next_scan_seconds)}`;
+    } else {
+        nextEl.textContent = '';
+    }
+}
+
+function startAutoRefresh(intervalMs) {
+    if (refreshTimer) clearInterval(refreshTimer);
+    // Immediate first fetch
+    fetch('/api/scan/status').then(r => r.json()).then(updateScanInfo).catch(() => {});
+    refreshTimer = setInterval(async () => {
+        try {
+            const resp = await fetch('/api/scan/status');
+            const status = await resp.json();
+            updateScanInfo(status);
+        } catch(e) {}
+    }, intervalMs);
+}
+
+startAutoRefresh(5000);
+
+// Full page refresh every 60s if not mid-scan
+setInterval(() => {
+    fetch('/api/scan/status').then(r => r.json()).then(status => {
+        if (!status.running) {
+            window.location.reload();
+        }
+    }).catch(() => {});
+}, 60000);
+
+
+// ── Scan triggers ──
+async function triggerScan(noCompetitors) {
+    const btnDefault = document.getElementById('btn-scan-default');
+    const btnNoComp = document.getElementById('btn-scan-no-comp');
+    const statusText = document.getElementById('scan-status-text');
+
+    btnDefault.disabled = true;
+    btnNoComp.disabled = true;
+    statusText.textContent = 'Starting scan...';
+    statusText.style.color = 'var(--accent-yellow)';
+
+    try {
+        const path = noCompetitors ? '/api/scan?no_competitors=1' : '/api/scan';
+        const resp = await fetch(path, { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.status === 'already_running') {
+            showToast('Scan already in progress', 'error');
+        } else {
+            showToast(
+                noCompetitors
+                    ? 'Scan started (without competitors)'
+                    : 'Scan started (+ competitors)',
+                'success'
+            );
+            // Poll for completion
+            pollScanCompletion();
+        }
+    } catch(e) {
+        showToast('Failed to start scan: ' + e.message, 'error');
+    }
+
+    btnDefault.disabled = false;
+    btnNoComp.disabled = false;
+}
+
+async function pollScanCompletion() {
+    const check = async () => {
+        try {
+            const resp = await fetch('/api/scan/status');
+            const status = await resp.json();
+            if (!status.running) {
+                showToast('Scan complete!', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+                return;
+            }
+        } catch(e) {}
+        setTimeout(check, 3000);
+    };
+    setTimeout(check, 3000);
+}
+
+
+// ── Fee application ──
+function applyFee(routeKey, recommendedBps, currentBps) {
+    const modal = document.getElementById('apply-modal');
+    const body = document.getElementById('apply-modal-body');
+
+    const currentStr = currentBps !== null ? currentBps.toFixed(1) + ' bps' : 'N/A';
+    body.innerHTML = `
+        <p>Apply recommended warp fee for:</p>
+        <pre>${routeKey}</pre>
+        <p>
+            <strong>Current:</strong> ${currentStr}<br>
+            <strong>Recommended:</strong> ${recommendedBps.toFixed(1)} bps
+        </p>
+    `;
+
+    const confirmBtn = document.getElementById('apply-modal-confirm');
+    confirmBtn.onclick = async () => {
+        try {
+            const resp = await fetch('/api/fees', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({routes: [routeKey]}),
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                showToast(data.summary || 'Fee applied', 'success');
+            } else {
+                showToast(data.error || 'Failed to apply', 'error');
+            }
+        } catch(e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+        closeModal();
+    };
+
+    modal.classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('apply-modal').classList.remove('active');
+}
+
+// Close modal on overlay click
+document.getElementById('apply-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+
+// ── Toast ──
+function showToast(message, type) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast ' + type + ' show';
+    setTimeout(() => { toast.classList.remove('show'); }, 4000);
+}
+
+
+// ── Sortable tables ──
+document.querySelectorAll('.sortable').forEach(table => {
+    const headers = table.querySelectorAll('th[data-sort]');
+    headers.forEach((header, colIdx) => {
+        header.addEventListener('click', () => {
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const sortType = header.dataset.sort;
+            const isAsc = header.classList.contains('sort-asc');
+            rows.sort((a, b) => {
+                let aVal = a.cells[colIdx].textContent.trim();
+                let bVal = b.cells[colIdx].textContent.trim();
+                if (sortType === 'num') {
+                    aVal = parseFloat(aVal.replace(/[$,%+bps\s]/g, '').replace(/[—N\/A]/g, '-999')) || -999;
+                    bVal = parseFloat(bVal.replace(/[$,%+bps\s]/g, '').replace(/[—N\/A]/g, '-999')) || -999;
+                }
+                if (aVal < bVal) return isAsc ? 1 : -1;
+                if (aVal > bVal) return isAsc ? -1 : 1;
+                return 0;
+            });
+            headers.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            header.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+});
+</script>
+
+</body>
+</html>
