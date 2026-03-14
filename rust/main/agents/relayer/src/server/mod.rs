@@ -55,6 +55,8 @@ pub struct Server {
     relay_indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
     #[new(default)]
     relay_tx_hash_cache: Option<Arc<StdRwLock<TxHashCache>>>,
+    #[new(default)]
+    relay_api_metrics: Option<crate::relay_api::RelayApiMetrics>,
 }
 
 impl Server {
@@ -126,6 +128,11 @@ impl Server {
         self
     }
 
+    pub fn with_relay_api_metrics(mut self, metrics: crate::relay_api::RelayApiMetrics) -> Self {
+        self.relay_api_metrics = Some(metrics);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -189,6 +196,11 @@ impl Server {
                 // Add tx hash cache if available
                 if let Some(cache) = self.relay_tx_hash_cache {
                     relay_state = relay_state.with_tx_hash_cache(cache);
+                }
+
+                // Add metrics if available
+                if let Some(metrics) = self.relay_api_metrics {
+                    relay_state = relay_state.with_metrics(metrics);
                 }
 
                 router = router.merge(relay_state.router());

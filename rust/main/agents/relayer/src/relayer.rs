@@ -642,9 +642,14 @@ impl Relayer {
             info!("Relay API enabled (default). Set HYPERLANE_RELAYER_DISABLE_RELAY_API=true to disable.");
 
             use crate::relay_api::handlers::TxHashCache;
+            use crate::relay_api::RelayApiMetrics;
             use hyperlane_core::{HyperlaneMessage, Indexer};
             use std::collections::HashMap;
             use std::sync::RwLock;
+
+            // Initialize relay API metrics
+            let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())
+                .expect("Failed to initialize relay API metrics");
 
             // Initialize tx hash cache for DoS protection (10k entries max)
             let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
@@ -688,7 +693,8 @@ impl Relayer {
 
             server = server
                 .with_indexers(indexers)
-                .with_tx_hash_cache(tx_hash_cache);
+                .with_tx_hash_cache(tx_hash_cache)
+                .with_relay_api_metrics(relay_api_metrics);
         } else {
             info!("Relay API disabled (HYPERLANE_RELAYER_DISABLE_RELAY_API=true)");
         }

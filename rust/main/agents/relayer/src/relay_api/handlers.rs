@@ -16,6 +16,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info, warn};
 
 use crate::msg::pending_message::{MessageContext, PendingMessage};
+use crate::relay_api::metrics::RelayApiMetrics;
 
 /// Bounded cache for tracking recently submitted tx hashes to prevent replay attacks
 pub struct TxHashCache {
@@ -82,6 +83,8 @@ pub struct ServerState {
     send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
     #[new(default)]
     msg_ctxs: Option<HashMap<(u32, u32), Arc<MessageContext>>>,
+    #[new(default)]
+    metrics: Option<RelayApiMetrics>,
 }
 
 impl ServerState {
@@ -113,6 +116,11 @@ impl ServerState {
 
     pub fn with_msg_ctxs(mut self, ctxs: HashMap<(u32, u32), Arc<MessageContext>>) -> Self {
         self.msg_ctxs = Some(ctxs);
+        self
+    }
+
+    pub fn with_metrics(mut self, metrics: RelayApiMetrics) -> Self {
+        self.metrics = Some(metrics);
         self
     }
 }
@@ -242,12 +250,18 @@ async fn create_relay(
     if let Some(limiter) = &state.rate_limiter {
         let mut limiter = limiter.write().unwrap();
         if !limiter.check() {
+            if let Some(ref metrics) = state.metrics {
+                metrics.inc_failure("rate_limited");
+            }
             return Err(ServerError::RateLimited);
         }
     }
 
     // Validate request
     if req.origin_chain.is_empty() {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("invalid_request");
+        }
         return Err(ServerError::InvalidRequest(
             "origin_chain cannot be empty".to_string(),
         ));
@@ -258,8 +272,14 @@ async fn create_relay(
         let mut cache = cache.write().unwrap();
         if let Err(reason) = cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
             if reason.contains("unavailable") {
+                if let Some(ref metrics) = state.metrics {
+                    metrics.inc_failure("cache_full");
+                }
                 return Err(ServerError::ServiceUnavailable(reason.to_string()));
             } else {
+                if let Some(ref metrics) = state.metrics {
+                    metrics.inc_failure("duplicate_tx");
+                }
                 return Err(ServerError::TooManyRequests(reason.to_string()));
             }
         }
@@ -276,8 +296,18 @@ async fn create_relay(
         crate::relay_api::extract_message(indexers, &req.origin_chain, &req.tx_hash),
     )
     .await
-    .map_err(|_| ServerError::RequestTimeout)?
-    .map_err(|e| ServerError::InvalidRequest(format!("Failed to extract message: {}", e)))?;
+    .map_err(|_| {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("timeout");
+        }
+        ServerError::RequestTimeout
+    })?
+    .map_err(|e| {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("extraction_failed");
+        }
+        ServerError::InvalidRequest(format!("Failed to extract message: {}", e))
+    })?;
 
     info!(
         message_id = ?extracted.message_id,
@@ -430,6 +460,11 @@ async fn create_relay(
         app_context = ?app_context,
         "Successfully injected message into processor channel"
     );
+
+    // Track success metric
+    if let Some(ref metrics) = state.metrics {
+        metrics.inc_success();
+    }
 
     // 9. Return success immediately
     Ok(Json(RelayResponse {
