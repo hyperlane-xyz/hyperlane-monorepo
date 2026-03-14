@@ -52,7 +52,7 @@ import {
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
 } from './adapters/CosmosTokenAdapter.js';
-import { EvmHypMultiCollateralAdapter } from './adapters/EvmMultiCollateralAdapter.js';
+import { EvmHypCrossCollateralAdapter } from './adapters/EvmCrossCollateralAdapter.js';
 import {
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
@@ -275,10 +275,10 @@ export class Token implements IToken {
         token: addressOrDenom,
       });
     } else if (
-      standard === TokenStandard.EvmHypMultiCollateral ||
-      standard === TokenStandard.TronHypMultiCollateral
+      standard === TokenStandard.EvmHypCrossCollateralRouter ||
+      standard === TokenStandard.TronHypCrossCollateralRouter
     ) {
-      return new EvmHypMultiCollateralAdapter(chainName, multiProvider, {
+      return new EvmHypCrossCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
@@ -538,8 +538,11 @@ export class Token implements IToken {
     return TOKEN_MULTI_CHAIN_STANDARDS.includes(this.standard);
   }
 
-  isMultiCollateralToken(): boolean {
-    return this.standard === TokenStandard.EvmHypMultiCollateral;
+  isCrossCollateralToken(): boolean {
+    return (
+      this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
+      this.standard === TokenStandard.TronHypCrossCollateralRouter
+    );
   }
 
   getConnections(): TokenConnection[] {

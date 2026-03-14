@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 
-interface IMultiCollateralFee {
+interface ICrossCollateralFee {
     function quoteTransferRemoteTo(
         uint32 _destination,
         bytes32 _recipient,

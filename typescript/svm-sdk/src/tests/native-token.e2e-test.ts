@@ -1,5 +1,5 @@
 import { address, type Address } from '@solana/kit';
-import { after, before, describe } from 'mocha';
+import { before, describe } from 'mocha';
 
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
@@ -15,18 +15,12 @@ import {
 import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
 
 import { createRpc } from '../rpc.js';
+import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import {
-  type PreloadableProgram,
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
   airdropSol,
-  getPreloadedPrograms,
 } from '../testing/setup.js';
-import {
-  startSolanaTestValidator,
-  waitForRpcReady,
-  type SolanaTestValidator,
-} from '../testing/solana-container.js';
 import { SvmNativeTokenWriter } from '../warp/native-token.js';
 
 import { defineWarpTokenTests } from './warp-token-suite.js';
@@ -34,16 +28,9 @@ import { defineWarpTokenTests } from './warp-token-suite.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-const PRELOADED_PROGRAMS: Array<PreloadableProgram> = [
-  'mailbox',
-  'igp',
-  'testIsm',
-];
-
 describe('SVM Native Warp Token E2E Tests', function () {
   this.timeout(300_000);
 
-  let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
   let mailboxAddress: Address;
@@ -52,13 +39,9 @@ describe('SVM Native Warp Token E2E Tests', function () {
   let writer: SvmNativeTokenWriter;
 
   before(async () => {
-    const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
-    solana = await startSolanaTestValidator({ preloadedPrograms });
-    await waitForRpcReady(solana.rpcUrl);
-
-    rpc = createRpc(solana.rpcUrl);
+    rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [solana.rpcUrl],
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
       TEST_PRIVATE_KEY,
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 50_000_000_000n);
@@ -104,12 +87,6 @@ describe('SVM Native Warp Token E2E Tests', function () {
     );
   });
 
-  after(async () => {
-    if (solana) {
-      await solana.stop();
-    }
-  });
-
   describe('Native Token', () => {
     defineWarpTokenTests(
       () => ({
@@ -126,7 +103,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
         testIsmAddress,
         signer,
         rpc,
-        rpcUrl: solana.rpcUrl,
+        rpcUrl: TEST_SVM_CHAIN_METADATA.rpcUrl,
       }),
       (_id) => {},
     );

@@ -65,7 +65,6 @@ COPY typescript ./typescript
 COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
-COPY rust/sealevel/environments/mainnet3 ./rust/sealevel/environments/mainnet3
 
 # Pre-download solc compiler to avoid flaky network issues during build.
 # Hardhat downloads this on-demand, but the network request can timeout in CI.

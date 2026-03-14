@@ -237,7 +237,8 @@
       "nativeToken": {
         "decimals": 9,
         "name": "Ether",
-        "symbol": "ETH"
+        "symbol": "ETH",
+        "denom": "wei"
       },
       "protocol": "sealevel",
       "rpcUrls": [
@@ -565,7 +566,8 @@
       "nativeToken": {
         "decimals": 9,
         "name": "Solana",
-        "symbol": "SOL"
+        "symbol": "SOL",
+        "denom": "lamport"
       },
       "protocol": "sealevel",
       "rpcUrls": [
@@ -973,7 +975,8 @@
       "nativeToken": {
         "decimals": 9,
         "name": "Solana",
-        "symbol": "SOL"
+        "symbol": "SOL",
+        "denom": "lamport"
       },
       "protocol": "sealevel",
       "rpcUrls": [

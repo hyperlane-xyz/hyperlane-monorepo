@@ -1,5 +1,15 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/utils@27.1.0
+
 ## 27.0.0
 
 ### Minor Changes

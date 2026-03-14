@@ -28,12 +28,11 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
-  REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
 } from '../consts.js';
 
-describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
+describe('hyperlane warp crossCollateral CLI e2e tests', function () {
   this.timeout(300_000);
 
   let chain2Addresses: ChainAddresses = {};
@@ -88,14 +87,14 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     );
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
       [CHAIN_NAME_2]: {
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: usdcChain2.address,
         scale: usdcScale,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
       [CHAIN_NAME_3]: {
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: usdcChain3.address,
         scale: usdcScale,
         mailbox: chain3Addresses.mailbox,
@@ -112,13 +111,13 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     );
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
       [CHAIN_NAME_2]: {
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: usdtChain2.address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
       [CHAIN_NAME_3]: {
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: usdtChain3.address,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
@@ -127,7 +126,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, usdtWarpId);
 
     // Use warp combine to cross-enroll and create merged config
-    const mergedWarpRouteId = 'MULTI/test-mc';
+    const mergedWarpRouteId = 'MULTI/test-cc';
     await hyperlaneWarpCombine({
       routes: `${usdcWarpId},${usdtWarpId}`,
       outputWarpRouteId: mergedWarpRouteId,
@@ -161,16 +160,13 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     const usdtCollateral = parseUnits('10', 18);
     await (await usdtChain3.transfer(usdtRouter3Addr, usdtCollateral)).wait();
 
-    // Read the merged WarpCoreConfig created by warp combine
-    const MERGED_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${mergedWarpRouteId}-config.yaml`;
-
     // Send cross-stablecoin transfer via CLI: USDC(chain2) -> USDT(chain3)
     const sendAmount = parseUnits('1', 6); // 1 USDC in 6-dec
     const balanceBefore = await usdtChain3.balanceOf(ownerAddress);
     await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: MERGED_CONFIG_PATH,
+      warpRouteId: mergedWarpRouteId,
       sourceToken: usdcRouter2Addr,
       destinationToken: usdtRouter3Addr,
       value: sendAmount.toString(),
@@ -206,7 +202,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     const usdcWarpId = createWarpRouteConfigId(usdcSymbol, CHAIN_NAME_2);
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
       [CHAIN_NAME_2]: {
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: usdc.address,
         scale: usdcScale,
         mailbox: chain2Addresses.mailbox,
@@ -220,7 +216,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     const usdtWarpId = createWarpRouteConfigId(usdtSymbol, CHAIN_NAME_2);
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
       [CHAIN_NAME_2]: {
-        type: TokenType.multiCollateral,
+        type: TokenType.crossCollateral,
         token: usdt.address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
@@ -229,7 +225,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, usdtWarpId);
 
     // Combine routes (cross-enroll same-chain routers)
-    const mergedWarpRouteId = 'MULTI/test-mc-local';
+    const mergedWarpRouteId = 'MULTI/test-cc-local';
     await hyperlaneWarpCombine({
       routes: `${usdcWarpId},${usdtWarpId}`,
       outputWarpRouteId: mergedWarpRouteId,
@@ -261,9 +257,6 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     const usdtCollateral = parseUnits('10', 18);
     await (await usdt.transfer(usdtRouter2Addr, usdtCollateral)).wait();
 
-    // Read the merged WarpCoreConfig created by warp combine
-    const MERGED_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${mergedWarpRouteId}-config.yaml`;
-
     // Send same-chain swap via CLI: USDC -> USDT on chain 2
     const swapAmount = parseUnits('1', 6); // 1 USDC
     const balanceBefore = await usdt.balanceOf(ownerAddress);
@@ -271,7 +264,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_2,
-      warpCorePath: MERGED_CONFIG_PATH,
+      warpRouteId: mergedWarpRouteId,
       sourceToken: usdcRouter2Addr,
       destinationToken: usdtRouter2Addr,
       value: swapAmount.toString(),

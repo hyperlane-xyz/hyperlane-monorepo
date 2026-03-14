@@ -21,13 +21,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # On-demand code review triggered by @claude review comment or 'claude-review' label
+  # On-demand code review triggered by @claude + review comment or 'claude-review' label
   code-review:
     if: |
       (
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@claude review') &&
+        contains(github.event.comment.body, '@claude') &&
+        contains(github.event.comment.body, ' review') &&
+        !contains(github.event.comment.body, 'security') &&
         (
           github.event.comment.author_association == 'MEMBER' ||
           github.event.comment.author_association == 'OWNER' ||
@@ -75,17 +77,20 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Use agent teams to run /claude-review"
+          prompt: "Use agent teams to run /claude-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments"
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
+          claude_args: |
+            --model ${{ env.CLAUDE_OPUS_MODEL }}
+            --allowedTools "Bash(gh api:*)"
 
-  # Security-focused review: manual via @claude security comment only
+  # Security-focused review: manual via @claude + security comment
   security-review:
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude security') &&
+      contains(github.event.comment.body, '@claude') &&
+      contains(github.event.comment.body, 'security') &&
       (
         github.event.comment.author_association == 'MEMBER' ||
         github.event.comment.author_association == 'OWNER' ||
@@ -119,25 +124,28 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Run Claude Security Review
-        uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
+        uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
         with:
-          claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          comment-pr: true
-          upload-results: true
-          exclude-directories: 'node_modules,dist,coverage,artifacts,cache,typechain'
-          claudecode-timeout: '15'
-          claude-model: ${{ env.CLAUDE_OPUS_MODEL }}
-          custom-security-scan-instructions: '.github/prompts/security-scan.md'
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Use agent teams to run /claude-security-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments"
+          track_progress: true
+          use_sticky_comment: false
+          claude_args: |
+            --model ${{ env.CLAUDE_OPUS_MODEL }}
+            --allowedTools "Bash(gh api:*)"
 
-  # Trail of Bits security skills: manual via @claude security comment only
+  # Trail of Bits security skills: manual via @claude + security comment
   tob-security-skills:
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude security') &&
+      contains(github.event.comment.body, '@claude') &&
+      contains(github.event.comment.body, 'security') &&
       (
         github.event.comment.author_association == 'MEMBER' ||
         github.event.comment.author_association == 'OWNER' ||
@@ -192,19 +200,21 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Use agent teams to run /claude-tob-review"
+          prompt: "Use agent teams to run /claude-tob-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments"
           track_progress: true
           use_sticky_comment: false
-          claude_args: "--model ${{ env.CLAUDE_OPUS_MODEL }}"
+          claude_args: |
+            --model ${{ env.CLAUDE_OPUS_MODEL }}
+            --allowedTools "Bash(gh api:*)"
 
-  # Interactive @claude mentions in comments
+  # Interactive @claude mentions in comments (excludes review/security keywords)
   interactive:
     if: |
       (
         github.event_name == 'issue_comment' &&
         contains(github.event.comment.body, '@claude') &&
-        !contains(github.event.comment.body, '@claude review') &&
-        !contains(github.event.comment.body, '@claude security') &&
+        !contains(github.event.comment.body, ' review') &&
+        !contains(github.event.comment.body, 'security') &&
         (
           github.event.comment.author_association == 'MEMBER' ||
           github.event.comment.author_association == 'OWNER' ||
@@ -261,6 +271,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "When you have specific code feedback on changed lines, use /inline-pr-comments to deliver it as a consolidated GitHub review with inline comments."
           track_progress: true
           use_sticky_comment: false
           claude_args: "--model ${{ env.CLAUDE_SONNET_MODEL }}"

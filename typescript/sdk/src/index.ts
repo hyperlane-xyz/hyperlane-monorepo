@@ -705,9 +705,12 @@ export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
+  filterWarpCoreConfigMapByChains,
+  getChainsFromWarpCoreConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
+  warpCoreConfigMatchesChains,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
@@ -796,9 +799,12 @@ export {
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
-  isMultiCollateralTokenConfig,
-  MultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
+  isOftTokenConfig,
+  CrossCollateralTokenConfig,
   NativeTokenConfig,
+  OftTokenConfig,
+  OftTokenConfigSchema,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
   SyntheticRebaseTokenConfigSchema,
