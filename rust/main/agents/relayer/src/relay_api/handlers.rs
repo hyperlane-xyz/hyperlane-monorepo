@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
     Json, Router,
@@ -11,16 +11,69 @@ use hyperlane_core::{HyperlaneMessage, Indexer, PendingOperationStatus, QueueOpe
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::msg::pending_message::{MessageContext, PendingMessage};
+
+/// Bounded cache for tracking recently submitted tx hashes to prevent replay attacks
+pub struct TxHashCache {
+    cache: HashMap<(String, String), Instant>,
+    max_entries: usize,
+    ttl: Duration,
+}
+
+impl TxHashCache {
+    pub fn new(max_entries: usize) -> Self {
+        Self {
+            cache: HashMap::new(),
+            max_entries,
+            ttl: Duration::from_secs(300), // 5 minutes
+        }
+    }
+
+    /// Check if tx_hash was recently submitted and insert if not
+    /// Returns Ok(()) if new, Err with reason if duplicate or cache full
+    pub fn check_and_insert(&mut self, chain: String, tx_hash: String) -> Result<(), &'static str> {
+        let now = Instant::now();
+        let key = (chain, tx_hash);
+
+        // Clean expired entries if cache is getting large (75% threshold)
+        if self.cache.len() > self.max_entries * 3 / 4 {
+            let ttl = self.ttl;
+            self.cache
+                .retain(|_, &mut timestamp| now.duration_since(timestamp) < ttl);
+        }
+
+        // Check for duplicate within TTL
+        if let Some(&timestamp) = self.cache.get(&key) {
+            if now.duration_since(timestamp) < self.ttl {
+                return Err("Transaction already submitted recently");
+            }
+        }
+
+        // Enforce max size
+        if self.cache.len() >= self.max_entries {
+            warn!(
+                cache_size = self.cache.len(),
+                max_entries = self.max_entries,
+                "TX hash cache full, rejecting request"
+            );
+            return Err("Service temporarily unavailable");
+        }
+
+        self.cache.insert(key, now);
+        Ok(())
+    }
+}
 
 #[derive(Clone, new)]
 pub struct ServerState {
     #[new(default)]
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
+    #[new(default)]
+    tx_hash_cache: Option<Arc<RwLock<TxHashCache>>>,
     #[new(default)]
     indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
     #[new(default)]
@@ -32,6 +85,11 @@ pub struct ServerState {
 }
 
 impl ServerState {
+    pub fn with_tx_hash_cache(mut self, cache: Arc<RwLock<TxHashCache>>) -> Self {
+        self.tx_hash_cache = Some(cache);
+        self
+    }
+
     pub fn with_indexers(
         mut self,
         indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
@@ -63,7 +121,16 @@ impl ServerState {
     pub fn router(self) -> Router {
         use tower_http::cors::CorsLayer;
 
-        let cors = CorsLayer::permissive();
+        // Restrict CORS to only allow localhost:3000 and nexus.hyperlane.xyz
+        let cors = CorsLayer::new()
+            .allow_origin([
+                "http://localhost:3000".parse::<HeaderValue>().unwrap(),
+                "https://nexus.hyperlane.xyz"
+                    .parse::<HeaderValue>()
+                    .unwrap(),
+            ])
+            .allow_methods([Method::POST])
+            .allow_headers([axum::http::header::CONTENT_TYPE]);
 
         Router::new()
             .route("/relay", post(create_relay))
@@ -90,15 +157,22 @@ pub struct RelayResponse {
 // Error handling
 pub enum ServerError {
     RateLimited,
+    TooManyRequests(String),
     InvalidRequest(String),
     NotFound,
     InternalError(String),
+    ServiceUnavailable(String),
+    RequestTimeout,
 }
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             ServerError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded"),
+            ServerError::TooManyRequests(msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                &*Box::leak(msg.into_boxed_str()),
+            ),
             ServerError::InvalidRequest(msg) => {
                 (StatusCode::BAD_REQUEST, &*Box::leak(msg.into_boxed_str()))
             }
@@ -107,6 +181,11 @@ impl IntoResponse for ServerError {
                 error!("Internal server error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
             }
+            ServerError::ServiceUnavailable(msg) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                &*Box::leak(msg.into_boxed_str()),
+            ),
+            ServerError::RequestTimeout => (StatusCode::REQUEST_TIMEOUT, "Request timeout"),
         };
         (status, message).into_response()
     }
@@ -174,15 +253,31 @@ async fn create_relay(
         ));
     }
 
-    // 1. Extract message using indexers
+    // Check for duplicate tx_hash submission
+    if let Some(cache) = &state.tx_hash_cache {
+        let mut cache = cache.write().unwrap();
+        if let Err(reason) = cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
+            if reason.contains("unavailable") {
+                return Err(ServerError::ServiceUnavailable(reason.to_string()));
+            } else {
+                return Err(ServerError::TooManyRequests(reason.to_string()));
+            }
+        }
+    }
+
+    // 1. Extract message using indexers (with timeout)
     let indexers = state
         .indexers
         .as_ref()
         .ok_or_else(|| ServerError::InternalError("Indexers not configured".to_string()))?;
 
-    let extracted = crate::relay_api::extract_message(indexers, &req.origin_chain, &req.tx_hash)
-        .await
-        .map_err(|e| ServerError::InvalidRequest(format!("Failed to extract message: {}", e)))?;
+    let extracted = tokio::time::timeout(
+        Duration::from_secs(10),
+        crate::relay_api::extract_message(indexers, &req.origin_chain, &req.tx_hash),
+    )
+    .await
+    .map_err(|_| ServerError::RequestTimeout)?
+    .map_err(|e| ServerError::InvalidRequest(format!("Failed to extract message: {}", e)))?;
 
     info!(
         message_id = ?extracted.message_id,
@@ -227,7 +322,7 @@ async fn create_relay(
         msg_ctx.clone(),
         PendingOperationStatus::FirstPrepareAttempt,
         None, // No app context for relay API
-        10,   // Max retries
+        0,    // Max retries - relay API messages fail fast, no retries
     );
 
     // 5. Send to MessageProcessor via channel (bypasses MessageDbLoader iterator)

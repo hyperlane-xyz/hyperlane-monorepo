@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock as StdRwLock};
 
 use axum::Router;
 use derive_new::new;
@@ -15,6 +15,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
+use crate::relay_api::handlers::TxHashCache;
 
 use crate::server::environment_variable::EnvironmentVariableApi;
 use hyperlane_core::QueueOperation;
@@ -52,6 +53,8 @@ pub struct Server {
     relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
     #[new(default)]
     relay_indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
+    #[new(default)]
+    relay_tx_hash_cache: Option<Arc<StdRwLock<TxHashCache>>>,
 }
 
 impl Server {
@@ -118,6 +121,11 @@ impl Server {
         self
     }
 
+    pub fn with_tx_hash_cache(mut self, cache: Arc<StdRwLock<TxHashCache>>) -> Self {
+        self.relay_tx_hash_cache = Some(cache);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -172,11 +180,16 @@ impl Server {
                 self.relay_indexers,
                 self.relay_send_channels.as_ref(),
             ) {
-                let relay_state = crate::relay_api::handlers::ServerState::new()
+                let mut relay_state = crate::relay_api::handlers::ServerState::new()
                     .with_indexers(indexers)
                     .with_dbs(dbs.clone())
                     .with_send_channels(send_channels.clone())
                     .with_msg_ctxs(self.msg_ctxs.clone());
+
+                // Add tx hash cache if available
+                if let Some(cache) = self.relay_tx_hash_cache {
+                    relay_state = relay_state.with_tx_hash_cache(cache);
+                }
 
                 router = router.merge(relay_state.router());
             }
