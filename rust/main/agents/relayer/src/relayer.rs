@@ -635,19 +635,20 @@ impl Relayer {
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
             .with_relay_send_channels(send_channels);
 
-        // Add relay API job store (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
+        // Add relay API (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
         let relay_api_disabled =
             std::env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
         if !relay_api_disabled {
             info!("Relay API enabled (default). Set HYPERLANE_RELAYER_DISABLE_RELAY_API=true to disable.");
 
-            use crate::relay_api::RegistryBuilder;
+            use hyperlane_core::{HyperlaneMessage, Indexer};
+            use std::collections::HashMap;
 
-            let mut registry_builder = RegistryBuilder::new();
+            let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
 
             info!(
                 origin_count = self.origins.len(),
-                "Setting up relay API registry"
+                "Setting up relay API indexers"
             );
 
             for (domain, origin) in &self.origins {
@@ -663,15 +664,11 @@ impl Relayer {
                     .await
                 {
                     Ok(indexer) => {
-                        registry_builder = registry_builder.add_chain(
-                            domain,
-                            domain.name().to_string(),
-                            Arc::new(indexer),
-                        );
+                        indexers.insert(domain.name().to_string(), Arc::new(indexer));
                         info!(
                             domain = %domain.name(),
                             protocol = ?domain.domain_protocol(),
-                            "Added chain to relay API registry"
+                            "Added chain to relay API"
                         );
                     }
                     Err(e) => {
@@ -684,8 +681,7 @@ impl Relayer {
                 }
             }
 
-            let provider_registry = registry_builder.build();
-            server = server.with_provider_registry(provider_registry);
+            server = server.with_indexers(indexers);
         } else {
             info!("Relay API disabled (HYPERLANE_RELAYER_DISABLE_RELAY_API=true)");
         }

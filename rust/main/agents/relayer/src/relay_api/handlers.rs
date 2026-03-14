@@ -7,7 +7,7 @@ use axum::{
 };
 use derive_new::new;
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{PendingOperationStatus, QueueOperation};
+use hyperlane_core::{HyperlaneMessage, Indexer, PendingOperationStatus, QueueOperation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -15,7 +15,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info};
 
-use super::extractor::ProviderRegistry;
 use crate::msg::pending_message::{MessageContext, PendingMessage};
 
 #[derive(Clone, new)]
@@ -23,7 +22,7 @@ pub struct ServerState {
     #[new(default)]
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
     #[new(default)]
-    provider_registry: Option<ProviderRegistry>,
+    indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
     #[new(default)]
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
@@ -33,8 +32,11 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn with_provider_registry(mut self, registry: ProviderRegistry) -> Self {
-        self.provider_registry = Some(registry);
+    pub fn with_indexers(
+        mut self,
+        indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+    ) -> Self {
+        self.indexers = Some(indexers);
         self
     }
 
@@ -172,13 +174,13 @@ async fn create_relay(
         ));
     }
 
-    // 1. Extract message using ProviderRegistry
-    let registry = state.provider_registry.as_ref().ok_or_else(|| {
-        ServerError::InternalError("Provider registry not configured".to_string())
-    })?;
+    // 1. Extract message using indexers
+    let indexers = state
+        .indexers
+        .as_ref()
+        .ok_or_else(|| ServerError::InternalError("Indexers not configured".to_string()))?;
 
-    let extracted = registry
-        .extract_message(&req.origin_chain, &req.tx_hash)
+    let extracted = crate::relay_api::extract_message(indexers, &req.origin_chain, &req.tx_hash)
         .await
         .map_err(|e| ServerError::InvalidRequest(format!("Failed to extract message: {}", e)))?;
 

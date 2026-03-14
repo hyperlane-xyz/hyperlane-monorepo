@@ -8,14 +8,13 @@ use tokio::sync::broadcast::Sender;
 use tokio::sync::RwLock;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, Indexer};
 use lander::CommandEntrypoint;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
-use crate::relay_api::ProviderRegistry;
 
 use crate::server::environment_variable::EnvironmentVariableApi;
 use hyperlane_core::QueueOperation;
@@ -52,7 +51,7 @@ pub struct Server {
     #[new(default)]
     relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
     #[new(default)]
-    relay_provider_registry: Option<ProviderRegistry>,
+    relay_indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
 }
 
 impl Server {
@@ -111,8 +110,11 @@ impl Server {
         self
     }
 
-    pub fn with_provider_registry(mut self, registry: ProviderRegistry) -> Self {
-        self.relay_provider_registry = Some(registry);
+    pub fn with_indexers(
+        mut self,
+        indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+    ) -> Self {
+        self.relay_indexers = Some(indexers);
         self
     }
 
@@ -165,13 +167,13 @@ impl Server {
         let relay_api_disabled =
             env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
         if !relay_api_disabled {
-            if let (Some(dbs), Some(registry), Some(send_channels)) = (
+            if let (Some(dbs), Some(indexers), Some(send_channels)) = (
                 self.dbs.as_ref(),
-                self.relay_provider_registry,
+                self.relay_indexers,
                 self.relay_send_channels.as_ref(),
             ) {
                 let relay_state = crate::relay_api::handlers::ServerState::new()
-                    .with_provider_registry(registry)
+                    .with_indexers(indexers)
                     .with_dbs(dbs.clone())
                     .with_send_channels(send_channels.clone())
                     .with_msg_ctxs(self.msg_ctxs.clone());
