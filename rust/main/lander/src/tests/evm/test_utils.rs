@@ -145,6 +145,7 @@ pub fn mock_ethereum_adapter(
         signer,
         minimum_time_between_resubmissions,
         metrics,
+        reorg_reprocess_state: Default::default(),
     }
 }
 
