@@ -10,7 +10,9 @@ use crate::config::Config;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::utils::get_matching_lines;
-use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
+use crate::{
+    fetch_metric, fetch_metric_exact, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
+};
 
 #[derive(Clone)]
 pub struct RelayerTerminationInvariantParams<'a> {
@@ -238,7 +240,7 @@ pub fn scraper_termination_invariants_met(
 
     log!("Checking scraper termination invariants");
 
-    let dispatched_messages_scraped = fetch_metric(
+    let dispatched_messages_scraped = fetch_metric_exact(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_dispatch"},
@@ -254,24 +256,36 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
-    // Check raw message dispatches (stored without RPC dependencies for CCTP availability)
-    let raw_dispatches_scraped = fetch_metric(
+    // Check raw message dispatches (stored without RPC dependencies for CCTP availability).
+    // Tip and finalized stages both write to the same raw table; whichever stage inserts first
+    // gets the counter increment, the other stage may only upsert existing rows.
+    let raw_dispatches_scraped_finalized = fetch_metric_exact(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "raw_message_dispatch"},
     )?
     .iter()
     .sum::<u32>();
+    let raw_dispatches_scraped_tip = fetch_metric_exact(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "raw_message_dispatch_tip"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let raw_dispatches_scraped = raw_dispatches_scraped_finalized + raw_dispatches_scraped_tip;
     if raw_dispatches_scraped != total_messages_dispatched {
         log!(
-            "Scraper has scraped {} raw message dispatches, expected {}",
+            "Scraper has scraped {} raw message dispatches (finalized={}, tip={}), expected {}",
             raw_dispatches_scraped,
+            raw_dispatches_scraped_finalized,
+            raw_dispatches_scraped_tip,
             total_messages_dispatched,
         );
         return Ok(false);
     }
 
-    let gas_payments_scraped = fetch_metric(
+    let gas_payments_scraped = fetch_metric_exact(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payment"},
@@ -287,7 +301,7 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
-    let delivered_messages_scraped = fetch_metric(
+    let delivered_messages_scraped = fetch_metric_exact(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_delivery"},
