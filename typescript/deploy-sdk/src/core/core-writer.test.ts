@@ -8,6 +8,7 @@ import {
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import {
+  ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
   ArtifactWriter,
@@ -32,7 +33,10 @@ import {
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk/protocol';
+import {
+  ProtocolProvider,
+  ProtocolType,
+} from '@hyperlane-xyz/provider-sdk/protocol';
 import {
   DeployedValidatorAnnounceArtifact,
   IRawValidatorAnnounceArtifactManager,
@@ -57,7 +61,7 @@ const mockHookArtifactManager = {
   }),
 } satisfies IRawHookArtifactManager;
 
-const mockProtocolProvider = {
+const mockProtocolProvider: ProtocolProvider = {
   createProvider: sinon.stub(),
   createSigner: sinon.stub(),
   createSubmitter: sinon.stub(),
@@ -66,10 +70,11 @@ const mockProtocolProvider = {
   createMailboxArtifactManager: sinon.stub(),
   createValidatorAnnounceArtifactManager: sinon.stub(),
   getMinGas: sinon.stub(),
+  createWarpArtifactManager: sinon.stub(),
 };
 
 if (!hasProtocol(TestProtocol)) {
-  registerProtocol(TestProtocol, () => mockProtocolProvider as any);
+  registerProtocol(TestProtocol, () => mockProtocolProvider);
 }
 
 describe('CoreWriter', () => {
@@ -326,7 +331,7 @@ describe('CoreWriter', () => {
         .returns(mockHookWriter);
 
       // ACT
-      const result = await coreWriter.create(artifact);
+      const [result, receipts] = await coreWriter.create(artifact);
 
       // ASSERT
       expect(result.mailbox.deployed.address).to.equal(mockMailboxAddress);
@@ -335,7 +340,7 @@ describe('CoreWriter', () => {
       expect(result.validatorAnnounce?.deployed.address).to.equal(
         mockValidatorAnnounceAddress,
       );
-      expect(result.receipts.length).to.be.greaterThan(0);
+      expect(receipts.length).to.be.greaterThan(0);
 
       sinon.assert.calledOnce(ismCreateStub);
       sinon.assert.calledTwice(hookCreateStub);
@@ -406,7 +411,7 @@ describe('CoreWriter', () => {
       });
 
       // ACT
-      const result = await coreWriterNoVA.create(artifact);
+      const [result] = await coreWriterNoVA.create(artifact);
 
       // ASSERT
       expect(result.validatorAnnounce).to.be.null;
@@ -654,11 +659,11 @@ describe('CoreWriter', () => {
       });
 
       // ACT
-      const result = await coreWriter.create(artifact);
+      const [, receipts] = await coreWriter.create(artifact);
 
       // ASSERT
-      expect(result.receipts.length).to.be.greaterThan(0);
-      expect(result.receipts.length).to.be.at.least(4);
+      expect(receipts.length).to.be.greaterThan(0);
+      expect(receipts.length).to.be.at.least(4);
     });
 
     it('should propagate ISM deployment errors', async () => {
@@ -761,8 +766,11 @@ describe('CoreWriter', () => {
         deployed: { address: mockNewIsmAddress },
       };
 
-      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
         config: {
           owner: mockOwner,
           defaultIsm: {
@@ -772,6 +780,7 @@ describe('CoreWriter', () => {
           defaultHook: mockDefaultHook,
           requiredHook: mockRequiredHook,
         },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
       const ismCreateStub = sinon
@@ -800,7 +809,7 @@ describe('CoreWriter', () => {
         .returns(mockHookWriter);
 
       // ACT
-      await coreWriter.update(mockMailboxAddress, expectedArtifact);
+      await coreWriter.update(expectedArtifact);
 
       // ASSERT
       sinon.assert.calledOnce(ismCreateStub);
@@ -824,8 +833,11 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
-      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
         config: {
           owner: mockOwner,
           defaultIsm: {
@@ -835,6 +847,7 @@ describe('CoreWriter', () => {
           defaultHook: mockDefaultHook,
           requiredHook: mockRequiredHook,
         },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
       const ismCreateStub = sinon.stub();
@@ -862,7 +875,7 @@ describe('CoreWriter', () => {
         .returns(mockHookWriter);
 
       // ACT
-      await coreWriter.update(mockMailboxAddress, expectedArtifact);
+      await coreWriter.update(expectedArtifact);
 
       // ASSERT
       sinon.assert.notCalled(ismCreateStub);
@@ -884,9 +897,13 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
-      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
         config: currentMailbox.config,
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
       const mockIsmWriter = {
@@ -911,10 +928,7 @@ describe('CoreWriter', () => {
         .returns(mockHookWriter);
 
       // ACT
-      const result = await coreWriter.update(
-        mockMailboxAddress,
-        expectedArtifact,
-      );
+      const result = await coreWriter.update(expectedArtifact);
 
       // ASSERT
       expect(result).to.be.an('array').with.lengthOf(0);
@@ -948,8 +962,11 @@ describe('CoreWriter', () => {
         deployed: { address: mockNewIsmAddress },
       };
 
-      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
         config: {
           owner: mockOwner,
           defaultIsm: {
@@ -959,6 +976,7 @@ describe('CoreWriter', () => {
           defaultHook: mockDefaultHook,
           requiredHook: mockRequiredHook,
         },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
       const ismCreateStub = sinon
@@ -990,10 +1008,7 @@ describe('CoreWriter', () => {
         .returns(mockHookWriter);
 
       // ACT
-      const result = await coreWriter.update(
-        mockMailboxAddress,
-        expectedArtifact,
-      );
+      const result = await coreWriter.update(expectedArtifact);
 
       // ASSERT
       sinon.assert.calledOnce(ismCreateStub);
@@ -1018,20 +1033,22 @@ describe('CoreWriter', () => {
 
       sinon.stub(coreWriter, 'read').resolves(currentMailbox as any);
 
-      const expectedArtifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
         config: {
           owner: mockOwner,
           defaultIsm: mockIsm,
           defaultHook: mockDefaultHook,
           requiredHook: mockRequiredHook,
         },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
       // ACT & ASSERT
-      await expect(
-        coreWriter.update(mockMailboxAddress, expectedArtifact),
-      ).to.be.rejectedWith(
+      await expect(coreWriter.update(expectedArtifact)).to.be.rejectedWith(
         'Expected defaultIsm to be DEPLOYED or UNDERIVED with zero address',
       );
     });

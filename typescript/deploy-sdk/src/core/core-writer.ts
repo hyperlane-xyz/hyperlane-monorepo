@@ -5,6 +5,7 @@ import {
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
+  ArtifactDeployed,
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
@@ -26,6 +27,7 @@ import {
   mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
+  DeployedMailboxAddress,
   DeployedMailboxArtifact,
   IRawMailboxArtifactManager,
   MailboxArtifactConfig,
@@ -69,6 +71,11 @@ export function createCoreWriter(
 /**
  * Orchestrates core deployment (mailbox, ISM, hooks, validator announce)
  * using the Artifact API. Extends CoreArtifactReader for read().
+ *
+ * Does not implement ArtifactWriter<MailboxArtifactConfig, DeployedMailboxAddress>
+ * because create() returns a composite result (mailbox + validator announce) rather
+ * than a single [ArtifactDeployed, TxReceipt[]] tuple. The update() signature does
+ * conform to the standard pattern.
  */
 export class CoreWriter extends CoreArtifactReader {
   protected readonly logger: Logger = rootLogger.child({
@@ -93,11 +100,15 @@ export class CoreWriter extends CoreArtifactReader {
     );
   }
 
-  async create(artifact: ArtifactNew<MailboxArtifactConfig>): Promise<{
-    mailbox: DeployedMailboxArtifact;
-    validatorAnnounce: DeployedValidatorAnnounceArtifact | null;
-    receipts: TxReceipt[];
-  }> {
+  async create(artifact: ArtifactNew<MailboxArtifactConfig>): Promise<
+    [
+      {
+        mailbox: DeployedMailboxArtifact;
+        validatorAnnounce: DeployedValidatorAnnounceArtifact | null;
+      },
+      TxReceipt[],
+    ]
+  > {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
     const chainName = this.chainMetadata.name;
@@ -236,18 +247,23 @@ export class CoreWriter extends CoreArtifactReader {
     }
 
     this.logger.info(`Core deployment complete on ${chainName}`);
-    return {
-      mailbox: updatedMailboxArtifact,
-      validatorAnnounce: validatorAnnounceArtifact,
-      receipts: allReceipts,
-    };
+    return [
+      {
+        mailbox: updatedMailboxArtifact,
+        validatorAnnounce: validatorAnnounceArtifact,
+      },
+      allReceipts,
+    ];
   }
 
   async update(
-    mailboxAddress: string,
-    expectedArtifact: ArtifactNew<MailboxArtifactConfig>,
+    expectedArtifact: ArtifactDeployed<
+      MailboxArtifactConfig,
+      DeployedMailboxAddress
+    >,
   ): Promise<AnnotatedTx[]> {
-    const { config: expectedConfig } = expectedArtifact;
+    const { config: expectedConfig, deployed } = expectedArtifact;
+    const { address: mailboxAddress } = deployed;
     const updateTxs: AnnotatedTx[] = [];
 
     // Read actual state (fully expanded)

@@ -229,7 +229,7 @@ export function toDeployedOrUndefined<C, D extends { address: string }>(
   if (isArtifactDeployed(artifact)) return artifact;
   assert(
     isEmptyAddress(artifact.deployed.address),
-    `Expected ${name} to be DEPLOYED or UNDERIVED with zero address, got ${artifact.artifactState}`,
+    `Expected ${name} to be DEPLOYED or UNDERIVED with zero address, got UNDERIVED with non-zero address ${artifact.deployed.address}`,
   );
   return undefined;
 }

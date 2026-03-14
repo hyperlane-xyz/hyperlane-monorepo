@@ -14,7 +14,10 @@ import {
   DeployedRawMailboxArtifact,
   IRawMailboxArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk/protocol';
+import {
+  ProtocolProvider,
+  ProtocolType,
+} from '@hyperlane-xyz/provider-sdk/protocol';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { CoreArtifactReader } from './core-artifact-reader.js';
@@ -22,7 +25,7 @@ import { CoreArtifactReader } from './core-artifact-reader.js';
 // Test protocol
 const TestProtocol = 'test-core-reader' as ProtocolType;
 
-const mockProtocolProvider = {
+const mockProtocolProvider: ProtocolProvider = {
   createProvider: sinon.stub(),
   createSigner: sinon.stub(),
   createSubmitter: sinon.stub(),
@@ -31,10 +34,11 @@ const mockProtocolProvider = {
   createMailboxArtifactManager: sinon.stub(),
   createValidatorAnnounceArtifactManager: sinon.stub(),
   getMinGas: sinon.stub(),
+  createWarpArtifactManager: sinon.stub(),
 };
 
 if (!hasProtocol(TestProtocol)) {
-  registerProtocol(TestProtocol, () => mockProtocolProvider as any);
+  registerProtocol(TestProtocol, () => mockProtocolProvider);
 }
 
 describe('CoreArtifactReader', () => {
