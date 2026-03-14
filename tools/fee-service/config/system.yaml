@@ -1,0 +1,229 @@
+scan_frequency:
+  gas_prices_minutes: 15
+  token_prices_minutes: 15
+  competitor_quotes_minutes: 30
+  report_minutes: 60
+
+pricing:
+  igp:
+    margin_pct: 50
+    diff_threshold_pct: 5
+    scale: 10000000000  # 1e10
+    rpc_cost_per_message: 0.03
+    # Whether to include one-time rent cost in sealevel delivery estimates.
+    # True = charge rent on every message (conservative, current behavior).
+    # False = assume recipient already has token account.
+    sealevel_include_rent: true
+    min_usd_defaults:
+      default: 0
+      sealevel: 0
+      solanamainnet: 0
+      scroll: 0
+  warp:
+    target_margin_pct: 30
+    competitive_percentile: 35
+    min_fee_bps: 1
+    max_fee_bps: 50
+    min_fee_usd: 0.05
+    fee_model: RoutingFee
+
+safety:
+  igp_min_usd: 0.01
+  igp_max_usd: 100.0
+  warp_min_bps: 0
+  warp_max_bps: 100
+  max_change_pct: 200
+  circuit_breaker_fail_pct: 50
+  circuit_breaker_price_move_pct: 30
+  stale_data_minutes: 60
+
+igp_submission:
+  monorepo_path: ../..
+  monorepo_repo_url: https://github.com/hyperlane-xyz/hyperlane-monorepo.git
+  monorepo_ref: main
+  monorepo_auto_update: true
+  execution_backend: deploy
+  deploy_concurrent: true
+  disable_monorepo_min_usd_floor: true
+  managed_chains:
+    - ethereum
+    - arbitrum
+    - optimism
+    - base
+    - polygon
+    - unichain
+    - eclipsemainnet
+    - solanamainnet
+  allow_direct_signer: true
+  review_requires_phrase: APPLY IGP UPDATE
+  sealevel_mode: manual_edit_required
+  max_proposal_age_minutes: 60
+  max_delta_pct: 200
+
+chains:
+  ethereum:
+    chain_id: 1
+    domain_id: 1
+    native: ethereum
+    type: evm
+    # ISM verification (6-of-9 multisig): 189,116 + handle: 50,000 = 239,116
+    gas_overhead: 239116
+    rpc: https://eth.drpc.org
+  arbitrum:
+    chain_id: 42161
+    domain_id: 42161
+    native: ethereum
+    type: evm
+    l2: true
+    # ISM verification (3-of-5 multisig): 166,887 + handle: 50,000
+    gas_overhead: 216887
+    rpc: https://arbitrum.drpc.org
+  optimism:
+    chain_id: 10
+    domain_id: 10
+    native: ethereum
+    type: evm
+    l2: true
+    # ISM verification (4-of-6 multisig): 174,289 + handle: 50,000
+    gas_overhead: 224289
+    rpc: https://optimism.drpc.org
+  base:
+    chain_id: 8453
+    domain_id: 8453
+    native: ethereum
+    type: evm
+    l2: true
+    # ISM verification (3-of-5 multisig): 166,887 + handle: 50,000
+    gas_overhead: 216887
+    rpc: https://base.drpc.org
+  polygon:
+    chain_id: 137
+    domain_id: 137
+    native: polygon
+    type: evm
+    # ISM verification (2-of-3 multisig): 159,736 + handle: 50,000
+    gas_overhead: 209736
+    rpc: https://polygon.drpc.org
+  unichain:
+    chain_id: 130
+    domain_id: 130
+    native: ethereum
+    type: evm
+    l2: true
+    # ISM verification (4-of-6 multisig): 174,289 + handle: 50,000
+    gas_overhead: 224289
+    rpc: https://mainnet.unichain.org
+  eclipsemainnet:
+    domain_id: 1408864445
+    native: ethereum
+    type: sealevel
+    gas_overhead: 900000
+    # Constant priority fee matching relayer config (agent.ts)
+    priority_fee_microlamports: 2000
+    # Token account rent in USD (Eclipse rent is small in ETH terms)
+    rent_usd: 0.10
+    mailbox_overhead_native: 0.0001    # in ETH — placeholder until measured on Eclipse
+    rpc: https://mainnetbeta-rpc.eclipse.xyz
+  solanamainnet:
+    domain_id: 1399811149
+    native: solana
+    type: sealevel
+    # 600k overhead + 300k warp handler = 900k compute units
+    gas_overhead: 900000
+    # Helius RPC for accurate priority fees (set HELIUS_API_KEY env var)
+    helius_rpc: ${HELIUS_RPC_URL}
+    # Fallback if Helius unavailable (microlamports per CU)
+    priority_fee_microlamports: 100000
+    mailbox_overhead_native: 0.0012876  # in SOL — measured by Trevor
+    # ~0.002 SOL for token account rent
+    rent_usd: 0.17
+    rpc: https://api.mainnet-beta.solana.com
+
+tokens:
+  ethereum:
+    coingecko_id: ethereum
+    decimals: 18
+    symbol: ETH
+  solana:
+    coingecko_id: solana
+    decimals: 9
+    symbol: SOL
+  polygon:
+    coingecko_id: polygon-ecosystem-token
+    decimals: 18
+    symbol: POL
+  usdc:
+    coingecko_id: usd-coin
+    decimals: 6
+    symbol: USDC
+  usdt:
+    coingecko_id: tether
+    decimals: 6
+    symbol: USDT
+
+# FPWR (First Party Warp Route) — the only route we control fees on
+routes:
+  - token: USDC
+    name: "FPWR USDC (Eclipse)"
+    chains: [ethereum, arbitrum, optimism, base, polygon, unichain, eclipsemainnet, solanamainnet]
+    warp_addresses:
+      arbitrum: "0xAd4350Ee0f9f5b85BaB115425426086Ae8384ebb"
+      base: "0x37e637891A558B5b621723cbf8Fc771525f280C1"
+      eclipsemainnet: "EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"
+      ethereum: "0xe1De9910fe71cC216490AC7FCF019e13a34481D7"
+      optimism: "0x02bFd67829317D666dc7dFA030F18eaCC12c2cfb"
+      polygon: "0xCb9F833f4d6D9Bb9767CDb25c487DA54D67731D6"
+      solanamainnet: "3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"
+      unichain: "0xa7E4dC4078bAc6e97Eec52a4F7642fF51cbb17C1"
+
+competitors:
+  across:
+    name: Across
+    type: get
+    url: https://across.to/api/suggested-fees
+    chains: evm
+  relay:
+    name: Relay
+    type: post
+    url: https://api.relay.link/quote/v2
+    chains: evm
+  debridge:
+    name: deBridge
+    type: get
+    url: https://dln.debridge.finance/v1.0/dln/order/create-tx
+    chains: evm+solana
+  mayan:
+    name: Mayan Finance
+    type: get
+    url: https://price-api.mayan.finance/v3/quote
+    chains: solana
+  lifi:
+    name: LI.FI
+    type: get
+    url: https://li.quest/v1/quote
+    chains: evm
+
+quote_amounts_usd: [500, 1000, 5000, 10000, 20000, 50000, 100000, 300000]
+
+rebalancing:
+  addresses:
+    main: "0xa3948a15e1d0778a7d53268b651B2411AF198FE3"
+    inventory: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+  chains: [ethereum, arbitrum, optimism, base, polygon, unichain]
+  lookback_days: 30
+  fallback_default_bps: 1.5
+  api_keys: {}  # Optional: {ethereum: "ETHERSCAN_KEY", ...}
+  route_overrides: {}  # Optional: {"ethereum->arbitrum": 0.8}
+
+slack:
+  enabled: true
+  bot_token: ${SLACK_BOT_TOKEN}
+  channel: "#fee-autopilot"
+  update_previous: true
+
+alerts:
+  slack_webhook: ${SLACK_WEBHOOK_URL}
+  gas_spike_multiplier: 5.0
+  margin_erosion_pct: 80
+  competitor_change_pct: 50
+  stale_data_minutes: 60
