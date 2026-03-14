@@ -1,7 +1,7 @@
 {
   "chains": {
-    "test4": {
-      "name": "test4",
+    "ethereumlocal1": {
+      "name": "ethereumlocal1",
       "protocol": "ethereum",
       "chainId": 31337,
       "domainId": 31337,
@@ -46,15 +46,5 @@
         "from": 1
       }
     }
-  },
-  "defaultSigner": {
-    "type": "hexKey",
-    "key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-  },
-  "relayChains": "ethereumlocal2,cosmoslocal",
-  "db": "./relayer-db",
-  "tracing": {
-    "level": "info",
-    "fmt": "compact"
   }
 }
