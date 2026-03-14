@@ -32,8 +32,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
-    PendingOperation, QueueOperation, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
+    QueueOperation, H512, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -643,9 +643,6 @@ impl Relayer {
 
             use crate::relay_api::RegistryBuilder;
 
-            // Build ProviderRegistry for relay API
-            // Note: Currently only supports chains where we have origin data
-            // For production, you'd want to support all chains
             let mut registry_builder = RegistryBuilder::new();
 
             info!(
@@ -660,40 +657,17 @@ impl Relayer {
                     "Processing chain for relay API"
                 );
 
-                // Check if protocol is supported
-                if !crate::relay_api::registry_builder::is_protocol_supported(
-                    domain.domain_protocol(),
-                ) {
-                    debug!(
-                        domain = %domain.name(),
-                        protocol = ?domain.domain_protocol(),
-                        "Skipping unsupported chain for relay API"
-                    );
-                    continue;
-                }
-
-                // Create indexer based on protocol type
-                let indexer_result = match domain.domain_protocol() {
-                    hyperlane_core::HyperlaneDomainProtocol::Ethereum => {
-                        self.create_evm_mailbox_indexer(domain, origin).await
-                    }
-                    hyperlane_core::HyperlaneDomainProtocol::Cosmos => {
-                        self.create_cosmos_mailbox_indexer(domain, origin).await
-                    }
-                    hyperlane_core::HyperlaneDomainProtocol::CosmosNative => {
-                        self.create_cosmosnative_mailbox_indexer(domain, origin)
-                            .await
-                    }
-                    _ => {
-                        debug!(domain = %domain.name(), protocol = ?domain.domain_protocol(), "Unsupported protocol");
-                        continue;
-                    }
-                };
-
-                match indexer_result {
+                match origin
+                    .chain_conf
+                    .build_message_indexer(&self.core_metrics, false)
+                    .await
+                {
                     Ok(indexer) => {
-                        registry_builder =
-                            registry_builder.add_chain(&domain, domain.name().to_string(), indexer);
+                        registry_builder = registry_builder.add_chain(
+                            domain,
+                            domain.name().to_string(),
+                            Arc::new(indexer),
+                        );
                         info!(
                             domain = %domain.name(),
                             protocol = ?domain.domain_protocol(),
@@ -1152,129 +1126,6 @@ impl Relayer {
             .origin_chains
             .iter()
             .for_each(|origin| chain_metrics.set_critical_error(origin.name(), false));
-    }
-
-    async fn create_evm_mailbox_indexer(
-        &self,
-        domain: &HyperlaneDomain,
-        origin: &crate::relayer::origin::Origin,
-    ) -> eyre::Result<Arc<dyn Indexer<HyperlaneMessage>>> {
-        use hyperlane_base::settings::ChainConnectionConf;
-        use hyperlane_ethereum::{EthereumMailboxIndexer, EthereumReorgPeriod};
-
-        // Extract Ethereum connection config
-        let eth_conf = match &origin.chain_conf.connection {
-            ChainConnectionConf::Ethereum(conf) => conf,
-            _ => return Err(eyre::eyre!("Expected Ethereum connection config")),
-        };
-
-        // Get RPC URL
-        let rpc_url = match &eth_conf.rpc_connection {
-            hyperlane_ethereum::RpcConnectionConf::Http { url } => url.to_string(),
-            hyperlane_ethereum::RpcConnectionConf::Ws { url } => url.to_string(),
-            hyperlane_ethereum::RpcConnectionConf::HttpQuorum { urls }
-            | hyperlane_ethereum::RpcConnectionConf::HttpFallback { urls } => urls
-                .first()
-                .map(|u| u.to_string())
-                .ok_or_else(|| eyre::eyre!("No RPC URLs configured"))?,
-        };
-
-        // Create contract locator
-        let locator = hyperlane_core::ContractLocator {
-            domain,
-            address: origin.chain_conf.addresses.mailbox.into(),
-        };
-
-        // Create ethers provider
-        let provider = Arc::new(ethers::providers::Provider::try_from(rpc_url.as_str())?);
-
-        // Get reorg period
-        let reorg_period = EthereumReorgPeriod::try_from(&origin.chain_conf.reorg_period)?;
-
-        // Create dispatch indexer
-        let indexer = Arc::new(EthereumMailboxIndexer::new(
-            provider,
-            &locator,
-            reorg_period,
-        ));
-        Ok(indexer)
-    }
-
-    async fn create_cosmos_mailbox_indexer(
-        &self,
-        domain: &HyperlaneDomain,
-        origin: &crate::relayer::origin::Origin,
-    ) -> eyre::Result<Arc<dyn Indexer<HyperlaneMessage>>> {
-        use hyperlane_base::settings::ChainConnectionConf;
-        use hyperlane_cosmos::cw::{CwMailbox, CwMailboxDispatchIndexer, CwQueryClient};
-        use hyperlane_cosmos::CosmosProvider;
-
-        // Extract Cosmos connection config
-        let cosmos_conf = match &origin.chain_conf.connection {
-            ChainConnectionConf::Cosmos(conf) => conf,
-            _ => return Err(eyre::eyre!("Expected Cosmos connection config")),
-        };
-
-        // Create contract locator
-        let locator = hyperlane_core::ContractLocator {
-            domain,
-            address: origin.chain_conf.addresses.mailbox.into(),
-        };
-
-        // Build Cosmos provider
-        let middleware_metrics = origin.chain_conf.metrics_conf();
-        let client_metrics = self.core_metrics.client_metrics();
-        let provider = CosmosProvider::<CwQueryClient>::new(
-            cosmos_conf,
-            &locator,
-            None, // No signer needed for indexing
-            client_metrics,
-            middleware_metrics.chain.clone(),
-        )?;
-
-        // Create CwMailbox
-        let mailbox = CwMailbox::new(provider.clone(), cosmos_conf.clone(), locator.clone())?;
-
-        // Create dispatch indexer
-        let indexer = Arc::new(CwMailboxDispatchIndexer::new(provider, mailbox, &locator)?);
-        Ok(Arc::new(indexer))
-    }
-
-    async fn create_cosmosnative_mailbox_indexer(
-        &self,
-        domain: &HyperlaneDomain,
-        origin: &crate::relayer::origin::Origin,
-    ) -> eyre::Result<Arc<dyn Indexer<HyperlaneMessage>>> {
-        use hyperlane_base::settings::ChainConnectionConf;
-        use hyperlane_cosmos::native::{CosmosNativeDispatchIndexer, ModuleQueryClient};
-        use hyperlane_cosmos::CosmosProvider;
-
-        // Extract CosmosNative connection config
-        let cosmos_conf = match &origin.chain_conf.connection {
-            ChainConnectionConf::CosmosNative(conf) => conf,
-            _ => return Err(eyre::eyre!("Expected CosmosNative connection config")),
-        };
-
-        // Create contract locator
-        let locator = hyperlane_core::ContractLocator {
-            domain,
-            address: origin.chain_conf.addresses.mailbox.into(),
-        };
-
-        // Build Cosmos provider
-        let middleware_metrics = origin.chain_conf.metrics_conf();
-        let client_metrics = self.core_metrics.client_metrics();
-        let provider = CosmosProvider::<ModuleQueryClient>::new(
-            cosmos_conf,
-            &locator,
-            None, // No signer needed for indexing
-            client_metrics,
-            middleware_metrics.chain.clone(),
-        )?;
-
-        // Create dispatch indexer
-        let indexer = Arc::new(CosmosNativeDispatchIndexer::new(provider, locator)?);
-        Ok(Arc::new(indexer))
     }
 }
 

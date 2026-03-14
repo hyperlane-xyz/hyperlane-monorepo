@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
-use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, Indexer};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, Indexer};
 
 use super::ProviderRegistry;
 
@@ -18,7 +18,6 @@ impl RegistryBuilder {
     }
 
     /// Add an indexer for a specific chain
-    /// This method auto-detects the protocol type and creates the appropriate indexer
     pub fn add_chain(
         mut self,
         domain: &HyperlaneDomain,
@@ -46,25 +45,4 @@ impl Default for RegistryBuilder {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Helper to log unsupported protocol types
-pub fn log_unsupported_protocol(chain_name: &str, protocol: HyperlaneDomainProtocol) {
-    warn!(
-        chain = %chain_name,
-        protocol = ?protocol,
-        "Chain protocol not yet supported for relay API. \
-         Fast relay will not be available for this chain. \
-         Supported protocols: EVM, Cosmos, CosmosNative"
-    );
-}
-
-/// Check if a protocol is supported for relay API
-pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
-    matches!(
-        protocol,
-        HyperlaneDomainProtocol::Ethereum
-            | HyperlaneDomainProtocol::Cosmos
-            | HyperlaneDomainProtocol::CosmosNative
-    )
 }
