@@ -187,7 +187,7 @@ impl SimApp {
         recipient: &str,
         amount: u32,
     ) {
-        Program::new(self.bin.clone())
+        let transfer = Program::new(self.bin.clone())
             .cmd("tx")
             .cmd("hyperlane-transfer")
             .cmd("transfer")
@@ -205,10 +205,8 @@ impl SimApp {
             .arg("keyring-backend", "test")
             .arg("gas", "400000")
             .flag("yes")
-            .filter_logs(|_| false)
-            .run()
-            .join();
-        sleep(Duration::from_secs(2)); // wait for the block to be mined
+            .filter_logs(|_| false);
+        Self::run_tx_with_retry(&transfer);
     }
 
     pub fn deploy_and_configure_contracts(
