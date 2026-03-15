@@ -1,7 +1,7 @@
 # Single Docker image containing all NCC-bundled TypeScript node services.
 # At runtime, set SERVICE_NAME to select which service to run.
 #
-# Build args (passed from docker-bake.hcl):
+# Build args:
 #   FOUNDRY_VERSION - Foundry release tag
 #   SERVICE_VERSION - Image version label
 #
@@ -128,12 +128,44 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-# Copy all service bundles into named subdirectories
+# Copy the first bundle as the canonical source of shared assets
 COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/bundle ./services/rebalancer/
+# Copy remaining bundles
 COPY --from=builder /hyperlane-monorepo/typescript/warp-monitor/bundle ./services/warp-monitor/
 COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/bundle ./services/ccip-server/
 COPY --from=builder /hyperlane-monorepo/typescript/keyfunder/bundle ./services/keyfunder/
 COPY --from=builder /hyperlane-monorepo/typescript/relayer/bundle ./services/relayer/
+
+# Deduplicate identical assets across bundles.
+# NCC produces byte-identical copies of WASM files, workers, and native addons
+# in every bundle. Replace duplicates with symlinks to the rebalancer copy.
+# Saves ~180MB (36MB WASM × 4 duplicates + workers + native addons).
+RUN CANONICAL=rebalancer && \
+    for svc in warp-monitor ccip-server keyfunder relayer; do \
+      for file in services/${CANONICAL}/*; do \
+        fname=$(basename "$file") && \
+        target="services/${svc}/${fname}" && \
+        [ "$fname" = "index.js" ] && continue; \
+        [ "$fname" = "package.json" ] && continue; \
+        [ ! -f "$target" ] && continue; \
+        if cmp -s "$file" "$target"; then \
+          rm "$target" && \
+          ln -s "../../services/${CANONICAL}/${fname}" "$target"; \
+        fi; \
+      done; \
+      # Handle prebuilds subdirectory
+      if [ -d "services/${CANONICAL}/prebuilds" ]; then \
+        for file in services/${CANONICAL}/prebuilds/linux-x64/*; do \
+          fname=$(basename "$file") && \
+          target="services/${svc}/prebuilds/linux-x64/${fname}" && \
+          [ ! -f "$target" ] && continue; \
+          if cmp -s "$file" "$target"; then \
+            rm "$target" && \
+            ln -s "../../../../services/${CANONICAL}/prebuilds/linux-x64/${fname}" "$target"; \
+          fi; \
+        done; \
+      fi; \
+    done
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
 # Version read from pnpm-workspace.yaml catalog for consistency
