@@ -121,6 +121,43 @@ RUN pnpm turbo run bundle \
     --filter=@hyperlane-xyz/keyfunder \
     --filter=@hyperlane-xyz/relayer
 
+# Deduplicate identical NCC assets across bundles.
+# NCC produces byte-identical copies of WASM files (~18MB each), workers,
+# and native addons in every bundle. Replace duplicates with symlinks to
+# the rebalancer (canonical) copy. Done in the builder so that only the
+# deduped result is COPY'd into the runner stage.
+RUN SERVICES_DIR=/hyperlane-monorepo/services && \
+    mkdir -p $SERVICES_DIR && \
+    for svc in rebalancer warp-monitor ccip-server keyfunder relayer; do \
+      cp -a typescript/${svc}/bundle $SERVICES_DIR/${svc}; \
+    done && \
+    CANONICAL=rebalancer && \
+    cd $SERVICES_DIR && \
+    for svc in warp-monitor ccip-server keyfunder relayer; do \
+      for file in ${CANONICAL}/*; do \
+        fname=$(basename "$file") && \
+        target="${svc}/${fname}" && \
+        [ "$fname" = "index.js" ] && continue; \
+        [ "$fname" = "package.json" ] && continue; \
+        [ ! -f "$target" ] && continue; \
+        if cmp -s "$file" "$target"; then \
+          rm "$target" && \
+          ln -s "../${CANONICAL}/${fname}" "$target"; \
+        fi; \
+      done; \
+      if [ -d "${CANONICAL}/prebuilds" ]; then \
+        for file in ${CANONICAL}/prebuilds/linux-x64/*; do \
+          fname=$(basename "$file") && \
+          target="${svc}/prebuilds/linux-x64/${fname}" && \
+          [ ! -f "$target" ] && continue; \
+          if cmp -s "$file" "$target"; then \
+            rm "$target" && \
+            ln -s "../../../${CANONICAL}/prebuilds/linux-x64/${fname}" "$target"; \
+          fi; \
+        done; \
+      fi; \
+    done
+
 # Production stage - minimal Alpine image with all service bundles
 FROM node:24-alpine AS runner
 
@@ -128,44 +165,9 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-# Copy the first bundle as the canonical source of shared assets
-COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/bundle ./services/rebalancer/
-# Copy remaining bundles
-COPY --from=builder /hyperlane-monorepo/typescript/warp-monitor/bundle ./services/warp-monitor/
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/bundle ./services/ccip-server/
-COPY --from=builder /hyperlane-monorepo/typescript/keyfunder/bundle ./services/keyfunder/
-COPY --from=builder /hyperlane-monorepo/typescript/relayer/bundle ./services/relayer/
-
-# Deduplicate identical assets across bundles.
-# NCC produces byte-identical copies of WASM files, workers, and native addons
-# in every bundle. Replace duplicates with symlinks to the rebalancer copy.
-# Saves ~180MB (36MB WASM × 4 duplicates + workers + native addons).
-RUN CANONICAL=rebalancer && \
-    for svc in warp-monitor ccip-server keyfunder relayer; do \
-      for file in services/${CANONICAL}/*; do \
-        fname=$(basename "$file") && \
-        target="services/${svc}/${fname}" && \
-        [ "$fname" = "index.js" ] && continue; \
-        [ "$fname" = "package.json" ] && continue; \
-        [ ! -f "$target" ] && continue; \
-        if cmp -s "$file" "$target"; then \
-          rm "$target" && \
-          ln -s "../../services/${CANONICAL}/${fname}" "$target"; \
-        fi; \
-      done; \
-      # Handle prebuilds subdirectory
-      if [ -d "services/${CANONICAL}/prebuilds" ]; then \
-        for file in services/${CANONICAL}/prebuilds/linux-x64/*; do \
-          fname=$(basename "$file") && \
-          target="services/${svc}/prebuilds/linux-x64/${fname}" && \
-          [ ! -f "$target" ] && continue; \
-          if cmp -s "$file" "$target"; then \
-            rm "$target" && \
-            ln -s "../../../../services/${CANONICAL}/prebuilds/linux-x64/${fname}" "$target"; \
-          fi; \
-        done; \
-      fi; \
-    done
+# Copy the pre-deduped bundles (symlinks preserved with -a flag not available
+# in COPY, so we copy from the builder's consolidated directory)
+COPY --from=builder /hyperlane-monorepo/services ./services
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
 # Version read from pnpm-workspace.yaml catalog for consistency
