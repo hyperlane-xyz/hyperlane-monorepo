@@ -1,10 +1,10 @@
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
-import MonorepoDefaults from '../../eslint.config.mjs';
+import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...MonorepoDefaults,
+  ...defaultConfig,
   {
     files: ['./src/**/*.ts', './src/**/*.tsx'],
     plugins: {

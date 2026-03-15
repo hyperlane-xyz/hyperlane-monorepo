@@ -1,9 +1,10 @@
-import { restrictedSdkAndUtilsImportRules } from '@hyperlane-xyz/eslint-config';
-
-import MonorepoDefaults from '../../eslint.config.mjs';
+import {
+  defaultConfig,
+  restrictedSdkAndUtilsImportRules,
+} from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...MonorepoDefaults,
+  ...defaultConfig,
   ...restrictedSdkAndUtilsImportRules,
   {
     files: ['src/**/*.ts'],

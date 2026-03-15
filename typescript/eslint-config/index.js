@@ -2,11 +2,22 @@ import js from '@eslint/js';
 import prettierConfig from 'eslint-config-prettier/flat';
 import importPlugin from 'eslint-plugin-import';
 import jest from 'eslint-plugin-jest';
+import oxlint from 'eslint-plugin-oxlint';
 import { globalIgnores } from 'eslint/config';
+import globals from 'globals';
 import ts from 'typescript-eslint';
 
 export const jsRules = [
-  globalIgnores(['**/dist/']),
+  globalIgnores([
+    '**/node_modules',
+    '**/dist',
+    '**/bundle',
+    '**/coverage',
+    '**/*.cjs',
+    '**/*.cts',
+    '**/*.mjs',
+    'jest.config.js',
+  ]),
   { name: 'js/recommended', ...js.configs.recommended },
   prettierConfig,
   importPlugin.flatConfigs.recommended,
@@ -15,13 +26,19 @@ export const jsRules = [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
     },
     rules: {
       'guard-for-in': 'error',
       'no-console': 'error',
       'no-eval': 'error',
+      'no-constant-condition': 'off',
       'import/namespace': 'off', // This is very slow, should be in the full-check config
       'import/no-cycle': 'off', // This is very slow, should be in the full-check config
+      'import/no-named-as-default-member': 'off',
     },
     settings: {
       'import/resolver': 'typescript', // This is the only resolver that works, even for JavaScript files
@@ -31,9 +48,11 @@ export const jsRules = [
 
 export const typescriptRules = ts.config({
   name: 'hyperlane-ts-rules',
-  files: ['**/*.ts'],
+  files: ['**/*.ts', '**/*.tsx'],
   extends: [ts.configs.recommended, importPlugin.flatConfigs.typescript],
   rules: {
+    '@typescript-eslint/ban-ts-comment': 'off',
+    '@typescript-eslint/no-empty-object-type': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-expressions': 'off',
     '@typescript-eslint/no-unused-vars': [
@@ -102,6 +121,17 @@ export const restrictedSdkAndUtilsImportRules = [
       ],
     },
   },
+];
+
+// Disables ESLint rules that oxlint handles — must be last in config array
+export const oxlintIntegration = oxlint.configs['flat/recommended'];
+
+// Standard config for all packages: JS + TS + Jest + oxlint dedup
+export const defaultConfig = [
+  ...jsRules,
+  ...typescriptRules,
+  ...jestRules,
+  ...oxlintIntegration,
 ];
 
 export default jsRules;

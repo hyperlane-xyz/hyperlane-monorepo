@@ -46,6 +46,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@jest/globals": "^29.7.0",
     "@types/cors": "^2",

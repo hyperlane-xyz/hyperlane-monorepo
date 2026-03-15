@@ -1,13 +1,7 @@
-import {
-  jestRules,
-  jsRules,
-  typescriptRules,
-} from '@hyperlane-xyz/eslint-config';
+import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...jsRules,
-  ...typescriptRules,
-  ...jestRules,
+  ...defaultConfig,
   {
     name: 'relayer-rules',
     rules: {
