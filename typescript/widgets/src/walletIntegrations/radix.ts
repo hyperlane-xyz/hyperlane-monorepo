@@ -174,7 +174,9 @@ export function useRadixTransactionFns(
       });
 
       if (transactionResult.isErr()) {
-        throw new Error(String(transactionResult.error));
+        throw new Error(String(transactionResult.error), {
+          cause: transactionResult.error,
+        });
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
