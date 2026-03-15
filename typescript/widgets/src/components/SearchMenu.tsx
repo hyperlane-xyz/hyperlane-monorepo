@@ -261,8 +261,8 @@ function SortDropdown<SortBy extends string>({
         buttonClassname="htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
         menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm htw-border htw-border-gray-100"
         menuItems={options.map((o) => (
-          // eslint-disable-next-line react/jsx-key
           <div
+            key={o}
             className="htw-rounded htw-p-1.5 hover:htw-bg-gray-200"
             onClick={() => onSetSortBy(o)}
           >

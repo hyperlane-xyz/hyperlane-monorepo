@@ -356,7 +356,7 @@ describe('mapAllSettled', () => {
     const { rejected } = await mapAllSettled(
       items,
       async () => {
-        throw 'string error';
+        throw new Error('string error');
       },
       (item) => item,
     );

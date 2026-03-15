@@ -253,10 +253,8 @@
         "@typescript-eslint/await-thenable": "off",
         "@typescript-eslint/no-base-to-string": "off",
         "@typescript-eslint/no-duplicate-type-constituents": "off",
-        "@typescript-eslint/no-unnecessary-type-assertion": "off",
         "@typescript-eslint/no-redundant-type-constituents": "off",
-        "@typescript-eslint/only-throw-error": "off",
-        "@typescript-eslint/prefer-promise-reject-errors": "off",
+        "@typescript-eslint/no-unnecessary-type-assertion": "off",
         "@typescript-eslint/restrict-template-expressions": "off",
         "@typescript-eslint/unbound-method": "off"
       }
@@ -289,8 +287,7 @@
       "files": ["typescript/widgets/src/**/*.{ts,tsx}"],
       "plugins": ["react"],
       "rules": {
-        "react/exhaustive-deps": "off",
-        "react/jsx-key": "off"
+        "react/exhaustive-deps": "off"
       }
     }
   ]

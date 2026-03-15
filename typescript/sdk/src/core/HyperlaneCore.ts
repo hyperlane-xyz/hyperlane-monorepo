@@ -409,7 +409,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
       mailbox.once(filter, (emittedId, event) => {
         if (id !== emittedId) {
-          reject(`Expected message id ${id} but got ${emittedId}`);
+          reject(new Error(`Expected message id ${id} but got ${emittedId}`));
         }
         resolve(
           this.multiProvider.handleTx(destinationChain, event.getTransaction()),
