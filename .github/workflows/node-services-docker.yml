@@ -1,4 +1,4 @@
-name: Build and Push Node Services Images
+name: Build and Push Node Services Image
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     paths:
       - 'typescript/Dockerfile.node-service'
       - 'typescript/docker-bake.hcl'
+      - 'typescript/docker-entrypoint-node-service.sh'
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
@@ -13,6 +14,7 @@ on:
     paths:
       - 'typescript/Dockerfile.node-service'
       - 'typescript/docker-bake.hcl'
+      - 'typescript/docker-entrypoint-node-service.sh'
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
@@ -88,7 +90,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push all images
+      - name: Build and push image
         id: build
         uses: depot/bake-action@v1
         env:
@@ -111,30 +113,21 @@ jobs:
           TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA_DATE }}"
           REGISTRY="ghcr.io/hyperlane-xyz"
 
-          TAGS=$(cat << EOF
-          ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
-          ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
-          ${REGISTRY}/hyperlane-key-funder:${TAG_SHA_DATE}
-          ${REGISTRY}/hyperlane-ts-relayer:${TAG_SHA_DATE}
-          ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}
-          EOF
-          )
+          TAGS="${REGISTRY}/hyperlane-node-services:${TAG_SHA_DATE}"
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "$TAGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## ⚙️ Node Service Docker Images
+          ## Node Services Docker Image
 
-          | Service | Tag |
-          |---------|-----|
-          | ♻️ rebalancer | \`${TAG_SHA_DATE}\` |
-          | 🕵️ warp-monitor | \`${TAG_SHA_DATE}\` |
-          | 🔑 key-funder | \`${TAG_SHA_DATE}\` |
-          | 🚀 ts-relayer | \`${TAG_SHA_DATE}\` |
-          | 🔍 offchain-lookup-server | \`${TAG_SHA_DATE}\` |
+          | Image | Tag |
+          |-------|-----|
+          | hyperlane-node-services | \`${TAG_SHA_DATE}\` |
 
-          **Full image paths:**
+          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer
+
+          **Full image path:**
           \`\`\`
           ${TAGS}
           \`\`\`
@@ -145,8 +138,8 @@ jobs:
         uses: ./.github/actions/docker-image-comment
         with:
           comment_tag: typescript-docker-images
-          image_name: Node Service Docker Images
-          emoji: '⚙️'
+          image_name: Node Services Docker Image
+          emoji: ''
           image_tags: ${{ steps.image-tags.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ steps.generate-token.outputs.token }}

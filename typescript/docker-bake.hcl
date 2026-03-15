@@ -1,7 +1,7 @@
-# Bake configuration for Hyperlane TypeScript service Docker images
+# Bake configuration for the unified Hyperlane TypeScript node services Docker image
 # https://depot.dev/docs/container-builds/how-to-guides/docker-bake
 #
-# This file defines all TypeScript service targets for parallel builds with shared caching.
+# This file defines a single target that builds all TypeScript services into one image.
 # Usage: depot bake --file typescript/docker-bake.hcl
 
 # Variables passed from CI
@@ -30,24 +30,13 @@ variable "REGISTRY" {
   default = "ghcr.io/hyperlane-xyz"
 }
 
-# Default group builds all targets
+# Default group builds the unified image
 group "default" {
-  targets = ["ncc-services"]
+  targets = ["node-services"]
 }
 
-# NCC-bundled services using the unified Dockerfile
-target "ncc-services" {
-  name = item.name
-  matrix = {
-    item = [
-      { name = "rebalancer", dir = "rebalancer", package = "@hyperlane-xyz/rebalancer", image = "hyperlane-rebalancer", port = "" },
-      { name = "warp-monitor", dir = "warp-monitor", package = "@hyperlane-xyz/warp-monitor", image = "hyperlane-warp-monitor", port = "" },
-      { name = "ccip-server", dir = "ccip-server", package = "@hyperlane-xyz/ccip-server", image = "hyperlane-offchain-lookup-server", port = "3000" },
-      { name = "keyfunder", dir = "keyfunder", package = "@hyperlane-xyz/keyfunder", image = "hyperlane-key-funder", port="" },
-      { name = "relayer", dir = "relayer", package = "@hyperlane-xyz/relayer", image = "hyperlane-ts-relayer", port="" },
-    ]
-  }
-
+# Single unified image containing all NCC-bundled services
+target "node-services" {
   dockerfile = "typescript/Dockerfile.node-service"
   context    = "."
   platforms  = split(",", PLATFORMS)
@@ -55,13 +44,10 @@ target "ncc-services" {
   args = {
     FOUNDRY_VERSION = FOUNDRY_VERSION
     SERVICE_VERSION = SERVICE_VERSION
-    SERVICE_DIR     = item.dir
-    SERVICE_PACKAGE = item.package
-    SERVICE_PORT    = item.port
   }
 
   tags = compact([
-    "${REGISTRY}/${item.image}:${TAG}",
-    TAG_SHA_DATE != "" ? "${REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
+    "${REGISTRY}/hyperlane-node-services:${TAG}",
+    TAG_SHA_DATE != "" ? "${REGISTRY}/hyperlane-node-services:${TAG_SHA_DATE}" : "",
   ])
 }

@@ -8,12 +8,24 @@ GCR (`gcr.io/abacus-labs-dev`) is deprecated. A 30-day cleanup policy is applied
 
 ## Images
 
-| Workflow                   | Image(s)                                                                                                                             | Contents                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| `rust-docker.yml`          | `hyperlane-agent`                                                                                                                    | Rust relayer, validator, scraper |
-| `monorepo-docker.yml`      | `hyperlane-monorepo`                                                                                                                 | Full TS/Solidity monorepo        |
-| `node-services-docker.yml` | `hyperlane-rebalancer`, `hyperlane-warp-monitor`, `hyperlane-key-funder`, `hyperlane-ts-relayer`, `hyperlane-offchain-lookup-server` | TypeScript node services         |
-| `simapp-docker.yml`        | `hyperlane-cosmos-simapp`                                                                                                            | Cosmos simapp (manual only)      |
+| Workflow                   | Image(s)                  | Contents                                                                                 |
+| -------------------------- | ------------------------- | ---------------------------------------------------------------------------------------- |
+| `rust-docker.yml`          | `hyperlane-agent`         | Rust relayer, validator, scraper                                                         |
+| `monorepo-docker.yml`      | `hyperlane-monorepo`      | Full TS/Solidity monorepo                                                                |
+| `node-services-docker.yml` | `hyperlane-node-services` | All TypeScript node services (rebalancer, warp-monitor, ccip-server, keyfunder, relayer) |
+| `simapp-docker.yml`        | `hyperlane-cosmos-simapp` | Cosmos simapp (manual only)                                                              |
+
+### Node Services Image
+
+The `hyperlane-node-services` image is a single unified image containing all TypeScript service bundles. At runtime, set the `SERVICE_NAME` environment variable to select which service to run:
+
+| SERVICE_NAME   | Service                    |
+| -------------- | -------------------------- |
+| `rebalancer`   | Warp route rebalancer      |
+| `warp-monitor` | Warp route balance monitor |
+| `ccip-server`  | Offchain lookup server     |
+| `keyfunder`    | Agent key funder           |
+| `relayer`      | TypeScript relayer         |
 
 ## Tagging
 
@@ -41,11 +53,11 @@ Cleanup runs weekly (Sunday midnight UTC) via `.github/workflows/ghcr-cleanup.ym
 
 Builds are **not** triggered automatically on every PR or merge to main. They only fire when Docker build infrastructure files change:
 
-| Workflow                   | Trigger paths                                                                                                        |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `rust-docker.yml`          | `rust/Dockerfile`, `rust/main/Cargo.lock`, `.dockerignore`, workflow file                                            |
-| `monorepo-docker.yml`      | `Dockerfile`, `docker-entrypoint.sh`, `pnpm-lock.yaml`, `.registryrc`, `.dockerignore`, workflow file                |
-| `node-services-docker.yml` | `typescript/Dockerfile.node-service`, `typescript/docker-bake.hcl`, `pnpm-lock.yaml`, `.dockerignore`, workflow file |
+| Workflow                   | Trigger paths                                                                                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rust-docker.yml`          | `rust/Dockerfile`, `rust/main/Cargo.lock`, `.dockerignore`, workflow file                                                                                            |
+| `monorepo-docker.yml`      | `Dockerfile`, `docker-entrypoint.sh`, `pnpm-lock.yaml`, `.registryrc`, `.dockerignore`, workflow file                                                                |
+| `node-services-docker.yml` | `typescript/Dockerfile.node-service`, `typescript/docker-bake.hcl`, `typescript/docker-entrypoint-node-service.sh`, `pnpm-lock.yaml`, `.dockerignore`, workflow file |
 
 Additionally:
 
@@ -85,10 +97,11 @@ gh run list --workflow=rust-docker.yml --limit=1 --json url --jq '.[].url'
 
 ## Key Files
 
-| File                                         | Purpose                                     |
-| -------------------------------------------- | ------------------------------------------- |
-| `typescript/infra/config/docker.ts`          | Registry config, image names, deployed tags |
-| `.github/workflows/ghcr-cleanup.yml`         | GHCR retention workflow                     |
-| `typescript/infra/src/utils/gcloud.ts`       | `checkDockerTagExists()`, `warnIfPrTag()`   |
-| `typescript/docker-bake.hcl`                 | Docker Bake config for node services        |
-| `rust/main/helm/hyperlane-agent/values.yaml` | Helm chart defaults                         |
+| File                                           | Purpose                                     |
+| ---------------------------------------------- | ------------------------------------------- |
+| `typescript/infra/config/docker.ts`            | Registry config, image names, deployed tags |
+| `.github/workflows/ghcr-cleanup.yml`           | GHCR retention workflow                     |
+| `typescript/infra/src/utils/gcloud.ts`         | `checkDockerTagExists()`, `warnIfPrTag()`   |
+| `typescript/docker-bake.hcl`                   | Docker Bake config for node services        |
+| `typescript/docker-entrypoint-node-service.sh` | Entrypoint script for service selection     |
+| `rust/main/helm/hyperlane-agent/values.yaml`   | Helm chart defaults                         |

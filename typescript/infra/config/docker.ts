@@ -3,9 +3,7 @@ const GHCR_REGISTRY = 'ghcr.io/hyperlane-xyz';
 export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
-  KEY_FUNDER: 'hyperlane-key-funder',
-  WARP_MONITOR: 'hyperlane-warp-monitor',
-  REBALANCER: 'hyperlane-rebalancer',
+  NODE_SERVICES: 'hyperlane-node-services',
 } as const;
 
 type DockerImageReposType = {
