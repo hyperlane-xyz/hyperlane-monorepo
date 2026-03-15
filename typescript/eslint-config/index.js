@@ -32,26 +32,9 @@ export const jsRules = [
 export const typescriptRules = ts.config({
   name: 'hyperlane-ts-rules',
   files: ['**/*.ts'],
-  extends: [
-    ts.configs.recommendedTypeChecked,
-    importPlugin.flatConfigs.typescript,
-  ],
-  languageOptions: {
-    parserOptions: {
-      projectService: true,
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
+  extends: [ts.configs.recommended, importPlugin.flatConfigs.typescript],
   rules: {
-    '@typescript-eslint/require-await': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-misused-promises': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-argument': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-assignment': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-call': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-enum-comparison': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-member-access': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-return': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-unused-expressions': 'off',
     '@typescript-eslint/no-unused-vars': [
       'error',

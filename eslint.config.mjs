@@ -53,10 +53,6 @@ export default [
       parser: tsParser,
       ecmaVersion: 12,
       sourceType: 'module',
-
-      parserOptions: {
-        project: './tsconfig.json',
-      },
     },
 
     settings: {
@@ -89,7 +85,6 @@ export default [
       '@typescript-eslint/ban-ts-comment': ['off'],
       '@typescript-eslint/explicit-module-boundary-types': ['off'],
       '@typescript-eslint/no-explicit-any': ['off'],
-      '@typescript-eslint/no-floating-promises': ['error'],
       '@typescript-eslint/no-non-null-assertion': ['off'],
       '@typescript-eslint/no-require-imports': ['warn'],
       '@typescript-eslint/no-unused-expressions': ['off'],

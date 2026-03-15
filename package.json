@@ -41,6 +41,7 @@
     "lint-staged": "^15.5.2",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
     "prettier-plugin-solidity": "catalog:",
     "tsx": "catalog:",
