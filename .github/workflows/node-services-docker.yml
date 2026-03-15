@@ -4,15 +4,15 @@ on:
   push:
     branches: [main]
     paths:
-      - 'typescript/Dockerfile.node-service'
-      - 'typescript/docker-entrypoint-node-service.sh'
+      - 'typescript/Dockerfile'
+      - 'typescript/docker-entrypoint.sh'
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
   pull_request:
     paths:
-      - 'typescript/Dockerfile.node-service'
-      - 'typescript/docker-entrypoint-node-service.sh'
+      - 'typescript/Dockerfile'
+      - 'typescript/docker-entrypoint.sh'
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'pnpm-lock.yaml'
@@ -99,7 +99,7 @@ jobs:
         with:
           project: 057xstl4t6
           context: ./
-          file: ./typescript/Dockerfile.node-service
+          file: ./typescript/Dockerfile
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}

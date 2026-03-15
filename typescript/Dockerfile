@@ -155,6 +155,6 @@ ENV SERVICE_NAME=""
 EXPOSE 9090
 
 # Entrypoint validates SERVICE_NAME and runs the corresponding bundle
-COPY typescript/docker-entrypoint-node-service.sh /usr/local/bin/docker-entrypoint.sh
+COPY typescript/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["docker-entrypoint.sh"]
