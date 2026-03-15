@@ -45,9 +45,9 @@ export const mainnetDockerTags: MainnetDockerTags = {
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
-  keyFunder: 'c558a9f-20260304-105251',
-  warpMonitor: 'c558a9f-20260304-105251',
-  rebalancer: 'c558a9f-20260304-105251',
+  keyFunder: '3b17358-20260315-183126',
+  warpMonitor: '3b17358-20260315-183126',
+  rebalancer: '3b17358-20260315-183126',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
@@ -58,5 +58,5 @@ export const testnetDockerTags: BaseDockerTags = {
   validatorRC: 'c558a9f-20260304-105241',
   scraper: 'c558a9f-20260304-105241',
   // standalone services
-  keyFunder: 'c558a9f-20260304-105251',
+  keyFunder: '3b17358-20260315-183126',
 };
