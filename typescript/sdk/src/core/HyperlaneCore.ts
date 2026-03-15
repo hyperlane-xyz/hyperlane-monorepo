@@ -410,6 +410,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.once(filter, (emittedId, event) => {
         if (id !== emittedId) {
           reject(new Error(`Expected message id ${id} but got ${emittedId}`));
+          return;
         }
         resolve(
           this.multiProvider.handleTx(destinationChain, event.getTransaction()),
