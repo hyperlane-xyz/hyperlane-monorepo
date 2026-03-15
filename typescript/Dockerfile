@@ -165,8 +165,8 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-# Copy the pre-deduped bundles (symlinks preserved with -a flag not available
-# in COPY, so we copy from the builder's consolidated directory)
+# Copy all service bundles. COPY --from preserves symlinks, so the deduped
+# symlinks from the builder stage carry through to the final image.
 COPY --from=builder /hyperlane-monorepo/services ./services
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
