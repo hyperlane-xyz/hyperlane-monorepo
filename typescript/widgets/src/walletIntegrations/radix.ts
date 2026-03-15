@@ -202,7 +202,7 @@ export function useRadixTransactionFns(
       };
       return { hash: transactionResult.value.transactionIntentHash, confirm };
     },
-    [switchNetwork],
+    [rdt, gatewayApi],
   );
 
   const onMultiSendTx = useCallback(
