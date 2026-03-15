@@ -284,6 +284,14 @@
           }
         ]
       }
+    },
+    {
+      "files": ["typescript/widgets/src/**/*.{ts,tsx}"],
+      "plugins": ["react"],
+      "rules": {
+        "react/exhaustive-deps": "off",
+        "react/jsx-key": "off"
+      }
     }
   ]
 }

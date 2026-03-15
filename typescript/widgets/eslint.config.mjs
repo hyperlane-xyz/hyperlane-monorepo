@@ -1,5 +1,4 @@
 import react from 'eslint-plugin-react';
-import reactHooks from 'eslint-plugin-react-hooks';
 
 import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
@@ -9,7 +8,6 @@ export default [
     files: ['./src/**/*.ts', './src/**/*.tsx'],
     plugins: {
       react,
-      'react-hooks': reactHooks,
     },
     settings: {
       react: {
@@ -18,10 +16,8 @@ export default [
       },
     },
     rules: {
-      ...react.configs.recommended.rules,
-      ...reactHooks.configs.recommended.rules,
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
+      // Only rules oxlint's react plugin doesn't cover
+      'react/no-deprecated': 'error',
     },
   },
   {
