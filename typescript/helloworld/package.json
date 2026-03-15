@@ -46,6 +46,7 @@
     "@ethereum-waffle/chai": "^4.0.10",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
     "@typechain/ethers-v5": "catalog:",
