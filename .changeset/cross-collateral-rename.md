@@ -1,5 +1,4 @@
 ---
-"@hyperlane-xyz/multicollateral": major
 "@hyperlane-xyz/sdk": major
 "@hyperlane-xyz/cli": minor
 "@hyperlane-xyz/warp-monitor": minor
