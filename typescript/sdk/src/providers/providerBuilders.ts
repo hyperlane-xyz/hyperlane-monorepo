@@ -189,19 +189,19 @@ export function defaultAleoProviderBuilder(
  */
 export function defaultTronEthersProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: number | string,
+  network: number | string,
 ): providers.Provider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  return new TronJsonRpcProvider(rpcUrls[0].http);
+  return new TronJsonRpcProvider(rpcUrls[0].http, network);
 }
 
 export function defaultTronProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: string | number,
+  network: string | number,
 ): TronProvider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
   return {
-    provider: new TronJsonRpcProvider(rpcUrls[0].http),
+    provider: new TronJsonRpcProvider(rpcUrls[0].http, network),
     type: ProviderType.Tron,
   };
 }

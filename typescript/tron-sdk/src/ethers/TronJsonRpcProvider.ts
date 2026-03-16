@@ -38,6 +38,20 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   }
 
   /**
+   * Override network detection to handle Tron nodes that don't support eth_chainId.
+   * Falls back to a default network if detection fails.
+   */
+  async detectNetwork(): Promise<providers.Network> {
+    try {
+      return await super.detectNetwork();
+    } catch {
+      // TRE/TronGrid may not support eth_chainId reliably.
+      // Return a default network to avoid blocking all RPC calls.
+      return { name: 'tron', chainId: 728126428 };
+    }
+  }
+
+  /**
    * Wraps all RPC calls with retry logic to handle transient
    * errors like 503s from TronGrid rate limiting.
    */
