@@ -24,7 +24,13 @@ import {
   HypModuleArgs,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Logger,
+  eqAddress,
+  isEmptyAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { createHookWriter } from './hook/hook-writer.js';
@@ -289,6 +295,10 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const updateTransactions: AnnotatedTx[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm;
+    const actualIsmAddress =
+      typeof actualDefaultIsmConfig === 'string'
+        ? actualDefaultIsmConfig
+        : actualDefaultIsmConfig.address;
 
     // Try to update (may also deploy) Ism with the expected config
     const { deployedIsm, ismUpdateTxs } = await this.deployOrUpdateIsm(
@@ -300,11 +310,11 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       updateTransactions.push(...ismUpdateTxs);
     }
 
-    const newIsmDeployed = actualDefaultIsmConfig.address !== deployedIsm;
+    const newIsmDeployed = !eqAddress(actualIsmAddress, deployedIsm);
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
+        annotation: `Updating default ISM of Mailbox from ${actualIsmAddress} to ${deployedIsm}`,
         ...(await this.signer.getSetDefaultIsmTransaction({
           signer: actualConfig.owner,
           mailboxAddress: mailbox,
@@ -322,7 +332,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
    * @returns Object with deployedIsm address, and update Transactions
    */
   public async deployOrUpdateIsm(
-    actualDefaultIsmConfig: DerivedIsmConfig,
+    actualDefaultIsmConfig: DerivedIsmConfig | string,
     expectDefaultIsmConfig: IsmConfig | string,
   ): Promise<{
     deployedIsm: Address;
@@ -343,14 +353,28 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       this.signer,
     );
 
-    // Read actual ISM state
-    const actualArtifact = await writer.read(actualDefaultIsmConfig.address);
-
     // Convert expected config to artifact format
     const expectedArtifact = ismConfigToArtifact(
       expectDefaultIsmConfig,
       this.chainLookup,
     );
+
+    // No existing ISM on chain — deploy the expected one directly
+    const actualIsmAddress =
+      typeof actualDefaultIsmConfig === 'string'
+        ? actualDefaultIsmConfig
+        : actualDefaultIsmConfig.address;
+
+    if (isEmptyAddress(actualIsmAddress)) {
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        ismUpdateTxs: [],
+      };
+    }
+
+    // Read actual ISM state
+    const actualArtifact = await writer.read(actualIsmAddress);
 
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
@@ -391,6 +415,10 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const updateTransactions: AnnotatedTx[] = [];
 
     const actualDefaultHookConfig = actualConfig.defaultHook;
+    const actualDefaultHookAddress =
+      typeof actualDefaultHookConfig === 'string'
+        ? actualDefaultHookConfig
+        : actualDefaultHookConfig.address;
 
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
@@ -402,11 +430,11 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       updateTransactions.push(...hookUpdateTxs);
     }
 
-    const newHookDeployed = actualDefaultHookConfig.address !== deployedHook;
+    const newHookDeployed = !eqAddress(actualDefaultHookAddress, deployedHook);
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
+        annotation: `Updating default Hook of Mailbox from ${actualDefaultHookAddress} to ${deployedHook}`,
         ...(await this.signer.getSetDefaultHookTransaction({
           signer: actualConfig.owner,
           mailboxAddress: mailbox,
@@ -432,6 +460,10 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const updateTransactions: AnnotatedTx[] = [];
 
     const actualRequiredHookConfig = actualConfig.requiredHook;
+    const actualRequiredHookAddress =
+      typeof actualRequiredHookConfig === 'string'
+        ? actualRequiredHookConfig
+        : actualRequiredHookConfig.address;
 
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
@@ -443,11 +475,11 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       updateTransactions.push(...hookUpdateTxs);
     }
 
-    const newHookDeployed = actualRequiredHookConfig.address !== deployedHook;
+    const newHookDeployed = !eqAddress(actualRequiredHookAddress, deployedHook);
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
+        annotation: `Updating required Hook of Mailbox from ${actualRequiredHookAddress} to ${deployedHook}`,
         ...(await this.signer.getSetRequiredHookTransaction({
           signer: actualConfig.owner,
           mailboxAddress: mailbox,
@@ -465,7 +497,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
    * @returns Object with deployedHook address, and update Transactions
    */
   public async deployOrUpdateHook(
-    actualHookConfig: DerivedHookConfig,
+    actualHookConfig: DerivedHookConfig | string,
     expectHookConfig: HookConfig | string,
   ): Promise<{
     deployedHook: Address;
@@ -493,9 +525,14 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
 
+    const actualHookAddress =
+      typeof actualHookConfig === 'string'
+        ? actualHookConfig
+        : actualHookConfig.address;
+
     // Use the new deployOrUpdate method from HookWriter
     const result = await writer.deployOrUpdate({
-      actualAddress: actualHookConfig.address,
+      actualAddress: actualHookAddress,
       expectedConfig: expectHookConfig,
     });
 
