@@ -39,7 +39,10 @@ import {
 import { CompositeForkIndexer } from './CompositeForkIndexer.js';
 import { EvmForkIndexer } from './ForkIndexer.js';
 import { MockExplorerClient } from './MockExplorerClient.js';
-import { MockExternalBridge } from './MockExternalBridge.js';
+import {
+  MockExternalBridge,
+  type SvmBridgeContext,
+} from './MockExternalBridge.js';
 import { SvmEvmLocalDeploymentManager } from './SvmEvmLocalDeploymentManager.js';
 import { SvmForkIndexer } from './SvmForkIndexer.js';
 import {
@@ -280,9 +283,28 @@ export class MixedTestRebalancerBuilder {
       getConfirmedBlockTags,
     );
 
+    const svmBridgeCtx: SvmBridgeContext | undefined = svmAddresses.bridgeRouter
+      ? {
+          connection: svmConnection,
+          warpRouter: svmAddresses.bridgeRouter,
+          mailboxProgramId: MAILBOX_PROGRAM_ID,
+          mpp: manager.getMultiProtocolProvider(),
+          deployerKeypair: manager.getSvmChainManager().getDeployerKeypair(),
+          evmCore: hyperlaneCore,
+          evmMultiProvider: workingMP,
+        }
+      : undefined;
+
     const mockBridge =
       this.mockBridge ??
-      new MockExternalBridge(evmAddresses, workingMP, hyperlaneCore);
+      new MockExternalBridge(
+        evmAddresses,
+        workingMP,
+        hyperlaneCore,
+        'native',
+        undefined,
+        svmBridgeCtx,
+      );
 
     if (this.evmBalances) {
       for (const chain of TEST_CHAINS) {

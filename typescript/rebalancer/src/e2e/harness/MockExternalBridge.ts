@@ -1,6 +1,6 @@
 import { BigNumber, ethers, type providers } from 'ethers';
 import { pino, type Logger } from 'pino';
-import { PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 
 import {
   ERC20Test__factory,
@@ -8,7 +8,12 @@ import {
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
-import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  type MultiProtocolProvider,
+  type MultiProvider,
+  SealevelHypNativeAdapter,
+} from '@hyperlane-xyz/sdk';
 import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
@@ -24,6 +29,20 @@ import type {
   TestChain,
 } from '../fixtures/routes.js';
 import { SVM_CHAIN_NAME, SVM_DOMAIN_ID } from '../fixtures/svm-routes.js';
+import {
+  relaySvmToEvmMessages,
+  type SvmToEvmRelayOpts,
+} from './SvmRelayHelper.js';
+
+export interface SvmBridgeContext {
+  connection: Connection;
+  warpRouter: string;
+  mailboxProgramId: string;
+  mpp: MultiProtocolProvider;
+  deployerKeypair: Keypair;
+  evmCore: HyperlaneCore;
+  evmMultiProvider: MultiProvider;
+}
 
 type MockBridgeRoute = {
   fromChain: number;
@@ -42,7 +61,7 @@ export class MockExternalBridge implements IExternalBridge {
     BridgeTransferStatus
   >();
   private _failNextExecute = false;
-  private readonly svmBridgeResults = new Map<string, bigint>();
+  private readonly svmBridgeTxAmounts = new Map<string, bigint>();
   private readonly deployedAddresses:
     | NativeDeployedAddresses
     | Erc20InventoryDeployedAddresses;
@@ -56,6 +75,7 @@ export class MockExternalBridge implements IExternalBridge {
     private readonly core: HyperlaneCore,
     tokenType: 'native' | 'erc20' = 'native',
     logger?: Logger,
+    private readonly svmBridgeContext?: SvmBridgeContext,
   ) {
     this.deployedAddresses = deployedAddresses;
     this.tokenType = tokenType;
@@ -128,27 +148,45 @@ export class MockExternalBridge implements IExternalBridge {
     const fromChainName = this.resolveChainName(fromChain);
     const toChainName = this.resolveChainName(toChain);
 
-    // SVM source: simulate bridge by directly crediting the destination EVM bridge route
     if (fromChainName === SVM_CHAIN_NAME) {
+      const ctx = this.svmBridgeContext;
+      if (!ctx) {
+        throw new Error(
+          'MockExternalBridge: SVM bridge context required for SVM-source bridge transfers',
+        );
+      }
+
       const destBridgeRoute =
         this.deployedAddresses.bridgeRoute[toChainName as TestChain];
-      const destProvider = this.multiProvider.getProvider(
-        toChainName,
-      ) as ethers.providers.JsonRpcProvider;
-      const currentBalance = await destProvider.getBalance(destBridgeRoute);
-      const newBalance = currentBalance.add(
-        BigNumber.from(quote.fromAmount.toString()),
+      if (!destBridgeRoute) {
+        throw new Error(`No bridge route for destination chain ${toChainName}`);
+      }
+
+      const recipientBytes32 = ethers.utils.hexZeroPad(
+        ethers.utils.hexlify(destBridgeRoute),
+        32,
       );
-      await destProvider.send('anvil_setBalance', [
-        destBridgeRoute,
-        ethers.utils.hexValue(newBalance),
-      ]);
-      const syntheticTxHash = `0x${'0'.repeat(62)}${(Date.now() % 0xffff).toString(16).padStart(2, '0')}`;
-      this.svmBridgeResults.set(
-        syntheticTxHash,
-        BigInt(quote.fromAmount.toString()),
-      );
-      return { txHash: syntheticTxHash, fromChain, toChain };
+
+      const adapter = new SealevelHypNativeAdapter(SVM_CHAIN_NAME, ctx.mpp, {
+        warpRouter: ctx.warpRouter,
+        mailbox: ctx.mailboxProgramId,
+      });
+
+      const destinationDomain = this.multiProvider.getDomainId(toChainName);
+      const tx = await adapter.populateTransferRemoteTx({
+        weiAmountOrId: quote.fromAmount,
+        destination: destinationDomain,
+        recipient: recipientBytes32,
+        fromAccountOwner: ctx.deployerKeypair.publicKey.toBase58(),
+      });
+
+      tx.partialSign(ctx.deployerKeypair);
+
+      const sig = await ctx.connection.sendRawTransaction(tx.serialize());
+      await ctx.connection.confirmTransaction(sig, 'confirmed');
+
+      this.svmBridgeTxAmounts.set(sig, BigInt(quote.fromAmount.toString()));
+      return { txHash: sig, fromChain, toChain };
     }
 
     const bridgeRouteAddress =
@@ -231,13 +269,43 @@ export class MockExternalBridge implements IExternalBridge {
       return override;
     }
 
-    const svmResult = this.svmBridgeResults.get(txHash);
-    if (svmResult !== undefined) {
-      return {
-        status: 'complete',
-        receivingTxHash: txHash,
-        receivedAmount: svmResult,
-      };
+    if (this.svmBridgeContext && !txHash.startsWith('0x')) {
+      const ctx = this.svmBridgeContext;
+      const amount = this.svmBridgeTxAmounts.get(txHash);
+      if (amount === undefined) {
+        return { status: 'pending' };
+      }
+
+      try {
+        const relayOpts: SvmToEvmRelayOpts = {
+          connection: ctx.connection,
+          mailboxProgramId: new PublicKey(ctx.mailboxProgramId),
+          evmCore: ctx.evmCore,
+          multiProvider: ctx.evmMultiProvider,
+          logger: this.logger,
+        };
+        await relaySvmToEvmMessages(relayOpts);
+
+        const txInfo = await ctx.connection.getTransaction(txHash, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        });
+        if (!txInfo) {
+          return { status: 'pending' };
+        }
+
+        return {
+          status: 'complete',
+          receivingTxHash: txHash,
+          receivedAmount: amount,
+        };
+      } catch (error) {
+        this.logger.debug(
+          { txHash, error },
+          'SVM bridge getStatus relay failed',
+        );
+        return { status: 'pending' };
+      }
     }
 
     try {
@@ -324,7 +392,7 @@ export class MockExternalBridge implements IExternalBridge {
   reset(): void {
     this.failStatusOverrides.clear();
     this._failNextExecute = false;
-    this.svmBridgeResults.clear();
+    this.svmBridgeTxAmounts.clear();
   }
 
   /**
