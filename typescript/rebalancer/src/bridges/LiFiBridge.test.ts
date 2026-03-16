@@ -4,7 +4,11 @@ import { pino } from 'pino';
 import type { LiFiStep } from '@lifi/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ExternalBridgeType } from '../config/types.js';
+import {
+  ExternalBridgeType,
+  LiFiBridgeOptionsSchema,
+  ExternalBridgeStrategyOverridesSchema,
+} from '../config/types.js';
 import type {
   BridgeQuote,
   BridgeQuoteParams,
@@ -613,5 +617,171 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       expect(msg).to.include('toToken');
       expect(msg).to.include('does not match requested');
     }
+  });
+});
+
+describe('LiFiBridge routeOrder three-level resolution', function () {
+  const BASE_PARAMS: BridgeQuoteParams = {
+    fromChain: 42161,
+    toChain: 1,
+    fromToken: TOKEN_ADDR,
+    toToken: TOKEN_ADDR,
+    fromAddress: SENDER_ADDR,
+    toAmount: 10000000000n,
+  };
+
+  function mockFetchForQuote(capturedUrl: { value: string }) {
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      capturedUrl.value = String(input);
+      // Return a minimal LiFi quote response
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'test-quote',
+          tool: 'across',
+          action: {
+            fromChainId: 42161,
+            toChainId: 1,
+            fromToken: {
+              address: TOKEN_ADDR,
+              symbol: 'ETH',
+              decimals: 18,
+              chainId: 42161,
+              name: 'ETH',
+              priceUSD: '2000',
+            },
+            toToken: {
+              address: TOKEN_ADDR,
+              symbol: 'ETH',
+              decimals: 18,
+              chainId: 1,
+              name: 'ETH',
+              priceUSD: '2000',
+            },
+            fromAmount: '5000000000',
+            fromAddress: SENDER_ADDR,
+            toAddress: SENDER_ADDR,
+            slippage: 0.005,
+          },
+          estimate: {
+            fromAmount: '5000000000',
+            toAmount: '10000000000',
+            toAmountMin: '9900000000',
+            executionDuration: 300,
+            gasCosts: [
+              {
+                amountUSD: '1',
+                amount: '500000000000000',
+                token: {
+                  address: TOKEN_ADDR,
+                  symbol: 'ETH',
+                  decimals: 18,
+                  chainId: 42161,
+                  name: 'ETH',
+                  priceUSD: '2000',
+                },
+                type: 'SEND',
+              },
+            ],
+            feeCosts: [],
+          },
+          type: 'lifi',
+          includedSteps: [],
+        }),
+      } as Response;
+    }) as typeof fetch;
+  }
+
+  it('uses per-request override when provided (override wins over global)', async () => {
+    const bridge = new LiFiBridge(
+      { bridgeOptions: { integrator: 'test', routeOrder: 'CHEAPEST' } },
+      testLogger,
+    );
+    const captured = { value: '' };
+    const originalFetch = globalThis.fetch;
+    try {
+      mockFetchForQuote(captured);
+      await bridge.quote(BASE_PARAMS, { routeOrder: 'FASTEST' });
+      expect(captured.value).to.include('order=FASTEST');
+    } catch {
+      // quote may fail on route validation — just check the URL was captured
+      expect(captured.value).to.include('order=FASTEST');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('uses global config routeOrder when no per-request override', async () => {
+    const bridge = new LiFiBridge(
+      { bridgeOptions: { integrator: 'test', routeOrder: 'CHEAPEST' } },
+      testLogger,
+    );
+    const captured = { value: '' };
+    const originalFetch = globalThis.fetch;
+    try {
+      mockFetchForQuote(captured);
+      await bridge.quote(BASE_PARAMS);
+      expect(captured.value).to.include('order=CHEAPEST');
+    } catch {
+      expect(captured.value).to.include('order=CHEAPEST');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('falls back to RECOMMENDED when no routeOrder configured', async () => {
+    const bridge = new LiFiBridge(
+      { bridgeOptions: { integrator: 'test' } },
+      testLogger,
+    );
+    const captured = { value: '' };
+    const originalFetch = globalThis.fetch;
+    try {
+      mockFetchForQuote(captured);
+      await bridge.quote(BASE_PARAMS);
+      expect(captured.value).to.include('order=RECOMMENDED');
+    } catch {
+      expect(captured.value).to.include('order=RECOMMENDED');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('Schema validation: routeOrder', function () {
+  it('LiFiBridgeOptionsSchema accepts valid routeOrder values', () => {
+    expect(
+      LiFiBridgeOptionsSchema.safeParse({
+        integrator: 'test',
+        routeOrder: 'FASTEST',
+      }).success,
+    ).to.be.true;
+    expect(
+      LiFiBridgeOptionsSchema.safeParse({
+        integrator: 'test',
+        routeOrder: 'CHEAPEST',
+      }).success,
+    ).to.be.true;
+    expect(LiFiBridgeOptionsSchema.safeParse({ integrator: 'test' }).success).to
+      .be.true;
+  });
+
+  it('LiFiBridgeOptionsSchema rejects invalid routeOrder', () => {
+    expect(
+      LiFiBridgeOptionsSchema.safeParse({
+        integrator: 'test',
+        routeOrder: 'INVALID',
+      }).success,
+    ).to.be.false;
+  });
+
+  it('ExternalBridgeStrategyOverridesSchema accepts lifi routeOrder override', () => {
+    expect(
+      ExternalBridgeStrategyOverridesSchema.safeParse({
+        lifi: { routeOrder: 'FASTEST' },
+      }).success,
+    ).to.be.true;
+    expect(ExternalBridgeStrategyOverridesSchema.safeParse({}).success).to.be
+      .true;
   });
 });
