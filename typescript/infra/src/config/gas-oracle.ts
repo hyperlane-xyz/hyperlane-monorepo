@@ -6,6 +6,7 @@ import {
   ChainGasOracleParams,
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   GasPriceConfig,
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
@@ -363,6 +364,46 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
 
   // Default non-EVM overhead
   return FOREIGN_DEFAULT_OVERHEAD;
+}
+
+// Overhead with chain-specific multipliers for chains with non-standard gas usage.
+export function getOverheadWithOverrides(
+  local: ChainName,
+  remote: ChainName,
+): number {
+  let overhead = getOverhead(local, remote);
+
+  if (remote === 'megaeth') {
+    overhead *= 10;
+  }
+
+  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
+  if (remote === 'moonbeam' || remote === 'torus') {
+    overhead *= 4;
+  }
+
+  // Somnia gas usage is higher than the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (remote === 'somnia') {
+    overhead *= 2;
+  }
+
+  // ZkSync gas usage is different from the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (
+    getChain(remote).technicalStack === ChainTechnicalStack.ZkSync ||
+    remote === 'adichain'
+  ) {
+    overhead *= 2;
+
+    // Zero Network gas usage has changed recently and now requires
+    // another 3x multiplier on top of the ZKSync overhead.
+    if (remote === 'zeronetwork') {
+      overhead *= 3;
+    }
+  }
+
+  return overhead;
 }
 
 // Gets the map of remote gas oracle configs for each local chain

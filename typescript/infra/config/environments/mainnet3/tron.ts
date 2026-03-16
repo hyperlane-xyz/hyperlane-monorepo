@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert } from '@hyperlane-xyz/utils';
 
-import { getOverhead } from '../../../src/config/gas-oracle.js';
+import { getOverheadWithOverrides } from '../../../src/config/gas-oracle.js';
 
 import { DEPLOYER } from './owners.js';
 
@@ -63,7 +63,7 @@ export function getTronIgpConfig(
     overhead: Object.fromEntries(
       TRON_CONNECTED_CHAINS.map((remote) => [
         remote,
-        getOverhead('tron', remote),
+        getOverheadWithOverrides('tron', remote),
       ]),
     ),
     oracleConfig: Object.fromEntries(
