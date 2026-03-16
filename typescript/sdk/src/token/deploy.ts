@@ -733,6 +733,7 @@ abstract class TokenDeployer<
           chain,
           router.address,
           config.predicateWrapper,
+          config.type,
         );
       }),
     );

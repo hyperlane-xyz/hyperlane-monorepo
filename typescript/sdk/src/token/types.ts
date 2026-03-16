@@ -307,6 +307,7 @@ export const CrossCollateralTokenConfigSchema =
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
       .optional(),
     ...BaseMovableTokenConfigSchema.shape,
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
 export type CrossCollateralTokenConfig = z.infer<
   typeof CrossCollateralTokenConfigSchema

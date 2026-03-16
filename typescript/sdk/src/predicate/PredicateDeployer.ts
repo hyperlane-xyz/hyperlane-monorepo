@@ -7,9 +7,14 @@ import {
   StaticAggregationHookFactory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import {
+  CrossCollateralRouter__factory,
+  PredicateCrossCollateralRouterWrapper__factory,
+} from '@hyperlane-xyz/multicollateral';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { TokenType } from '../token/config.js';
 import { PredicateWrapperConfig } from '../token/types.js';
 import { ChainName } from '../types.js';
 
@@ -34,29 +39,44 @@ export class PredicateWrapperDeployer {
     chain: ChainName,
     warpRouteAddress: Address,
     config: PredicateWrapperConfig,
+    tokenType?: TokenType,
   ): Promise<Address> {
     const signer = this.multiProvider.getSigner(chain);
+
+    const isCrossCollateral = tokenType === TokenType.crossCollateral;
+    const wrapperName = isCrossCollateral
+      ? 'PredicateCrossCollateralRouterWrapper'
+      : 'PredicateRouterWrapper';
 
     this.logger.info(
       {
         chain,
         warpRoute: warpRouteAddress,
         registry: config.predicateRegistry,
+        tokenType,
+        wrapperType: wrapperName,
       },
-      'Deploying PredicateRouterWrapper',
+      `Deploying ${wrapperName}`,
     );
 
+    // Deploy the appropriate wrapper based on token type
     // Token address is fetched from warpRoute.token() in constructor
-    const wrapper = await new PredicateRouterWrapper__factory(signer).deploy(
-      warpRouteAddress,
-      config.predicateRegistry,
-      config.policyId,
-    );
+    const wrapper = isCrossCollateral
+      ? await new PredicateCrossCollateralRouterWrapper__factory(signer).deploy(
+          warpRouteAddress,
+          config.predicateRegistry,
+          config.policyId,
+        )
+      : await new PredicateRouterWrapper__factory(signer).deploy(
+          warpRouteAddress,
+          config.predicateRegistry,
+          config.policyId,
+        );
     await wrapper.deployed();
 
     this.logger.info(
-      { chain, address: wrapper.address },
-      'PredicateRouterWrapper deployed',
+      { chain, address: wrapper.address, wrapperType: wrapperName },
+      `${wrapperName} deployed`,
     );
     return wrapper.address;
   }
@@ -119,9 +139,15 @@ export class PredicateWrapperDeployer {
     chain: ChainName,
     warpRouteAddress: Address,
     config: PredicateWrapperConfig,
+    tokenType?: TokenType,
   ): Promise<PredicateWrapperDeploymentResult> {
     const signer = this.multiProvider.getSigner(chain);
-    const warpRoute = TokenRouter__factory.connect(warpRouteAddress, signer);
+
+    // Connect to the appropriate router type
+    const isCrossCollateral = tokenType === TokenType.crossCollateral;
+    const warpRoute = isCrossCollateral
+      ? CrossCollateralRouter__factory.connect(warpRouteAddress, signer)
+      : TokenRouter__factory.connect(warpRouteAddress, signer);
 
     const existingHook = await warpRoute.hook();
 
@@ -129,6 +155,7 @@ export class PredicateWrapperDeployer {
       chain,
       warpRouteAddress,
       config,
+      tokenType,
     );
 
     let hookToAggregateWith: Address;

@@ -1308,10 +1308,12 @@ export class EvmWarpModule extends HyperlaneModule<
     );
 
     // Deploy predicate wrapper and get addresses
+    // Pass token type to deploy the appropriate wrapper
     const result = await predicateDeployer.deployAndConfigure(
       this.chainName,
       this.args.addresses.deployedTokenRoute,
       predicateWrapperConfig,
+      expectedConfig.type,
     );
 
     this.logger.info(
