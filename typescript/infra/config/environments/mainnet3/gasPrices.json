@@ -515,6 +515,10 @@
     "amount": "31.25",
     "decimals": 9
   },
+  "tron": {
+    "amount": "0.0000001",
+    "decimals": 9
+  },
   "unichain": {
     "amount": "0.00100063",
     "decimals": 9

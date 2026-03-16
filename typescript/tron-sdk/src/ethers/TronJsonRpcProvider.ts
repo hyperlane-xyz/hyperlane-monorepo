@@ -28,9 +28,7 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryMs = DEFAULT_BASE_RETRY_MS,
   ) {
-    // Ensure we're pointing to the /jsonrpc endpoint
-    const jsonRpcUrl = host.endsWith('/jsonrpc') ? host : `${host}/jsonrpc`;
-    super(jsonRpcUrl, network);
+    super(host, network);
     this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;

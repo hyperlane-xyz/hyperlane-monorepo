@@ -15,6 +15,7 @@ import {
 import { getChain } from '../../registry.js';
 
 import { getEdenIgpConfig } from './eden.js';
+import { getTronIgpConfig } from './tron.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -95,6 +96,10 @@ export const igp: ChainMap<IgpConfig> = objMap(
   (local, owner): IgpConfig => {
     if (local === 'eden') {
       return getEdenIgpConfig(owner, storageGasOracleConfig);
+    }
+
+    if (local === 'tron') {
+      return getTronIgpConfig(owner, storageGasOracleConfig);
     }
 
     return {
