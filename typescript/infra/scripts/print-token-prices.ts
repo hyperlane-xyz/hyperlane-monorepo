@@ -18,7 +18,7 @@ import {
 } from '../config/environments/testnet4/chains.js';
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import testnet4TokenPrices from '../config/environments/testnet4/tokenPrices.json' with { type: 'json' };
-import { DeployEnvironment } from '../src/config/environment.js';
+import { DeployEnvironment } from '../src/config/deploy-environment.js';
 import {
   getSafeNumericValue,
   shouldUpdatePrice,

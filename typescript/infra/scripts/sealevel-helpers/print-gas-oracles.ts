@@ -12,7 +12,7 @@ import {
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { svmGasOracleConfigPath } from '../../src/utils/sealevel.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
