@@ -25,9 +25,8 @@ import { assert } from '@hyperlane-xyz/utils';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import {
-  MAINNET_PREFIX,
-  TESTNET_PREFIX,
   fromAleoAddress,
+  getNetworkPrefix,
   getProgramIdFromSuffix,
   getProgramSuffix,
 } from '../utils/helper.js';
@@ -125,8 +124,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
         ? new AleoMainnetNetworkClient(rpcUrl)
         : new AleoTestnetNetworkClient(rpcUrl);
 
-    const prefix =
-      chainId === AleoNetworkId.TESTNET ? TESTNET_PREFIX : MAINNET_PREFIX;
+    const prefix = getNetworkPrefix(chainId);
     const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
     const ismManagerAddress = customIsmSuffix
       ? `${prefix}_ism_manager_${customIsmSuffix}.aleo`
