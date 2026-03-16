@@ -2,11 +2,10 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactOnChain,
-  ArtifactState,
   ConfigOnChain,
   IArtifactManager,
-  isArtifactDeployed,
   UnsetArtifactAddress,
+  toDeployedOrUndefined,
 } from './artifact.js';
 import type { ChainLookup } from './chain.js';
 import type { DerivedCoreConfig } from './core.js';
@@ -22,11 +21,7 @@ import type {
   DerivedIsmConfig,
   IsmArtifactConfig,
 } from './ism.js';
-import {
-  ZERO_ADDRESS_HEX_32,
-  assert,
-  isEmptyAddress,
-} from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 // Artifact API types
 
@@ -170,14 +165,6 @@ function fromOnChainArtifact<C, D extends { address: string }, R>(
   fieldName: keyof DerivedCoreConfig,
   convert: (artifact: ArtifactDeployed<C, D>) => R,
 ): R | UnsetArtifactAddress {
-  if (isArtifactDeployed(artifact)) {
-    return convert(artifact);
-  }
-
-  assert(
-    isEmptyAddress(artifact.deployed.address),
-    `Expected ${fieldName} to be ${ArtifactState.DEPLOYED}, got ${artifact.artifactState} with non-zero address ${artifact.deployed.address}`,
-  );
-
-  return ZERO_ADDRESS_HEX_32;
+  const deployed = toDeployedOrUndefined(artifact, fieldName);
+  return deployed ? convert(deployed) : ZERO_ADDRESS_HEX_32;
 }

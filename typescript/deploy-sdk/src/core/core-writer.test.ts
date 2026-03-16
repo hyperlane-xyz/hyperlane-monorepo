@@ -1056,5 +1056,219 @@ describe('CoreWriter', () => {
         'Expected defaultIsm to be DEPLOYED or UNDERIVED with zero address',
       );
     });
+
+    it('should deploy NEW hook during update', async () => {
+      // ARRANGE
+      const currentMailbox: DeployedMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ZERO_ADDRESS_HEX_32 },
+          },
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox);
+
+      const newDefaultHook: DeployedHookArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: { type: 'merkleTreeHook' },
+        deployed: { address: mockDefaultHookAddress },
+      };
+
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: {
+            artifactState: ArtifactState.NEW,
+            config: newDefaultHook.config,
+          },
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      const mockIsmWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: mockIsmWriter,
+        writable: true,
+      });
+
+      const hookCreateStub = sinon
+        .stub()
+        .callsFake(async () => [newDefaultHook, [mockReceipt]]);
+
+      const mockHookWriter = {
+        create: hookCreateStub,
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      // ACT
+      await coreWriter.update(expectedArtifact);
+
+      // ASSERT
+      sinon.assert.calledOnce(hookCreateStub);
+    });
+
+    it('should handle owner change', async () => {
+      // ARRANGE
+      const newOwner = '0xNEWOWNER';
+      const currentMailbox: DeployedMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox);
+
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: newOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      const mockIsmWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: mockIsmWriter,
+        writable: true,
+      });
+
+      const mockHookWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      // ACT
+      await coreWriter.update(expectedArtifact);
+
+      // ASSERT
+      const mailboxWriter = createMailboxWriterStub.returnValues[0];
+      const updatedArtifact = mailboxWriter.update.firstCall.args[0];
+      expect(updatedArtifact.config.owner).to.equal(newOwner);
+    });
+
+    it('should wire correct addresses into mailbox update', async () => {
+      // ARRANGE
+      const newIsm: DeployedIsmArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'messageIdMultisigIsm',
+          validators: ['0xVALIDATOR2'],
+          threshold: 1,
+        },
+        deployed: { address: mockNewIsmAddress },
+      };
+
+      const currentMailbox: DeployedMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox);
+
+      const expectedArtifact: ArtifactDeployed<
+        MailboxArtifactConfig,
+        DeployedMailboxAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: mockOwner,
+          defaultIsm: {
+            artifactState: ArtifactState.NEW,
+            config: newIsm.config,
+          },
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+        deployed: { address: mockMailboxAddress, domainId: mockDomainId },
+      };
+
+      const ismCreateStub = sinon
+        .stub()
+        .callsFake(async () => [newIsm, [mockReceipt]]);
+
+      const mockIsmWriter = {
+        create: ismCreateStub,
+        update: sinon.stub(),
+        read: sinon.stub(),
+      };
+
+      mockIsmArtifactManager.createWriter = sinon.stub().returns(mockIsmWriter);
+
+      const mockHookWriter = {
+        create: sinon.stub(),
+        update: sinon.stub().resolves([]),
+        read: sinon.stub(),
+      };
+
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      // ACT
+      await coreWriter.update(expectedArtifact);
+
+      // ASSERT
+      const mailboxWriter = createMailboxWriterStub.returnValues[0];
+      const updatedArtifact = mailboxWriter.update.firstCall.args[0];
+      expect(updatedArtifact.config.defaultIsm.deployed.address).to.equal(
+        mockNewIsmAddress,
+      );
+      expect(updatedArtifact.config.defaultHook.deployed.address).to.equal(
+        mockDefaultHookAddress,
+      );
+      expect(updatedArtifact.config.requiredHook.deployed.address).to.equal(
+        mockRequiredHookAddress,
+      );
+    });
   });
 });

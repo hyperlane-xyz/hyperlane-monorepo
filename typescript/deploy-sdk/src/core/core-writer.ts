@@ -256,6 +256,11 @@ export class CoreWriter extends CoreArtifactReader {
     ];
   }
 
+  /**
+   * Returns mailbox update transactions for the caller to submit.
+   * Note: may perform on-chain writes as a side effect when sub-components
+   * (ISM, hooks) require fresh deployment via `create()`.
+   */
   async update(
     expectedArtifact: ArtifactDeployed<
       MailboxArtifactConfig,
