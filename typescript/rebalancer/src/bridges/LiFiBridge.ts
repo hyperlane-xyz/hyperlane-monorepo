@@ -29,7 +29,7 @@ import type {
   IExternalBridge,
   LiFiQuoteOverrides,
 } from '../interfaces/IExternalBridge.js';
-import { ExternalBridgeType } from '../config/types.js';
+import { ExternalBridgeType, type RouteOrder } from '../config/types.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 /**
@@ -318,7 +318,7 @@ export class LiFiBridge implements IExternalBridge<LiFiQuoteOverrides> {
    */
   private async quoteBySpendingAmount(
     params: BridgeQuoteParams,
-    order: string,
+    order: RouteOrder,
   ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
@@ -379,7 +379,7 @@ export class LiFiBridge implements IExternalBridge<LiFiQuoteOverrides> {
    */
   private async quoteByReceivingAmount(
     params: BridgeQuoteParams,
-    order: string,
+    order: RouteOrder,
   ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
 

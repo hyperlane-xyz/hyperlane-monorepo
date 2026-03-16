@@ -619,7 +619,9 @@ export class RebalancerContextFactory {
               {
                 bridgeOptions: {
                   integrator: lifiConfig.integrator,
+                  apiKey: lifiConfig.apiKey,
                   defaultSlippage: lifiConfig.defaultSlippage,
+                  routeOrder: lifiConfig.routeOrder,
                 },
                 chainMetadata: this.multiProvider.metadata,
               },

@@ -4,10 +4,14 @@ import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
 
 import {
   ExecutionType,
+  ExternalBridgeType,
   RebalancerStrategyOptions,
   type StrategyConfig,
 } from '../config/types.js';
-import { type IStrategy } from '../interfaces/IStrategy.js';
+import {
+  type AnyBridgeQuoteOverrides,
+  type IStrategy,
+} from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type {
   BridgeConfigWithOverride,
@@ -124,6 +128,7 @@ export class StrategyFactory {
     strategyConfig: StrategyConfig,
   ): ChainMap<BridgeConfigWithOverride> {
     const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {};
+    const lifiStrategyOverride = strategyConfig.externalBridgeConfig?.lifi;
 
     for (const [chain, config] of Object.entries(strategyConfig.chains)) {
       const baseConfig = {
@@ -134,10 +139,19 @@ export class StrategyFactory {
         config.executionType ?? ExecutionType.MovableCollateral;
 
       if (executionType === ExecutionType.Inventory) {
+        let quoteOverrides: AnyBridgeQuoteOverrides | undefined;
+
+        switch (config.externalBridge) {
+          case ExternalBridgeType.LiFi:
+            quoteOverrides = lifiStrategyOverride;
+            break;
+        }
+
         bridgeConfigs[chain] = {
           ...baseConfig,
           executionType: 'inventory',
           externalBridge: config.externalBridge!, // Validated by config schema
+          quoteOverrides,
           override: config.override as ChainMap<Partial<InventoryBridgeConfig>>,
         };
       } else {

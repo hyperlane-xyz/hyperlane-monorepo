@@ -150,7 +150,9 @@ export const DEFAULT_MOVEMENT_STALENESS_MS = 30 * 60 * 1_000; // 30 minutes
 
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),
+  apiKey: z.string().optional(),
   defaultSlippage: z.number().optional(),
+  routeOrder: RouteOrderSchema.optional(),
 });
 
 export const ExternalBridgesConfigSchema = z.object({

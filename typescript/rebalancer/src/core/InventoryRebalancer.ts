@@ -466,9 +466,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   ): Promise<InventoryExecutionResult[]> {
     const { intent, remaining } = partial;
 
-    if (intent.externalBridge !== ExternalBridgeType.LiFi) {
+    const bridgeType = intent.externalBridge ?? ExternalBridgeType.LiFi;
+    if (bridgeType !== ExternalBridgeType.LiFi) {
       throw new Error(
-        `Unsupported inventory intent bridge type: ${intent.externalBridge}`,
+        `Unsupported inventory intent bridge type: ${bridgeType}`,
       );
     }
 
@@ -477,7 +478,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: this.multiProvider.getChainName(intent.destination),
       amount: remaining,
       executionType: 'inventory',
-      externalBridge: intent.externalBridge,
+      externalBridge: ExternalBridgeType.LiFi,
     };
 
     this.logger.info(
