@@ -53,3 +53,7 @@ jobs:
       - name: Run Fork Tests
         working-directory: ./solidity
         run: pnpm run test:fork
+
+      - name: Run Multicollateral Fork Tests
+        working-directory: ./solidity/multicollateral
+        run: pnpm run test:fork

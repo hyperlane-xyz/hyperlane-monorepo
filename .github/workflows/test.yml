@@ -431,6 +431,7 @@ jobs:
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   sdk-e2e:
     runs-on: ubuntu-latest

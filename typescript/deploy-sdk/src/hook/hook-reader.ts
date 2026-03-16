@@ -21,21 +21,23 @@ import { Logger, rootLogger } from '@hyperlane-xyz/utils';
  *
  * @param chainMetadata Chain metadata for the target chain (protocol type is extracted from metadata.protocol)
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
+ * @param context Optional deployment context (e.g. mailbox address needed by SVM for merkle tree hook detection)
  * @returns A HookReader instance
  *
  * @example
  * ```typescript
- * const reader = createHookReader(chainMetadata, chainLookup);
+ * const reader = createHookReader(chainMetadata, chainLookup, { mailbox: mailboxAddress });
  * const hookConfig = await reader.read(hookAddress);
  * ```
  */
 export function createHookReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
+  context?: { mailbox?: string },
 ): HookReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawHookArtifactManager =
-    protocolProvider.createHookArtifactManager(chainMetadata);
+    protocolProvider.createHookArtifactManager(chainMetadata, context);
 
   return new HookReader(artifactManager, chainLookup);
 }

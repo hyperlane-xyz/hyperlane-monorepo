@@ -17,7 +17,7 @@ import {
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
-  isMultiCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isTokenMetadata,
   isXERC20TokenConfig,
@@ -64,7 +64,7 @@ export async function deriveTokenMetadata(
 
     if (
       isCollateralTokenConfig(config) ||
-      isMultiCollateralTokenConfig(config) ||
+      isCrossCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)
