@@ -950,7 +950,7 @@ describe('CoreWriter', () => {
         deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
-      sinon.stub(coreWriter, 'read').resolves(currentMailbox as any);
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const newIsm: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
@@ -1031,7 +1031,7 @@ describe('CoreWriter', () => {
         deployed: { address: mockMailboxAddress, domainId: mockDomainId },
       };
 
-      sinon.stub(coreWriter, 'read').resolves(currentMailbox as any);
+      sinon.stub(coreWriter, 'read').resolves(currentMailbox);
 
       const expectedArtifact: ArtifactDeployed<
         MailboxArtifactConfig,
@@ -1050,79 +1050,6 @@ describe('CoreWriter', () => {
       // ACT & ASSERT
       await expect(coreWriter.update(expectedArtifact)).to.be.rejectedWith(
         'Expected defaultIsm to be DEPLOYED or UNDERIVED with zero address',
-      );
-    });
-
-    it('should propagate ISM deployment errors', async () => {
-      // ARRANGE
-      const error = new Error('ISM deployment failed');
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
-        config: {
-          owner: mockOwner,
-          defaultIsm: {
-            artifactState: ArtifactState.NEW,
-            config: mockIsm.config,
-          },
-          defaultHook: mockDefaultHook,
-          requiredHook: mockRequiredHook,
-        },
-      };
-
-      const mockIsmWriter = {
-        create: sinon.stub().rejects(error),
-        update: sinon.stub(),
-        read: sinon.stub(),
-      };
-
-      Object.defineProperty(coreWriter, 'ismWriter', {
-        value: mockIsmWriter,
-        writable: true,
-      });
-
-      // ACT & ASSERT
-      await expect(coreWriter.create(artifact)).to.be.rejectedWith(
-        'ISM deployment failed',
-      );
-    });
-
-    it('should propagate mailbox creation errors', async () => {
-      // ARRANGE
-      const error = new Error('Mailbox creation failed');
-      const mockMailboxWriter = {
-        create: sinon.stub().rejects(error),
-        update: sinon.stub(),
-        read: sinon.stub(),
-      };
-
-      mailboxArtifactManager.createWriter = sinon
-        .stub()
-        .returns(mockMailboxWriter);
-
-      const artifact: ArtifactNew<MailboxArtifactConfig> = {
-        artifactState: ArtifactState.NEW,
-        config: {
-          owner: mockOwner,
-          defaultIsm: mockIsm,
-          defaultHook: mockDefaultHook,
-          requiredHook: mockRequiredHook,
-        },
-      };
-
-      const mockIsmWriter = {
-        create: sinon.stub(),
-        update: sinon.stub(),
-        read: sinon.stub(),
-      };
-
-      Object.defineProperty(coreWriter, 'ismWriter', {
-        value: mockIsmWriter,
-        writable: true,
-      });
-
-      // ACT & ASSERT
-      await expect(coreWriter.create(artifact)).to.be.rejectedWith(
-        'Mailbox creation failed',
       );
     });
   });

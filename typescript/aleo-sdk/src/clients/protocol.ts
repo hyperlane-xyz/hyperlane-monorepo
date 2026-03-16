@@ -24,13 +24,15 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
   fromAleoAddress,
   getNetworkPrefix,
   getProgramIdFromSuffix,
   getProgramSuffix,
 } from '../utils/helper.js';
-import { AleoNetworkId } from '../utils/types.js';
+import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
+import { AleoValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
 import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { AleoProvider } from './provider.js';
@@ -147,17 +149,45 @@ export class AleoProtocolProvider implements ProtocolProvider {
   }
 
   createMailboxArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawMailboxArtifactManager {
-    // @TODO Implement in a follow up PR
-    throw Error('Not implemented');
+    const aleoNetworkId = toAleoNetworkId(
+      parseInt(chainMetadata.chainId.toString()),
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      aleoNetworkId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoMailboxArtifactManager(
+      { domainId: chainMetadata.domainId, aleoNetworkId },
+      aleoClient,
+    );
   }
 
   createValidatorAnnounceArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawValidatorAnnounceArtifactManager | null {
-    // @TODO Implement in a follow up PR
-    throw Error('Not implemented');
+    const aleoNetworkId = toAleoNetworkId(
+      parseInt(chainMetadata.chainId.toString()),
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      aleoNetworkId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoValidatorAnnounceArtifactManager(
+      { domainId: chainMetadata.domainId, aleoNetworkId },
+      aleoClient,
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {
