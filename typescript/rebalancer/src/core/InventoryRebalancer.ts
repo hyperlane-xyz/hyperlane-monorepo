@@ -168,7 +168,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * Get bridge instance by type from registry.
    * Throws if bridge type not found.
    */
-  private getExternalBridge(type: ExternalBridgeType): IExternalBridge {
+  private getExternalBridge(
+    type: ExternalBridgeType,
+  ): IExternalBridge<unknown> {
     const externalBridge = this.externalBridgeRegistry[type];
     if (!externalBridge) {
       throw new Error(`Bridge type '${type}' not found in registry`);
@@ -1002,17 +1004,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.warpCore.multiProvider,
     );
 
-    const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
-    const configuredConfirmations =
-      metadata.blocks?.reorgPeriod ?? metadata.blocks?.confirmations;
-    let waitConfirmations = 1;
-    if (typeof configuredConfirmations === 'number') {
-      waitConfirmations = configuredConfirmations;
-    }
-
     const txHash = await signer.sendAndConfirmTransaction(
       toProtocolTransaction(typedTx, protocol),
-      { waitConfirmations },
     );
     return { txHash };
   }

@@ -38,6 +38,14 @@ export enum ExternalBridgeType {
   LiFi = 'lifi',
 }
 
+export const RouteOrderSchema = z.enum([
+  'RECOMMENDED',
+  'FASTEST',
+  'CHEAPEST',
+  'SAFEST',
+]);
+export type RouteOrder = z.infer<typeof RouteOrderSchema>;
+
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),

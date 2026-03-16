@@ -4,6 +4,7 @@ import { pino } from 'pino';
 import type { LiFiStep } from '@lifi/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ExternalBridgeType } from '../config/types.js';
 import type {
   BridgeQuote,
   BridgeQuoteParams,
@@ -16,23 +17,24 @@ const testLogger = pino({ level: 'silent' });
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
-const BRIDGE_CONFIG: ExternalBridgeConfig = {
-  integrator: 'test-rebalancer',
+const BRIDGE_CONFIG: ExternalBridgeConfig<ExternalBridgeType.LiFi> = {
+  bridgeOptions: { integrator: 'test-rebalancer' },
 };
 
-const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
-  integrator: 'test-rebalancer',
-  chainMetadata: {
-    solana: {
-      chainId: 1399811149,
-      protocol: ProtocolType.Sealevel,
-      name: 'solana',
-      displayName: 'Solana',
-      domainId: 1399811149,
-      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig<ExternalBridgeType.LiFi> =
+  {
+    bridgeOptions: { integrator: 'test-rebalancer' },
+    chainMetadata: {
+      solana: {
+        chainId: 1399811149,
+        protocol: ProtocolType.Sealevel,
+        name: 'solana',
+        displayName: 'Solana',
+        domainId: 1399811149,
+        rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+      },
     },
-  },
-};
+  };
 
 // Use all-digit hex addresses to avoid EIP-55 checksum case mutations
 const TOKEN_ADDR = '0x1234567890123456789012345678901234567890';

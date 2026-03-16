@@ -31,7 +31,7 @@ type MockBridgeRoute = {
   tokenType: 'native' | 'erc20';
 };
 
-export class MockExternalBridge implements IExternalBridge {
+export class MockExternalBridge implements IExternalBridge<unknown> {
   readonly externalBridgeId = 'mock-bridge';
   readonly logger: Logger;
 
@@ -67,7 +67,10 @@ export class MockExternalBridge implements IExternalBridge {
     return '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
   }
 
-  async quote(params: BridgeQuoteParams): Promise<BridgeQuote> {
+  async quote(
+    params: BridgeQuoteParams,
+    _overrides?: unknown,
+  ): Promise<BridgeQuote> {
     if (params.fromAmount !== undefined && params.toAmount !== undefined) {
       throw new Error(
         'Cannot specify both fromAmount and toAmount - provide exactly one',
