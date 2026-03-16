@@ -20,7 +20,7 @@ export const MAX_TRON_ORIGIN_ENERGY_LIMIT = 10_000_000;
  * and wraps all RPC calls with retry logic to handle transient errors
  * (e.g. TronGrid rate limiting).
  */
-export class TronJsonRpcProvider extends providers.JsonRpcProvider {
+export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   public host: string;
   private maxRetries: number;
   private baseRetryMs: number;
