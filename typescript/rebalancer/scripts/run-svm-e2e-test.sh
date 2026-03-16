@@ -81,6 +81,9 @@ echo "Building TypeScript..."
 cd "${REPO_ROOT}" && pnpm build
 
 # Step 6: Run tests
-echo "Running mixed SVM+EVM e2e tests..."
+echo "Running mixed SVM+EVM e2e tests (core)..."
 cd "${REPO_ROOT}/typescript/rebalancer"
-pnpm mocha --extension ts --node-option='import=tsx/esm' --timeout 300000 --exit 'src/e2e/mixed-svm-evm.e2e-test.ts'
+pnpm mocha --extension ts --node-option='import=tsx/esm' --timeout 600000 --exit 'src/e2e/mixed-svm-evm-core.e2e-test.ts'
+
+echo "Running mixed SVM+EVM e2e tests (advanced)..."
+pnpm mocha --extension ts --node-option='import=tsx/esm' --timeout 600000 --exit 'src/e2e/mixed-svm-evm-advanced.e2e-test.ts'

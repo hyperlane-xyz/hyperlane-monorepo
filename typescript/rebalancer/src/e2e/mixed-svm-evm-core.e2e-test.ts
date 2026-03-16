@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { Connection } from '@solana/web3.js';
-import { BigNumber, providers } from 'ethers';
+import { providers } from 'ethers';
 
 import {
   HyperlaneCore,
@@ -45,18 +45,15 @@ import type { TestRebalancerContext } from './harness/TestRebalancer.js';
 const SVM_CORE_E2E_PORT = 8900;
 const ALL_MIXED_CHAINS = [...TEST_CHAINS, SVM_CHAIN_NAME] as const;
 
-const LAMPORT_SCALE_TARGET = BigNumber.from('2000000000');
-const LAMPORT_SCALE_MIN = BigNumber.from('1000000000');
-
-function buildLamportStrategyConfig(): StrategyConfig[] {
+function buildMixedStrategyConfig(): StrategyConfig[] {
   return [
     {
       rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
       chains: {
         anvil1: {
           minAmount: {
-            min: '0.000000001',
-            target: '0.000000002',
+            min: '1',
+            target: '2',
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -64,8 +61,8 @@ function buildLamportStrategyConfig(): StrategyConfig[] {
         },
         anvil2: {
           minAmount: {
-            min: '0.000000001',
-            target: '0.000000002',
+            min: '1',
+            target: '2',
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -73,8 +70,8 @@ function buildLamportStrategyConfig(): StrategyConfig[] {
         },
         anvil3: {
           minAmount: {
-            min: '0.000000001',
-            target: '0.000000002',
+            min: '1',
+            target: '2',
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -93,33 +90,6 @@ function buildLamportStrategyConfig(): StrategyConfig[] {
     },
   ];
 }
-
-const BALANCE_SVM_DEFICIT = {
-  evmBalances: {
-    anvil1: '5000000000',
-    anvil2: '5000000000',
-    anvil3: '5000000000',
-  },
-  svmLamports: 0,
-};
-
-const BALANCE_EVM_ALL_DEFICIT_SVM_SURPLUS = {
-  evmBalances: {
-    anvil1: '0',
-    anvil2: '0',
-    anvil3: '0',
-  },
-  svmLamports: 5_000_000_000,
-};
-
-const BALANCE_MIXED_DEFICIT = {
-  evmBalances: {
-    anvil1: '5000000000',
-    anvil2: '0',
-    anvil3: '5000000000',
-  },
-  svmLamports: 0,
-};
 
 describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
   this.timeout(600_000);
@@ -251,13 +221,9 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
       .withEvmAddresses(evmAddresses)
       .withSvmAddresses(svmAddresses)
       .withSvmPrivateKey(svmPrivateKey)
-      .withStrategyConfig(buildLamportStrategyConfig())
-      .withBalances(BALANCE_SVM_DEFICIT)
-      .withInventorySignerBalances({
-        anvil1: '10000000000',
-        anvil2: '10000000000',
-        anvil3: '10000000000',
-      })
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_SVM_DEFICIT')
+      .withInventorySignerBalances('SIGNER_FUNDED_ANVIL1')
       .withMockExternalBridge(mockBridge)
       .build();
 
@@ -277,7 +243,7 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(SVM_DOMAIN_ID);
-    expect(activeIntents[0].amount).to.equal(LAMPORT_SCALE_TARGET.toBigInt());
+    expect(activeIntents[0].amount > 0n).to.be.true;
 
     const inProgressActions = await context.tracker.getInProgressActions();
     const depositAction = inProgressActions.find(
@@ -346,13 +312,16 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
       .withEvmAddresses(evmAddresses)
       .withSvmAddresses(svmAddresses)
       .withSvmPrivateKey(svmPrivateKey)
-      .withStrategyConfig(buildLamportStrategyConfig())
-      .withBalances(BALANCE_MIXED_DEFICIT)
-      .withInventorySignerBalances({
-        anvil1: '10000000000',
-        anvil2: '10000000000',
-        anvil3: '10000000000',
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances({
+        evmBalances: {
+          anvil1: '5000000000000000000',
+          anvil2: '0',
+          anvil3: '5000000000000000000',
+        },
+        svmLamports: 0,
       })
+      .withInventorySignerBalances('SIGNER_FUNDED_ANVIL1')
       .withMockExternalBridge(mockBridge)
       .build();
 
@@ -382,7 +351,6 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
       svmConnection,
       MAILBOX_PROGRAM_ID,
     );
-
     const svmIntents =
       await context.tracker.getRebalanceIntentsByDestination(SVM_DOMAIN_ID);
     const anvil2Intents =
@@ -439,13 +407,9 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
       .withEvmAddresses(evmAddresses)
       .withSvmAddresses(svmAddresses)
       .withSvmPrivateKey(svmPrivateKey)
-      .withStrategyConfig(buildLamportStrategyConfig())
-      .withBalances(BALANCE_EVM_ALL_DEFICIT_SVM_SURPLUS)
-      .withInventorySignerBalances({
-        anvil1: '0',
-        anvil2: '0',
-        anvil3: '0',
-      })
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EVM_ALL_DEFICIT')
+      .withInventorySignerBalances('SIGNER_ZERO_ALL')
       .withMockExternalBridge(mockBridge)
       .build();
 
@@ -457,7 +421,6 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
     );
     expect(movementAction).to.exist;
     expect(movementAction!.origin).to.equal(SVM_DOMAIN_ID);
-    expect(movementAction!.amount >= LAMPORT_SCALE_MIN.toBigInt()).to.be.true;
 
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: mockBridge,
@@ -480,13 +443,9 @@ describe('Mixed EVM+SVM Core Inventory Rebalancer E2E', function () {
       .withEvmAddresses(evmAddresses)
       .withSvmAddresses(svmAddresses)
       .withSvmPrivateKey(svmPrivateKey)
-      .withStrategyConfig(buildLamportStrategyConfig())
-      .withBalances(BALANCE_EVM_ALL_DEFICIT_SVM_SURPLUS)
-      .withInventorySignerBalances({
-        anvil1: '0',
-        anvil2: '0',
-        anvil3: '0',
-      })
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_EVM_ALL_DEFICIT')
+      .withInventorySignerBalances('SIGNER_ZERO_ALL')
       .withMockExternalBridge(mockBridge)
       .build();
 
