@@ -50,19 +50,15 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
   }
 
   /**
-   * Tron's eth_estimateGas doesn't support contract creation (missing `to` field).
-   * For deployments, return a default gas limit since Tron uses feeLimit (not gasLimit)
-   * for actual execution. For regular calls, delegate to the RPC.
+   * Tron's eth_estimateGas is unreliable — it rejects contract creation (no `to` field)
+   * and often returns "method parameters invalid" for contract calls.
+   * Return a default gas limit since Tron uses feeLimit (not gasLimit) for execution,
+   * and TronWallet.buildTransaction caps feeLimit at 1000 TRX anyway.
    */
   async estimateGas(
-    transaction: providers.TransactionRequest,
+    _transaction: providers.TransactionRequest,
   ): Promise<BigNumber> {
-    if (!transaction.to) {
-      // Contract creation — use max feeLimit / gasPrice as a safe default.
-      // TronWallet.buildTransaction caps feeLimit at 1000 TRX anyway.
-      return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
-    }
-    return super.estimateGas(transaction);
+    return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
   }
 
   /**
