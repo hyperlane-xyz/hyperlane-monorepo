@@ -30,10 +30,10 @@ jobs:
         with:
           base_sha: ${{ inputs.base_sha }}
           head_sha: ${{ inputs.current_sha }}
-          path_pattern: 'solidity/'
+          path_pattern: "solidity/"
 
   coverage-run:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-16
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
