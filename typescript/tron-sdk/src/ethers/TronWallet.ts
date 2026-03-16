@@ -46,7 +46,7 @@ export class TronWallet extends Wallet {
    */
   private static txCounter = 0;
 
-  private readonly tronUrl: string;
+  private readonly originalTronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
   private tronAddressHex: string;
@@ -72,7 +72,7 @@ export class TronWallet extends Wallet {
       ? baseUrl
       : 'https://api.trongrid.io';
     super(privateKey, new TronJsonRpcProvider(tronUrl));
-    this.tronUrl = tronWebUrl;
+    this.originalTronUrl = tronUrl;
 
     this.tronWeb = new TronWeb({ fullHost: tronWebUrl });
     const cleanKey = strip0x(privateKey);
@@ -96,7 +96,7 @@ export class TronWallet extends Wallet {
    * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
    */
   connect(_provider: providers.Provider): TronWallet {
-    return new TronWallet(this.privateKey, this.tronUrl);
+    return new TronWallet(this.privateKey, this.originalTronUrl);
   }
 
   /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
