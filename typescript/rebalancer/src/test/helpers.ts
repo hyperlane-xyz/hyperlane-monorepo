@@ -25,6 +25,7 @@ import type {
 import type {
   MovableCollateralRoute,
   StrategyRoute,
+  TypedInventoryRoute,
 } from '../interfaces/IStrategy.js';
 import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
@@ -52,7 +53,7 @@ export function buildTestRoute(
       executionType: 'inventory',
       externalBridge: 'lifi',
       ...overrides,
-    } as StrategyRoute;
+    } as TypedInventoryRoute;
   }
   return {
     origin: 'ethereum',

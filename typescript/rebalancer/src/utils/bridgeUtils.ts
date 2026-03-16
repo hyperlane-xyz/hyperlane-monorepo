@@ -2,7 +2,11 @@ import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
-import type { StrategyRoute } from '../interfaces/IStrategy.js';
+import type {
+  AnyBridgeQuoteOverrides,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
+import type { LiFiQuoteOverrides } from '../interfaces/IExternalBridge.js';
 
 type BaseBridgeConfig = {
   bridgeMinAcceptedAmount?: string | number;
@@ -16,6 +20,7 @@ export type MovableCollateralBridgeConfig = BaseBridgeConfig & {
 export type InventoryBridgeConfig = BaseBridgeConfig & {
   executionType: 'inventory';
   externalBridge: ExternalBridgeType;
+  quoteOverrides?: AnyBridgeQuoteOverrides;
 };
 
 export type BridgeConfig =
@@ -81,7 +86,11 @@ export function createStrategyRoute(
         destination,
         amount,
         executionType: 'inventory',
-        externalBridge: bridgeConfig.externalBridge,
+        externalBridge:
+          bridgeConfig.externalBridge as typeof ExternalBridgeType.LiFi,
+        quoteOverrides: bridgeConfig.quoteOverrides as
+          | LiFiQuoteOverrides
+          | undefined,
       };
     case 'movableCollateral':
       return {
