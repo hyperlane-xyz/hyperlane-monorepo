@@ -51,27 +51,9 @@ const TestProtocol = 'test-core-writer' as ProtocolType;
 
 let mockIsmArtifactManager: IRawIsmArtifactManager;
 
-const mockHookArtifactManager = {
-  readHook: sinon.stub(),
-  createReader: sinon.stub().returns({ read: sinon.stub() }),
-  createWriter: sinon.stub().returns({
-    create: sinon.stub(),
-    update: sinon.stub(),
-    read: sinon.stub(),
-  }),
-} satisfies IRawHookArtifactManager;
+let mockHookArtifactManager: IRawHookArtifactManager;
 
-const mockProtocolProvider: ProtocolProvider = {
-  createProvider: sinon.stub(),
-  createSigner: sinon.stub(),
-  createSubmitter: sinon.stub(),
-  createIsmArtifactManager: sinon.stub(),
-  createHookArtifactManager: sinon.stub().returns(mockHookArtifactManager),
-  createMailboxArtifactManager: sinon.stub(),
-  createValidatorAnnounceArtifactManager: sinon.stub(),
-  getMinGas: sinon.stub(),
-  createWarpArtifactManager: sinon.stub(),
-};
+let mockProtocolProvider: ProtocolProvider;
 
 if (!hasProtocol(TestProtocol)) {
   registerProtocol(TestProtocol, () => mockProtocolProvider);
@@ -147,6 +129,28 @@ describe('CoreWriter', () => {
         read: sinon.stub(),
       }),
     } satisfies IRawIsmArtifactManager;
+
+    mockHookArtifactManager = {
+      readHook: sinon.stub(),
+      createReader: sinon.stub().returns({ read: sinon.stub() }),
+      createWriter: sinon.stub().returns({
+        create: sinon.stub(),
+        update: sinon.stub(),
+        read: sinon.stub(),
+      }),
+    } satisfies IRawHookArtifactManager;
+
+    mockProtocolProvider = {
+      createProvider: sinon.stub(),
+      createSigner: sinon.stub(),
+      createSubmitter: sinon.stub(),
+      createIsmArtifactManager: sinon.stub(),
+      createHookArtifactManager: sinon.stub().returns(mockHookArtifactManager),
+      createMailboxArtifactManager: sinon.stub(),
+      createValidatorAnnounceArtifactManager: sinon.stub(),
+      getMinGas: sinon.stub(),
+      createWarpArtifactManager: sinon.stub(),
+    } satisfies ProtocolProvider;
 
     mockProtocolProvider.createIsmArtifactManager = sinon
       .stub()
