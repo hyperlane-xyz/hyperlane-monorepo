@@ -2,6 +2,18 @@ import { ChainName, defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 
 export const REBALANCER_HELM_RELEASE_PREFIX = 'hyperlane-rebalancer';
 export const WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX = 'hyperlane-warp-route';
+
+/**
+ * SERVICE_NAME values for the unified node-services Docker image.
+ * These map to bundle directories in /app/services/<name>/.
+ */
+export const NODE_SERVICE_NAMES = {
+  REBALANCER: 'rebalancer',
+  WARP_MONITOR: 'warp-monitor',
+  CCIP_SERVER: 'ccip-server',
+  KEYFUNDER: 'keyfunder',
+  RELAYER: 'relayer',
+} as const;
 /**
  * Get validator alias from defaultMultisigConfigs if available
  * @param chainName - Remote chain name to look up in defaultMultisigConfigs

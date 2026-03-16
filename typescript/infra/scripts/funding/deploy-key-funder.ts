@@ -6,7 +6,7 @@ import { join } from 'path';
 import { Contexts } from '../../config/contexts.js';
 import { KeyFunderHelmManager } from '../../src/funding/key-funder.js';
 import {
-  checkKeyfunderImageExists,
+  checkNodeServicesImageExists,
   warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
@@ -32,7 +32,7 @@ async function main() {
   if (envConfig.keyFunderConfig?.docker.tag) {
     const tag = envConfig.keyFunderConfig.docker.tag;
     warnIfPrTag('key-funder', tag);
-    const exists = await checkKeyfunderImageExists(tag);
+    const exists = await checkNodeServicesImageExists(tag);
     if (!exists) {
       console.log(
         chalk.red(
