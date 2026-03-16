@@ -6,6 +6,7 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
+  TokenStandard,
   type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -88,6 +89,7 @@ export const warpCommand: CommandModule = {
       .command(read)
       .command(rebalancer)
       .command(send)
+      .command(sendCrossCollateral)
       .command(verify)
       .version(false)
       .demandCommand(),
@@ -510,6 +512,163 @@ const send: CommandModuleWithWriteContext<
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
     );
+    process.exit(0);
+  },
+};
+
+const sendCrossCollateral: CommandModuleWithWriteContext<
+  MessageOptionsArgTypes &
+    WarpRouteOptions & {
+      sourceToken: string;
+      destinationToken: string;
+      amount: string;
+      recipient?: string;
+      skipValidation?: boolean;
+      predicateApiKey?: string;
+      attestation?: string;
+    }
+> = {
+  command: 'send-cross-collateral',
+  describe: 'Send cross-collateral transfer (e.g., USDC → USDT)',
+  builder: {
+    ...messageSendOptions,
+    ...WARP_ROUTE_OPTIONS,
+    origin: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    destination: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    'source-token': {
+      type: 'string',
+      description: 'Source CrossCollateralRouter address',
+      demandOption: true,
+    },
+    'destination-token': {
+      type: 'string',
+      description: 'Destination CrossCollateralRouter address',
+      demandOption: true,
+    },
+    amount: {
+      type: 'string',
+      description: 'Amount to send (in smallest unit)',
+      demandOption: true,
+    },
+    recipient: {
+      type: 'string',
+      description:
+        'Token recipient address (defaults to destination signer for EVM)',
+    },
+    'skip-validation': {
+      type: 'boolean',
+      description: 'Skip transfer validation',
+      default: false,
+    },
+    'predicate-api-key': {
+      type: 'string',
+      description: 'Predicate API key for fetching attestations automatically',
+    },
+    attestation: {
+      type: 'string',
+      description: 'Pre-obtained Predicate attestation (JSON string)',
+    },
+  },
+  handler: async ({
+    context,
+    origin,
+    destination,
+    timeout,
+    quick,
+    relay,
+    warpRouteId,
+    sourceToken,
+    destinationToken,
+    amount,
+    recipient,
+    skipValidation,
+    predicateApiKey,
+    attestation,
+  }) => {
+    logCommandHeader('Hyperlane Warp Cross-Collateral Send');
+
+    // Load warp config
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      warpRouteId,
+      context,
+      chains: [origin!, destination!],
+    });
+
+    // Find and validate source token
+    const sourceTokenConfig = warpCoreConfig.tokens.find(
+      (t) =>
+        t.chainName === origin &&
+        t.addressOrDenom?.toLowerCase() === sourceToken.toLowerCase(),
+    );
+    assert(
+      sourceTokenConfig,
+      `Source token ${sourceToken} not found on ${origin}`,
+    );
+    assert(
+      sourceTokenConfig.standard ===
+        TokenStandard.EvmHypCrossCollateralRouter ||
+        sourceTokenConfig.standard ===
+          TokenStandard.TronHypCrossCollateralRouter,
+      `Source token ${sourceToken} is not a CrossCollateralRouter (found: ${sourceTokenConfig.standard})`,
+    );
+
+    // Find and validate destination token
+    const destTokenConfig = warpCoreConfig.tokens.find(
+      (t) =>
+        t.chainName === destination &&
+        t.addressOrDenom?.toLowerCase() === destinationToken.toLowerCase(),
+    );
+    assert(
+      destTokenConfig,
+      `Destination token ${destinationToken} not found on ${destination}`,
+    );
+    assert(
+      destTokenConfig.standard === TokenStandard.EvmHypCrossCollateralRouter ||
+        destTokenConfig.standard === TokenStandard.TronHypCrossCollateralRouter,
+      `Destination token ${destinationToken} is not a CrossCollateralRouter (found: ${destTokenConfig.standard})`,
+    );
+
+    // Validate connection exists
+    const normalizedDestToken = `${destTokenConfig.chainName}|${destTokenConfig.addressOrDenom?.toLowerCase()}`;
+    const connection = sourceTokenConfig.connections?.find((c) => {
+      const connTokenParts = c.token.split('|');
+      const connToken =
+        connTokenParts.length === 3
+          ? `${connTokenParts[1]}|${connTokenParts[2].toLowerCase()}`
+          : c.token.toLowerCase();
+      return connToken === normalizedDestToken;
+    });
+    assert(
+      connection,
+      `No cross-collateral route from ${sourceToken} on ${origin} to ${destinationToken} on ${destination}. ` +
+        `Check that destination router is enrolled in source router's crossCollateralRouters.`,
+    );
+
+    // Send transfer
+    logBlue(`Sending cross-collateral transfer: ${origin} → ${destination}`);
+    await sendTestTransfer({
+      context,
+      warpCoreConfig,
+      chains: [origin!, destination!],
+      amount,
+      recipient,
+      timeoutSec: timeout,
+      skipWaitForDelivery: quick,
+      selfRelay: relay,
+      skipValidation,
+      predicateApiKey,
+      attestation,
+      sourceToken,
+      destinationToken,
+    });
+
+    logGreen(`✅ Cross-collateral transfer sent successfully`);
     process.exit(0);
   },
 };

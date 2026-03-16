@@ -43,6 +43,7 @@ export async function resolveChains(
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
     case CommandType.WARP_SEND:
+    case CommandType.WARP_SEND_CROSS_COLLATERAL:
       return resolveWarpSendChains(argv);
     case CommandType.STATUS:
       return resolveStatusChains(argv);
