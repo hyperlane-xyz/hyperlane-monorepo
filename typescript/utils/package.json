@@ -69,6 +69,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/bs58": "catalog:",
     "@types/lodash-es": "catalog:",

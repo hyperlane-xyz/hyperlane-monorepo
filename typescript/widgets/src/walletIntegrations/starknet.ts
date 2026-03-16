@@ -154,25 +154,6 @@ export function useStarknetTransactionFns(
   const { sendAsync } = useSendTransaction({});
   const { switchNetwork } = useStarknetSwitchNetwork(multiProvider);
 
-  const onSendTx = useCallback(
-    async ({
-      tx,
-      chainName,
-      activeChainName,
-    }: {
-      tx: WarpTypedTransaction;
-      chainName: ChainName;
-      activeChainName?: ChainName;
-    }) => {
-      return onMultiSendTx({
-        txs: [tx],
-        chainName,
-        activeChainName,
-      });
-    },
-    [account, multiProvider, switchNetwork, sendAsync],
-  );
-
   const onMultiSendTx = useCallback(
     async ({
       txs,
@@ -223,6 +204,25 @@ export function useStarknetTransactionFns(
       }
     },
     [account, multiProvider, switchNetwork, sendAsync],
+  );
+
+  const onSendTx = useCallback(
+    async ({
+      tx,
+      chainName,
+      activeChainName,
+    }: {
+      tx: WarpTypedTransaction;
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      return onMultiSendTx({
+        txs: [tx],
+        chainName,
+        activeChainName,
+      });
+    },
+    [onMultiSendTx],
   );
 
   return {

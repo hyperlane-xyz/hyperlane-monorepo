@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",

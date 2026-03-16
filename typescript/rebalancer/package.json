@@ -65,6 +65,7 @@
   },
   "devDependencies": {
     "@ethersproject/constants": "*",
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "catalog:",
