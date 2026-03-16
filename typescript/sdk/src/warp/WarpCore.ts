@@ -299,19 +299,9 @@ export class WarpCore {
       destinationMetadata.protocol,
       destinationMetadata.bech32Prefix,
     );
-    // Use a small but viable amount for gas estimation. Must survive on-chain
-    // decimal truncation (e.g. 18→6 decimals) to avoid reverts like
-    // "HypNativeMinter: destination amount < 1". Compute minimum as
-    // 10^(originDecimals - destDecimals) so destination gets exactly 1 unit.
-    const destToken = originToken.getConnectionForChain(
-      destinationMetadata.name,
-    )?.token;
-    const decimalDiff = destToken
-      ? Math.max(0, originToken.decimals - destToken.decimals)
-      : 0;
-    const gasEstimationAmount = BigInt(10) ** BigInt(decimalDiff);
+
     const txs = await this.getTransferRemoteTxs({
-      originTokenAmount: originToken.amount(gasEstimationAmount),
+      originTokenAmount: originToken.amount(amount),
       destination,
       sender,
       recipient,
