@@ -21,6 +21,7 @@ import {
 } from '../fixtures/routes.js';
 import {
   type SvmDeployedAddresses,
+  SVM_BRIDGE_FUND_AMOUNT_LAMPORTS,
   SVM_CHAIN_NAME,
   SVM_DOMAIN_ID,
   SVM_RPC_PORT,
@@ -77,6 +78,22 @@ export class SvmEvmLocalDeploymentManager {
 
       await this.enrollEvmRoutersToSvm(tokenPda);
       await this.enrollSvmRouterToEvmRouters();
+
+      const { tokenPda: bridgeTokenPda, ataPda: bridgeAtaPda } =
+        await svmManager.deployBridgeWarpRoute(SVM_DOMAIN_ID, new Map());
+      await this.enrollEvmBridgeRoutersToSvm(bridgeTokenPda);
+      await this.enrollSvmBridgeRouterToEvmBridgeRouters();
+      await svmManager.fundWarpRoute(
+        bridgeAtaPda,
+        SVM_BRIDGE_FUND_AMOUNT_LAMPORTS,
+      );
+
+      this.svmDeployedAddresses = {
+        ...this.svmDeployedAddresses,
+        bridgeRouter: svmManager.getBridgeWarpRouteProgramId(),
+        bridgeToken: bridgeTokenPda,
+        bridgeTokenAta: bridgeAtaPda,
+      };
     } catch (error) {
       await this.teardown();
       throw error;
@@ -223,8 +240,8 @@ export class SvmEvmLocalDeploymentManager {
     const svmManager = this.getSvmChainManager();
     const warpProgramId = svmManager.getWarpRouteProgramId();
 
-    const rpc = createSvmRpc();
-    const signer = await createSvmSigner();
+    const rpc = createSvmRpc(svmManager.getRpcUrl());
+    const signer = await createSvmSigner(svmManager.getRpcUrl());
     const writer = new SvmNativeTokenWriter(
       {
         program: { programId: warpProgramId } as SvmProgramTarget,
@@ -246,6 +263,76 @@ export class SvmEvmLocalDeploymentManager {
     }
 
     const currentArtifact = await writer.read(warpProgramId);
+    const updateTxs = await writer.update({
+      ...currentArtifact,
+      config: {
+        ...currentArtifact.config,
+        remoteRouters,
+        destinationGas,
+      },
+    });
+
+    for (const tx of updateTxs) {
+      await signer.send(tx);
+    }
+  }
+
+  private async enrollEvmBridgeRoutersToSvm(
+    svmBridgeTokenPda: string,
+  ): Promise<void> {
+    const evmManager = this.getEvmDeploymentManager();
+    const deployedAddresses = evmManager.getContext().deployedAddresses;
+
+    const svmBridgeRouter = ethers.utils.hexZeroPad(
+      ethers.utils.hexlify(new PublicKey(svmBridgeTokenPda).toBytes()),
+      32,
+    );
+
+    for (const chain of TEST_CHAIN_CONFIGS) {
+      const provider = evmManager.getProvider(chain.name);
+      if (!provider) {
+        throw new Error(`Missing EVM provider for ${chain.name}`);
+      }
+
+      const signer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
+      const bridgeRoute = HypNative__factory.connect(
+        deployedAddresses.bridgeRoute[chain.name],
+        signer,
+      );
+
+      await bridgeRoute.enrollRemoteRouters([SVM_DOMAIN_ID], [svmBridgeRouter]);
+    }
+  }
+
+  private async enrollSvmBridgeRouterToEvmBridgeRouters(): Promise<void> {
+    const deployedAddresses =
+      this.getEvmDeploymentManager().getContext().deployedAddresses;
+    const svmManager = this.getSvmChainManager();
+    const bridgeProgramId = svmManager.getBridgeWarpRouteProgramId();
+
+    const rpc = createSvmRpc(svmManager.getRpcUrl());
+    const signer = await createSvmSigner(svmManager.getRpcUrl());
+    const writer = new SvmNativeTokenWriter(
+      {
+        program: { programId: bridgeProgramId } as SvmProgramTarget,
+        ataPayerFundingAmount: 1_000_000_000n,
+      },
+      rpc,
+      signer,
+    );
+
+    const remoteRouters: Record<number, { address: string }> = {};
+    const destinationGas: Record<number, string> = {};
+    for (const chain of TEST_CHAIN_CONFIGS) {
+      const router = ethers.utils.hexZeroPad(
+        deployedAddresses.bridgeRoute[chain.name],
+        32,
+      );
+      remoteRouters[chain.domainId] = { address: router };
+      destinationGas[chain.domainId] = '0';
+    }
+
+    const currentArtifact = await writer.read(bridgeProgramId);
     const updateTxs = await writer.update({
       ...currentArtifact,
       config: {

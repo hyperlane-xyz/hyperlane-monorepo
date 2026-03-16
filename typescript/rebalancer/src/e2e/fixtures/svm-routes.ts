@@ -83,6 +83,9 @@ export interface SvmDeployedAddresses {
   warpRouter: string;
   warpToken: string;
   warpTokenAta: string;
+  bridgeRouter?: string;
+  bridgeToken?: string;
+  bridgeTokenAta?: string;
 }
 
 // ── Mixed SVM/EVM warp core config builder ──
@@ -161,6 +164,7 @@ export function buildMixedSvmEvmWarpCoreConfig(
 
 // ── SVM fund amount constants ──
 export const SVM_FUND_AMOUNT_LAMPORTS = 10 * 1_000_000_000; // 10 SOL
+export const SVM_BRIDGE_FUND_AMOUNT_LAMPORTS = 10 * 1_000_000_000; // 10 SOL
 export const SVM_DEFICIT_FUND_AMOUNT_LAMPORTS = 0;
 export const SVM_SURPLUS_FUND_AMOUNT_LAMPORTS = 5 * 1_000_000_000; // 5 SOL
 
