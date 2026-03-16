@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import {
   type CoreConfig,
   type DerivedCoreConfig,
+  type DerivedIsmConfig,
   HookType,
   type IsmConfig,
   IsmType,
@@ -103,12 +104,16 @@ export function createCoreUpdateTests(
 
       // Read to get ISM address
       let readConfig: DerivedCoreConfig = await coreCommands.readConfig();
-      expect(readConfig.defaultIsm).to.not.be.a('string');
-      expect((readConfig.defaultIsm as any).type).to.equal(IsmType.ROUTING);
-      const initialIsmAddress = (readConfig.defaultIsm as any).address;
-      const initialDomainIsmAddress = (readConfig.defaultIsm as any).domains[
+      assert(
+        readConfig.defaultIsm.type === IsmType.ROUTING,
+        'defaultIsm must be ROUTING',
+      );
+      const initialIsm = readConfig.defaultIsm;
+      const initialIsmAddress = initialIsm.address;
+      const initialDomainIsm = initialIsm.domains[
         config.chainName
-      ].address;
+      ] as DerivedIsmConfig;
+      const initialDomainIsmAddress = initialDomainIsm.address;
 
       // Update only owner (mutable)
       const updatedRoutingIsmConfig: IsmConfig = {
@@ -126,17 +131,20 @@ export function createCoreUpdateTests(
 
       // Verify routing ISM address unchanged (updated in-place)
       readConfig = await coreCommands.readConfig();
-      expect(readConfig.defaultIsm).to.not.be.a('string');
-      expect((readConfig.defaultIsm as any).address).to.equal(
-        initialIsmAddress,
+      assert(
+        readConfig.defaultIsm.type === IsmType.ROUTING,
+        'defaultIsm must be ROUTING',
       );
-      expect(normalizeAddress((readConfig.defaultIsm as any).owner)).to.equal(
+      const updatedIsm = readConfig.defaultIsm;
+      expect(updatedIsm.address).to.equal(initialIsmAddress);
+      expect(normalizeAddress(updatedIsm.owner)).to.equal(
         normalizeAddress(config.alternateOwnerAddress),
       );
       // Domain ISM should not be redeployed
-      expect(
-        (readConfig.defaultIsm as any).domains[config.chainName].address,
-      ).to.equal(initialDomainIsmAddress);
+      const updatedDomainIsm = updatedIsm.domains[
+        config.chainName
+      ] as DerivedIsmConfig;
+      expect(updatedDomainIsm.address).to.equal(initialDomainIsmAddress);
     });
 
     it('should redeploy ISM when immutable config changes', async function () {
@@ -153,7 +161,7 @@ export function createCoreUpdateTests(
 
       // Read to get ISM address
       const firstConfig: DerivedCoreConfig = await coreCommands.readConfig();
-      const firstIsmAddress = (firstConfig.defaultIsm as any).address;
+      const firstIsmAddress = firstConfig.defaultIsm.address;
 
       // Update validators (immutable field)
       const newValidators = [randomAddress()];
@@ -167,11 +175,13 @@ export function createCoreUpdateTests(
 
       // Verify ISM was redeployed (different address)
       const secondConfig: DerivedCoreConfig = await coreCommands.readConfig();
-      expect((secondConfig.defaultIsm as any).address).to.not.equal(
-        firstIsmAddress,
+      expect(secondConfig.defaultIsm.address).to.not.equal(firstIsmAddress);
+      assert(
+        secondConfig.defaultIsm.type === IsmType.MESSAGE_ID_MULTISIG,
+        'defaultIsm must be MESSAGE_ID_MULTISIG',
       );
       expect(
-        (secondConfig.defaultIsm as any).validators.map((validator: string) =>
+        secondConfig.defaultIsm.validators.map((validator: string) =>
           normalizeAddress(validator),
         ),
       ).to.deep.equal(

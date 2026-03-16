@@ -130,7 +130,7 @@ export function coreResultToDeployedAddresses(result: {
 }): DeployedCoreAddresses {
   const addresses: DeployedCoreAddresses = {
     mailbox: result.mailbox.deployed.address,
-    validatorAnnounce: result.validatorAnnounce?.deployed.address || '',
+    validatorAnnounce: result.validatorAnnounce?.deployed.address ?? '',
     staticMerkleRootMultisigIsmFactory: '',
     proxyAdmin: '',
     staticMerkleRootWeightedMultisigIsmFactory: '',

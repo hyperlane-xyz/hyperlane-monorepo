@@ -50,10 +50,10 @@ export async function executeCoreRead({
       break;
     }
     default: {
-      const chainLookup = altVmChainLookup(context.multiProvider);
-      const metadata = chainLookup.getChainMetadata(chain);
-      const coreReader = createCoreReader(metadata, chainLookup);
       try {
+        const chainLookup = altVmChainLookup(context.multiProvider);
+        const metadata = chainLookup.getChainMetadata(chain);
+        const coreReader = createCoreReader(metadata, chainLookup);
         return await coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
         errorRed(
