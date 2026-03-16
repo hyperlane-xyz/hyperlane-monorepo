@@ -51,8 +51,8 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v3-rebalancer-svm-e2e'
-          cache-provider: 'github'
+          prefix-key: "v3-rebalancer-svm-e2e"
+          cache-provider: "github"
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
@@ -102,7 +102,7 @@ jobs:
           cd rust/sealevel/programs
           bash build-programs.sh
         env:
-          RUST_BACKTRACE: '1'
+          RUST_BACKTRACE: "1"
           SBF_OUT_PATH: ${{ github.workspace }}/rust/main/target/dist
       # ── Download SPL programs (.so files needed by solana-test-validator) ──
       - name: Download SPL programs
@@ -120,6 +120,10 @@ jobs:
         uses: ./.github/actions/pnpm-build-with-cache
 
       # ── Run mixed SVM+EVM e2e tests ──
-      - name: Run rebalancer SVM E2E tests
+      - name: Run rebalancer SVM E2E tests (core)
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm.e2e-test.ts' --exit
+        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm-core.e2e-test.ts' --exit
+
+      - name: Run rebalancer SVM E2E tests (advanced)
+        working-directory: typescript/rebalancer
+        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm-advanced.e2e-test.ts' --exit
