@@ -112,6 +112,9 @@ export class SealevelLocalChainManager {
   private ledgerDir = '';
   private deployedAddresses: SvmDeployedAddresses | undefined;
   private warpRouteProgramId = '';
+  private bridgeWarpRouteProgramId = '';
+  private bridgeTokenPda = '';
+  private bridgeAtaPda = '';
   private readonly rpcPort: number;
   private exitHandler?: () => void;
 
@@ -275,8 +278,8 @@ export class SealevelLocalChainManager {
       throw new Error(`Unsupported local Sealevel domain: ${localDomain}`);
     }
 
-    const rpc = createSvmRpc();
-    const signer = await createSvmSigner();
+    const rpc = createSvmRpc(this.getRpcUrl());
+    const signer = await createSvmSigner(this.getRpcUrl());
     const writer = new SvmNativeTokenWriter(
       {
         program: {
@@ -356,6 +359,88 @@ export class SealevelLocalChainManager {
     };
   }
 
+  async deployBridgeWarpRoute(
+    localDomain: number,
+    remoteRoutersByDomain: Map<number, string>,
+  ): Promise<{ tokenPda: string; ataPda: string }> {
+    this.ensureStarted();
+
+    const localChain = SEALEVEL_CHAIN_BY_DOMAIN[localDomain];
+    if (!localChain) {
+      throw new Error(`Unsupported local Sealevel domain: ${localDomain}`);
+    }
+
+    const rpc = createSvmRpc(this.getRpcUrl());
+    const signer = await createSvmSigner(this.getRpcUrl());
+    const writer = new SvmNativeTokenWriter(
+      {
+        program: {
+          programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative,
+        },
+        ataPayerFundingAmount: 1_000_000_000n,
+      },
+      rpc,
+      signer,
+    );
+
+    const [artifact] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: TokenType.native,
+        owner: signer.getSignerAddress(),
+        mailbox: MAILBOX_PROGRAM_ID,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
+    this.bridgeWarpRouteProgramId = String(artifact.deployed.address);
+
+    this.logger.info(
+      { remoteRouterCount: remoteRoutersByDomain.size },
+      'Sealevel bridge warp route deployed',
+    );
+
+    const warpProgram = new PublicKey(this.bridgeWarpRouteProgramId);
+    const [tokenPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('hyperlane_message_recipient'),
+        Buffer.from('-'),
+        Buffer.from('handle'),
+        Buffer.from('-'),
+        Buffer.from('account_metas'),
+      ],
+      warpProgram,
+    );
+
+    const connection = this.getConnection();
+    for (let i = 0; i < 30; i += 1) {
+      const accountInfo = await connection.getAccountInfo(
+        tokenPda,
+        'finalized',
+      );
+      if (accountInfo !== null) break;
+      if (i === 29) throw new Error('Bridge token PDA not finalized');
+      await sleep(1000);
+    }
+
+    const [ataPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('hyperlane_token'),
+        Buffer.from('-'),
+        Buffer.from('native_collateral'),
+      ],
+      warpProgram,
+    );
+
+    this.bridgeTokenPda = tokenPda.toBase58();
+    this.bridgeAtaPda = ataPda.toBase58();
+
+    return {
+      tokenPda: tokenPda.toBase58(),
+      ataPda: ataPda.toBase58(),
+    };
+  }
+
   async setIsmValidators(
     domain: number,
     validators: string[],
@@ -412,6 +497,33 @@ export class SealevelLocalChainManager {
       );
     }
     return this.warpRouteProgramId;
+  }
+
+  getBridgeWarpRouteProgramId(): string {
+    if (!this.bridgeWarpRouteProgramId) {
+      throw new Error(
+        'Bridge warp route not deployed yet. Call deployBridgeWarpRoute first.',
+      );
+    }
+    return this.bridgeWarpRouteProgramId;
+  }
+
+  getBridgeTokenPda(): string {
+    if (!this.bridgeTokenPda) {
+      throw new Error(
+        'Bridge warp route not deployed yet. Call deployBridgeWarpRoute first.',
+      );
+    }
+    return this.bridgeTokenPda;
+  }
+
+  getBridgeAtaPda(): string {
+    if (!this.bridgeAtaPda) {
+      throw new Error(
+        'Bridge warp route not deployed yet. Call deployBridgeWarpRoute first.',
+      );
+    }
+    return this.bridgeAtaPda;
   }
 
   getConnection(): Connection {

@@ -1,7 +1,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import type { Logger } from 'pino';
 
-import { SealevelCoreAdapter } from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, SealevelCoreAdapter } from '@hyperlane-xyz/sdk';
 import { bytes32ToAddress, parseMessage } from '@hyperlane-xyz/utils';
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
@@ -25,6 +25,7 @@ export class SvmForkIndexer implements IForkIndexer {
     private readonly svmChainName: string,
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
+    private readonly evmCore?: HyperlaneCore,
   ) {}
 
   getUserTransfers(): ExplorerMessage[] {
@@ -120,11 +121,6 @@ export class SvmForkIndexer implements IForkIndexer {
           origin_tx_hash: signature,
           origin_tx_sender: senderAddress,
           origin_tx_recipient: '',
-          // TODO: SVM-origin messages are never marked is_delivered=true here.
-          // Unlike EvmForkIndexer which checks mailbox.delivered() on the EVM destination,
-          // SVM-origin delivery happens on the EVM side and requires an EVM HyperlaneCore
-          // reference. ActionTracker performs the authoritative delivery completion checks,
-          // so this gap does not affect correctness for current test scenarios.
           is_delivered: false,
           message_body: '',
           send_occurred_at: null,
@@ -156,6 +152,33 @@ export class SvmForkIndexer implements IForkIndexer {
           this.rebalanceActions.push(msg);
         } else {
           this.userTransfers.push(msg);
+        }
+
+        // Check EVM delivery status for SVM-origin messages
+        if (this.evmCore) {
+          const destChain =
+            this.evmCore.multiProvider.tryGetChainName(destinationDomain);
+          if (destChain) {
+            const blockTag = confirmedBlockTags[destChain];
+            try {
+              const mailbox = this.evmCore.getContracts(destChain).mailbox;
+              const delivered = await mailbox.delivered(msgId, {
+                blockTag,
+              });
+              if (delivered) {
+                msg.is_delivered = true;
+                this.logger.debug(
+                  { msgId, destChain },
+                  'SvmForkIndexer marked SVM-origin message as delivered',
+                );
+              }
+            } catch (error) {
+              this.logger.debug(
+                { msgId, destChain, error },
+                'Failed to check EVM delivery for SVM-origin message',
+              );
+            }
+          }
         }
 
         this.seenMessageIds.add(msgId);

@@ -21,9 +21,10 @@ import {
 } from '../fixtures/routes.js';
 import {
   type SvmDeployedAddresses,
-  SVM_CHAIN_METADATA,
   SVM_CHAIN_NAME,
   SVM_DOMAIN_ID,
+  SVM_RPC_PORT,
+  buildSvmChainMetadata,
   createSvmRpc,
   createSvmSigner,
 } from '../fixtures/svm-routes.js';
@@ -35,16 +36,18 @@ const REMOTE_SEALEVEL_DOMAIN = 13377;
 
 export class SvmEvmLocalDeploymentManager {
   private readonly logger: Logger;
+  private readonly rpcPort: number;
   private evmManager?: NativeLocalDeploymentManager;
   private svmManager?: SealevelLocalChainManager;
   private svmDeployedAddresses?: SvmDeployedAddresses;
 
-  constructor(logger?: Logger) {
+  constructor(logger?: Logger, rpcPort: number = SVM_RPC_PORT) {
     this.logger =
       logger ??
       pino({ level: 'debug' }).child({
         module: 'SvmEvmLocalDeploymentManager',
       });
+    this.rpcPort = rpcPort;
   }
 
   async setup(): Promise<void> {
@@ -52,7 +55,7 @@ export class SvmEvmLocalDeploymentManager {
       throw new Error('SvmEvmLocalDeploymentManager already setup');
     }
 
-    const svmManager = new SealevelLocalChainManager(this.logger);
+    const svmManager = new SealevelLocalChainManager(this.logger, this.rpcPort);
     const inventorySignerAddress = this.deriveInventorySignerAddress(
       svmManager.getDeployerKeypair().publicKey.toBytes(),
     );
@@ -103,7 +106,9 @@ export class SvmEvmLocalDeploymentManager {
     // So we construct a new MPP with combined metadata directly.
     const combinedMetadata = {
       ...evmMultiProvider.metadata,
-      [SVM_CHAIN_NAME]: SVM_CHAIN_METADATA,
+      [SVM_CHAIN_NAME]: buildSvmChainMetadata(
+        this.getSvmChainManager().getRpcUrl(),
+      ),
     };
     const mpp = new MultiProtocolProvider(combinedMetadata);
 
@@ -164,7 +169,9 @@ export class SvmEvmLocalDeploymentManager {
         string,
         ChainMetadata
       >),
-      [SVM_CHAIN_NAME]: SVM_CHAIN_METADATA,
+      [SVM_CHAIN_NAME]: buildSvmChainMetadata(
+        this.getSvmChainManager().getRpcUrl(),
+      ),
     };
 
     const chainAddresses: Record<string, Record<string, string>> = {

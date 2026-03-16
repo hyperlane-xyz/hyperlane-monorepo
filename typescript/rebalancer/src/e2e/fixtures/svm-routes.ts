@@ -266,17 +266,36 @@ export function buildMixedBalancePreset(
  * Creates an SvmSigner from the local-e2e deployer keypair file.
  * The keypair JSON is a 64-byte array (Solana format).
  */
-export async function createSvmSigner(): Promise<SvmSigner> {
+export async function createSvmSigner(
+  rpcUrl: string = SVM_RPC_URL,
+): Promise<SvmSigner> {
   const keypairBytes: number[] = JSON.parse(
     fs.readFileSync(DEPLOYER_KEYPAIR, 'utf8'),
   );
   const privateKeyHex = Buffer.from(keypairBytes).toString('hex');
-  return SvmSigner.connectWithSigner([SVM_RPC_URL], privateKeyHex);
+  return SvmSigner.connectWithSigner([rpcUrl], privateKeyHex);
 }
 
 /**
  * Creates an SvmRpc client pointing at the local solana-test-validator.
  */
-export function createSvmRpc() {
-  return createRpc(SVM_RPC_URL);
+export function createSvmRpc(rpcUrl: string = SVM_RPC_URL) {
+  return createRpc(rpcUrl);
+}
+
+/**
+ * Builds an SVM RPC URL for a given port.
+ */
+export function buildSvmRpcUrl(port: number): string {
+  return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * Builds SVM chain metadata with a custom RPC URL.
+ */
+export function buildSvmChainMetadata(rpcUrl: string): ChainMetadata {
+  return {
+    ...SVM_CHAIN_METADATA,
+    rpcUrls: [{ http: rpcUrl }],
+  };
 }

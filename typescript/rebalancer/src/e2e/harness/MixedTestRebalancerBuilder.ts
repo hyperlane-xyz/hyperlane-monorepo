@@ -29,11 +29,11 @@ import {
   MAILBOX_PROGRAM_ID,
   MIXED_BALANCE_PRESETS,
   MIXED_SIGNER_PRESETS,
-  SVM_CHAIN_METADATA,
   SVM_CHAIN_NAME,
   SVM_NATIVE_MONITORED_ROUTE_ID,
   type SvmDeployedAddresses,
   buildMixedSvmEvmWarpCoreConfig,
+  buildSvmChainMetadata,
 } from '../fixtures/svm-routes.js';
 
 import { CompositeForkIndexer } from './CompositeForkIndexer.js';
@@ -168,7 +168,9 @@ export class MixedTestRebalancerBuilder {
 
     const combinedMetadata = {
       ...evmMP.metadata,
-      [SVM_CHAIN_NAME]: SVM_CHAIN_METADATA,
+      [SVM_CHAIN_NAME]: buildSvmChainMetadata(
+        manager.getSvmChainManager().getRpcUrl(),
+      ),
     };
     const workingMP = new MultiProvider(combinedMetadata, {
       providers: { ...evmMP.providers },
@@ -258,6 +260,7 @@ export class MixedTestRebalancerBuilder {
       SVM_CHAIN_NAME,
       rebalancerAddresses,
       this.logger,
+      hyperlaneCore,
     );
 
     const forkIndexer = new CompositeForkIndexer([
