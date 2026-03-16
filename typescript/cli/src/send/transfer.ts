@@ -186,9 +186,26 @@ async function executeDelivery({
   }
 
   const chainAddresses = await registry.getAddresses();
+  let filteredChainAddresses = {};
+
+  // if both origin and destination are specified we only load these two chains
+  if (origin && destination) {
+    // Only load core contracts for chains we're actually using (origin + destination)
+    const relevantChains = [origin, destination];
+    filteredChainAddresses = Object.fromEntries(
+      Object.entries(chainAddresses).filter(([chain]) =>
+        relevantChains.includes(chain),
+      ),
+    );
+  } else {
+    filteredChainAddresses = chainAddresses;
+  }
 
   // Core is needed for on-chain wait (EVM destinations)
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+  const core = HyperlaneCore.fromAddressesMap(
+    filteredChainAddresses,
+    multiProvider,
+  );
 
   // Extract mailbox addresses from registry for each chain
   // Required for Sealevel/non-EVM token adapters during validation
