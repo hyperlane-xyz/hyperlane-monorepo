@@ -345,6 +345,7 @@ export class SealevelLocalChainManager {
     this.deployedAddresses = {
       mailbox: MAILBOX_PROGRAM_ID,
       ism: MULTISIG_ISM_PROGRAM_ID,
+      warpRouter: this.warpRouteProgramId,
       warpToken: tokenPda.toBase58(),
       warpTokenAta: ataPda.toBase58(),
     };

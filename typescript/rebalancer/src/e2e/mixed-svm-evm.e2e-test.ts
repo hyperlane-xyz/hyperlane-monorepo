@@ -2,7 +2,12 @@ import { expect } from 'chai';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 
-import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  MultiProvider,
+  SealevelCoreAdapter,
+  snapshot,
+} from '@hyperlane-xyz/sdk';
 
 import {
   ExecutionType,
@@ -31,6 +36,7 @@ import {
   classifyMixedChains,
   drainSvmWarpRoute,
   getMixedRouterBalances,
+  getSvmWarpRouteBalance,
   relayMixedInventoryDeposits,
 } from './harness/SvmTestHelpers.js';
 import { SvmEvmLocalDeploymentManager } from './harness/SvmEvmLocalDeploymentManager.js';
@@ -845,5 +851,169 @@ describe('Mixed EVM+SVM Inventory Rebalancer E2E', function () {
       movementAction!.id,
     );
     expect(completedMovement!.status).to.equal('complete');
+  });
+
+  it('executes real SVM-origin transferRemote, indexes dispatch, and relays to EVM', async function () {
+    await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(buildMixedStrategyConfig())
+      .withBalances('INVENTORY_BALANCED')
+      .withInventorySignerBalances('SIGNER_ZERO_ALL')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    const currentSvmBalance = await getSvmWarpRouteBalance(
+      svmConnection,
+      svmAddresses.warpTokenAta,
+    );
+    const scenario8Deficit = 2_000_000_000n;
+
+    const scenario8Strategy = buildMixedStrategyConfig();
+    const scenario8SvmChainConfig = scenario8Strategy[0].chains[SVM_CHAIN_NAME];
+    if (
+      !('minAmount' in scenario8SvmChainConfig) ||
+      !scenario8SvmChainConfig.minAmount
+    ) {
+      throw new Error('Scenario 8 requires minAmount strategy for SVM chain');
+    }
+    scenario8SvmChainConfig.minAmount = {
+      min: (currentSvmBalance + scenario8Deficit).toString(),
+      target: (currentSvmBalance + scenario8Deficit + 1n).toString(),
+      type: RebalancerMinAmountType.Absolute,
+    };
+
+    const context = await new MixedTestRebalancerBuilder()
+      .withManager(manager)
+      .withEvmAddresses(evmAddresses)
+      .withSvmAddresses(svmAddresses)
+      .withSvmPrivateKey(svmPrivateKey)
+      .withStrategyConfig(scenario8Strategy)
+      .withBalances('INVENTORY_BALANCED')
+      .withInventorySignerBalances('SIGNER_ZERO_ALL')
+      .withMockExternalBridge(mockBridge)
+      .build();
+
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    await executeCycle(context);
+
+    const intentsToSvm = (
+      await context.tracker.getRebalanceIntentsByDestination(SVM_DOMAIN_ID)
+    ).sort((a, b) => b.createdAt - a.createdAt);
+    const targetIntent = intentsToSvm[0];
+    expect(
+      targetIntent,
+      'Expected a rebalance intent targeting SVM in Scenario 8',
+    ).to.exist;
+
+    const targetEvmDomain = targetIntent!.origin;
+    const targetIntentActions = await context.tracker.getActionsForIntent(
+      targetIntent!.id,
+    );
+    const svmDeposit = targetIntentActions.find(
+      (action) =>
+        action.type === 'inventory_deposit' &&
+        action.origin === SVM_DOMAIN_ID &&
+        action.destination === targetEvmDomain,
+    );
+    expect(
+      svmDeposit,
+      'Expected SVM-origin inventory deposit action for target EVM domain',
+    ).to.exist;
+    const destinationChain = multiProvider.getChainName(targetEvmDomain);
+    const destinationMailbox =
+      hyperlaneCore.getContracts(destinationChain).mailbox;
+
+    let svmTxHash = svmDeposit?.txHash;
+    let svmMessageId = svmDeposit?.messageId?.toLowerCase();
+
+    if (!svmTxHash || !svmMessageId) {
+      await context.forkIndexer.sync(await context.getConfirmedBlockTags());
+      const indexedBeforeRelay = context.forkIndexer.getRebalanceActions();
+      const matchingIndexedActions = indexedBeforeRelay.filter(
+        (action) =>
+          action.origin_domain_id === SVM_DOMAIN_ID &&
+          action.destination_domain_id === targetEvmDomain,
+      );
+      const indexedCandidate = matchingIndexedActions.at(-1);
+      if (indexedCandidate?.origin_tx_hash) {
+        svmTxHash = indexedCandidate.origin_tx_hash;
+      }
+      if (indexedCandidate?.msg_id) {
+        const lower = indexedCandidate.msg_id.toLowerCase();
+        svmMessageId = lower.startsWith('0x') ? lower : `0x${lower}`;
+      }
+    }
+
+    expect(svmTxHash, 'Expected SVM tx hash for inventory deposit').to.exist;
+    expect(svmMessageId, 'Expected SVM messageId for inventory deposit').to
+      .exist;
+
+    const svmTx = await svmConnection.getTransaction(svmTxHash!, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
+    expect(svmTx, 'Expected SVM origin transfer tx on local validator').to
+      .exist;
+
+    const svmDispatches = SealevelCoreAdapter.parseMessageDispatchLogs(
+      svmTx?.meta?.logMessages ?? [],
+    );
+    const normalizedDispatchMessageIds = svmDispatches.map((dispatch) => {
+      const lower = dispatch.messageId.toLowerCase();
+      return lower.startsWith('0x') ? lower : `0x${lower}`;
+    });
+    expect(
+      normalizedDispatchMessageIds.includes(svmMessageId!),
+      'Expected SVM tx logs to contain dispatched messageId',
+    ).to.be.true;
+
+    await context.forkIndexer.sync(await context.getConfirmedBlockTags());
+    const indexedBeforeRelay = context.forkIndexer.getRebalanceActions();
+    const normalizedIndexedMessageIds = indexedBeforeRelay
+      .filter((action) => action.origin_domain_id === SVM_DOMAIN_ID)
+      .map((action) => {
+        const lower = action.msg_id.toLowerCase();
+        return lower.startsWith('0x') ? lower : `0x${lower}`;
+      });
+    expect(
+      normalizedIndexedMessageIds.includes(svmMessageId!),
+      'Expected SvmForkIndexer to index SVM-origin dispatch before relay sync',
+    ).to.be.true;
+
+    await relayMixedInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+      svmConnection,
+      MAILBOX_PROGRAM_ID,
+    );
+
+    if (svmDeposit?.id) {
+      const completedDeposit = await context.tracker.getRebalanceAction(
+        svmDeposit.id,
+      );
+      expect(completedDeposit!.status).to.equal('complete');
+    }
+
+    const delivered = await destinationMailbox.delivered(svmMessageId!);
+    expect(
+      delivered,
+      'Expected EVM mailbox to mark SVM-origin message delivered',
+    ).to.be.true;
+
+    const targetIntentId = svmDeposit!.intentId;
+    expect(targetIntentId).to.exist;
+    const completedIntent = await context.tracker.getRebalanceIntent(
+      targetIntentId!,
+    );
+    expect(['in_progress', 'complete']).to.include(completedIntent!.status);
   });
 });

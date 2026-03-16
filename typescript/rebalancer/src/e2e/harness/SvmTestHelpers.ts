@@ -107,13 +107,6 @@ export async function relayMixedInventoryDeposits(
   svmConnection: Connection,
   svmMailboxProgramId: string | PublicKey,
 ): Promise<void> {
-  await relayInProgressInventoryDeposits(
-    context,
-    evmProviders,
-    multiProvider,
-    hyperlaneCore,
-  );
-
   const inProgressActions = await context.tracker.getInProgressActions();
   const hasSvmOriginDeposit = inProgressActions.some(
     (action) =>
@@ -122,6 +115,15 @@ export async function relayMixedInventoryDeposits(
       action.txHash &&
       action.messageId,
   );
+
+  if (!hasSvmOriginDeposit) {
+    await relayInProgressInventoryDeposits(
+      context,
+      evmProviders,
+      multiProvider,
+      hyperlaneCore,
+    );
+  }
 
   if (hasSvmOriginDeposit) {
     await relaySvmToEvmMessages({

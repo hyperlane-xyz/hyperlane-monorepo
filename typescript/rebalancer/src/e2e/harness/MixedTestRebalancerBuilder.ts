@@ -58,6 +58,8 @@ type MixedInventorySignerBalanceConfig =
   | MixedInventorySignerPreset
   | Record<string, string>;
 
+const MIN_SVM_SIGNER_LAMPORTS = 1_000_000_000n;
+
 export class MixedTestRebalancerBuilder {
   private manager?: SvmEvmLocalDeploymentManager;
   private evmAddresses?: NativeDeployedAddresses;
@@ -304,6 +306,12 @@ export class MixedTestRebalancerBuilder {
       );
     }
 
+    await this.ensureSvmSignerLamports(
+      manager,
+      svmDeployerAddress,
+      MIN_SVM_SIGNER_LAMPORTS,
+    );
+
     await this.ensureMinAmountCollateralCoverage(evmCtx, evmAddresses);
 
     const strategy = await contextFactory.createStrategy();
@@ -421,6 +429,31 @@ export class MixedTestRebalancerBuilder {
         totalCollateral: totalCollateral.toString(),
       },
       'Adjusted EVM collateral to satisfy minAmount strategy validation',
+    );
+  }
+
+  private async ensureSvmSignerLamports(
+    manager: SvmEvmLocalDeploymentManager,
+    signerAddress: string,
+    minLamports: bigint,
+  ): Promise<void> {
+    const connection = manager.getSvmChainManager().getConnection();
+    const signer = new PublicKey(signerAddress);
+    const current = BigInt(await connection.getBalance(signer, 'confirmed'));
+    if (current >= minLamports) return;
+
+    const topUp = minLamports - current;
+    const signature = await connection.requestAirdrop(signer, Number(topUp));
+    await connection.confirmTransaction(signature, 'confirmed');
+
+    this.logger.debug(
+      {
+        signerAddress,
+        oldBalance: current.toString(),
+        newMinimum: minLamports.toString(),
+        topUp: topUp.toString(),
+      },
+      'Funded SVM signer for mixed e2e test stability',
     );
   }
 }

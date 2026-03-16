@@ -80,6 +80,7 @@ export const SVM_CHAIN_METADATA: ChainMetadata = {
 export interface SvmDeployedAddresses {
   mailbox: string;
   ism: string;
+  warpRouter: string;
   warpToken: string;
   warpTokenAta: string;
 }
@@ -120,7 +121,7 @@ export function buildMixedSvmEvmWarpCoreConfig(
         .map((other) => {
           if (other === SVM_CHAIN_NAME) {
             return {
-              token: `${ProtocolType.Sealevel}|${SVM_CHAIN_NAME}|${svmAddresses.warpToken}`,
+              token: `${ProtocolType.Sealevel}|${SVM_CHAIN_NAME}|${svmAddresses.warpRouter}`,
             };
           }
           const otherRouter =
@@ -141,7 +142,7 @@ export function buildMixedSvmEvmWarpCoreConfig(
     decimals: 9,
     symbol: 'SOL',
     name: 'Solana',
-    addressOrDenom: svmAddresses.warpToken,
+    addressOrDenom: svmAddresses.warpRouter,
     connections: evmChainNames.map((chainName) => {
       const routerAddress =
         evmAddresses.monitoredRoute[

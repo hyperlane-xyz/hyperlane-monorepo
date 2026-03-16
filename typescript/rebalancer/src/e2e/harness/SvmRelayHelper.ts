@@ -11,7 +11,12 @@ import {
   type MultiProvider,
   SealevelCoreAdapter,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  bytes32ToAddress,
+  ensure0x,
+  parseMessage,
+} from '@hyperlane-xyz/utils';
 
 import { extractRawMessage } from './SvmMessageParser.js';
 
@@ -124,6 +129,35 @@ async function relaySingle(
     throw new Error(
       `Unable to reconstruct raw message bytes for ${messageIdHex}; cannot call mailbox.process`,
     );
+  }
+
+  try {
+    await target.mailbox.callStatic.process('0x', message, {
+      gasLimit: 500_000,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    if (reason.includes('Enrolled router does not match sender')) {
+      const parsed = parseMessage(message);
+      const recipientRouter = new ethers.Contract(
+        bytes32ToAddress(parsed.recipient),
+        [
+          'function enrollRemoteRouters(uint32[] calldata _domains, bytes32[] calldata _addresses) external',
+        ],
+        opts.multiProvider.getSigner(target.chain),
+      );
+      await recipientRouter.enrollRemoteRouters(
+        [parsed.origin],
+        [parsed.sender],
+      );
+      await target.mailbox.callStatic.process('0x', message, {
+        gasLimit: 500_000,
+      });
+    } else {
+      throw new Error(
+        `mailbox.process callStatic reverted for ${messageIdHex}: ${reason}`,
+      );
+    }
   }
 
   const relayTx = await target.mailbox.process('0x', message, {

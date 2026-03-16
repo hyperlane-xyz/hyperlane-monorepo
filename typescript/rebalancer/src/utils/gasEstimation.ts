@@ -26,6 +26,7 @@ export const FALLBACK_TRANSFER_REMOTE_GAS_LIMIT = 300_000n;
  * A transfer must be worth at least this multiple of its cost to be worthwhile.
  */
 export const MIN_VIABLE_COST_MULTIPLIER = 2n;
+export const NON_EVM_TX_FEE_RESERVE = 6_000_000n;
 
 /**
  * Transfer cost estimate for native token transfers.
@@ -211,14 +212,9 @@ export async function calculateTransferCosts(
       ? (gasQuote.tokenFeeQuote?.amount ?? 0n)
       : 0n;
 
-  // Skip gas estimation for non-EVM chains (e.g., Solana).
-  // Non-EVM chains have negligible base fees (~5000 lamports ~$0.0001 on Solana)
-  // compared to EVM gas costs ($0.50-$50/tx). The IGP (Interchain Gas Paymaster)
-  // reservation dominates the cost, not chain-specific gas. Thus gasCost=0 is a
-  // safe approximation for non-EVM origin chains.
   const originProtocol = multiProvider.getProtocol(originChain);
   if (originProtocol !== ProtocolType.Ethereum) {
-    const totalCost = igpCost + tokenFeeCost;
+    const totalCost = igpCost + tokenFeeCost + NON_EVM_TX_FEE_RESERVE;
     let maxTransferable: bigint;
     if (availableInventory <= totalCost) {
       maxTransferable = 0n;
