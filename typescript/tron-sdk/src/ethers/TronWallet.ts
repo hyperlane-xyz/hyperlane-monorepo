@@ -84,7 +84,7 @@ export class TronWallet extends Wallet {
     this.txBuilder = new TronTransactionBuilder(
       tronWebUrl,
       this.tronAddress,
-      tronUrl,
+      jsonRpcUrl,
     );
   }
 
