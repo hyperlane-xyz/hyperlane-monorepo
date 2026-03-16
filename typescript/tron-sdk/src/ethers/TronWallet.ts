@@ -53,25 +53,22 @@ export class TronWallet extends Wallet {
   private txBuilder: TronTransactionBuilder;
 
   constructor(privateKey: string, tronUrl: string) {
-    // tronUrl can be either:
-    // 1. A TronGrid/TRE base URL (e.g. http://localhost:9090) — needs /jsonrpc for JSON-RPC
-    // 2. A third-party JSON-RPC URL (e.g. Alchemy) — works as-is for JSON-RPC only
-    // 3. A URL ending in /jsonrpc — already correct for JSON-RPC
-    //
-    // TronWeb needs a Tron HTTP API (not JSON-RPC). Third-party JSON-RPC providers
-    // (Alchemy, Ankr) don't serve TronWeb API, so we derive the base URL when possible
-    // or fall back to TronGrid for TronWeb operations.
+    // Derive base URL (for TronWeb HTTP API) and JSON-RPC URL (for ethers provider).
+    // TronGrid/TRE serve JSON-RPC at {base}/jsonrpc; third-party providers serve it at root.
+    const isTronNode =
+      /^https?:\/\/(localhost|127\.0\.0\.1|[^/]*trongrid)/.test(tronUrl);
     const baseUrl = tronUrl.endsWith('/jsonrpc')
       ? tronUrl.slice(0, -8)
       : tronUrl;
-    // If the base URL looks like a Tron full node (TronGrid, TRE), use it for TronWeb.
-    // Otherwise (third-party JSON-RPC providers), fall back to public TronGrid.
-    const tronWebUrl = baseUrl.match(
-      /^https?:\/\/(localhost|127\.0\.0\.1|[^/]*trongrid)/,
-    )
-      ? baseUrl
-      : 'https://api.trongrid.io';
-    super(privateKey, new TronJsonRpcProvider(tronUrl));
+    const jsonRpcUrl = tronUrl.endsWith('/jsonrpc')
+      ? tronUrl
+      : isTronNode
+        ? `${tronUrl}/jsonrpc`
+        : tronUrl;
+    // TronWeb needs a full node HTTP API. Third-party JSON-RPC providers
+    // don't serve it, so fall back to public TronGrid.
+    const tronWebUrl = isTronNode ? baseUrl : 'https://api.trongrid.io';
+    super(privateKey, new TronJsonRpcProvider(jsonRpcUrl));
     this.originalTronUrl = tronUrl;
 
     this.tronWeb = new TronWeb({ fullHost: tronWebUrl });
