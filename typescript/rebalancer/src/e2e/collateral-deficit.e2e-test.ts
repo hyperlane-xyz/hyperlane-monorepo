@@ -165,7 +165,8 @@ describe('Collateral Deficit E2E', function () {
       deployedAddresses.tokens.anvil1,
       deployer,
     );
-    await token.transfer(userAddress, transferAmount.mul(2));
+    const tx = await token.transfer(userAddress, transferAmount.mul(2));
+    await tx.wait();
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
