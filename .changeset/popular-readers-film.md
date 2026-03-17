@@ -2,4 +2,4 @@
 "@hyperlane-xyz/cli": patch
 ---
 
-fix: only load relevant chains for warp send command
+Only loaded relevant chains for warp send command, improving performance by avoiding loading all chain configurations.
