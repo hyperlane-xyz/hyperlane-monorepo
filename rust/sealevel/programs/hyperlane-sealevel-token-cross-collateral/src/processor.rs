@@ -2,7 +2,10 @@
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_core::Decode;
+use hyperlane_sealevel_connection_client::{
+    router::RemoteRouterConfig, HyperlaneConnectionClientRecipient,
+};
 use hyperlane_sealevel_mailbox::{
     accounts::Outbox, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
@@ -15,10 +18,14 @@ use hyperlane_sealevel_token_lib::{
     instruction::Instruction as TokenIxn,
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
+use hyperlane_warp_route::TokenMessage;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
+    instruction::AccountMeta,
     msg,
+    program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -85,21 +92,17 @@ pub fn process_instruction(
                     program_id,
                 )
             }
-            MessageRecipientInstruction::Handle(handle) => {
-                // TODO: intercept with dual-router validation in commit 5
-                HyperlaneSealevelToken::<CollateralPlugin>::transfer_from_remote(
-                    program_id,
-                    accounts,
-                    HandleInstruction {
-                        origin: handle.origin,
-                        sender: handle.sender,
-                        message: handle.message,
-                    },
-                )
-            }
+            MessageRecipientInstruction::Handle(handle) => transfer_from_remote_cc(
+                program_id,
+                accounts,
+                HandleInstruction {
+                    origin: handle.origin,
+                    sender: handle.sender,
+                    message: handle.message,
+                },
+            ),
             MessageRecipientInstruction::HandleAccountMetas(handle) => {
-                // TODO: intercept with CC state PDA in commit 5
-                HyperlaneSealevelToken::<CollateralPlugin>::transfer_from_remote_account_metas(
+                transfer_from_remote_account_metas_cc(
                     program_id,
                     accounts,
                     HandleInstruction {
@@ -416,6 +419,143 @@ fn set_cross_collateral_routers(
         owner_account,
         system_program_info,
     )?;
+
+    Ok(())
+}
+
+/// Handles an inbound message from the mailbox with dual-router validation.
+/// Mirrors base `transfer_from_remote` but checks both CC enrolled routers
+/// and standard remote routers.
+///
+/// Accounts:
+/// 0.    `[signer]` Mailbox process authority specific to this program.
+/// 1.    `[executable]` system_program
+/// 2.    `[]` hyperlane_token storage
+/// 3.    `[]` CC state PDA account.
+/// 4.    `[depends on plugin]` recipient wallet address
+///       5..N `[??..??]` Plugin-specific accounts (CollateralPlugin::transfer_out).
+fn transfer_from_remote_cc(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    xfer: HandleInstruction,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let mut message_reader = std::io::Cursor::new(xfer.message);
+    let message = TokenMessage::read_from(&mut message_reader)
+        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+
+    // Account 0: Mailbox process authority
+    let process_authority_account = next_account_info(accounts_iter)?;
+
+    // Account 1: System program
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 2: Token account
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account,
+    )?;
+
+    // Account 3: CC state PDA
+    let cc_state_account = next_account_info(accounts_iter)?;
+    let cc_state =
+        CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
+
+    // Verify mailbox process authority is a valid signer
+    token.ensure_mailbox_process_authority_signer(process_authority_account)?;
+
+    // Dual-router validation: check both CC enrolled routers and base remote routers
+    if !cc_state.is_authorized_router(xfer.origin, &xfer.sender, &token.remote_routers) {
+        return Err(Error::UnauthorizedRouter.into());
+    }
+
+    // Account 4: Recipient wallet
+    let recipient_wallet = next_account_info(accounts_iter)?;
+    let expected_recipient = Pubkey::new_from_array(message.recipient().into());
+    if recipient_wallet.key != &expected_recipient {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Convert remote amount to local decimals
+    let remote_amount = message.amount();
+    let local_amount: u64 = token.remote_amount_to_local_amount(remote_amount)?;
+
+    // Accounts 5..N: Transfer out via plugin
+    CollateralPlugin::transfer_out(
+        program_id,
+        &token,
+        system_program_info,
+        recipient_wallet,
+        accounts_iter,
+        local_amount,
+    )?;
+
+    // Extraneous account check (must follow transfer_out which consumes dynamic accounts)
+    if accounts_iter.next().is_some() {
+        return Err(Error::ExtraneousAccount.into());
+    }
+
+    msg!(
+        "CC warp route transfer completed from origin: {}, recipient: {}, remote_amount: {}",
+        xfer.origin,
+        recipient_wallet.key,
+        remote_amount
+    );
+
+    Ok(())
+}
+
+/// Gets the account metas required by the CC Handle instruction.
+/// Same as base but includes CC state PDA after token account.
+///
+/// Accounts:
+/// 0. `[]` The token PDA account.
+fn transfer_from_remote_account_metas_cc(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    transfer: HandleInstruction,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let mut message_reader = std::io::Cursor::new(transfer.message);
+    let message = TokenMessage::read_from(&mut message_reader)
+        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+
+    // Account 0: Token account
+    let token_account_info = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account_info,
+    )?;
+
+    let (transfer_out_account_metas, writeable_recipient) =
+        CollateralPlugin::transfer_out_account_metas(program_id, &token, &message)?;
+
+    let (cc_state_key, _cc_state_bump) =
+        Pubkey::find_program_address(cross_collateral_pda_seeds!(), program_id);
+
+    let mut account_metas: Vec<SerializableAccountMeta> = vec![
+        AccountMeta::new_readonly(system_program::ID, false).into(),
+        AccountMeta::new_readonly(*token_account_info.key, false).into(),
+        // CC state PDA inserted before recipient
+        AccountMeta::new_readonly(cc_state_key, false).into(),
+        AccountMeta {
+            pubkey: Pubkey::new_from_array(message.recipient().into()),
+            is_signer: false,
+            is_writable: writeable_recipient,
+        }
+        .into(),
+    ];
+    account_metas.extend(transfer_out_account_metas);
+
+    let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+        .map_err(|_| ProgramError::BorshIoError)?;
+    set_return_data(&bytes[..]);
 
     Ok(())
 }
