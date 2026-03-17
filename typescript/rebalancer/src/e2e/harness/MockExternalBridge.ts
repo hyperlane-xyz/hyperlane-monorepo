@@ -173,6 +173,11 @@ export class MockExternalBridge implements IExternalBridge {
       );
     }
 
+    // Wait for the transaction to be mined so that getStatus() can always
+    // find the receipt via getTransactionReceipt().  Without this, there is
+    // a race on automined anvil where the receipt is not yet available.
+    await tx.wait();
+
     return {
       txHash: tx.hash,
       fromChain,

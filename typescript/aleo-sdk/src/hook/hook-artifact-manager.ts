@@ -67,10 +67,8 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoIgpHookReader(this.aleoClient),
     };
 
-    const maybeReader = readers[type]();
-
-    assert(maybeReader, `Hook writer for ${type} not found`);
-    return maybeReader;
+    assert(readers[type], `Hook reader for ${type} not found`);
+    return readers[type]();
   }
 
   createWriter<T extends HookType>(
@@ -92,9 +90,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
     };
 
-    const maybeWriter = writers[type]();
-
-    assert(maybeWriter, `Hook writer for ${type} not found`);
-    return maybeWriter;
+    assert(writers[type], `Hook writer for ${type} not found`);
+    return writers[type]();
   }
 }

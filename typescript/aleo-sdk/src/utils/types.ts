@@ -5,7 +5,7 @@ import {
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { type RawWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
-import { type Annotated } from '@hyperlane-xyz/utils';
+import { type Annotated, assert } from '@hyperlane-xyz/utils';
 
 export interface AleoTransaction extends ExecuteOptions {}
 export type AnnotatedAleoTransaction = Annotated<AleoTransaction>;
@@ -41,6 +41,14 @@ export const AleoNetworkId = {
 } as const;
 
 export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
+
+export function toAleoNetworkId(chainId: number): AleoNetworkId {
+  assert(
+    chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+    `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+  );
+  return chainId;
+}
 
 /**
  * Internal Aleo-specific warp token configuration types.
@@ -133,3 +141,35 @@ export function aleoWarpFieldsToArtifactApi(
     ),
   };
 }
+
+/**
+ * Aleo mailbox config structure matching on-chain data
+ */
+export interface AleoMailboxData {
+  local_domain: number;
+  nonce: number;
+  process_count: number;
+  default_ism: string;
+  default_hook: string;
+  required_hook: string;
+  dispatch_proxy: string;
+  mailbox_owner: string;
+}
+
+/**
+ * Parsed mailbox configuration
+ */
+export interface AleoMailboxConfig {
+  address: string;
+  owner: string;
+  localDomain: number;
+  nonce: number;
+  defaultIsm: string;
+  defaultHook: string;
+  requiredHook: string;
+}
+
+export type AleoArtifactNetworkConfig = Readonly<{
+  domainId: number;
+  aleoNetworkId: AleoNetworkId;
+}>;

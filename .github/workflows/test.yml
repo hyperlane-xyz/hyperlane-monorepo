@@ -164,7 +164,7 @@ jobs:
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: '(rust/|\.github/|typescript/docker-bake\.hcl)'
+          path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
           path_pattern_only: 'true'
 
       - name: Categorize changes for CLI e2e and VM detection
@@ -431,6 +431,7 @@ jobs:
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   sdk-e2e:
     runs-on: ubuntu-latest

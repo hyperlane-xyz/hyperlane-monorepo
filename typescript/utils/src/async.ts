@@ -92,7 +92,7 @@ export function timeout<T>(
       },
       (err) => {
         clearTimeout(timer);
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       },
     );
   });

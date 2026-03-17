@@ -110,8 +110,9 @@ catalog:
   '@vercel/ncc': ^0.38.3
 
   # Linting
-  oxlint: ^1.47.0
-  eslint-plugin-oxlint: ^1.46.0
+  oxlint: ^1.55.0
+  oxlint-tsgolint: ^0.17.0
+  eslint-plugin-oxlint: ^1.55.0
   eslint: ^9.39.2
   '@eslint/js': ^9.39.2
   '@typescript-eslint/eslint-plugin': ^8.54.0
@@ -123,7 +124,7 @@ catalog:
   typescript-eslint: ^8.54.0
 
   # Formatting
-  oxfmt: ^0.32.0
+  oxfmt: ^0.40.0
   prettier: ^3.8.1
   prettier-plugin-solidity: ^1.4.2
 
@@ -134,7 +135,7 @@ catalog:
   chai: ^4.5.0
   chai-as-promised: ^8.0.1
   sinon: ^13.0.2
-  testcontainers: 11.7.0
+  testcontainers: 11.12.0
 
   # Type definitions
   '@types/mocha': ^10.0.1

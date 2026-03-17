@@ -149,8 +149,16 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
         tokens[chain.name].address,
         deployer,
       );
-      await token.transfer(bridgeRouters[chain.name].address, bridgeSeedAmount);
-      await token.transfer(this.inventorySignerAddress, signerErc20Amount);
+      const tx1 = await token.transfer(
+        bridgeRouters[chain.name].address,
+        bridgeSeedAmount,
+      );
+      await tx1.wait();
+      const tx2 = await token.transfer(
+        this.inventorySignerAddress,
+        signerErc20Amount,
+      );
+      await tx2.wait();
     }
 
     return {
