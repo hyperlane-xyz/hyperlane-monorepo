@@ -161,10 +161,9 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         ism.verify(insufficientMetadata, message);
     }
 
-    // @notice Demonstrates that high-index validators with sufficient weight
-    // are unreachable when signatureCount < validatorIndex, due to Math.min
-    // bounding the inner validator search loop.
-    function test_verify_revert_nonSequentialSigner() public {
+    // @notice Verifies that high-index validators with sufficient weight
+    // can sign alone, even when signatureCount < validators.length.
+    function test_verify_nonSequentialSigner() public {
         uint8 n = 5;
         uint96 threshold = 5e9; // 50%
         IStaticWeightedMultisigIsm.ValidatorInfo[]
@@ -218,10 +217,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
             metadata = abi.encodePacked(metadata, r, s, v);
         }
 
-        // BUG: reverts because _validatorCount = min(5, 1) = 1,
-        // so inner while loop only searches validator[0]
-        vm.expectRevert("Invalid signer");
-        ism.verify(metadata, message);
+        assertTrue(ism.verify(metadata, message));
     }
 
     function test_verify_revertWhen_duplicateSignatures(

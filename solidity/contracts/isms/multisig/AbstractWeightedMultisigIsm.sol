@@ -15,7 +15,6 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -61,17 +60,14 @@ abstract contract AbstractStaticWeightedMultisigIsm is
             "Invalid threshold weight"
         );
 
-        uint256 _validatorCount = Math.min(
-            _validators.length,
-            signatureCount(_metadata)
-        );
         uint256 _validatorIndex = 0;
         uint96 _totalWeight = 0;
 
         // assumes that signatures are ordered by validator
+        // signatureAt reverts on OOB if insufficient signatures provided
         for (
             uint256 signatureIndex = 0;
-            _totalWeight < _thresholdWeight && signatureIndex < _validatorCount;
+            _totalWeight < _thresholdWeight;
             ++signatureIndex
         ) {
             address _signer = ECDSA.recover(
@@ -80,13 +76,13 @@ abstract contract AbstractStaticWeightedMultisigIsm is
             );
             // loop through remaining validators until we find a match
             while (
-                _validatorIndex < _validatorCount &&
+                _validatorIndex < _validators.length &&
                 _signer != _validators[_validatorIndex].signingAddress
             ) {
                 ++_validatorIndex;
             }
             // fail if we never found a match
-            require(_validatorIndex < _validatorCount, "Invalid signer");
+            require(_validatorIndex < _validators.length, "Invalid signer");
 
             // add the weight of the current validator
             _totalWeight += _validators[_validatorIndex].weight;
