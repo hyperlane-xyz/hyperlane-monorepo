@@ -3,7 +3,7 @@
 # exit on error
 set -e
 
-forge coverage \
+FOUNDRY_PROFILE=coverage forge coverage \
 	--report lcov \
 	--report summary \
 	--no-match-coverage "(test|mock|node_modules|script|Fast|TypedMemView)" \
