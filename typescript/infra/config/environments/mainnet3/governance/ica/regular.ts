@@ -160,4 +160,9 @@ export const regularIcas: ChainMap<Address> = {
   // Jan 29, 2026 - Migrating Ontology to v2 ICAs
   // ----------------------------------------------------------
   ontology: '0xD6d898B8A75B5D7A3438e2120FD0302B5d3c9081',
+
+  // Mar 16, 2026
+  // ----------------------------------------------------------
+  // igra: '0x524CfCE7d1900238203b47B5dBf3277741859bc4',
+  // tron: '0x2839B41900b59dEBb43E7d70630BF92d10b86D21',
 } as const;
