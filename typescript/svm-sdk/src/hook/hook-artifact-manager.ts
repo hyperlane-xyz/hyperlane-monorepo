@@ -33,6 +33,38 @@ import {
 
 export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 
+function createUnsupportedSvmHookReader<T extends keyof RawHookArtifactConfigs>(
+  type: T,
+): ArtifactReader<
+  RawHookArtifactConfigs[T],
+  SvmDeployedHook | SvmDeployedIgpHook
+> {
+  return {
+    read: async () => {
+      throw new Error(`${type} hook type is unsupported on Sealevel`);
+    },
+  };
+}
+
+function createUnsupportedSvmHookWriter<T extends keyof RawHookArtifactConfigs>(
+  type: T,
+): ArtifactWriter<
+  RawHookArtifactConfigs[T],
+  SvmDeployedHook | SvmDeployedIgpHook
+> {
+  return {
+    read: async () => {
+      throw new Error(`${type} hook type is unsupported on Sealevel`);
+    },
+    create: async () => {
+      throw new Error(`${type} hook type is unsupported on Sealevel`);
+    },
+    update: async () => {
+      throw new Error(`${type} hook type is unsupported on Sealevel`);
+    },
+  };
+}
+
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
@@ -75,6 +107,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     } = {
       merkleTreeHook: () => new SvmMerkleTreeHookReader(this.rpc),
       interchainGasPaymaster: () => new SvmIgpHookReader(this.rpc, this.salt),
+      protocolFee: () => createUnsupportedSvmHookReader('protocolFee'),
     };
     const factory = readers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);
@@ -97,6 +130,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
       merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
       interchainGasPaymaster: () =>
         new SvmIgpHookWriter(this.rpc, this.salt, signer),
+      protocolFee: () => createUnsupportedSvmHookWriter('protocolFee'),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);

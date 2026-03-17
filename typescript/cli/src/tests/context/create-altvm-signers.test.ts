@@ -69,6 +69,9 @@ describe('createAltVMSigners', () => {
       createHookArtifactManager() {
         throw new Error('not needed for createAltVMSigners test');
       },
+      createWarpArtifactManager() {
+        throw new Error('not needed for createAltVMSigners test');
+      },
       createMailboxArtifactManager() {
         throw new Error('not needed for createAltVMSigners test');
       },
