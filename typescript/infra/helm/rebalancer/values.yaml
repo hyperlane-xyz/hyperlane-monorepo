@@ -1,6 +1,7 @@
 image:
-  repository: ghcr.io/hyperlane-xyz/hyperlane-rebalancer
+  repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   tag:
+serviceName: rebalancer
 warpRouteId: ''
 hyperlane:
   runEnv: mainnet3

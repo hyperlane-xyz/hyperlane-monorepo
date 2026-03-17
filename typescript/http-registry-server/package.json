@@ -34,6 +34,7 @@
     "zod-validation-error": "catalog:"
   },
   "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",

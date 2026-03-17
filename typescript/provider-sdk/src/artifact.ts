@@ -1,3 +1,8 @@
+import {
+  assert,
+  isEmptyAddress,
+  ZERO_ADDRESS_HEX_32,
+} from '@hyperlane-xyz/utils';
 import { ISigner } from './altvm.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 
@@ -209,4 +214,22 @@ export interface IArtifactManager<
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<ConfigMap[T], D>;
+}
+
+export type UnsetArtifactAddress = typeof ZERO_ADDRESS_HEX_32;
+
+/**
+ * Returns the artifact if DEPLOYED, undefined if UNDERIVED with zero address.
+ * Throws if UNDERIVED with non-zero address.
+ */
+export function toDeployedOrUndefined<C, D extends { address: string }>(
+  artifact: ArtifactOnChain<C, D>,
+  name: string,
+): ArtifactDeployed<C, D> | undefined {
+  if (isArtifactDeployed(artifact)) return artifact;
+  assert(
+    isEmptyAddress(artifact.deployed.address),
+    `Expected ${name} to be DEPLOYED or UNDERIVED with zero address, got UNDERIVED with non-zero address ${artifact.deployed.address}`,
+  );
+  return undefined;
 }

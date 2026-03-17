@@ -1,4 +1,7 @@
-import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  ChainMetadataForAltVM,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactReader,
   ArtifactState,
@@ -15,9 +18,38 @@ import {
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { Logger, isEmptyAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { createHookReader } from '../hook/hook-reader.js';
+import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
 import { ismArtifactToDerivedConfig } from '@hyperlane-xyz/provider-sdk/ism';
+
+/**
+ * Factory function to create a CoreArtifactReader instance.
+ * Follows pattern of createHookReader() and createIsmReader().
+ *
+ * @param chainMetadata Chain metadata for target chain
+ * @param chainLookup Chain lookup for domain resolution
+ * @returns CoreArtifactReader instance
+ *
+ * @example
+ * ```typescript
+ * const reader = createCoreReader(chainMetadata, chainLookup);
+ * const coreConfig = await reader.deriveCoreConfig(mailboxAddress);
+ * ```
+ */
+export function createCoreReader(
+  chainMetadata: ChainMetadataForAltVM,
+  chainLookup: ChainLookup,
+): CoreArtifactReader {
+  const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+  const mailboxArtifactManager =
+    protocolProvider.createMailboxArtifactManager(chainMetadata);
+
+  return new CoreArtifactReader(
+    mailboxArtifactManager,
+    chainMetadata,
+    chainLookup,
+  );
+}
 
 /**
  * Core Artifact Reader - composite artifact reader that orchestrates mailbox, ISM, and hook readers.
@@ -40,7 +72,8 @@ export class CoreArtifactReader implements ArtifactReader<
   protected readonly logger: Logger = rootLogger.child({
     module: CoreArtifactReader.name,
   });
-  private readonly ismReader: IsmReader;
+  protected readonly ismReader: IsmReader;
+  protected readonly hookReaderFactory: (mailbox: string) => HookReader;
 
   constructor(
     protected readonly mailboxArtifactManager: IRawMailboxArtifactManager,
@@ -48,6 +81,8 @@ export class CoreArtifactReader implements ArtifactReader<
     protected readonly chainLookup: ChainLookup,
   ) {
     this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
+    this.hookReaderFactory = (mailbox) =>
+      createHookReader(this.chainMetadata, this.chainLookup, { mailbox });
   }
 
   /**
@@ -67,9 +102,7 @@ export class CoreArtifactReader implements ArtifactReader<
     // 2. Expand nested ISM and hooks using specialized readers
     // Hook reader is created per-read with mailbox context (needed for SVM hook detection)
     // Skip reading when address is empty (undefined, null, empty string, or zeroish)
-    const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {
-      mailbox: mailboxAddress,
-    });
+    const hookReader = this.hookReaderFactory(mailboxAddress);
 
     const defaultIsmAddr = rawMailbox.config.defaultIsm.deployed.address;
     const defaultHookAddr = rawMailbox.config.defaultHook.deployed.address;

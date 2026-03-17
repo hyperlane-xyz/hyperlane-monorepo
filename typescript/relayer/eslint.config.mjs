@@ -1,25 +1,11 @@
-import {
-  jestRules,
-  jsRules,
-  typescriptRules,
-} from '@hyperlane-xyz/eslint-config';
+import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...jsRules,
-  ...typescriptRules,
-  ...jestRules,
+  ...defaultConfig,
   {
     name: 'relayer-rules',
     rules: {
       'no-restricted-imports': 'off',
-    },
-  },
-  {
-    name: 'relayer-ts-rules',
-    files: ['**/*.ts'],
-    rules: {
-      '@typescript-eslint/no-base-to-string': 'off', // FIXME: Recommended rule, fix the violations
-      '@typescript-eslint/restrict-template-expressions': 'off', // FIXME: Recommended rule, fix the violations
     },
   },
   {

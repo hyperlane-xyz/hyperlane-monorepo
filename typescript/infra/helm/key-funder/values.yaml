@@ -1,6 +1,7 @@
 image:
-  repository: ghcr.io/hyperlane-xyz/hyperlane-key-funder
+  repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   tag: latest
+serviceName: keyfunder
 hyperlane:
   runEnv: testnet4
   chains: []

@@ -302,7 +302,7 @@ async function resolveWarpIsmAndHook(
       const chainAddresses = registryAddresses[chain];
 
       if (!chainAddresses) {
-        throw `Registry factory addresses not found for ${chain}.`;
+        throw new Error(`Registry factory addresses not found for ${chain}.`);
       }
 
       config.interchainSecurityModule = await createWarpIsm({

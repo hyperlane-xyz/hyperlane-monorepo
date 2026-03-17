@@ -18,11 +18,11 @@ import {
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import {
-  MAINNET_PREFIX,
+  getNetworkPrefix,
   RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
-  TESTNET_PREFIX,
 } from '../utils/helper.js';
+import { toAleoNetworkId } from '../utils/types.js';
 
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
@@ -44,10 +44,7 @@ export class AleoBase {
   protected readonly warpSuffix: string;
 
   constructor(rpcUrls: string[], chainId: string | number) {
-    assert(
-      +chainId === 0 || +chainId === 1,
-      `Unknown chain id ${chainId} for Aleo, only 0 or 1 allowed`,
-    );
+    const aleoNetworkId = toAleoNetworkId(+chainId);
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     // because the aleo provable sdk appends /testnet or /mainnet to the base
@@ -55,7 +52,7 @@ export class AleoBase {
     this.rpcUrls = rpcUrls.map((r) =>
       r.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
     );
-    this.chainId = +chainId;
+    this.chainId = aleoNetworkId;
 
     this.aleoClient = this.chainId
       ? new AleoTestnetNetworkClient(this.rpcUrls[0])
@@ -72,13 +69,17 @@ export class AleoBase {
       getOrInitConsensusVersionTestHeights(this.consensusVersionHeights);
     }
 
-    this.prefix = this.chainId ? TESTNET_PREFIX : MAINNET_PREFIX;
+    this.prefix = getNetworkPrefix(aleoNetworkId);
 
     this.ismManager = process.env['ALEO_ISM_MANAGER_SUFFIX']
       ? `${this.prefix}_ism_manager_${process.env['ALEO_ISM_MANAGER_SUFFIX']}.aleo`
       : `${this.prefix}_ism_manager.aleo`;
 
     this.warpSuffix = process.env['ALEO_WARP_SUFFIX'] || '';
+  }
+
+  getAleoClient(): AnyAleoNetworkClient {
+    return this.aleoClient;
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {
