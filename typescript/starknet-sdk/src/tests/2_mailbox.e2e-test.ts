@@ -19,7 +19,9 @@ describe('2. starknet sdk mailbox e2e tests', function () {
 
   before(async () => {
     signer = await createSigner();
-    artifactManager = new StarknetMailboxArtifactManager(TEST_STARKNET_CHAIN_METADATA);
+    artifactManager = new StarknetMailboxArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
   });
 
   async function createPrerequisites() {
@@ -53,23 +55,25 @@ describe('2. starknet sdk mailbox e2e tests', function () {
     });
 
     expect(created.deployed.address).to.not.equal('');
-    expect(created.deployed.domainId).to.equal(TEST_STARKNET_CHAIN_METADATA.domainId);
+    expect(created.deployed.domainId).to.equal(
+      TEST_STARKNET_CHAIN_METADATA.domainId,
+    );
     expect(receipts.length).to.be.greaterThan(0);
 
     const reader = artifactManager.createReader('mailbox');
     const read = await reader.read(created.deployed.address);
-    expect(eqAddressStarknet(read.config.owner, signer.getSignerAddress())).to.equal(
-      true,
-    );
-    expect(eqAddressStarknet(read.config.defaultIsm.deployed.address, ismAddress)).to.equal(
-      true,
-    );
-    expect(eqAddressStarknet(read.config.defaultHook.deployed.address, hookAddress)).to.equal(
-      true,
-    );
-    expect(eqAddressStarknet(read.config.requiredHook.deployed.address, hookAddress)).to.equal(
-      true,
-    );
+    expect(
+      eqAddressStarknet(read.config.owner, signer.getSignerAddress()),
+    ).to.equal(true);
+    expect(
+      eqAddressStarknet(read.config.defaultIsm.deployed.address, ismAddress),
+    ).to.equal(true);
+    expect(
+      eqAddressStarknet(read.config.defaultHook.deployed.address, hookAddress),
+    ).to.equal(true);
+    expect(
+      eqAddressStarknet(read.config.requiredHook.deployed.address, hookAddress),
+    ).to.equal(true);
   });
 
   it('updates mailbox ISM/hooks/owner', async () => {
@@ -123,13 +127,22 @@ describe('2. starknet sdk mailbox e2e tests', function () {
     const updated = await artifactManager.readMailbox(created.deployed.address);
     expect(eqAddressStarknet(updated.config.owner, newOwner)).to.equal(true);
     expect(
-      eqAddressStarknet(updated.config.defaultIsm.deployed.address, next.ismAddress),
+      eqAddressStarknet(
+        updated.config.defaultIsm.deployed.address,
+        next.ismAddress,
+      ),
     ).to.equal(true);
     expect(
-      eqAddressStarknet(updated.config.defaultHook.deployed.address, next.hookAddress),
+      eqAddressStarknet(
+        updated.config.defaultHook.deployed.address,
+        next.hookAddress,
+      ),
     ).to.equal(true);
     expect(
-      eqAddressStarknet(updated.config.requiredHook.deployed.address, next.hookAddress),
+      eqAddressStarknet(
+        updated.config.requiredHook.deployed.address,
+        next.hookAddress,
+      ),
     ).to.equal(true);
   });
 });

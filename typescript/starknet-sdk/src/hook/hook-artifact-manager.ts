@@ -32,13 +32,10 @@ import {
 } from '../contracts.js';
 import { StarknetDeployTx } from '../types.js';
 
-class StarknetMerkleTreeHookReader
-  implements
-    ArtifactReader<
-      RawHookArtifactConfigs['merkleTreeHook'],
-      DeployedHookAddress
-    >
-{
+class StarknetMerkleTreeHookReader implements ArtifactReader<
+  RawHookArtifactConfigs['merkleTreeHook'],
+  DeployedHookAddress
+> {
   async read(
     address: string,
   ): Promise<
@@ -105,10 +102,10 @@ class StarknetMerkleTreeHookWriter
   }
 }
 
-class StarknetProtocolFeeHookReader
-  implements
-    ArtifactReader<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
-{
+class StarknetProtocolFeeHookReader implements ArtifactReader<
+  RawHookArtifactConfigs['protocolFee'],
+  DeployedHookAddress
+> {
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly provider: StarknetProvider,
@@ -288,7 +285,9 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
   }
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
-    const hookType = await this.provider.getHookType({ hookAddress: address });
+    const hookType = await this.provider.getHookType({
+      hookAddress: address,
+    });
     if (hookType === AltVM.HookType.MERKLE_TREE) {
       return this.createReader(AltVM.HookType.MERKLE_TREE).read(address);
     }

@@ -82,9 +82,7 @@ class StarknetBridgedSupplyTestHarness extends StarknetProvider {
     return contract;
   }
 
-  override async getToken(
-    req: AltVM.ReqGetToken,
-  ): Promise<AltVM.ResGetToken> {
+  override async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
     return {
       address: req.tokenAddress,
       owner: '0x0',
@@ -155,7 +153,9 @@ describe('StarknetProvider getHookType', () => {
     const hookType = await provider.getHookType({ hookAddress: '0x1' });
 
     expect(hookType).to.equal(AltVM.HookType.MERKLE_TREE);
-    expect(provider.contractSelections).to.deep.equal([StarknetContractName.HOOK]);
+    expect(provider.contractSelections).to.deep.equal([
+      StarknetContractName.HOOK,
+    ]);
   });
 
   it('returns custom when hook_type lookup fails', async () => {
@@ -165,7 +165,9 @@ describe('StarknetProvider getHookType', () => {
     const hookType = await provider.getHookType({ hookAddress: '0x1' });
 
     expect(hookType).to.equal(AltVM.HookType.CUSTOM);
-    expect(provider.contractSelections).to.deep.equal([StarknetContractName.HOOK]);
+    expect(provider.contractSelections).to.deep.equal([
+      StarknetContractName.HOOK,
+    ]);
   });
 });
 

@@ -25,13 +25,19 @@ describe('3. starknet sdk hook e2e tests', function () {
       defaultIsmAddress: undefined,
     });
     mailboxAddress = mailbox.mailboxAddress;
-    artifactManager = new StarknetHookArtifactManager(TEST_STARKNET_CHAIN_METADATA, {
-      mailbox: mailboxAddress,
-    });
+    artifactManager = new StarknetHookArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+      {
+        mailbox: mailboxAddress,
+      },
+    );
   });
 
   it('creates and reads merkle tree hook', async () => {
-    const writer = artifactManager.createWriter(AltVM.HookType.MERKLE_TREE, signer);
+    const writer = artifactManager.createWriter(
+      AltVM.HookType.MERKLE_TREE,
+      signer,
+    );
     const [created] = await writer.create({
       config: { type: AltVM.HookType.MERKLE_TREE },
     });
@@ -41,21 +47,25 @@ describe('3. starknet sdk hook e2e tests', function () {
     const reader = artifactManager.createReader(AltVM.HookType.MERKLE_TREE);
     const read = await reader.read(created.deployed.address);
     expect(read.config.type).to.equal(AltVM.HookType.MERKLE_TREE);
-    expect(eqAddressStarknet(read.deployed.address, created.deployed.address)).to.equal(
-      true,
-    );
+    expect(
+      eqAddressStarknet(read.deployed.address, created.deployed.address),
+    ).to.equal(true);
 
     const updateTxs = await writer.update(created);
     expect(updateTxs).to.have.length(0);
   });
 
   it('creates, reads, and updates protocol fee hook', async () => {
-    const writer = artifactManager.createWriter(AltVM.HookType.PROTOCOL_FEE, signer);
+    const writer = artifactManager.createWriter(
+      AltVM.HookType.PROTOCOL_FEE,
+      signer,
+    );
     const [created] = await writer.create({
       config: {
         type: AltVM.HookType.PROTOCOL_FEE,
         owner: signer.getSignerAddress(),
-        beneficiary: '0x1111111111111111111111111111111111111111111111111111111111111111',
+        beneficiary:
+          '0x1111111111111111111111111111111111111111111111111111111111111111',
         maxProtocolFee: '20',
         protocolFee: '10',
       },

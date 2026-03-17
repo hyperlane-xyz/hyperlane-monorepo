@@ -196,7 +196,7 @@ export async function populateInvokeTx(
 }
 
 export function extractEnumVariant(value: unknown): string {
-  if (!value) return '';
+  if (value === null || value === undefined) return '';
 
   if (value instanceof CairoCustomEnum) {
     return value.activeVariant();
@@ -211,11 +211,13 @@ export function extractEnumVariant(value: unknown): string {
   }
 
   if (typeof value === 'string') return value;
-  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return value.toString();
+  }
 
   if (isObjectRecord(value)) {
     for (const [key, nested] of Object.entries(value)) {
-      if (nested !== undefined && nested !== null && nested !== false) {
+      if (nested !== undefined && nested !== null) {
         return key;
       }
     }

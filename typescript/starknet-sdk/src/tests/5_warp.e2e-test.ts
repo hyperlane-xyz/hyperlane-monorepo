@@ -29,10 +29,16 @@ describe('5. starknet sdk warp e2e tests', function () {
     const mailboxAddress = await createMailbox();
     const created = await signer.createNativeToken({ mailboxAddress });
 
-    const token = await signer.getToken({ tokenAddress: created.tokenAddress });
+    const token = await signer.getToken({
+      tokenAddress: created.tokenAddress,
+    });
     expect(token.tokenType).to.equal(AltVM.TokenType.native);
-    expect(eqAddressStarknet(token.owner, signer.getSignerAddress())).to.equal(true);
-    expect(eqAddressStarknet(token.mailboxAddress, mailboxAddress)).to.equal(true);
+    expect(eqAddressStarknet(token.owner, signer.getSignerAddress())).to.equal(
+      true,
+    );
+    expect(eqAddressStarknet(token.mailboxAddress, mailboxAddress)).to.equal(
+      true,
+    );
   });
 
   it('creates and reads synthetic token', async () => {
@@ -44,10 +50,16 @@ describe('5. starknet sdk warp e2e tests', function () {
       decimals: 18,
     });
 
-    const token = await signer.getToken({ tokenAddress: created.tokenAddress });
+    const token = await signer.getToken({
+      tokenAddress: created.tokenAddress,
+    });
     expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
-    expect(eqAddressStarknet(token.owner, signer.getSignerAddress())).to.equal(true);
-    expect(eqAddressStarknet(token.mailboxAddress, mailboxAddress)).to.equal(true);
+    expect(eqAddressStarknet(token.owner, signer.getSignerAddress())).to.equal(
+      true,
+    );
+    expect(eqAddressStarknet(token.mailboxAddress, mailboxAddress)).to.equal(
+      true,
+    );
     expect(token.decimals).to.equal(18);
   });
 

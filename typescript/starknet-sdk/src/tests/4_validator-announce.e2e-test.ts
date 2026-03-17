@@ -36,19 +36,19 @@ describe('4. starknet sdk validator announce e2e tests', function () {
     });
 
     expect(created.deployed.address).to.not.equal('');
-    expect(eqAddressStarknet(created.config.mailboxAddress, mailboxAddress)).to.equal(
-      true,
-    );
+    expect(
+      eqAddressStarknet(created.config.mailboxAddress, mailboxAddress),
+    ).to.equal(true);
 
     const reader = artifactManager.createReader('validatorAnnounce');
     const read = await reader.read(created.deployed.address);
 
-    expect(eqAddressStarknet(read.deployed.address, created.deployed.address)).to.equal(
-      true,
-    );
-    expect(eqAddressStarknet(read.config.mailboxAddress, mailboxAddress)).to.equal(
-      true,
-    );
+    expect(
+      eqAddressStarknet(read.deployed.address, created.deployed.address),
+    ).to.equal(true);
+    expect(
+      eqAddressStarknet(read.config.mailboxAddress, mailboxAddress),
+    ).to.equal(true);
   });
 
   it('returns no update txs for immutable validator announce', async () => {

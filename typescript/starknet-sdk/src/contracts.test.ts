@@ -23,14 +23,18 @@ describe('starknet-sdk contracts helpers', () => {
   });
 
   it('falls back to known fee token by chain name', () => {
-    expect(
-      getFeeTokenAddress({ chainName: 'starknetsepolia' }),
-    ).to.equal(
+    expect(getFeeTokenAddress({ chainName: 'starknetsepolia' })).to.equal(
       '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
     );
   });
 
   it('extracts enum variant key from starknet-like object', () => {
     expect(extractEnumVariant({ MERKLE_TREE: {} })).to.equal('MERKLE_TREE');
+  });
+
+  it('preserves zero-like enum values instead of treating them as empty', () => {
+    expect(extractEnumVariant(0)).to.equal('0');
+    expect(extractEnumVariant(0n)).to.equal('0');
+    expect(extractEnumVariant({ MERKLE_TREE: 0 })).to.equal('MERKLE_TREE');
   });
 });

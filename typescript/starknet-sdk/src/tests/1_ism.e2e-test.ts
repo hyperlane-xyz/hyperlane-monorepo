@@ -2,10 +2,7 @@ import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import {
-  eqAddressStarknet,
-  normalizeAddressEvm,
-} from '@hyperlane-xyz/utils';
+import { eqAddressStarknet, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -16,7 +13,9 @@ import {
 import { createSigner } from '../testing/utils.js';
 
 function normalizeValidators(addresses: string[]): string[] {
-  return addresses.map((address) => normalizeAddressEvm(address).toLowerCase()).sort();
+  return addresses
+    .map((address) => normalizeAddressEvm(address).toLowerCase())
+    .sort();
 }
 
 describe('1. starknet sdk ISM e2e tests', function () {
@@ -27,7 +26,9 @@ describe('1. starknet sdk ISM e2e tests', function () {
 
   before(async () => {
     signer = await createSigner();
-    artifactManager = new StarknetIsmArtifactManager(TEST_STARKNET_CHAIN_METADATA);
+    artifactManager = new StarknetIsmArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
   });
 
   it('creates and reads test ISM', async () => {
@@ -42,9 +43,9 @@ describe('1. starknet sdk ISM e2e tests', function () {
     const reader = artifactManager.createReader(AltVM.IsmType.TEST_ISM);
     const read = await reader.read(created.deployed.address);
     expect(read.config.type).to.equal(AltVM.IsmType.TEST_ISM);
-    expect(eqAddressStarknet(read.deployed.address, created.deployed.address)).to.equal(
-      true,
-    );
+    expect(
+      eqAddressStarknet(read.deployed.address, created.deployed.address),
+    ).to.equal(true);
   });
 
   it('creates and reads message-id and merkle-root multisig ISMs', async () => {
@@ -69,7 +70,9 @@ describe('1. starknet sdk ISM e2e tests', function () {
     const messageReader = artifactManager.createReader(
       AltVM.IsmType.MESSAGE_ID_MULTISIG,
     );
-    const messageRead = await messageReader.read(messageCreated.deployed.address);
+    const messageRead = await messageReader.read(
+      messageCreated.deployed.address,
+    );
 
     expect(messageRead.config.threshold).to.equal(threshold);
     expect(normalizeValidators(messageRead.config.validators)).to.deep.equal(

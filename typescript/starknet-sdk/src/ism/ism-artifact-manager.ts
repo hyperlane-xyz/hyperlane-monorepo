@@ -24,9 +24,10 @@ import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 
-class StarknetTestIsmReader
-  implements ArtifactReader<RawIsmArtifactConfigs['testIsm'], DeployedIsmAddress>
-{
+class StarknetTestIsmReader implements ArtifactReader<
+  RawIsmArtifactConfigs['testIsm'],
+  DeployedIsmAddress
+> {
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
@@ -45,7 +46,8 @@ class StarknetTestIsmReader
 
 class StarknetTestIsmWriter
   extends StarknetTestIsmReader
-  implements ArtifactWriter<RawIsmArtifactConfigs['testIsm'], DeployedIsmAddress>
+  implements
+    ArtifactWriter<RawIsmArtifactConfigs['testIsm'], DeployedIsmAddress>
 {
   constructor(
     provider: StarknetProvider,
@@ -83,13 +85,10 @@ class StarknetTestIsmWriter
   }
 }
 
-class StarknetMerkleRootMultisigIsmReader
-  implements
-    ArtifactReader<
-      RawIsmArtifactConfigs['merkleRootMultisigIsm'],
-      DeployedIsmAddress
-    >
-{
+class StarknetMerkleRootMultisigIsmReader implements ArtifactReader<
+  RawIsmArtifactConfigs['merkleRootMultisigIsm'],
+  DeployedIsmAddress
+> {
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
@@ -165,13 +164,10 @@ class StarknetMerkleRootMultisigIsmWriter
   }
 }
 
-class StarknetMessageIdMultisigIsmReader
-  implements
-    ArtifactReader<
-      RawIsmArtifactConfigs['messageIdMultisigIsm'],
-      DeployedIsmAddress
-    >
-{
+class StarknetMessageIdMultisigIsmReader implements ArtifactReader<
+  RawIsmArtifactConfigs['messageIdMultisigIsm'],
+  DeployedIsmAddress
+> {
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
@@ -247,13 +243,10 @@ class StarknetMessageIdMultisigIsmWriter
   }
 }
 
-class StarknetRoutingIsmReader
-  implements
-    ArtifactReader<
-      RawIsmArtifactConfigs['domainRoutingIsm'],
-      DeployedIsmAddress
-    >
-{
+class StarknetRoutingIsmReader implements ArtifactReader<
+  RawIsmArtifactConfigs['domainRoutingIsm'],
+  DeployedIsmAddress
+> {
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
@@ -264,7 +257,9 @@ class StarknetRoutingIsmReader
       DeployedIsmAddress
     >
   > {
-    const routing = await this.provider.getRoutingIsm({ ismAddress: address });
+    const routing = await this.provider.getRoutingIsm({
+      ismAddress: address,
+    });
     const domains: RawIsmArtifactConfigs['domainRoutingIsm']['domains'] = {};
 
     for (const route of routing.routes) {
@@ -328,7 +323,9 @@ class StarknetRoutingIsmWriter
     );
 
     const created = await this.signer.createRoutingIsm({ routes });
-    if (!eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())) {
+    if (
+      !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
+    ) {
       await this.signer.setRoutingIsmOwner({
         ismAddress: created.ismAddress,
         newOwner: artifact.config.owner,
@@ -358,7 +355,9 @@ class StarknetRoutingIsmWriter
         if (isArtifactUnderived(domainIsm) || isArtifactDeployed(domainIsm)) {
           return {
             domainId: Number(domainId),
-            ismAddress: normalizeStarknetAddressSafe(domainIsm.deployed.address),
+            ismAddress: normalizeStarknetAddressSafe(
+              domainIsm.deployed.address,
+            ),
           };
         }
 
@@ -381,7 +380,10 @@ class StarknetRoutingIsmWriter
 
     for (const route of expectedRoutes) {
       const actualAddress = actualByDomain.get(route.domainId);
-      if (!actualAddress || !eqAddressStarknet(actualAddress, route.ismAddress)) {
+      if (
+        !actualAddress ||
+        !eqAddressStarknet(actualAddress, route.ismAddress)
+      ) {
         updateTxs.push({
           annotation: `Setting routing ISM route ${route.domainId}`,
           ...(await this.signer.getSetRoutingIsmRouteTransaction({
