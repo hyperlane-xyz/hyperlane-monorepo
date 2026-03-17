@@ -153,12 +153,12 @@ export async function callContract(
   args: RawArgsArray = [],
 ): Promise<unknown> {
   const fn = Reflect.get(contract, method);
-  if (typeof fn === 'function') return fn(...args);
+  if (typeof fn === 'function') return Reflect.apply(fn, contract, args);
 
   const call = Reflect.get(contract, 'call');
   if (typeof call === 'function') {
     const callArgs: ArgsOrCalldata = args;
-    return call(method, callArgs);
+    return Reflect.apply(call, contract, [method, callArgs]);
   }
 
   throw new Error(`Unable to call ${method} on contract ${contract.address}`);

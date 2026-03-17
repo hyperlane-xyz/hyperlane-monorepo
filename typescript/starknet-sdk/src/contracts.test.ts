@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import {
+  callContract,
   extractEnumVariant,
   getFeeTokenAddress,
   normalizeStarknetAddressSafe,
@@ -36,5 +37,17 @@ describe('starknet-sdk contracts helpers', () => {
     expect(extractEnumVariant(0)).to.equal('0');
     expect(extractEnumVariant(0n)).to.equal('0');
     expect(extractEnumVariant({ MERKLE_TREE: 0 })).to.equal('MERKLE_TREE');
+  });
+
+  it('preserves contract context in callContract fallback path', async () => {
+    const contract = {
+      address: '0x1234',
+      call(this: { address: string }, method: string, args: unknown[]) {
+        return `${this.address}:${method}:${args.length}`;
+      },
+    };
+
+    const result = await callContract(contract as never, 'balance_of', ['0x1']);
+    expect(result).to.equal('0x1234:balance_of:1');
   });
 });

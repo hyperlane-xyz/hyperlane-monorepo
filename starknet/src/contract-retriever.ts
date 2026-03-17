@@ -5,6 +5,8 @@ import { ERR_CODES } from './const.js';
 import { ContractError } from './errors.js';
 import { ContractType, StarknetContractGroup } from './types.js';
 
+const compiledClassHashCache = new Map<string, string>();
+
 /**
  * @notice Retrieves a compiled contract
  * @param name The name of the contract to retrieve
@@ -48,10 +50,18 @@ export function getCompiledClassHash(
   name: string,
   contractType: ContractType = ContractType.CONTRACT,
 ): string | undefined {
+  const cacheKey = `${contractType}:${name}`;
+  const cached = compiledClassHashCache.get(cacheKey);
+  if (cached) return cached;
+
   const contract = getContractArtifact(name, contractType);
-  return contract.compiled_contract_class
-    ? hash.computeCompiledClassHash(contract.compiled_contract_class)
-    : undefined;
+  if (!contract.compiled_contract_class) return undefined;
+
+  const compiledClassHash = hash.computeCompiledClassHash(
+    contract.compiled_contract_class,
+  );
+  compiledClassHashCache.set(cacheKey, compiledClassHash);
+  return compiledClassHash;
 }
 
 /**
