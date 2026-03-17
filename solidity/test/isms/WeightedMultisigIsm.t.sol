@@ -161,6 +161,69 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         ism.verify(insufficientMetadata, message);
     }
 
+    // @notice Demonstrates that high-index validators with sufficient weight
+    // are unreachable when signatureCount < validatorIndex, due to Math.min
+    // bounding the inner validator search loop.
+    function test_verify_revert_nonSequentialSigner() public {
+        uint8 n = 5;
+        uint96 threshold = 5e9; // 50%
+        IStaticWeightedMultisigIsm.ValidatorInfo[]
+            memory validators = new IStaticWeightedMultisigIsm.ValidatorInfo[](
+                n
+            );
+        uint256[] memory keys = new uint256[](n);
+
+        for (uint256 i = 0; i < n; i++) {
+            keys[i] = uint256(keccak256(abi.encode("nonseq", i)));
+            validators[i].signingAddress = vm.addr(keys[i]);
+            validators[i].weight = (i < 4) ? uint96(5e8) : uint96(8e9);
+        }
+
+        ism = IInterchainSecurityModule(
+            weightedFactory.deploy(validators, threshold)
+        );
+        weightedIsm = AbstractStaticWeightedMultisigIsm(address(ism));
+
+        // Build message inline (avoids calldata requirement of formatMessage)
+        bytes memory message = abi.encodePacked(
+            uint8(3), // version
+            uint32(0), // nonce
+            mailbox.localDomain(), // origin
+            address(this).addressToBytes32(), // sender
+            uint32(0), // destination
+            bytes32(uint256(1)), // recipient
+            hex"dead" // body
+        );
+        merkleTreeHook.insert(message.id());
+
+        bytes32 digest;
+        {
+            uint32 domain = mailbox.localDomain();
+            (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
+            bytes32 merkleTreeAddr = address(merkleTreeHook).addressToBytes32();
+            digest = CheckpointLib.digest(
+                domain,
+                merkleTreeAddr,
+                root,
+                index,
+                message.id()
+            );
+        }
+
+        bytes memory metadata = metadataPrefix(message);
+
+        // Sign with only validator[4] (80% weight > 50% threshold)
+        {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[4], digest);
+            metadata = abi.encodePacked(metadata, r, s, v);
+        }
+
+        // BUG: reverts because _validatorCount = min(5, 1) = 1,
+        // so inner while loop only searches validator[0]
+        vm.expectRevert("Invalid signer");
+        ism.verify(metadata, message);
+    }
+
     function test_verify_revertWhen_duplicateSignatures(
         uint32 destination,
         bytes32 recipient,
