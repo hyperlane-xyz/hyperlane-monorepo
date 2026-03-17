@@ -381,13 +381,15 @@ export function shouldDeployNewHook(
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated
       return false;
-    case AltVM.HookType.PROTOCOL_FEE:
+    case AltVM.HookType.PROTOCOL_FEE: {
       assert(
         isProtocolFeeHookConfig(actual),
         'expected protocolFee hook config',
       );
+      const expectedProtocolFee: ProtocolFeeHookConfig = expected;
       // maxProtocolFee is immutable (constructor-only) and requires redeploy.
-      return actual.maxProtocolFee !== expected.maxProtocolFee;
+      return actual.maxProtocolFee !== expectedProtocolFee.maxProtocolFee;
+    }
 
     default: {
       throw new Error(`Unhandled hook type in shouldDeployNewHook`);

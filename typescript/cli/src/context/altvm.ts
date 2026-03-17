@@ -17,6 +17,11 @@ import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 import { resolveAltVmAccountAddress } from './altvm-signer-config.js';
 import { type SignerKeyProtocolMap } from './types.js';
 
+export const altVmPrompts = {
+  input,
+  password,
+};
+
 type ChainMetadataManagerLike = {
   getChainMetadata: (chain: string) => ChainMetadataForAltVM;
 };
@@ -40,20 +45,16 @@ async function loadPrivateKey(
     const rawConfig = strategyConfig[chain]!.submitter;
 
     if (rawConfig.type === 'jsonRpc') {
-      if (!rawConfig.privateKey) {
-        throw new Error(
-          `missing private key in strategy config for chain ${chain}`,
-        );
+      if (rawConfig.privateKey) {
+        return rawConfig.privateKey;
       }
-
-      return rawConfig.privateKey;
     }
   }
 
   // 3. Finally, if no key flag or strategy was provided we prompt the user
   // for the private key. We save it in the keyByProtocol map so that we can
   // reuse it if another chain is of the same protocol
-  keyByProtocol[protocol] = await password({
+  keyByProtocol[protocol] = await altVmPrompts.password({
     message: `Please enter the private key for chain ${chain} (will be re-used for other chains with the same protocol type)`,
   });
 
@@ -77,7 +78,7 @@ async function loadAccountAddress(
     return { accountAddress: fallbackPromptedAddress, isPrompted: false };
   }
 
-  const promptedAddress = await input({
+  const promptedAddress = await altVmPrompts.input({
     message: `Please enter the Starknet account contract address for chain ${chain}`,
   });
   return { accountAddress: promptedAddress, isPrompted: true };

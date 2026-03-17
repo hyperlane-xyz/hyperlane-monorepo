@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import {
   type AltVM,
@@ -13,7 +14,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
-import { createAltVMSigners } from '../../context/altvm.js';
+import { altVmPrompts, createAltVMSigners } from '../../context/altvm.js';
 import { type SignerKeyProtocolMap } from '../../context/types.js';
 import { type ExtendedChainSubmissionStrategy } from '../../submitters/types.js';
 
@@ -93,6 +94,7 @@ describe('createAltVMSigners', () => {
   beforeEach(() => {
     capturedConfigs.length = 0;
     delete process.env.HYP_ACCOUNT_ADDRESS_STARKNET;
+    sinon.restore();
   });
 
   it('prefers strategy user/account address over environment variable', async () => {
@@ -222,5 +224,35 @@ describe('createAltVMSigners', () => {
     expect(capturedConfigs).to.have.length(2);
     expect(capturedConfigs[0].accountAddress).to.equal('0xaaa');
     expect(capturedConfigs[1].accountAddress).to.equal('0xbbb');
+  });
+
+  it('prompts for private key when strategy omits it', async () => {
+    const privateKeyPrompt = sinon
+      .stub(altVmPrompts, 'password')
+      .resolves('0xprompted-key');
+
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      starknetsepolia: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'starknetsepolia',
+          userAddress: '0xstrategy-account',
+        },
+      },
+    };
+
+    await createAltVMSigners(
+      getMetadataManager(() => getStarknetMetadata('starknetsepolia')),
+      ['starknetsepolia'],
+      {},
+      strategy,
+    );
+
+    expect(privateKeyPrompt.calledOnce).to.equal(true);
+    expect(capturedConfigs).to.have.length(1);
+    expect(capturedConfigs[0]).to.deep.equal({
+      privateKey: '0xprompted-key',
+      accountAddress: '0xstrategy-account',
+    });
   });
 });
