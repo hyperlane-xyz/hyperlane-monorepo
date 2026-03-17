@@ -1,6 +1,8 @@
 //! Program processor.
 
+use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::Outbox, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
@@ -48,10 +50,8 @@ pub fn process_instruction(
     if let Ok(cc_instruction) = CrossCollateralInstruction::decode(instruction_data) {
         return match cc_instruction {
             CrossCollateralInstruction::Init(init) => initialize(program_id, accounts, init),
-            CrossCollateralInstruction::SetCrossCollateralRouters(_configs) => {
-                // TODO: implement in next step
-                msg!("SetCrossCollateralRouters not yet implemented");
-                Err(ProgramError::InvalidInstructionData)
+            CrossCollateralInstruction::SetCrossCollateralRouters(configs) => {
+                set_cross_collateral_routers(program_id, accounts, configs)
             }
             CrossCollateralInstruction::TransferRemoteTo(_transfer) => {
                 // TODO: implement in commit 6
@@ -345,6 +345,76 @@ fn initialize(
         system_program_info,
         cc_dispatch_authority_account,
         cross_collateral_dispatch_authority_pda_seeds!(cc_dispatch_authority_bump),
+    )?;
+
+    Ok(())
+}
+
+/// Sets cross-collateral routers. Owner-only.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writable]` The CC state PDA account.
+/// 2. `[]` The token PDA account.
+/// 3. `[signer]` The owner.
+fn set_cross_collateral_routers(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    configs: Vec<RemoteRouterConfig>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 1: CC state PDA
+    let cc_state_account = next_account_info(accounts_iter)?;
+    let mut cc_state =
+        CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
+
+    // Account 2: Token PDA (for owner verification)
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account,
+    )?;
+
+    // Account 3: Owner (signer)
+    let owner_account = next_account_info(accounts_iter)?;
+    token.ensure_owner_signer(owner_account)?;
+
+    // Apply configs
+    for config in configs {
+        match config.router {
+            Some(router) => {
+                cc_state
+                    .enrolled_routers
+                    .entry(config.domain)
+                    .or_default()
+                    .insert(router);
+
+                msg!(
+                    "Enrolled CC router {:?} for domain {}",
+                    router,
+                    config.domain
+                );
+            }
+            None => {
+                cc_state.enrolled_routers.remove(&config.domain);
+                msg!("Unenrolled all CC routers for domain {}", config.domain);
+            }
+        }
+    }
+
+    // Store updated CC state with realloc if needed
+    CrossCollateralStateAccount::from(cc_state).store_with_rent_exempt_realloc(
+        cc_state_account,
+        &Rent::get()?,
+        owner_account,
+        system_program_info,
     )?;
 
     Ok(())

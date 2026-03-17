@@ -3717,6 +3717,7 @@ dependencies = [
 name = "hyperlane-sealevel-token-cross-collateral"
 version = "0.1.0"
 dependencies = [
+ "access-control",
  "account-utils",
  "borsh 1.6.0",
  "getrandom 0.2.17",
