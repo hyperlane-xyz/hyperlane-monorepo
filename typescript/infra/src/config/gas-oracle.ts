@@ -296,9 +296,9 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // For Solana, special min cost
     solanamainnet: 0.8,
 
-    // Tron uses an energy model, not gas. Delivery costs ~75K energy
-    // ≈ 8 TRX ≈ $2.40. Standard EVM gas math underestimates Tron costs.
-    tron: 2.5,
+    // Tron uses an energy model, not gas. Delivery costs 80-110K energy
+    // ≈ 9-12 TRX ≈ $2.60-$3.50. Standard EVM gas math underestimates Tron costs.
+    tron: 4.0,
   };
 
   const override = remoteMinCostOverrides[remote];
