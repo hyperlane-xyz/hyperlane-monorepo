@@ -2,26 +2,26 @@
   "name": "@hyperlane-xyz/starknet-sdk",
   "version": "24.0.0",
   "description": "Hyperlane TypeScript SDK for Starknet artifact API support",
+  "keywords": [
+    "blockchain",
+    "hyperlane",
+    "sdk",
+    "starknet"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
   "type": "module",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
-  "types": "dist/index.d.ts",
-  "files": [
-    "/dist"
-  ],
-  "homepage": "https://www.hyperlane.xyz",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "starknet",
-    "blockchain",
-    "sdk"
-  ],
-  "license": "Apache-2.0",
   "scripts": {
     "build": "rm -rf ./dist && tsc",
     "format": "prettier --write .",
@@ -32,6 +32,12 @@
     "test": "mocha --config .mocharc.json",
     "test:e2e": "mocha --config .mocharc-e2e.json",
     "test:ci": "pnpm test"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/starknet-core": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "starknet": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
@@ -52,11 +58,5 @@
     "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
-  },
-  "dependencies": {
-    "@hyperlane-xyz/provider-sdk": "workspace:*",
-    "@hyperlane-xyz/starknet-core": "workspace:*",
-    "@hyperlane-xyz/utils": "workspace:*",
-    "starknet": "catalog:"
   }
 }
