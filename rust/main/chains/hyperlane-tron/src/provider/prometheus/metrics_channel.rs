@@ -1,3 +1,4 @@
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -10,13 +11,30 @@ use tower::Service;
 
 use super::metrics_future::MetricsChannelFuture;
 
-#[derive(Debug)]
 /// Wrapper for instrumenting a tonic client channel with gRPC metrics.
 pub struct MetricsChannel<T> {
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
     custom_headers: Arc<Vec<(HeaderName, HeaderValue)>>,
     inner: T,
+}
+
+impl<T: fmt::Debug> fmt::Debug for MetricsChannel<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MetricsChannel")
+            .field("metrics", &"PrometheusClientMetrics")
+            .field("metrics_config", &self.metrics_config)
+            .field(
+                "custom_headers",
+                &self
+                    .custom_headers
+                    .iter()
+                    .map(|(name, _)| (name.clone(), HeaderValue::from_static("<redacted>")))
+                    .collect::<Vec<_>>(),
+            )
+            .field("inner", &self.inner)
+            .finish()
+    }
 }
 
 impl<T> MetricsChannel<T> {
