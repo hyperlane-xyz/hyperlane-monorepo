@@ -224,19 +224,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return this.deriveIsmConfig(routedIsmAddress);
     }
 
-    // check if its the ICA ISM (full or minimal router)
-    if (await this.isIcaRouter(address)) {
-      const icaInstance = InterchainAccountRouter__factory.connect(
-        address,
-        this.provider,
-      );
-      return {
-        address,
-        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
-        isms: {},
-        owner: await icaInstance.owner(),
-      };
-    }
+    const isIca = await this.isIcaRouter(address);
 
     let owner: Address | undefined;
     const ownableIsm = Ownable__factory.connect(address, this.provider);
@@ -251,6 +239,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     // If the current ISM does not have an owner then it is an Amount Router
     if (!owner) {
+      if (isIca) {
+        return {
+          type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+          isms: {},
+          address,
+          owner: ethers.constants.AddressZero,
+        };
+      }
       return this.deriveNonOwnableRoutingConfig(address);
     }
 
@@ -259,7 +255,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const domainIds = await defaultFallbackIsmInstance.domains();
 
     // Detect ICA routing ISM (full or minimal router)
-    if (await this.isIcaRouter(address)) {
+    if (isIca) {
       const icaRouter = InterchainAccountRouter__factory.connect(
         address,
         this.provider,
