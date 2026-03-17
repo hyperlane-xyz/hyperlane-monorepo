@@ -9,6 +9,8 @@ on:
         type: string
       has_radix:
         type: string
+      has_starknet:
+        type: string
       has_tron:
         type: string
       has_svm:
@@ -91,6 +93,24 @@ jobs:
 
       - name: Radix SDK e2e tests
         run: pnpm -C typescript/radix-sdk test:e2e
+
+  starknet-sdk-e2e-run:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_starknet == 'true'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/starknet-sdk...'
+
+      - name: Starknet SDK e2e tests
+        run: pnpm -C typescript/starknet-sdk test:e2e
 
   tron-sdk-e2e-run:
     runs-on: depot-ubuntu-24.04
