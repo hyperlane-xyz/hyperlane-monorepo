@@ -5,7 +5,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
-use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
+use hyperlane_sealevel_mailbox::{
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+};
 use hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds;
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -102,6 +104,7 @@ pub struct HandleLocal {
 /// 8.  `[writable]` The ATA payer PDA account.
 /// 9.  `[writable]` The CC state PDA account.
 /// 10. `[writable]` The CC dispatch authority PDA account.
+/// 11. `[]` The mailbox outbox PDA account (for local_domain validation).
 pub fn init_instruction(
     program_id: Pubkey,
     payer: Pubkey,
@@ -138,6 +141,10 @@ pub fn init_instruction(
         )
         .ok_or(ProgramError::InvalidSeeds)?;
 
+    let (mailbox_outbox_key, _mailbox_outbox_bump) =
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &init.mailbox)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
     let ixn = CrossCollateralInstruction::Init(init);
 
     let accounts = vec![
@@ -155,6 +162,8 @@ pub fn init_instruction(
         // CC-specific accounts
         AccountMeta::new(cc_state_key, false),
         AccountMeta::new(cc_dispatch_authority_key, false),
+        // Mailbox outbox for local_domain validation
+        AccountMeta::new_readonly(mailbox_outbox_key, false),
     ];
 
     Ok(SolanaInstruction {
