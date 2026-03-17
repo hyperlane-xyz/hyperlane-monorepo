@@ -44,7 +44,7 @@ use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     error::Error,
-    instruction::{CrossCollateralInit, CrossCollateralInstruction, TransferRemoteTo},
+    instruction::{CrossCollateralInit, CrossCollateralInstruction, HandleLocal, TransferRemoteTo},
     plugin::CollateralPlugin,
 };
 
@@ -69,15 +69,11 @@ pub fn process_instruction(
             CrossCollateralInstruction::TransferRemoteTo(transfer) => {
                 transfer_remote_to(program_id, accounts, transfer)
             }
-            CrossCollateralInstruction::HandleLocal(_handle) => {
-                // TODO: implement in commit 7
-                msg!("HandleLocal not yet implemented");
-                Err(ProgramError::InvalidInstructionData)
+            CrossCollateralInstruction::HandleLocal(handle) => {
+                handle_local(program_id, accounts, handle)
             }
-            CrossCollateralInstruction::HandleLocalAccountMetas(_handle) => {
-                // TODO: implement in commit 7
-                msg!("HandleLocalAccountMetas not yet implemented");
-                Err(ProgramError::InvalidInstructionData)
+            CrossCollateralInstruction::HandleLocalAccountMetas(handle) => {
+                handle_local_account_metas(program_id, accounts, handle)
             }
         };
     }
@@ -476,6 +472,11 @@ fn transfer_remote_to(
     let cc_state =
         CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
 
+    // Cross-chain only: reject same-chain transfers
+    if cc_state.local_domain == xfer.destination_domain {
+        return Err(Error::InvalidDomain.into());
+    }
+
     // Validate target_router is authorized for the destination domain
     if !cc_state.is_authorized_router(
         xfer.destination_domain,
@@ -793,6 +794,165 @@ fn transfer_from_remote_account_metas_cc(
         AccountMeta::new_readonly(system_program::ID, false).into(),
         AccountMeta::new_readonly(*token_account_info.key, false).into(),
         // CC state PDA inserted before recipient
+        AccountMeta::new_readonly(cc_state_key, false).into(),
+        AccountMeta {
+            pubkey: Pubkey::new_from_array(message.recipient().into()),
+            is_signer: false,
+            is_writable: writeable_recipient,
+        }
+        .into(),
+    ];
+    account_metas.extend(transfer_out_account_metas);
+
+    let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+        .map_err(|_| ProgramError::BorshIoError)?;
+    set_return_data(&bytes[..]);
+
+    Ok(())
+}
+
+/// Handles a same-chain CPI receive from another CC program.
+/// PDA verification: re-derives sender's CC dispatch authority PDA
+/// from `sender_program_id` and verifies it matches the signer.
+///
+/// Accounts:
+/// 0.    `[signer]` CC dispatch authority PDA of the sending program.
+/// 1.    `[executable]` system_program
+/// 2.    `[]` token PDA
+/// 3.    `[]` CC state PDA
+/// 4.    `[depends on plugin]` recipient wallet address
+///       5..N `[??..??]` Plugin-specific accounts (CollateralPlugin::transfer_out).
+fn handle_local(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    handle: HandleLocal,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let mut message_reader = std::io::Cursor::new(&handle.message);
+    let message = TokenMessage::read_from(&mut message_reader)
+        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+
+    // Account 0: CC dispatch authority PDA signer (from the sending program)
+    let cc_dispatch_authority_signer = next_account_info(accounts_iter)?;
+
+    // PDA verification: re-derive from claimed sender_program_id
+    let (expected_dispatch_authority, _) = Pubkey::find_program_address(
+        cross_collateral_dispatch_authority_pda_seeds!(),
+        &handle.sender_program_id,
+    );
+    if cc_dispatch_authority_signer.key != &expected_dispatch_authority {
+        return Err(Error::InvalidDispatchAuthority.into());
+    }
+    if !cc_dispatch_authority_signer.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 1: System program
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 2: Token account
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account,
+    )?;
+
+    // Account 3: CC state PDA
+    let cc_state_account = next_account_info(accounts_iter)?;
+    let cc_state =
+        CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
+
+    // Same-chain only: reject cross-chain origins
+    if handle.origin != cc_state.local_domain {
+        return Err(Error::InvalidDomain.into());
+    }
+
+    // Validate sender is enrolled for the local domain
+    if !cc_state.is_authorized_router(handle.origin, &handle.sender, &token.remote_routers) {
+        return Err(Error::UnauthorizedRouter.into());
+    }
+
+    // Account 4: Recipient wallet
+    let recipient_wallet = next_account_info(accounts_iter)?;
+    let expected_recipient = Pubkey::new_from_array(message.recipient().into());
+    if recipient_wallet.key != &expected_recipient {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Convert remote amount to local decimals
+    let remote_amount = message.amount();
+    let local_amount: u64 = token.remote_amount_to_local_amount(remote_amount)?;
+
+    // Accounts 5..N: Transfer out via plugin
+    CollateralPlugin::transfer_out(
+        program_id,
+        &token,
+        system_program_info,
+        recipient_wallet,
+        accounts_iter,
+        local_amount,
+    )?;
+
+    // Extraneous account check
+    if accounts_iter.next().is_some() {
+        return Err(Error::ExtraneousAccount.into());
+    }
+
+    msg!(
+        "CC handle_local completed from sender: {}, origin: {}, recipient: {}, remote_amount: {}",
+        handle.sender_program_id,
+        handle.origin,
+        recipient_wallet.key,
+        remote_amount
+    );
+
+    Ok(())
+}
+
+/// Gets the account metas required by the HandleLocal instruction.
+/// Used by off-chain tools to build same-chain TransferRemoteTo transactions.
+///
+/// Accounts:
+/// 0. `[]` The token PDA account.
+fn handle_local_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    handle: HandleLocal,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let mut message_reader = std::io::Cursor::new(&handle.message);
+    let message = TokenMessage::read_from(&mut message_reader)
+        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+
+    // Account 0: Token account
+    let token_account_info = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account_info,
+    )?;
+
+    let (transfer_out_account_metas, writeable_recipient) =
+        CollateralPlugin::transfer_out_account_metas(program_id, &token, &message)?;
+
+    let (cc_state_key, _cc_state_bump) =
+        Pubkey::find_program_address(cross_collateral_pda_seeds!(), program_id);
+
+    // CC dispatch authority from the sender program (will be the signer in CPI)
+    let (sender_dispatch_authority, _) = Pubkey::find_program_address(
+        cross_collateral_dispatch_authority_pda_seeds!(),
+        &handle.sender_program_id,
+    );
+
+    let mut account_metas: Vec<SerializableAccountMeta> = vec![
+        // CC dispatch authority signer from sender
+        AccountMeta::new_readonly(sender_dispatch_authority, true).into(),
+        AccountMeta::new_readonly(system_program::ID, false).into(),
+        AccountMeta::new_readonly(*token_account_info.key, false).into(),
         AccountMeta::new_readonly(cc_state_key, false).into(),
         AccountMeta {
             pubkey: Pubkey::new_from_array(message.recipient().into()),

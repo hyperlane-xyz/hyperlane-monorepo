@@ -21,6 +21,10 @@ pub enum Error {
     /// TokenIxn::Init is not allowed; use CrossCollateralInstruction::Init.
     #[error("Base init not allowed, use cross-collateral init")]
     BaseInitNotAllowed = 4,
+
+    /// TransferRemoteTo called with local domain, or HandleLocal called with remote domain.
+    #[error("Invalid domain for instruction")]
+    InvalidDomain = 5,
 }
 
 impl From<Error> for ProgramError {
