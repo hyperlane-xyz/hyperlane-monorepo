@@ -82,7 +82,6 @@ jobs:
       - name: Publish beta packages
         run: pnpm exec changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
       - name: Summary

@@ -90,7 +90,6 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   check-latest-published:
     runs-on: ubuntu-latest
@@ -199,4 +198,3 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
