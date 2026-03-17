@@ -33,7 +33,7 @@ jobs:
           path_pattern: 'solidity/'
 
   coverage-run:
-    runs-on: depot-ubuntu-24.04-16
+    runs-on: depot-ubuntu-24.04-8
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
@@ -45,16 +45,7 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
-
-      - name: Build
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm run build
+      - uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Run tests with coverage
         run: pnpm run coverage
