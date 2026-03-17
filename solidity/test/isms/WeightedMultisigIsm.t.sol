@@ -220,6 +220,46 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         assertTrue(ism.verify(metadata, message));
     }
 
+    // @notice Verifies that providing no signatures reverts with
+    // "Insufficient validator weight" since the loop exits immediately.
+    function test_verify_revert_noSignatures() public {
+        uint8 n = 3;
+        uint96 threshold = 5e9; // 50%
+        IStaticWeightedMultisigIsm.ValidatorInfo[]
+            memory validators = new IStaticWeightedMultisigIsm.ValidatorInfo[](
+                n
+            );
+        uint256[] memory keys = new uint256[](n);
+
+        for (uint256 i = 0; i < n; i++) {
+            keys[i] = uint256(keccak256(abi.encode("oob", i)));
+            validators[i].signingAddress = vm.addr(keys[i]);
+            validators[i].weight = uint96(TOTAL_WEIGHT / n);
+        }
+
+        ism = IInterchainSecurityModule(
+            weightedFactory.deploy(validators, threshold)
+        );
+        weightedIsm = AbstractStaticWeightedMultisigIsm(address(ism));
+
+        bytes memory message = abi.encodePacked(
+            uint8(3),
+            uint32(0),
+            mailbox.localDomain(),
+            address(this).addressToBytes32(),
+            uint32(0),
+            bytes32(uint256(1)),
+            hex"dead"
+        );
+        merkleTreeHook.insert(message.id());
+
+        // metadata with no signatures (just the prefix)
+        bytes memory metadata = metadataPrefix(message);
+
+        vm.expectRevert("Insufficient validator weight");
+        ism.verify(metadata, message);
+    }
+
     function test_verify_revertWhen_duplicateSignatures(
         uint32 destination,
         bytes32 recipient,

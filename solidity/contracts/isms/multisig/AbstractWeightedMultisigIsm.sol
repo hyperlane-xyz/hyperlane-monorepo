@@ -60,14 +60,14 @@ abstract contract AbstractStaticWeightedMultisigIsm is
             "Invalid threshold weight"
         );
 
+        uint256 _signatureCount = signatureCount(_metadata);
         uint256 _validatorIndex = 0;
         uint96 _totalWeight = 0;
 
         // assumes that signatures are ordered by validator
-        // signatureAt reverts on OOB if insufficient signatures provided
         for (
             uint256 signatureIndex = 0;
-            _totalWeight < _thresholdWeight;
+            _totalWeight < _thresholdWeight && signatureIndex < _signatureCount;
             ++signatureIndex
         ) {
             address _signer = ECDSA.recover(
