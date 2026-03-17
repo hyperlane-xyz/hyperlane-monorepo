@@ -20,6 +20,7 @@ import { address as parseAddress } from '@solana/kit';
 
 import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
+import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
@@ -75,10 +76,10 @@ export class SvmProtocolProvider implements ProtocolProvider {
   }
 
   createMailboxArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawMailboxArtifactManager {
-    // @TODO Implement in a follow up PR
-    throw Error('Not implemented');
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmMailboxArtifactManager(rpc, chainMetadata.domainId);
   }
 
   createValidatorAnnounceArtifactManager(
