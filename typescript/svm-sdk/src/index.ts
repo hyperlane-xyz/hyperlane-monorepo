@@ -81,6 +81,9 @@ export {
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
   deriveOverheadIgpAccountPda,
+  deriveValidatorAnnouncePda,
+  deriveValidatorStorageLocationsPda,
+  deriveReplayProtectionPda,
 } from './pda.js';
 
 // Account decoders

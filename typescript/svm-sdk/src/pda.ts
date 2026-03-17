@@ -156,6 +156,32 @@ export async function deriveValidatorAnnouncePda(
   ]);
 }
 
+export async function deriveValidatorStorageLocationsPda(
+  programAddress: Address,
+  validatorH160: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_validator_announce'),
+    utf8.encode('-'),
+    utf8.encode('storage_locations'),
+    utf8.encode('-'),
+    validatorH160,
+  ]);
+}
+
+export async function deriveReplayProtectionPda(
+  programAddress: Address,
+  replayIdBytes: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_validator_announce'),
+    utf8.encode('-'),
+    utf8.encode('replay_protection'),
+    utf8.encode('-'),
+    replayIdBytes,
+  ]);
+}
+
 export async function deriveNativeCollateralPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {
