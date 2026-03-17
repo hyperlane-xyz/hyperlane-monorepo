@@ -375,8 +375,9 @@ export function shouldDeployNewHook(
       // IGP hooks are mutable - can be updated
       return false;
     case AltVM.HookType.PROTOCOL_FEE:
+      if (actual.type !== AltVM.HookType.PROTOCOL_FEE) return true;
       // maxProtocolFee is immutable (constructor-only) and requires redeploy.
-      return normalizedActual.maxProtocolFee !== normalizedExpected.maxProtocolFee;
+      return actual.maxProtocolFee !== expected.maxProtocolFee;
 
     default: {
       throw new Error(`Unhandled hook type in shouldDeployNewHook`);

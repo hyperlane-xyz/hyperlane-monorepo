@@ -25,14 +25,14 @@ import { StarknetProvider } from './provider.js';
 import { StarknetSigner } from './signer.js';
 
 export class StarknetProtocolProvider implements ProtocolProvider {
-  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
+  async createProvider(
+    chainMetadata: ChainMetadataForAltVM,
+  ): Promise<IProvider> {
     const rpcUrls = (chainMetadata.rpcUrls ?? []).map(({ http }) => http);
     assert(rpcUrls.length > 0, 'rpc urls undefined for Starknet');
-    return Promise.resolve(
-      StarknetProvider.connect(rpcUrls, chainMetadata.chainId, {
-        metadata: chainMetadata,
-      }),
-    );
+    return StarknetProvider.connect(rpcUrls, chainMetadata.chainId, {
+      metadata: chainMetadata,
+    });
   }
 
   async createSigner(
