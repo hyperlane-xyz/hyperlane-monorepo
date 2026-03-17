@@ -77,6 +77,26 @@ export async function deriveMailboxDispatchAuthorityPda(
   ]);
 }
 
+export async function deriveMailboxInboxPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane'),
+    utf8.encode('-'),
+    utf8.encode('inbox'),
+  ]);
+}
+
+export async function deriveMailboxOutboxPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane'),
+    utf8.encode('-'),
+    utf8.encode('outbox'),
+  ]);
+}
+
 export async function deriveMailboxProcessAuthorityPda(
   mailboxProgramAddress: Address,
   recipientProgramAddress: Address,

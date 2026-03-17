@@ -67,6 +67,8 @@ export {
   deriveMultisigIsmDomainDataPda,
   deriveTestIsmStoragePda,
   deriveHyperlaneTokenPda,
+  deriveMailboxInboxPda,
+  deriveMailboxOutboxPda,
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
