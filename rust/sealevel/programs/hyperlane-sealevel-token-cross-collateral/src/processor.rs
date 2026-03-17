@@ -1,14 +1,20 @@
 //! Program processor.
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
-use hyperlane_core::Decode;
+use account_utils::{create_pda_account, DiscriminatorDecode, SizedData, SPL_NOOP_PROGRAM_ID};
+use hyperlane_core::{Decode, Encode};
+use hyperlane_sealevel_connection_client::gas_router::HyperlaneGasRouter;
 use hyperlane_sealevel_connection_client::{
-    router::RemoteRouterConfig, HyperlaneConnectionClientRecipient,
+    router::RemoteRouterConfig, HyperlaneConnectionClient, HyperlaneConnectionClientRecipient,
+};
+use hyperlane_sealevel_igp::{
+    accounts::InterchainGasPaymasterType,
+    instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas},
 };
 use hyperlane_sealevel_mailbox::{
-    accounts::Outbox, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    accounts::Outbox,
+    instruction::{Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch},
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -23,9 +29,9 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    instruction::AccountMeta,
+    instruction::{AccountMeta, Instruction},
     msg,
-    program::set_return_data,
+    program::{get_return_data, invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -38,7 +44,7 @@ use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     error::Error,
-    instruction::{CrossCollateralInit, CrossCollateralInstruction},
+    instruction::{CrossCollateralInit, CrossCollateralInstruction, TransferRemoteTo},
     plugin::CollateralPlugin,
 };
 
@@ -60,10 +66,8 @@ pub fn process_instruction(
             CrossCollateralInstruction::SetCrossCollateralRouters(configs) => {
                 set_cross_collateral_routers(program_id, accounts, configs)
             }
-            CrossCollateralInstruction::TransferRemoteTo(_transfer) => {
-                // TODO: implement in commit 6
-                msg!("TransferRemoteTo not yet implemented");
-                Err(ProgramError::InvalidInstructionData)
+            CrossCollateralInstruction::TransferRemoteTo(transfer) => {
+                transfer_remote_to(program_id, accounts, transfer)
             }
             CrossCollateralInstruction::HandleLocal(_handle) => {
                 // TODO: implement in commit 7
@@ -419,6 +423,252 @@ fn set_cross_collateral_routers(
         owner_account,
         system_program_info,
     )?;
+
+    Ok(())
+}
+
+/// Transfers tokens to a specific enrolled router (cross-chain via mailbox dispatch).
+/// Cannot reuse base `dispatch()` because it hardcodes `self.router(domain)` as recipient.
+/// Builds mailbox CPI manually with `target_router` as the recipient.
+///
+/// Accounts:
+/// 0.    `[executable]` system_program
+/// 1.    `[executable]` SPL Noop
+/// 2.    `[]` token PDA
+/// 3.    `[]` CC state PDA
+/// 4.    `[executable]` mailbox program
+/// 5.    `[]` mailbox outbox
+/// 6.    `[]` dispatch authority PDA
+/// 7.    `[signer]` sender wallet / mailbox payer
+/// 8.    `[signer]` unique message account
+/// 9.    `[writable]` dispatched message PDA
+///
+/// Remaining accounts: IGP accounts (optional), then plugin transfer_in accounts.
+#[allow(clippy::too_many_lines)]
+fn transfer_remote_to(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    xfer: TransferRemoteTo,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program
+    let system_program_account = next_account_info(accounts_iter)?;
+    if system_program_account.key != &system_program::ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 1: SPL Noop
+    let spl_noop = next_account_info(accounts_iter)?;
+    if spl_noop.key != &SPL_NOOP_PROGRAM_ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 2: Token storage account
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account,
+    )?;
+
+    // Account 3: CC state PDA
+    let cc_state_account = next_account_info(accounts_iter)?;
+    let cc_state =
+        CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
+
+    // Validate target_router is authorized for the destination domain
+    if !cc_state.is_authorized_router(
+        xfer.destination_domain,
+        &xfer.target_router,
+        &token.remote_routers,
+    ) {
+        return Err(Error::UnauthorizedRouter.into());
+    }
+
+    // Account 4: Mailbox program
+    let mailbox_info = next_account_info(accounts_iter)?;
+    if mailbox_info.key != &token.mailbox {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 5: Mailbox outbox (verified by mailbox)
+    let mailbox_outbox_account = next_account_info(accounts_iter)?;
+
+    // Account 6: Dispatch authority PDA
+    let dispatch_authority_account = next_account_info(accounts_iter)?;
+    let dispatch_authority_seeds: &[&[u8]] =
+        mailbox_message_dispatch_authority_pda_seeds!(token.dispatch_authority_bump);
+    let dispatch_authority_key =
+        Pubkey::create_program_address(dispatch_authority_seeds, program_id)?;
+    if *dispatch_authority_account.key != dispatch_authority_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 7: Sender wallet (signer + payer)
+    let sender_wallet = next_account_info(accounts_iter)?;
+    if !sender_wallet.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 8: Unique message / gas payment account
+    let unique_message_account = next_account_info(accounts_iter)?;
+
+    // Account 9: Dispatched message PDA
+    let dispatched_message_pda = next_account_info(accounts_iter)?;
+
+    // Accounts 10..N: IGP accounts (optional)
+    let igp_payment_accounts =
+        if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
+            let igp_program_account = next_account_info(accounts_iter)?;
+            if igp_program_account.key != igp_program_id {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            let igp_program_data_account = next_account_info(accounts_iter)?;
+            let igp_payment_pda_account = next_account_info(accounts_iter)?;
+
+            let configured_igp_account = next_account_info(accounts_iter)?;
+            if configured_igp_account.key != igp_account_type.key() {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            let mut igp_payment_account_metas = vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(*sender_wallet.key, true),
+                AccountMeta::new(*igp_program_data_account.key, false),
+                AccountMeta::new_readonly(*unique_message_account.key, true),
+                AccountMeta::new(*igp_payment_pda_account.key, false),
+            ];
+            let mut igp_payment_account_infos = vec![
+                system_program_account.clone(),
+                sender_wallet.clone(),
+                igp_program_data_account.clone(),
+                unique_message_account.clone(),
+                igp_payment_pda_account.clone(),
+            ];
+
+            match igp_account_type {
+                InterchainGasPaymasterType::Igp(_) => {
+                    igp_payment_account_metas
+                        .push(AccountMeta::new(*configured_igp_account.key, false));
+                    igp_payment_account_infos.push(configured_igp_account.clone());
+                }
+                InterchainGasPaymasterType::OverheadIgp(_) => {
+                    let inner_igp_account = next_account_info(accounts_iter)?;
+                    igp_payment_account_metas.extend([
+                        AccountMeta::new(*inner_igp_account.key, false),
+                        AccountMeta::new_readonly(*configured_igp_account.key, false),
+                    ]);
+                    igp_payment_account_infos
+                        .extend([inner_igp_account.clone(), configured_igp_account.clone()]);
+                }
+            };
+
+            Some((igp_payment_account_metas, igp_payment_account_infos))
+        } else {
+            None
+        };
+
+    // Convert amount to local and remote decimals
+    let local_amount: u64 = xfer
+        .amount_or_id
+        .try_into()
+        .map_err(|_| ProgramError::InvalidArgument)?;
+    let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
+
+    // Transfer tokens into escrow via plugin
+    CollateralPlugin::transfer_in(
+        program_id,
+        &token,
+        sender_wallet,
+        accounts_iter,
+        local_amount,
+    )?;
+
+    // Extraneous account check
+    if accounts_iter.next().is_some() {
+        return Err(Error::ExtraneousAccount.into());
+    }
+
+    // Build token message body
+    let token_transfer_message = TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
+
+    // Build mailbox dispatch CPI with target_router as recipient (not self.router(domain))
+    let dispatch_instruction = MailboxInstruction::OutboxDispatch(MailboxOutboxDispatch {
+        sender: *program_id,
+        destination_domain: xfer.destination_domain,
+        recipient: xfer.target_router,
+        message_body: token_transfer_message.clone(),
+    });
+    let dispatch_account_metas = vec![
+        AccountMeta::new(*mailbox_outbox_account.key, false),
+        AccountMeta::new_readonly(*dispatch_authority_account.key, true),
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(SPL_NOOP_PROGRAM_ID, false),
+        AccountMeta::new(*sender_wallet.key, true),
+        AccountMeta::new_readonly(*unique_message_account.key, true),
+        AccountMeta::new(*dispatched_message_pda.key, false),
+    ];
+    let dispatch_account_infos = &[
+        mailbox_outbox_account.clone(),
+        dispatch_authority_account.clone(),
+        system_program_account.clone(),
+        spl_noop.clone(),
+        sender_wallet.clone(),
+        unique_message_account.clone(),
+        dispatched_message_pda.clone(),
+    ];
+
+    let mailbox_ixn = Instruction {
+        program_id: token.mailbox,
+        data: dispatch_instruction
+            .into_instruction_data()
+            .map_err(|_| ProgramError::BorshIoError)?,
+        accounts: dispatch_account_metas,
+    };
+    invoke_signed(
+        &mailbox_ixn,
+        dispatch_account_infos,
+        &[dispatch_authority_seeds],
+    )?;
+
+    // Parse message ID from mailbox return data
+    let (returning_program_id, returned_data) =
+        get_return_data().ok_or(ProgramError::InvalidArgument)?;
+    if returning_program_id != token.mailbox {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // IGP payment if configured
+    if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
+        let (igp_program_id, _) = token
+            .interchain_gas_paymaster()
+            .ok_or(ProgramError::InvalidArgument)?;
+
+        let message_id = hyperlane_core::H256::from_slice(&returned_data);
+
+        let destination_gas = token
+            .destination_gas(xfer.destination_domain)
+            .ok_or(ProgramError::InvalidArgument)?;
+
+        let igp_ixn = Instruction::new_with_borsh(
+            *igp_program_id,
+            &IgpInstruction::PayForGas(IgpPayForGas {
+                message_id,
+                destination_domain: xfer.destination_domain,
+                gas_amount: destination_gas,
+            }),
+            igp_payment_account_metas,
+        );
+        invoke(&igp_ixn, &igp_payment_account_infos)?;
+    }
+
+    msg!(
+        "CC transfer_remote_to completed to destination: {}, target_router: {:?}, remote_amount: {}",
+        xfer.destination_domain,
+        xfer.target_router,
+        remote_amount
+    );
 
     Ok(())
 }
