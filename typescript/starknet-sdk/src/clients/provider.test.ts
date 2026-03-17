@@ -171,6 +171,33 @@ describe('StarknetProvider getHookType', () => {
   });
 });
 
+describe('StarknetProvider getCreateMailboxTransaction', () => {
+  it('passes hook addresses through mailbox constructor args', async () => {
+    const provider = new StarknetProviderTestHarness();
+
+    const tx = await provider.getCreateMailboxTransaction({
+      signer:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      domainId: TEST_METADATA.domainId,
+      defaultIsmAddress:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      defaultHookAddress:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      requiredHookAddress:
+        '0x4444444444444444444444444444444444444444444444444444444444444444',
+    });
+
+    expect(tx.kind).to.equal('deploy');
+    expect(tx.constructorArgs).to.deep.equal([
+      TEST_METADATA.domainId,
+      '0x1111111111111111111111111111111111111111111111111111111111111111',
+      '0x2222222222222222222222222222222222222222222222222222222222222222',
+      '0x3333333333333333333333333333333333333333333333333333333333333333',
+      '0x4444444444444444444444444444444444444444444444444444444444444444',
+    ]);
+  });
+});
+
 describe('StarknetProvider getBridgedSupply', () => {
   it('returns synthetic total supply for synthetic tokens', async () => {
     const provider = new StarknetBridgedSupplyTestHarness();

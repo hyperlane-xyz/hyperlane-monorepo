@@ -620,8 +620,12 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         normalizeStarknetAddressSafe(
           req.defaultIsmAddress ?? ZERO_ADDRESS_HEX_32,
         ),
-        ZERO_ADDRESS_HEX_32,
-        ZERO_ADDRESS_HEX_32,
+        normalizeStarknetAddressSafe(
+          req.defaultHookAddress ?? ZERO_ADDRESS_HEX_32,
+        ),
+        normalizeStarknetAddressSafe(
+          req.requiredHookAddress ?? ZERO_ADDRESS_HEX_32,
+        ),
       ],
     };
   }

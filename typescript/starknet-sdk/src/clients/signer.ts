@@ -248,9 +248,21 @@ export class StarknetSigner
       throw new Error('Proxy admin unsupported on Starknet');
     }
 
+    const defaultHookAddress =
+      req.defaultHookAddress ??
+      (
+        await this.createNoopHook({
+          // Hook deployment currently ignores mailboxAddress on Starknet.
+          mailboxAddress: this.signerAddress,
+        })
+      ).hookAddress;
+    const requiredHookAddress = req.requiredHookAddress ?? defaultHookAddress;
+
     const tx = await this.getCreateMailboxTransaction({
       signer: this.signerAddress,
       ...req,
+      defaultHookAddress,
+      requiredHookAddress,
     });
     const receipt = await this.sendAndConfirmTransaction(tx);
     assert(receipt.contractAddress, 'failed to get Starknet mailbox address');

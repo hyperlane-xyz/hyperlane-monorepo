@@ -15,11 +15,7 @@ import {
   RawMailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  ZERO_ADDRESS_HEX_32,
-  eqAddressStarknet,
-  assert,
-} from '@hyperlane-xyz/utils';
+import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -114,6 +110,8 @@ class StarknetMailboxWriter
       signer: this.signer.getSignerAddress(),
       domainId: this.chainMetadata.domainId,
       defaultIsmAddress,
+      defaultHookAddress,
+      requiredHookAddress,
       proxyAdminAddress: undefined,
     });
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
@@ -121,24 +119,6 @@ class StarknetMailboxWriter
 
     assert(createReceipt.contractAddress, 'failed to deploy Starknet mailbox');
     const mailboxAddress = createReceipt.contractAddress;
-
-    if (!eqAddressStarknet(defaultHookAddress, ZERO_ADDRESS_HEX_32)) {
-      const tx = await this.signer.getSetDefaultHookTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress,
-        hookAddress: defaultHookAddress,
-      });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
-    }
-
-    if (!eqAddressStarknet(requiredHookAddress, ZERO_ADDRESS_HEX_32)) {
-      const tx = await this.signer.getSetRequiredHookTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress,
-        hookAddress: requiredHookAddress,
-      });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
-    }
 
     if (
       !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
