@@ -28,7 +28,7 @@ import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { strategyCommand } from './src/commands/strategy.js';
 import { submitCommand } from './src/commands/submit.js';
-import { utilsCommand } from './src/commands/utils.js';
+import { addressCommand } from './src/commands/utils.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
 import { xerc20Command } from './src/commands/xerc20.js';
@@ -73,7 +73,7 @@ try {
     .command(statusCommand)
     .command(strategyCommand)
     .command(submitCommand)
-    .command(utilsCommand)
+    .command(addressCommand)
     .command(validatorCommand)
     .command(warpCommand)
     .command(xerc20Command)
