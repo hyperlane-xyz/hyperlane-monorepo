@@ -2,4 +2,4 @@
 "@hyperlane-xyz/provider-sdk": patch
 ---
 
-fix: provider sdk warp read
+fixed provider-sdk warp read to preserve domain ID keys in derived warp config
