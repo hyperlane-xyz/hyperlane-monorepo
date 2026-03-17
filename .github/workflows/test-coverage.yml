@@ -45,7 +45,8 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - uses: ./.github/actions/pnpm-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Run tests with coverage
         run: pnpm run coverage
