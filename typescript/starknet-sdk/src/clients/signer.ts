@@ -144,6 +144,14 @@ export class StarknetSigner
       params.contractName,
       params.contractType,
     );
+    assert(
+      contractArtifact.compiled_contract_class,
+      `Missing compiled_contract_class for Starknet contract ${params.contractName}`,
+    );
+    assert(
+      compiledClassHash,
+      `Missing compiledClassHash for Starknet contract ${params.contractName}`,
+    );
     const constructorCalldata = CallData.compile(params.constructorArgs);
 
     const factory = new ContractFactory({
