@@ -84,6 +84,9 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       );
     } else {
       this.logger.info(`Deploying MinimalInterchainAccountRouter on ${chain}`);
+      // CAST: MinimalInterchainAccountRouter shares the same function selectors used
+      // by the SDK (callRemoteWithOverrides, getDeployedInterchainAccount, isms, etc.).
+      // The EVM dispatches by selector so the cast is safe at runtime, but TS types differ.
       interchainAccountRouter = (await this.deployContractFromFactory(
         chain,
         new MinimalInterchainAccountRouter__factory(),
