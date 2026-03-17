@@ -59,7 +59,6 @@ export type DeployedMailboxArtifact = ArtifactDeployed<
 export interface MailboxArtifactConfigs {
   mailbox: MailboxArtifactConfig;
 }
-}
 
 export type MailboxType = keyof MailboxArtifactConfigs;
 

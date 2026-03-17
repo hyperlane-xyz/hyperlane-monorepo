@@ -13,6 +13,7 @@ import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
+import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -67,6 +68,13 @@ export class StarknetProtocolProvider implements ProtocolProvider {
     context?: { mailbox?: string },
   ): IRawHookArtifactManager {
     return new StarknetHookArtifactManager(chainMetadata, context);
+  }
+
+  createWarpArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
+  ): IRawWarpArtifactManager {
+    throw new Error('Not implemented');
   }
 
   createMailboxArtifactManager(
