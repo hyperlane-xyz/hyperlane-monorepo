@@ -15,19 +15,20 @@ import {
   RawMailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ZERO_ADDRESS_HEX_32, eqAddressStarknet, assert } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  eqAddressStarknet,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 
-class StarknetMailboxReader
-  implements
-    ArtifactReader<
-      RawMailboxArtifactConfigs['mailbox'],
-      DeployedMailboxAddress
-    >
-{
+class StarknetMailboxReader implements ArtifactReader<
+  RawMailboxArtifactConfigs['mailbox'],
+  DeployedMailboxAddress
+> {
   constructor(protected readonly provider: StarknetProvider) {}
 
   async read(
@@ -46,15 +47,21 @@ class StarknetMailboxReader
         owner: mailbox.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: normalizeStarknetAddressSafe(mailbox.defaultIsm) },
+          deployed: {
+            address: normalizeStarknetAddressSafe(mailbox.defaultIsm),
+          },
         },
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: normalizeStarknetAddressSafe(mailbox.defaultHook) },
+          deployed: {
+            address: normalizeStarknetAddressSafe(mailbox.defaultHook),
+          },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: normalizeStarknetAddressSafe(mailbox.requiredHook) },
+          deployed: {
+            address: normalizeStarknetAddressSafe(mailbox.requiredHook),
+          },
         },
       },
       deployed: {
@@ -68,10 +75,7 @@ class StarknetMailboxReader
 class StarknetMailboxWriter
   extends StarknetMailboxReader
   implements
-    ArtifactWriter<
-      RawMailboxArtifactConfigs['mailbox'],
-      DeployedMailboxAddress
-    >
+    ArtifactWriter<RawMailboxArtifactConfigs['mailbox'], DeployedMailboxAddress>
 {
   constructor(
     provider: StarknetProvider,
@@ -97,8 +101,12 @@ class StarknetMailboxWriter
     ]
   > {
     const defaultIsmAddress = this.getNestedAddress(artifact.config.defaultIsm);
-    const defaultHookAddress = this.getNestedAddress(artifact.config.defaultHook);
-    const requiredHookAddress = this.getNestedAddress(artifact.config.requiredHook);
+    const defaultHookAddress = this.getNestedAddress(
+      artifact.config.defaultHook,
+    );
+    const requiredHookAddress = this.getNestedAddress(
+      artifact.config.requiredHook,
+    );
 
     const receipts: TxReceipt[] = [];
 
@@ -132,7 +140,9 @@ class StarknetMailboxWriter
       receipts.push(await this.signer.sendAndConfirmTransaction(tx));
     }
 
-    if (!eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())) {
+    if (
+      !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
+    ) {
       const tx = await this.signer.getSetMailboxOwnerTransaction({
         signer: this.signer.getSignerAddress(),
         mailboxAddress,
@@ -155,13 +165,23 @@ class StarknetMailboxWriter
     const mailboxAddress = artifact.deployed.address;
     const updateTxs: AnnotatedTx[] = [];
 
-    const expectedDefaultIsm = this.getNestedAddress(artifact.config.defaultIsm);
-    const expectedDefaultHook = this.getNestedAddress(artifact.config.defaultHook);
-    const expectedRequiredHook = this.getNestedAddress(artifact.config.requiredHook);
+    const expectedDefaultIsm = this.getNestedAddress(
+      artifact.config.defaultIsm,
+    );
+    const expectedDefaultHook = this.getNestedAddress(
+      artifact.config.defaultHook,
+    );
+    const expectedRequiredHook = this.getNestedAddress(
+      artifact.config.requiredHook,
+    );
 
     const currentDefaultIsm = this.getNestedAddress(current.config.defaultIsm);
-    const currentDefaultHook = this.getNestedAddress(current.config.defaultHook);
-    const currentRequiredHook = this.getNestedAddress(current.config.requiredHook);
+    const currentDefaultHook = this.getNestedAddress(
+      current.config.defaultHook,
+    );
+    const currentRequiredHook = this.getNestedAddress(
+      current.config.requiredHook,
+    );
 
     if (!eqAddressStarknet(currentDefaultIsm, expectedDefaultIsm)) {
       updateTxs.push({
@@ -237,7 +257,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     if (type !== 'mailbox') {
-      throw new Error(`Unsupported Starknet mailbox type: ${type}`);
+      throw new Error('Unsupported Starknet mailbox type');
     }
     const readers: {
       [K in MailboxType]: ArtifactReader<
@@ -255,7 +275,7 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     if (type !== 'mailbox') {
-      throw new Error(`Unsupported Starknet mailbox type: ${type}`);
+      throw new Error('Unsupported Starknet mailbox type');
     }
     const starknetSigner = this.requireStarknetSigner(signer);
     const writers: {

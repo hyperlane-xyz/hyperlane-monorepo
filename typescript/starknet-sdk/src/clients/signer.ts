@@ -13,7 +13,9 @@ import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   ContractType,
+  getCompiledClassHash,
   getCompiledContract,
+  getContractArtifact,
 } from '@hyperlane-xyz/starknet-core';
 import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
@@ -110,7 +112,9 @@ export class StarknetSigner
     );
   }
 
-  private isInvokeTx(transaction: AnnotatedTx): transaction is StarknetInvokeTx {
+  private isInvokeTx(
+    transaction: AnnotatedTx,
+  ): transaction is StarknetInvokeTx {
     return (
       transaction.kind === 'invoke' &&
       typeof transaction.contractAddress === 'string' &&
@@ -132,10 +136,20 @@ export class StarknetSigner
       params.contractName,
       params.contractType,
     );
+    const compiledClassHash = getCompiledClassHash(
+      params.contractName,
+      params.contractType,
+    );
+    const contractArtifact = getContractArtifact(
+      params.contractName,
+      params.contractType,
+    );
     const constructorCalldata = CallData.compile(params.constructorArgs);
 
     const factory = new ContractFactory({
       compiledContract,
+      casm: contractArtifact.compiled_contract_class,
+      compiledClassHash,
       account: this.account,
     });
 
@@ -151,9 +165,7 @@ export class StarknetSigner
       StarknetSigner.readStringField(deployment, 'contract_address');
     assert(rawAddress, 'missing Starknet deploy contract address');
 
-    const address = normalizeStarknetAddressSafe(
-      rawAddress,
-    );
+    const address = normalizeStarknetAddressSafe(rawAddress);
     const receipt = await this.account.waitForTransaction(transactionHash);
 
     return {
@@ -210,14 +222,15 @@ export class StarknetSigner
       (tx): tx is StarknetInvokeTx => tx.kind === 'invoke',
     );
 
-    const calls: Call[] = invokeTransactions.flatMap((invoke) =>
-      invoke.calls ?? [
-        {
-          contractAddress: invoke.contractAddress,
-          entrypoint: invoke.entrypoint,
-          calldata: invoke.calldata,
-        },
-      ],
+    const calls: Call[] = invokeTransactions.flatMap(
+      (invoke) =>
+        invoke.calls ?? [
+          {
+            contractAddress: invoke.contractAddress,
+            entrypoint: invoke.entrypoint,
+            calldata: invoke.calldata,
+          },
+        ],
     );
 
     const response = await this.account.execute(calls);

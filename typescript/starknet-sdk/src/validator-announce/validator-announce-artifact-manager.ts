@@ -26,13 +26,10 @@ import {
   normalizeStarknetAddressSafe,
 } from '../contracts.js';
 
-class StarknetValidatorAnnounceReader
-  implements
-    ArtifactReader<
-      RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
-      DeployedValidatorAnnounceAddress
-    >
-{
+class StarknetValidatorAnnounceReader implements ArtifactReader<
+  RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
+  DeployedValidatorAnnounceAddress
+> {
   constructor(private readonly provider: StarknetProvider) {}
 
   async read(
@@ -123,9 +120,7 @@ class StarknetValidatorAnnounceWriter
   }
 }
 
-export class StarknetValidatorAnnounceArtifactManager
-  implements IRawValidatorAnnounceArtifactManager
-{
+export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAnnounceArtifactManager {
   private readonly provider: StarknetProvider;
 
   constructor(chainMetadata: ChainMetadataForAltVM) {
@@ -156,7 +151,7 @@ export class StarknetValidatorAnnounceArtifactManager
     DeployedValidatorAnnounceAddress
   > {
     if (type !== 'validatorAnnounce') {
-      throw new Error(`Unsupported Starknet validator announce type: ${type}`);
+      throw new Error('Unsupported Starknet validator announce type');
     }
     const readers: {
       [K in ValidatorAnnounceType]: ArtifactReader<
@@ -177,7 +172,7 @@ export class StarknetValidatorAnnounceArtifactManager
     DeployedValidatorAnnounceAddress
   > {
     if (type !== 'validatorAnnounce') {
-      throw new Error(`Unsupported Starknet validator announce type: ${type}`);
+      throw new Error('Unsupported Starknet validator announce type');
     }
     const starknetSigner = this.requireStarknetSigner(signer);
     const writers: {

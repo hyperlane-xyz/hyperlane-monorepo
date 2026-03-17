@@ -1,6 +1,7 @@
 import {
   Logger,
   WithAddress,
+  assert,
   deepEquals,
   normalizeConfig,
   rootLogger,
@@ -167,6 +168,12 @@ export interface RawHookArtifactConfigs {
  * deploys or reads a single hook artifact on chain
  */
 export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
+
+function isProtocolFeeHookConfig(
+  config: HookArtifactConfig,
+): config is ProtocolFeeHookConfig {
+  return config.type === AltVM.HookType.PROTOCOL_FEE;
+}
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
@@ -375,7 +382,10 @@ export function shouldDeployNewHook(
       // IGP hooks are mutable - can be updated
       return false;
     case AltVM.HookType.PROTOCOL_FEE:
-      if (actual.type !== AltVM.HookType.PROTOCOL_FEE) return true;
+      assert(
+        isProtocolFeeHookConfig(actual),
+        'expected protocolFee hook config',
+      );
       // maxProtocolFee is immutable (constructor-only) and requires redeploy.
       return actual.maxProtocolFee !== expected.maxProtocolFee;
 

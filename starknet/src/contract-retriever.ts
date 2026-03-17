@@ -1,4 +1,4 @@
-import { CompiledContract } from 'starknet';
+import { hash, type CompiledContract } from 'starknet';
 
 import { starknetContracts } from './artifacts/index.js';
 import { ERR_CODES } from './const.js';
@@ -16,6 +16,21 @@ export function getCompiledContract(
   name: string,
   contractType: ContractType = ContractType.CONTRACT,
 ): CompiledContract {
+  const contract = getContractArtifact(name, contractType);
+  if (!contract.contract_class) {
+    throw new ContractError(ERR_CODES.SIERRA_NOT_FOUND, {
+      name,
+      type: contractType,
+    });
+  }
+
+  return contract.contract_class;
+}
+
+export function getContractArtifact(
+  name: string,
+  contractType: ContractType = ContractType.CONTRACT,
+): StarknetContractGroup[string] {
   const group = getContractGroup(contractType);
   const contract = group[name];
 
@@ -26,14 +41,17 @@ export function getCompiledContract(
     });
   }
 
-  if (!contract.contract_class) {
-    throw new ContractError(ERR_CODES.SIERRA_NOT_FOUND, {
-      name,
-      type: contractType,
-    });
-  }
+  return contract;
+}
 
-  return contract.contract_class;
+export function getCompiledClassHash(
+  name: string,
+  contractType: ContractType = ContractType.CONTRACT,
+): string | undefined {
+  const contract = getContractArtifact(name, contractType);
+  return contract.compiled_contract_class
+    ? hash.computeCompiledClassHash(contract.compiled_contract_class)
+    : undefined;
 }
 
 /**

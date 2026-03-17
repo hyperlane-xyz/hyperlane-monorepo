@@ -41,9 +41,29 @@ function isUint256Like(value: unknown): value is Uint256 {
   return isNumberish(low) && isNumberish(high);
 }
 
-function isPopulatedInvokeTx(
-  value: unknown,
-): value is {
+function describeUnknown(value: unknown): string {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean'
+  ) {
+    return String(value);
+  }
+
+  if (isObjectRecord(value)) {
+    if ('value' in value) return describeUnknown(value.value);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+
+  return '';
+}
+
+function isPopulatedInvokeTx(value: unknown): value is {
   contractAddress: unknown;
   entrypoint: string;
   calldata?: RawArgsArray;
@@ -116,13 +136,11 @@ export function normalizeStarknetAddressSafe(value: unknown): string {
     if ('value' in value) {
       return normalizeStarknetAddressSafe(value.value);
     }
-
-    if ('toString' in value && typeof value.toString === 'function') {
-      return normalizeStarknetAddressSafe(value.toString());
-    }
   }
 
-  throw new Error(`Unable to normalize Starknet address: ${String(value)}`);
+  throw new Error(
+    `Unable to normalize Starknet address: ${describeUnknown(value) || '[unsupported value]'}`,
+  );
 }
 
 export function addressToEvmAddress(value: unknown): string {
@@ -203,20 +221,20 @@ export function extractEnumVariant(value: unknown): string {
     }
   }
 
-  return String(value);
+  return describeUnknown(value);
 }
 
 export function toNumber(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
   if (typeof value === 'string') return Number(value);
-  if (value && typeof value === 'object') {
-    if ('toString' in value && typeof value.toString === 'function') {
-      return Number(value.toString());
-    }
+  if (isObjectRecord(value) && 'value' in value) {
+    return toNumber(value.value);
   }
 
-  throw new Error(`Unable to coerce value to number: ${String(value)}`);
+  throw new Error(
+    `Unable to coerce value to number: ${describeUnknown(value) || '[unsupported value]'}`,
+  );
 }
 
 export function toBigInt(value: unknown): bigint {
@@ -227,12 +245,12 @@ export function toBigInt(value: unknown): bigint {
     if (isUint256Like(value)) {
       return uint256.uint256ToBN(value);
     }
-    if ('toString' in value && typeof value.toString === 'function') {
-      return BigInt(value.toString());
-    }
+    if ('value' in value) return toBigInt(value.value);
   }
 
-  throw new Error(`Unable to coerce value to bigint: ${String(value)}`);
+  throw new Error(
+    `Unable to coerce value to bigint: ${describeUnknown(value) || '[unsupported value]'}`,
+  );
 }
 
 export function getFeeTokenAddress(params: {

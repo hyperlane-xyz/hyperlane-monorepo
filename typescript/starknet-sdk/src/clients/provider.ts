@@ -98,9 +98,15 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     if (value && typeof value === 'object') {
       if ('value' in value) return this.parseString(value.value);
 
-      if ('toString' in value && typeof value.toString === 'function') {
-        const parsed = value.toString();
-        if (parsed && parsed !== '[object Object]') return parsed;
+      const toStringFn = Reflect.get(value, 'toString');
+      if (
+        typeof toStringFn === 'function' &&
+        toStringFn !== Object.prototype.toString
+      ) {
+        const parsed = Reflect.apply(toStringFn, value, []);
+        if (typeof parsed === 'string' && parsed !== '[object Object]') {
+          return parsed;
+        }
       }
     }
 
@@ -405,7 +411,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
     try {
-      const hook = this.withContract(StarknetContractName.HOOK, req.hookAddress);
+      const hook = this.withContract(
+        StarknetContractName.HOOK,
+        req.hookAddress,
+      );
       const hookType = await callContract(hook, 'hook_type');
       return this.parseHookVariant(extractEnumVariant(hookType));
     } catch {

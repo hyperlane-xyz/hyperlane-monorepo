@@ -47,8 +47,10 @@ export class StarknetArtifactGenerator {
    */
   async getArtifactPaths() {
     const sierraPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.SIERRA_JSON}`;
+    const casmPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.ASSEMBLY_JSON}`;
     const sierraFiles = await globby(sierraPattern);
-    return { sierraFiles };
+    const casmFiles = await globby(casmPattern);
+    return { sierraFiles, casmFiles };
   }
 
   /**
@@ -236,10 +238,11 @@ export class StarknetArtifactGenerator {
   async generate(): Promise<ReadonlyProcessedFilesMap> {
     await this.createOutputDirectory();
 
-    const { sierraFiles } = await this.getArtifactPaths();
+    const { sierraFiles, casmFiles } = await this.getArtifactPaths();
+    const artifactFiles = [...sierraFiles, ...casmFiles];
 
     const processingResults = await Promise.all(
-      sierraFiles.map((file) => this.processArtifact(file)),
+      artifactFiles.map((file) => this.processArtifact(file)),
     );
 
     const processedFilesMap =
