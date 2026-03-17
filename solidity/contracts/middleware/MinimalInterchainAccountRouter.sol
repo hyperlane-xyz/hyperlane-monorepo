@@ -133,6 +133,11 @@ contract MinimalInterchainAccountRouter is Router, AbstractRoutingIsm {
         }
     }
 
+    // ============ Receive ============
+
+    /// @dev Accept hook refunds (e.g. IGP overpayment, ProtocolFee excess).
+    receive() external payable {}
+
     // ============ External Functions ============
 
     function approveFeeTokenForHook(address _feeToken, address _hook) external {
