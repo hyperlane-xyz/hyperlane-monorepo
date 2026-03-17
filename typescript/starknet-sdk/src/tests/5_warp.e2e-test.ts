@@ -18,9 +18,14 @@ describe('5. starknet sdk warp e2e tests', function () {
 
   async function createMailbox() {
     const { ismAddress } = await signer.createNoopIsm({});
+    const { hookAddress } = await signer.createNoopHook({
+      mailboxAddress: signer.getSignerAddress(),
+    });
     const mailbox = await signer.createMailbox({
       domainId: 1234,
       defaultIsmAddress: ismAddress,
+      defaultHookAddress: hookAddress,
+      requiredHookAddress: hookAddress,
     });
     return mailbox.mailboxAddress;
   }
