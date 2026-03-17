@@ -21,6 +21,7 @@ import { address as parseAddress } from '@solana/kit';
 import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
+import { SvmValidatorAnnounceArtifactManager } from '../core/validator-announce-artifact-manager.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
@@ -83,10 +84,10 @@ export class SvmProtocolProvider implements ProtocolProvider {
   }
 
   createValidatorAnnounceArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
-  ): IRawValidatorAnnounceArtifactManager | null {
-    // @TODO Implement in a follow up PR
-    throw Error('Not implemented');
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager {
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmValidatorAnnounceArtifactManager(rpc, chainMetadata.domainId);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
