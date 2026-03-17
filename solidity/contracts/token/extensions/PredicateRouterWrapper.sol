@@ -18,6 +18,7 @@ import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHoo
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {Quote} from "../../interfaces/ITokenBridge.sol";
+import {Quotes} from "../libs/Quotes.sol";
 
 // ============ Predicate Imports ============
 import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
@@ -167,7 +168,10 @@ contract PredicateRouterWrapper is
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warp route for collateral routes only
-        if (tokenType == TokenType.Collateral) {
+        if (
+            tokenType == TokenType.Collateral ||
+            tokenType == TokenType.Synthetic
+        ) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
@@ -219,7 +223,10 @@ contract PredicateRouterWrapper is
             _attestation.uuid
         );
 
-        // 3. Quote total amount needed from router (includes fees)
+        // 3. Set flag before external calls (CEI pattern - checked in postDispatch)
+        pendingAttestation = true;
+
+        // 4. Quote total amount needed from router (includes fees)
         Quote[] memory quotes = warpRoute.quoteTransferRemote(
             _destination,
             _recipient,
@@ -229,23 +236,12 @@ contract PredicateRouterWrapper is
         // 5. Handle token transfer based on type, pulling total quoted amount
         if (tokenType == TokenType.Native) {
             // For native tokens, sum all native quote amounts
-            uint256 totalNativeRequired = 0;
-            for (uint256 i = 0; i < quotes.length; i++) {
-                if (quotes[i].token == address(0)) {
-                    totalNativeRequired += quotes[i].amount;
-                }
-            }
+            uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
             if (msg.value < totalNativeRequired)
                 revert PredicateRouterWrapper__InsufficientValue();
         } else {
             // For ERC20 tokens, sum all token quote amounts and pull from user
-            uint256 totalTokenRequired = 0;
-            address tokenAddr = address(token);
-            for (uint256 i = 0; i < quotes.length; i++) {
-                if (quotes[i].token == tokenAddr) {
-                    totalTokenRequired += quotes[i].amount;
-                }
-            }
+            uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
             token.safeTransferFrom(
                 msg.sender,
                 address(this),
@@ -253,10 +249,7 @@ contract PredicateRouterWrapper is
             );
         }
 
-        // 4. Set flag immediately before calling warpRoute (checked in postDispatch)
-        pendingAttestation = true;
-
-        // 5. Call warp route using already-encoded calldata (avoids re-encoding)
+        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(warpRoute).call{
             value: msg.value
