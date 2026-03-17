@@ -1,0 +1,1 @@
+//! Cross-collateral state accounts.
