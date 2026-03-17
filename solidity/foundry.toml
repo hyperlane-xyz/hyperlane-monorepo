@@ -21,6 +21,10 @@ verbosity = 4
 cbor_metadata = false
 bytecode_hash = "none"
 
+[profile.coverage]
+# Reduce optimizer runs for coverage to save memory (25k -> 200)
+optimizer_runs = 200
+
 [profile.tron]
 # Tron uses 0x41 prefix for CREATE2 instead of 0xff
 # Override Create2.sol with patched version in overrides/tron/
