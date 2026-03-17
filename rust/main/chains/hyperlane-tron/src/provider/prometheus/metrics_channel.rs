@@ -1,7 +1,9 @@
 use std::future::Future;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
+use tonic::codegen::http::header::{HeaderName, HeaderValue};
 use tonic::codegen::http::{Request, Response};
 use tonic::GrpcMethod;
 use tower::Service;
@@ -13,16 +15,17 @@ use super::metrics_future::MetricsChannelFuture;
 pub struct MetricsChannel<T> {
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
+    custom_headers: Arc<Vec<(HeaderName, HeaderValue)>>,
     inner: T,
 }
 
 impl<T> MetricsChannel<T> {
-    /// Wrap a channel so that sending RPCs over it increments gRPC client
-    /// Prometheus metrics.
+    /// Wrap a channel with metrics and optional custom headers injected on every request.
     pub fn new(
         inner: T,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
+        custom_headers: Vec<(HeaderName, HeaderValue)>,
     ) -> Self {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
@@ -32,6 +35,7 @@ impl<T> MetricsChannel<T> {
             inner,
             metrics,
             metrics_config,
+            custom_headers: Arc::new(custom_headers),
         }
     }
 }
@@ -50,6 +54,7 @@ impl<T: Clone> Clone for MetricsChannel<T> {
             self.inner.clone(),
             self.metrics.clone(),
             self.metrics_config.clone(),
+            (*self.custom_headers).clone(),
         )
     }
 }
@@ -67,7 +72,10 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Request<I>) -> Self::Future {
+    fn call(&mut self, mut req: Request<I>) -> Self::Future {
+        for (name, value) in self.custom_headers.iter() {
+            req.headers_mut().insert(name.clone(), value.clone());
+        }
         let (_, method) = req
             .extensions()
             .get::<GrpcMethod>()
