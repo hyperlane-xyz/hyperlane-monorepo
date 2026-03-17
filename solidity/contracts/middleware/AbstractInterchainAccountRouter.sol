@@ -70,6 +70,7 @@ abstract contract AbstractInterchainAccountRouter is Router {
         bytes32 salt
     );
 
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function interchainSecurityModule()
         external
         view
@@ -272,6 +273,7 @@ abstract contract AbstractInterchainAccountRouter is Router {
         assert(false);
     }
 
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _enrollRemoteRouter(
         uint32 _destination,
         bytes32 _address
