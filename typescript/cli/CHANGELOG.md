@@ -1,5 +1,31 @@
 # @hyperlane-xyz/cli
 
+## 28.0.0
+
+### Major Changes
+
+- 5a5d172: CLI warp route reference methods were consolidated into a single `--warp-route-id` flag with `-w` and `--id` aliases. The `--config/-wd` (deploy config path) and `--warp/-wc` (warp config path) flags were removed in favor of registry-based warp route IDs. Symbol-only references (for example, `-w ETH`) now auto-resolve when unique or prompt for selection when multiple matches exist.
+
+  Migration examples:
+  - Before: `hyperlane warp deploy --config ./config.yaml`
+  - After: `hyperlane warp deploy -w ETH/ethereum-arbitrum`
+
+### Minor Changes
+
+- b9c6844: MultiCollateral contracts and SDK/CLI terminology were renamed to CrossCollateral.
+
+  The Solidity ABI was updated with renamed contracts, interfaces, router enrollment methods, domain/route getters, fee-quote method, events, and revert prefixes.
+
+  The SDK token type was migrated to `crossCollateral`.
+
+  Reader compatibility for legacy deployed contracts was not retained; readers now require the renamed CrossCollateral ABI methods.
+
+### Patch Changes
+
+- 83767b9: Removed `AltVMCoreModule`, `AltVMCoreReader`, and `coreModuleProvider` from deploy-sdk in favor of the new core artifact API (`CoreWriter`, `createCoreReader`). Added `coreConfigToArtifact` and `coreResultToDeployedAddresses` helpers to provider-sdk. Updated CLI core deploy and read commands to use the new API.
+- a4a74d8: TokenBridgeOft was refactored to remove TokenRouter inheritance, implementing ITokenBridge directly with OwnableUpgradeable. The contract no longer requires a mailbox, remote router enrollment, or destination gas configuration. Fee recipient support was removed and OFT fee quotes were consolidated into a single token quote entry. SDK deployer, warp route reader, and warp module were updated to handle OFT configs separately from Router-based configs.
+- 5ebefdb: Added support for `hyperlane warp send` from EVM chains to non-EVM destinations (Eclipse, Solana, Cosmos). Transaction is submitted on EVM origin, Rust relayer handles delivery. Non-EVM destinations require explicit `--recipient`.
+
 ## 27.1.0
 
 ## 27.0.0

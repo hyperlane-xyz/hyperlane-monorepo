@@ -1,5 +1,29 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 4.0.0
+
+### Major Changes
+
+- 83767b9: Removed `AltVMCoreModule`, `AltVMCoreReader`, and `coreModuleProvider` from deploy-sdk in favor of the new core artifact API (`CoreWriter`, `createCoreReader`). Added `coreConfigToArtifact` and `coreResultToDeployedAddresses` helpers to provider-sdk. Updated CLI core deploy and read commands to use the new API.
+
+### Minor Changes
+
+- a6b7bf3: Added `CoreWriter` and `CoreArtifactReader` for coordinating core deployments using the Artifact API pattern. The `CoreWriter` orchestrates mailbox, ISM, hook, and validator announce deployments with support for both create and update flows. Updated `AltVMCoreModule` to handle `UnsetArtifactAddress` in derived core configs.
+
+### Patch Changes
+
+- Updated dependencies [26d08de]
+- Updated dependencies [83767b9]
+- Updated dependencies [228ed9f]
+- Updated dependencies [a6b7bf3]
+  - @hyperlane-xyz/aleo-sdk@28.0.0
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/cosmos-sdk@28.0.0
+  - @hyperlane-xyz/radix-sdk@28.0.0
+  - @hyperlane-xyz/sealevel-sdk@28.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.2
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 3.1.0
 
 ### Minor Changes
