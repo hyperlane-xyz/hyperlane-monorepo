@@ -9652,6 +9652,7 @@
         "from": 1080309
       },
       "gnosisSafeTransactionServiceUrl": "https://safe.igralabs.com/txs",
+      "interchainAccountRouter": "0xD233433AeC23F8382DAd87D808F60557Ea35399f",
       "transactionOverrides": {
         "gasPrice": 1000000000000
       }
