@@ -7,7 +7,6 @@ mod db_loader;
 mod merkle_tree;
 mod metrics;
 mod prover;
-pub mod relay_api;
 mod relayer;
 mod settings;
 
