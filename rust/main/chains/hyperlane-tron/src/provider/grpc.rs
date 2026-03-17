@@ -92,7 +92,7 @@ impl GrpcProvider {
                             custom_headers,
                         )
                     })
-                    .map(|m| GrpcChannel::new(m, url))
+                    .map(|m| GrpcChannel::new(m, clean_url))
                     .map_err(Into::<HyperlaneTronError>::into)
             })
             .collect::<Result<Vec<GrpcChannel>, _>>()?;
