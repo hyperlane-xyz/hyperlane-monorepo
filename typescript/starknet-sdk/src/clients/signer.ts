@@ -315,14 +315,12 @@ export class StarknetSigner
           mailboxAddress: this.signerAddress,
         })
       ).hookAddress;
-    const requiredHookAddress = req.requiredHookAddress ?? defaultHookAddress;
 
     const tx = await this.getCreateMailboxTransaction({
       signer: this.signerAddress,
       ...req,
       defaultIsmAddress,
       defaultHookAddress,
-      requiredHookAddress,
     });
     const receipt = await this.sendAndConfirmTransaction(tx);
     assert(receipt.contractAddress, 'failed to get Starknet mailbox address');

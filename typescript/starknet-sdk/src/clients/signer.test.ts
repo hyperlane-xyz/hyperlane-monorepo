@@ -25,6 +25,9 @@ const TEST_METADATA = {
 class StarknetSignerTestHarness extends StarknetSigner {
   capturedBatch?: StarknetAnnotatedTx[];
   capturedTx?: StarknetAnnotatedTx;
+  capturedCreateMailboxReq?: Omit<AltVM.ReqCreateMailbox, 'signer'> & {
+    signer: string;
+  };
   testTokenType: AltVM.TokenType = AltVM.TokenType.native;
   tokenDenom = TEST_METADATA.nativeToken.denom;
 
@@ -73,7 +76,22 @@ class StarknetSignerTestHarness extends StarknetSigner {
     transaction: StarknetAnnotatedTx,
   ): Promise<StarknetTxReceipt> {
     this.capturedTx = transaction;
-    return { transactionHash: '0x1' };
+    return { transactionHash: '0x1', contractAddress: '0xabc' };
+  }
+
+  override async createNoopHook(): Promise<AltVM.ResCreateNoopHook> {
+    return { hookAddress: '0x999' };
+  }
+
+  override async getCreateMailboxTransaction(
+    req: AltVM.ReqCreateMailbox,
+  ): Promise<StarknetAnnotatedTx> {
+    this.capturedCreateMailboxReq = req;
+    return {
+      kind: 'deploy',
+      contractName: 'mailbox',
+      constructorArgs: [],
+    };
   }
 }
 
@@ -195,5 +213,26 @@ describe('StarknetSigner remoteTransfer', () => {
       entrypoint: 'transfer_remote',
       calldata: ['0x1'],
     });
+  });
+});
+
+describe('StarknetSigner createMailbox', () => {
+  it('preserves omitted requiredHookAddress when default hook is auto-created', async () => {
+    const signer = new StarknetSignerTestHarness();
+
+    await signer.createMailbox({
+      domainId: TEST_METADATA.domainId,
+      defaultIsmAddress: '0x222',
+    });
+
+    expect(signer.capturedCreateMailboxReq).to.deep.include({
+      signer: signer.getSignerAddress(),
+      domainId: TEST_METADATA.domainId,
+      defaultIsmAddress: '0x222',
+      defaultHookAddress: '0x999',
+    });
+    expect(signer.capturedCreateMailboxReq?.requiredHookAddress).to.equal(
+      undefined,
+    );
   });
 });
