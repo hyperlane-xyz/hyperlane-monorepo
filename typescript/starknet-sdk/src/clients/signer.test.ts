@@ -3,6 +3,7 @@ import { RpcProvider } from 'starknet';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
+import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
 
 import { StarknetSigner } from './signer.js';
@@ -25,6 +26,7 @@ class StarknetSignerTestHarness extends StarknetSigner {
   capturedBatch?: StarknetAnnotatedTx[];
   capturedTx?: StarknetAnnotatedTx;
   testTokenType: AltVM.TokenType = AltVM.TokenType.native;
+  tokenDenom = TEST_METADATA.nativeToken.denom;
 
   constructor() {
     super(
@@ -44,7 +46,7 @@ class StarknetSignerTestHarness extends StarknetSigner {
       mailboxAddress: '0x1',
       ismAddress: '0x0',
       hookAddress: '0x0',
-      denom: TEST_METADATA.nativeToken.denom,
+      denom: this.tokenDenom,
       name: 'Ether',
       symbol: 'ETH',
       decimals: 18,
@@ -109,6 +111,38 @@ describe('StarknetSigner remoteTransfer', () => {
   it('batches collateral token approval before transfer', async () => {
     const signer = new StarknetSignerTestHarness();
     signer.testTokenType = AltVM.TokenType.collateral;
+    signer.tokenDenom =
+      '0x999999999999999999999999999999999999999999999999999999999999999';
+
+    await signer.remoteTransfer({
+      tokenAddress: '0xabc',
+      destinationDomainId: 1234,
+      recipient: '0x456',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: {
+        denom: TEST_METADATA.nativeToken.denom,
+        amount: '2',
+      },
+    });
+
+    expect(signer.capturedTx).to.equal(undefined);
+    expect(signer.capturedBatch).to.have.length(3);
+    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+      normalizeStarknetAddressSafe(signer.tokenDenom),
+    );
+    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[1].kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[1].contractAddress).to.equal(
+      TEST_METADATA.nativeToken.denom,
+    );
+    expect(signer.capturedBatch?.[1].entrypoint).to.equal('approve');
+  });
+
+  it('batches fee token approval before synthetic transfer', async () => {
+    const signer = new StarknetSignerTestHarness();
+    signer.testTokenType = AltVM.TokenType.synthetic;
 
     await signer.remoteTransfer({
       tokenAddress: '0xabc',

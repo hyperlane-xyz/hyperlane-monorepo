@@ -678,21 +678,53 @@ export class StarknetSigner
       signer: this.signerAddress,
       ...req,
     });
-    if (
-      tokenType === AltVM.TokenType.native ||
-      tokenType === AltVM.TokenType.collateral
-    ) {
-      const approvalToken = getStarknetContract(
+    const batchedTxs: StarknetAnnotatedTx[] = [];
+
+    if (tokenType === AltVM.TokenType.native) {
+      const nativeToken = getStarknetContract(
         StarknetContractName.ETHER,
         token.denom,
         this.provider,
         ContractType.TOKEN,
       );
-      const approvalTx = await populateInvokeTx(approvalToken, 'approve', [
-        normalizeStarknetAddressSafe(req.tokenAddress),
-        toBigInt(req.amount) + toBigInt(req.maxFee.amount),
-      ]);
-      await this.sendAndConfirmBatchTransactions([approvalTx, tx]);
+      batchedTxs.push(
+        await populateInvokeTx(nativeToken, 'approve', [
+          normalizeStarknetAddressSafe(req.tokenAddress),
+          toBigInt(req.amount) + toBigInt(req.maxFee.amount),
+        ]),
+      );
+    } else if (tokenType === AltVM.TokenType.collateral) {
+      const collateralToken = getStarknetContract(
+        StarknetContractName.ETHER,
+        token.denom,
+        this.provider,
+        ContractType.TOKEN,
+      );
+      batchedTxs.push(
+        await populateInvokeTx(collateralToken, 'approve', [
+          normalizeStarknetAddressSafe(req.tokenAddress),
+          toBigInt(req.amount),
+        ]),
+      );
+    }
+
+    if (tokenType !== AltVM.TokenType.native) {
+      const feeToken = getStarknetContract(
+        StarknetContractName.ETHER,
+        req.maxFee.denom,
+        this.provider,
+        ContractType.TOKEN,
+      );
+      batchedTxs.push(
+        await populateInvokeTx(feeToken, 'approve', [
+          normalizeStarknetAddressSafe(req.tokenAddress),
+          toBigInt(req.maxFee.amount),
+        ]),
+      );
+    }
+
+    if (batchedTxs.length > 0) {
+      await this.sendAndConfirmBatchTransactions([...batchedTxs, tx]);
     } else {
       await this.sendAndConfirmTransaction(tx);
     }
