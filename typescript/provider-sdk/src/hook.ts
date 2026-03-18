@@ -29,7 +29,7 @@ export interface HookConfigs {
   interchainGasPaymaster: IgpHookModuleConfig;
   protocolFee: ProtocolFeeHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
-  noopHook: NoopHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
@@ -80,8 +80,9 @@ export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
 }
 
-export interface NoopHookConfig {
-  type: 'noopHook';
+export interface UnknownHookConfig {
+  type: 'unknownHook';
+  [key: string]: unknown;
 }
 
 export interface ProtocolFeeHookModuleConfig {
@@ -133,7 +134,7 @@ export interface HookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
-  noopHook: NoopHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 
 /**
@@ -167,7 +168,7 @@ export interface RawHookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
-  noopHook: NoopHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 
 /**
@@ -346,11 +347,11 @@ export function hookConfigToArtifact(
         },
       };
 
-    case 'noopHook':
+    case 'unknownHook':
       return {
         artifactState: ArtifactState.NEW,
         config: {
-          type: 'noopHook',
+          type: 'unknownHook',
         },
       };
 
@@ -401,7 +402,7 @@ export function shouldDeployNewHook(
       // MerkleTree hooks are immutable - must deploy new if config changed
       return !deepEquals(normalizedActual, normalizedExpected);
 
-    case 'noopHook':
+    case 'unknownHook':
       return false;
 
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
@@ -538,9 +539,9 @@ export function hookArtifactToDerivedConfig(
         address,
       };
 
-    case 'noopHook':
+    case 'unknownHook':
       return {
-        type: 'noopHook',
+        type: 'unknownHook',
         address,
       };
 

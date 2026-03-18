@@ -108,7 +108,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
       merkleTreeHook: () => new SvmMerkleTreeHookReader(this.rpc),
       interchainGasPaymaster: () => new SvmIgpHookReader(this.rpc, this.salt),
       protocolFee: () => createUnsupportedSvmHookReader('protocolFee'),
-      noopHook: () => createUnsupportedSvmHookReader('noopHook'),
+      unknownHook: () => createUnsupportedSvmHookReader('unknownHook'),
     };
     const factory = readers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);
@@ -132,7 +132,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
       interchainGasPaymaster: () =>
         new SvmIgpHookWriter(this.rpc, this.salt, signer),
       protocolFee: () => createUnsupportedSvmHookWriter('protocolFee'),
-      noopHook: () => createUnsupportedSvmHookWriter('noopHook'),
+      unknownHook: () => createUnsupportedSvmHookWriter('unknownHook'),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);

@@ -196,17 +196,17 @@ class StarknetMerkleTreeHookWriter
 }
 
 class StarknetNoopHookReader implements ArtifactReader<
-  RawHookArtifactConfigs['noopHook'],
+  RawHookArtifactConfigs['unknownHook'],
   DeployedHookAddress
 > {
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawHookArtifactConfigs['noopHook'], DeployedHookAddress>
+    ArtifactDeployed<RawHookArtifactConfigs['unknownHook'], DeployedHookAddress>
   > {
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { type: 'noopHook' },
+      config: { type: 'unknownHook' },
       deployed: { address: normalizeStarknetAddressSafe(address) },
     };
   }
@@ -215,17 +215,20 @@ class StarknetNoopHookReader implements ArtifactReader<
 class StarknetNoopHookWriter
   extends StarknetNoopHookReader
   implements
-    ArtifactWriter<RawHookArtifactConfigs['noopHook'], DeployedHookAddress>
+    ArtifactWriter<RawHookArtifactConfigs['unknownHook'], DeployedHookAddress>
 {
   constructor(private readonly signer: StarknetSigner) {
     super();
   }
 
   async create(
-    artifact: ArtifactNew<RawHookArtifactConfigs['noopHook']>,
+    artifact: ArtifactNew<RawHookArtifactConfigs['unknownHook']>,
   ): Promise<
     [
-      ArtifactDeployed<RawHookArtifactConfigs['noopHook'], DeployedHookAddress>,
+      ArtifactDeployed<
+        RawHookArtifactConfigs['unknownHook'],
+        DeployedHookAddress
+      >,
       TxReceipt[],
     ]
   > {
@@ -243,7 +246,7 @@ class StarknetNoopHookWriter
 
   async update(
     _artifact: ArtifactDeployed<
-      RawHookArtifactConfigs['noopHook'],
+      RawHookArtifactConfigs['unknownHook'],
       DeployedHookAddress
     >,
   ): Promise<AnnotatedTx[]> {
@@ -462,7 +465,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       hookAddress: address,
     });
     if (hookType === AltVM.HookType.CUSTOM) {
-      return this.createReader('noopHook').read(address);
+      return this.createReader('unknownHook').read(address);
     }
 
     if (hookType === AltVM.HookType.MERKLE_TREE) {
@@ -494,7 +497,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         this.chainMetadata,
         this.provider,
       ),
-      noopHook: new StarknetNoopHookReader(),
+      unknownHook: new StarknetNoopHookReader(),
     };
     return readers[type];
   }
@@ -528,7 +531,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         this.provider,
         starknetSigner,
       ),
-      noopHook: new StarknetNoopHookWriter(starknetSigner),
+      unknownHook: new StarknetNoopHookWriter(starknetSigner),
     };
     return writers[type];
   }

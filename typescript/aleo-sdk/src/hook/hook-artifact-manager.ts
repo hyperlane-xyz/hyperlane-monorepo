@@ -69,7 +69,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoIgpHookReader(this.aleoClient),
       [AltVM.HookType.PROTOCOL_FEE]: () =>
         createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
-      noopHook: () => createUnsupportedHookReader('noopHook', 'Aleo'),
+      unknownHook: () => createUnsupportedHookReader('unknownHook', 'Aleo'),
     };
 
     assert(readers[type], `Hook reader for ${type} not found`);
@@ -95,7 +95,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
       [AltVM.HookType.PROTOCOL_FEE]: () =>
         createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
-      noopHook: () => createUnsupportedHookWriter('noopHook', 'Aleo'),
+      unknownHook: () => createUnsupportedHookWriter('unknownHook', 'Aleo'),
     };
 
     assert(writers[type], `Hook writer for ${type} not found`);

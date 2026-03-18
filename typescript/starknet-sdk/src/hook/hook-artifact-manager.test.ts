@@ -109,7 +109,7 @@ describe('StarknetHookArtifactManager', () => {
     expect(artifact.config.protocolFee).to.equal('10');
   });
 
-  it('reads custom Starknet hooks as noopHook artifacts', async () => {
+  it('reads custom Starknet hooks as unknownHook artifacts', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
     const provider = Reflect.get(manager, 'provider') as {
       getHookType: (_req: { hookAddress: string }) => Promise<AltVM.HookType>;
@@ -117,23 +117,23 @@ describe('StarknetHookArtifactManager', () => {
     provider.getHookType = async () => AltVM.HookType.CUSTOM;
 
     const artifact = await manager.readHook('0xabc');
-    expect(artifact.config).to.deep.equal({ type: 'noopHook' });
+    expect(artifact.config).to.deep.equal({ type: 'unknownHook' });
     expect(artifact.deployed.address).to.equal(
       normalizeStarknetAddressSafe('0xabc'),
     );
   });
 
-  it('creates noopHook artifacts via the Starknet noop hook deployer', async () => {
+  it('creates unknownHook artifacts via the Starknet noop hook deployer', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
     const signer = new MockStarknetSigner();
-    const writer = manager.createWriter('noopHook', signer);
+    const writer = manager.createWriter('unknownHook', signer);
 
     const [artifact] = await writer.create({
       artifactState: ArtifactState.NEW,
-      config: { type: 'noopHook' },
+      config: { type: 'unknownHook' },
     });
 
-    expect(artifact.config).to.deep.equal({ type: 'noopHook' });
+    expect(artifact.config).to.deep.equal({ type: 'unknownHook' });
     expect(artifact.deployed.address).to.equal('0xabc');
   });
 

@@ -130,12 +130,12 @@ describe('hook protocolFee support', () => {
     });
   });
 
-  it('derives noopHook config with address', () => {
+  it('derives unknownHook config with address', () => {
     const derived = hookArtifactToDerivedConfig(
       {
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'noopHook',
+          type: 'unknownHook',
         },
         deployed: { address: '0xdef' },
       },
@@ -143,17 +143,17 @@ describe('hook protocolFee support', () => {
     );
 
     expect(derived).to.deep.equal({
-      type: 'noopHook',
+      type: 'unknownHook',
       address: '0xdef',
     });
   });
 
-  it('does not redeploy noopHook when type is unchanged', () => {
+  it('does not redeploy unknownHook when type is unchanged', () => {
     const actual = {
-      type: 'noopHook',
+      type: 'unknownHook',
     } as const;
     const expected = {
-      type: 'noopHook',
+      type: 'unknownHook',
     } as const;
 
     expect(shouldDeployNewHook(actual, expected)).to.equal(false);
