@@ -52,6 +52,24 @@ describe('altvm signer config helpers', () => {
     );
   });
 
+  it('prefers accountAddress over userAddress when both are present', () => {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      starknetsepolia: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'starknetsepolia',
+          privateKey: '0xabc',
+          accountAddress: '0xaccount',
+          userAddress: '0xuser',
+        },
+      },
+    };
+
+    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).to.equal(
+      '0xaccount',
+    );
+  });
+
   it('returns undefined for non-Starknet protocol', () => {
     expect(
       resolveAltVmAccountAddress({}, ProtocolType.CosmosNative, 'osmosis'),
