@@ -75,6 +75,28 @@ describe('hook protocolFee support', () => {
     expect(shouldDeployNewHook(actual, expected)).to.equal(true);
   });
 
+  it('does not force redeploy when protocolFee max is unreadable', () => {
+    const actual = {
+      type: 'protocolFee',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      maxProtocolFee: '10',
+      protocolFee: '10',
+    } as const;
+    Object.defineProperty(actual, '__maxProtocolFeeUnknown', {
+      value: true,
+    });
+    const expected = {
+      type: 'protocolFee',
+      owner: '0xowner2',
+      beneficiary: '0xbeneficiary2',
+      maxProtocolFee: '200',
+      protocolFee: '20',
+    } as const;
+
+    expect(shouldDeployNewHook(actual, expected)).to.equal(false);
+  });
+
   it('derives protocolFee hook config with address', () => {
     const derived = hookArtifactToDerivedConfig(
       {

@@ -138,6 +138,23 @@ class StarknetTxTestHarness extends StarknetProvider {
   protected override async determineTokenType(): Promise<AltVM.TokenType> {
     return this.tokenType;
   }
+
+  override async getMailbox(): Promise<AltVM.ResGetMailbox> {
+    return {
+      address:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      owner:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      localDomain: TEST_METADATA.domainId,
+      defaultIsm:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      defaultHook:
+        '0x4444444444444444444444444444444444444444444444444444444444444444',
+      requiredHook:
+        '0x4444444444444444444444444444444444444444444444444444444444444444',
+      nonce: 0,
+    };
+  }
 }
 
 class StarknetTokenTypeTestHarness extends StarknetProvider {
@@ -166,6 +183,33 @@ class StarknetTokenTypeTestHarness extends StarknetProvider {
 
   async readTokenType(tokenAddress: string): Promise<AltVM.TokenType> {
     return this.determineTokenType(tokenAddress);
+  }
+}
+
+class StarknetCreateTokenTxHarness extends StarknetProvider {
+  constructor() {
+    super(
+      new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+      TEST_METADATA,
+      ['http://localhost:9545'],
+    );
+  }
+
+  override async getMailbox(): Promise<AltVM.ResGetMailbox> {
+    return {
+      address:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      owner:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      localDomain: TEST_METADATA.domainId,
+      defaultIsm:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      defaultHook:
+        '0x4444444444444444444444444444444444444444444444444444444444444444',
+      requiredHook:
+        '0x4444444444444444444444444444444444444444444444444444444444444444',
+      nonce: 0,
+    };
   }
 }
 
@@ -356,6 +400,25 @@ describe('StarknetProvider warp tx builders', () => {
 
     expect(tx.kind).to.equal('invoke');
     expect(tx.calldata?.[3]).to.equal(2n);
+  });
+
+  it('uses mailbox default hook and ism when creating native tokens', async () => {
+    const provider = new StarknetCreateTokenTxHarness();
+
+    const tx = await provider.getCreateNativeTokenTransaction({
+      signer:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      mailboxAddress:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+    });
+
+    expect(tx.kind).to.equal('deploy');
+    expect(tx.constructorArgs?.[2]).to.equal(
+      '0x4444444444444444444444444444444444444444444444444444444444444444',
+    );
+    expect(tx.constructorArgs?.[3]).to.equal(
+      '0x3333333333333333333333333333333333333333333333333333333333333333',
+    );
   });
 });
 

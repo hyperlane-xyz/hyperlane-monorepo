@@ -175,6 +175,13 @@ function isProtocolFeeHookConfig(
   return config.type === AltVM.HookType.PROTOCOL_FEE;
 }
 
+function hasUnreadableProtocolFeeMax(config: HookArtifactConfig): boolean {
+  return (
+    isProtocolFeeHookConfig(config) &&
+    Reflect.get(config as object, '__maxProtocolFeeUnknown') === true
+  );
+}
+
 /**
  * Should be used to implement an object/closure or class that individually deploys
  * Hooks on chain
@@ -386,6 +393,9 @@ export function shouldDeployNewHook(
         isProtocolFeeHookConfig(actual),
         'expected protocolFee hook config',
       );
+      if (hasUnreadableProtocolFeeMax(actual)) {
+        return false;
+      }
       const expectedProtocolFee: ProtocolFeeHookConfig = expected;
       // maxProtocolFee is immutable (constructor-only) and requires redeploy.
       return actual.maxProtocolFee !== expectedProtocolFee.maxProtocolFee;

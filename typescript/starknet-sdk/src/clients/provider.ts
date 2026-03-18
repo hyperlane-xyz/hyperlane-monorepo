@@ -901,6 +901,9 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   async getCreateNativeTokenTransaction(
     req: AltVM.ReqCreateNativeToken,
   ): Promise<StarknetAnnotatedTx> {
+    const mailbox = await this.getMailbox({
+      mailboxAddress: req.mailboxAddress,
+    });
     return {
       kind: 'deploy',
       contractName: StarknetContractName.HYP_NATIVE,
@@ -908,8 +911,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       constructorArgs: [
         normalizeStarknetAddressSafe(req.mailboxAddress),
         this.feeTokenAddress,
-        ZERO_ADDRESS_HEX_32,
-        ZERO_ADDRESS_HEX_32,
+        normalizeStarknetAddressSafe(mailbox.defaultHook),
+        normalizeStarknetAddressSafe(mailbox.defaultIsm),
         normalizeStarknetAddressSafe(req.signer),
       ],
     };
@@ -918,6 +921,9 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
   ): Promise<StarknetAnnotatedTx> {
+    const mailbox = await this.getMailbox({
+      mailboxAddress: req.mailboxAddress,
+    });
     return {
       kind: 'deploy',
       contractName: StarknetContractName.HYP_ERC20_COLLATERAL,
@@ -926,8 +932,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         normalizeStarknetAddressSafe(req.mailboxAddress),
         normalizeStarknetAddressSafe(req.collateralDenom),
         normalizeStarknetAddressSafe(req.signer),
-        ZERO_ADDRESS_HEX_32,
-        ZERO_ADDRESS_HEX_32,
+        normalizeStarknetAddressSafe(mailbox.defaultHook),
+        normalizeStarknetAddressSafe(mailbox.defaultIsm),
       ],
     };
   }
@@ -935,6 +941,9 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   async getCreateSyntheticTokenTransaction(
     req: AltVM.ReqCreateSyntheticToken,
   ): Promise<StarknetAnnotatedTx> {
+    const mailbox = await this.getMailbox({
+      mailboxAddress: req.mailboxAddress,
+    });
     return {
       kind: 'deploy',
       contractName: StarknetContractName.HYP_ERC20,
@@ -945,8 +954,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         0,
         req.name,
         req.denom,
-        ZERO_ADDRESS_HEX_32,
-        ZERO_ADDRESS_HEX_32,
+        normalizeStarknetAddressSafe(mailbox.defaultHook),
+        normalizeStarknetAddressSafe(mailbox.defaultIsm),
         normalizeStarknetAddressSafe(req.signer),
       ],
     };

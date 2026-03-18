@@ -131,18 +131,23 @@ class StarknetProtocolFeeHookReader implements ArtifactReader<
 
     const ownerAddress = normalizeStarknetAddressSafe(owner);
     const beneficiaryAddress = normalizeStarknetAddressSafe(beneficiary);
+    const config: RawHookArtifactConfigs['protocolFee'] = {
+      type: AltVM.HookType.PROTOCOL_FEE,
+      owner: ownerAddress,
+      beneficiary: beneficiaryAddress,
+      // Starknet protocol_fee does not expose maxProtocolFee as a view.
+      // Mark the read config as lossy so generic deploy logic does not
+      // redeploy forever when protocolFee != desired maxProtocolFee.
+      maxProtocolFee: toBigInt(protocolFee).toString(),
+      protocolFee: toBigInt(protocolFee).toString(),
+    };
+    Object.defineProperty(config, '__maxProtocolFeeUnknown', {
+      value: true,
+    });
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: {
-        type: AltVM.HookType.PROTOCOL_FEE,
-        owner: ownerAddress,
-        beneficiary: beneficiaryAddress,
-        // Starknet protocol_fee does not expose maxProtocolFee as a view.
-        // Preserve a conservative value so update paths can still read config.
-        maxProtocolFee: toBigInt(protocolFee).toString(),
-        protocolFee: toBigInt(protocolFee).toString(),
-      },
+      config,
       deployed: { address: normalizedAddress },
     };
   }
