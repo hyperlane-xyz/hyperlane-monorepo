@@ -130,9 +130,8 @@ pub fn process_instruction(
     // Block TokenIxn::Init — must use CrossCollateralInstruction::Init
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(_) => Err(Error::BaseInitNotAllowed.into()),
-        TokenIxn::TransferRemote(xfer) => {
-            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote(program_id, accounts, xfer)
-        }
+        // Block base TransferRemote — must use CrossCollateralInstruction::TransferRemoteTo
+        TokenIxn::TransferRemote(_) => Err(Error::BaseTransferRemoteNotAllowed.into()),
         TokenIxn::EnrollRemoteRouter(config) => {
             HyperlaneSealevelToken::<CollateralPlugin>::enroll_remote_router(
                 program_id, accounts, config,
@@ -1096,8 +1095,8 @@ fn handle_local(
     // unvalidated sender field (which would allow spoofing).
     let sender = H256::from(handle.sender_program_id.to_bytes());
 
-    // Validate sender is enrolled for the local domain
-    if !cc_state.is_authorized_router(handle.origin, &sender, &token.remote_routers) {
+    // HandleLocal only accepts CC-enrolled routers
+    if !cc_state.is_enrolled_router(handle.origin, &sender) {
         return Err(Error::UnauthorizedRouter.into());
     }
 

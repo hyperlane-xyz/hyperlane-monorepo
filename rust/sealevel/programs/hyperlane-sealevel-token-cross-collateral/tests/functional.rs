@@ -917,47 +917,14 @@ mod base_token {
     }
 
     #[tokio::test]
-    async fn test_base_transfer_remote_passthrough() {
-        let mut ctx = TestContext::new(true).await;
-        let igp = ctx.igp_accounts.as_ref().unwrap();
-        let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
-            (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
-
-        let base_remote_router = H256::random();
-        enroll_remote_router(
-            &mut ctx.banks_client,
-            &ctx.program_id,
-            &ctx.payer,
-            &ctx.cc.token,
-            REMOTE_DOMAIN,
-            base_remote_router,
-        )
-        .await
-        .unwrap();
-
-        let (token_sender, token_sender_ata) = ctx
-            .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
-            .await;
-        let token_sender_pubkey = token_sender.pubkey();
-        let transfer_amount = 15 * 10u64.pow(LOCAL_DECIMALS_U32);
-
-        let unique_message_account_keypair = Keypair::new();
-        let (dispatched_message_key, _) = Pubkey::find_program_address(
-            mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
-            &ctx.mailbox_program_id,
-        );
-        let (gas_payment_pda_key, _) = Pubkey::find_program_address(
-            igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
-            &igp_program_id(),
-        );
-
-        let remote_token_recipient = H256::random();
+    async fn test_base_transfer_remote_blocked() {
+        let mut ctx = TestContext::new(false).await;
 
         use hyperlane_sealevel_token_lib::instruction::TransferRemote;
         let ixn_data = HyperlaneTokenInstruction::TransferRemote(TransferRemote {
             destination_domain: REMOTE_DOMAIN,
-            recipient: remote_token_recipient,
-            amount_or_id: transfer_amount.into(),
+            recipient: H256::random(),
+            amount_or_id: 100u64.into(),
         })
         .encode()
         .unwrap();
@@ -967,44 +934,22 @@ mod base_token {
             &[Instruction::new_with_bytes(
                 ctx.program_id,
                 &ixn_data,
-                vec![
-                    AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
-                    AccountMeta::new_readonly(ctx.cc.token, false),
-                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
-                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
-                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
-                    AccountMeta::new(token_sender_pubkey, true),
-                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
-                    AccountMeta::new(dispatched_message_key, false),
-                    AccountMeta::new_readonly(igp_program, false),
-                    AccountMeta::new(igp_program_data, false),
-                    AccountMeta::new(gas_payment_pda_key, false),
-                    AccountMeta::new_readonly(igp_overhead_igp, false),
-                    AccountMeta::new(igp_igp, false),
-                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
-                    AccountMeta::new(ctx.mint, false),
-                    AccountMeta::new(token_sender_ata, false),
-                    AccountMeta::new(ctx.cc.escrow, false),
-                ],
+                // Minimal accounts — instruction should be rejected at decode stage
+                vec![AccountMeta::new(ctx.payer.pubkey(), true)],
             )],
-            Some(&token_sender_pubkey),
-            &[&token_sender, &unique_message_account_keypair],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
             recent_blockhash,
         );
-        ctx.banks_client
-            .process_transaction(transaction)
-            .await
-            .unwrap();
-
-        assert_token_balance(
-            &mut ctx.banks_client,
-            &token_sender_ata,
-            85 * 10u64.pow(LOCAL_DECIMALS_U32),
-        )
-        .await;
-
-        assert_token_balance(&mut ctx.banks_client, &ctx.cc.escrow, transfer_amount).await;
+        let result = ctx.banks_client.process_transaction(transaction).await;
+        assert!(result.is_err());
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(7), // BaseTransferRemoteNotAllowed
+            ),
+        );
     }
 }
 
@@ -1824,6 +1769,114 @@ mod handle_local_instruction {
         let result = ctx.banks_client.process_transaction(transaction).await;
 
         // Custom(2) = Error::UnauthorizedRouter — B rejects A
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::Custom(2)),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_local_rejects_base_remote_router() {
+        // Base remote router enrollment does NOT authorize HandleLocal —
+        // only CC-enrolled routers are accepted for same-chain transfers.
+        let mut ctx = TestContext::new(false).await;
+        let program_b = second_cc_program_id();
+        let cc_b = ctx.init_second_cc_token().await;
+
+        let router_b = H256::from(program_b.to_bytes());
+        let router_a = H256::from(ctx.program_id.to_bytes());
+
+        // Enroll B in A's CC state (so A can call TransferLocal targeting B)
+        enroll_cc_routers(
+            &mut ctx.banks_client,
+            &ctx.program_id,
+            &ctx.payer,
+            vec![RemoteRouterConfig {
+                domain: LOCAL_DOMAIN,
+                router: Some(router_b),
+            }],
+        )
+        .await
+        .unwrap();
+
+        // Enroll A as B's BASE remote router (not CC router)
+        enroll_remote_router(
+            &mut ctx.banks_client,
+            &program_b,
+            &ctx.payer,
+            &cc_b.token,
+            LOCAL_DOMAIN,
+            router_a,
+        )
+        .await
+        .unwrap();
+
+        // Fund B's escrow and ATA payer
+        let escrow_b = cc_b.escrow;
+        let ata_payer_b = cc_b.ata_payer;
+        ctx.fund_escrow_and_ata_payer(escrow_b, ata_payer_b, 100 * 10u64.pow(LOCAL_DECIMALS_U32))
+            .await;
+
+        let (token_sender, token_sender_ata) = ctx
+            .create_funded_sender(50 * 10u64.pow(LOCAL_DECIMALS_U32))
+            .await;
+        let token_sender_pubkey = token_sender.pubkey();
+        let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+
+        let recipient_pubkey = Pubkey::new_unique();
+        let recipient: H256 = recipient_pubkey.to_bytes().into();
+        let recipient_ata =
+            spl_associated_token_account::get_associated_token_address_with_program_id(
+                &recipient_pubkey,
+                &ctx.mint,
+                &ctx.spl_token_program_id,
+            );
+
+        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+            recipient,
+            amount_or_id: transfer_amount.into(),
+            target_router: router_b,
+        })
+        .encode()
+        .unwrap();
+
+        let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        let transaction = Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(ctx.cc.cc_dispatch_authority, false),
+                    AccountMeta::new_readonly(program_b, false),
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                    // B's HandleLocal accounts
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(cc_b.token, false),
+                    AccountMeta::new_readonly(cc_b.cc_state, false),
+                    AccountMeta::new_readonly(recipient_pubkey, false),
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new_readonly(spl_associated_token_account::id(), false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(recipient_ata, false),
+                    AccountMeta::new(cc_b.ata_payer, false),
+                    AccountMeta::new(cc_b.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender],
+            recent_blockhash,
+        );
+        let result = ctx.banks_client.process_transaction(transaction).await;
+
+        // Custom(2) = Error::UnauthorizedRouter — B rejects A because
+        // A is only enrolled as a base remote router, not a CC router.
         assert_transaction_error(
             result,
             TransactionError::InstructionError(0, InstructionError::Custom(2)),
