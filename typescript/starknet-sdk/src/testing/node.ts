@@ -1,7 +1,7 @@
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
+import { assert, retryAsync, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import {
   STARKNET_DEVNET_IMAGE,
@@ -89,7 +89,11 @@ export async function runStarknetNode(
         return container;
       } catch (error) {
         if (container) {
-          await container.stop().catch(() => undefined);
+          await container.stop().catch((stopError: unknown) => {
+            rootLogger.debug('Failed to stop Starknet devnet container', {
+              stopError,
+            });
+          });
         }
         throw error;
       }

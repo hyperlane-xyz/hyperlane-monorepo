@@ -214,6 +214,10 @@ class StarknetProtocolFeeHookWriter
     >,
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
+    assert(
+      current.config.maxProtocolFee === artifact.config.maxProtocolFee,
+      'Changing maxProtocolFee requires redeploying the Starknet protocolFee hook',
+    );
     const contractAddress = artifact.deployed.address;
     const contract = getStarknetContract(
       StarknetContractName.PROTOCOL_FEE,

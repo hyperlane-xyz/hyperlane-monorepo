@@ -1,4 +1,5 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   ArtifactReader,
@@ -45,7 +46,12 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
       validatorAnnounce: () => new RadixValidatorAnnounceReader(this.gateway),
     };
 
-    return readers[_type]();
+    const readerFactory = readers[_type];
+    assert(
+      typeof readerFactory === 'function',
+      `Unexpected reader type: ${_type}`,
+    );
+    return readerFactory();
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -66,6 +72,11 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
         new RadixValidatorAnnounceWriter(this.gateway, baseSigner, this.base),
     };
 
-    return writers[_type]();
+    const writerFactory = writers[_type];
+    assert(
+      typeof writerFactory === 'function',
+      `Unexpected writer type: ${_type}`,
+    );
+    return writerFactory();
   }
 }

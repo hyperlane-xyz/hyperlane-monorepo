@@ -4,8 +4,8 @@ import MonorepoDefaults from '../../eslint.config.mjs';
 
 export default [
   ...MonorepoDefaults,
-  ...restrictedSdkAndUtilsImportRules,
-  {
+  ...restrictedSdkAndUtilsImportRules.map((rule) => ({
+    ...rule,
     files: ['src/**/*.ts'],
-  },
+  })),
 ];

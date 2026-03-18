@@ -10,7 +10,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
@@ -84,7 +84,12 @@ async function loadAccountAddress(
   const promptedAddress = await altVmPrompts.input({
     message: `Please enter the Starknet account contract address for chain ${chain}`,
   });
-  return { accountAddress: promptedAddress, isPrompted: true };
+  const accountAddress = promptedAddress.trim();
+  assert(
+    accountAddress,
+    `Missing Starknet account contract address for chain ${chain}`,
+  );
+  return { accountAddress, isPrompted: true };
 }
 
 export async function createAltVMSigners(

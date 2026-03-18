@@ -24,6 +24,7 @@ const TEST_METADATA = {
 class StarknetSignerTestHarness extends StarknetSigner {
   capturedBatch?: StarknetAnnotatedTx[];
   capturedTx?: StarknetAnnotatedTx;
+  testTokenType: AltVM.TokenType = AltVM.TokenType.native;
 
   constructor() {
     super(
@@ -39,7 +40,7 @@ class StarknetSignerTestHarness extends StarknetSigner {
     return {
       address: '0xabc',
       owner: this.getSignerAddress(),
-      tokenType: AltVM.TokenType.native,
+      tokenType: this.testTokenType,
       mailboxAddress: '0x1',
       ismAddress: '0x0',
       hookAddress: '0x0',
@@ -103,5 +104,30 @@ describe('StarknetSigner remoteTransfer', () => {
       entrypoint: 'transfer_remote',
       calldata: ['0x1'],
     });
+  });
+
+  it('batches collateral token approval before transfer', async () => {
+    const signer = new StarknetSignerTestHarness();
+    signer.testTokenType = AltVM.TokenType.collateral;
+
+    await signer.remoteTransfer({
+      tokenAddress: '0xabc',
+      destinationDomainId: 1234,
+      recipient: '0x456',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: {
+        denom: TEST_METADATA.nativeToken.denom,
+        amount: '2',
+      },
+    });
+
+    expect(signer.capturedTx).to.equal(undefined);
+    expect(signer.capturedBatch).to.have.length(2);
+    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+      TEST_METADATA.nativeToken.denom,
+    );
+    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
   });
 });

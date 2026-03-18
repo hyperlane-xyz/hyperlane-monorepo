@@ -678,14 +678,17 @@ export class StarknetSigner
       signer: this.signerAddress,
       ...req,
     });
-    if (tokenType === AltVM.TokenType.native) {
-      const nativeToken = getStarknetContract(
+    if (
+      tokenType === AltVM.TokenType.native ||
+      tokenType === AltVM.TokenType.collateral
+    ) {
+      const approvalToken = getStarknetContract(
         StarknetContractName.ETHER,
         token.denom,
         this.provider,
         ContractType.TOKEN,
       );
-      const approvalTx = await populateInvokeTx(nativeToken, 'approve', [
+      const approvalTx = await populateInvokeTx(approvalToken, 'approve', [
         normalizeStarknetAddressSafe(req.tokenAddress),
         toBigInt(req.amount) + toBigInt(req.maxFee.amount),
       ]);

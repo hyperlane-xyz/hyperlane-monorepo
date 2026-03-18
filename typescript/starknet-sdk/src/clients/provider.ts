@@ -75,6 +75,18 @@ const TOKEN_TYPE_BY_CLASS_HASH = new Map<string, AltVM.TokenType>(
   ]),
 );
 
+function isProbeMiss(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return [
+    'entry point',
+    'entrypoint',
+    'viewable method not found in abi',
+    'not found in abi',
+    'not found in contract',
+    'invalid message selector',
+  ].some((needle) => message.toLowerCase().includes(needle));
+}
+
 export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   static connect(
     rpcUrls: string[],
@@ -184,16 +196,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     tokenAddress: string,
   ): Promise<AltVM.TokenType> {
     const address = normalizeStarknetAddressSafe(tokenAddress);
-
-    try {
-      const classHash = await this.provider.getClassHashAt(address);
-      const tokenType = TOKEN_TYPE_BY_CLASS_HASH.get(
-        BigInt(classHash).toString(),
-      );
-      if (tokenType) return tokenType;
-    } catch {
-      // noop
-    }
+    const classHash = await this.provider.getClassHashAt(address);
+    const tokenType = TOKEN_TYPE_BY_CLASS_HASH.get(
+      BigInt(classHash).toString(),
+    );
+    if (tokenType) return tokenType;
 
     try {
       const collateral = this.withContract(
@@ -204,8 +211,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       );
       await callContract(collateral, 'get_wrapped_token');
       return AltVM.TokenType.collateral;
-    } catch {
-      // noop
+    } catch (error) {
+      if (!isProbeMiss(error)) throw error;
     }
 
     try {
@@ -217,8 +224,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       );
       await callContract(native, 'native_token');
       return AltVM.TokenType.native;
-    } catch {
-      // noop
+    } catch (error) {
+      if (!isProbeMiss(error)) throw error;
     }
 
     return AltVM.TokenType.synthetic;
@@ -645,20 +652,13 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       ContractType.TOKEN,
     );
 
-    try {
-      const quote = await callContract(token, 'quote_gas_payment', [
-        req.destinationDomainId,
-      ]);
-      return {
-        denom: this.feeTokenAddress,
-        amount: toBigInt(quote),
-      };
-    } catch {
-      return {
-        denom: this.feeTokenAddress,
-        amount: 0n,
-      };
-    }
+    const quote = await callContract(token, 'quote_gas_payment', [
+      req.destinationDomainId,
+    ]);
+    return {
+      denom: this.feeTokenAddress,
+      amount: toBigInt(quote),
+    };
   }
 
   // ### GET CORE TXS ###

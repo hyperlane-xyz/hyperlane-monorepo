@@ -86,8 +86,7 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
 function toOptionalSignerKey(value: unknown): ContextSettings['key'] {
   if (typeof value === 'string') return value;
   if (value === undefined) return undefined;
-  const parsed = SignerKeyProtocolMapSchema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
+  return SignerKeyProtocolMapSchema.parse(value);
 }
 
 export async function contextMiddleware(argv: ContextMiddlewareArgv) {

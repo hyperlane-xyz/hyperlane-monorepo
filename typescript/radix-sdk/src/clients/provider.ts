@@ -103,6 +103,13 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
     const metadata = extraParams?.metadata;
+    if (metadata?.chainId != null) {
+      const metadataChainId = parseInt(metadata.chainId.toString());
+      assert(
+        metadataChainId === networkId,
+        `mismatched chainId: arg ${chainId} vs metadata ${metadata.chainId}`,
+      );
+    }
 
     return new RadixProvider({
       rpcUrls,
