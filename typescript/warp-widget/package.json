@@ -39,7 +39,7 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "react": "^18"
+    "react": "^18 || ^19"
   },
   "peerDependenciesMeta": {
     "react": {

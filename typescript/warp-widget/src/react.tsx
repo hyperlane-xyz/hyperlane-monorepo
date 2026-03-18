@@ -1,6 +1,10 @@
 import React, { type CSSProperties, useEffect, useMemo, useRef } from 'react';
 import { createWarpWidget } from './index.js';
-import type { WarpWidgetConfig, WarpWidgetEvent } from './types.js';
+import type {
+  WarpWidgetConfig,
+  WarpWidgetEvent,
+  WarpWidgetInstance,
+} from './types.js';
 
 export type {
   WarpWidgetConfig,
@@ -58,6 +62,7 @@ export function HyperlaneWarpWidget({
   style,
 }: HyperlaneWarpWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<WarpWidgetInstance | null>(null);
   const configRef = useRef(config);
   const onEventRef = useRef(onEvent);
   configRef.current = config;
@@ -66,6 +71,7 @@ export function HyperlaneWarpWidget({
   // Memoize config key for stable dependency — avoids iframe recreation on identical configs
   const configKey = useMemo(() => stableStringify(config ?? {}), [config]);
 
+  // Create/recreate iframe when config changes
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -76,6 +82,7 @@ export function HyperlaneWarpWidget({
       width,
       height,
     });
+    widgetRef.current = widget;
 
     // Subscribe to known event types.
     // When new events are added to the embed protocol, add subscriptions here.
@@ -86,8 +93,17 @@ export function HyperlaneWarpWidget({
     return () => {
       unsubReady();
       widget.destroy();
+      widgetRef.current = null;
     };
-  }, [configKey, width, height]);
+  }, [configKey]);
+
+  // Resize iframe in-place without reload
+  useEffect(() => {
+    const iframe = widgetRef.current?.iframe;
+    if (!iframe) return;
+    iframe.style.width = width ?? '100%';
+    iframe.style.height = height ?? '600px';
+  }, [width, height]);
 
   return <div ref={containerRef} className={className} style={style} />;
 }

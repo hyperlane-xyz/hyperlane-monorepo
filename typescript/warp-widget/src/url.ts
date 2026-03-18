@@ -4,6 +4,17 @@ export const EMBED_BASE_URL = 'https://nexus.hyperlane.xyz/embed';
 const HEX_RE =
   /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
+/** Allowed theme color keys — prevents collision with defaults params */
+const THEME_COLOR_KEYS = new Set([
+  'accent',
+  'bg',
+  'card',
+  'text',
+  'buttonText',
+  'border',
+  'error',
+]);
+
 /** Strip leading # from hex color values */
 function normalizeHex(value: string): string {
   return value.replace(/^#/, '');
@@ -17,7 +28,11 @@ export function buildEmbedUrl(config?: WarpWidgetConfig): string {
     const { mode, ...colors } = config.theme;
     if (mode) params.set('mode', mode);
     for (const [key, value] of Object.entries(colors)) {
-      if (typeof value === 'string' && HEX_RE.test(value)) {
+      if (
+        THEME_COLOR_KEYS.has(key) &&
+        typeof value === 'string' &&
+        HEX_RE.test(value)
+      ) {
         params.set(key, normalizeHex(value));
       }
     }

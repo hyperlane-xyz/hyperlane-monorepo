@@ -36,8 +36,11 @@ function App() {
 ```ts
 import { createWarpWidget } from '@hyperlane-xyz/warp-widget';
 
+const container = document.getElementById('widget-root');
+if (!container) throw new Error('missing #widget-root');
+
 const widget = createWarpWidget({
-  container: document.getElementById('widget-root'),
+  container,
   config: {
     theme: { accent: '3b82f6', mode: 'dark' },
     defaults: { origin: 'ethereum', destination: 'base' },
@@ -45,7 +48,7 @@ const widget = createWarpWidget({
 });
 
 widget.on('ready', (payload) => {
-  console.log('Widget ready at', payload.timestamp);
+  console.log('Widget ready at', payload?.timestamp);
 });
 
 // Cleanup

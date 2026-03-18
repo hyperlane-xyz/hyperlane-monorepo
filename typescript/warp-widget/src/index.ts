@@ -49,7 +49,7 @@ export function createWarpWidget(
   iframe.style.display = 'block';
   iframe.setAttribute(
     'sandbox',
-    'allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox',
+    'allow-scripts allow-forms allow-same-origin allow-popups',
   );
   iframe.setAttribute('allow', 'clipboard-write');
   container.appendChild(iframe);
