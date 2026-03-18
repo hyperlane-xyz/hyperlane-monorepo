@@ -96,6 +96,9 @@ impl TronProvider {
 
         let block_id_bytes =
             hex::decode(&block.block_id).map_err(|_| HyperlaneTronError::MissingRawData)?;
+        if block_id_bytes.len() != 32 {
+            return Err(HyperlaneTronError::MissingRawData.into());
+        }
         let ref_block_bytes = calculate_ref_block_bytes(block.block_header.raw_data.number);
         let ref_block_hash = calculate_ref_block_hash(&block_id_bytes);
 
