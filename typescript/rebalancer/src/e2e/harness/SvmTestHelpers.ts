@@ -116,7 +116,16 @@ export async function relayMixedInventoryDeposits(
       action.messageId,
   );
 
-  if (!hasSvmOriginDeposit) {
+  const hasEvmOnlyDeposits = inProgressActions.some(
+    (action) =>
+      action.type === 'inventory_deposit' &&
+      action.origin !== SVM_DOMAIN_ID &&
+      action.destination !== SVM_DOMAIN_ID &&
+      action.txHash &&
+      action.messageId,
+  );
+
+  if (!hasSvmOriginDeposit && hasEvmOnlyDeposits) {
     await relayInProgressInventoryDeposits(
       context,
       evmProviders,

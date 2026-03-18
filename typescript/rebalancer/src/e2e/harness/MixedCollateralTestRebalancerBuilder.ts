@@ -33,6 +33,7 @@ import {
   COLLATERAL_BALANCE_PRESETS,
   COLLATERAL_SIGNER_PRESETS,
   SVM_COLLATERAL_MONITORED_ROUTE_ID,
+  USDC_DECIMALS,
   type SvmCollateralEvmErc20DeployedAddresses,
   buildMixedCollateralStrategyConfig,
   buildMixedCollateralWarpCoreConfig,
@@ -275,6 +276,8 @@ export class MixedCollateralTestRebalancerBuilder {
 
     await this.applyEvmUsdcBalances(evmCtx, addresses);
 
+    await this.ensureCollateralCoverage(evmCtx, addresses, strategyToUse);
+
     await this.applyEvmSignerErc20Balances(evmCtx, addresses, evmSignerAddress);
 
     await this.ensureSvmSignerLamports(
@@ -284,7 +287,7 @@ export class MixedCollateralTestRebalancerBuilder {
     );
 
     if (this.svmSplEscrowAmount !== undefined && this.svmSplEscrowAmount > 0n) {
-      manager.mintSplToEscrow(this.svmSplEscrowAmount);
+      await manager.mintSplToEscrow(this.svmSplEscrowAmount);
     }
 
     const strategy = await contextFactory.createStrategy();
@@ -405,6 +408,52 @@ export class MixedCollateralTestRebalancerBuilder {
         await token.transfer(signerAddress, targetBN.sub(current));
       }
     }
+  }
+
+  private async ensureCollateralCoverage(
+    evmCtx: ReturnType<
+      ReturnType<
+        SvmCollateralEvmErc20LocalDeploymentManager['getEvmDeploymentManager']
+      >['getContext']
+    >,
+    addresses: SvmCollateralEvmErc20DeployedAddresses,
+    strategyConfigs: StrategyConfig[],
+  ): Promise<void> {
+    let totalTargets = 0n;
+    for (const cfg of strategyConfigs) {
+      for (const [, chainCfg] of Object.entries(cfg.chains)) {
+        if ('minAmount' in chainCfg && chainCfg.minAmount) {
+          totalTargets += ethers.utils
+            .parseUnits(chainCfg.minAmount.target, USDC_DECIMALS)
+            .toBigInt();
+        }
+      }
+    }
+    if (totalTargets === 0n) return;
+
+    const evmTotal = Object.values(this.evmUsdcBalances ?? {}).reduce(
+      (sum, bal) => sum + BigInt(bal),
+      0n,
+    );
+    const svmTotal = this.svmSplEscrowAmount ?? 0n;
+    const totalCollateral = evmTotal + svmTotal;
+
+    if (totalCollateral >= totalTargets) return;
+
+    const deficit = totalTargets - totalCollateral + 1n;
+    const topUpChain = TEST_CHAINS[0];
+    const provider = evmCtx.providers.get(topUpChain);
+    if (!provider) return;
+
+    const deployer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
+    const token = ERC20Test__factory.connect(
+      addresses.tokens[topUpChain],
+      deployer,
+    );
+    await token.transfer(
+      addresses.monitoredRoute[topUpChain],
+      ethers.BigNumber.from(deficit),
+    );
   }
 
   private async ensureSvmSignerLamports(

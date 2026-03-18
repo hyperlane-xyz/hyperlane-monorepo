@@ -188,7 +188,16 @@ export class SealevelLocalChainManager {
 
     execFileSync(
       SOLANA_CLI,
-      ['config', 'set', '--config', this.solanaConfigPath, '--url', rpcUrl],
+      [
+        'config',
+        'set',
+        '--config',
+        this.solanaConfigPath,
+        '--url',
+        rpcUrl,
+        '--keypair',
+        DEPLOYER_KEYPAIR,
+      ],
       { encoding: 'utf8' },
     );
 
@@ -702,6 +711,10 @@ export class SealevelLocalChainManager {
     return this.collateralBridgeEscrowPda;
   }
 
+  getIsmProgramId(): string {
+    return MULTISIG_ISM_PROGRAM_ID;
+  }
+
   getConnection(): Connection {
     if (!this.connection) {
       throw new Error('Connection not initialized. Call start first.');
@@ -716,6 +729,13 @@ export class SealevelLocalChainManager {
 
   getRpcUrl(): string {
     return `http://127.0.0.1:${this.rpcPort}`;
+  }
+
+  getSolanaConfigPath(): string {
+    if (!this.solanaConfigPath) {
+      throw new Error('Solana config path not set. Call start() first.');
+    }
+    return this.solanaConfigPath;
   }
 
   async stop(): Promise<void> {

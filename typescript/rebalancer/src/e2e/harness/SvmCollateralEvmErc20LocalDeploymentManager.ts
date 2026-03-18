@@ -29,7 +29,6 @@ import {
 } from '../fixtures/routes.js';
 import {
   AGAVE_BIN_DIR,
-  DEPLOYER_KEYPAIR,
   MAILBOX_PROGRAM_ID,
   SVM_CHAIN_NAME,
   SVM_DOMAIN_ID,
@@ -302,7 +301,7 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
         tokens: evmAddresses.tokens,
         svm: {
           mailbox: MAILBOX_PROGRAM_ID,
-          ism: svmManager.getDeployedAddresses().ism,
+          ism: svmManager.getIsmProgramId(),
           warpRouter: svmManager.getCollateralWarpRouteProgramId(),
           escrowPda: monitoredEscrowPda,
           splMint,
@@ -518,17 +517,8 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
     splMint: string,
     _signerAddress: string,
   ): Promise<void> {
-    this.runSplTokenCli([
-      'mint',
-      splMint,
-      '20000',
-      '--recipient-owner',
-      execFileSync(
-        path.join(AGAVE_BIN_DIR, 'solana'),
-        ['address', '--keypair', DEPLOYER_KEYPAIR],
-        { encoding: 'utf8' },
-      ).trim(),
-    ]);
+    this.runSplTokenCli(['create-account', splMint]);
+    this.runSplTokenCli(['mint', splMint, '20000']);
   }
 
   private async mintSplTokens(
@@ -544,7 +534,7 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
     const svmManager = this.getSvmChainManager();
     execFileSync(
       SPL_TOKEN_BIN,
-      ['--url', svmManager.getRpcUrl(), '--keypair', DEPLOYER_KEYPAIR, ...args],
+      ['-C', svmManager.getSolanaConfigPath(), ...args],
       { encoding: 'utf8' },
     );
   }
