@@ -246,6 +246,10 @@ export class StarknetSigner
     const invokeTransactions = transactions.filter(
       (tx): tx is StarknetInvokeTx => tx.kind === 'invoke',
     );
+    assert(
+      invokeTransactions.length === transactions.length,
+      'Batch transactions with non-invoke operations are unsupported on Starknet signer',
+    );
 
     const calls: Call[] = invokeTransactions.flatMap(
       (invoke) =>
