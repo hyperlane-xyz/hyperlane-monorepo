@@ -5,8 +5,7 @@ import {
   type AltVM,
   type ChainMetadataForAltVM,
   ProtocolType,
-  hasProtocol,
-  registerProtocol,
+  type ProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
@@ -48,54 +47,27 @@ describe('createAltVMSigners', () => {
     accountAddress?: string;
   }> = [];
 
-  before(function () {
-    if (hasProtocol(ProtocolType.Starknet)) {
-      this.skip();
-    }
-
-    registerProtocol(ProtocolType.Starknet, () => ({
-      async createProvider() {
-        throw new Error('not needed for createAltVMSigners test');
-      },
-      async createSigner(_chainMetadata, config) {
-        capturedConfigs.push(config);
-        return getStubSigner();
-      },
-      async createSubmitter() {
-        throw new Error('not needed for createAltVMSigners test');
-      },
-      createIsmArtifactManager() {
-        throw new Error('not needed for createAltVMSigners test');
-      },
-      createHookArtifactManager() {
-        throw new Error('not needed for createAltVMSigners test');
-      },
-      createWarpArtifactManager() {
-        throw new Error('not needed for createAltVMSigners test');
-      },
-      createMailboxArtifactManager() {
-        throw new Error('not needed for createAltVMSigners test');
-      },
-      createValidatorAnnounceArtifactManager() {
-        return null;
-      },
-      getMinGas() {
-        return {
-          CORE_DEPLOY_GAS: 0n,
-          WARP_DEPLOY_GAS: 0n,
-          TEST_SEND_GAS: 0n,
-          AVS_GAS: 0n,
-          ISM_DEPLOY_GAS: 0n,
-        };
-      },
-    }));
-  });
-
   beforeEach(() => {
     capturedConfigs.length = 0;
     delete process.env.HYP_ACCOUNT_ADDRESS_STARKNET;
     sinon.restore();
   });
+
+  function getProtocolRegistry(): NonNullable<
+    Parameters<typeof createAltVMSigners>[4]
+  > {
+    const provider: Pick<ProtocolProvider, 'createSigner'> = {
+      async createSigner(_chainMetadata, config) {
+        capturedConfigs.push(config);
+        return getStubSigner();
+      },
+    };
+
+    return {
+      getProtocolProvider: () => provider,
+      hasProtocol: () => true,
+    };
+  }
 
   it('prefers strategy user/account address over environment variable', async () => {
     process.env.HYP_ACCOUNT_ADDRESS_STARKNET = '0xenv';
@@ -120,6 +92,7 @@ describe('createAltVMSigners', () => {
       ['starknetsepolia'],
       keys,
       strategy,
+      getProtocolRegistry(),
     );
 
     expect(capturedConfigs).to.have.length(1);
@@ -156,6 +129,7 @@ describe('createAltVMSigners', () => {
       ['starknetsepolia', 'starknet'],
       keys,
       strategy,
+      getProtocolRegistry(),
     );
 
     expect(capturedConfigs).to.have.length(2);
@@ -181,6 +155,7 @@ describe('createAltVMSigners', () => {
       ['starknetsepolia'],
       keys,
       {},
+      getProtocolRegistry(),
     );
 
     expect(capturedConfigs).to.have.length(1);
@@ -190,7 +165,7 @@ describe('createAltVMSigners', () => {
     });
   });
 
-  it('resolves Starknet accountAddress per chain before fallback cache reuse', async () => {
+  it('resolves Starknet accountAddress per chain', async () => {
     const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
@@ -219,6 +194,7 @@ describe('createAltVMSigners', () => {
       ['starknetsepolia', 'starknetmainnet'],
       keys,
       strategy,
+      getProtocolRegistry(),
     );
 
     expect(capturedConfigs).to.have.length(2);
@@ -246,6 +222,7 @@ describe('createAltVMSigners', () => {
       ['starknetsepolia'],
       {},
       strategy,
+      getProtocolRegistry(),
     );
 
     expect(privateKeyPrompt.calledOnce).to.equal(true);
@@ -273,6 +250,7 @@ describe('createAltVMSigners', () => {
       ['starknetsepolia', 'starknetmainnet'],
       keys,
       {},
+      getProtocolRegistry(),
     );
 
     expect(accountPrompt.callCount).to.equal(2);

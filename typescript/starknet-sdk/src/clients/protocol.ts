@@ -57,13 +57,12 @@ export class StarknetProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter> {
-    if (config.type === 'jsonRpc') {
-      return this.createJsonRpcSubmitter(chainMetadata, config);
-    }
-
-    throw new Error(
+    assert(
+      config.type === 'jsonRpc',
       'File submitter is unsupported in @hyperlane-xyz/starknet-sdk; create file submitters at the CLI layer',
     );
+
+    return this.createJsonRpcSubmitter(chainMetadata, config);
   }
 
   createIsmArtifactManager(

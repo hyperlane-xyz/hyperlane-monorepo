@@ -3,6 +3,7 @@ import { input, password } from '@inquirer/prompts';
 import {
   type AltVM,
   type ChainMetadataForAltVM,
+  type ProtocolProvider,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -68,18 +69,13 @@ async function loadAccountAddress(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   protocol: ProtocolType,
   chain: string,
-  fallbackPromptedAddress?: string,
-): Promise<{ accountAddress?: string; isPrompted: boolean }> {
+): Promise<string | undefined> {
   if (protocol !== ProtocolType.Starknet) {
-    return { accountAddress: undefined, isPrompted: false };
+    return undefined;
   }
 
   const resolved = resolveAltVmAccountAddress(strategyConfig, protocol, chain);
-  if (resolved) return { accountAddress: resolved, isPrompted: false };
-
-  if (fallbackPromptedAddress) {
-    return { accountAddress: fallbackPromptedAddress, isPrompted: false };
-  }
+  if (resolved) return resolved;
 
   const promptedAddress = await altVmPrompts.input({
     message: `Please enter the Starknet account contract address for chain ${chain}`,
@@ -89,30 +85,39 @@ async function loadAccountAddress(
     accountAddress,
     `Missing Starknet account contract address for chain ${chain}`,
   );
-  return { accountAddress, isPrompted: true };
+  return accountAddress;
 }
+
+type AltVmProtocolRegistry = {
+  getProtocolProvider: (
+    protocol: ProtocolType,
+  ) => Pick<ProtocolProvider, 'createSigner'>;
+  hasProtocol: (protocol: ProtocolType) => boolean;
+};
 
 export async function createAltVMSigners(
   metadataManager: ChainMetadataManagerLike,
   chains: string[],
   keyByProtocol: SignerKeyProtocolMap,
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+  protocolRegistry: AltVmProtocolRegistry = {
+    getProtocolProvider,
+    hasProtocol,
+  },
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
-  const promptedAccountAddressByChain: Partial<Record<string, string>> = {};
 
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
 
-    if (!hasProtocol(metadata.protocol)) {
+    if (!protocolRegistry.hasProtocol(metadata.protocol)) {
       continue;
     }
 
-    const { accountAddress, isPrompted } = await loadAccountAddress(
+    const accountAddress = await loadAccountAddress(
       strategyConfig,
       metadata.protocol,
       chain,
-      promptedAccountAddressByChain[chain],
     );
     const signerConfig = {
       privateKey: await loadPrivateKey(
@@ -124,14 +129,9 @@ export async function createAltVMSigners(
       accountAddress,
     };
 
-    if (isPrompted && signerConfig.accountAddress) {
-      promptedAccountAddressByChain[chain] = signerConfig.accountAddress;
-    }
-
-    signers[chain] = await getProtocolProvider(metadata.protocol).createSigner(
-      metadata,
-      signerConfig,
-    );
+    signers[chain] = await protocolRegistry
+      .getProtocolProvider(metadata.protocol)
+      .createSigner(metadata, signerConfig);
   }
 
   return signers;
