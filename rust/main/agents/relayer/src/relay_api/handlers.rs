@@ -41,7 +41,7 @@ impl TxHashCache {
         let key = (chain, tx_hash);
 
         // Clean expired entries if cache is getting large (75% threshold)
-        if self.cache.len() > self.max_entries * 3 / 4 {
+        if self.cache.len() > self.max_entries.saturating_mul(3) / 4 {
             let ttl = self.ttl;
             self.cache
                 .retain(|_, &mut timestamp| now.duration_since(timestamp) < ttl);
