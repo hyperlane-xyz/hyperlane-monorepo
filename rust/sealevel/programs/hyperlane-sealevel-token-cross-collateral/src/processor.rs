@@ -1,7 +1,9 @@
 //! Program processor.
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, DiscriminatorDecode, SizedData, SPL_NOOP_PROGRAM_ID};
+use account_utils::{
+    create_pda_account, DiscriminatorDecode, DiscriminatorEncode, SizedData, SPL_NOOP_PROGRAM_ID,
+};
 use hyperlane_core::{Decode, Encode, H256};
 use hyperlane_sealevel_connection_client::gas_router::HyperlaneGasRouter;
 use hyperlane_sealevel_connection_client::{
@@ -44,7 +46,10 @@ use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     error::Error,
-    instruction::{CrossCollateralInit, CrossCollateralInstruction, HandleLocal, TransferRemoteTo},
+    instruction::{
+        CrossCollateralInit, CrossCollateralInstruction, HandleLocal, TransferLocal,
+        TransferRemoteTo,
+    },
     plugin::CollateralPlugin,
 };
 
@@ -68,6 +73,9 @@ pub fn process_instruction(
             }
             CrossCollateralInstruction::TransferRemoteTo(transfer) => {
                 transfer_remote_to(program_id, accounts, transfer)
+            }
+            CrossCollateralInstruction::TransferLocal(transfer) => {
+                transfer_local(program_id, accounts, transfer)
             }
             CrossCollateralInstruction::HandleLocal(handle) => {
                 handle_local(program_id, accounts, handle)
@@ -750,6 +758,136 @@ fn transfer_remote_to(
         xfer.destination_domain,
         xfer.target_router,
         remote_amount
+    );
+
+    Ok(())
+}
+
+/// Same-chain transfer: escrows tokens locally and CPIs into target's HandleLocal.
+///
+/// Accounts:
+/// 0.    `[executable]` system_program
+/// 1.    `[]` token PDA
+/// 2.    `[]` CC state PDA
+/// 3.    `[signer]` sender wallet / payer
+/// 4.    `[]` CC dispatch authority PDA (this program's, for CPI signing)
+/// 5.    `[executable]` target program
+///       6..N `[??..??]` Plugin transfer_in accounts.
+///       N+1..M `[??..??]` Target HandleLocal accounts (passthrough for CPI).
+fn transfer_local(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    xfer: TransferLocal,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program
+    let system_program_account = next_account_info(accounts_iter)?;
+    if system_program_account.key != &system_program::ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 1: Token storage account
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        token_account,
+    )?;
+
+    // Account 2: CC state PDA
+    let cc_state_account = next_account_info(accounts_iter)?;
+    let cc_state =
+        CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
+
+    // Account 3: Sender wallet (signer)
+    let sender_wallet = next_account_info(accounts_iter)?;
+    if !sender_wallet.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Validate target_router is authorized for the local domain
+    if !cc_state.is_authorized_router(
+        cc_state.local_domain,
+        &xfer.target_router,
+        &token.remote_routers,
+    ) {
+        return Err(Error::UnauthorizedRouter.into());
+    }
+
+    // Account 4: CC dispatch authority PDA (this program's, for CPI signing)
+    let cc_dispatch_authority = next_account_info(accounts_iter)?;
+    let cc_da_seeds: &[&[u8]] =
+        cross_collateral_dispatch_authority_pda_seeds!(cc_state.dispatch_authority_bump);
+    let expected_cc_da = Pubkey::create_program_address(cc_da_seeds, program_id)?;
+    if cc_dispatch_authority.key != &expected_cc_da {
+        return Err(Error::InvalidDispatchAuthority.into());
+    }
+
+    // Account 5: Target program (executable, for CPI)
+    let target_program_info = next_account_info(accounts_iter)?;
+    let target_program_key = Pubkey::new_from_array(xfer.target_router.into());
+    if target_program_info.key != &target_program_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Convert amount
+    let local_amount: u64 = xfer
+        .amount_or_id
+        .try_into()
+        .map_err(|_| ProgramError::InvalidArgument)?;
+    let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
+
+    // Transfer tokens into escrow via plugin
+    CollateralPlugin::transfer_in(
+        program_id,
+        &token,
+        sender_wallet,
+        accounts_iter,
+        local_amount,
+    )?;
+
+    // Build HandleLocal instruction data
+    let token_message = TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
+    let handle_local_data = HandleLocal {
+        sender_program_id: *program_id,
+        origin: cc_state.local_domain,
+        message: token_message,
+    };
+    let handle_ixn = CrossCollateralInstruction::HandleLocal(handle_local_data);
+
+    // Remaining accounts: target's HandleLocal accounts (passthrough)
+    let remaining_accounts: Vec<&AccountInfo> = accounts_iter.collect();
+
+    // Build CPI: CC dispatch authority (signer) + remaining accounts
+    let mut cpi_account_metas = vec![AccountMeta::new_readonly(*cc_dispatch_authority.key, true)];
+    for acc in &remaining_accounts {
+        cpi_account_metas.push(AccountMeta {
+            pubkey: *acc.key,
+            is_signer: false,
+            is_writable: acc.is_writable,
+        });
+    }
+
+    let mut cpi_account_infos: Vec<AccountInfo> = vec![cc_dispatch_authority.clone()];
+    for acc in &remaining_accounts {
+        cpi_account_infos.push((*acc).clone());
+    }
+
+    let cpi_instruction = Instruction {
+        program_id: target_program_key,
+        data: handle_ixn
+            .encode()
+            .map_err(|_| ProgramError::BorshIoError)?,
+        accounts: cpi_account_metas,
+    };
+
+    invoke_signed(&cpi_instruction, &cpi_account_infos, &[cc_da_seeds])?;
+
+    msg!(
+        "CC same-chain transfer completed to target: {}, recipient: {:?}, remote_amount: {}",
+        target_program_key,
+        xfer.recipient,
+        remote_amount,
     );
 
     Ok(())

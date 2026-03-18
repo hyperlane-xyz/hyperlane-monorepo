@@ -22,7 +22,7 @@ pub enum Error {
     #[error("Base init not allowed, use cross-collateral init")]
     BaseInitNotAllowed = 4,
 
-    /// TransferRemoteTo called with local domain, or HandleLocal called with remote domain.
+    /// HandleLocal called with remote domain (origin != local_domain).
     #[error("Invalid domain for instruction")]
     InvalidDomain = 5,
 

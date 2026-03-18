@@ -34,8 +34,11 @@ pub enum CrossCollateralInstruction {
     Init(CrossCollateralInit),
     /// Enroll CC routers. Owner-only. Each config must have `router: Some(h256)`.
     EnrollCrossCollateralRouters(Vec<RemoteRouterConfig>),
-    /// Transfer to a specific enrolled router (cross-chain or same-chain).
+    /// Cross-chain transfer to a specific enrolled router via mailbox dispatch.
     TransferRemoteTo(TransferRemoteTo),
+    /// Same-chain transfer via CPI into target's HandleLocal. Escrows tokens locally,
+    /// then invokes the target program's HandleLocal with CC dispatch authority PDA signing.
+    TransferLocal(TransferLocal),
     /// Same-chain CPI receive. PDA-verified caller only.
     HandleLocal(HandleLocal),
     /// Returns account metas needed for HandleLocal (off-chain simulation).
@@ -79,6 +82,17 @@ pub struct TransferRemoteTo {
     /// The amount or ID of the token to transfer.
     pub amount_or_id: hyperlane_core::U256,
     /// The target router to dispatch to (must be enrolled).
+    pub target_router: H256,
+}
+
+/// Instruction data for same-chain transfer via CPI.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct TransferLocal {
+    /// The remote recipient.
+    pub recipient: H256,
+    /// The amount or ID of the token to transfer.
+    pub amount_or_id: hyperlane_core::U256,
+    /// The target router program to CPI into (must be enrolled for local_domain).
     pub target_router: H256,
 }
 

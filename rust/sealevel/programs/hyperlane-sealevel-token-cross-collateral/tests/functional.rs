@@ -30,7 +30,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     instruction::{
         enroll_cross_collateral_routers_instruction, init_instruction, CrossCollateralInit,
-        CrossCollateralInstruction, TransferRemoteTo,
+        CrossCollateralInstruction, TransferLocal, TransferRemoteTo,
     },
     processor::process_instruction,
 };
@@ -66,6 +66,10 @@ const MINT_ACCOUNT_LEN: usize = spl_token_2022::state::Mint::LEN;
 
 fn hyperlane_sealevel_token_cross_collateral_id() -> Pubkey {
     pubkey!("CCo11atera1TokenProgram111111111111111111111")
+}
+
+fn second_cc_program_id() -> Pubkey {
+    pubkey!("CCo11atera1TokenProgram222222222222222222222")
 }
 
 async fn setup_client() -> (BanksClient, Keypair) {
@@ -106,6 +110,13 @@ async fn setup_client() -> (BanksClient, Keypair) {
         "hyperlane_sealevel_test_ism",
         hyperlane_sealevel_test_ism::id(),
         processor!(hyperlane_sealevel_test_ism::program::process_instruction),
+    );
+
+    // Second CC program instance (same processor, different program ID)
+    program_test.add_program(
+        "hyperlane_sealevel_token_cross_collateral",
+        second_cc_program_id(),
+        processor!(process_instruction),
     );
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
@@ -2859,4 +2870,430 @@ async fn test_base_transfer_remote_passthrough() {
 
     // Escrow received tokens
     assert_token_balance(&mut banks_client, &cc_accounts.escrow, transfer_amount).await;
+}
+
+// ============================================================
+// TransferLocal — same-chain tests
+// ============================================================
+
+#[tokio::test]
+async fn test_transfer_local_same_chain() {
+    // Two CC programs (A and B), same mint, same domain.
+    // A.TransferLocal escrows in A, CPIs into B.HandleLocal which releases from B.
+    let program_a = hyperlane_sealevel_token_cross_collateral_id();
+    let program_b = second_cc_program_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    // Initialize both CC tokens with the same mint and domain
+    let cc_a = initialize_cc_token(
+        &program_a,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let cc_b = initialize_cc_token(
+        &program_b,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Enroll B in A's CC state for LOCAL_DOMAIN
+    let router_b = H256::from(program_b.to_bytes());
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_a,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: LOCAL_DOMAIN,
+            router: Some(router_b),
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Enroll A in B's CC state for LOCAL_DOMAIN
+    let router_a = H256::from(program_a.to_bytes());
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_b,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: LOCAL_DOMAIN,
+            router: Some(router_a),
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Fund B's escrow so it can release tokens
+    let escrow_b_amount = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    mint_to(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &cc_b.escrow,
+        escrow_b_amount,
+    )
+    .await;
+
+    // Fund B's ATA payer so it can create ATAs
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &cc_b.ata_payer,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    // Create sender with tokens
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 25 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        50 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    let recipient_pubkey = Pubkey::new_unique();
+    let recipient: H256 = recipient_pubkey.to_bytes().into();
+    let recipient_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &recipient_pubkey,
+        &mint,
+        &spl_token_program_id,
+    );
+
+    let transfer = TransferLocal {
+        recipient,
+        amount_or_id: transfer_amount.into(),
+        target_router: router_b,
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferLocal(transfer)
+        .encode()
+        .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_a,
+            &ixn_data,
+            vec![
+                // Common accounts
+                // 0. system program
+                AccountMeta::new_readonly(system_program::ID, false),
+                // 1. A's token PDA
+                AccountMeta::new_readonly(cc_a.token, false),
+                // 2. A's CC state PDA
+                AccountMeta::new_readonly(cc_a.cc_state, false),
+                // 3. sender wallet (signer)
+                AccountMeta::new(token_sender_pubkey, true),
+                // 4. A's CC dispatch authority PDA
+                AccountMeta::new_readonly(cc_a.cc_dispatch_authority, false),
+                // 5. target program (B)
+                AccountMeta::new_readonly(program_b, false),
+                // Plugin transfer_in accounts (A's escrow)
+                // 6. spl_token
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                // 7. mint
+                AccountMeta::new(mint, false),
+                // 8. sender ATA
+                AccountMeta::new(token_sender_ata, false),
+                // 9. A's escrow
+                AccountMeta::new(cc_a.escrow, false),
+                // Target HandleLocal accounts (B)
+                // 10. system program (for B's HandleLocal)
+                AccountMeta::new_readonly(system_program::ID, false),
+                // 11. B's token PDA
+                AccountMeta::new_readonly(cc_b.token, false),
+                // 12. B's CC state PDA
+                AccountMeta::new_readonly(cc_b.cc_state, false),
+                // 13. recipient wallet
+                AccountMeta::new_readonly(recipient_pubkey, false),
+                // B's transfer_out accounts
+                // 14. spl_token
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                // 15. spl_associated_token_account
+                AccountMeta::new_readonly(spl_associated_token_account::id(), false),
+                // 16. mint
+                AccountMeta::new(mint, false),
+                // 17. recipient ATA
+                AccountMeta::new(recipient_ata, false),
+                // 18. B's ATA payer
+                AccountMeta::new(cc_b.ata_payer, false),
+                // 19. B's escrow
+                AccountMeta::new(cc_b.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Sender lost tokens
+    assert_token_balance(
+        &mut banks_client,
+        &token_sender_ata,
+        25 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    // A's escrow gained tokens
+    assert_token_balance(&mut banks_client, &cc_a.escrow, transfer_amount).await;
+
+    // B's escrow lost tokens
+    assert_token_balance(
+        &mut banks_client,
+        &cc_b.escrow,
+        escrow_b_amount - transfer_amount,
+    )
+    .await;
+
+    // Recipient got tokens from B's escrow
+    assert_token_balance(&mut banks_client, &recipient_ata, transfer_amount).await;
+}
+
+#[tokio::test]
+async fn test_transfer_local_rejects_unenrolled_target() {
+    let program_a = hyperlane_sealevel_token_cross_collateral_id();
+    let program_b = second_cc_program_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_a = initialize_cc_token(
+        &program_a,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Do NOT enroll B in A's CC state — target is unenrolled
+    let router_b = H256::from(program_b.to_bytes());
+
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        50 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    let transfer = TransferLocal {
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router: router_b,
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferLocal(transfer)
+        .encode()
+        .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_a,
+            &ixn_data,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(cc_a.token, false),
+                AccountMeta::new_readonly(cc_a.cc_state, false),
+                AccountMeta::new(token_sender_pubkey, true),
+                AccountMeta::new_readonly(cc_a.cc_dispatch_authority, false),
+                AccountMeta::new_readonly(program_b, false),
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(cc_a.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    // Custom(2) = Error::UnauthorizedRouter
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(2)),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_local_rejects_wrong_dispatch_authority() {
+    let program_a = hyperlane_sealevel_token_cross_collateral_id();
+    let program_b = second_cc_program_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_a = initialize_cc_token(
+        &program_a,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Enroll B in A's CC state
+    let router_b = H256::from(program_b.to_bytes());
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_a,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: LOCAL_DOMAIN,
+            router: Some(router_b),
+        }],
+    )
+    .await
+    .unwrap();
+
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        50 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    let transfer = TransferLocal {
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router: router_b,
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferLocal(transfer)
+        .encode()
+        .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_a,
+            &ixn_data,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(cc_a.token, false),
+                AccountMeta::new_readonly(cc_a.cc_state, false),
+                AccountMeta::new(token_sender_pubkey, true),
+                // Wrong: use payer pubkey instead of A's CC dispatch authority
+                AccountMeta::new_readonly(payer.pubkey(), false),
+                AccountMeta::new_readonly(program_b, false),
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(cc_a.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    // Custom(3) = Error::InvalidDispatchAuthority
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(3)),
+    );
 }
