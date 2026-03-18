@@ -8,6 +8,7 @@ import {
   ERC20Test__factory,
   IERC20__factory,
   InterchainAccountRouter,
+  MinimalInterchainAccountRouter__factory,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -17,7 +18,12 @@ import { HyperlaneContractsMap } from '../../contracts/types.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { FeeTokenApproval, IcaRouterConfig } from '../../ica/types.js';
+import {
+  FeeTokenApproval,
+  IcaRouterConfig,
+  IcaRouterType,
+} from '../../ica/types.js';
+
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -121,6 +127,124 @@ describe('InterchainAccounts', async () => {
     expect(balanceAfter).to.lte(balanceBefore.sub(quote));
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
+  });
+
+  describe('MinimalInterchainAccountRouter', async () => {
+    it('deploys minimal router when routerType is MINIMAL', async () => {
+      const minimalConfig = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          routerType: IcaRouterType.MINIMAL,
+        }),
+      );
+
+      const minimalContracts = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(minimalConfig);
+
+      const router = minimalContracts[localChain].interchainAccountRouter;
+      expect(router.address).to.not.equal(constants.AddressZero);
+
+      // Verify it's actually a MinimalInterchainAccountRouter by checking
+      // implementation() exists (shared with full router) but CCIP_READ_ISM does not
+      const minimalInstance = MinimalInterchainAccountRouter__factory.connect(
+        router.address,
+        signer,
+      );
+      const impl = await minimalInstance.implementation();
+      expect(impl).to.not.equal(constants.AddressZero);
+    });
+
+    it('rejects minimal config with commitmentIsm set', async () => {
+      const badConfig = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          routerType: IcaRouterType.MINIMAL,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: signer.address,
+            urls: ['some-url'],
+          },
+        }),
+      );
+
+      await expect(
+        new InterchainAccountDeployer(multiProvider).deploy(badConfig),
+      ).to.be.rejectedWith(
+        'commitmentIsm must not be set for minimal ICA router deployments',
+      );
+    });
+
+    it('rejects regular config without commitmentIsm', async () => {
+      const badConfig = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          routerType: IcaRouterType.REGULAR,
+        }),
+      );
+
+      await expect(
+        new InterchainAccountDeployer(multiProvider).deploy(badConfig),
+      ).to.be.rejectedWith(
+        'commitmentIsm is required for regular ICA router deployments',
+      );
+    });
+
+    it('forwards calls from interchain account via minimal router', async () => {
+      const minimalConfig = objMap(
+        coreApp.getRouterConfig(signer.address),
+        (_, baseConfig): IcaRouterConfig => ({
+          ...baseConfig,
+          routerType: IcaRouterType.MINIMAL,
+        }),
+      );
+
+      const minimalContracts = await new InterchainAccountDeployer(
+        multiProvider,
+      ).deploy(minimalConfig);
+      const minLocal = minimalContracts[localChain].interchainAccountRouter;
+      const minRemote = minimalContracts[remoteChain].interchainAccountRouter;
+      const minApp = new InterchainAccount(minimalContracts, multiProvider);
+
+      const recipientF = new TestRecipient__factory(signer);
+      const recipient = await recipientF.deploy();
+      const fooMessage = 'TestMinimal';
+      const data = recipient.interface.encodeFunctionData('fooBar', [
+        1,
+        fooMessage,
+      ]);
+      const icaAddress = await minRemote[
+        'getLocalInterchainAccount(uint32,address,address,address)'
+      ](
+        multiProvider.getDomainId(localChain),
+        signer.address,
+        minLocal.address,
+        constants.AddressZero,
+      );
+
+      const call = {
+        to: recipient.address,
+        data,
+        value: '0',
+      };
+      const accountConfig: AccountConfig = {
+        origin: localChain,
+        owner: signer.address,
+        localRouter: minLocal.address,
+      };
+      await minApp.callRemote({
+        chain: localChain,
+        destination: remoteChain,
+        innerCalls: [call],
+        config: accountConfig,
+      });
+      await coreApp.processMessages();
+      expect(await recipient.lastCallMessage()).to.eql(fooMessage);
+      expect(await recipient.lastCaller()).to.eql(icaAddress);
+    });
   });
 
   describe('feeTokenApprovals', async () => {
@@ -244,7 +368,6 @@ describe('InterchainAccounts', async () => {
     });
 
     it('should not fail when feeTokenApprovals is undefined', async () => {
-      // This uses the default config without feeTokenApprovals
       const configWithoutApprovals = objMap(
         coreApp.getRouterConfig(signer.address),
         (_, baseConfig): IcaRouterConfig => ({
