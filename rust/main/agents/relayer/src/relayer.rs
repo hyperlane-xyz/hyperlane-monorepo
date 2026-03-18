@@ -428,23 +428,8 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
-        // Check if indexing should be disabled (for relay API testing)
-        let indexing_disabled =
-            std::env::var("HYPERLANE_RELAYER_DISABLE_INDEXING").is_ok_and(|v| v == "true");
-        if indexing_disabled {
-            info!("Contract indexing disabled (HYPERLANE_RELAYER_DISABLE_INDEXING=true). Only relay API will function.");
-        }
-
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
-            // Skip indexing tasks if disabled
-            if indexing_disabled {
-                info!(
-                    origin = %origin_domain.name(),
-                    "Skipping contract sync and db loader tasks (indexing disabled)"
-                );
-                continue;
-            }
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
             let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
