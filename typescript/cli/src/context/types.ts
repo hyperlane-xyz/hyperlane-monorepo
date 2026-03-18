@@ -59,7 +59,7 @@ export interface CommandContext extends Omit<
   warpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   resolvedWarpRouteId?: string;
-  altVmSigners?: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }

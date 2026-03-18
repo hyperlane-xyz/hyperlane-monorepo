@@ -241,6 +241,7 @@ export async function getContext({
     multiProvider,
     multiProtocolProvider,
     altVmProviders,
+    altVmSigners: {},
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,

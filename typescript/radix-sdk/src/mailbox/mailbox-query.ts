@@ -25,6 +25,7 @@ function getBooleanOutput(value: unknown): boolean | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const raw = Reflect.get(value, 'value');
   if (typeof raw === 'boolean') return raw;
+  if (raw === 0n || raw === 1n) return raw === 1n;
   if (raw === 0 || raw === '0' || raw === 'false') return false;
   if (raw === 1 || raw === '1' || raw === 'true') return true;
   return undefined;

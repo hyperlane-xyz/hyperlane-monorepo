@@ -72,4 +72,20 @@ describe(isMessageDelivered.name, function () {
     expect(numericDelivered).to.equal(true);
     expect(stringDelivered).to.equal(false);
   });
+
+  it('parses bigint boolean output', async function () {
+    const bigintDelivered = await isMessageDelivered(
+      getGateway({ value: 1n }) as GatewayApiClient,
+      'component_rdx1test',
+      '0x1234',
+    );
+    const bigintUndelivered = await isMessageDelivered(
+      getGateway({ value: 0n }) as GatewayApiClient,
+      'component_rdx1test',
+      '0x1234',
+    );
+
+    expect(bigintDelivered).to.equal(true);
+    expect(bigintUndelivered).to.equal(false);
+  });
 });
