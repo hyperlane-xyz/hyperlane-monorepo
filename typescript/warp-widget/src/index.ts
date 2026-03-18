@@ -67,6 +67,7 @@ export function createWarpWidget(
     if (event.source !== iframe.contentWindow) return;
     if (!event.data || event.data.type !== WIDGET_MESSAGE_TYPE) return;
 
+    // CAST: event.data.event is untyped from postMessage, validated by type guard above
     const widgetEvent = event.data.event as WarpWidgetEvent | undefined;
     if (!widgetEvent?.type) return;
 
@@ -92,10 +93,9 @@ export function createWarpWidget(
     cb: (payload?: Record<string, unknown>) => void,
   ): (() => void) => {
     if (destroyed) return () => {};
-    if (!listeners.has(event)) {
-      listeners.set(event, new Set());
-    }
-    listeners.get(event)!.add(cb);
+    const handlers = listeners.get(event) ?? new Set();
+    listeners.set(event, handlers);
+    handlers.add(cb);
     return () => {
       listeners.get(event)?.delete(cb);
     };

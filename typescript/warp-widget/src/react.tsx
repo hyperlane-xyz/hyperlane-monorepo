@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useRef } from 'react';
+import React, { type CSSProperties, useEffect, useMemo, useRef } from 'react';
 import { createWarpWidget } from './index.js';
 import type { WarpWidgetConfig, WarpWidgetEvent } from './types.js';
 

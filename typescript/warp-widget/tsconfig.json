@@ -1,7 +1,9 @@
 {
   "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    "jsx": "react",
     "noImplicitAny": false,
     "rootDir": "./src",
     "outDir": "./dist"
