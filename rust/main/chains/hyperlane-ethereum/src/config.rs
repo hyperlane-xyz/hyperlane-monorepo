@@ -55,8 +55,10 @@ pub struct ConnectionConf {
     pub consider_null_transaction_receipt: bool,
 
     // Tron specific
-    /// REST API urls (for Tron: [wallet, walletSolidity])
-    pub rest_urls: Option<Vec<Url>>,
+    /// Wallet HTTP API urls (full node REST endpoints)
+    pub wallet_urls: Option<Vec<Url>>,
+    /// Wallet Solidity HTTP API urls (solidity node REST endpoints)
+    pub wallet_solidity_urls: Option<Vec<Url>>,
     /// Tron energy multiplier
     pub energy_multiplier: Option<f64>,
 }

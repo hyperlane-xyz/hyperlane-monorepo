@@ -1601,10 +1601,12 @@
       },
       "protocol": "tron",
       "technicalStack": "other",
-      "restUrls": [
+      "walletUrls": [
         {
           "http": "https://api.shasta.trongrid.io/wallet"
-        },
+        }
+      ],
+      "walletSolidityUrls": [
         {
           "http": "https://api.shasta.trongrid.io/walletsolidity"
         }

@@ -53,13 +53,10 @@ impl TronProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let wallet = TronHttpProvider::new(
-            vec![conf.wallet_url.clone()],
-            metrics.clone(),
-            chain.clone(),
-        )?;
+        let wallet =
+            TronHttpProvider::new(conf.wallet_urls.clone(), metrics.clone(), chain.clone())?;
         let wallet_solidity = TronHttpProvider::new(
-            vec![conf.wallet_solidity_url.clone()],
+            conf.wallet_solidity_urls.clone(),
             metrics.clone(),
             chain.clone(),
         )?;
@@ -193,15 +190,19 @@ impl TronProvider {
     }
 
     /// Build a TriggerSmartContract protobuf from a TriggerContractRequest (for tx construction)
-    fn trigger_contract_request_to_proto(req: &TriggerContractRequest) -> TriggerSmartContract {
-        TriggerSmartContract {
-            owner_address: hex::decode(&req.owner_address).unwrap_or_default(),
-            contract_address: hex::decode(&req.contract_address).unwrap_or_default(),
+    fn trigger_contract_request_to_proto(
+        req: &TriggerContractRequest,
+    ) -> ChainResult<TriggerSmartContract> {
+        Ok(TriggerSmartContract {
+            owner_address: hex::decode(&req.owner_address)
+                .map_err(|_| HyperlaneTronError::MissingRawData)?,
+            contract_address: hex::decode(&req.contract_address)
+                .map_err(|_| HyperlaneTronError::MissingRawData)?,
             call_value: req.call_value,
-            data: hex::decode(&req.data).unwrap_or_default(),
+            data: hex::decode(&req.data).map_err(|_| HyperlaneTronError::MissingRawData)?,
             call_token_value: 0,
             token_id: 0,
-        }
+        })
     }
 
     /// Get the current block
@@ -264,7 +265,7 @@ impl TronProvider {
 
         let block = self.get_current_block().await?;
         let tron_call = self.parse_tx(tx);
-        let proto_call = Self::trigger_contract_request_to_proto(&tron_call);
+        let proto_call = Self::trigger_contract_request_to_proto(&tron_call)?;
         let (mut tx, hash) = Self::build_tx(&proto_call, &block, fee_limit)?;
 
         let signer = self.get_signer()?;

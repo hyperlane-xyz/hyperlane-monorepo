@@ -9687,17 +9687,19 @@
         "symbol": "TRX"
       },
       "protocol": "tron",
-      "restUrls": [
-        {
-          "http": "https://api.trongrid.io/wallet"
-        },
-        {
-          "http": "https://api.trongrid.io/walletsolidity"
-        }
-      ],
       "rpcUrls": [
         {
           "http": "https://api.trongrid.io/jsonrpc"
+        }
+      ],
+      "walletUrls": [
+        {
+          "http": "https://api.trongrid.io/wallet"
+        }
+      ],
+      "walletSolidityUrls": [
+        {
+          "http": "https://api.trongrid.io/walletsolidity"
         }
       ],
       "technicalStack": "other",

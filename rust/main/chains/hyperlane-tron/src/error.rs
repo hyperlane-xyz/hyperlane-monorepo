@@ -41,6 +41,9 @@ pub enum HyperlaneTronError {
     /// Reqwest error
     #[error("Reqwest error: {0}")]
     ReqwestError(#[from] reqwest::Error),
+    /// JSON deserialization error
+    #[error("JSON deserialization error: {0}")]
+    JsonError(#[from] serde_json::Error),
     /// Signing error
     #[error("Signing error: {0}")]
     SigningError(#[from] crate::signer::TronSignersError),

@@ -741,7 +741,8 @@ mod test {
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
             consider_null_transaction_receipt: false,
-            rest_urls: None,
+            wallet_urls: None,
+            wallet_solidity_urls: None,
             energy_multiplier: None,
         };
 

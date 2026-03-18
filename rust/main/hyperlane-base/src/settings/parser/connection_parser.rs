@@ -129,8 +129,16 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
-    let rest_urls =
-        parse_base_and_override_urls(chain, "restUrls", "customRestUrls", "http", err, true);
+    let wallet_urls =
+        parse_base_and_override_urls(chain, "walletUrls", "customWalletUrls", "http", err, true);
+    let wallet_solidity_urls = parse_base_and_override_urls(
+        chain,
+        "walletSolidityUrls",
+        "customWalletSolidityUrls",
+        "http",
+        err,
+        true,
+    );
 
     let energy_multiplier = chain
         .chain(err)
@@ -143,10 +151,15 @@ pub fn build_ethereum_connection_conf(
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
-        rest_urls: if rest_urls.is_empty() {
+        wallet_urls: if wallet_urls.is_empty() {
             None
         } else {
-            Some(rest_urls)
+            Some(wallet_urls)
+        },
+        wallet_solidity_urls: if wallet_solidity_urls.is_empty() {
+            None
+        } else {
+            Some(wallet_solidity_urls)
         },
         energy_multiplier,
     }))
@@ -593,10 +606,18 @@ pub fn build_tron_connection_conf(
     _operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let rest_urls = parse_base_and_override_urls(
+    let wallet_urls = parse_base_and_override_urls(
         chain,
-        "restUrls",
-        "customRestUrls",
+        "walletUrls",
+        "customWalletUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+    let wallet_solidity_urls = parse_base_and_override_urls(
+        chain,
+        "walletSolidityUrls",
+        "customWalletSolidityUrls",
         "http",
         &mut local_err,
         false,
@@ -613,19 +634,11 @@ pub fn build_tron_connection_conf(
         return None;
     }
 
-    if rest_urls.len() < 2 {
-        err.push(
-            (&chain.cwp).add("restUrls"),
-            eyre::eyre!("Tron requires at least 2 restUrls: [wallet, walletSolidity]"),
-        );
-        return None;
-    }
-
     Some(ChainConnectionConf::Tron(
         hyperlane_tron::ConnectionConf::new(
             rpcs.to_vec(),
-            rest_urls[0].clone(),
-            rest_urls[1].clone(),
+            wallet_urls,
+            wallet_solidity_urls,
             fee_multiplier,
         ),
     ))

@@ -95,9 +95,20 @@ impl TronHttpChannel {
             }
             .into());
         }
-        resp.json::<R>()
-            .await
-            .map_err(|e| HyperlaneTronError::from(e).into())
+        let text = resp.text().await.map_err(HyperlaneTronError::from)?;
+
+        // Tron API sometimes returns 200 with {"Error": "..."} on failure
+        if let Ok(err_obj) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(err_msg) = err_obj.get("Error").and_then(|v| v.as_str()) {
+                return Err(HyperlaneTronError::HttpResponseError {
+                    status: 200,
+                    body: err_msg.to_string(),
+                }
+                .into());
+            }
+        }
+
+        serde_json::from_str::<R>(&text).map_err(|e| HyperlaneTronError::from(e).into())
     }
 }
 
