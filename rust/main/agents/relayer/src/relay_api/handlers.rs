@@ -137,10 +137,12 @@ impl ServerState {
         // Restrict CORS to only allow localhost:3000 and nexus.hyperlane.xyz
         let cors = CorsLayer::new()
             .allow_origin([
-                "http://localhost:3000".parse::<HeaderValue>().unwrap(),
+                "http://localhost:3000"
+                    .parse::<HeaderValue>()
+                    .expect("Static localhost origin is valid HeaderValue"),
                 "https://nexus.hyperlane.xyz"
                     .parse::<HeaderValue>()
-                    .unwrap(),
+                    .expect("Static nexus origin is valid HeaderValue"),
             ])
             .allow_methods([Method::POST])
             .allow_headers([axum::http::header::CONTENT_TYPE]);
