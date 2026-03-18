@@ -75,7 +75,7 @@ describe('hook protocolFee support', () => {
     expect(shouldDeployNewHook(actual, expected)).to.equal(true);
   });
 
-  it('does not force redeploy when protocolFee max is unreadable', () => {
+  it('fails closed when protocolFee max is unreadable', () => {
     const actual = {
       type: 'protocolFee',
       owner: '0xowner',
@@ -94,7 +94,14 @@ describe('hook protocolFee support', () => {
       protocolFee: '20',
     } as const;
 
-    expect(shouldDeployNewHook(actual, expected)).to.equal(false);
+    let error: unknown;
+    try {
+      shouldDeployNewHook(actual, expected);
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(String(error)).to.include('readable maxProtocolFee');
   });
 
   it('derives protocolFee hook config with address', () => {

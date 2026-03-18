@@ -18,6 +18,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
+import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -31,6 +32,60 @@ import {
   toBigInt,
 } from '../contracts.js';
 import { StarknetDeployTx } from '../types.js';
+
+const STARKNET_STORAGE_ADDRESS_BOUND = (1n << 251n) - 256n;
+const MAX_PROTOCOL_FEE_STORAGE_KEYS = [
+  'max_protocol_fee',
+  '_max_protocol_fee',
+].map((name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND);
+
+async function readUint256Storage(
+  provider: StarknetProvider,
+  contractAddress: string,
+  key: bigint,
+): Promise<bigint | undefined> {
+  try {
+    const rawProvider = provider.getRawProvider();
+    const [low, high] = await Promise.all([
+      rawProvider.getStorageAt(contractAddress, `0x${key.toString(16)}`),
+      rawProvider.getStorageAt(contractAddress, `0x${(key + 1n).toString(16)}`),
+    ]);
+    return toBigInt(low) + (toBigInt(high) << 128n);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readProtocolFeeMaxFromStorage(
+  provider: StarknetProvider,
+  contractAddress: string,
+  protocolFee: bigint,
+): Promise<bigint | undefined> {
+  const candidates = (
+    await Promise.all(
+      MAX_PROTOCOL_FEE_STORAGE_KEYS.map((key) =>
+        readUint256Storage(provider, contractAddress, key),
+      ),
+    )
+  ).filter(
+    (value): value is bigint => value !== undefined && value >= protocolFee,
+  );
+
+  if (candidates.length === 0) return undefined;
+
+  const nonZeroCandidates = candidates.filter((value) => value > 0n);
+  const relevantCandidates =
+    nonZeroCandidates.length === 1 ? nonZeroCandidates : candidates;
+  const uniqueValues = [
+    ...new Set(relevantCandidates.map((value) => value.toString())),
+  ];
+
+  if (uniqueValues.length === 1) {
+    return BigInt(uniqueValues[0]!);
+  }
+
+  return undefined;
+}
 
 class StarknetMerkleTreeHookReader implements ArtifactReader<
   RawHookArtifactConfigs['merkleTreeHook'],
@@ -131,19 +186,28 @@ class StarknetProtocolFeeHookReader implements ArtifactReader<
 
     const ownerAddress = normalizeStarknetAddressSafe(owner);
     const beneficiaryAddress = normalizeStarknetAddressSafe(beneficiary);
+    const protocolFeeAmount = toBigInt(protocolFee);
+    const maxProtocolFee = await readProtocolFeeMaxFromStorage(
+      this.provider,
+      normalizedAddress,
+      protocolFeeAmount,
+    );
     const config: RawHookArtifactConfigs['protocolFee'] = {
       type: AltVM.HookType.PROTOCOL_FEE,
       owner: ownerAddress,
       beneficiary: beneficiaryAddress,
-      // Starknet protocol_fee does not expose maxProtocolFee as a view.
-      // Mark the read config as lossy so generic deploy logic does not
-      // redeploy forever when protocolFee != desired maxProtocolFee.
-      maxProtocolFee: toBigInt(protocolFee).toString(),
-      protocolFee: toBigInt(protocolFee).toString(),
+      maxProtocolFee: (maxProtocolFee ?? protocolFeeAmount).toString(),
+      protocolFee: protocolFeeAmount.toString(),
     };
-    Object.defineProperty(config, '__maxProtocolFeeUnknown', {
-      value: true,
-    });
+    if (maxProtocolFee === undefined) {
+      // Starknet protocol_fee does not expose maxProtocolFee in its ABI.
+      // If storage lookup is unavailable or ambiguous, mark the read config
+      // as lossy so generic deploy logic can fail closed instead of silently
+      // ignoring maxProtocolFee drift.
+      Object.defineProperty(config, '__maxProtocolFeeUnknown', {
+        value: true,
+      });
+    }
 
     return {
       artifactState: ArtifactState.DEPLOYED,

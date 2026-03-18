@@ -395,7 +395,10 @@ export function shouldDeployNewHook(
         'expected protocolFee hook config',
       );
       if (hasUnreadableProtocolFeeMax(actual)) {
-        return false;
+        assert(
+          false,
+          'Cannot compare protocolFee maxProtocolFee because the current hook does not expose a readable maxProtocolFee',
+        );
       }
       const expectedProtocolFee: ProtocolFeeHookConfig = expected;
       // maxProtocolFee is immutable (constructor-only) and requires redeploy.
