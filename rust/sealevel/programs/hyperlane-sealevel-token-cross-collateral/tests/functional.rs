@@ -29,7 +29,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     accounts::CrossCollateralStateAccount,
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     instruction::{
-        init_instruction, set_cross_collateral_routers_instruction, CrossCollateralInit,
+        enroll_cross_collateral_routers_instruction, init_instruction, CrossCollateralInit,
         CrossCollateralInstruction, TransferRemoteTo,
     },
     processor::process_instruction,
@@ -402,7 +402,27 @@ async fn enroll_cc_routers(
     configs: Vec<RemoteRouterConfig>,
 ) -> Result<(), BanksClientError> {
     let ixn =
-        set_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs).unwrap();
+        enroll_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs).unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await?;
+    Ok(())
+}
+
+async fn unenroll_cc_routers(
+    banks_client: &mut BanksClient,
+    program_id: &Pubkey,
+    payer: &Keypair,
+    configs: Vec<RemoteRouterConfig>,
+) -> Result<(), BanksClientError> {
+    use hyperlane_sealevel_token_cross_collateral::instruction::unenroll_cross_collateral_routers_instruction;
+    let ixn = unenroll_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs)
+        .unwrap();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[ixn],
@@ -724,13 +744,181 @@ async fn test_set_cc_routers_unenroll() {
     .unwrap();
 
     // Unenroll (None removes all routers for domain)
-    enroll_cc_routers(
+    unenroll_cc_routers(
         &mut banks_client,
         &program_id,
         &payer,
         vec![RemoteRouterConfig {
             domain: REMOTE_DOMAIN,
             router: None,
+        }],
+    )
+    .await
+    .unwrap();
+
+    let cc_state_data = banks_client
+        .get_account(cc_accounts.cc_state)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+        .unwrap()
+        .into_inner();
+
+    assert!(!cc_state.enrolled_routers.contains_key(&REMOTE_DOMAIN));
+}
+
+#[tokio::test]
+async fn test_unenroll_cc_routers_single_router() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, _mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_accounts = initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let router_a = H256::random();
+    let router_b = H256::random();
+
+    // Enroll two routers for the same domain
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![
+            RemoteRouterConfig {
+                domain: REMOTE_DOMAIN,
+                router: Some(router_a),
+            },
+            RemoteRouterConfig {
+                domain: REMOTE_DOMAIN,
+                router: Some(router_b),
+            },
+        ],
+    )
+    .await
+    .unwrap();
+
+    // Unenroll only router_a
+    unenroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(router_a),
+        }],
+    )
+    .await
+    .unwrap();
+
+    let cc_state_data = banks_client
+        .get_account(cc_accounts.cc_state)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+        .unwrap()
+        .into_inner();
+
+    // router_b should still be enrolled
+    let routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+    assert!(!routers.contains(&router_a));
+    assert!(routers.contains(&router_b));
+}
+
+#[tokio::test]
+async fn test_unenroll_cc_routers_removes_domain_when_empty() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, _mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_accounts = initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let router_a = H256::random();
+
+    // Enroll one router
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(router_a),
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Unenroll it — domain key should be removed
+    unenroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(router_a),
         }],
     )
     .await

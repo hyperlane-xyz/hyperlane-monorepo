@@ -32,14 +32,19 @@ pub const CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR: [u8; 8] = [2, 2, 2, 2, 2, 
 pub enum CrossCollateralInstruction {
     /// Creates token PDA, escrow, dispatch authority, CC state PDA, CC dispatch authority PDA.
     Init(CrossCollateralInit),
-    /// Enroll (Some) or unenroll (None) CC routers. Owner-only.
-    SetCrossCollateralRouters(Vec<RemoteRouterConfig>),
+    /// Enroll CC routers. Owner-only. Each config must have `router: Some(h256)`.
+    EnrollCrossCollateralRouters(Vec<RemoteRouterConfig>),
     /// Transfer to a specific enrolled router (cross-chain or same-chain).
     TransferRemoteTo(TransferRemoteTo),
     /// Same-chain CPI receive. PDA-verified caller only.
     HandleLocal(HandleLocal),
     /// Returns account metas needed for HandleLocal (off-chain simulation).
     HandleLocalAccountMetas(HandleLocal),
+    /// Unenroll CC routers. Owner-only.
+    /// `Some(router)` removes that specific router from the domain's set.
+    /// `None` removes all routers for the domain.
+    /// If a domain's set becomes empty, the domain key is removed.
+    UnenrollCrossCollateralRouters(Vec<RemoteRouterConfig>),
 }
 
 impl DiscriminatorData for CrossCollateralInstruction {
@@ -174,14 +179,14 @@ pub fn init_instruction(
     })
 }
 
-/// Gets an instruction to set cross-collateral routers.
+/// Gets an instruction to enroll cross-collateral routers.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
 /// 1. `[writable]` The CC state PDA account.
 /// 2. `[]` The token PDA account.
 /// 3. `[signer]` The owner.
-pub fn set_cross_collateral_routers_instruction(
+pub fn enroll_cross_collateral_routers_instruction(
     program_id: Pubkey,
     owner_payer: Pubkey,
     configs: Vec<RemoteRouterConfig>,
@@ -194,7 +199,43 @@ pub fn set_cross_collateral_routers_instruction(
         Pubkey::try_find_program_address(cross_collateral_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = CrossCollateralInstruction::SetCrossCollateralRouters(configs);
+    let ixn = CrossCollateralInstruction::EnrollCrossCollateralRouters(configs);
+
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(cc_state_key, false),
+        AccountMeta::new_readonly(token_key, false),
+        AccountMeta::new(owner_payer, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to unenroll cross-collateral routers.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writable]` The CC state PDA account.
+/// 2. `[]` The token PDA account.
+/// 3. `[signer]` The owner.
+pub fn unenroll_cross_collateral_routers_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    configs: Vec<RemoteRouterConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let (cc_state_key, _cc_state_bump) =
+        Pubkey::try_find_program_address(cross_collateral_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = CrossCollateralInstruction::UnenrollCrossCollateralRouters(configs);
 
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
