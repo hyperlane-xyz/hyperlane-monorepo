@@ -99,6 +99,10 @@ async function readProtocolFeeMaxFromStorage(
   contractAddress: string,
   protocolFee: bigint,
 ): Promise<bigint | undefined> {
+  // Different Starknet contract builds have used different storage keys for
+  // max_protocol_fee. Accept any candidate that is at least the live
+  // protocolFee, prefer a single non-zero value over zero sentinels, and only
+  // fall back to all candidates when multiple non-zero slots are populated.
   const candidates = (
     await Promise.all(
       MAX_PROTOCOL_FEE_STORAGE_KEYS.map((key) =>
@@ -464,19 +468,17 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     const hookType = await this.provider.getHookType({
       hookAddress: address,
     });
-    if (hookType === AltVM.HookType.CUSTOM) {
-      return this.createReader('unknownHook').read(address);
-    }
 
-    if (hookType === AltVM.HookType.MERKLE_TREE) {
-      return this.createReader(AltVM.HookType.MERKLE_TREE).read(address);
+    switch (hookType) {
+      case AltVM.HookType.CUSTOM:
+        return this.createReader('unknownHook').read(address);
+      case AltVM.HookType.MERKLE_TREE:
+        return this.createReader(AltVM.HookType.MERKLE_TREE).read(address);
+      case AltVM.HookType.PROTOCOL_FEE:
+        return this.createReader(AltVM.HookType.PROTOCOL_FEE).read(address);
+      default:
+        throw new Error(`Unsupported Starknet hook type: ${hookType}`);
     }
-
-    if (hookType === AltVM.HookType.PROTOCOL_FEE) {
-      return this.createReader(AltVM.HookType.PROTOCOL_FEE).read(address);
-    }
-
-    throw new Error(`Unsupported Starknet hook type: ${hookType}`);
   }
 
   createReader<T extends HookType>(

@@ -238,7 +238,9 @@ export class StarknetArtifactGenerator {
     await this.createOutputDirectory();
 
     const { sierraFiles, casmFiles } = await this.getArtifactPaths();
-    const artifactFiles = [...sierraFiles, ...casmFiles];
+    const artifactFiles = [...sierraFiles, ...casmFiles].sort((a, b) =>
+      a.localeCompare(b),
+    );
 
     const processingResults = await Promise.all(
       artifactFiles.map((file) => this.processArtifact(file)),

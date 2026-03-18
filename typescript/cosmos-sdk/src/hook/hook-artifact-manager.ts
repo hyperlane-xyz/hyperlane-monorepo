@@ -5,6 +5,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
+  ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -76,6 +77,9 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const query = await this.getQuery();
     const altVMType = await getHookType(query, address);
+    if (altVMType === AltVM.HookType.CUSTOM) {
+      return this.createReaderWithQuery('unknownHook', query).read(address);
+    }
 
     const reader = this.createReaderWithQuery(
       altVmHookTypeToProviderHookType(altVMType),
@@ -114,6 +118,17 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+    const unknownHookReader: ArtifactReader<
+      RawHookArtifactConfigs['unknownHook'],
+      DeployedHookAddress
+    > = {
+      read: async (address: string) => ({
+        artifactState: ArtifactState.DEPLOYED,
+        config: { type: 'unknownHook' },
+        deployed: { address },
+      }),
+    };
+
     const readers: {
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
@@ -125,7 +140,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
         new CosmosIgpHookReader(query),
       [AltVM.HookType.PROTOCOL_FEE]: () =>
         createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
-      unknownHook: () => createUnsupportedHookReader('unknownHook', 'Cosmos'),
+      unknownHook: () => unknownHookReader,
     };
 
     return readers[type]();

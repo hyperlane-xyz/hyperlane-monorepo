@@ -97,7 +97,7 @@ describe(isMessageDelivered.name, function () {
         'component_rdx1test',
         '0x1234',
       );
-    } catch (caughtError) {
+    } catch (caughtError: unknown) {
       error = caughtError;
     }
 

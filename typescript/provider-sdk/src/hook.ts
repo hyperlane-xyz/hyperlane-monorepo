@@ -414,8 +414,7 @@ export function shouldDeployNewHook(
         'expected protocolFee hook config',
       );
       if (hasUnreadableProtocolFeeMax(actual)) {
-        assert(
-          false,
+        throw new Error(
           'Cannot compare protocolFee maxProtocolFee because the current hook does not expose a readable maxProtocolFee',
         );
       }
