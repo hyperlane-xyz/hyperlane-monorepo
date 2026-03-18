@@ -92,6 +92,8 @@ pub struct Relayer {
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
+    relay_api_rate_limit_max_requests: Option<usize>,
+    relay_api_rate_limit_window_secs: Option<u64>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -289,6 +291,8 @@ impl BaseAgent for Relayer {
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
             max_retries: settings.max_retries,
+            relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
+            relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -654,6 +658,16 @@ impl Relayer {
             // Initialize tx hash cache for DoS protection (10k entries max)
             let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
 
+            // Initialize rate limiter (default: 100 requests per 60 seconds)
+            use crate::relay_api::handlers::RateLimiter;
+            let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
+            let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
+            let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
+            info!(
+                max_requests,
+                window_secs, "Initialized relay API rate limiter"
+            );
+
             let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
 
             info!(
@@ -694,7 +708,8 @@ impl Relayer {
             server = server
                 .with_indexers(indexers)
                 .with_tx_hash_cache(tx_hash_cache)
-                .with_relay_api_metrics(relay_api_metrics);
+                .with_relay_api_metrics(relay_api_metrics)
+                .with_rate_limiter(rate_limiter);
         } else {
             info!("Relay API disabled (HYPERLANE_RELAYER_DISABLE_RELAY_API=true)");
         }

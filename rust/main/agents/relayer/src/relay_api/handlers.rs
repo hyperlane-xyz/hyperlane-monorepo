@@ -123,6 +123,11 @@ impl ServerState {
         self.metrics = Some(metrics);
         self
     }
+
+    pub fn with_rate_limiter(mut self, limiter: Arc<RwLock<RateLimiter>>) -> Self {
+        self.rate_limiter = Some(limiter);
+        self
+    }
 }
 
 impl ServerState {

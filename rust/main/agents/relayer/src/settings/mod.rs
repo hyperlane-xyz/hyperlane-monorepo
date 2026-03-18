@@ -73,6 +73,10 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
+    /// Relay API rate limit: max requests per window (default: 100)
+    pub relay_api_rate_limit_max_requests: Option<usize>,
+    /// Relay API rate limit: time window in seconds (default: 60)
+    pub relay_api_rate_limit_window_secs: Option<u64>,
 }
 
 /// Config for gas payment enforcement
@@ -369,6 +373,19 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let relay_api_rate_limit_max_requests = p
+            .chain(&mut err)
+            .get_opt_key("relayApiRateLimitMaxRequests")
+            .parse_u32()
+            .end()
+            .map(|v| v as usize);
+
+        let relay_api_rate_limit_window_secs = p
+            .chain(&mut err)
+            .get_opt_key("relayApiRateLimitWindowSecs")
+            .parse_u64()
+            .end();
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -387,6 +404,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            relay_api_rate_limit_max_requests,
+            relay_api_rate_limit_window_secs,
         })
     }
 }

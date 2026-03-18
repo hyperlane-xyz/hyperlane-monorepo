@@ -57,6 +57,8 @@ pub struct Server {
     relay_tx_hash_cache: Option<Arc<StdRwLock<TxHashCache>>>,
     #[new(default)]
     relay_api_metrics: Option<crate::relay_api::RelayApiMetrics>,
+    #[new(default)]
+    relay_rate_limiter: Option<Arc<StdRwLock<crate::relay_api::handlers::RateLimiter>>>,
 }
 
 impl Server {
@@ -133,6 +135,14 @@ impl Server {
         self
     }
 
+    pub fn with_rate_limiter(
+        mut self,
+        limiter: Arc<StdRwLock<crate::relay_api::handlers::RateLimiter>>,
+    ) -> Self {
+        self.relay_rate_limiter = Some(limiter);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -201,6 +211,11 @@ impl Server {
                 // Add metrics if available
                 if let Some(metrics) = self.relay_api_metrics {
                     relay_state = relay_state.with_metrics(metrics);
+                }
+
+                // Add rate limiter if available
+                if let Some(limiter) = self.relay_rate_limiter {
+                    relay_state = relay_state.with_rate_limiter(limiter);
                 }
 
                 router = router.merge(relay_state.router());
