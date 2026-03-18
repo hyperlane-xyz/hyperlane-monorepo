@@ -43,6 +43,7 @@ import {
   HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  isCrossCollateralTokenConfig,
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -382,7 +383,10 @@ export function resolveTokenFeeAddress(
 
   if (isNativeTokenConfig(tokenConfig)) {
     feeToken = constants.AddressZero;
-  } else if (isCollateralTokenConfig(tokenConfig)) {
+  } else if (
+    isCollateralTokenConfig(tokenConfig) ||
+    isCrossCollateralTokenConfig(tokenConfig)
+  ) {
     feeToken = tokenConfig.token;
   } else if (
     isSyntheticTokenConfig(tokenConfig) ||

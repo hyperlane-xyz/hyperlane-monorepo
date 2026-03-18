@@ -310,7 +310,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       effectiveParams = { ...params, routingDestinations };
     }
 
-    const actualConfig = await this.read(effectiveParams);
+    const actualConfig = await this.read({
+      ...effectiveParams,
+      token: (this.args.config as TokenFeeConfig).token,
+    });
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
