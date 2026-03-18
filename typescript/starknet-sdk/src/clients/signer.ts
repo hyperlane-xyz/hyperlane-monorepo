@@ -19,7 +19,13 @@ import {
 } from '@hyperlane-xyz/starknet-core';
 import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
-import { normalizeStarknetAddressSafe } from '../contracts.js';
+import {
+  StarknetContractName,
+  getStarknetContract,
+  normalizeStarknetAddressSafe,
+  populateInvokeTx,
+  toBigInt,
+} from '../contracts.js';
 import {
   StarknetAnnotatedTx,
   StarknetInvokeTx,
@@ -152,7 +158,10 @@ export class StarknetSigner
       compiledClassHash,
       `Missing compiledClassHash for Starknet contract ${params.contractName}`,
     );
-    const constructorCalldata = CallData.compile(params.constructorArgs);
+    const constructorCalldata = new CallData(compiledContract.abi).compile(
+      'constructor',
+      params.constructorArgs,
+    );
 
     const factory = new ContractFactory({
       compiledContract,
@@ -655,11 +664,27 @@ export class StarknetSigner
   async remoteTransfer(
     req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
   ): Promise<AltVM.ResRemoteTransfer> {
+    const token = await this.getToken({ tokenAddress: req.tokenAddress });
+    const tokenType = token.tokenType;
     const tx = await this.getRemoteTransferTransaction({
       signer: this.signerAddress,
       ...req,
     });
-    await this.sendAndConfirmTransaction(tx);
+    if (tokenType === AltVM.TokenType.native) {
+      const nativeToken = getStarknetContract(
+        StarknetContractName.ETHER,
+        token.denom,
+        this.provider,
+        ContractType.TOKEN,
+      );
+      const approvalTx = await populateInvokeTx(nativeToken, 'approve', [
+        normalizeStarknetAddressSafe(req.tokenAddress),
+        toBigInt(req.amount) + toBigInt(req.maxFee.amount),
+      ]);
+      await this.sendAndConfirmBatchTransactions([approvalTx, tx]);
+    } else {
+      await this.sendAndConfirmTransaction(tx);
+    }
     return { tokenAddress: req.tokenAddress };
   }
 }

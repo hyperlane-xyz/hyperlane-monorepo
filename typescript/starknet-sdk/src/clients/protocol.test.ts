@@ -48,12 +48,12 @@ describe('StarknetProtocolProvider', () => {
       getSignerAddress: () => '0x123',
     } as unknown as AltVM.ISigner<StarknetAnnotatedTx, TxReceipt>;
 
-    const originalConnectWithSigner = StarknetSigner.connectWithSigner;
-    (
-      StarknetSigner as typeof StarknetSigner & {
-        connectWithSigner: typeof StarknetSigner.connectWithSigner;
-      }
-    ).connectWithSigner = async () => fakeSigner;
+    const signerClass = StarknetSigner as typeof StarknetSigner & {
+      connectWithSigner: typeof StarknetSigner.connectWithSigner;
+    };
+    const originalConnectWithSigner =
+      signerClass.connectWithSigner.bind(signerClass);
+    signerClass.connectWithSigner = async () => fakeSigner;
 
     try {
       const submitter = await provider.createSubmitter(METADATA, {
@@ -67,11 +67,7 @@ describe('StarknetProtocolProvider', () => {
 
       expect(receipts).to.deep.equal([receipt]);
     } finally {
-      (
-        StarknetSigner as typeof StarknetSigner & {
-          connectWithSigner: typeof StarknetSigner.connectWithSigner;
-        }
-      ).connectWithSigner = originalConnectWithSigner;
+      signerClass.connectWithSigner = originalConnectWithSigner;
     }
   });
 });
