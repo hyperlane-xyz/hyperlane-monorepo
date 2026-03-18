@@ -1,25 +1,49 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import {
+  GatewayApiClient,
+  Transaction,
+  TransactionApi,
+  type TransactionConstructionResponse,
+  type TransactionPreviewResponse,
+} from '@radixdlt/babylon-gateway-api-sdk';
 import { expect } from 'chai';
 
 import { isMessageDelivered } from './mailbox-query.js';
+
+class TestTransactionApi extends TransactionApi {
+  constructor(private readonly programmaticJson: unknown) {
+    super();
+  }
+
+  override async transactionConstruction(): Promise<TransactionConstructionResponse> {
+    return {
+      ledger_state: {
+        network: 'stokenet',
+        state_version: 1,
+        proposer_round_timestamp: '0',
+        epoch: 1,
+        round: 1,
+      },
+    };
+  }
+
+  override async transactionPreview(): Promise<TransactionPreviewResponse> {
+    return {
+      encoded_receipt: '0x',
+      receipt: {
+        output: [{ programmatic_json: this.programmaticJson }],
+      },
+      resource_changes: [],
+      logs: [],
+    };
+  }
+}
 
 function getGateway(
   programmaticJson: unknown,
 ): Pick<GatewayApiClient, 'transaction'> {
   return {
-    transaction: {
-      innerClient: {
-        transactionConstruction: async () => ({
-          ledger_state: { epoch: 1 },
-        }),
-        transactionPreview: async () => ({
-          receipt: {
-            output: [{ programmatic_json: programmaticJson }],
-          },
-        }),
-      },
-    },
-  } as Pick<GatewayApiClient, 'transaction'>;
+    transaction: new Transaction(new TestTransactionApi(programmaticJson)),
+  };
 }
 
 describe(isMessageDelivered.name, function () {
