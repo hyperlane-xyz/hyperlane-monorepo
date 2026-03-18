@@ -12,6 +12,7 @@ use solana_program::{
 };
 use solana_system_interface::{instruction as system_instruction, program as system_program};
 
+use borsh::BorshDeserialize;
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
@@ -21,6 +22,9 @@ use hyperlane_sealevel_mailbox::{
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
     protocol_fee::ProtocolFee,
+};
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_collateral::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
@@ -45,9 +49,11 @@ use hyperlane_test_utils::{
     MailboxAccounts,
 };
 use hyperlane_warp_route::TokenMessage;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program_test::*;
 use solana_sdk::{
     instruction::InstructionError,
+    message::Message,
     signature::Signer,
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
@@ -2738,5 +2744,138 @@ mod transfer_remote_to_instruction {
                 expected_message.to_vec(),
             )),
         );
+    }
+}
+
+mod account_metas_simulation {
+    use super::*;
+
+    /// Helper: simulate an instruction and return the deserialized account metas.
+    async fn simulate_and_get_account_metas(
+        banks_client: &mut BanksClient,
+        payer: &Keypair,
+        program_id: Pubkey,
+        ixn_data: Vec<u8>,
+        accounts: Vec<AccountMeta>,
+    ) -> Vec<AccountMeta> {
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let return_data = banks_client
+            .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+                &[Instruction::new_with_bytes(program_id, &ixn_data, accounts)],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            )))
+            .await
+            .unwrap()
+            .simulation_details
+            .unwrap()
+            .return_data
+            .unwrap()
+            .data;
+
+        let serializable: Vec<SerializableAccountMeta> =
+            SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(
+                return_data.as_slice(),
+            )
+            .unwrap()
+            .return_data;
+        serializable.into_iter().map(Into::into).collect()
+    }
+
+    #[tokio::test]
+    async fn test_handle_local_account_metas() {
+        let ctx = TestContext::new(false).await;
+        let sender_program_id = Pubkey::new_unique();
+
+        let recipient_pubkey = Pubkey::new_unique();
+        let recipient: H256 = recipient_pubkey.to_bytes().into();
+        let amount: U256 = U256::from(42u64) * U256::from(10u64).pow(U256::from(REMOTE_DECIMALS));
+        let token_message = TokenMessage::new(recipient, amount, vec![]);
+
+        let handle_local = HandleLocal {
+            sender_program_id,
+            origin: LOCAL_DOMAIN,
+            message: token_message.to_vec(),
+        };
+
+        let ixn_data = CrossCollateralInstruction::HandleLocalAccountMetas(handle_local)
+            .encode()
+            .unwrap();
+
+        let account_metas = simulate_and_get_account_metas(
+            &mut ctx.banks_client.clone(),
+            &ctx.payer,
+            ctx.program_id,
+            ixn_data,
+            vec![AccountMeta::new_readonly(ctx.cc.token, false)],
+        )
+        .await;
+
+        // Verify expected accounts are present
+        assert!(!account_metas.is_empty());
+
+        // Account 0: CC dispatch authority from sender (signer)
+        let (expected_dispatch_authority, _) = Pubkey::find_program_address(
+            cross_collateral_dispatch_authority_pda_seeds!(),
+            &sender_program_id,
+        );
+        assert_eq!(account_metas[0].pubkey, expected_dispatch_authority);
+        assert!(account_metas[0].is_signer);
+
+        // Account 1: system_program
+        assert_eq!(account_metas[1].pubkey, system_program::ID);
+
+        // Account 2: token PDA
+        assert_eq!(account_metas[2].pubkey, ctx.cc.token);
+
+        // Account 3: CC state PDA
+        assert_eq!(account_metas[3].pubkey, ctx.cc.cc_state);
+
+        // Account 4: recipient
+        assert_eq!(account_metas[4].pubkey, recipient_pubkey);
+    }
+
+    #[tokio::test]
+    async fn test_transfer_from_remote_account_metas_cc() {
+        let ctx = TestContext::new(false).await;
+
+        let recipient_pubkey = Pubkey::new_unique();
+        let recipient: H256 = recipient_pubkey.to_bytes().into();
+        let amount: U256 = U256::from(42u64) * U256::from(10u64).pow(U256::from(REMOTE_DECIMALS));
+        let token_message = TokenMessage::new(recipient, amount, vec![]);
+
+        let handle = HandleInstruction {
+            origin: REMOTE_DOMAIN,
+            sender: H256::random(),
+            message: token_message.to_vec(),
+        };
+
+        let ixn_data = MessageRecipientInstruction::HandleAccountMetas(handle)
+            .encode()
+            .unwrap();
+
+        let account_metas = simulate_and_get_account_metas(
+            &mut ctx.banks_client.clone(),
+            &ctx.payer,
+            ctx.program_id,
+            ixn_data,
+            vec![AccountMeta::new_readonly(ctx.cc.token, false)],
+        )
+        .await;
+
+        // Verify expected accounts are present
+        assert!(!account_metas.is_empty());
+
+        // Account 0: system_program
+        assert_eq!(account_metas[0].pubkey, system_program::ID);
+
+        // Account 1: token PDA
+        assert_eq!(account_metas[1].pubkey, ctx.cc.token);
+
+        // Account 2: CC state PDA (inserted before recipient)
+        assert_eq!(account_metas[2].pubkey, ctx.cc.cc_state);
+
+        // Account 3: recipient
+        assert_eq!(account_metas[3].pubkey, recipient_pubkey);
     }
 }

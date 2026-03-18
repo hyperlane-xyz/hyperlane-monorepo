@@ -104,3 +104,35 @@ impl SizedData for CrossCollateralState {
         }).sum::<usize>()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_state(routers: &[(u32, usize)]) -> CrossCollateralState {
+        let mut enrolled = BTreeMap::new();
+        for &(domain, count) in routers {
+            let set: BTreeSet<H256> = (0..count).map(|_| H256::random()).collect();
+            enrolled.insert(domain, set);
+        }
+        CrossCollateralState {
+            bump: 1,
+            dispatch_authority_bump: 2,
+            local_domain: 1234,
+            enrolled_routers: enrolled,
+        }
+    }
+
+    #[test]
+    fn test_cross_collateral_state_sized_data() {
+        for routers in [
+            vec![],
+            vec![(100, 1)],
+            vec![(100, 3)],
+            vec![(100, 3), (200, 1), (300, 2)],
+        ] {
+            let state = make_state(&routers);
+            assert_eq!(borsh::to_vec(&state).unwrap().len(), state.size());
+        }
+    }
+}
