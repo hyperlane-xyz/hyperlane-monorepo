@@ -129,6 +129,6 @@ export const awIcas: ChainMap<Address> = {
 
   // Mar 16, 2026
   // ----------------------------------------------------------
-  // igra: '0x7479764EF00D145bF33042019fB03e9d997F2212',
+  // igra: '0xfA14458b1907BDa6E48bA619aF715c4532c3486c',
   // tron: '0xB960616C7E2ee0F2a296A4b2B9D0b3308E23A69D',
 } as const;

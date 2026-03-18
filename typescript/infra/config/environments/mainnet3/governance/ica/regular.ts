@@ -163,6 +163,6 @@ export const regularIcas: ChainMap<Address> = {
 
   // Mar 16, 2026
   // ----------------------------------------------------------
-  // igra: '0x524CfCE7d1900238203b47B5dBf3277741859bc4',
+  // igra: '0x2EA494A9Df761F8c9D619d7C130203AE31a01bC4',
   // tron: '0x2839B41900b59dEBb43E7d70630BF92d10b86D21',
 } as const;
