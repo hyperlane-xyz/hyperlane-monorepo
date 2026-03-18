@@ -615,7 +615,7 @@ pub fn build_tron_connection_conf(
 
     if rest_urls.len() < 2 {
         err.push(
-            &chain.cwp + "restUrls",
+            (&chain.cwp).add("restUrls"),
             eyre::eyre!("Tron requires at least 2 restUrls: [wallet, walletSolidity]"),
         );
         return None;

@@ -76,10 +76,12 @@ impl TronHttpChannel {
         path: &str,
         body: B,
     ) -> ChainResult<R> {
-        let url = format!("{}{}", self.base_url.as_str().trim_end_matches('/'), path);
+        let mut url = self.base_url.clone();
+        let base_path = url.path().trim_end_matches('/').to_string();
+        url.set_path(&format!("{base_path}{path}"));
         let resp = self
             .client
-            .post(&url)
+            .post(url)
             .json(&body)
             .send()
             .await
