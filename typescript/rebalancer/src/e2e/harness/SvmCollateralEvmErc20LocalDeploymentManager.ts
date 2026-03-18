@@ -29,6 +29,7 @@ import {
 } from '../fixtures/routes.js';
 import {
   AGAVE_BIN_DIR,
+  DEPLOYER_KEYPAIR,
   MAILBOX_PROGRAM_ID,
   SVM_CHAIN_NAME,
   SVM_DOMAIN_ID,
@@ -298,12 +299,13 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
 
       await this.mintSplToSigner(splMint, inventorySignerAddress);
 
-      // Create ATA for inventory signer (starts with 0 balance; build() sets preset amount)
       this.runSplTokenCli([
         'create-account',
         splMint,
         '--owner',
         svmInventorySigner.publicKey.toBase58(),
+        '--fee-payer',
+        DEPLOYER_KEYPAIR,
       ]);
 
       this.deployedAddresses = {
@@ -463,32 +465,31 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
   }
 
   async mintSplToInventorySigner(amount: bigint): Promise<void> {
+    if (amount === 0n) return;
     const addresses = this.getDeployedAddresses();
-    const signerPubkey =
-      this.getSvmInventorySignerKeypair().publicKey.toBase58();
-    if (amount > 0n) {
-      const ataOutput = this.runSplTokenCliWithOutput([
-        'address',
-        '--token',
-        addresses.svm.splMint,
-        '--owner',
-        signerPubkey,
-      ]);
-      const match = ataOutput.match(/Associated token address: (\S+)/);
-      if (!match) {
-        throw new Error(`Could not parse ATA address from: ${ataOutput}`);
-      }
-      const signerAta = match[1];
-      const displayAmount = String(
-        Number(amount) / Math.pow(10, USDC_DECIMALS),
-      );
-      this.runSplTokenCli([
-        'mint',
-        addresses.svm.splMint,
-        displayAmount,
-        signerAta,
-      ]);
-    }
+    const signerKeypair = this.getSvmInventorySignerKeypair();
+    const mintPubkey = new PublicKey(addresses.svm.splMint);
+    const TOKEN_PROGRAM_ID = new PublicKey(
+      'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    );
+    const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+      'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+    );
+    const [signerAta] = PublicKey.findProgramAddressSync(
+      [
+        signerKeypair.publicKey.toBuffer(),
+        TOKEN_PROGRAM_ID.toBuffer(),
+        mintPubkey.toBuffer(),
+      ],
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+    );
+    const displayAmount = String(Number(amount) / Math.pow(10, USDC_DECIMALS));
+    this.runSplTokenCli([
+      'mint',
+      addresses.svm.splMint,
+      displayAmount,
+      signerAta.toBase58(),
+    ]);
   }
 
   private async enrollEvmRoutersToSvmCollateral(
@@ -584,15 +585,6 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
   private runSplTokenCli(args: string[]): void {
     const svmManager = this.getSvmChainManager();
     execFileSync(
-      SPL_TOKEN_BIN,
-      ['-C', svmManager.getSolanaConfigPath(), ...args],
-      { encoding: 'utf8' },
-    );
-  }
-
-  private runSplTokenCliWithOutput(args: string[]): string {
-    const svmManager = this.getSvmChainManager();
-    return execFileSync(
       SPL_TOKEN_BIN,
       ['-C', svmManager.getSolanaConfigPath(), ...args],
       { encoding: 'utf8' },
