@@ -182,6 +182,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             "customWalletUrls",
             &mut err,
         ));
+        rpcs.extend(get_rpc_urls(
+            &chain,
+            "walletSolidityUrls",
+            "customWalletSolidityUrls",
+            &mut err,
+        ));
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 

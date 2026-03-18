@@ -36,8 +36,22 @@ pub struct TriggerConstantResponse {
 /// Response from `/wallet/estimateenergy`
 #[derive(Debug, Deserialize)]
 pub struct EstimateEnergyResponse {
-    /// Energy required
+    /// Energy required (may be absent on estimation failure)
+    #[serde(default)]
     pub energy_required: i64,
+    /// Result of the estimation
+    pub result: Option<EstimateResult>,
+}
+
+/// Nested result field in estimate energy response
+#[derive(Debug, Deserialize)]
+pub struct EstimateResult {
+    /// Whether the estimation was successful
+    pub result: bool,
+    /// Error code
+    pub code: Option<String>,
+    /// Error message
+    pub message: Option<String>,
 }
 
 /// Response from `/wallet/broadcasthex`
