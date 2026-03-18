@@ -12,6 +12,7 @@ import {
   HyperlaneCore,
   type MultiProtocolProvider,
   type MultiProvider,
+  SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
 } from '@hyperlane-xyz/sdk';
 import { assert, ProtocolType } from '@hyperlane-xyz/utils';
@@ -42,6 +43,8 @@ export interface SvmBridgeContext {
   deployerKeypair: Keypair;
   evmCore: HyperlaneCore;
   evmMultiProvider: MultiProvider;
+  tokenType?: 'native' | 'collateral';
+  collateralMint?: string;
 }
 
 type MockBridgeRoute = {
@@ -167,10 +170,17 @@ export class MockExternalBridge implements IExternalBridge {
         32,
       );
 
-      const adapter = new SealevelHypNativeAdapter(SVM_CHAIN_NAME, ctx.mpp, {
-        warpRouter: ctx.warpRouter,
-        mailbox: ctx.mailboxProgramId,
-      });
+      const adapter =
+        ctx.tokenType === 'collateral' && ctx.collateralMint
+          ? new SealevelHypCollateralAdapter(SVM_CHAIN_NAME, ctx.mpp, {
+              warpRouter: ctx.warpRouter,
+              mailbox: ctx.mailboxProgramId,
+              token: ctx.collateralMint,
+            })
+          : new SealevelHypNativeAdapter(SVM_CHAIN_NAME, ctx.mpp, {
+              warpRouter: ctx.warpRouter,
+              mailbox: ctx.mailboxProgramId,
+            });
 
       const destinationDomain = this.multiProvider.getDomainId(toChainName);
       const tx = await adapter.populateTransferRemoteTx({
