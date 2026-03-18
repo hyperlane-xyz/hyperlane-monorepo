@@ -249,6 +249,35 @@ export class StarknetSigner
 
   // ### TX CORE ###
 
+  async estimateTransactionFee(
+    req: AltVM.ReqEstimateTransactionFee<StarknetAnnotatedTx>,
+  ): Promise<AltVM.ResEstimateTransactionFee> {
+    assert(
+      this.isInvokeTx(req.transaction),
+      'Starknet transaction fee estimation only supports invoke transactions',
+    );
+
+    const calls: Call[] = req.transaction.calls ?? [
+      {
+        contractAddress: req.transaction.contractAddress,
+        entrypoint: req.transaction.entrypoint,
+        calldata: req.transaction.calldata,
+      },
+    ];
+
+    const estimate = await this.account.estimateInvokeFee(calls);
+    const gasUnits =
+      estimate.l1_gas_consumed +
+      estimate.l1_data_gas_consumed +
+      (estimate.l2_gas_consumed ?? 0n);
+
+    return {
+      gasUnits,
+      gasPrice: Number(estimate.l1_gas_price),
+      fee: estimate.overall_fee,
+    };
+  }
+
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {

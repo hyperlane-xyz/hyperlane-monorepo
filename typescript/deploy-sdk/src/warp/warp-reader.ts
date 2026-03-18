@@ -1,5 +1,6 @@
 import {
   ChainMetadataForAltVM,
+  ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
@@ -27,6 +28,7 @@ import {
   WarpArtifactConfig,
   warpArtifactToDerivedConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
@@ -163,6 +165,10 @@ export function createWarpTokenReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
 ): WarpTokenReader {
+  assert(
+    chainMetadata.protocol !== ProtocolType.Starknet,
+    'Starknet warp artifact manager is not implemented yet',
+  );
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawWarpArtifactManager =
     protocolProvider.createWarpArtifactManager(chainMetadata);

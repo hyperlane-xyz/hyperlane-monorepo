@@ -2,7 +2,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
-const JSON_RPC_SUBMITTER_TYPE = 'jsonRpc';
+export const JSON_RPC_SUBMITTER_TYPE = 'jsonRpc';
 
 export function resolveStarknetAccountAddress(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,

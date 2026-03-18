@@ -1,5 +1,4 @@
 import {
-  type ProtocolProvider,
   ProtocolType,
   hasProtocol,
   registerProtocol,
@@ -18,46 +17,31 @@ export async function loadProtocolProviders(
       case ProtocolType.CosmosNative: {
         const { CosmosNativeProtocolProvider } =
           await import('@hyperlane-xyz/cosmos-sdk');
-        registerProtocol(
-          protocol,
-          () => new CosmosNativeProtocolProvider() as ProtocolProvider,
-        );
+        registerProtocol(protocol, () => new CosmosNativeProtocolProvider());
         break;
       }
       case ProtocolType.Radix: {
         const { RadixProtocolProvider } =
           await import('@hyperlane-xyz/radix-sdk');
-        registerProtocol(
-          protocol,
-          () => new RadixProtocolProvider() as ProtocolProvider,
-        );
+        registerProtocol(protocol, () => new RadixProtocolProvider());
         break;
       }
       case ProtocolType.Aleo: {
         const { AleoProtocolProvider } =
           await import('@hyperlane-xyz/aleo-sdk');
-        registerProtocol(
-          protocol,
-          () => new AleoProtocolProvider() as ProtocolProvider,
-        );
+        registerProtocol(protocol, () => new AleoProtocolProvider());
         break;
       }
       case ProtocolType.Sealevel: {
         const { SealevelProtocolProvider } =
           await import('@hyperlane-xyz/sealevel-sdk');
-        registerProtocol(
-          protocol,
-          () => new SealevelProtocolProvider() as unknown as ProtocolProvider,
-        );
+        registerProtocol(protocol, () => new SealevelProtocolProvider());
         break;
       }
       case ProtocolType.Starknet: {
         const { StarknetProtocolProvider } =
           await import('@hyperlane-xyz/starknet-sdk');
-        registerProtocol(
-          protocol,
-          () => new StarknetProtocolProvider() as ProtocolProvider,
-        );
+        registerProtocol(protocol, () => new StarknetProtocolProvider());
         break;
       }
     }

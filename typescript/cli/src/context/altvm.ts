@@ -14,7 +14,10 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
-import { resolveAltVmAccountAddress } from './altvm-signer-config.js';
+import {
+  JSON_RPC_SUBMITTER_TYPE,
+  resolveAltVmAccountAddress,
+} from './altvm-signer-config.js';
 import { type SignerKeyProtocolMap } from './types.js';
 
 export const altVmPrompts = {
@@ -44,7 +47,7 @@ async function loadPrivateKey(
   if (strategyConfig[chain]) {
     const rawConfig = strategyConfig[chain]!.submitter;
 
-    if (rawConfig.type === 'jsonRpc') {
+    if (rawConfig.type === JSON_RPC_SUBMITTER_TYPE) {
       if (rawConfig.privateKey) {
         return rawConfig.privateKey;
       }
