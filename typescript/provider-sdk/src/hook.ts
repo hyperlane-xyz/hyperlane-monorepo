@@ -222,6 +222,19 @@ export function createUnsupportedHookReader<T extends HookType>(
   };
 }
 
+export function createUnknownHookReader(): ArtifactReader<
+  RawHookArtifactConfigs['unknownHook'],
+  DeployedHookAddress
+> {
+  return {
+    read: async (address: string) => ({
+      artifactState: ArtifactState.DEPLOYED,
+      config: { type: 'unknownHook' },
+      deployed: { address },
+    }),
+  };
+}
+
 export function createUnsupportedHookWriter<T extends HookType>(
   hookType: T,
   protocolName: string,

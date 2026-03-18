@@ -2,7 +2,6 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
-  ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
@@ -11,6 +10,7 @@ import {
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
   altVmHookTypeToProviderHookType,
+  createUnknownHookReader,
   createUnsupportedHookReader,
   createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -61,17 +61,6 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const unknownHookReader: ArtifactReader<
-      RawHookArtifactConfigs['unknownHook'],
-      DeployedHookAddress
-    > = {
-      read: async (address: string) => ({
-        artifactState: ArtifactState.DEPLOYED,
-        config: { type: 'unknownHook' },
-        deployed: { address },
-      }),
-    };
-
     const readers: {
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
@@ -84,7 +73,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoIgpHookReader(this.aleoClient),
       [AltVM.HookType.PROTOCOL_FEE]: () =>
         createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
-      unknownHook: () => unknownHookReader,
+      unknownHook: () => createUnknownHookReader(),
     };
 
     assert(readers[type], `Hook reader for ${type} not found`);
