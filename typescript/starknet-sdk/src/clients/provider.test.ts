@@ -1,8 +1,12 @@
 import { expect } from 'chai';
-import { Contract, RpcProvider, byteArray } from 'starknet';
+import { CallData, Contract, RpcProvider } from 'starknet';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ContractType,
+  getCompiledContract,
+} from '@hyperlane-xyz/starknet-core';
 
 import { StarknetContractName } from '../contracts.js';
 import { StarknetAnnotatedTx } from '../types.js';
@@ -136,6 +140,35 @@ class StarknetTxTestHarness extends StarknetProvider {
   }
 }
 
+class StarknetTokenTypeTestHarness extends StarknetProvider {
+  classHash = '0x0';
+
+  constructor() {
+    super(
+      new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+      TEST_METADATA,
+      ['http://localhost:9545'],
+    );
+
+    Object.assign(this.provider, {
+      getClassHashAt: async () => this.classHash,
+    });
+  }
+
+  protected override withContract(
+    _name: StarknetContractName,
+    address: string,
+  ): Contract {
+    const contract: Contract = Object.create(Contract.prototype);
+    Object.assign(contract, { address });
+    return contract;
+  }
+
+  async readTokenType(tokenAddress: string): Promise<AltVM.TokenType> {
+    return this.determineTokenType(tokenAddress);
+  }
+}
+
 describe('StarknetProvider parseString', () => {
   const provider = new StarknetProviderTestHarness();
 
@@ -255,7 +288,7 @@ describe('StarknetProvider warp tx builders', () => {
   const feeDenom =
     '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
 
-  it('encodes synthetic token metadata as ByteArray constructor args', async () => {
+  it('leaves synthetic token metadata as strings for calldata compilation', async () => {
     const provider = new StarknetTxTestHarness();
 
     const tx = await provider.getCreateSyntheticTokenTransaction({
@@ -269,12 +302,18 @@ describe('StarknetProvider warp tx builders', () => {
     });
 
     expect(tx.kind).to.equal('deploy');
-    expect(tx.constructorArgs?.[3]).to.deep.equal(
-      byteArray.byteArrayFromString('TEST'),
+    expect(tx.constructorArgs?.[3]).to.equal('TEST');
+    expect(tx.constructorArgs?.[4]).to.equal('TEST');
+
+    const { abi } = getCompiledContract(
+      StarknetContractName.HYP_ERC20,
+      ContractType.TOKEN,
     );
-    expect(tx.constructorArgs?.[4]).to.deep.equal(
-      byteArray.byteArrayFromString('TEST'),
+    const calldata = new CallData(abi).compile(
+      'constructor',
+      tx.constructorArgs ?? [],
     );
+    expect(calldata.length).to.be.greaterThan(0);
   });
 
   it('includes transfer amount in native token remote transfer value', async () => {
@@ -317,6 +356,18 @@ describe('StarknetProvider warp tx builders', () => {
 
     expect(tx.kind).to.equal('invoke');
     expect(tx.calldata?.[3]).to.equal(2n);
+  });
+});
+
+describe('StarknetProvider determineTokenType', () => {
+  it('detects HypNative contracts by class hash', async () => {
+    const provider = new StarknetTokenTypeTestHarness();
+    provider.classHash =
+      '0x619ec108cdaaa2ea54b15fc7f4bf321de475dbc2827c72a561e02c092492c25';
+
+    const tokenType = await provider.readTokenType('0x123');
+
+    expect(tokenType).to.equal(AltVM.TokenType.native);
   });
 });
 

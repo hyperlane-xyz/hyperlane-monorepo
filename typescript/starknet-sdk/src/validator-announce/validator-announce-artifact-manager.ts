@@ -19,18 +19,13 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
-import {
-  StarknetContractName,
-  callContract,
-  getStarknetContract,
-  normalizeStarknetAddressSafe,
-} from '../contracts.js';
+import { normalizeStarknetAddressSafe } from '../contracts.js';
 
 class StarknetValidatorAnnounceReader implements ArtifactReader<
   RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
   DeployedValidatorAnnounceAddress
 > {
-  constructor(private readonly provider: StarknetProvider) {}
+  constructor(_provider: StarknetProvider) {}
 
   async read(
     address: string,
@@ -41,23 +36,12 @@ class StarknetValidatorAnnounceReader implements ArtifactReader<
     >
   > {
     const normalizedAddress = normalizeStarknetAddressSafe(address);
-    const validatorAnnounce = getStarknetContract(
-      StarknetContractName.VALIDATOR_ANNOUNCE,
-      normalizedAddress,
-      this.provider.getRawProvider(),
-    );
-
-    const mailboxAddress = await callContract(
-      validatorAnnounce,
-      'mailbox',
-    ).catch(() => '');
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        mailboxAddress: mailboxAddress
-          ? normalizeStarknetAddressSafe(mailboxAddress)
-          : '',
+        // ValidatorAnnounce does not expose mailbox as a readable view method.
+        mailboxAddress: '',
       },
       deployed: {
         address: normalizedAddress,

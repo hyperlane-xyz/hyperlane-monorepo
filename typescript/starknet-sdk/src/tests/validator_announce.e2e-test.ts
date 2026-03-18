@@ -52,9 +52,7 @@ describe('4. starknet sdk validator announce e2e tests', function () {
     expect(
       eqAddressStarknet(read.deployed.address, created.deployed.address),
     ).to.equal(true);
-    expect(
-      eqAddressStarknet(read.config.mailboxAddress, mailboxAddress),
-    ).to.equal(true);
+    expect(read.config.mailboxAddress).to.equal('');
   });
 
   it('returns no update txs for immutable validator announce', async () => {

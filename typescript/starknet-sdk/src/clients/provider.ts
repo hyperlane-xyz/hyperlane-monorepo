@@ -5,13 +5,16 @@ import {
   Contract,
   RawArgsArray,
   RpcProvider,
-  byteArray,
+  hash,
   shortString,
 } from 'starknet';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
-import { ContractType } from '@hyperlane-xyz/starknet-core';
+import {
+  ContractType,
+  getCompiledContract,
+} from '@hyperlane-xyz/starknet-core';
 import {
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
@@ -34,6 +37,43 @@ import {
   toNumber,
 } from '../contracts.js';
 import { StarknetAnnotatedTx } from '../types.js';
+
+const TOKEN_TYPE_BY_CLASS_HASH = new Map<string, AltVM.TokenType>(
+  (
+    [
+      [
+        hash.computeContractClassHash(
+          getCompiledContract(
+            StarknetContractName.HYP_ERC20,
+            ContractType.TOKEN,
+          ),
+        ),
+        AltVM.TokenType.synthetic,
+      ],
+      [
+        hash.computeContractClassHash(
+          getCompiledContract(
+            StarknetContractName.HYP_ERC20_COLLATERAL,
+            ContractType.TOKEN,
+          ),
+        ),
+        AltVM.TokenType.collateral,
+      ],
+      [
+        hash.computeContractClassHash(
+          getCompiledContract(
+            StarknetContractName.HYP_NATIVE,
+            ContractType.TOKEN,
+          ),
+        ),
+        AltVM.TokenType.native,
+      ],
+    ] as Array<[string, AltVM.TokenType]>
+  ).map(([classHash, tokenType]): [string, AltVM.TokenType] => [
+    BigInt(classHash).toString(),
+    tokenType,
+  ]),
+);
 
 export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   static connect(
@@ -144,6 +184,16 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     tokenAddress: string,
   ): Promise<AltVM.TokenType> {
     const address = normalizeStarknetAddressSafe(tokenAddress);
+
+    try {
+      const classHash = await this.provider.getClassHashAt(address);
+      const tokenType = TOKEN_TYPE_BY_CLASS_HASH.get(
+        BigInt(classHash).toString(),
+      );
+      if (tokenType) return tokenType;
+    } catch {
+      // noop
+    }
 
     try {
       const collateral = this.withContract(
@@ -893,8 +943,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         req.decimals,
         normalizeStarknetAddressSafe(req.mailboxAddress),
         0,
-        byteArray.byteArrayFromString(req.name),
-        byteArray.byteArrayFromString(req.denom),
+        req.name,
+        req.denom,
         ZERO_ADDRESS_HEX_32,
         ZERO_ADDRESS_HEX_32,
         normalizeStarknetAddressSafe(req.signer),

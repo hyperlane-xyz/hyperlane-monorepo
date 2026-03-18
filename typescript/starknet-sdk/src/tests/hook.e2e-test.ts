@@ -70,8 +70,7 @@ describe('3. starknet sdk hook e2e tests', function () {
       config: {
         type: AltVM.HookType.PROTOCOL_FEE,
         owner: signer.getSignerAddress(),
-        beneficiary:
-          '0x1111111111111111111111111111111111111111111111111111111111111111',
+        beneficiary: '0x111',
         maxProtocolFee: '20',
         protocolFee: '10',
       },
@@ -83,15 +82,13 @@ describe('3. starknet sdk hook e2e tests', function () {
     expect(read.config.maxProtocolFee).to.equal('20');
     expect(read.config.protocolFee).to.equal('10');
 
-    const newOwner =
-      '0x2222222222222222222222222222222222222222222222222222222222222222';
+    const newOwner = '0x222';
     const txs = await writer.update({
       ...created,
       config: {
         ...created.config,
         owner: newOwner,
-        beneficiary:
-          '0x3333333333333333333333333333333333333333333333333333333333333333',
+        beneficiary: '0x333',
         protocolFee: '11',
       },
     });
@@ -106,11 +103,8 @@ describe('3. starknet sdk hook e2e tests', function () {
     const updated = await reader.read(created.deployed.address);
     expect(eqAddressStarknet(updated.config.owner, newOwner)).to.equal(true);
     expect(updated.config.protocolFee).to.equal('11');
-    expect(
-      eqAddressStarknet(
-        updated.config.beneficiary,
-        '0x3333333333333333333333333333333333333333333333333333333333333333',
-      ),
-    ).to.equal(true);
+    expect(eqAddressStarknet(updated.config.beneficiary, '0x333')).to.equal(
+      true,
+    );
   });
 });

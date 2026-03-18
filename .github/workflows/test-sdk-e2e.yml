@@ -36,7 +36,7 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
         with:
-          build-filter: '@hyperlane-xyz/cosmos-sdk...'
+          build-filter: "@hyperlane-xyz/cosmos-sdk..."
 
       - name: Cosmos SDK e2e tests
         run: pnpm -C typescript/cosmos-sdk test:e2e
@@ -69,7 +69,7 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
         with:
-          build-filter: '@hyperlane-xyz/aleo-sdk...'
+          build-filter: "@hyperlane-xyz/aleo-sdk..."
 
       - name: Aleo SDK e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/aleo-sdk test:e2e
@@ -89,15 +89,25 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
         with:
-          build-filter: '@hyperlane-xyz/radix-sdk...'
+          build-filter: "@hyperlane-xyz/radix-sdk..."
 
       - name: Radix SDK e2e tests
         run: pnpm -C typescript/radix-sdk test:e2e
 
-  starknet-sdk-e2e-run:
+  starknet-sdk-e2e-matrix:
     runs-on: depot-ubuntu-24.04
     if: inputs.has_starknet == 'true'
-    timeout-minutes: 30
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - ism
+          - mailbox
+          - hook
+          - validator_announce
+          - warp_core
+          - warp_transfer
     steps:
       - uses: actions/checkout@v6
         with:
@@ -107,10 +117,12 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
         with:
-          build-filter: '@hyperlane-xyz/starknet-sdk...'
+          build-filter: "@hyperlane-xyz/starknet-sdk..."
 
-      - name: Starknet SDK e2e tests
+      - name: Starknet SDK e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/starknet-sdk test:e2e
+        env:
+          STARKNET_SDK_E2E_TEST: ${{ matrix.test }}
 
   tron-sdk-e2e-run:
     runs-on: depot-ubuntu-24.04
@@ -126,7 +138,7 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
         with:
-          build-filter: '@hyperlane-xyz/tron-sdk...'
+          build-filter: "@hyperlane-xyz/tron-sdk..."
 
       - name: Tron SDK e2e tests with coverage
         run: pnpm -C typescript/tron-sdk coverage
@@ -167,7 +179,7 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
         with:
-          build-filter: '@hyperlane-xyz/sealevel-sdk...'
+          build-filter: "@hyperlane-xyz/sealevel-sdk..."
 
       - name: SVM SDK e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/svm-sdk test:e2e
