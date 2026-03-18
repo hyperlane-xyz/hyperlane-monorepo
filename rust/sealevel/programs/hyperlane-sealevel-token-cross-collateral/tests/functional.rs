@@ -2064,3 +2064,799 @@ async fn test_handle_local_rejects_wrong_domain() {
         TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
     );
 }
+
+// ============================================================
+// Additional tests
+// ============================================================
+
+// NOTE: test_handle_wrong_recipient is skipped. The `process` helper auto-derives
+// the correct recipient account via HandleAccountMetas simulation, making it infeasible
+// to inject a wrong recipient through the standard flow without manually constructing
+// the full mailbox inbox_process CPI chain.
+
+#[tokio::test]
+async fn test_handle_from_mailbox_cc_router_escrow_balance() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer, mailbox_accounts, cc_accounts, mint, _mint_authority, _) =
+        setup_for_handle_tests().await;
+
+    // Escrow starts with 100 tokens (seeded in setup_for_handle_tests)
+    let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    assert_token_balance(
+        &mut banks_client,
+        &cc_accounts.escrow,
+        initial_escrow_balance,
+    )
+    .await;
+
+    // Enroll a CC router for REMOTE_DOMAIN
+    let cc_router = H256::random();
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(cc_router),
+        }],
+    )
+    .await
+    .unwrap();
+
+    let recipient_pubkey = Pubkey::new_unique();
+    let local_transfer_amount = 25 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let remote_transfer_amount = convert_decimals(
+        local_transfer_amount.into(),
+        LOCAL_DECIMALS,
+        REMOTE_DECIMALS,
+    )
+    .unwrap();
+
+    let recipient: H256 = recipient_pubkey.to_bytes().into();
+    let message = HyperlaneMessage {
+        version: 3,
+        nonce: 0,
+        origin: REMOTE_DOMAIN,
+        sender: cc_router,
+        destination: LOCAL_DOMAIN,
+        recipient: program_id.to_bytes().into(),
+        body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
+    };
+
+    process(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        vec![],
+        &message,
+    )
+    .await
+    .unwrap();
+
+    // Verify escrow decreased by the transferred amount
+    assert_token_balance(
+        &mut banks_client,
+        &cc_accounts.escrow,
+        initial_escrow_balance - local_transfer_amount,
+    )
+    .await;
+
+    // Verify recipient got the tokens
+    let recipient_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &recipient_pubkey,
+        &mint,
+        &spl_token_program_id,
+    );
+    assert_token_balance(&mut banks_client, &recipient_ata, local_transfer_amount).await;
+}
+
+#[tokio::test]
+async fn test_init_wrong_local_domain() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, _mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    // Build init with wrong local_domain (9999 instead of LOCAL_DOMAIN)
+    let init = CrossCollateralInit {
+        mailbox: mailbox_program_id,
+        interchain_security_module: None,
+        interchain_gas_paymaster: None,
+        decimals: LOCAL_DECIMALS,
+        remote_decimals: REMOTE_DECIMALS,
+        local_domain: 9999,
+    };
+
+    let ixn =
+        init_instruction(program_id, payer.pubkey(), init, spl_token_program_id, mint).unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    // InvalidArgument because local_domain doesn't match mailbox outbox.local_domain
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_init_extraneous_accounts() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, _mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let init = CrossCollateralInit {
+        mailbox: mailbox_program_id,
+        interchain_security_module: None,
+        interchain_gas_paymaster: None,
+        decimals: LOCAL_DECIMALS,
+        remote_decimals: REMOTE_DECIMALS,
+        local_domain: LOCAL_DOMAIN,
+    };
+
+    let mut ixn =
+        init_instruction(program_id, payer.pubkey(), init, spl_token_program_id, mint).unwrap();
+
+    // Append an extraneous account
+    ixn.accounts
+        .push(AccountMeta::new_readonly(Pubkey::new_unique(), false));
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    // Custom(1) = Error::ExtraneousAccount
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(1)),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_to_with_base_router_as_target() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_accounts = initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        Some(&igp_accounts),
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Enroll a base remote router (NOT a CC router)
+    let base_remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &cc_accounts.token,
+        REMOTE_DOMAIN,
+        base_remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Fund sender and give them tokens
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        100 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let remote_token_recipient = H256::random();
+
+    // Use the base_remote_router as target_router
+    let transfer = TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: remote_token_recipient,
+        amount_or_id: transfer_amount.into(),
+        target_router: base_remote_router,
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(transfer)
+        .encode()
+        .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &ixn_data,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(cc_accounts.token, false),
+                AccountMeta::new_readonly(cc_accounts.cc_state, false),
+                AccountMeta::new_readonly(mailbox_program_id, false),
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(cc_accounts.dispatch_authority, false),
+                AccountMeta::new(token_sender_pubkey, true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
+                // IGP accounts
+                AccountMeta::new_readonly(igp_accounts.program, false),
+                AccountMeta::new(igp_accounts.program_data, false),
+                AccountMeta::new(gas_payment_pda_key, false),
+                AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                AccountMeta::new(igp_accounts.igp, false),
+                // Plugin transfer_in accounts
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(cc_accounts.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Sender spent tokens
+    assert_token_balance(
+        &mut banks_client,
+        &token_sender_ata,
+        90 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    // Escrow received tokens
+    assert_token_balance(&mut banks_client, &cc_accounts.escrow, transfer_amount).await;
+}
+
+#[tokio::test]
+async fn test_enroll_cc_routers_owner_not_signer() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, _mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Build the enroll instruction manually with owner's pubkey but is_signer=false
+    let (token_key, _) = Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+    let (cc_state_key, _) =
+        Pubkey::find_program_address(cross_collateral_pda_seeds!(), &program_id);
+
+    let ixn_data =
+        CrossCollateralInstruction::EnrollCrossCollateralRouters(vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(H256::random()),
+        }])
+        .encode()
+        .unwrap();
+
+    // A different funded keypair will be the actual signer/payer
+    let fake_payer = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &ixn_data,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(cc_state_key, false),
+                AccountMeta::new_readonly(token_key, false),
+                // Owner's pubkey but NOT a signer
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&fake_payer.pubkey()),
+        &[&fake_payer],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    // MissingRequiredSignature from ensure_owner_signer
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_to_extraneous_accounts() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_accounts = initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Enroll a CC router
+    let target_router = H256::random();
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(target_router),
+        }],
+    )
+    .await
+    .unwrap();
+
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        100 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+
+    let transfer = TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router,
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(transfer)
+        .encode()
+        .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &ixn_data,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(cc_accounts.token, false),
+                AccountMeta::new_readonly(cc_accounts.cc_state, false),
+                AccountMeta::new_readonly(mailbox_program_id, false),
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(cc_accounts.dispatch_authority, false),
+                AccountMeta::new(token_sender_pubkey, true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
+                // Plugin transfer_in accounts (no IGP)
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(cc_accounts.escrow, false),
+                // Extraneous account
+                AccountMeta::new_readonly(Pubkey::new_unique(), false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    // Custom(1) = Error::ExtraneousAccount
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(1)),
+    );
+}
+
+#[tokio::test]
+async fn test_enroll_cc_routers_idempotent() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let (mint, _mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_accounts = initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        None,
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let router = H256::random();
+
+    // Enroll the same router twice
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![
+            RemoteRouterConfig {
+                domain: REMOTE_DOMAIN,
+                router: Some(router),
+            },
+            RemoteRouterConfig {
+                domain: REMOTE_DOMAIN,
+                router: Some(router),
+            },
+        ],
+    )
+    .await
+    .unwrap();
+
+    // Verify BTreeSet deduplication: only one entry
+    let cc_state_data = banks_client
+        .get_account(cc_accounts.cc_state)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+        .unwrap()
+        .into_inner();
+
+    let routers_for_domain = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+    assert_eq!(routers_for_domain.len(), 1);
+    assert!(routers_for_domain.contains(&router));
+
+    // Enroll the same router again in a separate transaction
+    enroll_cc_routers(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        vec![RemoteRouterConfig {
+            domain: REMOTE_DOMAIN,
+            router: Some(router),
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Still only one entry
+    let cc_state_data = banks_client
+        .get_account(cc_accounts.cc_state)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+        .unwrap()
+        .into_inner();
+
+    let routers_for_domain = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+    assert_eq!(routers_for_domain.len(), 1);
+}
+
+#[tokio::test]
+async fn test_base_transfer_remote_passthrough() {
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let cc_accounts = initialize_cc_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        Some(&igp_accounts),
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    // Enroll a base remote router
+    let base_remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &cc_accounts.token,
+        REMOTE_DOMAIN,
+        base_remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Fund sender with tokens
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 15 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        100 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let remote_token_recipient = H256::random();
+
+    // Build a standard TransferRemote instruction (base token operation passthrough)
+    use hyperlane_sealevel_token_lib::instruction::TransferRemote;
+    let ixn_data = HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: remote_token_recipient,
+        amount_or_id: transfer_amount.into(),
+    })
+    .encode()
+    .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &ixn_data,
+            vec![
+                // Base transfer_remote account layout:
+                // 0. system_program
+                AccountMeta::new_readonly(system_program::ID, false),
+                // 1. spl_noop
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                // 2. token PDA
+                AccountMeta::new_readonly(cc_accounts.token, false),
+                // 3. mailbox
+                AccountMeta::new_readonly(mailbox_program_id, false),
+                // 4. mailbox outbox
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                // 5. dispatch authority
+                AccountMeta::new_readonly(cc_accounts.dispatch_authority, false),
+                // 6. sender wallet (signer)
+                AccountMeta::new(token_sender_pubkey, true),
+                // 7. unique message account (signer)
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                // 8. dispatched message PDA
+                AccountMeta::new(dispatched_message_key, false),
+                // IGP accounts
+                AccountMeta::new_readonly(igp_accounts.program, false),
+                AccountMeta::new(igp_accounts.program_data, false),
+                AccountMeta::new(gas_payment_pda_key, false),
+                AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                AccountMeta::new(igp_accounts.igp, false),
+                // Plugin transfer_in accounts: spl_token, mint, sender_ata, escrow
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(cc_accounts.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Sender spent tokens
+    assert_token_balance(
+        &mut banks_client,
+        &token_sender_ata,
+        85 * 10u64.pow(LOCAL_DECIMALS_U32),
+    )
+    .await;
+
+    // Escrow received tokens
+    assert_token_balance(&mut banks_client, &cc_accounts.escrow, transfer_amount).await;
+}
