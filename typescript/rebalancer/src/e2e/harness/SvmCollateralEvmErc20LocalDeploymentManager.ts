@@ -9,6 +9,7 @@ import {
   ERC20Test__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
+import { PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
   MultiProtocolProvider,
@@ -393,6 +394,32 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
         this.getSvmChainManager().getRpcUrl(),
       ),
     };
+  }
+
+  getRegistry(): PartialRegistry {
+    const evmManager = this.getEvmDeploymentManager();
+    const evmContext = evmManager.getContext();
+    const svmAddresses = this.getSvmDeployedAddresses();
+
+    const chainMetadata = this.getChainMetadata();
+
+    const chainAddresses: Record<string, Record<string, string>> = {
+      [SVM_CHAIN_NAME]: {
+        mailbox: svmAddresses.mailbox,
+        interchainSecurityModule: svmAddresses.ism,
+      },
+    };
+
+    for (const [chain, c] of Object.entries(
+      evmContext.deployedAddresses.chains,
+    )) {
+      chainAddresses[chain] = {
+        mailbox: c.mailbox,
+        interchainSecurityModule: c.ism,
+      };
+    }
+
+    return new PartialRegistry({ chainMetadata, chainAddresses });
   }
 
   async mintSplToEscrow(amount: bigint): Promise<void> {
