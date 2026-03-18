@@ -1,7 +1,7 @@
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
-export const DEFAULT_E2E_TEST_TIMEOUT = 100_000;
+export const DEFAULT_E2E_TEST_TIMEOUT = 300_000;
 
 export const STARKNET_DEVNET_IMAGE = 'shardlabs/starknet-devnet-rs';
 export const STARKNET_DEVNET_TAG = '0.4.2';

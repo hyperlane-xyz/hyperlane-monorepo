@@ -5,6 +5,7 @@ import {
   Contract,
   RawArgsArray,
   RpcProvider,
+  byteArray,
   shortString,
 } from 'starknet';
 
@@ -219,7 +220,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     if (upper.includes('ROUTING')) {
       return AltVM.IsmType.ROUTING;
     }
-    return AltVM.IsmType.TEST_ISM;
+    return AltVM.IsmType.CUSTOM;
   }
 
   // ### QUERY BASE ###
@@ -326,12 +327,16 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const ism = this.withContract(
-      StarknetContractName.MERKLE_ROOT_MULTISIG_ISM,
-      req.ismAddress,
-    );
-    const moduleType = await callContract(ism, 'module_type');
-    return this.parseIsmVariant(extractEnumVariant(moduleType));
+    try {
+      const ism = this.withContract(
+        StarknetContractName.MERKLE_ROOT_MULTISIG_ISM,
+        req.ismAddress,
+      );
+      const moduleType = await callContract(ism, 'module_type');
+      return this.parseIsmVariant(extractEnumVariant(moduleType));
+    } catch {
+      return AltVM.IsmType.CUSTOM;
+    }
   }
 
   async getMessageIdMultisigIsm(
@@ -888,8 +893,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         req.decimals,
         normalizeStarknetAddressSafe(req.mailboxAddress),
         0,
-        req.name,
-        req.denom,
+        byteArray.byteArrayFromString(req.name),
+        byteArray.byteArrayFromString(req.denom),
         ZERO_ADDRESS_HEX_32,
         ZERO_ADDRESS_HEX_32,
         normalizeStarknetAddressSafe(req.signer),
@@ -1025,6 +1030,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       );
     }
 
+    const tokenType = await this.determineTokenType(req.tokenAddress);
     const token = this.withContract(
       StarknetContractName.HYP_ERC20,
       req.tokenAddress,
@@ -1032,12 +1038,16 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       ContractType.TOKEN,
     );
     const noneOption = new CairoOption(CairoOptionVariant.None);
+    const value =
+      tokenType === AltVM.TokenType.native
+        ? toBigInt(req.amount) + toBigInt(req.maxFee.amount)
+        : toBigInt(req.maxFee.amount);
 
     return populateInvokeTx(token, 'transfer_remote', [
       req.destinationDomainId,
       addressToBytes32(req.recipient),
       req.amount,
-      req.maxFee.amount,
+      value,
       noneOption,
       noneOption,
     ]);

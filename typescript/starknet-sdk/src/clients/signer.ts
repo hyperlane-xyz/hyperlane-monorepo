@@ -256,6 +256,8 @@ export class StarknetSigner
       throw new Error('Proxy admin unsupported on Starknet');
     }
 
+    const defaultIsmAddress =
+      req.defaultIsmAddress ?? (await this.createNoopIsm({})).ismAddress;
     const defaultHookAddress =
       req.defaultHookAddress ??
       (
@@ -269,6 +271,7 @@ export class StarknetSigner
     const tx = await this.getCreateMailboxTransaction({
       signer: this.signerAddress,
       ...req,
+      defaultIsmAddress,
       defaultHookAddress,
       requiredHookAddress,
     });

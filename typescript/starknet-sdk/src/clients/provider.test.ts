@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Contract, RpcProvider } from 'starknet';
+import { Contract, RpcProvider, byteArray } from 'starknet';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
@@ -19,6 +19,8 @@ const TEST_METADATA: ChainMetadataForAltVM = {
 class StarknetProviderTestHarness extends StarknetProvider {
   hookTypeValue: unknown = { MERKLE_TREE: {} };
   hookTypeThrows = false;
+  ismTypeValue: unknown = { MERKLE_ROOT_MULTISIG: {} };
+  ismTypeThrows = false;
   contractSelections: StarknetContractName[] = [];
 
   constructor() {
@@ -51,6 +53,12 @@ class StarknetProviderTestHarness extends StarknetProvider {
 
     Object.assign(contract, {
       hook_type: async () => this.hookTypeValue,
+      module_type: async () => {
+        if (this.ismTypeThrows) {
+          throw new Error('module_type failed');
+        }
+        return this.ismTypeValue;
+      },
     });
     return contract;
   }
@@ -100,6 +108,31 @@ class StarknetBridgedSupplyTestHarness extends StarknetProvider {
   override async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
     this.capturedBalanceReq = req;
     return 777n;
+  }
+}
+
+class StarknetTxTestHarness extends StarknetProvider {
+  tokenType = AltVM.TokenType.synthetic;
+
+  constructor() {
+    super(
+      new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+      TEST_METADATA,
+      ['http://localhost:9545'],
+    );
+  }
+
+  protected override withContract(
+    _name: StarknetContractName,
+    address: string,
+  ): Contract {
+    const contract: Contract = Object.create(Contract.prototype);
+    Object.assign(contract, { address });
+    return contract;
+  }
+
+  protected override async determineTokenType(): Promise<AltVM.TokenType> {
+    return this.tokenType;
   }
 }
 
@@ -171,6 +204,26 @@ describe('StarknetProvider getHookType', () => {
   });
 });
 
+describe('StarknetProvider getIsmType', () => {
+  it('returns custom for unknown module_type variants', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.ismTypeValue = { AGGREGATION: {} };
+
+    const ismType = await provider.getIsmType({ ismAddress: '0x1' });
+
+    expect(ismType).to.equal(AltVM.IsmType.CUSTOM);
+  });
+
+  it('returns custom when module_type lookup fails', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.ismTypeThrows = true;
+
+    const ismType = await provider.getIsmType({ ismAddress: '0x1' });
+
+    expect(ismType).to.equal(AltVM.IsmType.CUSTOM);
+  });
+});
+
 describe('StarknetProvider getCreateMailboxTransaction', () => {
   it('passes hook addresses through mailbox constructor args', async () => {
     const provider = new StarknetProviderTestHarness();
@@ -195,6 +248,75 @@ describe('StarknetProvider getCreateMailboxTransaction', () => {
       '0x3333333333333333333333333333333333333333333333333333333333333333',
       '0x4444444444444444444444444444444444444444444444444444444444444444',
     ]);
+  });
+});
+
+describe('StarknetProvider warp tx builders', () => {
+  const feeDenom =
+    '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
+
+  it('encodes synthetic token metadata as ByteArray constructor args', async () => {
+    const provider = new StarknetTxTestHarness();
+
+    const tx = await provider.getCreateSyntheticTokenTransaction({
+      signer:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      mailboxAddress:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      name: 'TEST',
+      denom: 'TEST',
+      decimals: 18,
+    });
+
+    expect(tx.kind).to.equal('deploy');
+    expect(tx.constructorArgs?.[3]).to.deep.equal(
+      byteArray.byteArrayFromString('TEST'),
+    );
+    expect(tx.constructorArgs?.[4]).to.deep.equal(
+      byteArray.byteArrayFromString('TEST'),
+    );
+  });
+
+  it('includes transfer amount in native token remote transfer value', async () => {
+    const provider = new StarknetTxTestHarness();
+    provider.tokenType = AltVM.TokenType.native;
+
+    const tx = await provider.getRemoteTransferTransaction({
+      signer:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      tokenAddress:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      destinationDomainId: 1234,
+      recipient:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: { denom: feeDenom, amount: '2' },
+    });
+
+    expect(tx.kind).to.equal('invoke');
+    expect(tx.calldata?.[3]).to.equal(3n);
+  });
+
+  it('uses only gas quote as remote transfer value for synthetic tokens', async () => {
+    const provider = new StarknetTxTestHarness();
+    provider.tokenType = AltVM.TokenType.synthetic;
+
+    const tx = await provider.getRemoteTransferTransaction({
+      signer:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      tokenAddress:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      destinationDomainId: 1234,
+      recipient:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: { denom: feeDenom, amount: '2' },
+    });
+
+    expect(tx.kind).to.equal('invoke');
+    expect(tx.calldata?.[3]).to.equal(2n);
   });
 });
 

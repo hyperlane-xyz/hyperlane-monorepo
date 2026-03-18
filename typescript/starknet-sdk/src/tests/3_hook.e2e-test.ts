@@ -20,12 +20,13 @@ describe('3. starknet sdk hook e2e tests', function () {
 
   before(async () => {
     signer = await createSigner();
+    const { ismAddress } = await signer.createNoopIsm({});
     const { hookAddress } = await signer.createNoopHook({
       mailboxAddress: signer.getSignerAddress(),
     });
     const mailbox = await signer.createMailbox({
       domainId: TEST_STARKNET_CHAIN_METADATA.domainId,
-      defaultIsmAddress: undefined,
+      defaultIsmAddress: ismAddress,
       defaultHookAddress: hookAddress,
       requiredHookAddress: hookAddress,
     });
