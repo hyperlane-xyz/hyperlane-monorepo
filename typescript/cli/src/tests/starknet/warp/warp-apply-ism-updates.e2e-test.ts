@@ -115,6 +115,7 @@ describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     await hyperlaneWarp.readRaw({
@@ -145,6 +146,7 @@ describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     warpDeployConfig[
@@ -159,6 +161,7 @@ describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     await hyperlaneWarp.readRaw({
@@ -193,6 +196,7 @@ describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     await hyperlaneWarp.readRaw({
@@ -211,6 +215,7 @@ describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     await hyperlaneWarp.readRaw({

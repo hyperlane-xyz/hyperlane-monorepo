@@ -127,6 +127,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const hookConfig = await readChain1Hook();
@@ -149,6 +150,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const firstHook = await readChain1Hook();
@@ -168,6 +170,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const secondHook = await readChain1Hook();
@@ -204,6 +207,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const firstHook = await readChain1Hook();
@@ -223,6 +227,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const secondHook = await readChain1Hook();
@@ -259,6 +264,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const firstHook = await readChain1Hook();
@@ -267,6 +273,7 @@ describe('hyperlane warp apply Hook updates (Starknet E2E tests)', async functio
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     const secondHook = await readChain1Hook();

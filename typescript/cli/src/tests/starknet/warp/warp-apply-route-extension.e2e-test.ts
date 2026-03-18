@@ -113,6 +113,7 @@ describe('hyperlane warp apply route extension (Starknet E2E tests)', async func
     await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     await hyperlaneWarp.readRaw({

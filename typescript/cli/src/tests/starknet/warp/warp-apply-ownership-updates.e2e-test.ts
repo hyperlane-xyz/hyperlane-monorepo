@@ -106,6 +106,7 @@ describe('hyperlane warp apply ownership (Starknet E2E tests)', async function (
     const output = await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+      skipConfirmationPrompts: true,
     });
 
     expect(output.text()).to.include(
@@ -149,6 +150,7 @@ describe('hyperlane warp apply ownership (Starknet E2E tests)', async function (
       await hyperlaneWarp.applyRaw({
         warpRouteId: WARP_ROUTE_ID,
         hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+        skipConfirmationPrompts: true,
       });
 
       await hyperlaneWarp.readRaw({
