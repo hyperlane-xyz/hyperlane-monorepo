@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
     widgetLogger.error('Error caught by error boundary', error, errorInfo);
   }
 
-  render() {
+  render(): ReactNode {
     const errorInfo = this.state.error || this.state.errorInfo;
     if (errorInfo) {
       const details = errorToString(errorInfo, 1000);
