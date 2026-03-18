@@ -25,6 +25,10 @@ pub enum Error {
     /// TransferRemoteTo called with local domain, or HandleLocal called with remote domain.
     #[error("Invalid domain for instruction")]
     InvalidDomain = 5,
+
+    /// Failed to decode token message.
+    #[error("Failed to decode token message")]
+    MessageDecodeError = 6,
 }
 
 impl From<Error> for ProgramError {

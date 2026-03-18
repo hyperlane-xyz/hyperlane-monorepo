@@ -38,7 +38,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 use solana_system_interface::program as system_program;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
@@ -325,7 +325,7 @@ fn initialize(
         bump: cc_state_bump,
         dispatch_authority_bump: cc_dispatch_authority_bump,
         local_domain: init.local_domain,
-        enrolled_routers: HashMap::new(),
+        enrolled_routers: BTreeMap::new(),
     };
     let cc_state_account_data = CrossCollateralStateAccount::from(cc_state);
 
@@ -775,7 +775,7 @@ fn transfer_from_remote_cc(
 
     let mut message_reader = std::io::Cursor::new(xfer.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
     // Account 0: Mailbox process authority
     let process_authority_account = next_account_info(accounts_iter)?;
@@ -856,7 +856,7 @@ fn transfer_from_remote_account_metas_cc(
 
     let mut message_reader = std::io::Cursor::new(transfer.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
     // Account 0: Token account
     let token_account_info = next_account_info(accounts_iter)?;
@@ -912,7 +912,7 @@ fn handle_local(
 
     let mut message_reader = std::io::Cursor::new(&handle.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
     // Account 0: CC dispatch authority PDA signer (from the sending program)
     let cc_dispatch_authority_signer = next_account_info(accounts_iter)?;
@@ -1014,7 +1014,7 @@ fn handle_local_account_metas(
 
     let mut message_reader = std::io::Cursor::new(&handle.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::ExtraneousAccount))?;
+        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
     // Account 0: Token account
     let token_account_info = next_account_info(accounts_iter)?;

@@ -4,7 +4,7 @@ use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// AccountData wrapper for CrossCollateralState.
 pub type CrossCollateralStateAccount = AccountData<CrossCollateralState>;
@@ -43,8 +43,7 @@ pub struct CrossCollateralState {
     /// The local domain ID, set at init.
     pub local_domain: u32,
     /// Enrolled CC routers per domain. Each domain maps to a set of router addresses.
-    // TODO: benchmark HashSet as alternative after full implementation
-    pub enrolled_routers: HashMap<u32, BTreeSet<H256>>,
+    pub enrolled_routers: BTreeMap<u32, BTreeSet<H256>>,
 }
 
 impl CrossCollateralState {
