@@ -327,13 +327,13 @@ fn parse_chain(
     );
 
     // Convert Ethereum → Tron when techstack indicates Tron
-    let connection = connection.map(|conn| {
+    let connection = connection.and_then(|conn| {
         if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
             if let ChainConnectionConf::Ethereum(eth_conf) = conn {
-                return ethereum_to_tron_connection_conf(eth_conf);
+                return ethereum_to_tron_connection_conf(eth_conf, &mut err);
             }
         }
-        conn
+        Some(conn)
     });
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
@@ -721,18 +721,24 @@ fn parse_base_and_override_urls(
 /// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
 fn ethereum_to_tron_connection_conf(
     eth_conf: hyperlane_ethereum::ConnectionConf,
-) -> ChainConnectionConf {
+    err: &mut ConfigParsingError,
+) -> Option<ChainConnectionConf> {
     let rpc_urls = eth_conf.rpc_urls();
     let rest_urls = eth_conf.rest_urls.unwrap_or_default();
-    assert!(
-        rest_urls.len() >= 2,
-        "Tron requires at least 2 restUrls: [wallet, walletSolidity]"
-    );
-    ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
-        rpc_urls,
-        rest_urls[0].clone(),
-        rest_urls[1].clone(),
-        eth_conf.energy_multiplier,
+    if rest_urls.len() < 2 {
+        err.push(
+            ConfigPath::default().join("restUrls"),
+            eyre::eyre!("Tron requires at least 2 restUrls: [wallet, walletSolidity]"),
+        );
+        return None;
+    }
+    Some(ChainConnectionConf::Tron(
+        hyperlane_tron::ConnectionConf::new(
+            rpc_urls,
+            rest_urls[0].clone(),
+            rest_urls[1].clone(),
+            eth_conf.energy_multiplier,
+        ),
     ))
 }
 
