@@ -288,6 +288,26 @@ async fn create_relay(
         ));
     }
 
+    // Validate tx_hash length to prevent memory abuse (before cloning into cache)
+    // Max legitimate tx hash: Radix bech32 (~150 chars), generous limit of 512
+    if req.tx_hash.len() > 512 {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("invalid_request");
+        }
+        return Err(ServerError::InvalidRequest(
+            "tx_hash exceeds maximum length of 512 characters".to_string(),
+        ));
+    }
+
+    if req.tx_hash.is_empty() {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("invalid_request");
+        }
+        return Err(ServerError::InvalidRequest(
+            "tx_hash cannot be empty".to_string(),
+        ));
+    }
+
     // Check for duplicate tx_hash submission
     if let Some(cache) = &state.tx_hash_cache {
         let mut cache = cache.write().map_err(|e| {
