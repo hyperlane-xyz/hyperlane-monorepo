@@ -721,13 +721,23 @@ fn parse_base_and_override_urls(
 /// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
 fn ethereum_to_tron_connection_conf(
     eth_conf: hyperlane_ethereum::ConnectionConf,
-    _err: &mut ConfigParsingError,
+    err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
+    let rpc_urls = eth_conf.rpc_urls();
+    let wallet_urls = eth_conf.wallet_urls.unwrap_or_default();
+    let wallet_solidity_urls = eth_conf.wallet_solidity_urls.unwrap_or_default();
+    if wallet_urls.is_empty() || wallet_solidity_urls.is_empty() {
+        err.push(
+            ConfigPath::default().join("walletUrls"),
+            eyre::eyre!("Tron requires walletUrls and walletSolidityUrls"),
+        );
+        return None;
+    }
     Some(ChainConnectionConf::Tron(
         hyperlane_tron::ConnectionConf::new(
-            eth_conf.rpc_urls(),
-            eth_conf.wallet_urls.unwrap_or_default(),
-            eth_conf.wallet_solidity_urls.unwrap_or_default(),
+            rpc_urls,
+            wallet_urls,
+            wallet_solidity_urls,
             eth_conf.energy_multiplier,
         ),
     ))
