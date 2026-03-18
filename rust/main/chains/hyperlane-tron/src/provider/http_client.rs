@@ -187,7 +187,7 @@ impl TronHttpProvider {
                 let future = async move {
                     channel
                         .track_metric_call("estimate_energy", || {
-                            channel.post_json("/wallet/estimateenergy", req.clone())
+                            channel.post_json("/estimateenergy", req.clone())
                         })
                         .await
                 };
@@ -205,7 +205,7 @@ impl TronHttpProvider {
                     channel
                         .track_metric_call("broadcast_hex", || {
                             channel.post_json(
-                                "/wallet/broadcasthex",
+                                "/broadcasthex",
                                 serde_json::json!({"transaction": hex_transaction}),
                             )
                         })

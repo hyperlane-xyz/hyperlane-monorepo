@@ -724,18 +724,14 @@ fn ethereum_to_tron_connection_conf(
 ) -> ChainConnectionConf {
     let rpc_urls = eth_conf.rpc_urls();
     let rest_urls = eth_conf.rest_urls.unwrap_or_default();
-    let wallet_url = rest_urls
-        .first()
-        .cloned()
-        .unwrap_or_else(|| url::Url::parse("http://localhost").expect("Invalid default URL"));
-    let wallet_solidity_url = rest_urls
-        .get(1)
-        .cloned()
-        .unwrap_or_else(|| url::Url::parse("http://localhost").expect("Invalid default URL"));
+    assert!(
+        rest_urls.len() >= 2,
+        "Tron requires at least 2 restUrls: [wallet, walletSolidity]"
+    );
     ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
         rpc_urls,
-        wallet_url,
-        wallet_solidity_url,
+        rest_urls[0].clone(),
+        rest_urls[1].clone(),
         eth_conf.energy_multiplier,
     ))
 }
