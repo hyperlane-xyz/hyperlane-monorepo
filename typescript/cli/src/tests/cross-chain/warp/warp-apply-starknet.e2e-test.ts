@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 import { type StartedTestContainer } from 'testcontainers';
 
-import { TEST_STARKNET_ACCOUNT_ADDRESS } from '@hyperlane-xyz/starknet-sdk';
+import { TEST_STARKNET_ACCOUNT_ADDRESS } from '@hyperlane-xyz/starknet-sdk/testing';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type DerivedWarpRouteDeployConfig,

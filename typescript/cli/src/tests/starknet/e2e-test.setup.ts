@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { type StartedTestContainer } from 'testcontainers';
 
-import { TEST_STARKNET_ACCOUNT_ADDRESS } from '@hyperlane-xyz/starknet-sdk';
+import { TEST_STARKNET_ACCOUNT_ADDRESS } from '@hyperlane-xyz/starknet-sdk/testing';
 
 import {
   DEFAULT_E2E_TEST_TIMEOUT,

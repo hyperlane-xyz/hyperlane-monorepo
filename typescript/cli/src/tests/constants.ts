@@ -8,7 +8,7 @@ import { type ChainMetadata, type ProtocolMap } from '@hyperlane-xyz/sdk';
 import {
   TEST_STARKNET_ACCOUNT_ADDRESS,
   TEST_STARKNET_PRIVATE_KEY,
-} from '@hyperlane-xyz/starknet-sdk';
+} from '@hyperlane-xyz/starknet-sdk/testing';
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';
