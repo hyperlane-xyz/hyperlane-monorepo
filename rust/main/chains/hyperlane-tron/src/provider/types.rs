@@ -30,7 +30,10 @@ pub struct BlockHeaderRawData {
 #[derive(Debug, Deserialize)]
 pub struct TriggerConstantResponse {
     /// Hex-encoded return values
+    #[serde(default)]
     pub constant_result: Vec<String>,
+    /// Result of the call (contains error info on failure)
+    pub result: Option<EstimateResult>,
 }
 
 /// Response from `/wallet/estimateenergy`

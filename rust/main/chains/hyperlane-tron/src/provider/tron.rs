@@ -26,12 +26,24 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::{self, PrometheusClientMetrics};
 
-use super::types::{BlockResponse, TriggerContractRequest};
+use super::types::{BlockResponse, EstimateResult, TriggerContractRequest};
 use crate::{
     build_fallback_provider, calculate_ref_block_bytes, calculate_ref_block_hash, calculate_txid,
     ConnectionConf, HyperlaneTronError, JsonProvider, TronHttpProvider, TronSigner,
     DEFAULT_ENERGY_MULTIPLIER,
 };
+
+/// Decode a hex-encoded Tron API error message to a human-readable string.
+/// Falls back to the raw message if hex decoding fails.
+fn decode_tron_error(result: &EstimateResult) -> String {
+    let decoded = result
+        .message
+        .as_deref()
+        .and_then(|m| hex::decode(m).ok())
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .or_else(|| result.message.clone());
+    format!("code={:?}, message={:?}", result.code, decoded)
+}
 
 /// Tron Provider
 #[derive(Clone, Debug)]
@@ -294,18 +306,14 @@ impl TronProvider {
         match result.result {
             Some(true) => Ok(()),
             _ => {
-                // Tron HTTP API returns hex-encoded error messages
-                let decoded_msg = result
-                    .message
-                    .as_deref()
-                    .and_then(|m| hex::decode(m).ok())
-                    .and_then(|bytes| String::from_utf8(bytes).ok())
-                    .unwrap_or_else(|| result.message.clone().unwrap_or_else(|| "unknown".into()));
-                let message = format!(
-                    "Failed to broadcast transaction: code={:?}, message={}",
-                    result.code, decoded_msg
-                );
-                Err(HyperlaneTronError::BroadcastTransactionError(message).into())
+                let err_detail = decode_tron_error(&super::types::EstimateResult {
+                    code: result.code,
+                    message: result.message,
+                });
+                Err(HyperlaneTronError::BroadcastTransactionError(format!(
+                    "Failed to broadcast transaction: {err_detail}"
+                ))
+                .into())
             }
         }
     }
@@ -352,6 +360,16 @@ impl Middleware for TronProvider {
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
+        // Check for contract call failure
+        if let Some(ref result) = call.result {
+            if result.code.is_some() {
+                return Err(ProviderError::CustomError(format!(
+                    "Contract call failed: {}",
+                    decode_tron_error(result)
+                )));
+            }
+        }
+
         let data = call
             .constant_result
             .first()
@@ -383,15 +401,9 @@ impl Middleware for TronProvider {
         // Check for estimation failure (error responses have a result.code field)
         if let Some(ref result) = estimate.result {
             if result.code.is_some() {
-                let decoded_msg = result
-                    .message
-                    .as_deref()
-                    .and_then(|m| hex::decode(m).ok())
-                    .and_then(|bytes| String::from_utf8(bytes).ok())
-                    .or_else(|| result.message.clone());
                 return Err(ProviderError::CustomError(format!(
-                    "Energy estimation failed: code={:?}, message={:?}",
-                    result.code, decoded_msg
+                    "Energy estimation failed: {}",
+                    decode_tron_error(result)
                 )));
             }
         }
