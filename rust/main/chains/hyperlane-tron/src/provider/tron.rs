@@ -26,7 +26,7 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::{self, PrometheusClientMetrics};
 
-use super::types::{BlockResponse, EstimateResult, TriggerContractRequest};
+use super::types::{BlockResponse, TriggerContractRequest, TronApiError};
 use crate::{
     build_fallback_provider, calculate_ref_block_bytes, calculate_ref_block_hash, calculate_txid,
     ConnectionConf, HyperlaneTronError, JsonProvider, TronHttpProvider, TronSigner,
@@ -35,7 +35,7 @@ use crate::{
 
 /// Decode a hex-encoded Tron API error message to a human-readable string.
 /// Falls back to the raw message if hex decoding fails.
-fn decode_tron_error(result: &EstimateResult) -> String {
+fn decode_tron_error(result: &TronApiError) -> String {
     let decoded = result
         .message
         .as_deref()
@@ -146,7 +146,7 @@ impl TronProvider {
         ))
     }
 
-    fn parse_tx(&self, tx: &TypedTransaction) -> TriggerContractRequest {
+    fn parse_tx(&self, tx: &TypedTransaction) -> ChainResult<TriggerContractRequest> {
         let (mut owner, to, value, data) = match &tx {
             TypedTransaction::Legacy(tx) => {
                 let owner = tx.from.unwrap_or_default();
@@ -193,15 +193,22 @@ impl TronProvider {
             }
         }
 
+        // Validate call_value fits in i64
+        if value > ethers::types::U256::from(i64::MAX as u64) {
+            return Err(ChainCommunicationError::from_other_str(
+                "Transaction value exceeds Tron i64 call_value limit",
+            ));
+        }
+
         // NOTE: Tron addresses need to be prefixed with a byte 0x41
         const ADDRESS_PREFIX: u8 = 0x41;
-        TriggerContractRequest {
+        Ok(TriggerContractRequest {
             owner_address: hex::encode([&[ADDRESS_PREFIX], owner.as_bytes()].concat()),
             contract_address: hex::encode([&[ADDRESS_PREFIX], to.as_bytes()].concat()),
             data: hex::encode(data.to_vec()),
             call_value: value.as_u64() as i64,
             visible: false,
-        }
+        })
     }
 
     /// Build a TriggerSmartContract protobuf from a TriggerContractRequest (for tx construction)
@@ -279,7 +286,7 @@ impl TronProvider {
             .unwrap_or(u64::MAX);
 
         let block = self.get_current_block().await?;
-        let tron_call = self.parse_tx(tx);
+        let tron_call = self.parse_tx(tx)?;
         let proto_call = Self::trigger_contract_request_to_proto(&tron_call)?;
         let (mut tx, hash) = Self::build_tx(&proto_call, &block, fee_limit)?;
 
@@ -306,7 +313,7 @@ impl TronProvider {
         match result.result {
             Some(true) => Ok(()),
             _ => {
-                let err_detail = decode_tron_error(&super::types::EstimateResult {
+                let err_detail = decode_tron_error(&super::types::TronApiError {
                     code: result.code,
                     message: result.message,
                 });
@@ -352,7 +359,9 @@ impl Middleware for TronProvider {
         tx: &TypedTransaction,
         _block: Option<BlockId>,
     ) -> Result<Bytes, Self::Error> {
-        let tron_call = self.parse_tx(tx);
+        let tron_call = self
+            .parse_tx(tx)
+            .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
         let call = self
             .wallet_solidity
@@ -390,7 +399,9 @@ impl Middleware for TronProvider {
         tx: &TypedTransaction,
         _block: Option<BlockId>,
     ) -> Result<ethers::types::U256, Self::Error> {
-        let call = self.parse_tx(tx);
+        let call = self
+            .parse_tx(tx)
+            .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
         let estimate = self
             .wallet

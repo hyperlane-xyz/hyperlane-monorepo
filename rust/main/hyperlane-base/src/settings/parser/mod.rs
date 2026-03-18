@@ -330,7 +330,7 @@ fn parse_chain(
     let connection = connection.and_then(|conn| {
         if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
             if let ChainConnectionConf::Ethereum(eth_conf) = conn {
-                return ethereum_to_tron_connection_conf(eth_conf, &mut err);
+                return ethereum_to_tron_connection_conf(eth_conf, &chain.cwp, &mut err);
             }
         }
         Some(conn)
@@ -721,16 +721,25 @@ fn parse_base_and_override_urls(
 /// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
 fn ethereum_to_tron_connection_conf(
     eth_conf: hyperlane_ethereum::ConnectionConf,
+    cwp: &ConfigPath,
     err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
     let rpc_urls = eth_conf.rpc_urls();
     let wallet_urls = eth_conf.wallet_urls.unwrap_or_default();
     let wallet_solidity_urls = eth_conf.wallet_solidity_urls.unwrap_or_default();
-    if wallet_urls.is_empty() || wallet_solidity_urls.is_empty() {
+    if wallet_urls.is_empty() {
         err.push(
-            ConfigPath::default().join("walletUrls"),
-            eyre::eyre!("Tron requires walletUrls and walletSolidityUrls"),
+            cwp.join("walletUrls"),
+            eyre::eyre!("Tron requires walletUrls"),
         );
+    }
+    if wallet_solidity_urls.is_empty() {
+        err.push(
+            cwp.join("walletSolidityUrls"),
+            eyre::eyre!("Tron requires walletSolidityUrls"),
+        );
+    }
+    if wallet_urls.is_empty() || wallet_solidity_urls.is_empty() {
         return None;
     }
     Some(ChainConnectionConf::Tron(

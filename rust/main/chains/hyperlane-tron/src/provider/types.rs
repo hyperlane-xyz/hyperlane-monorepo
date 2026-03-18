@@ -33,7 +33,7 @@ pub struct TriggerConstantResponse {
     #[serde(default)]
     pub constant_result: Vec<String>,
     /// Result of the call (contains error info on failure)
-    pub result: Option<EstimateResult>,
+    pub result: Option<TronApiError>,
 }
 
 /// Response from `/wallet/estimateenergy`
@@ -43,12 +43,12 @@ pub struct EstimateEnergyResponse {
     #[serde(default)]
     pub energy_required: i64,
     /// Result of the estimation
-    pub result: Option<EstimateResult>,
+    pub result: Option<TronApiError>,
 }
 
-/// Nested result field in estimate energy response
+/// Error details from Tron API responses (shared across estimate, trigger, and broadcast)
 #[derive(Debug, Deserialize)]
-pub struct EstimateResult {
+pub struct TronApiError {
     /// Error code (present on failure)
     pub code: Option<String>,
     /// Error message (hex-encoded on failure)

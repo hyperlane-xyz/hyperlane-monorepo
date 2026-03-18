@@ -103,7 +103,10 @@ impl TronHttpChannel {
             .map_err(HyperlaneTronError::from)?;
         let status = resp.status();
         if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
+            let body = resp
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("<failed to read response body: {e}>"));
             return Err(HyperlaneTronError::HttpResponseError {
                 status: status.as_u16(),
                 body,
@@ -138,7 +141,9 @@ impl Drop for TronHttpChannel {
 impl BlockNumberGetter for TronHttpChannel {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         let block: BlockResponse = self
-            .post_json("/getnowblock", &serde_json::json!({}))
+            .track_metric_call("get_block_number", || {
+                self.post_json("/getnowblock", serde_json::json!({}))
+            })
             .await?;
         Ok(block.block_header.raw_data.number as u64)
     }
