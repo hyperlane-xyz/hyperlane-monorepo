@@ -3,12 +3,12 @@ use hyperlane_core::{HyperlaneMessage, Indexer, H256};
 use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, error};
 
-/// Extract a Hyperlane message from a transaction hash on a specific chain
-pub async fn extract_message(
+/// Extract all Hyperlane messages from a transaction hash on a specific chain
+pub async fn extract_messages(
     indexers: &HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
     chain_name: &str,
     tx_hash: &str,
-) -> Result<ExtractedMessage> {
+) -> Result<Vec<ExtractedMessage>> {
     // Get indexer for chain
     let indexer = indexers
         .get(chain_name)
@@ -54,29 +54,40 @@ pub async fn extract_message(
         return Err(eyre!("No Hyperlane Dispatch events found in transaction"));
     }
 
-    // For now, take the first message (most common case)
-    // TODO: Handle multiple messages in single tx if needed
-    let message = messages.into_iter().next().unwrap();
-
-    let origin_domain = message.origin;
-    let destination_domain = message.destination;
-    let message_id = message.id();
-
     debug!(
         chain = %chain_name,
         tx_hash = %tx_hash,
-        message_id = ?message_id,
-        origin_domain = origin_domain,
-        destination_domain = destination_domain,
-        "Successfully extracted message"
+        message_count = messages.len(),
+        "Successfully extracted messages from transaction"
     );
 
-    Ok(ExtractedMessage {
-        message,
-        origin_domain,
-        destination_domain,
-        message_id,
-    })
+    // Convert all messages to ExtractedMessage structs
+    let extracted_messages: Vec<ExtractedMessage> = messages
+        .into_iter()
+        .map(|message| {
+            let origin_domain = message.origin;
+            let destination_domain = message.destination;
+            let message_id = message.id();
+
+            debug!(
+                chain = %chain_name,
+                tx_hash = %tx_hash,
+                message_id = ?message_id,
+                origin_domain = origin_domain,
+                destination_domain = destination_domain,
+                "Extracted message"
+            );
+
+            ExtractedMessage {
+                message,
+                origin_domain,
+                destination_domain,
+                message_id,
+            }
+        })
+        .collect();
+
+    Ok(extracted_messages)
 }
 
 #[derive(Debug, Clone)]

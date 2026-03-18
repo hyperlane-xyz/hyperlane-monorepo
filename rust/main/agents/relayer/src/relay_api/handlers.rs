@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::msg::pending_message::{MessageContext, PendingMessage};
 use crate::relay_api::metrics::RelayApiMetrics;
@@ -161,6 +161,11 @@ pub struct RelayRequest {
 
 #[derive(Debug, Serialize)]
 pub struct RelayResponse {
+    pub messages: Vec<MessageInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MessageInfo {
     pub message_id: String,
     pub origin: u32,
     pub destination: u32,
@@ -295,9 +300,9 @@ async fn create_relay(
         .as_ref()
         .ok_or_else(|| ServerError::InternalError("Indexers not configured".to_string()))?;
 
-    let extracted = tokio::time::timeout(
+    let extracted_messages = tokio::time::timeout(
         Duration::from_secs(10),
-        crate::relay_api::extract_message(indexers, &req.origin_chain, &req.tx_hash),
+        crate::relay_api::extract_messages(indexers, &req.origin_chain, &req.tx_hash),
     )
     .await
     .map_err(|_| {
@@ -310,171 +315,182 @@ async fn create_relay(
         if let Some(ref metrics) = state.metrics {
             metrics.inc_failure("extraction_failed");
         }
-        ServerError::InvalidRequest(format!("Failed to extract message: {e}"))
+        ServerError::InvalidRequest(format!("Failed to extract messages: {e}"))
     })?;
 
     info!(
-        message_id = ?extracted.message_id,
-        origin = extracted.origin_domain,
-        destination = extracted.destination_domain,
-        "Successfully extracted message"
+        message_count = extracted_messages.len(),
+        origin_chain = %req.origin_chain,
+        tx_hash = %req.tx_hash,
+        "Successfully extracted messages from transaction"
     );
 
-    // 2. Store message in database for persistence and metrics
+    // 2. Get shared resources once
     let dbs = state
         .dbs
         .as_ref()
         .ok_or_else(|| ServerError::InternalError("Databases not configured".to_string()))?;
 
-    let origin_db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
-        ServerError::InternalError(format!(
-            "No database configured for origin domain {}",
-            extracted.origin_domain
-        ))
-    })?;
-
-    // Store message by ID
-    origin_db
-        .store_message_by_id(&extracted.message_id, &extracted.message)
-        .map_err(|e| {
-            ServerError::InternalError(format!("Failed to store message in database: {e}"))
-        })?;
-
-    // Store nonce -> message_id mapping
-    origin_db
-        .store_message_id_by_nonce(&extracted.message.nonce, &extracted.message_id)
-        .map_err(|e| {
-            ServerError::InternalError(format!("Failed to store message nonce mapping: {e}"))
-        })?;
-
-    // Note: We don't update max_seen_nonce here because relay API bypasses indexer.
-    // The indexer will update max_seen_nonce when it catches up (even for duplicates).
-
-    // Store dispatched block number (0 = relay API, real block number set by indexer later)
-    origin_db
-        .store_dispatched_block_number_by_nonce(&extracted.message.nonce, &0)
-        .map_err(|e| {
-            ServerError::InternalError(format!("Failed to store dispatched block number: {e}"))
-        })?;
-
-    info!(
-        message_id = ?extracted.message_id,
-        nonce = extracted.message.nonce,
-        "Stored message in database"
-    );
-
-    // 4. Get message context for (origin, destination)
     let msg_ctxs = state
         .msg_ctxs
         .as_ref()
         .ok_or_else(|| ServerError::InternalError("Message contexts not configured".to_string()))?;
 
-    let msg_ctx = msg_ctxs
-        .get(&(extracted.origin_domain, extracted.destination_domain))
-        .ok_or_else(|| {
-            ServerError::InternalError(format!(
-                "No message context for origin {} to destination {}",
-                extracted.origin_domain, extracted.destination_domain
-            ))
-        })?;
-
-    // 5. Classify app_context for metrics
-    // Fetch recipient ISM to determine app context (same as prepare() does)
-    let recipient_ism = msg_ctx
-        .destination_mailbox
-        .recipient_ism(extracted.message.recipient)
-        .await
-        .map_err(|e| {
-            warn!(
-                message_id = ?extracted.message_id,
-                error = ?e,
-                "Failed to fetch recipient ISM for app context classification, using None"
-            );
-            e
-        })
-        .ok();
-
-    let app_context = if let Some(ism_address) = recipient_ism {
-        msg_ctx
-            .metadata_builder
-            .app_context_classifier()
-            .get_app_context(&extracted.message, ism_address)
-            .await
-            .map_err(|e| {
-                warn!(
-                    message_id = ?extracted.message_id,
-                    error = ?e,
-                    "Failed to classify app context, using None"
-                );
-                e
-            })
-            .ok()
-            .flatten()
-    } else {
-        None
-    };
-
-    if let Some(ref context) = app_context {
-        info!(
-            message_id = ?extracted.message_id,
-            app_context = %context,
-            "Classified message app context"
-        );
-    } else {
-        info!(
-            message_id = ?extracted.message_id,
-            "No app context classification (will show as 'Unknown' in metrics)"
-        );
-    }
-
-    // 6. Get send channel for destination
     let send_channels = state
         .send_channels
         .as_ref()
         .ok_or_else(|| ServerError::InternalError("Send channels not configured".to_string()))?;
 
-    let send_channel = send_channels
-        .get(&extracted.destination_domain)
-        .ok_or_else(|| {
-            ServerError::InvalidRequest(format!(
-                "No send channel for destination domain {}",
-                extracted.destination_domain
+    // 3. Process each message
+    let mut processed_messages = Vec::new();
+
+    for extracted in extracted_messages {
+        info!(
+            message_id = ?extracted.message_id,
+            origin = extracted.origin_domain,
+            destination = extracted.destination_domain,
+            nonce = extracted.message.nonce,
+            "Processing message"
+        );
+
+        // Get origin database
+        let origin_db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
+            ServerError::InternalError(format!(
+                "No database configured for origin domain {}",
+                extracted.origin_domain
             ))
         })?;
 
-    // 7. Create PendingMessage with classified app_context
-    let pending_msg = PendingMessage::new(
-        extracted.message.clone(),
-        msg_ctx.clone(),
-        PendingOperationStatus::FirstPrepareAttempt,
-        app_context.clone(), // Classified app_context (not None)
-        0,                   // Max retries - relay API messages fail fast, no retries
-    );
+        // Store message by ID
+        origin_db
+            .store_message_by_id(&extracted.message_id, &extracted.message)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to store message in database: {e}"))
+            })?;
 
-    // 8. Send to MessageProcessor via channel (bypasses MessageDbLoader iterator)
-    send_channel
-        .send(Box::new(pending_msg) as QueueOperation)
-        .map_err(|e| {
-            ServerError::InternalError(format!("Failed to send message to processor: {e}"))
-        })?;
+        // Store nonce -> message_id mapping
+        origin_db
+            .store_message_id_by_nonce(&extracted.message.nonce, &extracted.message_id)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to store message nonce mapping: {e}"))
+            })?;
 
-    info!(
-        message_id = ?extracted.message_id,
-        destination = extracted.destination_domain,
-        app_context = ?app_context,
-        "Successfully injected message into processor channel"
-    );
+        // Note: We don't update max_seen_nonce here because relay API bypasses indexer.
+        // The indexer will update max_seen_nonce when it catches up (even for duplicates).
+
+        // Store dispatched block number (0 = relay API, real block number set by indexer later)
+        origin_db
+            .store_dispatched_block_number_by_nonce(&extracted.message.nonce, &0)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to store dispatched block number: {e}"))
+            })?;
+
+        debug!(
+            message_id = ?extracted.message_id,
+            nonce = extracted.message.nonce,
+            "Stored message in database"
+        );
+
+        // Get message context for (origin, destination)
+        let msg_ctx = msg_ctxs
+            .get(&(extracted.origin_domain, extracted.destination_domain))
+            .ok_or_else(|| {
+                ServerError::InternalError(format!(
+                    "No message context for origin {} to destination {}",
+                    extracted.origin_domain, extracted.destination_domain
+                ))
+            })?;
+
+        // Classify app_context for metrics
+        let recipient_ism = msg_ctx
+            .destination_mailbox
+            .recipient_ism(extracted.message.recipient)
+            .await
+            .map_err(|e| {
+                warn!(
+                    message_id = ?extracted.message_id,
+                    error = ?e,
+                    "Failed to fetch recipient ISM for app context classification, using None"
+                );
+                e
+            })
+            .ok();
+
+        let app_context = if let Some(ism_address) = recipient_ism {
+            msg_ctx
+                .metadata_builder
+                .app_context_classifier()
+                .get_app_context(&extracted.message, ism_address)
+                .await
+                .map_err(|e| {
+                    warn!(
+                        message_id = ?extracted.message_id,
+                        error = ?e,
+                        "Failed to classify app context, using None"
+                    );
+                    e
+                })
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
+
+        debug!(
+            message_id = ?extracted.message_id,
+            app_context = ?app_context,
+            "Classified message app context"
+        );
+
+        // Get send channel for destination
+        let send_channel = send_channels
+            .get(&extracted.destination_domain)
+            .ok_or_else(|| {
+                ServerError::InvalidRequest(format!(
+                    "No send channel for destination domain {}",
+                    extracted.destination_domain
+                ))
+            })?;
+
+        // Create PendingMessage with classified app_context
+        let pending_msg = PendingMessage::new(
+            extracted.message.clone(),
+            msg_ctx.clone(),
+            PendingOperationStatus::FirstPrepareAttempt,
+            app_context.clone(),
+            0, // Max retries - relay API messages fail fast, no retries
+        );
+
+        // Send to MessageProcessor via channel (bypasses MessageDbLoader iterator)
+        send_channel
+            .send(Box::new(pending_msg) as QueueOperation)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to send message to processor: {e}"))
+            })?;
+
+        info!(
+            message_id = ?extracted.message_id,
+            destination = extracted.destination_domain,
+            app_context = ?app_context,
+            "Successfully injected message into processor channel"
+        );
+
+        // Add to response
+        processed_messages.push(MessageInfo {
+            message_id: format!("{:x}", extracted.message_id),
+            origin: extracted.origin_domain,
+            destination: extracted.destination_domain,
+            nonce: extracted.message.nonce,
+        });
+    }
 
     // Track success metric
     if let Some(ref metrics) = state.metrics {
         metrics.inc_success();
     }
 
-    // 9. Return success immediately
+    // 4. Return success with all processed messages
     Ok(Json(RelayResponse {
-        message_id: format!("{:x}", extracted.message_id),
-        origin: extracted.origin_domain,
-        destination: extracted.destination_domain,
-        nonce: extracted.message.nonce,
+        messages: processed_messages,
     }))
 }
