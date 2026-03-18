@@ -303,8 +303,11 @@ jobs:
           - core-apply
           - core-deploy
           - core-read
+          - ism
+          - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
+          - warp-apply-route-extension
           - warp-deploy
           - warp-read
     steps:
