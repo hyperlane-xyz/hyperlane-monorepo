@@ -31,7 +31,6 @@ describe('StarknetProtocolProvider', () => {
   });
 
   it('creates a jsonRpc submitter', async () => {
-    const provider = new StarknetProtocolProvider();
     const tx: StarknetAnnotatedTx = {
       kind: 'invoke',
       contractAddress: '0x1',
@@ -39,7 +38,6 @@ describe('StarknetProtocolProvider', () => {
       calldata: [],
     };
     const receipt = { transactionHash: '0xabc' } as TxReceipt;
-    // CAST: test double only overrides the signer methods exercised by StarknetJsonRpcSubmitter.
     const fakeSigner = Object.assign(Object.create(StarknetSigner.prototype), {
       supportsTransactionBatching: () => true,
       sendAndConfirmBatchTransactions: async () => receipt,
@@ -48,27 +46,22 @@ describe('StarknetProtocolProvider', () => {
         transaction,
       getSignerAddress: () => '0x123',
     }) as StarknetSigner;
-
-    const signerClass = StarknetSigner as typeof StarknetSigner & {
-      connectWithSigner: typeof StarknetSigner.connectWithSigner;
-    };
-    const originalConnectWithSigner =
-      signerClass.connectWithSigner.bind(signerClass);
-    signerClass.connectWithSigner = async () => fakeSigner;
-
-    try {
-      const submitter = await provider.createSubmitter(METADATA, {
-        type: 'jsonRpc',
-        chain: 'starknetsepolia',
-        privateKey: '0xkey',
-        accountAddress: '0x123',
-      });
-
-      const receipts = await submitter.submit(tx, tx);
-
-      expect(receipts).to.deep.equal([receipt]);
-    } finally {
-      signerClass.connectWithSigner = originalConnectWithSigner;
+    class TestStarknetProtocolProvider extends StarknetProtocolProvider {
+      override async createSigner() {
+        return fakeSigner;
+      }
     }
+    const provider = new TestStarknetProtocolProvider();
+
+    const submitter = await provider.createSubmitter(METADATA, {
+      type: 'jsonRpc',
+      chain: 'starknetsepolia',
+      privateKey: '0xkey',
+      accountAddress: '0x123',
+    });
+
+    const receipts = await submitter.submit(tx, tx);
+
+    expect(receipts).to.deep.equal([receipt]);
   });
 });
