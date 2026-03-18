@@ -130,6 +130,35 @@ describe('hook protocolFee support', () => {
     });
   });
 
+  it('derives noopHook config with address', () => {
+    const derived = hookArtifactToDerivedConfig(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'noopHook',
+        },
+        deployed: { address: '0xdef' },
+      },
+      chainLookup,
+    );
+
+    expect(derived).to.deep.equal({
+      type: 'noopHook',
+      address: '0xdef',
+    });
+  });
+
+  it('does not redeploy noopHook when type is unchanged', () => {
+    const actual = {
+      type: 'noopHook',
+    } as const;
+    const expected = {
+      type: 'noopHook',
+    } as const;
+
+    expect(shouldDeployNewHook(actual, expected)).to.equal(false);
+  });
+
   it('creates unsupported hook reader/writer helpers with clear errors', async () => {
     const reader = createUnsupportedHookReader('protocolFee', 'Aleo');
     const writer = createUnsupportedHookWriter('protocolFee', 'Aleo');

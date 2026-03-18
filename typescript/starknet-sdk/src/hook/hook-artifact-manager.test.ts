@@ -1,11 +1,12 @@
 import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { StarknetSigner } from '../clients/signer.js';
+import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
 
 import { StarknetHookArtifactManager } from './hook-artifact-manager.js';
@@ -106,6 +107,34 @@ describe('StarknetHookArtifactManager', () => {
     expect(signer.capturedTx.constructorArgs[1]).to.equal('10');
     expect(artifact.config.maxProtocolFee).to.equal('20');
     expect(artifact.config.protocolFee).to.equal('10');
+  });
+
+  it('reads custom Starknet hooks as noopHook artifacts', async () => {
+    const manager = new StarknetHookArtifactManager(chainMetadata);
+    const provider = Reflect.get(manager, 'provider') as {
+      getHookType: (_req: { hookAddress: string }) => Promise<AltVM.HookType>;
+    };
+    provider.getHookType = async () => AltVM.HookType.CUSTOM;
+
+    const artifact = await manager.readHook('0xabc');
+    expect(artifact.config).to.deep.equal({ type: 'noopHook' });
+    expect(artifact.deployed.address).to.equal(
+      normalizeStarknetAddressSafe('0xabc'),
+    );
+  });
+
+  it('creates noopHook artifacts via the Starknet noop hook deployer', async () => {
+    const manager = new StarknetHookArtifactManager(chainMetadata);
+    const signer = new MockStarknetSigner();
+    const writer = manager.createWriter('noopHook', signer);
+
+    const [artifact] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: { type: 'noopHook' },
+    });
+
+    expect(artifact.config).to.deep.equal({ type: 'noopHook' });
+    expect(artifact.deployed.address).to.equal('0xabc');
   });
 
   it('rejects protocolFee in-place updates when maxProtocolFee changes', async () => {

@@ -125,6 +125,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
         new CosmosIgpHookReader(query),
       [AltVM.HookType.PROTOCOL_FEE]: () =>
         createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
+      noopHook: () => createUnsupportedHookReader('noopHook', 'Cosmos'),
     };
 
     return readers[type]();
@@ -200,6 +201,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
       },
       [AltVM.HookType.PROTOCOL_FEE]: () =>
         createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
+      noopHook: () => createUnsupportedHookWriter('noopHook', 'Cosmos'),
     };
 
     return writers[type]();

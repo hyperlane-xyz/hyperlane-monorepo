@@ -29,6 +29,7 @@ export interface HookConfigs {
   interchainGasPaymaster: IgpHookModuleConfig;
   protocolFee: ProtocolFeeHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  noopHook: NoopHookConfig;
 }
 export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
@@ -77,6 +78,10 @@ export interface IgpHookModuleConfig {
 
 export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
+}
+
+export interface NoopHookConfig {
+  type: 'noopHook';
 }
 
 export interface ProtocolFeeHookModuleConfig {
@@ -128,6 +133,7 @@ export interface HookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  noopHook: NoopHookConfig;
 }
 
 /**
@@ -161,6 +167,7 @@ export interface RawHookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  noopHook: NoopHookConfig;
 }
 
 /**
@@ -339,6 +346,14 @@ export function hookConfigToArtifact(
         },
       };
 
+    case 'noopHook':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'noopHook',
+        },
+      };
+
     case 'protocolFee':
       return {
         artifactState: ArtifactState.NEW,
@@ -385,6 +400,9 @@ export function shouldDeployNewHook(
     case AltVM.HookType.MERKLE_TREE:
       // MerkleTree hooks are immutable - must deploy new if config changed
       return !deepEquals(normalizedActual, normalizedExpected);
+
+    case 'noopHook':
+      return false;
 
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated
@@ -517,6 +535,12 @@ export function hookArtifactToDerivedConfig(
       // For MerkleTree hooks, just add the address
       return {
         ...config,
+        address,
+      };
+
+    case 'noopHook':
+      return {
+        type: 'noopHook',
         address,
       };
 

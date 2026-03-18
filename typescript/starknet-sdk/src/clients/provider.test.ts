@@ -23,6 +23,7 @@ const TEST_METADATA: ChainMetadataForAltVM = {
 class StarknetProviderTestHarness extends StarknetProvider {
   hookTypeValue: unknown = { MERKLE_TREE: {} };
   hookTypeThrows = false;
+  hookTypeErrorMessage = 'hook_type failed';
   ismTypeValue: unknown = { MERKLE_ROOT_MULTISIG: {} };
   ismTypeThrows = false;
   deliveredValue: unknown = 1;
@@ -50,7 +51,7 @@ class StarknetProviderTestHarness extends StarknetProvider {
     if (this.hookTypeThrows) {
       Object.assign(contract, {
         hook_type: async () => {
-          throw new Error('hook_type failed');
+          throw new Error(this.hookTypeErrorMessage);
         },
       });
       return contract;
@@ -270,9 +271,10 @@ describe('StarknetProvider getHookType', () => {
     ]);
   });
 
-  it('returns custom when hook_type lookup fails', async () => {
+  it('returns custom when hook_type probe misses', async () => {
     const provider = new StarknetProviderTestHarness();
     provider.hookTypeThrows = true;
+    provider.hookTypeErrorMessage = 'viewable method not found in abi';
 
     const hookType = await provider.getHookType({ hookAddress: '0x1' });
 
@@ -280,6 +282,20 @@ describe('StarknetProvider getHookType', () => {
     expect(provider.contractSelections).to.deep.equal([
       StarknetContractName.HOOK,
     ]);
+  });
+
+  it('rethrows unexpected hook_type failures', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.hookTypeThrows = true;
+
+    let caughtError: unknown;
+    try {
+      await provider.getHookType({ hookAddress: '0x1' });
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(String(caughtError)).to.include('hook_type failed');
   });
 });
 

@@ -77,6 +77,8 @@ export class StarknetArtifactGenerator {
     contractClass: ContractClass,
   ) {
     if (contractClass === ContractClass.SIERRA) {
+      // Full Sierra data is required downstream for Starknet class-hash and deployment paths.
+      // ABI-only artifacts break ContractFactory usage in @hyperlane-xyz/starknet-sdk.
       const compiledContract: CompiledContract = {
         ...artifact,
         abi:

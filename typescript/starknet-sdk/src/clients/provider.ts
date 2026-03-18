@@ -487,7 +487,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       );
       const hookType = await callContract(hook, 'hook_type');
       return this.parseHookVariant(extractEnumVariant(hookType));
-    } catch {
+    } catch (error) {
+      if (!isProbeMiss(error)) throw error;
       return AltVM.HookType.CUSTOM;
     }
   }

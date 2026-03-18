@@ -195,6 +195,62 @@ class StarknetMerkleTreeHookWriter
   }
 }
 
+class StarknetNoopHookReader implements ArtifactReader<
+  RawHookArtifactConfigs['noopHook'],
+  DeployedHookAddress
+> {
+  async read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<RawHookArtifactConfigs['noopHook'], DeployedHookAddress>
+  > {
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: { type: 'noopHook' },
+      deployed: { address: normalizeStarknetAddressSafe(address) },
+    };
+  }
+}
+
+class StarknetNoopHookWriter
+  extends StarknetNoopHookReader
+  implements
+    ArtifactWriter<RawHookArtifactConfigs['noopHook'], DeployedHookAddress>
+{
+  constructor(private readonly signer: StarknetSigner) {
+    super();
+  }
+
+  async create(
+    artifact: ArtifactNew<RawHookArtifactConfigs['noopHook']>,
+  ): Promise<
+    [
+      ArtifactDeployed<RawHookArtifactConfigs['noopHook'], DeployedHookAddress>,
+      TxReceipt[],
+    ]
+  > {
+    const deployed = await this.signer.createNoopHook({ mailboxAddress: '' });
+
+    return [
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: artifact.config,
+        deployed: { address: deployed.hookAddress },
+      },
+      [],
+    ];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<
+      RawHookArtifactConfigs['noopHook'],
+      DeployedHookAddress
+    >,
+  ): Promise<AnnotatedTx[]> {
+    return [];
+  }
+}
+
 class StarknetProtocolFeeHookReader implements ArtifactReader<
   RawHookArtifactConfigs['protocolFee'],
   DeployedHookAddress
@@ -322,6 +378,7 @@ class StarknetProtocolFeeHookWriter
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
     const maxProtocolFeeUnknown =
+      // CAST: Reflect.get requires an object argument; protocolFee config is always an object here.
       Reflect.get(current.config as object, '__maxProtocolFeeUnknown') === true;
     assert(
       !maxProtocolFeeUnknown,
@@ -404,6 +461,10 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     const hookType = await this.provider.getHookType({
       hookAddress: address,
     });
+    if (hookType === AltVM.HookType.CUSTOM) {
+      return this.createReader('noopHook').read(address);
+    }
+
     if (hookType === AltVM.HookType.MERKLE_TREE) {
       return this.createReader(AltVM.HookType.MERKLE_TREE).read(address);
     }
@@ -433,6 +494,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         this.chainMetadata,
         this.provider,
       ),
+      noopHook: new StarknetNoopHookReader(),
     };
     return readers[type];
   }
@@ -466,6 +528,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         this.provider,
         starknetSigner,
       ),
+      noopHook: new StarknetNoopHookWriter(starknetSigner),
     };
     return writers[type];
   }

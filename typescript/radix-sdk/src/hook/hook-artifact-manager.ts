@@ -69,6 +69,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
       interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
       protocolFee: () =>
         createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Radix'),
+      noopHook: () => createUnsupportedHookReader('noopHook', 'Radix'),
     };
 
     return readers[type]();
@@ -102,6 +103,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
         ),
       protocolFee: () =>
         createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Radix'),
+      noopHook: () => createUnsupportedHookWriter('noopHook', 'Radix'),
     };
 
     return writers[type]();
