@@ -17,7 +17,7 @@ import {
   createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
+import { assert, eqAddressStarknet, rootLogger } from '@hyperlane-xyz/utils';
 import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
@@ -34,10 +34,36 @@ import {
 import { StarknetDeployTx } from '../types.js';
 
 const STARKNET_STORAGE_ADDRESS_BOUND = (1n << 251n) - 256n;
+const logger = rootLogger.child({ module: 'starknet-hook-artifact-manager' });
 const MAX_PROTOCOL_FEE_STORAGE_KEYS = [
   'max_protocol_fee',
   '_max_protocol_fee',
 ].map((name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND);
+
+function shouldFallbackStorageRead(error: unknown): boolean {
+  const code =
+    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+  if (code === -32601) return true;
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : String(
+            error && typeof error === 'object'
+              ? Reflect.get(error, 'message')
+              : error,
+          );
+  const normalizedMessage = message.toLowerCase();
+
+  return [
+    'method not found',
+    'not supported',
+    'unsupported',
+    'not implemented',
+  ].some((fragment) => normalizedMessage.includes(fragment));
+}
 
 async function readUint256Storage(
   provider: StarknetProvider,
@@ -51,7 +77,19 @@ async function readUint256Storage(
       rawProvider.getStorageAt(contractAddress, `0x${(key + 1n).toString(16)}`),
     ]);
     return toBigInt(low) + (toBigInt(high) << 128n);
-  } catch {
+  } catch (error: unknown) {
+    if (!shouldFallbackStorageRead(error)) {
+      throw error;
+    }
+
+    logger.warn(
+      {
+        contractAddress,
+        key: `0x${key.toString(16)}`,
+        error,
+      },
+      'Falling back to lossy Starknet protocolFee max read after unsupported storage lookup',
+    );
     return undefined;
   }
 }
@@ -283,6 +321,16 @@ class StarknetProtocolFeeHookWriter
     >,
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
+    const maxProtocolFeeUnknown =
+      Reflect.get(current.config as object, '__maxProtocolFeeUnknown') === true;
+    assert(
+      !maxProtocolFeeUnknown,
+      'Cannot update Starknet protocolFee hook because the current maxProtocolFee is unreadable; redeploy required',
+    );
+    assert(
+      current.config.maxProtocolFee === artifact.config.maxProtocolFee,
+      'Changing maxProtocolFee requires redeploying the Starknet protocolFee hook',
+    );
     const contractAddress = artifact.deployed.address;
     const contract = getStarknetContract(
       StarknetContractName.PROTOCOL_FEE,

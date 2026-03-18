@@ -34,13 +34,15 @@ type ChainMap<T> = Record<string, T>;
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,
+  promptedKeyByProtocol: Partial<Record<ProtocolType, string>>,
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   protocol: ProtocolType,
   chain: string,
 ): Promise<string> {
   // 1. First try to get private key from --key.{protocol} flag
-  if (keyByProtocol[protocol]) {
-    return keyByProtocol[protocol]!;
+  const explicitKey = keyByProtocol[protocol];
+  if (explicitKey) {
+    return explicitKey;
   }
 
   // 2. If no key flag was provided we check if a strategy config
@@ -55,14 +57,18 @@ async function loadPrivateKey(
     }
   }
 
-  // 3. Finally, if no key flag or strategy was provided we prompt the user
-  // for the private key. We save it in the keyByProtocol map so that we can
-  // reuse it if another chain is of the same protocol
-  keyByProtocol[protocol] = await altVmPrompts.password({
+  // 3. Finally, if no key flag or strategy was provided we prompt the user.
+  // Cache prompted values locally so explicit per-chain strategy keys still win.
+  const promptedKey = promptedKeyByProtocol[protocol];
+  if (promptedKey) {
+    return promptedKey;
+  }
+
+  const fallbackKey = await altVmPrompts.password({
     message: `Please enter the private key for chain ${chain} (will be re-used for other chains with the same protocol type)`,
   });
-
-  return keyByProtocol[protocol]!;
+  promptedKeyByProtocol[protocol] = fallbackKey;
+  return fallbackKey;
 }
 
 async function loadAccountAddress(
@@ -106,6 +112,7 @@ export async function createAltVMSigners(
   },
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+  const promptedKeyByProtocol: Partial<Record<ProtocolType, string>> = {};
 
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
@@ -122,6 +129,7 @@ export async function createAltVMSigners(
     const signerConfig = {
       privateKey: await loadPrivateKey(
         keyByProtocol,
+        promptedKeyByProtocol,
         strategyConfig,
         metadata.protocol,
         chain,

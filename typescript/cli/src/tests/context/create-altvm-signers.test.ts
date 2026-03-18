@@ -233,6 +233,49 @@ describe('createAltVMSigners', () => {
     });
   });
 
+  it('prefers explicit per-chain strategy key over prompted fallback', async () => {
+    const privateKeyPrompt = sinon
+      .stub(altVmPrompts, 'password')
+      .resolves('0xprompted-key');
+
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      starknetsepolia: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'starknetsepolia',
+          userAddress: '0xstrategy-account-sepolia',
+        },
+      },
+      starknetmainnet: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'starknetmainnet',
+          privateKey: '0xstrategy-key-mainnet',
+          userAddress: '0xstrategy-account-mainnet',
+        },
+      },
+    };
+
+    await createAltVMSigners(
+      getMetadataManager((chainName) => getStarknetMetadata(chainName)),
+      ['starknetsepolia', 'starknetmainnet'],
+      {},
+      strategy,
+      getProtocolRegistry(),
+    );
+
+    expect(privateKeyPrompt.calledOnce).to.equal(true);
+    expect(capturedConfigs).to.have.length(2);
+    expect(capturedConfigs[0]).to.deep.equal({
+      privateKey: '0xprompted-key',
+      accountAddress: '0xstrategy-account-sepolia',
+    });
+    expect(capturedConfigs[1]).to.deep.equal({
+      privateKey: '0xstrategy-key-mainnet',
+      accountAddress: '0xstrategy-account-mainnet',
+    });
+  });
+
   it('does not reuse a prompted Starknet account address across chains', async () => {
     const accountPrompt = sinon
       .stub(altVmPrompts, 'input')

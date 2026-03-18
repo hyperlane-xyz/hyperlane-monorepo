@@ -88,4 +88,19 @@ describe(isMessageDelivered.name, function () {
     expect(bigintDelivered).to.equal(true);
     expect(bigintUndelivered).to.equal(false);
   });
+
+  it('throws on malformed boolean output', async function () {
+    let error: unknown;
+    try {
+      await isMessageDelivered(
+        getGateway({ value: 'nope' }) as GatewayApiClient,
+        'component_rdx1test',
+        '0x1234',
+      );
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(String(error)).to.match(/Unexpected delivered\(\) output shape/i);
+  });
 });

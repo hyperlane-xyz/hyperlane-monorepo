@@ -107,4 +107,44 @@ describe('StarknetHookArtifactManager', () => {
     expect(artifact.config.maxProtocolFee).to.equal('20');
     expect(artifact.config.protocolFee).to.equal('10');
   });
+
+  it('rejects protocolFee in-place updates when maxProtocolFee changes', async () => {
+    const manager = new StarknetHookArtifactManager(chainMetadata);
+    const signer = new MockStarknetSigner();
+    const writer = manager.createWriter('protocolFee', signer);
+    Object.assign(writer, {
+      read: async () => ({
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'protocolFee' as const,
+          owner: '0x1',
+          beneficiary: '0x2',
+          maxProtocolFee: '20',
+          protocolFee: '10',
+        },
+        deployed: { address: '0xabc' },
+      }),
+    });
+
+    let error: unknown;
+    try {
+      await writer.update({
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'protocolFee',
+          owner: '0x1',
+          beneficiary: '0x2',
+          maxProtocolFee: '30',
+          protocolFee: '10',
+        },
+        deployed: { address: '0xabc' },
+      });
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(String(error)).to.match(
+      /Changing maxProtocolFee requires redeploying/i,
+    );
+  });
 });
