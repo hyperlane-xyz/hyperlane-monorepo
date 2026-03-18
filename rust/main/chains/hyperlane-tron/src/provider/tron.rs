@@ -290,9 +290,16 @@ impl TronProvider {
         match result.result {
             Some(true) => Ok(()),
             _ => {
+                // Tron HTTP API returns hex-encoded error messages
+                let decoded_msg = result
+                    .message
+                    .as_deref()
+                    .and_then(|m| hex::decode(m).ok())
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .unwrap_or_else(|| result.message.clone().unwrap_or_else(|| "unknown".into()));
                 let message = format!(
-                    "Failed to broadcast transaction: code={:?}, message={:?}",
-                    result.code, result.message
+                    "Failed to broadcast transaction: code={:?}, message={}",
+                    result.code, decoded_msg
                 );
                 Err(HyperlaneTronError::BroadcastTransactionError(message).into())
             }
