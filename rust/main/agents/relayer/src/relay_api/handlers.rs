@@ -227,13 +227,20 @@ impl RateLimiter {
     }
 
     pub fn check(&mut self) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => duration.as_secs(),
+            Err(e) => {
+                error!("System clock is misconfigured (before UNIX_EPOCH): {}. Clearing rate limiter and allowing request.", e);
+                // If system time is invalid, clear state and allow the request
+                self.requests.clear();
+                self.requests.push(0);
+                return true;
+            }
+        };
 
-        // Remove requests outside the window
-        self.requests.retain(|&t| now - t < self.window_secs);
+        // Remove requests outside the window (use saturating_sub to prevent underflow)
+        self.requests
+            .retain(|&t| now.saturating_sub(t) < self.window_secs);
 
         if self.requests.len() >= self.max_requests {
             return false;

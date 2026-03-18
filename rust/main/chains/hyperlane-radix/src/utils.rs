@@ -247,7 +247,6 @@ mod tests {
     #[test]
     fn test_parse_radix_tx_hash_real_format() {
         // Real Radix tx hash format: txid_rdx1...
-        // typos:disable-next-line
         let tx_hash = "txid_rdx1t6vqltn0x3wyer7d4eh2eetf52ldx98utnxd4jafqczz545a7szs0nd48r";
         let result = parse_radix_tx_hash(tx_hash);
         assert!(result.is_ok());

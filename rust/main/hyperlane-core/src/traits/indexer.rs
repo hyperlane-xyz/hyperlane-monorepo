@@ -43,7 +43,16 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
         use crate::ChainCommunicationError;
 
-        let tx_hash_clean = tx_hash.trim_start_matches("0x");
+        // Strip at most one "0x" prefix
+        let tx_hash_clean = tx_hash.strip_prefix("0x").unwrap_or(tx_hash);
+
+        // Reject empty input
+        if tx_hash_clean.is_empty() {
+            return Err(ChainCommunicationError::from_other_str(
+                "TX hash cannot be empty",
+            ));
+        }
+
         let hash_bytes = hex::decode(tx_hash_clean).map_err(|e| {
             ChainCommunicationError::from_other_str(&format!("Invalid hex tx hash: {e}"))
         })?;
@@ -175,8 +184,16 @@ mod tests {
         let indexer = MockIndexer;
         let tx_hash = "";
         let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_ok());
-        // Empty string should produce zero-filled H512
-        assert_eq!(result.unwrap(), H512::zero());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_parse_tx_hash_only_prefix() {
+        let indexer = MockIndexer;
+        let tx_hash = "0x";
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
     }
 }

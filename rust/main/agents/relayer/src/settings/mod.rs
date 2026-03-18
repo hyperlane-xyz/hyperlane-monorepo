@@ -378,13 +378,34 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .get_opt_key("relayApiRateLimitMaxRequests")
             .parse_u32()
             .end()
-            .map(|v| v as usize);
+            .and_then(|v| {
+                if v > 0 {
+                    Some(v as usize)
+                } else {
+                    err.push(
+                        (&p.cwp).add("relayApiRateLimitMaxRequests"),
+                        eyre::eyre!("relayApiRateLimitMaxRequests must be greater than 0"),
+                    );
+                    None
+                }
+            });
 
         let relay_api_rate_limit_window_secs = p
             .chain(&mut err)
             .get_opt_key("relayApiRateLimitWindowSecs")
             .parse_u64()
-            .end();
+            .end()
+            .and_then(|v| {
+                if v > 0 {
+                    Some(v)
+                } else {
+                    err.push(
+                        (&p.cwp).add("relayApiRateLimitWindowSecs"),
+                        eyre::eyre!("relayApiRateLimitWindowSecs must be greater than 0"),
+                    );
+                    None
+                }
+            });
 
         err.into_result(RelayerSettings {
             base,
