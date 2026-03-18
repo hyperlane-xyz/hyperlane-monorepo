@@ -8,8 +8,10 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   HYPERLANE_SVM_PROGRAM_BYTES,
+  SvmCollateralTokenWriter,
   SvmNativeTokenWriter,
 } from '@hyperlane-xyz/sealevel-sdk';
+import { createSplMint as sdkCreateSplMint } from '@hyperlane-xyz/sealevel-sdk/testing';
 import type { Logger } from 'pino';
 
 import type { SvmDeployedAddresses } from '../fixtures/svm-routes.js';
@@ -115,6 +117,10 @@ export class SealevelLocalChainManager {
   private bridgeWarpRouteProgramId = '';
   private bridgeTokenPda = '';
   private bridgeAtaPda = '';
+  private collateralWarpRouteProgramId = '';
+  private collateralEscrowPda = '';
+  private collateralBridgeWarpRouteProgramId = '';
+  private collateralBridgeEscrowPda = '';
   private readonly rpcPort: number;
   private exitHandler?: () => void;
 
@@ -441,6 +447,140 @@ export class SealevelLocalChainManager {
     };
   }
 
+  async createSplMint(decimals: number): Promise<string> {
+    this.ensureStarted();
+    const rpc = createSvmRpc(this.getRpcUrl());
+    const signer = await createSvmSigner(this.getRpcUrl());
+    const mintAddress = await sdkCreateSplMint(rpc, signer, decimals);
+    return String(mintAddress);
+  }
+
+  async deployCollateralWarpRoute(
+    localDomain: number,
+    remoteRoutersByDomain: Map<number, string>,
+    splMintAddress: string,
+  ): Promise<{ escrowPda: string }> {
+    this.ensureStarted();
+
+    const localChain = SEALEVEL_CHAIN_BY_DOMAIN[localDomain];
+    if (!localChain) {
+      throw new Error(`Unsupported local Sealevel domain: ${localDomain}`);
+    }
+
+    const rpc = createSvmRpc(this.getRpcUrl());
+    const signer = await createSvmSigner(this.getRpcUrl());
+    const writer = new SvmCollateralTokenWriter(
+      {
+        program: {
+          programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral,
+        },
+        ataPayerFundingAmount: 1_000_000_000n,
+      },
+      rpc,
+      signer,
+    );
+
+    const [artifact] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: MAILBOX_PROGRAM_ID,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token: splMintAddress as any,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
+    this.collateralWarpRouteProgramId = String(artifact.deployed.address);
+
+    this.logger.info(
+      { remoteRouterCount: remoteRoutersByDomain.size, splMintAddress },
+      'Sealevel collateral warp route deployed',
+    );
+
+    const warpProgram = new PublicKey(this.collateralWarpRouteProgramId);
+    const [escrowPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('hyperlane_token'), Buffer.from('-'), Buffer.from('escrow')],
+      warpProgram,
+    );
+
+    const connection = this.getConnection();
+    for (let i = 0; i < 30; i += 1) {
+      const accountInfo = await connection.getAccountInfo(
+        escrowPda,
+        'finalized',
+      );
+      if (accountInfo !== null) break;
+      if (i === 29) throw new Error('Collateral escrow PDA not finalized');
+      await sleep(1000);
+    }
+
+    this.collateralEscrowPda = escrowPda.toBase58();
+    return { escrowPda: escrowPda.toBase58() };
+  }
+
+  async deployCollateralBridgeWarpRoute(
+    localDomain: number,
+    remoteRoutersByDomain: Map<number, string>,
+    splMintAddress: string,
+  ): Promise<{ escrowPda: string }> {
+    this.ensureStarted();
+
+    const rpc = createSvmRpc(this.getRpcUrl());
+    const signer = await createSvmSigner(this.getRpcUrl());
+    const writer = new SvmCollateralTokenWriter(
+      {
+        program: {
+          programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral,
+        },
+        ataPayerFundingAmount: 1_000_000_000n,
+      },
+      rpc,
+      signer,
+    );
+
+    const [artifact] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: MAILBOX_PROGRAM_ID,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token: splMintAddress as any,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
+    this.collateralBridgeWarpRouteProgramId = String(artifact.deployed.address);
+
+    this.logger.info(
+      { remoteRouterCount: remoteRoutersByDomain.size },
+      'Sealevel collateral bridge warp route deployed',
+    );
+
+    const warpProgram = new PublicKey(this.collateralBridgeWarpRouteProgramId);
+    const [escrowPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('hyperlane_token'), Buffer.from('-'), Buffer.from('escrow')],
+      warpProgram,
+    );
+
+    const connection = this.getConnection();
+    for (let i = 0; i < 30; i += 1) {
+      const accountInfo = await connection.getAccountInfo(
+        escrowPda,
+        'finalized',
+      );
+      if (accountInfo !== null) break;
+      if (i === 29)
+        throw new Error('Collateral bridge escrow PDA not finalized');
+      await sleep(1000);
+    }
+
+    this.collateralBridgeEscrowPda = escrowPda.toBase58();
+    return { escrowPda: escrowPda.toBase58() };
+  }
+
   async setIsmValidators(
     domain: number,
     validators: string[],
@@ -524,6 +664,42 @@ export class SealevelLocalChainManager {
       );
     }
     return this.bridgeAtaPda;
+  }
+
+  getCollateralWarpRouteProgramId(): string {
+    if (!this.collateralWarpRouteProgramId) {
+      throw new Error(
+        'Collateral warp route not deployed. Call deployCollateralWarpRoute first.',
+      );
+    }
+    return this.collateralWarpRouteProgramId;
+  }
+
+  getCollateralEscrowPda(): string {
+    if (!this.collateralEscrowPda) {
+      throw new Error(
+        'Collateral warp route not deployed. Call deployCollateralWarpRoute first.',
+      );
+    }
+    return this.collateralEscrowPda;
+  }
+
+  getCollateralBridgeWarpRouteProgramId(): string {
+    if (!this.collateralBridgeWarpRouteProgramId) {
+      throw new Error(
+        'Collateral bridge warp route not deployed. Call deployCollateralBridgeWarpRoute first.',
+      );
+    }
+    return this.collateralBridgeWarpRouteProgramId;
+  }
+
+  getCollateralBridgeEscrowPda(): string {
+    if (!this.collateralBridgeEscrowPda) {
+      throw new Error(
+        'Collateral bridge warp route not deployed. Call deployCollateralBridgeWarpRoute first.',
+      );
+    }
+    return this.collateralBridgeEscrowPda;
   }
 
   getConnection(): Connection {
