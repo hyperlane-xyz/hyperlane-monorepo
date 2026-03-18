@@ -180,27 +180,26 @@ pub enum ServerError {
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            ServerError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded"),
-            ServerError::TooManyRequests(msg) => (
-                StatusCode::TOO_MANY_REQUESTS,
-                &*Box::leak(msg.into_boxed_str()),
-            ),
-            ServerError::InvalidRequest(msg) => {
-                (StatusCode::BAD_REQUEST, &*Box::leak(msg.into_boxed_str()))
+        match self {
+            ServerError::RateLimited => {
+                (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response()
             }
-            ServerError::NotFound => (StatusCode::NOT_FOUND, "Job not found"),
+            ServerError::TooManyRequests(msg) => {
+                (StatusCode::TOO_MANY_REQUESTS, msg).into_response()
+            }
+            ServerError::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, msg).into_response(),
+            ServerError::NotFound => (StatusCode::NOT_FOUND, "Job not found").into_response(),
             ServerError::InternalError(msg) => {
                 error!("Internal server error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
             }
-            ServerError::ServiceUnavailable(msg) => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                &*Box::leak(msg.into_boxed_str()),
-            ),
-            ServerError::RequestTimeout => (StatusCode::REQUEST_TIMEOUT, "Request timeout"),
-        };
-        (status, message).into_response()
+            ServerError::ServiceUnavailable(msg) => {
+                (StatusCode::SERVICE_UNAVAILABLE, msg).into_response()
+            }
+            ServerError::RequestTimeout => {
+                (StatusCode::REQUEST_TIMEOUT, "Request timeout").into_response()
+            }
+        }
     }
 }
 
