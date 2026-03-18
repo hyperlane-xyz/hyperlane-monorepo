@@ -1,0 +1,230 @@
+import { expect } from 'chai';
+
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  type DerivedWarpRouteDeployConfig,
+  IsmType,
+  TokenType,
+  type WarpRouteDeployConfig,
+  randomAddress,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
+import {
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
+  HYP_KEY_BY_PROTOCOL,
+  REGISTRY_PATH,
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+  WARP_READ_OUTPUT_PATH,
+  getWarpCoreConfigPath,
+  getWarpDeployConfigPath,
+  getWarpId,
+} from '../../constants.js';
+
+describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+
+  const nativeTokenData =
+    TEST_CHAIN_METADATA_BY_PROTOCOL.starknet.CHAIN_NAME_1.nativeToken;
+  assert(nativeTokenData?.denom, 'Expected Starknet native token denom');
+
+  let chain1CoreAddress: ChainAddresses;
+  const hyperlaneCore1 = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Starknet,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.starknet,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.starknet.CHAIN_NAME_1,
+  );
+
+  let chain2CoreAddress: ChainAddresses;
+  const hyperlaneCore2 = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Starknet,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.starknet,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.starknet.CHAIN_NAME_2,
+  );
+
+  const WARP_CORE_PATH = getWarpCoreConfigPath(nativeTokenData.symbol, [
+    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
+  ]);
+  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(nativeTokenData.symbol, [
+    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
+  ]);
+  const WARP_ROUTE_ID = getWarpId(nativeTokenData.symbol, [
+    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
+  ]);
+
+  const hyperlaneWarp = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Starknet,
+    REGISTRY_PATH,
+    WARP_CORE_PATH,
+  );
+
+  let warpDeployConfig: WarpRouteDeployConfig;
+
+  before(async function () {
+    [chain1CoreAddress, chain2CoreAddress] = await Promise.all([
+      hyperlaneCore1.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.starknet),
+      hyperlaneCore2.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.starknet),
+    ]);
+  });
+
+  beforeEach(async () => {
+    warpDeployConfig = {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1]: {
+        type: TokenType.native,
+        mailbox: chain1CoreAddress.mailbox,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.starknet,
+      },
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_2]: {
+        type: TokenType.synthetic,
+        mailbox: chain2CoreAddress.mailbox,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.starknet,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
+      },
+    };
+
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+    await hyperlaneWarp.deployRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      skipConfirmationPrompts: true,
+      privateKey: HYP_KEY_BY_PROTOCOL.starknet,
+    });
+  });
+
+  it('should update ISM from nothing to testIsm', async () => {
+    warpDeployConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1
+    ].interchainSecurityModule = {
+      type: IsmType.TEST_ISM,
+    };
+
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await hyperlaneWarp.applyRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+    });
+
+    await hyperlaneWarp.readRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      outputPath: WARP_READ_OUTPUT_PATH,
+    });
+
+    const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
+      readYamlOrJson(WARP_READ_OUTPUT_PATH);
+    const ismConfig =
+      updatedWarpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1
+      ].interchainSecurityModule;
+
+    assert(ismConfig && typeof ismConfig !== 'string', 'Expected ISM config');
+    expect(ismConfig.type).to.equal(IsmType.TEST_ISM);
+    expect(ismConfig.address).to.be.a('string');
+  });
+
+  it('should update ISM from testIsm to messageIdMultisigIsm', async () => {
+    warpDeployConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1
+    ].interchainSecurityModule = {
+      type: IsmType.TEST_ISM,
+    };
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await hyperlaneWarp.applyRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+    });
+
+    warpDeployConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1
+    ].interchainSecurityModule = {
+      type: IsmType.MESSAGE_ID_MULTISIG,
+      threshold: 1,
+      validators: [randomAddress()],
+    };
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await hyperlaneWarp.applyRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+    });
+
+    await hyperlaneWarp.readRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      outputPath: WARP_READ_OUTPUT_PATH,
+    });
+
+    const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
+      readYamlOrJson(WARP_READ_OUTPUT_PATH);
+    const ismConfig =
+      updatedWarpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1
+      ].interchainSecurityModule;
+
+    assert(ismConfig && typeof ismConfig !== 'string', 'Expected ISM config');
+    assert(
+      ismConfig.type === IsmType.MESSAGE_ID_MULTISIG,
+      'Expected messageIdMultisigIsm',
+    );
+    expect(ismConfig.threshold).to.equal(1);
+    expect(ismConfig.validators).to.have.length(1);
+  });
+
+  it('should not redeploy ISM when applying the same config twice', async () => {
+    warpDeployConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1
+    ].interchainSecurityModule = {
+      type: IsmType.TEST_ISM,
+    };
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await hyperlaneWarp.applyRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+    });
+
+    await hyperlaneWarp.readRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      outputPath: WARP_READ_OUTPUT_PATH,
+    });
+
+    const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      WARP_READ_OUTPUT_PATH,
+    );
+    const firstIsm =
+      firstConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1]
+        .interchainSecurityModule;
+    assert(firstIsm && typeof firstIsm !== 'string', 'Expected first ISM');
+
+    await hyperlaneWarp.applyRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.starknet,
+    });
+
+    await hyperlaneWarp.readRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      outputPath: WARP_READ_OUTPUT_PATH,
+    });
+
+    const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      WARP_READ_OUTPUT_PATH,
+    );
+    const secondIsm =
+      secondConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1]
+        .interchainSecurityModule;
+    assert(secondIsm && typeof secondIsm !== 'string', 'Expected second ISM');
+    expect(secondIsm.address).to.equal(firstIsm.address);
+  });
+});

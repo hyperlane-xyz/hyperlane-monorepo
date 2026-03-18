@@ -36,3 +36,5 @@ export {
   stopTronNode,
   type TronTestChainMetadata,
 } from '@hyperlane-xyz/tron-sdk/testing';
+
+export { runStarknetNode } from '@hyperlane-xyz/starknet-sdk';

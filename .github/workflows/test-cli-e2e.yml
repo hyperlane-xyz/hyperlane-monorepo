@@ -14,6 +14,8 @@ on:
         type: string
       has_radix:
         type: string
+      has_starknet:
+        type: string
       has_tron:
         type: string
       has_relayer:
@@ -261,6 +263,67 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
+  # ── Starknet ─────────────────────────────────────────
+
+  cli-starknet-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') && inputs.ci_tier == 'smoke'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI starknet e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:starknet:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-starknet-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') && inputs.ci_tier == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply
+          - core-deploy
+          - core-read
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI starknet e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:starknet:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
   # ── Tron (small — always full) ──────────────────────
 
   cli-tron-e2e-matrix:
@@ -295,14 +358,17 @@ jobs:
 
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-24.04
-    if: inputs.run_cli_e2e == 'true'
+    if: inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         test:
           - warp-apply
+          - warp-apply-starknet
           - warp-deploy
+          - warp-send
+          - warp-deploy-starknet
           - warp-send
     steps:
       - uses: actions/checkout@v6

@@ -5,6 +5,10 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import { type ChainMetadata, type ProtocolMap } from '@hyperlane-xyz/sdk';
+import {
+  TEST_STARKNET_ACCOUNT_ADDRESS,
+  TEST_STARKNET_PRIVATE_KEY,
+} from '@hyperlane-xyz/starknet-sdk';
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';
@@ -47,6 +51,10 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
     CHAIN_NAME_1: 'aleo1',
     CHAIN_NAME_2: 'aleo2',
   },
+  [ProtocolType.Starknet]: {
+    CHAIN_NAME_1: 'starknet1',
+    CHAIN_NAME_2: 'starknet2',
+  },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
 type TestProtocolType = keyof typeof TEST_CHAIN_NAMES_BY_PROTOCOL;
@@ -71,6 +79,7 @@ export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Radix]: './examples/radix/core-config.yaml',
   [ProtocolType.Aleo]: './examples/aleo/core-config.yaml',
   [ProtocolType.Sealevel]: './examples/sealevel/core-config.yaml',
+  [ProtocolType.Starknet]: './examples/starknet/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
 export const CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL = {
@@ -88,6 +97,7 @@ export const HYP_KEY_BY_PROTOCOL = {
   [ProtocolType.Radix]:
     '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
   [ProtocolType.Aleo]: TEST_ALEO_PRIVATE_KEY,
+  [ProtocolType.Starknet]: TEST_STARKNET_PRIVATE_KEY,
   [ProtocolType.Sealevel]:
     '0x0000000000000000000000000000000000000000000000000000000000000001',
 } as const satisfies ProtocolMap<string>;
@@ -108,6 +118,7 @@ export const HYP_DEPLOYER_ADDRESS_BY_PROTOCOL = {
     'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3',
   [ProtocolType.Aleo]:
     'aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px',
+  [ProtocolType.Starknet]: TEST_STARKNET_ACCOUNT_ADDRESS,
   [ProtocolType.Sealevel]: '6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt',
 } as const satisfies ProtocolMap<string>;
 
@@ -133,6 +144,7 @@ export const BURN_ADDRESS_BY_PROTOCOL = {
     'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
   [ProtocolType.Aleo]:
     'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
+  [ProtocolType.Starknet]: '0x1',
   // Solana incinerator — canonical burn address on SVM
   [ProtocolType.Sealevel]: '1nc1nerator11111111111111111111111111111111',
 } as const satisfies ProtocolMap<string>;
