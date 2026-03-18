@@ -1,0 +1,621 @@
+import { type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
+  ArtifactState,
+  type ArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  TokenType,
+  type DeployedRawWarpArtifact,
+  type DeployedWarpAddress,
+  type IRawWarpArtifactManager,
+  type RawWarpArtifactConfig,
+  type RawWarpArtifactConfigs,
+  type WarpType,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  eqAddressStarknet,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
+
+import { StarknetProvider } from '../clients/provider.js';
+import { StarknetSigner } from '../clients/signer.js';
+import { normalizeStarknetAddressSafe } from '../contracts.js';
+
+function toNestedArtifact(address: string | undefined) {
+  if (!address || isZeroishAddress(address)) return undefined;
+  return {
+    artifactState: ArtifactState.UNDERIVED,
+    deployed: { address: normalizeStarknetAddressSafe(address) },
+  };
+}
+
+function getNestedAddress(
+  artifact: { deployed: { address: string } } | undefined,
+): string | undefined {
+  const address = artifact?.deployed.address;
+  return !address || isZeroishAddress(address)
+    ? undefined
+    : normalizeStarknetAddressSafe(address);
+}
+
+function normalizeGas(gas: string | undefined): string {
+  return BigInt(gas ?? '0').toString();
+}
+
+abstract class StarknetWarpTokenReaderBase<
+  T extends WarpType,
+  C extends RawWarpArtifactConfigs[T],
+> implements ArtifactReader<C, DeployedWarpAddress> {
+  constructor(protected readonly provider: StarknetProvider) {}
+
+  protected abstract readonly tokenType: T;
+
+  protected abstract toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): C;
+
+  async read(
+    address: string,
+  ): Promise<ArtifactDeployed<C, DeployedWarpAddress>> {
+    const token = await this.provider.getToken({ tokenAddress: address });
+    const remoteRouters = await this.provider.getRemoteRouters({
+      tokenAddress: address,
+    });
+
+    const actualType =
+      token.tokenType === TokenType.native
+        ? 'native'
+        : token.tokenType === TokenType.collateral
+          ? 'collateral'
+          : 'synthetic';
+    assert(
+      actualType === this.tokenType,
+      `Expected Starknet warp token ${address} to be ${this.tokenType}, got ${actualType}`,
+    );
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: this.toConfig(token, remoteRouters),
+      deployed: { address: normalizeStarknetAddressSafe(token.address) },
+    };
+  }
+
+  protected baseConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ) {
+    const routers: Record<number, { address: string }> = {};
+    const destinationGas: Record<number, string> = {};
+
+    for (const remoteRouter of remoteRouters.remoteRouters) {
+      routers[remoteRouter.receiverDomainId] = {
+        address: normalizeStarknetAddressSafe(remoteRouter.receiverAddress),
+      };
+      destinationGas[remoteRouter.receiverDomainId] = normalizeGas(
+        remoteRouter.gas,
+      );
+    }
+
+    return {
+      owner: normalizeStarknetAddressSafe(token.owner),
+      mailbox: normalizeStarknetAddressSafe(token.mailboxAddress),
+      interchainSecurityModule: toNestedArtifact(token.ismAddress),
+      hook: toNestedArtifact(token.hookAddress),
+      remoteRouters: routers,
+      destinationGas,
+    };
+  }
+}
+
+class StarknetNativeTokenReader extends StarknetWarpTokenReaderBase<
+  'native',
+  RawWarpArtifactConfigs['native']
+> {
+  protected readonly tokenType = 'native' as const;
+
+  protected toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): RawWarpArtifactConfigs['native'] {
+    return {
+      type: TokenType.native,
+      ...this.baseConfig(token, remoteRouters),
+    };
+  }
+}
+
+class StarknetCollateralTokenReader extends StarknetWarpTokenReaderBase<
+  'collateral',
+  RawWarpArtifactConfigs['collateral']
+> {
+  protected readonly tokenType = 'collateral' as const;
+
+  protected toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): RawWarpArtifactConfigs['collateral'] {
+    return {
+      type: TokenType.collateral,
+      ...this.baseConfig(token, remoteRouters),
+      token: normalizeStarknetAddressSafe(token.denom),
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+    };
+  }
+}
+
+class StarknetSyntheticTokenReader extends StarknetWarpTokenReaderBase<
+  'synthetic',
+  RawWarpArtifactConfigs['synthetic']
+> {
+  protected readonly tokenType = 'synthetic' as const;
+
+  protected toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): RawWarpArtifactConfigs['synthetic'] {
+    return {
+      type: TokenType.synthetic,
+      ...this.baseConfig(token, remoteRouters),
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+    };
+  }
+}
+
+abstract class StarknetWarpTokenWriterBase<
+  T extends WarpType,
+  C extends RawWarpArtifactConfigs[T],
+>
+  extends StarknetWarpTokenReaderBase<T, C>
+  implements ArtifactWriter<C, DeployedWarpAddress>
+{
+  constructor(
+    provider: StarknetProvider,
+    protected readonly signer: StarknetSigner,
+  ) {
+    super(provider);
+  }
+
+  protected abstract createToken(artifact: ArtifactNew<C>): Promise<string>;
+
+  protected validateCreateConfig(config: C): void {
+    assert(!config.scale, 'scale is unsupported for Starknet warp tokens');
+  }
+
+  protected validateUpdateConfig(_current: C, expected: C): void {
+    assert(!expected.scale, 'scale is unsupported for Starknet warp tokens');
+  }
+
+  async create(
+    artifact: ArtifactNew<C>,
+  ): Promise<[ArtifactDeployed<C, DeployedWarpAddress>, TxReceipt[]]> {
+    this.validateCreateConfig(artifact.config);
+    this.assertNoOrphanDestinationGas(artifact.config);
+
+    const receipts: TxReceipt[] = [];
+    const tokenAddress = await this.createToken(artifact);
+    receipts.push(
+      ...(await this.applyPostCreateConfig(tokenAddress, artifact.config, {
+        owner: this.signer.getSignerAddress(),
+        interchainSecurityModule: undefined,
+        hook: undefined,
+        remoteRouters: {},
+        destinationGas: {},
+      })),
+    );
+
+    return [await this.read(tokenAddress), receipts];
+  }
+
+  async update(
+    artifact: ArtifactDeployed<C, DeployedWarpAddress>,
+  ): Promise<AnnotatedTx[]> {
+    const current = await this.read(artifact.deployed.address);
+    this.validateUpdateConfig(current.config, artifact.config);
+    this.assertNoOrphanDestinationGas(artifact.config);
+
+    const txs: AnnotatedTx[] = [];
+    const tokenAddress = artifact.deployed.address;
+
+    const currentOwner = current.config.owner;
+    if (!eqAddressStarknet(currentOwner, artifact.config.owner)) {
+      txs.push({
+        annotation: 'Setting warp token owner',
+        ...(await this.signer.getSetTokenOwnerTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress,
+          newOwner: artifact.config.owner,
+        })),
+      });
+    }
+
+    const currentIsm = getNestedAddress(
+      current.config.interchainSecurityModule,
+    );
+    const expectedIsm = getNestedAddress(
+      artifact.config.interchainSecurityModule,
+    );
+    if (
+      !eqAddressStarknet(
+        currentIsm ?? ZERO_ADDRESS_HEX_32,
+        expectedIsm ?? ZERO_ADDRESS_HEX_32,
+      )
+    ) {
+      txs.push({
+        annotation: 'Setting warp token ISM',
+        ...(await this.signer.getSetTokenIsmTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress,
+          ismAddress: expectedIsm,
+        })),
+      });
+    }
+
+    const currentHook = getNestedAddress(current.config.hook);
+    const expectedHook = getNestedAddress(artifact.config.hook);
+    if (
+      !eqAddressStarknet(
+        currentHook ?? ZERO_ADDRESS_HEX_32,
+        expectedHook ?? ZERO_ADDRESS_HEX_32,
+      )
+    ) {
+      txs.push({
+        annotation: 'Setting warp token hook',
+        ...(await this.signer.getSetTokenHookTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress,
+          hookAddress: expectedHook,
+        })),
+      });
+    }
+
+    const domains = new Set<number>([
+      ...Object.keys(current.config.remoteRouters).map(Number),
+      ...Object.keys(artifact.config.remoteRouters).map(Number),
+      ...Object.keys(current.config.destinationGas).map(Number),
+      ...Object.keys(artifact.config.destinationGas).map(Number),
+    ]);
+
+    for (const domain of [...domains].sort((a, b) => a - b)) {
+      const currentRouter = current.config.remoteRouters[domain];
+      const expectedRouter = artifact.config.remoteRouters[domain];
+      const currentGas = normalizeGas(current.config.destinationGas[domain]);
+      const expectedGas = normalizeGas(artifact.config.destinationGas[domain]);
+
+      if (!expectedRouter) {
+        if (currentRouter) {
+          txs.push({
+            annotation: `Unenrolling remote router for domain ${domain}`,
+            ...(await this.signer.getUnenrollRemoteRouterTransaction({
+              signer: this.signer.getSignerAddress(),
+              tokenAddress,
+              receiverDomainId: domain,
+            })),
+          });
+        }
+        continue;
+      }
+
+      const routerChanged =
+        !currentRouter ||
+        !eqAddressStarknet(currentRouter.address, expectedRouter.address);
+      const gasChanged = !currentRouter || currentGas !== expectedGas;
+      if (routerChanged || gasChanged) {
+        txs.push({
+          annotation: `Enrolling remote router for domain ${domain}`,
+          ...(await this.signer.getEnrollRemoteRouterTransaction({
+            signer: this.signer.getSignerAddress(),
+            tokenAddress,
+            remoteRouter: {
+              receiverDomainId: domain,
+              receiverAddress: expectedRouter.address,
+              gas: expectedGas,
+            },
+          })),
+        });
+      }
+    }
+
+    return txs;
+  }
+
+  private assertNoOrphanDestinationGas(config: C): void {
+    for (const domain of Object.keys(config.destinationGas)) {
+      assert(
+        config.remoteRouters[Number(domain)],
+        `destinationGas for domain ${domain} requires a matching remote router on Starknet`,
+      );
+    }
+  }
+
+  private async applyPostCreateConfig(
+    tokenAddress: string,
+    expected: C,
+    current: Pick<
+      RawWarpArtifactConfig,
+      | 'owner'
+      | 'interchainSecurityModule'
+      | 'hook'
+      | 'remoteRouters'
+      | 'destinationGas'
+    >,
+  ): Promise<TxReceipt[]> {
+    const receipts: TxReceipt[] = [];
+
+    const currentOwner = current.owner;
+    if (!eqAddressStarknet(currentOwner, expected.owner)) {
+      const tx = await this.signer.getSetTokenOwnerTransaction({
+        signer: this.signer.getSignerAddress(),
+        tokenAddress,
+        newOwner: expected.owner,
+      });
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
+    }
+
+    const expectedIsm = getNestedAddress(expected.interchainSecurityModule);
+    if (expectedIsm) {
+      const tx = await this.signer.getSetTokenIsmTransaction({
+        signer: this.signer.getSignerAddress(),
+        tokenAddress,
+        ismAddress: expectedIsm,
+      });
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
+    }
+
+    const expectedHook = getNestedAddress(expected.hook);
+    if (expectedHook) {
+      const tx = await this.signer.getSetTokenHookTransaction({
+        signer: this.signer.getSignerAddress(),
+        tokenAddress,
+        hookAddress: expectedHook,
+      });
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
+    }
+
+    for (const domain of Object.keys(expected.remoteRouters)
+      .map(Number)
+      .sort((a, b) => a - b)) {
+      const remoteRouter = expected.remoteRouters[domain];
+      const tx = await this.signer.getEnrollRemoteRouterTransaction({
+        signer: this.signer.getSignerAddress(),
+        tokenAddress,
+        remoteRouter: {
+          receiverDomainId: domain,
+          receiverAddress: remoteRouter.address,
+          gas: normalizeGas(expected.destinationGas[domain]),
+        },
+      });
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
+    }
+
+    return receipts;
+  }
+}
+
+class StarknetNativeTokenWriter extends StarknetWarpTokenWriterBase<
+  'native',
+  RawWarpArtifactConfigs['native']
+> {
+  protected readonly tokenType = 'native' as const;
+
+  protected toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): RawWarpArtifactConfigs['native'] {
+    return {
+      type: TokenType.native,
+      ...this.baseConfig(token, remoteRouters),
+    };
+  }
+
+  protected async createToken(
+    _artifact: ArtifactNew<RawWarpArtifactConfigs['native']>,
+  ): Promise<string> {
+    const tx = await this.signer.getCreateNativeTokenTransaction({
+      signer: this.signer.getSignerAddress(),
+      mailboxAddress: _artifact.config.mailbox,
+    });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    assert(
+      receipt.contractAddress,
+      'failed to deploy Starknet native warp token',
+    );
+    return receipt.contractAddress;
+  }
+}
+
+class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
+  'collateral',
+  RawWarpArtifactConfigs['collateral']
+> {
+  protected readonly tokenType = 'collateral' as const;
+
+  protected toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): RawWarpArtifactConfigs['collateral'] {
+    return {
+      type: TokenType.collateral,
+      ...this.baseConfig(token, remoteRouters),
+      token: normalizeStarknetAddressSafe(token.denom),
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+    };
+  }
+
+  protected async createToken(
+    artifact: ArtifactNew<RawWarpArtifactConfigs['collateral']>,
+  ): Promise<string> {
+    const tx = await this.signer.getCreateCollateralTokenTransaction({
+      signer: this.signer.getSignerAddress(),
+      mailboxAddress: artifact.config.mailbox,
+      collateralDenom: artifact.config.token,
+    });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    assert(
+      receipt.contractAddress,
+      'failed to deploy Starknet collateral warp token',
+    );
+    return receipt.contractAddress;
+  }
+
+  protected override validateUpdateConfig(
+    current: RawWarpArtifactConfigs['collateral'],
+    expected: RawWarpArtifactConfigs['collateral'],
+  ): void {
+    super.validateUpdateConfig(current, expected);
+    assert(
+      eqAddressStarknet(current.token, expected.token),
+      `Cannot change Starknet collateral token from ${current.token} to ${expected.token}`,
+    );
+  }
+}
+
+class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
+  'synthetic',
+  RawWarpArtifactConfigs['synthetic']
+> {
+  protected readonly tokenType = 'synthetic' as const;
+
+  protected toConfig(
+    token: Awaited<ReturnType<StarknetProvider['getToken']>>,
+    remoteRouters: Awaited<ReturnType<StarknetProvider['getRemoteRouters']>>,
+  ): RawWarpArtifactConfigs['synthetic'] {
+    return {
+      type: TokenType.synthetic,
+      ...this.baseConfig(token, remoteRouters),
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+    };
+  }
+
+  protected override validateCreateConfig(
+    config: RawWarpArtifactConfigs['synthetic'],
+  ): void {
+    super.validateCreateConfig(config);
+    assert(
+      !config.metadataUri,
+      'metadataUri is unsupported for Starknet synthetic warp tokens',
+    );
+  }
+
+  protected override validateUpdateConfig(
+    current: RawWarpArtifactConfigs['synthetic'],
+    expected: RawWarpArtifactConfigs['synthetic'],
+  ): void {
+    super.validateUpdateConfig(current, expected);
+    assert(
+      current.name === expected.name,
+      `Cannot change Starknet synthetic token name from ${current.name} to ${expected.name}`,
+    );
+    assert(
+      current.symbol === expected.symbol,
+      `Cannot change Starknet synthetic token symbol from ${current.symbol} to ${expected.symbol}`,
+    );
+    assert(
+      current.decimals === expected.decimals,
+      `Cannot change Starknet synthetic token decimals from ${current.decimals} to ${expected.decimals}`,
+    );
+    assert(
+      !expected.metadataUri,
+      'metadataUri is unsupported for Starknet synthetic warp tokens',
+    );
+  }
+
+  protected async createToken(
+    artifact: ArtifactNew<RawWarpArtifactConfigs['synthetic']>,
+  ): Promise<string> {
+    const tx = await this.signer.getCreateSyntheticTokenTransaction({
+      signer: this.signer.getSignerAddress(),
+      mailboxAddress: artifact.config.mailbox,
+      name: artifact.config.name,
+      denom: artifact.config.symbol,
+      decimals: artifact.config.decimals,
+    });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    assert(
+      receipt.contractAddress,
+      'failed to deploy Starknet synthetic warp token',
+    );
+    return receipt.contractAddress;
+  }
+}
+
+export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
+  private readonly provider: StarknetProvider;
+
+  constructor(chainMetadata: ChainMetadataForAltVM) {
+    this.provider = StarknetProvider.connect(
+      (chainMetadata.rpcUrls ?? []).map(({ http }) => http),
+      chainMetadata.chainId,
+      { metadata: chainMetadata },
+    );
+  }
+
+  supportsHookUpdates(): boolean {
+    return true;
+  }
+
+  async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
+    const token = await this.provider.getToken({ tokenAddress: address });
+    const warpType =
+      token.tokenType === TokenType.native
+        ? 'native'
+        : token.tokenType === TokenType.collateral
+          ? 'collateral'
+          : 'synthetic';
+
+    return this.createReader(warpType).read(address);
+  }
+
+  createReader<T extends WarpType>(
+    type: T,
+  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+    const readers: {
+      [K in WarpType]: ArtifactReader<
+        RawWarpArtifactConfigs[K],
+        DeployedWarpAddress
+      >;
+    } = {
+      native: new StarknetNativeTokenReader(this.provider),
+      collateral: new StarknetCollateralTokenReader(this.provider),
+      synthetic: new StarknetSyntheticTokenReader(this.provider),
+    };
+    return readers[type];
+  }
+
+  createWriter<T extends WarpType>(
+    type: T,
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
+    assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
+
+    const writers: {
+      [K in WarpType]: ArtifactWriter<
+        RawWarpArtifactConfigs[K],
+        DeployedWarpAddress
+      >;
+    } = {
+      native: new StarknetNativeTokenWriter(this.provider, signer),
+      collateral: new StarknetCollateralTokenWriter(this.provider, signer),
+      synthetic: new StarknetSyntheticTokenWriter(this.provider, signer),
+    };
+    return writers[type];
+  }
+}

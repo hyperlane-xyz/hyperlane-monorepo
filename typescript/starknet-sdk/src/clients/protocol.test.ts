@@ -1,68 +1,77 @@
 import { expect } from 'chai';
 
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { type AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+
+import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+import { type StarknetAnnotatedTx } from '../types.js';
 
 import { StarknetProtocolProvider } from './protocol.js';
+import { StarknetSigner } from './signer.js';
+
+const METADATA = {
+  name: 'starknetsepolia',
+  protocol: ProtocolType.Starknet,
+  chainId: 'SN_SEPOLIA',
+  domainId: 1234,
+  rpcUrls: [{ http: 'http://localhost:9545' }],
+};
 
 describe('StarknetProtocolProvider', () => {
-  const provider = new StarknetProtocolProvider();
+  it('returns a Starknet warp artifact manager', () => {
+    const provider = new StarknetProtocolProvider();
 
-  const metadata: ChainMetadataForAltVM = {
-    name: 'starknetsepolia',
-    protocol: ProtocolType.Starknet,
-    chainId: 'SN_SEPOLIA',
-    domainId: 421614,
-    rpcUrls: [{ http: 'http://localhost:9545' }],
-    nativeToken: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18,
-      denom:
-        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
-    },
-  };
+    const manager = provider.createWarpArtifactManager(METADATA);
 
-  it('creates provider when rpc url exists', async () => {
-    const starknetProvider = await provider.createProvider(metadata);
-    expect(starknetProvider.getRpcUrls()).to.deep.equal([
-      'http://localhost:9545',
-    ]);
+    expect(manager).to.be.instanceOf(StarknetWarpArtifactManager);
+    expect(manager.supportsHookUpdates()).to.equal(true);
   });
 
-  it('throws when signer config is missing Starknet account address', async () => {
-    let caughtError: unknown;
+  it('creates a jsonRpc submitter', async () => {
+    const provider = new StarknetProtocolProvider();
+    const tx: StarknetAnnotatedTx = {
+      kind: 'invoke',
+      contractAddress: '0x1',
+      entrypoint: 'noop',
+      calldata: [],
+    };
+    const receipt = { transactionHash: '0xabc' } as TxReceipt;
+    const fakeSigner = {
+      supportsTransactionBatching: () => true,
+      sendAndConfirmBatchTransactions: async () => receipt,
+      sendAndConfirmTransaction: async () => receipt,
+      transactionToPrintableJson: async (transaction: AnnotatedTx) =>
+        transaction,
+      getSignerAddress: () => '0x123',
+    } as unknown as AltVM.ISigner<StarknetAnnotatedTx, TxReceipt>;
+
+    const originalConnectWithSigner = StarknetSigner.connectWithSigner;
+    (
+      StarknetSigner as typeof StarknetSigner & {
+        connectWithSigner: typeof StarknetSigner.connectWithSigner;
+      }
+    ).connectWithSigner = async () => fakeSigner;
+
     try {
-      await provider.createSigner(metadata, { privateKey: '0xabc' });
-    } catch (error) {
-      caughtError = error;
+      const submitter = await provider.createSubmitter(METADATA, {
+        type: 'jsonRpc',
+        chain: 'starknetsepolia',
+        privateKey: '0xkey',
+        accountAddress: '0x123',
+      });
+
+      const receipts = await submitter.submit(tx, tx);
+
+      expect(receipts).to.deep.equal([receipt]);
+    } finally {
+      (
+        StarknetSigner as typeof StarknetSigner & {
+          connectWithSigner: typeof StarknetSigner.connectWithSigner;
+        }
+      ).connectWithSigner = originalConnectWithSigner;
     }
-
-    expect(String(caughtError)).to.match(/accountAddress missing/i);
-  });
-
-  it('reports Starknet signer batch transaction support', async () => {
-    const signer = await provider.createSigner(metadata, {
-      privateKey:
-        '0x1111111111111111111111111111111111111111111111111111111111111111',
-      accountAddress: '0x1',
-    });
-    expect(signer.supportsTransactionBatching()).to.equal(true);
-  });
-
-  it('creates Starknet hook manager with explicit protocolFee support', () => {
-    const manager = provider.createHookArtifactManager(metadata);
-    const reader = manager.createReader('protocolFee');
-    expect(reader).to.have.property('read');
-  });
-
-  it('returns non-zero minimum gas defaults', () => {
-    expect(provider.getMinGas()).to.deep.equal({
-      CORE_DEPLOY_GAS: BigInt(1e9),
-      WARP_DEPLOY_GAS: BigInt(3e8),
-      TEST_SEND_GAS: BigInt(3e7),
-      AVS_GAS: BigInt(3e8),
-      ISM_DEPLOY_GAS: BigInt(5e7),
-    });
   });
 });

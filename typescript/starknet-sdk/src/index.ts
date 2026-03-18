@@ -5,3 +5,4 @@ export { StarknetIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export { StarknetHookArtifactManager } from './hook/hook-artifact-manager.js';
 export { StarknetMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
 export { StarknetValidatorAnnounceArtifactManager } from './validator-announce/validator-announce-artifact-manager.js';
+export { StarknetWarpArtifactManager } from './warp/warp-artifact-manager.js';

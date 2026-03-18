@@ -1,6 +1,5 @@
 import {
   ChainMetadataForAltVM,
-  ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -58,10 +57,6 @@ export function createWarpTokenWriter(
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
 ): WarpTokenWriter {
-  assert(
-    chainMetadata.protocol !== ProtocolType.Starknet,
-    'Starknet warp artifact manager is not implemented yet',
-  );
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawWarpArtifactManager =
     protocolProvider.createWarpArtifactManager(chainMetadata);

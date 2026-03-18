@@ -12,6 +12,7 @@ import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { JsonRpcSubmitterConfig } from '@hyperlane-xyz/provider-sdk/submitter';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -20,9 +21,11 @@ import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { StarknetValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
+import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { StarknetProvider } from './provider.js';
 import { StarknetSigner } from './signer.js';
+import { StarknetJsonRpcSubmitter } from './submitter.js';
 
 export class StarknetProtocolProvider implements ProtocolProvider {
   async createProvider(
@@ -51,10 +54,16 @@ export class StarknetProtocolProvider implements ProtocolProvider {
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
-    _chainMetadata: ChainMetadataForAltVM,
-    _config: TConfig,
+    chainMetadata: ChainMetadataForAltVM,
+    config: TConfig,
   ): Promise<ITransactionSubmitter> {
-    throw new Error('Not implemented');
+    if (config.type === 'jsonRpc') {
+      return this.createJsonRpcSubmitter(chainMetadata, config);
+    }
+
+    throw new Error(
+      'File submitter is unsupported in @hyperlane-xyz/starknet-sdk; create file submitters at the CLI layer',
+    );
   }
 
   createIsmArtifactManager(
@@ -71,10 +80,10 @@ export class StarknetProtocolProvider implements ProtocolProvider {
   }
 
   createWarpArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
-    throw new Error('Not implemented');
+    return new StarknetWarpArtifactManager(chainMetadata);
   }
 
   createMailboxArtifactManager(
@@ -97,5 +106,13 @@ export class StarknetProtocolProvider implements ProtocolProvider {
       AVS_GAS: BigInt(3e8),
       ISM_DEPLOY_GAS: BigInt(5e7),
     };
+  }
+
+  private async createJsonRpcSubmitter(
+    chainMetadata: ChainMetadataForAltVM,
+    config: JsonRpcSubmitterConfig,
+  ): Promise<ITransactionSubmitter> {
+    const signer = await this.createSigner(chainMetadata, config);
+    return new StarknetJsonRpcSubmitter(signer, { chain: config.chain });
   }
 }
