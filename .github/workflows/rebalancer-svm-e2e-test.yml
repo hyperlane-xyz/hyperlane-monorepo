@@ -119,11 +119,7 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      # ── Run mixed SVM+EVM e2e tests ──
-      - name: Run rebalancer SVM E2E tests (core)
+      # ── Run mixed SVM+EVM collateral e2e tests ──
+      - name: Run rebalancer SVM+EVM collateral E2E tests
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm-core.e2e-test.ts' --exit
-
-      - name: Run rebalancer SVM E2E tests (advanced)
-        working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm-advanced.e2e-test.ts' --exit
+        run: pnpm mocha --config .mocharc.e2e.json 'src/e2e/mixed-svm-evm-collateral.e2e-test.ts' --exit
