@@ -172,6 +172,21 @@ mod tests {
         ) as QueueOperation
     }
 
+    /// Helper to compare JSON responses ignoring field order
+    fn assert_json_eq(actual: &str, expected: &str) {
+        let actual_json: serde_json::Value =
+            serde_json::from_str(actual).expect("Failed to parse actual JSON");
+        let expected_json: serde_json::Value =
+            serde_json::from_str(expected).expect("Failed to parse expected JSON");
+        assert_eq!(
+            actual_json,
+            expected_json,
+            "JSON values differ:\nActual: {}\nExpected: {}",
+            serde_json::to_string_pretty(&actual_json).unwrap(),
+            serde_json::to_string_pretty(&expected_json).unwrap()
+        );
+    }
+
     #[tokio::test]
     async fn test_message_id_retry() {
         let TestServerSetup { app, op_queue } = setup_test_server();
@@ -236,7 +251,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let response_text = parse_body_to_string(response.into_body()).await;
-        assert_eq!(response_text, expected_response);
+        assert_json_eq(&response_text, &expected_response);
     }
 
     #[tokio::test]
@@ -303,6 +318,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let response_text = parse_body_to_string(response.into_body()).await;
-        assert_eq!(response_text, expected_response);
+        assert_json_eq(&response_text, &expected_response);
     }
 }
