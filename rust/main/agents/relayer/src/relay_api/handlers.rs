@@ -257,7 +257,10 @@ async fn create_relay(
 
     // Rate limit check
     if let Some(limiter) = &state.rate_limiter {
-        let mut limiter = limiter.write().unwrap();
+        let mut limiter = limiter.write().map_err(|e| {
+            error!("Rate limiter lock poisoned: {}", e);
+            ServerError::InternalError("Rate limiter unavailable".to_string())
+        })?;
         if !limiter.check() {
             if let Some(ref metrics) = state.metrics {
                 metrics.inc_failure("rate_limited");
@@ -278,7 +281,10 @@ async fn create_relay(
 
     // Check for duplicate tx_hash submission
     if let Some(cache) = &state.tx_hash_cache {
-        let mut cache = cache.write().unwrap();
+        let mut cache = cache.write().map_err(|e| {
+            error!("Tx hash cache lock poisoned: {}", e);
+            ServerError::InternalError("Cache unavailable".to_string())
+        })?;
         if let Err(reason) = cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
             if reason.contains("unavailable") {
                 if let Some(ref metrics) = state.metrics {
@@ -353,44 +359,6 @@ async fn create_relay(
             "Processing message"
         );
 
-        // Get origin database
-        let origin_db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
-            ServerError::InternalError(format!(
-                "No database configured for origin domain {}",
-                extracted.origin_domain
-            ))
-        })?;
-
-        // Store message by ID
-        origin_db
-            .store_message_by_id(&extracted.message_id, &extracted.message)
-            .map_err(|e| {
-                ServerError::InternalError(format!("Failed to store message in database: {e}"))
-            })?;
-
-        // Store nonce -> message_id mapping
-        origin_db
-            .store_message_id_by_nonce(&extracted.message.nonce, &extracted.message_id)
-            .map_err(|e| {
-                ServerError::InternalError(format!("Failed to store message nonce mapping: {e}"))
-            })?;
-
-        // Note: We don't update max_seen_nonce here because relay API bypasses indexer.
-        // The indexer will update max_seen_nonce when it catches up (even for duplicates).
-
-        // Store dispatched block number (0 = relay API, real block number set by indexer later)
-        origin_db
-            .store_dispatched_block_number_by_nonce(&extracted.message.nonce, &0)
-            .map_err(|e| {
-                ServerError::InternalError(format!("Failed to store dispatched block number: {e}"))
-            })?;
-
-        debug!(
-            message_id = ?extracted.message_id,
-            nonce = extracted.message.nonce,
-            "Stored message in database"
-        );
-
         // Get message context for (origin, destination)
         let msg_ctx = msg_ctxs
             .get(&(extracted.origin_domain, extracted.destination_domain))
@@ -402,36 +370,63 @@ async fn create_relay(
             })?;
 
         // Classify app_context for metrics
-        let recipient_ism = msg_ctx
-            .destination_mailbox
-            .recipient_ism(extracted.message.recipient)
-            .await
-            .map_err(|e| {
-                warn!(
-                    message_id = ?extracted.message_id,
-                    error = ?e,
-                    "Failed to fetch recipient ISM for app context classification, using None"
-                );
-                e
-            })
-            .ok();
-
-        let app_context = if let Some(ism_address) = recipient_ism {
+        // Use short timeouts to avoid blocking the response
+        let recipient_ism = tokio::time::timeout(
+            Duration::from_millis(500),
             msg_ctx
-                .metadata_builder
-                .app_context_classifier()
-                .get_app_context(&extracted.message, ism_address)
-                .await
+                .destination_mailbox
+                .recipient_ism(extracted.message.recipient),
+        )
+        .await
+        .map_err(|_| {
+            warn!(
+                message_id = ?extracted.message_id,
+                "Recipient ISM fetch timed out after 500ms, using None for app context"
+            );
+        })
+        .ok()
+        .and_then(|result| {
+            result
                 .map_err(|e| {
                     warn!(
                         message_id = ?extracted.message_id,
                         error = ?e,
-                        "Failed to classify app context, using None"
+                        "Failed to fetch recipient ISM for app context classification, using None"
                     );
                     e
                 })
                 .ok()
-                .flatten()
+        });
+
+        let app_context = if let Some(ism_address) = recipient_ism {
+            tokio::time::timeout(
+                Duration::from_millis(500),
+                msg_ctx
+                    .metadata_builder
+                    .app_context_classifier()
+                    .get_app_context(&extracted.message, ism_address),
+            )
+            .await
+            .map_err(|_| {
+                warn!(
+                    message_id = ?extracted.message_id,
+                    "App context classification timed out after 500ms, using None"
+                );
+            })
+            .ok()
+            .and_then(|result| {
+                result
+                    .map_err(|e| {
+                        warn!(
+                            message_id = ?extracted.message_id,
+                            error = ?e,
+                            "Failed to classify app context, using None"
+                        );
+                        e
+                    })
+                    .ok()
+            })
+            .flatten()
         } else {
             None
         };
@@ -461,10 +456,16 @@ async fn create_relay(
             0, // Max retries - relay API messages fail fast, no retries
         );
 
-        // Send to MessageProcessor via channel (bypasses MessageDbLoader iterator)
+        // CRITICAL: Send to channel FIRST, before persisting to DB
+        // This ensures we only persist messages that were successfully queued for processing
         send_channel
             .send(Box::new(pending_msg) as QueueOperation)
             .map_err(|e| {
+                error!(
+                    message_id = ?extracted.message_id,
+                    error = %e,
+                    "Failed to send message to processor channel - message will NOT be persisted"
+                );
                 ServerError::InternalError(format!("Failed to send message to processor: {e}"))
             })?;
 
@@ -472,7 +473,55 @@ async fn create_relay(
             message_id = ?extracted.message_id,
             destination = extracted.destination_domain,
             app_context = ?app_context,
-            "Successfully injected message into processor channel"
+            "Successfully sent message to processor channel"
+        );
+
+        // Now persist to DB for metrics/audit (after successful channel send)
+        let origin_db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
+            ServerError::InternalError(format!(
+                "No database configured for origin domain {}",
+                extracted.origin_domain
+            ))
+        })?;
+
+        // Store message by ID
+        if let Err(e) = origin_db.store_message_by_id(&extracted.message_id, &extracted.message) {
+            warn!(
+                message_id = ?extracted.message_id,
+                error = %e,
+                "Failed to persist message to DB (message already in processor queue)"
+            );
+        }
+
+        // Store nonce -> message_id mapping
+        if let Err(e) =
+            origin_db.store_message_id_by_nonce(&extracted.message.nonce, &extracted.message_id)
+        {
+            warn!(
+                message_id = ?extracted.message_id,
+                error = %e,
+                "Failed to persist nonce mapping to DB"
+            );
+        }
+
+        // Note: We don't update max_seen_nonce here because relay API bypasses indexer.
+        // The indexer will update max_seen_nonce when it catches up (even for duplicates).
+
+        // Store dispatched block number (0 = relay API, real block number set by indexer later)
+        if let Err(e) =
+            origin_db.store_dispatched_block_number_by_nonce(&extracted.message.nonce, &0)
+        {
+            warn!(
+                message_id = ?extracted.message_id,
+                error = %e,
+                "Failed to persist block number to DB"
+            );
+        }
+
+        debug!(
+            message_id = ?extracted.message_id,
+            nonce = extracted.message.nonce,
+            "Persisted message to database"
         );
 
         // Add to response
