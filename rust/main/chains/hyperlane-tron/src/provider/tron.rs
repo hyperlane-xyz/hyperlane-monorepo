@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use ethers::abi::Address;
 use ethers::contract::builders::ContractCall;
 use ethers::providers::Provider;
@@ -9,17 +10,13 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{BlockId, Bytes, H160};
 use hyperlane_core::utils::hex_or_base58_or_bech32_to_h256;
 use num::ToPrimitive;
+use prost::Message;
 use prost_types::Any;
 use time::OffsetDateTime;
-use tonic::async_trait;
 use tracing::{debug, instrument};
-use tron_rs::tron::protocol::r#return::ResponseCode;
-use tron_rs::tron::protocol::wallet_solidity_client::WalletSolidityClient;
-use tron_rs::tron::protocol::EmptyMessage;
 use tron_rs::tron::protocol::{
     transaction::{self, contract::ContractType, Contract},
-    wallet_client::WalletClient,
-    BlockExtention, NumberMessage, Transaction, TriggerSmartContract,
+    Transaction, TriggerSmartContract,
 };
 
 use hyperlane_core::{
@@ -29,17 +26,18 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::{self, PrometheusClientMetrics};
 
+use super::types::{BlockResponse, TriggerContractRequest};
 use crate::{
     build_fallback_provider, calculate_ref_block_bytes, calculate_ref_block_hash, calculate_txid,
-    ConnectionConf, GrpcProvider, HyperlaneTronError, JsonProvider, TronSigner,
+    ConnectionConf, HyperlaneTronError, JsonProvider, TronHttpProvider, TronSigner,
     DEFAULT_ENERGY_MULTIPLIER,
 };
 
 /// Tron Provider
 #[derive(Clone, Debug)]
 pub struct TronProvider {
-    grpc: GrpcProvider,
-    solidity: GrpcProvider,
+    wallet: TronHttpProvider,
+    wallet_solidity: TronHttpProvider,
     jsonrpc: Arc<Provider<JsonProvider>>,
     domain: HyperlaneDomain,
     signer: Option<TronSigner>,
@@ -55,17 +53,21 @@ impl TronProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let grpc = GrpcProvider::new(conf.grpc_urls.clone(), metrics.clone(), chain.clone())?;
-        let solidity = GrpcProvider::new(
-            conf.solidity_grpc_urls.clone(),
+        let wallet = TronHttpProvider::new(
+            vec![conf.wallet_url.clone()],
+            metrics.clone(),
+            chain.clone(),
+        )?;
+        let wallet_solidity = TronHttpProvider::new(
+            vec![conf.wallet_solidity_url.clone()],
             metrics.clone(),
             chain.clone(),
         )?;
         let jsonrpc = build_fallback_provider(&conf.rpc_urls, metrics, chain)?;
 
         Ok(Self {
-            grpc,
-            solidity,
+            wallet,
+            wallet_solidity,
             jsonrpc: Arc::new(Provider::new(jsonrpc)),
             domain: locator.domain.clone(),
             signer,
@@ -82,7 +84,7 @@ impl TronProvider {
 
     fn build_tx(
         trigger: &TriggerSmartContract,
-        block: &BlockExtention,
+        block: &BlockResponse,
         fee_limit: u64,
     ) -> ChainResult<(Transaction, H256)> {
         let call = Any::from_msg(trigger).map_err(HyperlaneTronError::from)?;
@@ -95,20 +97,14 @@ impl TronProvider {
             permission_id: 0,
         };
 
-        let header = block
-            .block_header
-            .as_ref()
-            .ok_or(HyperlaneTronError::MissingBlockHeader)?;
-        let header = header
-            .raw_data
-            .as_ref()
-            .ok_or(HyperlaneTronError::MissingRawData)?;
-        let ref_block_bytes = calculate_ref_block_bytes(header.number);
-        let ref_block_hash = calculate_ref_block_hash(&block.blockid);
+        let block_id_bytes =
+            hex::decode(&block.block_id).map_err(|_| HyperlaneTronError::MissingRawData)?;
+        let ref_block_bytes = calculate_ref_block_bytes(block.block_header.raw_data.number);
+        let ref_block_hash = calculate_ref_block_hash(&block_id_bytes);
 
         let raw_data = transaction::Raw {
             ref_block_bytes: ref_block_bytes.clone(),
-            ref_block_num: header.number,
+            ref_block_num: block.block_header.raw_data.number,
             ref_block_hash: ref_block_hash.clone(),
             timestamp: OffsetDateTime::now_utc()
                 .unix_timestamp()
@@ -138,7 +134,7 @@ impl TronProvider {
         ))
     }
 
-    fn parse_tx(&self, tx: &TypedTransaction) -> TriggerSmartContract {
+    fn parse_tx(&self, tx: &TypedTransaction) -> TriggerContractRequest {
         let (mut owner, to, value, data) = match &tx {
             TypedTransaction::Legacy(tx) => {
                 let owner = tx.from.unwrap_or_default();
@@ -187,41 +183,36 @@ impl TronProvider {
 
         // NOTE: Tron addresses need to be prefixed with a byte 0x41
         const ADDRESS_PREFIX: u8 = 0x41;
-        TriggerSmartContract {
-            owner_address: [&[ADDRESS_PREFIX], owner.as_bytes()].concat(),
-            contract_address: [&[ADDRESS_PREFIX], to.as_bytes()].concat(),
+        TriggerContractRequest {
+            owner_address: hex::encode([&[ADDRESS_PREFIX], owner.as_bytes()].concat()),
+            contract_address: hex::encode([&[ADDRESS_PREFIX], to.as_bytes()].concat()),
+            data: hex::encode(data.to_vec()),
             call_value: value.as_u64() as i64,
-            data: data.to_vec(),
+            visible: false,
+        }
+    }
+
+    /// Build a TriggerSmartContract protobuf from a TriggerContractRequest (for tx construction)
+    fn trigger_contract_request_to_proto(req: &TriggerContractRequest) -> TriggerSmartContract {
+        TriggerSmartContract {
+            owner_address: hex::decode(&req.owner_address).unwrap_or_default(),
+            contract_address: hex::decode(&req.contract_address).unwrap_or_default(),
+            call_value: req.call_value,
+            data: hex::decode(&req.data).unwrap_or_default(),
             call_token_value: 0,
             token_id: 0,
         }
     }
 
     /// Get the current block
-    async fn get_current_block(&self) -> ChainResult<BlockExtention> {
-        let block = self
-            .solidity
-            .call(|provider| {
-                let future = async move {
-                    let mut client = WalletSolidityClient::new(provider.channel());
-                    let response = client
-                        .get_now_block2(EmptyMessage {})
-                        .await
-                        .map_err(HyperlaneTronError::from)?
-                        .into_inner();
-                    Ok(response)
-                };
-                Box::pin(future)
-            })
-            .await?;
-        Ok(block)
+    async fn get_current_block(&self) -> ChainResult<BlockResponse> {
+        self.wallet_solidity.get_now_block().await
     }
 
     /// Get finalized block number
     pub async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let block = self.get_current_block().await?;
-        let block_info = Self::get_block_info(&block)?;
-        Ok(block_info.number as u32)
+        Ok(block.block_header.raw_data.number as u32)
     }
 
     /// Send transaction and wait for confirmation
@@ -273,7 +264,8 @@ impl TronProvider {
 
         let block = self.get_current_block().await?;
         let tron_call = self.parse_tx(tx);
-        let (mut tx, hash) = Self::build_tx(&tron_call, &block, fee_limit)?;
+        let proto_call = Self::trigger_contract_request_to_proto(&tron_call);
+        let (mut tx, hash) = Self::build_tx(&proto_call, &block, fee_limit)?;
 
         let signer = self.get_signer()?;
         let signature = signer
@@ -291,51 +283,33 @@ impl TronProvider {
 
     /// Broadcast transaction
     pub async fn broadcast_transaction(&self, tx: Transaction) -> ChainResult<()> {
-        let result = self
-            .grpc
-            .call(move |provider| {
-                let tx = tx.clone();
-                let future = async move {
-                    let mut client = WalletClient::new(provider.channel());
-                    let response = client
-                        .broadcast_transaction(tx)
-                        .await
-                        .map_err(HyperlaneTronError::from)?
-                        .into_inner();
-                    Ok(response)
-                };
-                Box::pin(future)
-            })
-            .await?;
+        let tx_bytes = tx.encode_to_vec();
+        let hex_tx = hex::encode(&tx_bytes);
+        let result = self.wallet.broadcast_hex(hex_tx).await?;
 
-        match result.code() {
-            ResponseCode::Success => Ok(()),
+        match result.result {
+            Some(true) => Ok(()),
             _ => {
                 let message = format!(
-                    "Failed to broadcast transaction: code={:?}, message={}",
-                    result.code().as_str_name(),
-                    String::from_utf8_lossy(&result.message)
+                    "Failed to broadcast transaction: code={:?}, message={:?}",
+                    result.code, result.message
                 );
                 Err(HyperlaneTronError::BroadcastTransactionError(message).into())
             }
         }
     }
 
-    fn get_block_info(block: &BlockExtention) -> ChainResult<BlockInfo> {
-        let block_header = block
-            .block_header
-            .as_ref()
-            .ok_or(HyperlaneTronError::MissingBlockHeader)?;
-        let raw_data = block_header
-            .raw_data
-            .as_ref()
-            .ok_or(HyperlaneTronError::MissingRawData)?;
-
-        Ok(BlockInfo {
-            hash: H256::from_slice(&block.blockid),
-            timestamp: raw_data.timestamp.checked_div(1000).unwrap_or_default() as u64,
-            number: raw_data.number as u64,
-        })
+    fn get_block_info(block: &BlockResponse) -> BlockInfo {
+        BlockInfo {
+            hash: H256::from_slice(&hex::decode(&block.block_id).unwrap_or_else(|_| vec![0u8; 32])),
+            timestamp: block
+                .block_header
+                .raw_data
+                .timestamp
+                .checked_div(1000)
+                .unwrap_or_default() as u64,
+            number: block.block_header.raw_data.number as u64,
+        }
     }
 }
 
@@ -357,20 +331,8 @@ impl Middleware for TronProvider {
         let tron_call = self.parse_tx(tx);
 
         let call = self
-            .solidity
-            .call(|provider| {
-                let tron_call = tron_call.clone();
-                let future = async move {
-                    let mut client = WalletSolidityClient::new(provider.channel());
-                    let response = client
-                        .trigger_constant_contract(tron_call)
-                        .await
-                        .map_err(HyperlaneTronError::from)?
-                        .into_inner();
-                    Ok(response)
-                };
-                Box::pin(future)
-            })
+            .wallet_solidity
+            .trigger_constant_contract(tron_call)
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
@@ -384,7 +346,9 @@ impl Middleware for TronProvider {
             })?
             .clone();
 
-        Ok(Bytes::from(data))
+        Ok(Bytes::from(hex::decode(&data).map_err(|e| {
+            ProviderError::CustomError(format!("Failed to decode hex constant_result: {e}"))
+        })?))
     }
 
     async fn estimate_gas(
@@ -395,20 +359,8 @@ impl Middleware for TronProvider {
         let call = self.parse_tx(tx);
 
         let estimate = self
-            .grpc
-            .call(|provider| {
-                let call = call.clone();
-                let future = async move {
-                    let mut client = WalletClient::new(provider.channel());
-                    let response = client
-                        .estimate_energy(call)
-                        .await
-                        .map_err(HyperlaneTronError::from)?
-                        .into_inner();
-                    Ok(response)
-                };
-                Box::pin(future)
-            })
+            .wallet
+            .estimate_energy(call)
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
@@ -430,22 +382,8 @@ impl HyperlaneChain for TronProvider {
 impl HyperlaneProvider for TronProvider {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let block = self
-            .solidity
-            .call(|provider| {
-                let future = async move {
-                    let mut client = WalletSolidityClient::new(provider.channel());
-                    let response = client
-                        .get_block_by_num2(NumberMessage { num: height as i64 })
-                        .await
-                        .map_err(HyperlaneTronError::from)?
-                        .into_inner();
-                    Ok(response)
-                };
-                Box::pin(future)
-            })
-            .await?;
-        Self::get_block_info(&block)
+        let block = self.wallet_solidity.get_block_by_num(height as i64).await?;
+        Ok(Self::get_block_info(&block))
     }
 
     /// Get txn info for a given txn hash
@@ -517,7 +455,7 @@ impl HyperlaneProvider for TronProvider {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let block = self.get_current_block().await?;
-        let chain_metrics = ChainInfo::new(Self::get_block_info(&block)?, None);
+        let chain_metrics = ChainInfo::new(Self::get_block_info(&block), None);
         Ok(Some(chain_metrics))
     }
 }

@@ -175,6 +175,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
         rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
+        // tron rest urls
+        rpcs.extend(get_rpc_urls(&chain, "restUrls", "customRestUrls", &mut err));
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 

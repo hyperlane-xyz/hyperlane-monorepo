@@ -9680,11 +9680,6 @@
       "displayName": "Tron",
       "domainId": 728126428,
       "gasCurrencyCoinGeckoId": "tron",
-      "grpcUrls": [
-        {
-          "http": "http://grpc.trongrid.io:50051"
-        }
-      ],
       "name": "tron",
       "nativeToken": {
         "decimals": 6,
@@ -9692,14 +9687,17 @@
         "symbol": "TRX"
       },
       "protocol": "tron",
+      "restUrls": [
+        {
+          "http": "https://api.trongrid.io/wallet"
+        },
+        {
+          "http": "https://api.trongrid.io/walletsolidity"
+        }
+      ],
       "rpcUrls": [
         {
           "http": "https://api.trongrid.io/jsonrpc"
-        }
-      ],
-      "solidityGrpcUrls": [
-        {
-          "http": "http://grpc.trongrid.io:50052"
         }
       ],
       "technicalStack": "other",

@@ -722,10 +722,20 @@ fn parse_base_and_override_urls(
 fn ethereum_to_tron_connection_conf(
     eth_conf: hyperlane_ethereum::ConnectionConf,
 ) -> ChainConnectionConf {
+    let rpc_urls = eth_conf.rpc_urls();
+    let rest_urls = eth_conf.rest_urls.unwrap_or_default();
+    let wallet_url = rest_urls
+        .first()
+        .cloned()
+        .unwrap_or_else(|| url::Url::parse("http://localhost").expect("Invalid default URL"));
+    let wallet_solidity_url = rest_urls
+        .get(1)
+        .cloned()
+        .unwrap_or_else(|| url::Url::parse("http://localhost").expect("Invalid default URL"));
     ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
-        eth_conf.rpc_urls(),
-        eth_conf.grpc_urls.unwrap_or_default(),
-        eth_conf.solidity_grpc_urls.unwrap_or_default(),
+        rpc_urls,
+        wallet_url,
+        wallet_solidity_url,
         eth_conf.energy_multiplier,
     ))
 }

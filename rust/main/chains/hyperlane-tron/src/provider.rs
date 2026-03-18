@@ -1,10 +1,9 @@
-mod grpc;
+mod http_client;
 mod lander;
-mod prometheus;
 mod tron;
+mod types;
 
-pub(crate) use grpc::GrpcProvider;
-pub(crate) use prometheus::*;
+pub(crate) use http_client::TronHttpProvider;
 
 pub use lander::TronProviderForLander;
 pub use tron::TronProvider;

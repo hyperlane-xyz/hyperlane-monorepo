@@ -129,16 +129,8 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
-    let grpc_urls =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", err, true);
-    let solidity_grpc_urls = parse_base_and_override_urls(
-        chain,
-        "solidityGrpcUrls",
-        "customSolidityGrpcUrls",
-        "http",
-        err,
-        true,
-    );
+    let rest_urls =
+        parse_base_and_override_urls(chain, "restUrls", "customRestUrls", "http", err, true);
 
     let energy_multiplier = chain
         .chain(err)
@@ -151,15 +143,10 @@ pub fn build_ethereum_connection_conf(
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
-        grpc_urls: if grpc_urls.is_empty() {
+        rest_urls: if rest_urls.is_empty() {
             None
         } else {
-            Some(grpc_urls)
-        },
-        solidity_grpc_urls: if solidity_grpc_urls.is_empty() {
-            None
-        } else {
-            Some(solidity_grpc_urls)
+            Some(rest_urls)
         },
         energy_multiplier,
     }))
@@ -606,19 +593,10 @@ pub fn build_tron_connection_conf(
     _operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpc_urls = parse_base_and_override_urls(
+    let rest_urls = parse_base_and_override_urls(
         chain,
-        "grpcUrls",
-        "customGrpcUrls",
-        "http",
-        &mut local_err,
-        false,
-    );
-
-    let solidity_grpc_urls = parse_base_and_override_urls(
-        chain,
-        "solidityGrpcUrls",
-        "customSolidityGrpcUrls",
+        "restUrls",
+        "customRestUrls",
         "http",
         &mut local_err,
         false,
@@ -632,17 +610,25 @@ pub fn build_tron_connection_conf(
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Tron(
-            hyperlane_tron::ConnectionConf::new(
-                rpcs.to_vec(),
-                grpc_urls,
-                solidity_grpc_urls,
-                fee_multiplier,
-            ),
-        ))
+        return None;
     }
+
+    if rest_urls.len() < 2 {
+        err.push(
+            &chain.cwp + "restUrls",
+            eyre::eyre!("Tron requires at least 2 restUrls: [wallet, walletSolidity]"),
+        );
+        return None;
+    }
+
+    Some(ChainConnectionConf::Tron(
+        hyperlane_tron::ConnectionConf::new(
+            rpcs.to_vec(),
+            rest_urls[0].clone(),
+            rest_urls[1].clone(),
+            fee_multiplier,
+        ),
+    ))
 }
 
 pub fn build_radix_connection_conf(
