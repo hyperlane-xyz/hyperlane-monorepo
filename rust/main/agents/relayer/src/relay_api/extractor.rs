@@ -1,5 +1,5 @@
 use eyre::{eyre, Result};
-use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
+use hyperlane_core::{HyperlaneMessage, Indexer, H256};
 use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, error};
 
@@ -20,21 +20,10 @@ pub async fn extract_message(
         "Extracting message from transaction"
     );
 
-    let tx_hash_clean = tx_hash.trim_start_matches("0x");
-
-    // Try parsing as hex (most common format)
-    let hash_bytes = hex::decode(tx_hash_clean).map_err(|e| {
-        hyperlane_core::ChainCommunicationError::from_other_str(&format!(
-            "Invalid tx hash format: {}",
-            e
-        ))
-    })?;
-
-    // Pad to 64 bytes if needed
-    let mut padded_bytes = [0u8; 64];
-    let start_pos = 64 - hash_bytes.len();
-    padded_bytes[start_pos..].copy_from_slice(&hash_bytes);
-    let tx_hash_512 = H512::from_slice(&padded_bytes);
+    // Parse tx hash using protocol-specific method
+    let tx_hash_512 = indexer
+        .parse_tx_hash(tx_hash)
+        .map_err(|e| eyre!("Invalid tx hash format: {}", e))?;
 
     // Fetch messages from transaction
     let messages_with_meta = indexer

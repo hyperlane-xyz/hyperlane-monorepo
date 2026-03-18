@@ -37,6 +37,29 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 
+    /// Parse protocol-specific transaction hash string to H512.
+    /// Default implementation handles hex-encoded hashes (EVM, Cosmos, Tron, Radix).
+    /// Override for chains with different formats (e.g., base58 for Solana).
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        use crate::ChainCommunicationError;
+
+        let tx_hash_clean = tx_hash.trim_start_matches("0x");
+        let hash_bytes = hex::decode(tx_hash_clean).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!("Invalid hex tx hash: {e}"))
+        })?;
+
+        if hash_bytes.len() > 64 {
+            return Err(ChainCommunicationError::from_other_str(
+                "TX hash exceeds 64 bytes",
+            ));
+        }
+
+        let mut padded = [0u8; 64];
+        let start = 64usize.saturating_sub(hash_bytes.len());
+        padded[start..].copy_from_slice(&hash_bytes);
+        Ok(H512::from_slice(&padded))
+    }
+
     /// Fetch list of logs emitted in a transaction with the given hash.
     async fn fetch_logs_by_tx_hash(
         &self,

@@ -5,7 +5,7 @@ use scrypto::{
     types::{ComponentAddress, NodeId},
 };
 
-use hyperlane_core::{ChainResult, H256, U256};
+use hyperlane_core::{ChainResult, H256, H512, U256};
 
 use crate::HyperlaneRadixError;
 
@@ -45,6 +45,24 @@ pub fn encode_tx(network: &NetworkDefinition, address: H256) -> ChainResult<Stri
 pub fn decode_bech32(bech32_address: &str) -> ChainResult<Vec<u8>> {
     let (_, value) = bech32::decode(bech32_address).map_err(HyperlaneRadixError::from)?;
     Ok(value)
+}
+
+/// Parse a bech32m-encoded Radix transaction hash to H512
+pub(crate) fn parse_radix_tx_hash(tx_hash: &str) -> ChainResult<H512> {
+    use hyperlane_core::ChainCommunicationError;
+
+    let bytes = decode_bech32(tx_hash)?;
+
+    if bytes.len() > 64 {
+        return Err(ChainCommunicationError::from_other_str(
+            "Radix tx hash exceeds 64 bytes",
+        ));
+    }
+
+    let mut padded = [0u8; 64];
+    let start = 64usize.saturating_sub(bytes.len());
+    padded[start..].copy_from_slice(&bytes);
+    Ok(H512::from_slice(&padded))
 }
 
 /// converts an internal radix address to a H256

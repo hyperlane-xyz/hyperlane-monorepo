@@ -28,6 +28,25 @@ use crate::log_meta_composer::{
 use crate::tx_submitter::TransactionSubmitter;
 use crate::{ConnectionConf, SealevelMailbox, SealevelProvider};
 
+/// Parse a base58-encoded Solana transaction hash to H512
+fn parse_sealevel_tx_hash(tx_hash: &str) -> ChainResult<H512> {
+    use solana_sdk::bs58;
+
+    let bytes = bs58::decode(tx_hash).into_vec().map_err(|e| {
+        ChainCommunicationError::from_other_str(&format!("Invalid base58 tx hash: {e}"))
+    })?;
+
+    if bytes.len() > 64 {
+        return Err(ChainCommunicationError::from_other_str(
+            "Solana signature exceeds 64 bytes",
+        ));
+    }
+
+    let mut padded = [0u8; 64];
+    padded[..bytes.len()].copy_from_slice(&bytes);
+    Ok(H512::from_slice(&padded))
+}
+
 /// Struct that retrieves event data for a Sealevel Mailbox contract
 #[derive(Debug)]
 pub struct SealevelMailboxIndexer {
@@ -269,6 +288,10 @@ impl SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        parse_sealevel_tx_hash(tx_hash)
+    }
+
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -306,6 +329,10 @@ impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        parse_sealevel_tx_hash(tx_hash)
+    }
+
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,

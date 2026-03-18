@@ -7,7 +7,10 @@ use hyperlane_core::{
     SequenceAwareIndexer, H512,
 };
 
-use crate::{encode_component_address, parse_dispatch_event, ConnectionConf, RadixProvider};
+use crate::{
+    encode_component_address, parse_dispatch_event, parse_radix_tx_hash, ConnectionConf,
+    RadixProvider,
+};
 
 /// Radix Dispatch Indexer
 #[derive(Debug)]
@@ -30,6 +33,10 @@ impl RadixDispatchIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for RadixDispatchIndexer {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        parse_radix_tx_hash(tx_hash)
+    }
+
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
