@@ -129,12 +129,12 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
-    let grpc_urls =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", err, true);
-    let solidity_grpc_urls = parse_base_and_override_urls(
+    let wallet_urls =
+        parse_base_and_override_urls(chain, "walletUrls", "customWalletUrls", "http", err, true);
+    let wallet_solidity_urls = parse_base_and_override_urls(
         chain,
-        "solidityGrpcUrls",
-        "customSolidityGrpcUrls",
+        "walletSolidityUrls",
+        "customWalletSolidityUrls",
         "http",
         err,
         true,
@@ -151,15 +151,15 @@ pub fn build_ethereum_connection_conf(
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
-        grpc_urls: if grpc_urls.is_empty() {
+        wallet_urls: if wallet_urls.is_empty() {
             None
         } else {
-            Some(grpc_urls)
+            Some(wallet_urls)
         },
-        solidity_grpc_urls: if solidity_grpc_urls.is_empty() {
+        wallet_solidity_urls: if wallet_solidity_urls.is_empty() {
             None
         } else {
-            Some(solidity_grpc_urls)
+            Some(wallet_solidity_urls)
         },
         energy_multiplier,
     }))
@@ -606,19 +606,18 @@ pub fn build_tron_connection_conf(
     _operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpc_urls = parse_base_and_override_urls(
+    let wallet_urls = parse_base_and_override_urls(
         chain,
-        "grpcUrls",
-        "customGrpcUrls",
+        "walletUrls",
+        "customWalletUrls",
         "http",
         &mut local_err,
         false,
     );
-
-    let solidity_grpc_urls = parse_base_and_override_urls(
+    let wallet_solidity_urls = parse_base_and_override_urls(
         chain,
-        "solidityGrpcUrls",
-        "customSolidityGrpcUrls",
+        "walletSolidityUrls",
+        "customWalletSolidityUrls",
         "http",
         &mut local_err,
         false,
@@ -632,17 +631,17 @@ pub fn build_tron_connection_conf(
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Tron(
-            hyperlane_tron::ConnectionConf::new(
-                rpcs.to_vec(),
-                grpc_urls,
-                solidity_grpc_urls,
-                fee_multiplier,
-            ),
-        ))
+        return None;
     }
+
+    Some(ChainConnectionConf::Tron(
+        hyperlane_tron::ConnectionConf::new(
+            rpcs.to_vec(),
+            wallet_urls,
+            wallet_solidity_urls,
+            fee_multiplier,
+        ),
+    ))
 }
 
 pub fn build_radix_connection_conf(
