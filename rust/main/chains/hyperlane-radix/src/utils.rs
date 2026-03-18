@@ -227,4 +227,45 @@ mod tests {
         // Negative decimals should return zero
         assert_eq!(result, U256::zero());
     }
+
+    #[test]
+    fn test_parse_radix_tx_hash_valid() {
+        let network = get_test_network();
+        let test_hash = H256::from([1u8; 32]);
+        let encoded = encode_tx(&network, test_hash).unwrap();
+
+        let result = parse_radix_tx_hash(&encoded);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        // Check that the parsed hash contains our original data
+        let bytes: [u8; 64] = parsed.into();
+        // The first 32 bytes should be zeros (padding), last 32 should be our hash
+        assert_eq!(&bytes[32..], test_hash.as_bytes());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_real_format() {
+        // Real Radix tx hash format: txid_rdx1...
+        let tx_hash = "txid_rdx1t6vqltn0x3wyer7d4eh2eetf52ldx98utnxd4jafqczz545a7szs0nd48r";
+        let result = parse_radix_tx_hash(tx_hash);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        // Ensure it's not all zeros
+        assert_ne!(parsed, H512::zero());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_invalid_bech32() {
+        let tx_hash = "invalid_bech32_string";
+        let result = parse_radix_tx_hash(tx_hash);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_empty() {
+        let tx_hash = "";
+        let result = parse_radix_tx_hash(tx_hash);
+        assert!(result.is_err());
+    }
 }

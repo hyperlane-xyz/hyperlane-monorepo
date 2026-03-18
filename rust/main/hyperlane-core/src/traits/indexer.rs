@@ -79,3 +79,104 @@ pub trait SequenceAwareIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::HyperlaneMessage;
+
+    // Mock indexer for testing default parse_tx_hash implementation
+    #[derive(Debug)]
+    struct MockIndexer;
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for MockIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            Ok(vec![])
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn test_parse_tx_hash_hex_no_prefix() {
+        let indexer = MockIndexer;
+        // 64-byte hash (128 hex chars)
+        let tx_hash = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed,
+            H512::from_slice(
+                &hex::decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+                    .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_tx_hash_hex_with_prefix() {
+        let indexer = MockIndexer;
+        // 64-byte hash (128 hex chars) with 0x prefix
+        let tx_hash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed,
+            H512::from_slice(
+                &hex::decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+                    .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_tx_hash_short_hash() {
+        let indexer = MockIndexer;
+        let tx_hash = "0x1234";
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        // Should be left-padded with zeros
+        let mut expected = [0u8; 64];
+        expected[62] = 0x12;
+        expected[63] = 0x34;
+        assert_eq!(parsed, H512::from_slice(&expected));
+    }
+
+    #[test]
+    fn test_parse_tx_hash_invalid_hex() {
+        let indexer = MockIndexer;
+        let tx_hash = "0xGHIJKL"; // Invalid hex characters
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid hex"));
+    }
+
+    #[test]
+    fn test_parse_tx_hash_too_long() {
+        let indexer = MockIndexer;
+        // 65 bytes (130 hex chars) - exceeds H512 size
+        let tx_hash = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("exceeds 64 bytes"));
+    }
+
+    #[test]
+    fn test_parse_tx_hash_empty() {
+        let indexer = MockIndexer;
+        let tx_hash = "";
+        let result = indexer.parse_tx_hash(tx_hash);
+        assert!(result.is_ok());
+        // Empty string should produce zero-filled H512
+        assert_eq!(result.unwrap(), H512::zero());
+    }
+}

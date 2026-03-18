@@ -306,7 +306,7 @@ async fn create_relay(
         if let Some(ref metrics) = state.metrics {
             metrics.inc_failure("extraction_failed");
         }
-        ServerError::InvalidRequest(format!("Failed to extract message: {}", e))
+        ServerError::InvalidRequest(format!("Failed to extract message: {e}"))
     })?;
 
     info!(
@@ -333,14 +333,14 @@ async fn create_relay(
     origin_db
         .store_message_by_id(&extracted.message_id, &extracted.message)
         .map_err(|e| {
-            ServerError::InternalError(format!("Failed to store message in database: {}", e))
+            ServerError::InternalError(format!("Failed to store message in database: {e}"))
         })?;
 
     // Store nonce -> message_id mapping
     origin_db
         .store_message_id_by_nonce(&extracted.message.nonce, &extracted.message_id)
         .map_err(|e| {
-            ServerError::InternalError(format!("Failed to store message nonce mapping: {}", e))
+            ServerError::InternalError(format!("Failed to store message nonce mapping: {e}"))
         })?;
 
     // Note: We don't update max_seen_nonce here because relay API bypasses indexer.
@@ -350,7 +350,7 @@ async fn create_relay(
     origin_db
         .store_dispatched_block_number_by_nonce(&extracted.message.nonce, &0)
         .map_err(|e| {
-            ServerError::InternalError(format!("Failed to store dispatched block number: {}", e))
+            ServerError::InternalError(format!("Failed to store dispatched block number: {e}"))
         })?;
 
     info!(
@@ -451,7 +451,7 @@ async fn create_relay(
     send_channel
         .send(Box::new(pending_msg) as QueueOperation)
         .map_err(|e| {
-            ServerError::InternalError(format!("Failed to send message to processor: {}", e))
+            ServerError::InternalError(format!("Failed to send message to processor: {e}"))
         })?;
 
     info!(
