@@ -31,7 +31,7 @@ export const useTimeout = (
   callback: () => void,
   delay = 0, // in ms (default: immediately put into JS Event Queue)
 ): (() => void) => {
-  const timeoutIdRef = useRef<NodeJS.Timeout>();
+  const timeoutIdRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const cancel = useCallback(() => {
     const timeoutId = timeoutIdRef.current;
