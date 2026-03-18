@@ -158,14 +158,15 @@ export class StarknetSigner
       compiledClassHash,
       `Missing compiledClassHash for Starknet contract ${params.contractName}`,
     );
-    const constructorCalldata = compiledContract.abi.some(
+    const hasConstructor = compiledContract.abi.some(
       (item) => item.type === 'constructor',
-    )
+    );
+    const constructorCalldata = hasConstructor
       ? new CallData(compiledContract.abi).compile(
           'constructor',
           params.constructorArgs,
         )
-      : [];
+      : undefined;
 
     const factory = new ContractFactory({
       compiledContract,
@@ -174,7 +175,10 @@ export class StarknetSigner
       account: this.account,
     });
 
-    const deployment = await factory.deploy(constructorCalldata);
+    const deployment =
+      constructorCalldata === undefined
+        ? await factory.deploy()
+        : await factory.deploy(constructorCalldata);
 
     const transactionHash =
       deployment.deployTransactionHash ||
