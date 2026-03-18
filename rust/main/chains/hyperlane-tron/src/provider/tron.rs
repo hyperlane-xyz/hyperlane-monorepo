@@ -408,10 +408,11 @@ impl Middleware for TronProvider {
             }
         }
 
-        if estimate.energy_required == 0 {
-            return Err(ProviderError::CustomError(
-                "Energy estimation returned 0".into(),
-            ));
+        if estimate.energy_required <= 0 {
+            return Err(ProviderError::CustomError(format!(
+                "Energy estimation returned invalid value: {}",
+                estimate.energy_required
+            )));
         }
 
         Ok(ethers::types::U256::from(estimate.energy_required as u64))

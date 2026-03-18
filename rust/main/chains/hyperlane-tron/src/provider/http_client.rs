@@ -51,6 +51,8 @@ impl TronHttpChannel {
             .build()
             .map_err(HyperlaneTronError::from)?;
         let config = PrometheusConfig::from_url(&clean_url, ClientConnectionType::Rpc, chain);
+        let chain_name = PrometheusConfig::chain_name(&config.chain);
+        metrics.increment_provider_instance(chain_name);
         Ok(Self {
             client,
             base_url: clean_url,
@@ -109,6 +111,13 @@ impl TronHttpChannel {
         }
 
         serde_json::from_str::<R>(&text).map_err(|e| HyperlaneTronError::from(e).into())
+    }
+}
+
+impl Drop for TronHttpChannel {
+    fn drop(&mut self) {
+        let chain_name = PrometheusConfig::chain_name(&self.config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
     }
 }
 
