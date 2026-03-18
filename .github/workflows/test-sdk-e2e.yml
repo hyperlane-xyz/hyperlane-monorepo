@@ -53,6 +53,11 @@ jobs:
           - 4_warp
           - 5_ism_artifacts
           - 6_hook_artifacts
+          - 7a_warp_native_artifacts
+          - 7b_warp_collateral_artifacts
+          - 7c_warp_synthetic_artifacts
+          - 8_mailbox_artifacts
+          - 9_validator_announce_artifacts
     steps:
       - uses: actions/checkout@v6
         with:

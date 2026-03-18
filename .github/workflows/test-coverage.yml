@@ -33,7 +33,7 @@ jobs:
           path_pattern: 'solidity/'
 
   coverage-run:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
@@ -45,21 +45,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
-
-      - name: Build
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm run build
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Run tests with coverage
         run: pnpm run coverage
-        env:
-          NODE_OPTIONS: --max_old_space_size=4096
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v4

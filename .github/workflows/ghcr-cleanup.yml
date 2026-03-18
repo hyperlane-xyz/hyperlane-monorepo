@@ -26,11 +26,7 @@ jobs:
           image-names: >-
             hyperlane-agent
             hyperlane-monorepo
-            hyperlane-rebalancer
-            hyperlane-warp-monitor
-            hyperlane-key-funder
-            hyperlane-ts-relayer
-            hyperlane-offchain-lookup-server
+            hyperlane-node-services
           tag-selection: untagged
           cut-off: 1w
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}
@@ -43,11 +39,7 @@ jobs:
           image-names: >-
             hyperlane-agent
             hyperlane-monorepo
-            hyperlane-rebalancer
-            hyperlane-warp-monitor
-            hyperlane-key-funder
-            hyperlane-ts-relayer
-            hyperlane-offchain-lookup-server
+            hyperlane-node-services
           image-tags: "pr-*"
           tag-selection: tagged
           cut-off: 1w

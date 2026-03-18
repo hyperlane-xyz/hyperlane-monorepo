@@ -2,11 +2,11 @@ environment: mainnet
 
 # General deployment configuration
 image:
-  repository: ghcr.io/hyperlane-xyz/hyperlane-offchain-lookup-server
+  repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   # Modify this tag to deploy a new revision.
   # Images can be found here:
-  # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-offchain-lookup-server
-  tag: c558a9f-20260304-105251
+  # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-node-services
+  tag: 3b17358-20260315-183126
 
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
