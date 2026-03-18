@@ -255,4 +255,29 @@ describe('createAltVMSigners', () => {
       accountAddress: '0xstrategy-account',
     });
   });
+
+  it('does not reuse a prompted Starknet account address across chains', async () => {
+    const accountPrompt = sinon
+      .stub(altVmPrompts, 'input')
+      .onFirstCall()
+      .resolves('0xaaa')
+      .onSecondCall()
+      .resolves('0xbbb');
+
+    const keys: SignerKeyProtocolMap = {
+      [ProtocolType.Starknet]: '0xkey',
+    };
+
+    await createAltVMSigners(
+      getMetadataManager((chainName) => getStarknetMetadata(chainName)),
+      ['starknetsepolia', 'starknetmainnet'],
+      keys,
+      {},
+    );
+
+    expect(accountPrompt.callCount).to.equal(2);
+    expect(capturedConfigs).to.have.length(2);
+    expect(capturedConfigs[0].accountAddress).to.equal('0xaaa');
+    expect(capturedConfigs[1].accountAddress).to.equal('0xbbb');
+  });
 });

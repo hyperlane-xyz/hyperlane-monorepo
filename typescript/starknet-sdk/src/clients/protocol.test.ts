@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { type AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
   type TxReceipt,
@@ -39,14 +39,15 @@ describe('StarknetProtocolProvider', () => {
       calldata: [],
     };
     const receipt = { transactionHash: '0xabc' } as TxReceipt;
-    const fakeSigner = {
+    // CAST: test double only overrides the signer methods exercised by StarknetJsonRpcSubmitter.
+    const fakeSigner = Object.assign(Object.create(StarknetSigner.prototype), {
       supportsTransactionBatching: () => true,
       sendAndConfirmBatchTransactions: async () => receipt,
       sendAndConfirmTransaction: async () => receipt,
       transactionToPrintableJson: async (transaction: AnnotatedTx) =>
         transaction,
       getSignerAddress: () => '0x123',
-    } as unknown as AltVM.ISigner<StarknetAnnotatedTx, TxReceipt>;
+    }) as StarknetSigner;
 
     const signerClass = StarknetSigner as typeof StarknetSigner & {
       connectWithSigner: typeof StarknetSigner.connectWithSigner;

@@ -61,7 +61,7 @@ async function waitForRpcReady(rpcUrl: string): Promise<void> {
 export async function runStarknetNode(
   chainMetadata: TestChainMetadata = TEST_STARKNET_CHAIN_METADATA,
 ): Promise<StartedTestContainer> {
-  const rpcUrl = chainMetadata.rpcUrls?.[0]?.http;
+  const rpcUrl = chainMetadata.rpcUrl ?? chainMetadata.rpcUrls?.[0]?.http;
   assert(rpcUrl, 'Expected Starknet rpc url to be defined for e2e tests');
 
   return retryAsync(

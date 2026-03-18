@@ -112,7 +112,12 @@ export class StarknetProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: JsonRpcSubmitterConfig,
   ): Promise<ITransactionSubmitter> {
-    const signer = await this.createSigner(chainMetadata, config);
+    const env = typeof process === 'undefined' ? undefined : process.env;
+    const signer = await this.createSigner(chainMetadata, {
+      privateKey: config.privateKey ?? env?.HYP_KEY_STARKNET,
+      accountAddress:
+        config.accountAddress ?? env?.HYP_ACCOUNT_ADDRESS_STARKNET,
+    });
     return new StarknetJsonRpcSubmitter(signer, { chain: config.chain });
   }
 }

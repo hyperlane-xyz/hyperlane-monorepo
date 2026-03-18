@@ -21,7 +21,11 @@ export class StarknetJsonRpcSubmitter implements ITransactionSubmitter {
   async submit(...txs: AnnotatedTx[]): Promise<TxReceipt[]> {
     if (txs.length === 0) return [];
 
-    if (this.signer.supportsTransactionBatching()) {
+    const canBatch =
+      this.signer.supportsTransactionBatching() &&
+      txs.every((tx) => tx.kind !== 'deploy');
+
+    if (canBatch) {
       for (const tx of txs) {
         if (tx.annotation) this.logger.debug(tx.annotation);
       }

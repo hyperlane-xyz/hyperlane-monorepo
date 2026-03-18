@@ -113,8 +113,7 @@ export class StarknetSigner
   } {
     return (
       transaction.kind === 'deploy' &&
-      typeof transaction.contractName === 'string' &&
-      Array.isArray(transaction.constructorArgs)
+      typeof transaction.contractName === 'string'
     );
   }
 
@@ -704,15 +703,29 @@ export class StarknetSigner
         this.provider,
         ContractType.TOKEN,
       );
+      const collateralDenom = normalizeStarknetAddressSafe(token.denom);
+      const feeDenom = normalizeStarknetAddressSafe(req.maxFee.denom);
+      const approvalAmount =
+        collateralDenom === feeDenom
+          ? toBigInt(req.amount) + toBigInt(req.maxFee.amount)
+          : toBigInt(req.amount);
       batchedTxs.push(
         await populateInvokeTx(collateralToken, 'approve', [
           normalizeStarknetAddressSafe(req.tokenAddress),
-          toBigInt(req.amount),
+          approvalAmount,
         ]),
       );
     }
 
-    if (tokenType !== AltVM.TokenType.native) {
+    const usesSharedCollateralAndFeeToken =
+      tokenType === AltVM.TokenType.collateral &&
+      normalizeStarknetAddressSafe(token.denom) ===
+        normalizeStarknetAddressSafe(req.maxFee.denom);
+
+    if (
+      tokenType !== AltVM.TokenType.native &&
+      !usesSharedCollateralAndFeeToken
+    ) {
       const feeToken = getStarknetContract(
         StarknetContractName.ETHER,
         req.maxFee.denom,

@@ -164,4 +164,36 @@ describe('StarknetSigner remoteTransfer', () => {
     );
     expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
   });
+
+  it('merges collateral and fee approvals when both use the same token', async () => {
+    const signer = new StarknetSignerTestHarness();
+    signer.testTokenType = AltVM.TokenType.collateral;
+    signer.tokenDenom = TEST_METADATA.nativeToken.denom;
+
+    await signer.remoteTransfer({
+      tokenAddress: '0xabc',
+      destinationDomainId: 1234,
+      recipient: '0x456',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: {
+        denom: TEST_METADATA.nativeToken.denom,
+        amount: '2',
+      },
+    });
+
+    expect(signer.capturedTx).to.equal(undefined);
+    expect(signer.capturedBatch).to.have.length(2);
+    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+      TEST_METADATA.nativeToken.denom,
+    );
+    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[1]).to.deep.equal({
+      kind: 'invoke',
+      contractAddress: '0xabc',
+      entrypoint: 'transfer_remote',
+      calldata: ['0x1'],
+    });
+  });
 });

@@ -25,6 +25,7 @@ class StarknetProviderTestHarness extends StarknetProvider {
   hookTypeThrows = false;
   ismTypeValue: unknown = { MERKLE_ROOT_MULTISIG: {} };
   ismTypeThrows = false;
+  deliveredValue: unknown = 1;
   contractSelections: StarknetContractName[] = [];
 
   constructor() {
@@ -57,6 +58,7 @@ class StarknetProviderTestHarness extends StarknetProvider {
 
     Object.assign(contract, {
       hook_type: async () => this.hookTypeValue,
+      delivered: async () => this.deliveredValue,
       module_type: async () => {
         if (this.ismTypeThrows) {
           throw new Error('module_type failed');
@@ -423,7 +425,9 @@ describe('StarknetProvider warp tx builders', () => {
 });
 
 describe('StarknetProvider determineTokenType', () => {
-  it('detects HypNative contracts by class hash', async () => {
+  it('detects HypNative contracts by class hash', async function () {
+    this.timeout(10_000);
+
     const provider = new StarknetTokenTypeTestHarness();
     provider.classHash =
       '0x619ec108cdaaa2ea54b15fc7f4bf321de475dbc2827c72a561e02c092492c25';
@@ -431,6 +435,32 @@ describe('StarknetProvider determineTokenType', () => {
     const tokenType = await provider.readTokenType('0x123');
 
     expect(tokenType).to.equal(AltVM.TokenType.native);
+  });
+});
+
+describe('StarknetProvider isMessageDelivered', () => {
+  it('parses zero-like Starknet values as false', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.deliveredValue = '0';
+
+    const delivered = await provider.isMessageDelivered({
+      mailboxAddress: '0x1',
+      messageId: '0x2',
+    });
+
+    expect(delivered).to.equal(false);
+  });
+
+  it('parses non-zero Starknet values as true', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.deliveredValue = '1';
+
+    const delivered = await provider.isMessageDelivered({
+      mailboxAddress: '0x1',
+      messageId: '0x2',
+    });
+
+    expect(delivered).to.equal(true);
   });
 });
 

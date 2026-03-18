@@ -99,9 +99,7 @@ export async function createAltVMSigners(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
-  const promptedAccountAddressByProtocol: Partial<
-    Record<ProtocolType, string>
-  > = {};
+  const promptedAccountAddressByChain: Partial<Record<string, string>> = {};
 
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
@@ -114,7 +112,7 @@ export async function createAltVMSigners(
       strategyConfig,
       metadata.protocol,
       chain,
-      promptedAccountAddressByProtocol[metadata.protocol],
+      promptedAccountAddressByChain[chain],
     );
     const signerConfig = {
       privateKey: await loadPrivateKey(
@@ -127,8 +125,7 @@ export async function createAltVMSigners(
     };
 
     if (isPrompted && signerConfig.accountAddress) {
-      promptedAccountAddressByProtocol[metadata.protocol] =
-        signerConfig.accountAddress;
+      promptedAccountAddressByChain[chain] = signerConfig.accountAddress;
     }
 
     signers[chain] = await getProtocolProvider(metadata.protocol).createSigner(

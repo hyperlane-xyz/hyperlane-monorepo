@@ -196,8 +196,12 @@ abstract class StarknetWarpTokenWriterBase<
     assert(!config.scale, 'scale is unsupported for Starknet warp tokens');
   }
 
-  protected validateUpdateConfig(_current: C, expected: C): void {
+  protected validateUpdateConfig(current: C, expected: C): void {
     assert(!expected.scale, 'scale is unsupported for Starknet warp tokens');
+    assert(
+      eqAddressStarknet(current.mailbox, expected.mailbox),
+      `Cannot change Starknet warp token mailbox from ${current.mailbox} to ${expected.mailbox}`,
+    );
   }
 
   async create(
@@ -230,17 +234,18 @@ abstract class StarknetWarpTokenWriterBase<
 
     const txs: AnnotatedTx[] = [];
     const tokenAddress = artifact.deployed.address;
+    let ownerTx: AnnotatedTx | undefined;
 
     const currentOwner = current.config.owner;
     if (!eqAddressStarknet(currentOwner, artifact.config.owner)) {
-      txs.push({
+      ownerTx = {
         annotation: 'Setting warp token owner',
         ...(await this.signer.getSetTokenOwnerTransaction({
           signer: this.signer.getSignerAddress(),
           tokenAddress,
           newOwner: artifact.config.owner,
         })),
-      });
+      };
     }
 
     const currentIsm = getNestedAddress(
@@ -330,6 +335,10 @@ abstract class StarknetWarpTokenWriterBase<
       }
     }
 
+    if (ownerTx) {
+      txs.push(ownerTx);
+    }
+
     return txs;
   }
 
@@ -355,16 +364,7 @@ abstract class StarknetWarpTokenWriterBase<
     >,
   ): Promise<TxReceipt[]> {
     const receipts: TxReceipt[] = [];
-
-    const currentOwner = current.owner;
-    if (!eqAddressStarknet(currentOwner, expected.owner)) {
-      const tx = await this.signer.getSetTokenOwnerTransaction({
-        signer: this.signer.getSignerAddress(),
-        tokenAddress,
-        newOwner: expected.owner,
-      });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
-    }
+    let ownerTx: AnnotatedTx | undefined;
 
     const expectedIsm = getNestedAddress(expected.interchainSecurityModule);
     if (expectedIsm) {
@@ -400,6 +400,19 @@ abstract class StarknetWarpTokenWriterBase<
         },
       });
       receipts.push(await this.signer.sendAndConfirmTransaction(tx));
+    }
+
+    const currentOwner = current.owner;
+    if (!eqAddressStarknet(currentOwner, expected.owner)) {
+      ownerTx = await this.signer.getSetTokenOwnerTransaction({
+        signer: this.signer.getSignerAddress(),
+        tokenAddress,
+        newOwner: expected.owner,
+      });
+    }
+
+    if (ownerTx) {
+      receipts.push(await this.signer.sendAndConfirmTransaction(ownerTx));
     }
 
     return receipts;

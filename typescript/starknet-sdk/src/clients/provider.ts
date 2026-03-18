@@ -38,42 +38,49 @@ import {
 } from '../contracts.js';
 import { StarknetAnnotatedTx } from '../types.js';
 
-const TOKEN_TYPE_BY_CLASS_HASH = new Map<string, AltVM.TokenType>(
-  (
+let tokenTypeByClassHash: Map<string, AltVM.TokenType> | undefined;
+
+function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {
+  if (tokenTypeByClassHash) {
+    return tokenTypeByClassHash;
+  }
+
+  const entries = [
     [
-      [
-        hash.computeContractClassHash(
-          getCompiledContract(
-            StarknetContractName.HYP_ERC20,
-            ContractType.TOKEN,
-          ),
+      hash.computeContractClassHash(
+        getCompiledContract(StarknetContractName.HYP_ERC20, ContractType.TOKEN),
+      ),
+      AltVM.TokenType.synthetic,
+    ],
+    [
+      hash.computeContractClassHash(
+        getCompiledContract(
+          StarknetContractName.HYP_ERC20_COLLATERAL,
+          ContractType.TOKEN,
         ),
-        AltVM.TokenType.synthetic,
-      ],
-      [
-        hash.computeContractClassHash(
-          getCompiledContract(
-            StarknetContractName.HYP_ERC20_COLLATERAL,
-            ContractType.TOKEN,
-          ),
+      ),
+      AltVM.TokenType.collateral,
+    ],
+    [
+      hash.computeContractClassHash(
+        getCompiledContract(
+          StarknetContractName.HYP_NATIVE,
+          ContractType.TOKEN,
         ),
-        AltVM.TokenType.collateral,
-      ],
-      [
-        hash.computeContractClassHash(
-          getCompiledContract(
-            StarknetContractName.HYP_NATIVE,
-            ContractType.TOKEN,
-          ),
-        ),
-        AltVM.TokenType.native,
-      ],
-    ] as Array<[string, AltVM.TokenType]>
-  ).map(([classHash, tokenType]): [string, AltVM.TokenType] => [
-    BigInt(classHash).toString(),
-    tokenType,
-  ]),
-);
+      ),
+      AltVM.TokenType.native,
+    ],
+  ] satisfies ReadonlyArray<readonly [string, AltVM.TokenType]>;
+
+  tokenTypeByClassHash = new Map(
+    entries.map(([classHash, tokenType]): [string, AltVM.TokenType] => [
+      BigInt(classHash).toString(),
+      tokenType,
+    ]),
+  );
+
+  return tokenTypeByClassHash;
+}
 
 function isProbeMiss(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -197,7 +204,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   ): Promise<AltVM.TokenType> {
     const address = normalizeStarknetAddressSafe(tokenAddress);
     const classHash = await this.provider.getClassHashAt(address);
-    const tokenType = TOKEN_TYPE_BY_CLASS_HASH.get(
+    const tokenType = getTokenTypeByClassHash().get(
       BigInt(classHash).toString(),
     );
     if (tokenType) return tokenType;
@@ -380,7 +387,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       req.mailboxAddress,
     );
     const delivered = await callContract(mailbox, 'delivered', [req.messageId]);
-    return Boolean(delivered);
+    if (typeof delivered === 'boolean') return delivered;
+    return toBigInt(delivered) !== 0n;
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
