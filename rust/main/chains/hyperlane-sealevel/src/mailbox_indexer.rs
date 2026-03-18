@@ -43,7 +43,8 @@ fn parse_sealevel_tx_hash(tx_hash: &str) -> ChainResult<H512> {
     }
 
     let mut padded = [0u8; 64];
-    padded[..bytes.len()].copy_from_slice(&bytes);
+    let start = 64usize.saturating_sub(bytes.len());
+    padded[start..].copy_from_slice(&bytes);
     Ok(H512::from_slice(&padded))
 }
 
