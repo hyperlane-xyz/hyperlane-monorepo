@@ -79,7 +79,6 @@ describe('3. starknet sdk hook e2e tests', function () {
     const reader = artifactManager.createReader(AltVM.HookType.PROTOCOL_FEE);
     const read = await reader.read(created.deployed.address);
     expect(read.config.type).to.equal(AltVM.HookType.PROTOCOL_FEE);
-    expect(read.config.maxProtocolFee).to.equal('20');
     expect(read.config.protocolFee).to.equal('10');
 
     const newOwner = '0x222';

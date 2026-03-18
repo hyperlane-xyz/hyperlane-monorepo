@@ -123,14 +123,11 @@ class StarknetProtocolFeeHookReader implements ArtifactReader<
       this.provider.getRawProvider(),
     );
 
-    const [owner, beneficiary, maxProtocolFee, protocolFee] = await Promise.all(
-      [
-        callContract(hook, 'owner'),
-        callContract(hook, 'get_beneficiary'),
-        callContract(hook, 'get_max_protocol_fee'),
-        callContract(hook, 'get_protocol_fee'),
-      ],
-    );
+    const [owner, beneficiary, protocolFee] = await Promise.all([
+      callContract(hook, 'owner'),
+      callContract(hook, 'get_beneficiary'),
+      callContract(hook, 'get_protocol_fee'),
+    ]);
 
     const ownerAddress = normalizeStarknetAddressSafe(owner);
     const beneficiaryAddress = normalizeStarknetAddressSafe(beneficiary);
@@ -141,7 +138,9 @@ class StarknetProtocolFeeHookReader implements ArtifactReader<
         type: AltVM.HookType.PROTOCOL_FEE,
         owner: ownerAddress,
         beneficiary: beneficiaryAddress,
-        maxProtocolFee: toBigInt(maxProtocolFee).toString(),
+        // Starknet protocol_fee does not expose maxProtocolFee as a view.
+        // Preserve a conservative value so update paths can still read config.
+        maxProtocolFee: toBigInt(protocolFee).toString(),
         protocolFee: toBigInt(protocolFee).toString(),
       },
       deployed: { address: normalizedAddress },
