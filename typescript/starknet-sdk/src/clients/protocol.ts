@@ -53,7 +53,7 @@ export class StarknetProtocolProvider implements ProtocolProvider {
     });
   }
 
-  createSubmitter<TConfig extends TransactionSubmitterConfig>(
+  async createSubmitter<TConfig extends TransactionSubmitterConfig>(
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter> {
