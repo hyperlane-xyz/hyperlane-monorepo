@@ -380,14 +380,26 @@ impl Middleware for TronProvider {
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
-        // Check for estimation failure
+        // Check for estimation failure (error responses have a result.code field)
         if let Some(ref result) = estimate.result {
-            if !result.result {
+            if result.code.is_some() {
+                let decoded_msg = result
+                    .message
+                    .as_deref()
+                    .and_then(|m| hex::decode(m).ok())
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .or_else(|| result.message.clone());
                 return Err(ProviderError::CustomError(format!(
                     "Energy estimation failed: code={:?}, message={:?}",
-                    result.code, result.message
+                    result.code, decoded_msg
                 )));
             }
+        }
+
+        if estimate.energy_required == 0 {
+            return Err(ProviderError::CustomError(
+                "Energy estimation returned 0".into(),
+            ));
         }
 
         Ok(ethers::types::U256::from(estimate.energy_required as u64))

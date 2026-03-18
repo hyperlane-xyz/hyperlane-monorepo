@@ -46,11 +46,9 @@ pub struct EstimateEnergyResponse {
 /// Nested result field in estimate energy response
 #[derive(Debug, Deserialize)]
 pub struct EstimateResult {
-    /// Whether the estimation was successful
-    pub result: bool,
-    /// Error code
+    /// Error code (present on failure)
     pub code: Option<String>,
-    /// Error message
+    /// Error message (hex-encoded on failure)
     pub message: Option<String>,
 }
 
