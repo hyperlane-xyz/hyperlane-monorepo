@@ -306,9 +306,14 @@ impl TronProvider {
         }
     }
 
-    fn get_block_info(block: &BlockResponse) -> BlockInfo {
-        BlockInfo {
-            hash: H256::from_slice(&hex::decode(&block.block_id).unwrap_or_else(|_| vec![0u8; 32])),
+    fn get_block_info(block: &BlockResponse) -> ChainResult<BlockInfo> {
+        let block_id_bytes =
+            hex::decode(&block.block_id).map_err(|_| HyperlaneTronError::MissingRawData)?;
+        if block_id_bytes.len() != 32 {
+            return Err(HyperlaneTronError::MissingRawData.into());
+        }
+        Ok(BlockInfo {
+            hash: H256::from_slice(&block_id_bytes),
             timestamp: block
                 .block_header
                 .raw_data
@@ -316,7 +321,7 @@ impl TronProvider {
                 .checked_div(1000)
                 .unwrap_or_default() as u64,
             number: block.block_header.raw_data.number as u64,
-        }
+        })
     }
 }
 
@@ -390,7 +395,7 @@ impl HyperlaneProvider for TronProvider {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let block = self.wallet_solidity.get_block_by_num(height as i64).await?;
-        Ok(Self::get_block_info(&block))
+        Self::get_block_info(&block)
     }
 
     /// Get txn info for a given txn hash
@@ -462,7 +467,7 @@ impl HyperlaneProvider for TronProvider {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let block = self.get_current_block().await?;
-        let chain_metrics = ChainInfo::new(Self::get_block_info(&block), None);
+        let chain_metrics = ChainInfo::new(Self::get_block_info(&block)?, None);
         Ok(Some(chain_metrics))
     }
 }
