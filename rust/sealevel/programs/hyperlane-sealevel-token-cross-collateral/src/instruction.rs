@@ -81,11 +81,12 @@ pub struct TransferRemoteTo {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct HandleLocal {
     /// The program ID of the sending CC program (used for PDA verification).
+    /// The sender H256 for router authorization is derived from this field
+    /// to prevent spoofing (a caller cannot claim to be a different program
+    /// because the PDA signer check ties identity to this program ID).
     pub sender_program_id: Pubkey,
     /// The origin domain.
     pub origin: u32,
-    /// The sender address on the origin domain.
-    pub sender: H256,
     /// The message body (TokenMessage encoded).
     pub message: Vec<u8>,
 }

@@ -2,7 +2,7 @@
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData, SPL_NOOP_PROGRAM_ID};
-use hyperlane_core::{Decode, Encode};
+use hyperlane_core::{Decode, Encode, H256};
 use hyperlane_sealevel_connection_client::gas_router::HyperlaneGasRouter;
 use hyperlane_sealevel_connection_client::{
     router::RemoteRouterConfig, HyperlaneConnectionClient, HyperlaneConnectionClientRecipient,
@@ -388,6 +388,11 @@ fn set_cross_collateral_routers(
     // Account 3: Owner (signer)
     let owner_account = next_account_info(accounts_iter)?;
     token.ensure_owner_signer(owner_account)?;
+
+    // Extraneous account check
+    if accounts_iter.next().is_some() {
+        return Err(Error::ExtraneousAccount.into());
+    }
 
     // Apply configs
     for config in configs {
@@ -871,8 +876,14 @@ fn handle_local(
         return Err(Error::InvalidDomain.into());
     }
 
+    // Derive sender H256 from the verified sender_program_id.
+    // The PDA signer check above ties the CPI caller to sender_program_id,
+    // so we derive the router address from it rather than accepting a separate
+    // unvalidated sender field (which would allow spoofing).
+    let sender = H256::from(handle.sender_program_id.to_bytes());
+
     // Validate sender is enrolled for the local domain
-    if !cc_state.is_authorized_router(handle.origin, &handle.sender, &token.remote_routers) {
+    if !cc_state.is_authorized_router(handle.origin, &sender, &token.remote_routers) {
         return Err(Error::UnauthorizedRouter.into());
     }
 
