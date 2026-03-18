@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-import { PublicKey } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { ethers, providers } from 'ethers';
 import { type Logger, pino } from 'pino';
 
@@ -212,6 +212,7 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
   private evmManager?: CollateralEvmDeploymentManager;
   private svmManager?: SealevelLocalChainManager;
   private deployedAddresses?: SvmCollateralEvmErc20DeployedAddresses;
+  private svmInventorySignerKeypair?: Keypair;
 
   constructor(logger?: Logger, rpcPort: number = SVM_RPC_PORT) {
     this.logger =
@@ -230,6 +231,9 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
     }
 
     const svmManager = new SealevelLocalChainManager(this.logger, this.rpcPort);
+    const svmInventorySigner = Keypair.generate();
+    this.svmInventorySignerKeypair = svmInventorySigner;
+
     const inventorySignerAddress = this.deriveInventorySignerAddress(
       svmManager.getDeployerKeypair().publicKey.toBytes(),
     );
@@ -294,6 +298,14 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
 
       await this.mintSplToSigner(splMint, inventorySignerAddress);
 
+      // Create ATA for inventory signer (starts with 0 balance; build() sets preset amount)
+      this.runSplTokenCli([
+        'create-account',
+        splMint,
+        '--owner',
+        svmInventorySigner.publicKey.toBase58(),
+      ]);
+
       this.deployedAddresses = {
         chains: evmAddresses.chains,
         monitoredRoute: evmAddresses.monitoredRoute,
@@ -315,6 +327,15 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
     }
   }
 
+  getSvmInventorySignerKeypair(): Keypair {
+    if (!this.svmInventorySignerKeypair) {
+      throw new Error(
+        'SVM inventory signer not initialized. Call setup() first.',
+      );
+    }
+    return this.svmInventorySignerKeypair;
+  }
+
   async teardown(): Promise<void> {
     const svmManager = this.svmManager;
     const evmManager = this.evmManager;
@@ -322,6 +343,7 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
     this.svmManager = undefined;
     this.evmManager = undefined;
     this.deployedAddresses = undefined;
+    this.svmInventorySignerKeypair = undefined;
 
     if (svmManager) {
       await svmManager.stop();
@@ -440,6 +462,35 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
     ]);
   }
 
+  async mintSplToInventorySigner(amount: bigint): Promise<void> {
+    const addresses = this.getDeployedAddresses();
+    const signerPubkey =
+      this.getSvmInventorySignerKeypair().publicKey.toBase58();
+    if (amount > 0n) {
+      const ataOutput = this.runSplTokenCliWithOutput([
+        'address',
+        '--token',
+        addresses.svm.splMint,
+        '--owner',
+        signerPubkey,
+      ]);
+      const match = ataOutput.match(/Associated token address: (\S+)/);
+      if (!match) {
+        throw new Error(`Could not parse ATA address from: ${ataOutput}`);
+      }
+      const signerAta = match[1];
+      const displayAmount = String(
+        Number(amount) / Math.pow(10, USDC_DECIMALS),
+      );
+      this.runSplTokenCli([
+        'mint',
+        addresses.svm.splMint,
+        displayAmount,
+        signerAta,
+      ]);
+    }
+  }
+
   private async enrollEvmRoutersToSvmCollateral(
     evmAddresses: Erc20InventoryDeployedAddresses,
     evmCtx: any,
@@ -533,6 +584,15 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
   private runSplTokenCli(args: string[]): void {
     const svmManager = this.getSvmChainManager();
     execFileSync(
+      SPL_TOKEN_BIN,
+      ['-C', svmManager.getSolanaConfigPath(), ...args],
+      { encoding: 'utf8' },
+    );
+  }
+
+  private runSplTokenCliWithOutput(args: string[]): string {
+    const svmManager = this.getSvmChainManager();
+    return execFileSync(
       SPL_TOKEN_BIN,
       ['-C', svmManager.getSolanaConfigPath(), ...args],
       { encoding: 'utf8' },

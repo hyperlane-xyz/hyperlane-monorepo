@@ -111,20 +111,23 @@ export const COLLATERAL_BALANCE_PRESETS: Record<
 // ── Signer balance presets (EVM ERC20 balances) ──
 export const COLLATERAL_SIGNER_PRESETS: Record<
   string,
-  Partial<Record<TestChain, string>>
+  Record<string, string | undefined>
 > = {
   COLLATERAL_SIGNER_FUNDED: {
     anvil1: '20000000000',
     anvil2: '20000000000',
     anvil3: '20000000000',
+    sealeveltest1: '20000000000',
   },
   COLLATERAL_SIGNER_ZERO_ALL: {
     anvil1: '0',
     anvil2: '0',
     anvil3: '0',
+    sealeveltest1: '0',
   },
   COLLATERAL_SIGNER_PARTIAL_ANVIL2: {
     anvil2: '5000000000',
+    sealeveltest1: '5000000000',
   },
   COLLATERAL_SIGNER_FUNDED_ANVIL1: {
     anvil1: '20000000000',

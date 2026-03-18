@@ -68,6 +68,7 @@ export class MixedCollateralTestRebalancerBuilder {
   private inventorySignerKey: string = ANVIL_USER_PRIVATE_KEY;
   private inventorySignerErc20Balances?: Record<string, string>;
   private mockBridge?: MockExternalBridge;
+  private svmSignerSplBalance?: bigint;
   private readonly logger: Logger;
 
   constructor(logger?: Logger) {
@@ -106,6 +107,14 @@ export class MixedCollateralTestRebalancerBuilder {
       }
     }
     this.inventorySignerErc20Balances = balances;
+
+    const svmBalance = (config as Record<string, string | undefined>)[
+      SVM_CHAIN_NAME
+    ];
+    if (svmBalance !== undefined) {
+      this.svmSignerSplBalance = BigInt(svmBalance);
+    }
+
     return this;
   }
 
@@ -167,14 +176,9 @@ export class MixedCollateralTestRebalancerBuilder {
           key: this.inventorySignerKey,
         },
         [ProtocolType.Sealevel]: {
-          address: manager
-            .getSvmChainManager()
-            .getDeployerKeypair()
-            .publicKey.toBase58(),
+          address: manager.getSvmInventorySignerKeypair().publicKey.toBase58(),
           key: JSON.stringify(
-            Array.from(
-              manager.getSvmChainManager().getDeployerKeypair().secretKey,
-            ),
+            Array.from(manager.getSvmInventorySignerKeypair().secretKey),
           ),
         },
       },
@@ -285,6 +289,10 @@ export class MixedCollateralTestRebalancerBuilder {
       svmDeployerAddress,
       MIN_SVM_SIGNER_LAMPORTS,
     );
+
+    if (this.svmSignerSplBalance !== undefined) {
+      await manager.mintSplToInventorySigner(this.svmSignerSplBalance);
+    }
 
     if (this.svmSplEscrowAmount !== undefined && this.svmSplEscrowAmount > 0n) {
       await manager.mintSplToEscrow(this.svmSplEscrowAmount);
