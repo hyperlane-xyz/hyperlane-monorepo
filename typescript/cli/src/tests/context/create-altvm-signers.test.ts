@@ -29,6 +29,16 @@ function getStarknetMetadata(chainName: string): ChainMetadataForAltVM {
   };
 }
 
+function getRadixMetadata(chainName: string): ChainMetadataForAltVM {
+  return {
+    name: chainName,
+    protocol: ProtocolType.Radix,
+    chainId: chainName.toUpperCase(),
+    domainId: 1234,
+    rpcUrls: [{ http: 'http://localhost:3333' }],
+  };
+}
+
 function getMetadataManager(
   getMetadata: (chainName: string) => ChainMetadataForAltVM,
 ): MetadataManager {
@@ -231,6 +241,37 @@ describe('createAltVMSigners', () => {
       privateKey: '0xprompted-key',
       accountAddress: '0xstrategy-account',
     });
+  });
+
+  it('throws for non-Starknet jsonRpc strategies without a private key', async () => {
+    const privateKeyPrompt = sinon.stub(altVmPrompts, 'password');
+
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      radix: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'radix',
+        },
+      },
+    };
+
+    await createAltVMSigners(
+      getMetadataManager(() => getRadixMetadata('radix')),
+      ['radix'],
+      {},
+      strategy,
+      getProtocolRegistry(),
+    )
+      .then(() => expect.fail('expected createAltVMSigners to throw'))
+      .catch((error: unknown) => {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.equal(
+          'missing private key in strategy config for chain radix',
+        );
+      });
+
+    expect(privateKeyPrompt.called).to.equal(false);
+    expect(capturedConfigs).to.have.length(0);
   });
 
   it('prefers explicit per-chain strategy key over prompted fallback', async () => {

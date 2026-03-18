@@ -126,7 +126,12 @@ export class HookWriter
   async update(artifact: DeployedHookArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
-    if (config.type === AltVM.HookType.MERKLE_TREE) return [];
+    if (
+      config.type === AltVM.HookType.MERKLE_TREE ||
+      config.type === 'unknownHook'
+    ) {
+      return [];
+    }
 
     const writer = this.artifactManager.createWriter(config.type, this.signer);
     return writer.update({ artifactState, config, deployed });

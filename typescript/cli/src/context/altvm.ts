@@ -54,6 +54,12 @@ async function loadPrivateKey(
       if (rawConfig.privateKey) {
         return rawConfig.privateKey;
       }
+
+      if (protocol !== ProtocolType.Starknet) {
+        throw new Error(
+          `missing private key in strategy config for chain ${chain}`,
+        );
+      }
     }
   }
 

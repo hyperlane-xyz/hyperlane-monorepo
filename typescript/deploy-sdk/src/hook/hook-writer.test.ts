@@ -59,4 +59,27 @@ describe('HookWriter', () => {
     expect(update.calledOnceWith(artifact)).to.equal(true);
     expect(txs).to.deep.equal(expectedTxs);
   });
+
+  it('treats unknownHook updates as a no-op', async () => {
+    const createWriter = sinon.stub();
+    const artifactManager = {
+      createReader: sinon.stub(),
+      createWriter,
+      readHook: sinon.stub(),
+    } as IRawHookArtifactManager;
+    const signer = {} as AltVM.ISigner<AnnotatedTx, TxReceipt>;
+    const writer = new HookWriter(artifactManager, chainLookup, signer);
+    const artifact: DeployedHookArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: 'unknownHook',
+      },
+      deployed: { address: '0x123' },
+    };
+
+    const txs = await writer.update(artifact);
+
+    expect(createWriter.called).to.equal(false);
+    expect(txs).to.deep.equal([]);
+  });
 });
