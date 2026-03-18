@@ -188,38 +188,34 @@ impl Server {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
 
-        // Add relay API (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
-        let relay_api_disabled =
-            env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
-        if !relay_api_disabled {
-            if let (Some(dbs), Some(indexers), Some(send_channels)) = (
-                self.dbs.as_ref(),
-                self.relay_indexers,
-                self.relay_send_channels.as_ref(),
-            ) {
-                let mut relay_state = crate::relay_api::handlers::ServerState::new()
-                    .with_indexers(indexers)
-                    .with_dbs(dbs.clone())
-                    .with_send_channels(send_channels.clone())
-                    .with_msg_ctxs(self.msg_ctxs.clone());
+        // Add relay API
+        if let (Some(dbs), Some(indexers), Some(send_channels)) = (
+            self.dbs.as_ref(),
+            self.relay_indexers,
+            self.relay_send_channels.as_ref(),
+        ) {
+            let mut relay_state = crate::relay_api::handlers::ServerState::new()
+                .with_indexers(indexers)
+                .with_dbs(dbs.clone())
+                .with_send_channels(send_channels.clone())
+                .with_msg_ctxs(self.msg_ctxs.clone());
 
-                // Add tx hash cache if available
-                if let Some(cache) = self.relay_tx_hash_cache {
-                    relay_state = relay_state.with_tx_hash_cache(cache);
-                }
-
-                // Add metrics if available
-                if let Some(metrics) = self.relay_api_metrics {
-                    relay_state = relay_state.with_metrics(metrics);
-                }
-
-                // Add rate limiter if available
-                if let Some(limiter) = self.relay_rate_limiter {
-                    relay_state = relay_state.with_rate_limiter(limiter);
-                }
-
-                router = router.merge(relay_state.router());
+            // Add tx hash cache if available
+            if let Some(cache) = self.relay_tx_hash_cache {
+                relay_state = relay_state.with_tx_hash_cache(cache);
             }
+
+            // Add metrics if available
+            if let Some(metrics) = self.relay_api_metrics {
+                relay_state = relay_state.with_metrics(metrics);
+            }
+
+            // Add rate limiter if available
+            if let Some(limiter) = self.relay_rate_limiter {
+                relay_state = relay_state.with_rate_limiter(limiter);
+            }
+
+            router = router.merge(relay_state.router());
         }
 
         router

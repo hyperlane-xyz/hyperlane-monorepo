@@ -287,6 +287,14 @@ async fn create_relay(
             "origin_chain cannot be empty".to_string(),
         ));
     }
+    if req.origin_chain.len() > 128 {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("invalid_request");
+        }
+        return Err(ServerError::InvalidRequest(
+            "origin_chain exceeds maximum length of 128 characters".to_string(),
+        ));
+    }
 
     // Validate tx_hash length to prevent memory abuse (before cloning into cache)
     // Max legitimate tx hash: Radix bech32 (~150 chars), generous limit of 512

@@ -624,80 +624,72 @@ impl Relayer {
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
             .with_relay_send_channels(send_channels);
 
-        // Add relay API (enabled by default, disable with HYPERLANE_RELAYER_DISABLE_RELAY_API=true)
-        let relay_api_disabled =
-            std::env::var("HYPERLANE_RELAYER_DISABLE_RELAY_API").is_ok_and(|v| v == "true");
-        if !relay_api_disabled {
-            info!("Relay API enabled (default). Set HYPERLANE_RELAYER_DISABLE_RELAY_API=true to disable.");
+        // Add relay API
+        use crate::relay_api::handlers::TxHashCache;
+        use crate::relay_api::RelayApiMetrics;
+        use hyperlane_core::{HyperlaneMessage, Indexer};
+        use std::collections::HashMap;
+        use std::sync::RwLock;
 
-            use crate::relay_api::handlers::TxHashCache;
-            use crate::relay_api::RelayApiMetrics;
-            use hyperlane_core::{HyperlaneMessage, Indexer};
-            use std::collections::HashMap;
-            use std::sync::RwLock;
+        // Initialize relay API metrics
+        let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())
+            .expect("Failed to initialize relay API metrics");
 
-            // Initialize relay API metrics
-            let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())
-                .expect("Failed to initialize relay API metrics");
+        // Initialize tx hash cache for DoS protection (10k entries max)
+        let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
 
-            // Initialize tx hash cache for DoS protection (10k entries max)
-            let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
+        // Initialize rate limiter (default: 100 requests per 60 seconds)
+        use crate::relay_api::handlers::RateLimiter;
+        let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
+        let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
+        let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
+        info!(
+            max_requests,
+            window_secs, "Initialized relay API rate limiter"
+        );
 
-            // Initialize rate limiter (default: 100 requests per 60 seconds)
-            use crate::relay_api::handlers::RateLimiter;
-            let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
-            let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
-            let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
+        let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
+
+        info!(
+            origin_count = self.origins.len(),
+            "Setting up relay API indexers"
+        );
+
+        for (domain, origin) in &self.origins {
             info!(
-                max_requests,
-                window_secs, "Initialized relay API rate limiter"
+                domain = %domain.name(),
+                protocol = ?domain.domain_protocol(),
+                "Processing chain for relay API"
             );
 
-            let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
-
-            info!(
-                origin_count = self.origins.len(),
-                "Setting up relay API indexers"
-            );
-
-            for (domain, origin) in &self.origins {
-                info!(
-                    domain = %domain.name(),
-                    protocol = ?domain.domain_protocol(),
-                    "Processing chain for relay API"
-                );
-
-                match origin
-                    .chain_conf
-                    .build_message_indexer(&self.core_metrics, false)
-                    .await
-                {
-                    Ok(indexer) => {
-                        indexers.insert(domain.name().to_string(), Arc::new(indexer));
-                        info!(
-                            domain = %domain.name(),
-                            protocol = ?domain.domain_protocol(),
-                            "Added chain to relay API"
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            domain = %domain.name(),
-                            error = ?e,
-                            "Failed to create mailbox indexer for relay API"
-                        );
-                    }
+            match origin
+                .chain_conf
+                .build_message_indexer(&self.core_metrics, false)
+                .await
+            {
+                Ok(indexer) => {
+                    indexers.insert(domain.name().to_string(), Arc::new(indexer));
+                    info!(
+                        domain = %domain.name(),
+                        protocol = ?domain.domain_protocol(),
+                        "Added chain to relay API"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        domain = %domain.name(),
+                        error = ?e,
+                        "Failed to create mailbox indexer for relay API"
+                    );
                 }
             }
-
-            server = server
-                .with_indexers(indexers)
-                .with_tx_hash_cache(tx_hash_cache)
-                .with_relay_api_metrics(relay_api_metrics)
-                .with_rate_limiter(rate_limiter);
-        } else {
-            info!("Relay API disabled (HYPERLANE_RELAYER_DISABLE_RELAY_API=true)");
         }
+
+        server = server
+            .with_indexers(indexers)
+            .with_tx_hash_cache(tx_hash_cache)
+            .with_relay_api_metrics(relay_api_metrics)
+            .with_rate_limiter(rate_limiter);
 
         server.router()
     }
