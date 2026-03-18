@@ -1284,6 +1284,158 @@ mod routers_management {
             assert!(!cc_state.enrolled_routers.contains_key(&REMOTE_DOMAIN));
         }
     }
+
+    mod cc_unenroll_authorization {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_unenroll_cc_routers_wrong_signer() {
+            let mut ctx = TestContext::new(false).await;
+
+            let router = H256::random();
+            enroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router),
+                }],
+            )
+            .await
+            .unwrap();
+
+            let non_owner =
+                new_funded_keypair(&mut ctx.banks_client, &ctx.payer, ONE_SOL_IN_LAMPORTS).await;
+
+            let result = unenroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &non_owner,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router),
+                }],
+            )
+            .await;
+
+            assert_transaction_error(
+                result,
+                TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+            );
+        }
+
+        #[tokio::test]
+        async fn test_ownership_transfer_then_router_management() {
+            let mut ctx = TestContext::new(false).await;
+            let old_owner = &ctx.payer;
+            let old_owner_pubkey = old_owner.pubkey();
+
+            // Enroll a router as current owner — should succeed
+            let router = H256::random();
+            enroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                old_owner,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router),
+                }],
+            )
+            .await
+            .unwrap();
+
+            // Transfer ownership to new_owner
+            let new_owner =
+                new_funded_keypair(&mut ctx.banks_client, old_owner, ONE_SOL_IN_LAMPORTS).await;
+            let new_owner_pubkey = new_owner.pubkey();
+
+            let (token_key, _) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &ctx.program_id);
+            let transfer_ownership_ixn_data =
+                HyperlaneTokenInstruction::TransferOwnership(Some(new_owner_pubkey))
+                    .encode()
+                    .unwrap();
+            let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+            let transaction = Transaction::new_signed_with_payer(
+                &[Instruction::new_with_bytes(
+                    ctx.program_id,
+                    &transfer_ownership_ixn_data,
+                    vec![
+                        AccountMeta::new(token_key, false),
+                        AccountMeta::new_readonly(old_owner_pubkey, true),
+                    ],
+                )],
+                Some(&old_owner_pubkey),
+                &[old_owner],
+                recent_blockhash,
+            );
+            ctx.banks_client
+                .process_transaction(transaction)
+                .await
+                .unwrap();
+
+            // Old owner tries to enroll — should fail
+            let result = enroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                old_owner,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(H256::random()),
+                }],
+            )
+            .await;
+
+            assert_transaction_error(
+                result,
+                TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+            );
+
+            // Old owner tries to unenroll — should fail
+            let result = unenroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                old_owner,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router),
+                }],
+            )
+            .await;
+
+            assert_transaction_error(
+                result,
+                TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+            );
+
+            // New owner can enroll — should succeed
+            enroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &new_owner,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(H256::random()),
+                }],
+            )
+            .await
+            .unwrap();
+
+            // New owner can unenroll — should succeed
+            unenroll_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &new_owner,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router),
+                }],
+            )
+            .await
+            .unwrap();
+        }
+    }
 }
 
 mod handle_instruction {
@@ -2183,6 +2335,69 @@ mod handle_local_instruction {
         assert_transaction_error(
             result,
             TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transfer_local_rejects_base_remote_router_only_target() {
+        let mut ctx = TestContext::new(false).await;
+        let program_b = second_cc_program_id();
+        let router_b = H256::from(program_b.to_bytes());
+
+        // Enroll B as a BASE remote router for the local domain (not CC-enrolled)
+        enroll_remote_router(
+            &mut ctx.banks_client,
+            &ctx.program_id,
+            &ctx.payer,
+            &ctx.cc.token,
+            LOCAL_DOMAIN,
+            router_b,
+        )
+        .await
+        .unwrap();
+
+        let (token_sender, token_sender_ata) = ctx
+            .create_funded_sender(50 * 10u64.pow(LOCAL_DECIMALS_U32))
+            .await;
+        let token_sender_pubkey = token_sender.pubkey();
+        let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+
+        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+            recipient: H256::random(),
+            amount_or_id: transfer_amount.into(),
+            target_router: router_b,
+        })
+        .encode()
+        .unwrap();
+
+        let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        let transaction = Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(ctx.cc.cc_dispatch_authority, false),
+                    AccountMeta::new_readonly(program_b, false),
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender],
+            recent_blockhash,
+        );
+        let result = ctx.banks_client.process_transaction(transaction).await;
+
+        // Custom(2) = Error::UnauthorizedRouter — rejected at sender's is_enrolled_router check
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::Custom(2)),
         );
     }
 }

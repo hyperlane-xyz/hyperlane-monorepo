@@ -806,12 +806,9 @@ fn transfer_local(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Validate target_router is authorized for the local domain
-    if !cc_state.is_authorized_router(
-        cc_state.local_domain,
-        &xfer.target_router,
-        &hyperlane_token.remote_routers,
-    ) {
+    // Validate target_router is CC-enrolled for the local domain.
+    // Same-chain transfers use CC-only validation (matching handle_local's check).
+    if !cc_state.is_enrolled_router(cc_state.local_domain, &xfer.target_router) {
         return Err(Error::UnauthorizedRouter.into());
     }
 
