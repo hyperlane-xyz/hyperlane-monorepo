@@ -15,7 +15,8 @@ command -v protoc >/dev/null 2>&1 || { echo "Error: protoc not found. Run: brew 
 
 command -v pkg-config >/dev/null 2>&1 || { echo "Error: pkg-config not found. Run: brew install pkg-config" >&2; exit 1; }
 
-lsof -i :8899 -t >/dev/null 2>&1 && { echo "Error: Port 8899 is in use. Kill the process or stop any running Solana validator." >&2; exit 1; } || true
+# Each split test file uses its own port (8901, 8911, 8921, 8931, 8941, 8951)
+# No pre-flight port check needed — each file manages its own validator port
 
 echo "Pre-flight checks passed."
 
@@ -83,4 +84,4 @@ cd "${REPO_ROOT}" && pnpm build
 # Step 6: Run tests
 echo "Running mixed SVM+EVM collateral e2e tests..."
 cd "${REPO_ROOT}/typescript/rebalancer"
-pnpm mocha --extension ts --node-option='import=tsx/esm' --timeout 600000 --exit 'src/e2e/mixed-svm-evm-collateral.e2e-test.ts'
+pnpm mocha --extension ts --node-option='import=tsx/esm' --timeout 600000 --exit 'src/e2e/mixed-svm-evm-collateral-*.e2e-test.ts'
