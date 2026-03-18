@@ -29,12 +29,25 @@ pub struct TronHttpProvider {
 }
 
 /// A single HTTP channel used by the FallbackProvider
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TronHttpChannel {
     client: Client,
     base_url: Url,
     metrics: PrometheusClientMetrics,
     config: PrometheusConfig,
+}
+
+impl Clone for TronHttpChannel {
+    fn clone(&self) -> Self {
+        let chain_name = PrometheusConfig::chain_name(&self.config.chain);
+        self.metrics.increment_provider_instance(chain_name);
+        Self {
+            client: self.client.clone(),
+            base_url: self.base_url.clone(),
+            metrics: self.metrics.clone(),
+            config: self.config.clone(),
+        }
+    }
 }
 
 impl TronHttpChannel {
