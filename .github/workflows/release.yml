@@ -214,6 +214,9 @@ jobs:
 
   publish-beta:
     if: github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: npm-beta-release
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
