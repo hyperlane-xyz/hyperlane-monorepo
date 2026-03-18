@@ -127,8 +127,8 @@ pub fn process_instruction(
     }
 
     // Stage 3: Token instruction discriminator [1,1,1,1,1,1,1,1]
-    // Block TokenIxn::Init — must use CrossCollateralInstruction::Init
     match TokenIxn::decode(instruction_data)? {
+        // Block TokenIxn::Init — must use CrossCollateralInstruction::Init
         TokenIxn::Init(_) => Err(Error::BaseInitNotAllowed.into()),
         // Block base TransferRemote — must use CrossCollateralInstruction::TransferRemoteTo
         TokenIxn::TransferRemote(_) => Err(Error::BaseTransferRemoteNotAllowed.into()),
@@ -1137,7 +1137,7 @@ fn handle_local(
 }
 
 /// Gets the account metas required by the HandleLocal instruction.
-/// Used by off-chain tools to build same-chain TransferRemoteTo transactions.
+/// Used by off-chain tools to build same-chain TransferLocal transactions.
 ///
 /// Accounts:
 /// 0. `[]` The token PDA account.

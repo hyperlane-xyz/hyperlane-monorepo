@@ -635,7 +635,7 @@ mod init_instruction {
 
     #[tokio::test]
     async fn test_initialize() {
-        let mut ctx = TestContext::new(true).await;
+        let ctx = TestContext::new(true).await;
         let igp = ctx.igp_accounts.as_ref().unwrap();
         let igp_program = igp.program;
         let igp_overhead_igp = igp.overhead_igp;
@@ -757,7 +757,7 @@ mod init_instruction {
     #[tokio::test]
     async fn test_base_init_rejected() {
         // TokenIxn::Init must return Custom(4) = BaseInitNotAllowed.
-        let mut env = setup_env().await;
+        let env = setup_env().await;
 
         let (token_account_key, _) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &env.program_id);
@@ -810,7 +810,7 @@ mod init_instruction {
 
     #[tokio::test]
     async fn test_init_wrong_local_domain() {
-        let mut env = setup_env().await;
+        let env = setup_env().await;
 
         let init = CrossCollateralInit {
             mailbox: env.mailbox_program_id,
@@ -847,7 +847,7 @@ mod init_instruction {
 
     #[tokio::test]
     async fn test_init_extraneous_accounts() {
-        let mut env = setup_env().await;
+        let env = setup_env().await;
 
         let init = CrossCollateralInit {
             mailbox: env.mailbox_program_id,
@@ -924,7 +924,7 @@ mod base_token {
 
     #[tokio::test]
     async fn test_base_transfer_remote_blocked() {
-        let mut ctx = TestContext::new(false).await;
+        let ctx = TestContext::new(false).await;
 
         use hyperlane_sealevel_token_lib::instruction::TransferRemote;
         let ixn_data = HyperlaneTokenInstruction::TransferRemote(TransferRemote {
@@ -1788,7 +1788,7 @@ mod handle_local_instruction {
     #[tokio::test]
     async fn test_handle_local_pda_signer_required() {
         // Correct PDA key but NOT a signer → MissingRequiredSignature
-        let mut ctx = TestContext::new(false).await;
+        let ctx = TestContext::new(false).await;
 
         let handle_local = HandleLocal {
             sender_program_id: ctx.program_id,

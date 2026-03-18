@@ -88,7 +88,7 @@ pub struct TransferRemoteTo {
 /// Instruction data for same-chain transfer via CPI.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferLocal {
-    /// The remote recipient.
+    /// The recipient wallet address on the target program.
     pub recipient: H256,
     /// The amount or ID of the token to transfer.
     pub amount_or_id: hyperlane_core::U256,
