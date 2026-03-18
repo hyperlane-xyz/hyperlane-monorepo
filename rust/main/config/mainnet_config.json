@@ -9652,10 +9652,11 @@
         "from": 1080309
       },
       "gnosisSafeTransactionServiceUrl": "https://safe.igralabs.com/txs",
-      "interchainAccountRouter": "0xD233433AeC23F8382DAd87D808F60557Ea35399f",
+      "interchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
       "transactionOverrides": {
         "gasPrice": 1000000000000
-      }
+      },
+      "minimalInterchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44"
     },
     "tron": {
       "blockExplorers": [
@@ -9669,7 +9670,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 5
+        "reorgPeriod": "finalized"
       },
       "chainId": 728126428,
       "deployer": {
