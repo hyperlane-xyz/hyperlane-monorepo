@@ -331,9 +331,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [packageVersion, tokenFee] = await Promise.all([
+    const [packageVersion, tokenFee, token] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
       TokenRouter.feeRecipient().catch(() => constants.AddressZero),
+      TokenRouter.token().catch(() => constants.AddressZero),
     ]);
 
     const hasTokenFeeInterface =
@@ -366,6 +367,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
       routingDestinations,
+      token: isZeroishAddress(token) ? undefined : token,
     });
   }
 

@@ -1,4 +1,4 @@
-import { Contract, constants } from 'ethers';
+import { Contract, constants, utils } from 'ethers';
 
 import {
   BaseFee__factory,
@@ -33,13 +33,17 @@ export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
 export type TokenFeeReaderParams = {
   address: Address;
   routingDestinations?: number[]; // Optional: when provided, derives feeContracts
+  token?: Address; // Optional: required for fee contracts that don't expose token()
 };
 
-const crossCollateralRoutingFeeReadAbi = [
-  'function DEFAULT_ROUTER() view returns (bytes32)',
-  'function feeContracts(uint32,bytes32) view returns (address)',
+const CROSS_COLLATERAL_ROUTING_FEE_ABI = [
   'function owner() view returns (address)',
+  'function feeContracts(uint32,bytes32) view returns (address)',
 ] as const;
+
+const DEFAULT_ROUTER_KEY = utils.keccak256(
+  utils.toUtf8Bytes('RoutingFee.DEFAULT_ROUTER'),
+);
 
 export class EvmTokenFeeReader extends HyperlaneReader {
   constructor(
@@ -56,7 +60,16 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
-    const onchainFeeType = await tokenFee.feeType();
+    let onchainFeeType: OnchainTokenFeeType;
+    try {
+      onchainFeeType = await tokenFee.feeType();
+    } catch (feeTypeError) {
+      try {
+        return await this.deriveCrossCollateralRoutingFeeConfig(params);
+      } catch {
+        throw feeTypeError;
+      }
+    }
     switch (onchainFeeType) {
       case OnchainTokenFeeType.LinearFee:
         derivedConfig = await this.deriveLinearFeeConfig(address);
@@ -84,6 +97,56 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     }
 
     return derivedConfig;
+  }
+
+  private async deriveCrossCollateralRoutingFeeConfig(
+    params: TokenFeeReaderParams,
+  ): Promise<DerivedTokenFeeConfig> {
+    const { address, routingDestinations, token } = params;
+
+    const ccrf = new Contract(
+      address,
+      CROSS_COLLATERAL_ROUTING_FEE_ABI,
+      this.provider,
+    );
+    const owner = (await ccrf.owner()) as Address;
+
+    const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
+    let resolvedToken: Address | undefined = token;
+    if (routingDestinations) {
+      await Promise.all(
+        routingDestinations.map(async (destination) => {
+          const subFeeAddress = (await ccrf.feeContracts(
+            destination,
+            DEFAULT_ROUTER_KEY,
+          )) as Address;
+          if (subFeeAddress === constants.AddressZero) return;
+          const chainName = this.multiProvider.getChainName(destination);
+          const subFeeConfig = await this.deriveTokenFeeConfig({
+            address: subFeeAddress,
+            routingDestinations,
+          });
+          feeContracts[chainName] = subFeeConfig;
+          resolvedToken ??= subFeeConfig.token;
+        }),
+      );
+    }
+
+    if (!resolvedToken) {
+      throw new Error(
+        `Unable to infer token for CrossCollateralRoutingFee at ${address}`,
+      );
+    }
+
+    return {
+      type: TokenFeeType.RoutingFee,
+      maxFee: constants.MaxUint256.toBigInt(),
+      halfAmount: constants.MaxUint256.toBigInt(),
+      address,
+      token: resolvedToken,
+      owner,
+      feeContracts,
+    };
   }
 
   private async deriveLinearFeeConfig(
