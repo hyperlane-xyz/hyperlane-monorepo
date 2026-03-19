@@ -6,7 +6,12 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-import { assert, intersection, setEquality } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  intersection,
+  objFilter,
+  setEquality,
+} from '@hyperlane-xyz/utils';
 
 import {
   readWarpCoreConfig,
@@ -251,11 +256,11 @@ export function filterWarpConfigsToMatchingChains(
       ).join(', ')}\n`,
     );
 
-    const filteredWarpDeployConfig = Object.fromEntries(
-      Object.entries(warpDeployConfig).filter(([chain]) =>
+    const filteredWarpDeployConfig = objFilter(
+      warpDeployConfig,
+      (chain, config): config is (typeof warpDeployConfig)[string] =>
         matchingChains.has(chain),
-      ),
-    ) as WarpRouteDeployConfigMailboxRequired; // CAST: Object.fromEntries loses the original record type
+    );
     const filteredWarpCoreConfig = {
       ...warpCoreConfig,
       tokens: warpCoreConfig.tokens.filter((token: { chainName: string }) =>

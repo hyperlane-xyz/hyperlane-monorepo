@@ -92,7 +92,10 @@ export async function nativeBalancesAreSufficient(
         );
 
         deployerBalanceNativeDenom = BigNumber.from(
-          await signer.getBalance({ address, denom: nativeToken.denom }),
+          await signer.getBalance({
+            address,
+            denom: nativeToken.denom,
+          }),
         );
         deployerBalance = formatUnits(
           deployerBalanceNativeDenom,

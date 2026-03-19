@@ -17,9 +17,19 @@ import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
 
-const MESSAGE_DISPATCH_EVENT_TYPE = 'hyperlane.core.v1.Dispatch';
+const MESSAGE_DISPATCH_EVENT_TYPES = [
+  'hyperlane.core.v1.Dispatch',
+  'hyperlane.core.v1.EventDispatch',
+];
 const MESSAGE_ATTRIBUTE_KEY = 'message';
 const MESSAGE_DESTINATION_ATTRIBUTE_KEY = 'destination';
+
+function stripWrappingQuotes(value: string): string {
+  if (value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
 
 export class CosmNativeCoreAdapter
   extends BaseCosmosAdapter
@@ -41,8 +51,8 @@ export class CosmNativeCoreAdapter
       `Unsupported provider type for CosmNativeCoreAdapter ${sourceTx.type}`,
     );
 
-    const dispatchEvents = sourceTx.receipt.events.filter(
-      (e) => e.type === MESSAGE_DISPATCH_EVENT_TYPE,
+    const dispatchEvents = sourceTx.receipt.events.filter((e) =>
+      MESSAGE_DISPATCH_EVENT_TYPES.includes(e.type),
     );
 
     return dispatchEvents.map((event) => {
@@ -55,9 +65,12 @@ export class CosmNativeCoreAdapter
       assert(messageAttribute, 'No message attribute found in dispatch event');
       assert(destAttribute, 'No destination attribute found in dispatch event');
 
+      const messageValue = stripWrappingQuotes(messageAttribute.value);
+      const destinationValue = stripWrappingQuotes(destAttribute.value);
+
       return {
-        messageId: ensure0x(messageId(messageAttribute.value)),
-        destination: this.multiProvider.getChainName(destAttribute.value),
+        messageId: ensure0x(messageId(messageValue)),
+        destination: this.multiProvider.getChainName(destinationValue),
       };
     });
   }
