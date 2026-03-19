@@ -121,3 +121,9 @@ export {
   decodeValidatorStorageLocationsAccount,
 } from './core/validator-announce-query.js';
 export { decodeCrossCollateralStateAccount } from './accounts/cross-collateral-token.js';
+
+// Cross-collateral instruction builders
+export {
+  getCrossCollateralInitInstruction,
+  getSetCrossCollateralRoutersInstruction,
+} from './instructions/cross-collateral-token.js';
