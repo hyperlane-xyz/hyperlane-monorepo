@@ -95,7 +95,7 @@ describe('LinearFeeInputConfigSchema', () => {
     const result = LinearFeeInputConfigSchema.safeParse(config);
     expect(result.success).to.be.true;
     if (result.success) {
-      expect(result.data.bps).to.equal(100n);
+      expect(result.data.bps).to.equal(100);
     }
   });
 
@@ -112,7 +112,7 @@ describe('LinearFeeInputConfigSchema', () => {
     expect(result.success).to.be.true;
     if (result.success) {
       expect(result.data.bps).to.exist;
-      expect(result.data.bps).to.be.a('bigint');
+      expect(result.data.bps).to.be.a('number');
     }
   });
 });
