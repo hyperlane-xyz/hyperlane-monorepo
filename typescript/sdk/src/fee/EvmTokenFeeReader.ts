@@ -103,6 +103,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       CROSS_COLLATERAL_ROUTING_FEE_ABI,
       this.provider,
     );
+    // CAST: ethers Contract with human-readable ABI returns `any`; the ABI guarantees `address`
     const owner = (await ccrf.owner()) as Address;
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
@@ -110,6 +111,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     if (routingDestinations) {
       await Promise.all(
         routingDestinations.map(async (destination) => {
+          // CAST: ethers Contract with human-readable ABI returns `any`; the ABI guarantees `address`
           const subFeeAddress = (await ccrf.feeContracts(
             destination,
             DEFAULT_ROUTER_KEY,

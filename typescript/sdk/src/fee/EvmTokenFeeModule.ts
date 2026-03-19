@@ -262,10 +262,12 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
     const routingDestinations = params?.routingDestinations;
+    const token = params?.token;
 
     return this.reader.deriveTokenFeeConfig({
-      address: address,
+      address,
       routingDestinations,
+      token,
     });
   }
 
@@ -310,10 +312,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       effectiveParams = { ...params, routingDestinations };
     }
 
-    const actualConfig = await this.read({
-      ...effectiveParams,
-      token: (this.args.config as TokenFeeConfig).token,
-    });
+    const actualConfig = await this.read(effectiveParams);
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
@@ -435,6 +434,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         );
         const subFeeUpdateTransactions = await subFeeModule.update(config, {
           address,
+          token: config.token,
         });
         deployedSubFee = subFeeModule.serialize().deployedFee;
 
