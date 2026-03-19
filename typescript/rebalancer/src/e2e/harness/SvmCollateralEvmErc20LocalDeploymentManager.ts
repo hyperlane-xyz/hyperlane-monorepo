@@ -299,6 +299,14 @@ export class SvmCollateralEvmErc20LocalDeploymentManager {
 
       await this.mintSplToSigner(splMint, inventorySignerAddress);
 
+      // Airdrop SOL to inventory signer so it can pay transaction fees
+      const connection = svmManager.getConnection();
+      const airdropSig = await connection.requestAirdrop(
+        svmInventorySigner.publicKey,
+        1_000_000_000,
+      );
+      await connection.confirmTransaction(airdropSig, 'confirmed');
+
       this.runSplTokenCli([
         'create-account',
         splMint,
