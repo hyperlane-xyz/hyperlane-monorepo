@@ -12,9 +12,9 @@ import {
   PackageVersioned__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   ProtocolType,
@@ -445,23 +445,27 @@ abstract class TokenDeployer<
         for (const [domainId, destinationConfig] of Object.entries(
           resolvedConfigs,
         )) {
-          this.logger.info(
-            `Setting deposit-address bridge destination config on ${chain}`,
-            {
-              destination: domainId,
-              depositAddress: destinationConfig.depositAddress,
-              recipient: destinationConfig.recipient,
-            },
-          );
-          await this.multiProvider.handleTx(
-            chain,
-            tokenBridge.setDestinationConfig(
-              Number(domainId),
-              destinationConfig.depositAddress,
-              destinationConfig.recipient,
-              BigNumber.from(destinationConfig.feeBps ?? 0),
-            ),
-          );
+          for (const [recipient, recipientConfig] of Object.entries(
+            destinationConfig,
+          )) {
+            this.logger.info(
+              `Setting deposit-address bridge destination config on ${chain}`,
+              {
+                destination: domainId,
+                depositAddress: recipientConfig.depositAddress,
+                recipient,
+              },
+            );
+            await this.multiProvider.handleTx(
+              chain,
+              tokenBridge.setDestinationConfig(
+                Number(domainId),
+                recipientConfig.depositAddress,
+                recipient,
+                BigNumber.from(recipientConfig.feeBps ?? 0),
+              ),
+            );
+          }
         }
       }),
     );

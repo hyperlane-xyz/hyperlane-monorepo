@@ -137,9 +137,10 @@ describe('TokenDeployer', async () => {
         token: erc20.address,
         destinationConfigs: {
           [TestChainName.test2]: {
-            depositAddress,
-            recipient,
-            feeBps: '1000',
+            [recipient]: {
+              depositAddress,
+              feeBps: '1000',
+            },
           },
         },
       },
@@ -156,9 +157,10 @@ describe('TokenDeployer', async () => {
     expect(derivedConfig.token).to.equal(erc20.address);
     expect(derivedConfig.destinationConfigs).to.deep.equal({
       [multiProvider.getDomainId(TestChainName.test2).toString()]: {
-        depositAddress,
-        recipient: recipient.toLowerCase(),
-        feeBps: '1000',
+        [recipient.toLowerCase()]: {
+          depositAddress,
+          feeBps: '1000',
+        },
       },
     });
   });

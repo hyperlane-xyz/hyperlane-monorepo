@@ -20,8 +20,8 @@ import {
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
 } from '@hyperlane-xyz/core';
-import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 
 import { DeployableTokenType, TokenType } from './config.js';
 

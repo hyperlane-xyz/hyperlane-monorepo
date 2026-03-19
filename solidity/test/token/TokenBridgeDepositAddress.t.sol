@@ -3,9 +3,9 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import {TokenBridgeDepositAddress, DestinationConfig} from "../contracts/TokenBridgeDepositAddress.sol";
-import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
-import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
+import {TokenBridgeDepositAddress, DestinationConfig} from "../../contracts/token/bridge/TokenBridgeDepositAddress.sol";
+import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 
 contract TokenBridgeDepositAddressTest is Test {
     uint32 internal constant DOMAIN_ETH = 1;
@@ -53,9 +53,8 @@ contract TokenBridgeDepositAddressTest is Test {
         emit TokenBridgeDepositAddress.DestinationConfigured(DOMAIN_ETH, newDepositAddress, newRecipient, 700);
         bridge.setDestinationConfig(DOMAIN_ETH, newDepositAddress, newRecipient, 700);
 
-        DestinationConfig memory config = bridge.getDestinationConfig(DOMAIN_ETH);
+        DestinationConfig memory config = bridge.getDestinationConfig(DOMAIN_ETH, newRecipient);
         assertEq(config.depositAddress, newDepositAddress);
-        assertEq(config.recipient, newRecipient);
         assertEq(config.feeBps, 700);
     }
 
@@ -79,16 +78,16 @@ contract TokenBridgeDepositAddressTest is Test {
         assertEq(quotes[0].amount, 105e6);
     }
 
-    function test_quoteTransferRemote_revertsOnUnexpectedRecipient() public {
+    function test_quoteTransferRemote_revertsOnMissingRecipient() public {
+        bytes32 wrongRecipient = bytes32(uint256(uint160(makeAddr("wrongRecipient"))));
         vm.expectRevert(
             abi.encodeWithSelector(
-                TokenBridgeDepositAddress.UnexpectedRecipient.selector,
+                TokenBridgeDepositAddress.RecipientNotConfigured.selector,
                 DOMAIN_ARB,
-                recipient,
-                bytes32(uint256(uint160(makeAddr("wrongRecipient"))))
+                wrongRecipient
             )
         );
-        bridge.quoteTransferRemote(DOMAIN_ARB, bytes32(uint256(uint160(makeAddr("wrongRecipient")))), 100e6);
+        bridge.quoteTransferRemote(DOMAIN_ARB, wrongRecipient, 100e6);
     }
 
     function test_transferRemote() public {
@@ -138,18 +137,24 @@ contract TokenBridgeDepositAddressTest is Test {
 
     function test_removeDestinationConfig() public {
         vm.prank(owner);
-        vm.expectEmit(true, false, false, true);
-        emit TokenBridgeDepositAddress.DestinationRemoved(DOMAIN_ARB);
-        bridge.removeDestinationConfig(DOMAIN_ARB);
+        vm.expectEmit(true, true, false, true);
+        emit TokenBridgeDepositAddress.DestinationRemoved(DOMAIN_ARB, recipient);
+        bridge.removeDestinationConfig(DOMAIN_ARB, recipient);
 
-        vm.expectRevert(abi.encodeWithSelector(TokenBridgeDepositAddress.DestinationNotConfigured.selector, DOMAIN_ARB));
-        bridge.getDestinationConfig(DOMAIN_ARB);
+        vm.expectRevert(
+            abi.encodeWithSelector(TokenBridgeDepositAddress.DestinationNotConfigured.selector, DOMAIN_ARB)
+        );
+        bridge.getDestinationConfig(DOMAIN_ARB, recipient);
     }
 
     function test_getDomainConfigs() public {
         vm.prank(owner);
         bridge.setDestinationConfig(
             DOMAIN_ETH, makeAddr("deposit2"), bytes32(uint256(uint160(makeAddr("recipient2")))), 110
+        );
+        vm.prank(owner);
+        bridge.setDestinationConfig(
+            DOMAIN_ARB, makeAddr("deposit3"), bytes32(uint256(uint160(makeAddr("recipient3")))), 210
         );
 
         (
@@ -159,9 +164,28 @@ contract TokenBridgeDepositAddressTest is Test {
             uint256[] memory feeBpsValues
         ) = bridge.getDomainConfigs();
 
-        assertEq(domains.length, 2);
-        assertEq(depositAddresses.length, 2);
-        assertEq(recipients.length, 2);
-        assertEq(feeBpsValues.length, 2);
+        assertEq(domains.length, 3);
+        assertEq(depositAddresses.length, 3);
+        assertEq(recipients.length, 3);
+        assertEq(feeBpsValues.length, 3);
+    }
+
+    function test_allowsMultipleRecipientsPerDomain() public {
+        bytes32 recipientTwo = bytes32(uint256(uint160(makeAddr("recipient2"))));
+        address depositAddressTwo = makeAddr("deposit2");
+
+        vm.prank(owner);
+        bridge.setDestinationConfig(DOMAIN_ARB, depositAddressTwo, recipientTwo, 250);
+
+        DestinationConfig memory configOne = bridge.getDestinationConfig(DOMAIN_ARB, recipient);
+        DestinationConfig memory configTwo = bridge.getDestinationConfig(DOMAIN_ARB, recipientTwo);
+
+        assertEq(configOne.depositAddress, depositAddress);
+        assertEq(configOne.feeBps, FEE_BPS);
+        assertEq(configTwo.depositAddress, depositAddressTwo);
+        assertEq(configTwo.feeBps, 250);
+
+        Quote[] memory quotes = bridge.quoteTransferRemote(DOMAIN_ARB, recipientTwo, 100e6);
+        assertEq(quotes[0].amount, 102_500_000);
     }
 }

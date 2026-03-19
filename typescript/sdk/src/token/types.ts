@@ -226,11 +226,10 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
-export const DepositAddressDestinationConfigSchema = z.object({
+export const DepositAddressRecipientConfigSchema = z.object({
   depositAddress: z
     .string()
     .refine(isAddressEvm, 'depositAddress must be a valid EVM address'),
-  recipient: ZHash.describe('Expected destination recipient as bytes32'),
   feeBps: z
     .string()
     .or(z.number())
@@ -240,6 +239,14 @@ export const DepositAddressDestinationConfigSchema = z.object({
     })
     .describe('Bridge fee in basis points for this destination'),
 });
+export type DepositAddressRecipientConfig = z.infer<
+  typeof DepositAddressRecipientConfigSchema
+>;
+
+export const DepositAddressDestinationConfigSchema = z.record(
+  ZHash.describe('Expected destination recipient as bytes32'),
+  DepositAddressRecipientConfigSchema,
+);
 export type DepositAddressDestinationConfig = z.infer<
   typeof DepositAddressDestinationConfigSchema
 >;

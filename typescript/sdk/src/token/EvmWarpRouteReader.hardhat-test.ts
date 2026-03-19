@@ -26,11 +26,11 @@ import {
   PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
+  TokenBridgeDepositAddress__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -1047,9 +1047,10 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.token).to.equal(tokenAddress);
       expect(derivedConfig.destinationConfigs).to.deep.equal({
         '101': {
-          depositAddress,
-          recipient,
-          feeBps: '1234',
+          [recipient.toLowerCase()]: {
+            depositAddress,
+            feeBps: '1234',
+          },
         },
       });
     } finally {

@@ -24,9 +24,9 @@ import {
   ProxyAdmin__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
-import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
@@ -864,9 +864,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const destinationConfigs: DepositAddressTokenConfig['destinationConfigs'] =
       {};
     for (let i = 0; i < domains.length; i++) {
-      destinationConfigs[domains[i].toString()] = {
+      const domain = domains[i].toString();
+      const recipient = recipients[i].toLowerCase();
+      destinationConfigs[domain] ??= {};
+      destinationConfigs[domain][recipient] = {
         depositAddress: depositAddresses[i],
-        recipient: recipients[i],
         feeBps: feeBpsValues[i].toString(),
       };
     }

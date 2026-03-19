@@ -66,9 +66,10 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         mailbox: SOME_ADDRESS,
         destinationConfigs: {
           ethereum: {
-            depositAddress: SOME_ADDRESS,
-            recipient: ethers.utils.hexZeroPad(SOME_ADDRESS, 32),
-            feeBps: '1000',
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '1000',
+            },
           },
         },
       },
@@ -86,8 +87,9 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         mailbox: SOME_ADDRESS,
         destinationConfigs: {
           ethereum: {
-            depositAddress: '0x1234',
-            recipient: ethers.utils.hexZeroPad(SOME_ADDRESS, 32),
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: '0x1234',
+            },
           },
         },
       },
@@ -105,9 +107,10 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         mailbox: SOME_ADDRESS,
         destinationConfigs: {
           ethereum: {
-            depositAddress: SOME_ADDRESS,
-            recipient: ethers.utils.hexZeroPad(SOME_ADDRESS, 32),
-            feeBps: '10001',
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '10001',
+            },
           },
         },
       },
