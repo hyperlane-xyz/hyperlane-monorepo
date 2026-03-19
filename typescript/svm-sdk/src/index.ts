@@ -96,6 +96,8 @@ export {
   deriveValidatorAnnouncePda,
   deriveValidatorStorageLocationsPda,
   deriveReplayProtectionPda,
+  deriveCrossCollateralStatePda,
+  deriveCrossCollateralDispatchAuthorityPda,
 } from './pda.js';
 
 // Account decoders
