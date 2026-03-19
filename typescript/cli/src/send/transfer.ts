@@ -407,7 +407,11 @@ async function executeDelivery({
   );
   logBlue(`Message ID: ${messageId}`);
   logBlue(`Explorer Link: ${EXPLORER_URL}/message/${messageId}`);
-  if (transferReceipt.type === ProviderType.EthersV5 && evmTransferReceipt) {
+  if (
+    (transferReceipt.type === ProviderType.EthersV5 ||
+      transferReceipt.type === ProviderType.Tron) &&
+    evmTransferReceipt
+  ) {
     const messageIndex: number = 0;
     const message =
       HyperlaneCore.getDispatchedMessages(evmTransferReceipt)[messageIndex];
