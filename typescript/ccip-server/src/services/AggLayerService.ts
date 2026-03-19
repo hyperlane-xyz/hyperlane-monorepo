@@ -104,6 +104,7 @@ class AggLayerService extends BaseService {
         AGGLAYER_SERVICE_FACTORY as any,
         'getAggLayerClaimMetadata',
         this.getAggLayerClaimMetadata.bind(this),
+        { skipResultEncoding: true },
       ),
     );
     this.router.post(
@@ -112,6 +113,7 @@ class AggLayerService extends BaseService {
         AGGLAYER_SERVICE_FACTORY as any,
         'getAggLayerClaimMetadata',
         this.getAggLayerClaimMetadata.bind(this),
+        { skipResultEncoding: true },
       ),
     );
   }
@@ -233,12 +235,12 @@ class AggLayerService extends BaseService {
     }
 
     assert(events.length > 0, 'Unable to find AggLayer BridgeEvent in logs');
-    const match =
-      events.find(
-        (event) =>
-          event.destinationAddress.toLowerCase() === recipient.toLowerCase() &&
-          event.amount === amount,
-      ) ?? events[0];
+    const match = events.find(
+      (event) =>
+        event.destinationAddress.toLowerCase() === recipient.toLowerCase() &&
+        event.amount === amount,
+    );
+    assert(match, 'Unable to find matching AggLayer BridgeEvent in logs');
 
     logger.info({ match }, 'Selected AggLayer bridge event');
     return match;

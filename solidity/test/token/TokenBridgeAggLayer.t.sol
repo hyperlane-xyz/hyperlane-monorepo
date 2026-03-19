@@ -17,7 +17,7 @@ import {IAggLayerBridge} from "../../contracts/token/interfaces/IAggLayerBridge.
 import {IVaultBridgeToken} from "../../contracts/token/interfaces/IVaultBridgeToken.sol";
 
 contract MockAgglayerBridge is IAggLayerBridge {
-    uint32 public constant NETWORK_ID = 20;
+    uint32 public immutable NETWORK_ID;
 
     uint32 public lastDestinationNetwork;
     address public lastDestinationAddress;
@@ -34,7 +34,11 @@ contract MockAgglayerBridge is IAggLayerBridge {
     uint256 public lastClaimAmount;
     bytes public lastClaimMetadata;
 
-    function networkID() external pure returns (uint32) {
+    constructor(uint32 _networkId) {
+        NETWORK_ID = _networkId;
+    }
+
+    function networkID() external view returns (uint32) {
         return NETWORK_ID;
     }
 
@@ -140,7 +144,8 @@ contract TokenBridgeAggLayerTest is Test {
 
     MockMailbox internal ethMailbox;
     MockMailbox internal katanaMailbox;
-    MockAgglayerBridge internal agglayerBridge;
+    MockAgglayerBridge internal ethAgglayerBridge;
+    MockAgglayerBridge internal katanaAgglayerBridge;
     ERC20Test internal usdc;
     ERC20Test internal vbUsdc;
     MockVaultBridgeToken internal vaultBridgeToken;
@@ -154,7 +159,8 @@ contract TokenBridgeAggLayerTest is Test {
         ethMailbox.addRemoteMailbox(KATANA_DOMAIN, katanaMailbox);
         katanaMailbox.addRemoteMailbox(ETH_DOMAIN, ethMailbox);
 
-        agglayerBridge = new MockAgglayerBridge();
+        ethAgglayerBridge = new MockAgglayerBridge(ETH_NETWORK);
+        katanaAgglayerBridge = new MockAgglayerBridge(KATANA_NETWORK);
         usdc = new ERC20Test("USD Coin", "USDC", 0, 6);
         vbUsdc = new ERC20Test("Vault Bridge USDC", "vbUSDC", 0, 6);
         vaultBridgeToken = new MockVaultBridgeToken(address(usdc));
@@ -162,13 +168,13 @@ contract TokenBridgeAggLayerTest is Test {
         ethRoute = _deployRoute(
             address(usdc),
             address(ethMailbox),
-            address(agglayerBridge),
+            address(ethAgglayerBridge),
             address(vaultBridgeToken)
         );
         katanaRoute = _deployRoute(
             address(vbUsdc),
             address(katanaMailbox),
-            address(agglayerBridge),
+            address(katanaAgglayerBridge),
             address(0)
         );
 
@@ -261,13 +267,16 @@ contract TokenBridgeAggLayerTest is Test {
             50e6
         );
 
-        assertEq(agglayerBridge.lastDestinationNetwork(), ETH_NETWORK);
-        assertEq(agglayerBridge.lastDestinationAddress(), address(ethRoute));
-        assertEq(agglayerBridge.lastAmount(), 50e6);
-        assertEq(agglayerBridge.lastToken(), address(vbUsdc));
-        assertEq(agglayerBridge.lastValue(), 0);
+        assertEq(katanaAgglayerBridge.lastDestinationNetwork(), ETH_NETWORK);
         assertEq(
-            abi.decode(agglayerBridge.lastPermitData(), (bytes32)),
+            katanaAgglayerBridge.lastDestinationAddress(),
+            address(ethRoute)
+        );
+        assertEq(katanaAgglayerBridge.lastAmount(), 50e6);
+        assertEq(katanaAgglayerBridge.lastToken(), address(vbUsdc));
+        assertEq(katanaAgglayerBridge.lastValue(), 0);
+        assertEq(
+            abi.decode(katanaAgglayerBridge.lastPermitData(), (bytes32)),
             keccak256(abi.encodePacked(BOB.addressToBytes32(), uint256(50e6)))
         );
     }
@@ -325,25 +334,19 @@ contract TokenBridgeAggLayerTest is Test {
 
         ethRoute.verify(metadata, message);
 
+        assertEq(ethAgglayerBridge.lastClaimOriginNetwork(), ETH_NETWORK);
         assertEq(
-            agglayerBridge.lastClaimOriginNetwork(),
-            agglayerBridge.NETWORK_ID()
-        );
-        assertEq(
-            agglayerBridge.lastClaimOriginToken(),
+            ethAgglayerBridge.lastClaimOriginToken(),
             address(vaultBridgeToken)
         );
+        assertEq(ethAgglayerBridge.lastClaimDestinationNetwork(), ETH_NETWORK);
         assertEq(
-            agglayerBridge.lastClaimDestinationNetwork(),
-            agglayerBridge.NETWORK_ID()
-        );
-        assertEq(
-            agglayerBridge.lastClaimDestinationAddress(),
+            ethAgglayerBridge.lastClaimDestinationAddress(),
             address(ethRoute)
         );
-        assertEq(agglayerBridge.lastClaimAmount(), 100e6);
+        assertEq(ethAgglayerBridge.lastClaimAmount(), 100e6);
         assertEq(
-            keccak256(agglayerBridge.lastClaimMetadata()),
+            keccak256(ethAgglayerBridge.lastClaimMetadata()),
             keccak256(abi.encode(keccak256(tokenMessage)))
         );
     }

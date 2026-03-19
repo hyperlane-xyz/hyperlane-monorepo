@@ -158,14 +158,14 @@ describe('Offchain Lookup ISM Integration', () => {
     expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
   });
 
-  it('unwraps ABI-encoded bytes returned by the offchain lookup server', async () => {
+  it('passes through raw bytes returned by the offchain lookup server', async () => {
     const innerMetadata =
       '0x0000000000000000000000000000000000000000000000000000000000000001';
     fetchStub.restore();
     fetchStub = sinon.stub(global, 'fetch').resolves({
       ok: true,
       json: async () => ({
-        data: ethers.utils.defaultAbiCoder.encode(['bytes'], [innerMetadata]),
+        data: innerMetadata,
       }),
     } as Response);
 

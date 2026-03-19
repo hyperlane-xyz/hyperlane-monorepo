@@ -49,17 +49,6 @@ function extractRevertData(error: unknown): string | undefined {
   return undefined;
 }
 
-function decodeServerMetadata(data: string): string {
-  const normalized = ensure0x(data);
-
-  try {
-    const [decoded] = utils.defaultAbiCoder.decode(['bytes'], normalized);
-    return ensure0x(decoded);
-  } catch {
-    return normalized;
-  }
-}
-
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
@@ -155,7 +144,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
         if (res.ok) {
           return {
             ...baseResult,
-            metadata: decodeServerMetadata(responseJson.data),
+            metadata: ensure0x(responseJson.data),
           };
         }
       } catch (error) {
