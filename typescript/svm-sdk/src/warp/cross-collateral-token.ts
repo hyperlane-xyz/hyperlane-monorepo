@@ -16,7 +16,12 @@ import {
   type DeployedWarpAddress,
   type RawCrossCollateralWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  isNullish,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { decodeCrossCollateralStateAccount } from '../accounts/cross-collateral-token.js';
 import { getMintDecimals, fetchMintMetadata } from '../accounts/mint.js';
@@ -53,6 +58,7 @@ import {
   assertLocalDecimals,
   buildBaseInitData,
   buildFundAtaPayerInstruction,
+  computeWarpTokenUpdateInstructions,
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
 } from './warp-tx.js';
@@ -207,7 +213,10 @@ export async function buildCrossCollateralRouterUnenrollTxs(
       for (const routerHex of routerSet) {
         updates.push({
           kind: 'remove',
-          config: { domain: parseInt(domain), router: routerHexToBytes(routerHex) },
+          config: {
+            domain: parseInt(domain),
+            router: routerHexToBytes(routerHex),
+          },
         });
       }
     }
@@ -371,11 +380,82 @@ export class SvmCrossCollateralTokenWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<
+    artifact: ArtifactDeployed<
       RawCrossCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
-    throw new Error('Cross-collateral token update not yet implemented');
+    const programId = parseAddress(artifact.deployed.address);
+    const current = await this.read(programId);
+
+    assert(
+      !isZeroishAddress(current.config.owner),
+      `Cannot update cross-collateral token ${programId}: token has no owner`,
+    );
+
+    const ownerAddress = parseAddress(current.config.owner);
+
+    // Diff CC routers
+    const currentCCRouters = current.config.crossCollateralRouters ?? {};
+    const expectedCCRouters = artifact.config.crossCollateralRouters ?? {};
+
+    const toUnenroll: Record<number, Set<string>> = {};
+    for (const [domainStr, currentSet] of Object.entries(currentCCRouters)) {
+      const domain = parseInt(domainStr);
+      const expectedSet = expectedCCRouters[domain] ?? new Set();
+      for (const router of currentSet) {
+        if (!expectedSet.has(router)) {
+          (toUnenroll[domain] ??= new Set()).add(router);
+        }
+      }
+    }
+
+    const toEnroll: Record<number, Set<string>> = {};
+    for (const [domainStr, expectedSet] of Object.entries(expectedCCRouters)) {
+      const domain = parseInt(domainStr);
+      const currentSet = currentCCRouters[domain] ?? new Set();
+      for (const router of expectedSet) {
+        if (!currentSet.has(router)) {
+          (toEnroll[domain] ??= new Set()).add(router);
+        }
+      }
+    }
+
+    // CC router updates first (need current owner before any ownership transfer)
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    if (Object.keys(toUnenroll).length > 0) {
+      txs.push(
+        ...(await buildCrossCollateralRouterUnenrollTxs(
+          programId,
+          ownerAddress,
+          toUnenroll,
+        )),
+      );
+    }
+
+    if (Object.keys(toEnroll).length > 0) {
+      txs.push(
+        ...(await buildCrossCollateralRouterEnrollTxs(
+          programId,
+          ownerAddress,
+          toEnroll,
+        )),
+      );
+    }
+
+    // Base warp token updates (ownership/upgrade auth always last)
+    txs.push(
+      ...(await computeWarpTokenUpdateInstructions(
+        current.config,
+        artifact.config,
+        programId,
+        ownerAddress,
+        this.rpc,
+        `cross-collateral token ${programId}`,
+      )),
+    );
+
+    return txs;
   }
 }
