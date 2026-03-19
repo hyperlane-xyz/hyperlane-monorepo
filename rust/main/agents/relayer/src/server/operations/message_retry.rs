@@ -103,6 +103,8 @@ mod tests {
         http::{header::CONTENT_TYPE, Method, Request, Response, StatusCode},
     };
     use hyperlane_core::{HyperlaneMessage, QueueOperation};
+
+    use crate::settings::matching_list::MatchingListExt;
     use serde_json::json;
     use tokio::sync::broadcast::{Receiver, Sender};
     use tower::ServiceExt;

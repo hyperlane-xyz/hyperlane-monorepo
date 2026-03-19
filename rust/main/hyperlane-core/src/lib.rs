@@ -32,6 +32,10 @@ pub mod config;
 /// Prometheus metrics traits / utilities
 pub mod metrics;
 
+/// Matching list for message filtering
+#[cfg(feature = "matching-list")]
+pub mod matching_list;
+
 /// Core hyperlane system data structures
 mod types;
 

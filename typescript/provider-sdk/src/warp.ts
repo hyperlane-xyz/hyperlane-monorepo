@@ -17,6 +17,7 @@ import {
   type HookArtifactConfig,
   type HookConfig,
   hookArtifactToDerivedConfig,
+  hookConfigToArtifact,
 } from './hook.js';
 import {
   type DeployedIsmAddress,
@@ -24,6 +25,7 @@ import {
   type IsmArtifactConfig,
   type IsmConfig,
   ismArtifactToDerivedConfig,
+  ismConfigToArtifact,
 } from './ism.js';
 
 export type TokenRouterModuleType = {
@@ -50,6 +52,7 @@ export interface BaseWarpConfig {
   hook?: HookConfig | string;
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
+  scale?: number;
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
@@ -62,6 +65,7 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
@@ -80,6 +84,7 @@ export interface BaseDerivedWarpConfig {
   hook: DerivedHookConfig | string;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
+  scale?: number;
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
@@ -95,6 +100,7 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  metadataUri?: string;
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
@@ -131,6 +137,7 @@ interface BaseWarpArtifactConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  scale?: number;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -143,6 +150,7 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   name: string;
   symbol: string;
   decimals: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -226,6 +234,12 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
    * @returns The artifact configuration and deployment data
    */
   readWarpToken(address: string): Promise<DeployedRawWarpArtifact>;
+
+  /**
+   * Whether this protocol supports attaching hook configs to warp tokens.
+   * Protocols that don't implement setTokenHook should return false.
+   */
+  supportsHookUpdates(): boolean;
 }
 
 // Warp Config Utilities
@@ -239,18 +253,49 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
  *
  * @param config The warp configuration using Config API format
  * @param chainLookup Chain lookup interface for resolving chain names to domain IDs
- * @param ismArtifact Optional ISM artifact if ISM is configured
- * @param hookArtifact Optional hook artifact if hook is configured
  * @param logger Logger for warnings
  * @returns Artifact wrapper around WarpArtifactConfig suitable for artifact writers
  */
 export function warpConfigToArtifact(
   config: WarpConfig,
   chainLookup: ChainLookup,
-  ismArtifact?: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
-  hookArtifact?: Artifact<HookArtifactConfig, DeployedHookAddress>,
   logger?: Logger,
 ): ArtifactNew<WarpArtifactConfig> {
+  // Convert ISM config to artifact if present
+  let ismArtifact: Artifact<IsmArtifactConfig, DeployedIsmAddress> | undefined;
+  if (config.interchainSecurityModule) {
+    if (typeof config.interchainSecurityModule === 'string') {
+      // Address reference - create UNDERIVED artifact
+      ismArtifact = {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: config.interchainSecurityModule },
+      };
+    } else {
+      // ISM config - convert using ismConfigToArtifact
+      ismArtifact = ismConfigToArtifact(
+        config.interchainSecurityModule,
+        chainLookup,
+      );
+    }
+  }
+
+  // Convert Hook config to artifact if present
+  let hookArtifact:
+    | Artifact<HookArtifactConfig, DeployedHookAddress>
+    | undefined;
+  if (config.hook) {
+    if (typeof config.hook === 'string') {
+      // Address reference - create UNDERIVED artifact
+      hookArtifact = {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: config.hook },
+      };
+    } else {
+      // Hook config - convert using hookConfigToArtifact
+      hookArtifact = hookConfigToArtifact(config.hook, chainLookup);
+    }
+  }
+
   // Convert remoteRouters from chain names to domain IDs
   const remoteRouters: Record<number, { address: string }> = {};
   if (config.remoteRouters) {
@@ -283,20 +328,6 @@ export function warpConfigToArtifact(
     }
   }
 
-  if (!isNullish(config.interchainSecurityModule)) {
-    assert(
-      !isNullish(ismArtifact),
-      'Expected ISM artifact when interchainSecurityModule is configured',
-    );
-  }
-
-  if (!isNullish(config.hook)) {
-    assert(
-      !isNullish(hookArtifact),
-      'Expected hook artifact when hook is configured',
-    );
-  }
-
   const baseArtifactConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -304,6 +335,7 @@ export function warpConfigToArtifact(
     hook: hookArtifact,
     remoteRouters,
     destinationGas,
+    scale: config.scale,
   };
 
   switch (config.type) {
@@ -337,6 +369,7 @@ export function warpConfigToArtifact(
           name: config.name,
           symbol: config.symbol,
           decimals: config.decimals,
+          metadataUri: config.metadataUri,
         },
       };
 
@@ -405,7 +438,7 @@ export function warpArtifactToDerivedConfig(
   );
   let ismConfig: DerivedWarpConfig['interchainSecurityModule'];
   if (isNullish(config.interchainSecurityModule)) {
-    ismConfig = '';
+    ismConfig = '0x0000000000000000000000000000000000000000';
   } else if (isArtifactDeployed(config.interchainSecurityModule)) {
     ismConfig = ismArtifactToDerivedConfig(
       config.interchainSecurityModule,
@@ -422,7 +455,7 @@ export function warpArtifactToDerivedConfig(
   );
   let hookConfig: DerivedWarpConfig['hook'];
   if (isNullish(config.hook)) {
-    hookConfig = '';
+    hookConfig = '0x0000000000000000000000000000000000000000';
   } else if (isArtifactDeployed(config.hook)) {
     hookConfig = hookArtifactToDerivedConfig(config.hook, chainLookup);
   } else {
@@ -439,6 +472,7 @@ export function warpArtifactToDerivedConfig(
     name: config.name,
     symbol: config.symbol,
     decimals: config.decimals,
+    scale: config.scale,
   };
 
   switch (config.type) {
@@ -453,6 +487,7 @@ export function warpArtifactToDerivedConfig(
       return {
         ...baseDerivedConfig,
         type: TokenType.synthetic,
+        metadataUri: config.metadataUri,
       };
 
     case 'native':

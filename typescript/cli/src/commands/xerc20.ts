@@ -295,8 +295,8 @@ function filterConfigByChain(
     config,
     (
       chainName,
-      chainConfig,
-    ): chainConfig is WarpRouteDeployConfigMailboxRequired[string] =>
+      _chainConfig,
+    ): _chainConfig is WarpRouteDeployConfigMailboxRequired[string] =>
       chains.includes(chainName),
   );
 }

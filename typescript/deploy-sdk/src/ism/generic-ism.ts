@@ -7,16 +7,15 @@ import {
   ArtifactDeployed,
   ArtifactReader,
   isArtifactDeployed,
-  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddress,
   DeployedIsmArtifact,
   DerivedIsmConfig,
-  DomainRoutingIsmConfig,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  ismArtifactToDerivedConfig,
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -46,53 +45,6 @@ export function createIsmReader(
     protocolProvider.createIsmArtifactManager(chainMetadata);
 
   return new IsmReader(artifactManager, chainLookup);
-}
-
-/**
- * Converts a DeployedIsmArtifact to DerivedIsmConfig format.
- * This handles the conversion between the new Artifact API and the old Config API.
- */
-function artifactToDerivedConfig(
-  artifact: DeployedIsmArtifact,
-  chainLookup: ChainLookup,
-): DerivedIsmConfig {
-  const config = artifact.config;
-  const address = artifact.deployed.address;
-
-  // For routing ISMs, recursively convert nested artifacts
-  if (config.type === AltVM.IsmType.ROUTING) {
-    const domains: DomainRoutingIsmConfig['domains'] = {};
-    for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
-      // Convert numeric domain ID to chain name for the config output
-      const chainName = chainLookup.getChainName(parseInt(domainId));
-      if (!chainName) {
-        // Skip unknown domains (already warned during expand)
-        continue;
-      }
-
-      if (isArtifactUnderived(nestedArtifact)) {
-        domains[chainName] = nestedArtifact.deployed.address;
-      } else if (isArtifactDeployed(nestedArtifact)) {
-        domains[chainName] = artifactToDerivedConfig(
-          nestedArtifact,
-          chainLookup,
-        );
-      }
-      // Note: ArtifactState.NEW should never occur in expanded routing configs
-    }
-    return {
-      type: 'domainRoutingIsm',
-      owner: config.owner,
-      domains,
-      address,
-    } satisfies Extract<DerivedIsmConfig, DomainRoutingIsmConfig>;
-  }
-
-  // For other ISM types, just add the address
-  return {
-    ...config,
-    address,
-  };
 }
 
 /**
@@ -180,6 +132,6 @@ export class IsmReader implements ArtifactReader<
    */
   async deriveIsmConfig(address: string): Promise<DerivedIsmConfig> {
     const artifact = await this.read(address);
-    return artifactToDerivedConfig(artifact, this.chainLookup);
+    return ismArtifactToDerivedConfig(artifact, this.chainLookup);
   }
 }

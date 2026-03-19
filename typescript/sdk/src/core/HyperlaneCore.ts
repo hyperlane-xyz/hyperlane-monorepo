@@ -207,16 +207,31 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
-          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+          let dispatched: DispatchedMessage;
+          try {
+            dispatched = HyperlaneCore.parseDispatchedMessage(message);
 
-          // add human readable chain names
-          dispatched.parsed.originChain = this.getOrigin(dispatched);
-          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+            // add human readable chain names
+            dispatched.parsed.originChain = this.getOrigin(dispatched);
+            dispatched.parsed.destinationChain =
+              this.getDestination(dispatched);
+          } catch (err: unknown) {
+            this.logger.error(
+              `Failed to parse dispatched message on ${originChain}`,
+              err instanceof Error ? err.message : String(err),
+            );
+            return;
+          }
 
           this.logger.info(
             `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
           );
-          return handler(dispatched, event);
+          return handler(dispatched, event).catch((err: unknown) => {
+            this.logger.error(
+              `Error in dispatch handler on ${originChain}`,
+              err instanceof Error ? err.message : String(err),
+            );
+          });
         },
       );
     });
@@ -466,7 +481,10 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         this.multiProvider.tryGetChainName(parsed.origin) ?? undefined;
       const destinationChain =
         this.multiProvider.tryGetChainName(parsed.destination) ?? undefined;
-      return { parsed: { ...parsed, originChain, destinationChain }, ...other };
+      return {
+        parsed: { ...parsed, originChain, destinationChain },
+        ...other,
+      };
     });
   }
 

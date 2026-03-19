@@ -11,6 +11,7 @@ import { TestStorage } from '@hyperlane-xyz/core/tron/typechain/contracts/test/T
 import { TestStorage__factory } from '@hyperlane-xyz/core/tron/typechain/factories/contracts/test/TestStorage__factory.js';
 
 import { TronContractFactory } from './TronContractFactory.js';
+import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
 import { TronWallet } from './TronWallet.js';
 
 const TEST_CHAIN: TronTestChainMetadata = {
@@ -34,6 +35,9 @@ describe('TronWallet Integration Tests', function () {
   });
 
   after(async () => {
+    if (wallet?.provider instanceof TronJsonRpcProvider) {
+      wallet.provider.removeAllListeners();
+    }
     if (node) {
       await stopTronNode(node);
     }

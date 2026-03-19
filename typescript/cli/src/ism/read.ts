@@ -5,11 +5,7 @@ import {
   EvmIsmReader,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import {
-  type Address,
-  ProtocolType,
-  stringifyObject,
-} from '@hyperlane-xyz/utils';
+import { type Address, isEVMLike, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
@@ -33,7 +29,7 @@ export async function readIsmConfig({
   let stringConfig: string;
 
   const protocol = context.multiProvider.getProtocol(chain);
-  if (protocol === ProtocolType.Ethereum) {
+  if (isEVMLike(protocol)) {
     const ismReader = new EvmIsmReader(context.multiProvider, chain);
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);

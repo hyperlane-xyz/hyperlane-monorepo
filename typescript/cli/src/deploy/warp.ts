@@ -4,10 +4,12 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMJsonRpcSubmitter,
-  AltVMWarpModule,
+  createWarpTokenWriter,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { warpConfigToArtifact } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -27,6 +29,7 @@ import {
   type MultisigIsmConfig,
   type OpStackIsmConfig,
   type PausableIsmConfig,
+  type HypTokenRouterConfig,
   type RoutingIsmConfig,
   type SubmissionStrategy,
   type TokenMetadataMap,
@@ -36,8 +39,10 @@ import {
   type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
+  type WarpRouteDeployConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  TokenStandard,
   altVmChainLookup,
   enrollCrossChainRouters,
   executeWarpDeploy,
@@ -47,13 +52,17 @@ import {
   getSubmitterBuilder,
   getTokenConnectionId,
   isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isXERC20TokenConfig,
+  normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
+  addressToBytes32,
   assert,
+  isEVMLike,
   mapAllSettled,
   mustGet,
   objFilter,
@@ -149,8 +158,7 @@ export async function runWarpRouteDeploy({
   // Some of the below functions throw if passed non-EVM or non-supported chains
   const deploymentChains = chains.filter(
     (chain) =>
-      chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      !!altVmSigners[chain],
+      isEVMLike(chainMetadata[chain].protocol) || !!altVmSigners[chain],
   );
 
   await runPreflightChecksForChains({
@@ -178,11 +186,11 @@ export async function runWarpRouteDeploy({
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
   const enrollChains = Object.keys(enrollTxs);
-  const evmChains = enrollChains.filter(
-    (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmChains = enrollChains.filter((chain) =>
+    isEVMLike(multiProvider.getProtocol(chain)),
   );
   const nonEvmChains = enrollChains.filter(
-    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
   );
 
   const enrollFailures: string[] = [];
@@ -266,6 +274,10 @@ export async function runWarpRouteDeploy({
   }
 
   await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
+  await context.registry.addWarpRouteConfig(
+    warpDeployConfig,
+    warpRouteIdOptions,
+  );
 
   await completeDeploy(
     context,
@@ -327,7 +339,6 @@ async function writeDeploymentArtifacts(
 ) {
   log('Writing deployment artifacts...');
   await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
-
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
@@ -385,11 +396,17 @@ function generateTokenConfigs(
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
-      isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
-        ? config.token // gets set in the above deriveTokenMetadata()
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isCrossCollateralTokenConfig(config)
+        ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 
     const protocol = multiProvider.getProtocol(chainName);
+
+    if (protocol === ProtocolType.Unknown) {
+      continue;
+    }
 
     warpCoreConfig.tokens.push({
       chainName,
@@ -456,7 +473,7 @@ export async function runWarpRouteApply(
   const intermediateOwnerConfig = await promiseObjAll(
     objMap(params.warpDeployConfig, async (chain, config) => {
       const protocolType = multiProvider.getProtocol(chain);
-      if (protocolType === ProtocolType.Ethereum) {
+      if (isEVMLike(protocolType)) {
         return {
           ...config,
           owner: await context.multiProvider.getSignerAddress(chain),
@@ -618,13 +635,11 @@ export async function extendWarpRoute(
   // Non-EVM chains must run sequentially because when the same private key
   // is used across multiple chains, parallel tx submission causes sequence
   // number conflicts
-  const evmExtendChains = filteredExtendedChains.filter(
-    (chain) =>
-      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmExtendChains = filteredExtendedChains.filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
   );
   const nonEvmExtendChains = filteredExtendedChains.filter(
-    (chain) =>
-      context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(context.multiProvider.getProtocol(chain)),
   );
 
   let newDeployedContracts: ChainMap<Address> = {};
@@ -698,14 +713,17 @@ export async function extendWarpRoute(
     };
   }
 
+  const warpRouteOptions = params.warpRouteId
+    ? { warpRouteId: params.warpRouteId }
+    : addWarpRouteOptions;
+
   // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
-    params.warpRouteId
-      ? { warpRouteId: params.warpRouteId }
-      : addWarpRouteOptions,
+    warpRouteOptions,
   );
+  await context.registry.addWarpRouteConfig(warpDeployConfig, warpRouteOptions);
 
   // Throw after persisting successes so user can re-run for failures
   if (allRejected.size > 0) {
@@ -754,7 +772,7 @@ async function updateExistingWarpRoute(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
         const protocolType = multiProvider.getProtocol(chain);
-        if (protocolType !== ProtocolType.Ethereum && !altVmSigners[chain]) {
+        if (!isEVMLike(protocolType) && !altVmSigners[chain]) {
           logBlue(`Skipping non-compatible chain ${chain}`);
           return;
         }
@@ -767,6 +785,7 @@ async function updateExistingWarpRoute(
         };
 
         switch (protocolType) {
+          case ProtocolType.Tron:
           case ProtocolType.Ethereum: {
             const evmERC20WarpModule = new EvmWarpModule(
               multiProvider,
@@ -795,19 +814,22 @@ async function updateExistingWarpRoute(
               chain,
             );
 
-            const warpModule = new AltVMWarpModule(
-              altVmChainLookup(multiProvider),
+            const chainLookup = altVmChainLookup(multiProvider);
+            const chainMetadata = chainLookup.getChainMetadata(chain);
+            const writer = createWarpTokenWriter(
+              chainMetadata,
+              chainLookup,
               signer,
-              {
-                config: validatedConfig,
-                chain,
-                addresses: {
-                  deployedTokenRoute,
-                },
-              },
             );
+            const artifact = warpConfigToArtifact(validatedConfig, chainLookup);
 
-            const transactions = await warpModule.update(validatedConfig);
+            const artifactToUpdate = {
+              artifactState: ArtifactState.DEPLOYED,
+              config: artifact.config,
+              deployed: { address: deployedTokenRoute },
+            };
+
+            const transactions = await writer.update(artifactToUpdate);
             updateTransactions[chain] = transactions;
             break;
           }
@@ -1036,7 +1058,7 @@ async function submitChainTransactions(
         ...(transactions as any[]),
       );
 
-      if (protocol !== ProtocolType.Ethereum) {
+      if (!isEVMLike(protocol)) {
         return;
       }
 
@@ -1100,13 +1122,11 @@ async function submitWarpApplyTransactions(
   // sequence number conflicts (both txs query sequence N, one succeeds with N,
   // the other fails expecting N+1)
   const chains = Object.keys(updateTransactions);
-  const evmChains = chains.filter(
-    (chain) =>
-      params.context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const evmChains = chains.filter((chain) =>
+    isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
   const nonEvmChains = chains.filter(
-    (chain) =>
-      params.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(params.context.multiProvider.getProtocol(chain)),
   );
 
   const failures: string[] = [];
@@ -1202,6 +1222,11 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const protocol = multiProvider.getProtocol(chain);
 
   const additionalSubmitterFactories: any = {
+    [ProtocolType.Tron]: {
+      file: (_multiProvider: MultiProvider, metadata: any) => {
+        return new EV5FileSubmitter(metadata);
+      },
+    },
     [ProtocolType.Ethereum]: {
       file: (_multiProvider: MultiProvider, metadata: any) => {
         return new EV5FileSubmitter(metadata);
@@ -1210,7 +1235,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   };
 
   // Only add non-Ethereum protocol factories if we have an alt VM signer
-  if (protocol !== ProtocolType.Ethereum) {
+  if (!isEVMLike(protocol)) {
     const signer = mustGet(altVmSigners, chain);
     additionalSubmitterFactories[protocol] = {
       jsonRpc: () => {
@@ -1236,4 +1261,226 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     }),
     config: submissionStrategy,
   };
+}
+
+type CombineRouteConfig = {
+  id: string;
+  coreConfig: WarpCoreConfig;
+  deployConfig: WarpRouteDeployConfig;
+};
+
+type CanonicalWholeTokenRatio = {
+  numerator: bigint;
+  denominator: bigint;
+};
+
+function formatScaleForLogs(
+  scale: WarpCoreConfig['tokens'][number]['scale'],
+): string {
+  if (!scale) return '1';
+  const normalizedScale = normalizeScale(scale);
+  if (normalizedScale.denominator === 1n) {
+    return normalizedScale.numerator.toString();
+  }
+  return `${normalizedScale.numerator}/${normalizedScale.denominator}`;
+}
+
+function getCanonicalWholeTokenRatio(
+  token: WarpCoreConfig['tokens'][number],
+): CanonicalWholeTokenRatio {
+  const normalizedScale = normalizeScale(token.scale);
+  const oneTokenBaseUnits = 10n ** BigInt(token.decimals);
+  return {
+    numerator: oneTokenBaseUnits * normalizedScale.numerator,
+    denominator: normalizedScale.denominator,
+  };
+}
+
+function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
+  for (const route of routes) {
+    const invalidDeployChains = Object.entries(route.deployConfig)
+      .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
+      .map(([chain]) => chain);
+    assert(
+      invalidDeployChains.length === 0,
+      `Route "${route.id}" contains non-CrossCollateralRouter deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
+    );
+
+    const invalidCoreTokens = route.coreConfig.tokens.filter(
+      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
+    );
+    assert(
+      invalidCoreTokens.length === 0,
+      `Route "${route.id}" contains non-CrossCollateralRouter warp config token(s): ${invalidCoreTokens
+        .map((token) => `${token.chainName}:${token.addressOrDenom}`)
+        .join(', ')}`,
+    );
+  }
+
+  const tokensByChain = new Map<
+    string,
+    Array<{ routeId: string; token: WarpCoreConfig['tokens'][number] }>
+  >();
+  for (const route of routes) {
+    for (const token of route.coreConfig.tokens) {
+      const chainTokens = tokensByChain.get(token.chainName) ?? [];
+      chainTokens.push({ routeId: route.id, token });
+      tokensByChain.set(token.chainName, chainTokens);
+    }
+  }
+
+  for (const [chainName, chainTokens] of tokensByChain.entries()) {
+    if (chainTokens.length <= 1) continue;
+
+    const [base, ...rest] = chainTokens;
+    const baseRatio = getCanonicalWholeTokenRatio(base.token);
+
+    for (const candidate of rest) {
+      const candidateRatio = getCanonicalWholeTokenRatio(candidate.token);
+      const isCompatible =
+        baseRatio.numerator * candidateRatio.denominator ===
+        candidateRatio.numerator * baseRatio.denominator;
+
+      assert(
+        isCompatible,
+        `Incompatible decimals/scale on chain "${chainName}" between route "${base.routeId}" (${base.token.symbol}, decimals=${base.token.decimals}, scale=${formatScaleForLogs(base.token.scale)}) and route "${candidate.routeId}" (${candidate.token.symbol}, decimals=${candidate.token.decimals}, scale=${formatScaleForLogs(candidate.token.scale)}).`,
+      );
+    }
+  }
+}
+
+/**
+ * Combines multiple warp routes into a single merged WarpCoreConfig and updates
+ * each route's deploy config with cross-route crossCollateralRouters.
+ */
+export async function runWarpRouteCombine({
+  context,
+  routeIds,
+  outputWarpRouteId,
+}: {
+  context: WriteCommandContext;
+  routeIds: string[];
+  outputWarpRouteId: string;
+}): Promise<void> {
+  assert(routeIds.length >= 2, 'At least 2 route IDs are required to combine');
+  assert(
+    routeIds.every((id) => id.length > 0),
+    'Route IDs must be non-empty strings',
+  );
+  assert(
+    new Set(routeIds).size === routeIds.length,
+    'Duplicate route IDs are not allowed',
+  );
+
+  // 1. Read each route's WarpCoreConfig and deploy config
+  const routes: CombineRouteConfig[] = [];
+
+  for (const id of routeIds) {
+    const coreConfig = await context.registry.getWarpRoute(id);
+    assert(coreConfig, `Warp route "${id}" not found in registry`);
+    const deployConfigRaw = await context.registry.getWarpDeployConfig(id);
+    const deployConfig = WarpRouteDeployConfigSchema.parse(deployConfigRaw);
+    routes.push({
+      id,
+      coreConfig,
+      deployConfig,
+    });
+  }
+
+  assertCombineRoutesAreValid(routes);
+
+  // 2. For each route, update crossCollateralRouters with routers from other routes
+  for (const route of routes) {
+    for (const [chain, chainConfig] of Object.entries(
+      route.deployConfig,
+    ) as Array<[string, HypTokenRouterConfig]>) {
+      if (!isCrossCollateralTokenConfig(chainConfig)) continue;
+
+      const crossCollateralRouters: Record<string, Set<string>> = {};
+
+      // Look at all OTHER routes
+      for (const otherRoute of routes) {
+        if (otherRoute.id === route.id) continue;
+
+        // For each token in the other route, add its router to this route's crossCollateralRouters
+        for (const otherToken of otherRoute.coreConfig.tokens) {
+          const otherDomain = context.multiProvider
+            .getDomainId(otherToken.chainName)
+            .toString();
+          assert(
+            otherToken.addressOrDenom,
+            `CrossCollateralRouter token missing addressOrDenom on ${otherToken.chainName}`,
+          );
+          const otherRouter = addressToBytes32(otherToken.addressOrDenom);
+
+          crossCollateralRouters[otherDomain] ??= new Set();
+          crossCollateralRouters[otherDomain].add(otherRouter);
+        }
+      }
+
+      const reconciledEnrolledRouters = Object.fromEntries(
+        Object.entries(crossCollateralRouters).map(([domain, routers]) => [
+          domain,
+          [...routers],
+        ]),
+      );
+
+      const routersRemovedByCombine = Object.entries(
+        chainConfig.crossCollateralRouters ?? {},
+      ).reduce((acc, [domain, routers]) => {
+        const enrolledAfterCombine = new Set(
+          reconciledEnrolledRouters[domain] ?? [],
+        );
+        return (
+          acc +
+          routers.filter((router) => !enrolledAfterCombine.has(router)).length
+        );
+      }, 0);
+
+      if (routersRemovedByCombine > 0) {
+        warnYellow(
+          `Combining route "${route.id}" on chain "${chain}" will remove ${routersRemovedByCombine} enrolled router(s) not present in --routes. They will be unenrolled on next "warp apply".`,
+        );
+      }
+
+      chainConfig.crossCollateralRouters =
+        Object.keys(reconciledEnrolledRouters).length > 0
+          ? reconciledEnrolledRouters
+          : undefined;
+    }
+
+    // Write updated deploy config back
+    await context.registry.addWarpRouteConfig(route.deployConfig, {
+      warpRouteId: route.id,
+    });
+    log(`Updated deploy config for route "${route.id}"`);
+  }
+
+  // 3. Create merged WarpCoreConfig with all tokens
+  const mergedConfig: WarpCoreConfig = { tokens: [] };
+  const seenTokens = new Set<string>();
+
+  for (const route of routes) {
+    for (const token of route.coreConfig.tokens) {
+      const key = `${token.chainName}:${token.addressOrDenom}`;
+      assert(
+        !seenTokens.has(key),
+        `Duplicate token ${key} across input routes`,
+      );
+      seenTokens.add(key);
+      mergedConfig.tokens.push({ ...token, connections: [] });
+    }
+  }
+
+  // Full mesh connections (every token → every other token)
+  fullyConnectTokens(mergedConfig, context.multiProvider);
+
+  // 4. Write merged WarpCoreConfig
+  const mergedId = outputWarpRouteId;
+  await context.registry.addWarpRoute(mergedConfig, { warpRouteId: mergedId });
+
+  logGreen(`✅ Combined ${routes.length} routes into "${mergedId}"`);
+  log(
+    `Run "warp apply" for each route to apply on-chain enrollment:\n${routes.map((r) => `  hyperlane warp apply --warp-route-id ${r.id}`).join('\n')}`,
+  );
 }

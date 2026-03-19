@@ -466,7 +466,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
-        alias: 'O-OPS',
+        alias: 'P-OPS Team',
       },
       {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
@@ -986,6 +986,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xea673a92a23ca319b9d85cc16b248645cd5158da',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  igra: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x485f0739639e46d3b06b1b92debe2ade56d8bfb1',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -2268,6 +2278,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  tronshasta: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x189ea37efb3764ab638cbaecbe764a8e814e7583',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

@@ -4,9 +4,9 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   assert,
   isAddress,
+  isEVMLike,
   isPrivateKeyEvm,
 } from '@hyperlane-xyz/utils';
 
@@ -70,8 +70,8 @@ export async function createStrategyConfig({
     assert(isConfirmed, 'Strategy initialization cancelled by user.');
   }
 
-  const isEthereum = chainProtocol === ProtocolType.Ethereum;
-  const submitterType = isEthereum
+  const isEvm = isEVMLike(chainProtocol);
+  const submitterType = isEvm
     ? await select({
         message: 'Select the submitter type',
         choices: Object.values(TxSubmitterType).map((value) => ({
@@ -87,10 +87,10 @@ export async function createStrategyConfig({
     case TxSubmitterType.JSON_RPC:
       submitter.privateKey = await password({
         message: 'Enter the private key for JSON-RPC submission:',
-        validate: (pk) => (isEthereum ? isPrivateKeyEvm(pk) : true),
+        validate: (pk) => (isEvm ? isPrivateKeyEvm(pk) : true),
       });
 
-      submitter.userAddress = isEthereum
+      submitter.userAddress = isEvm
         ? await new Wallet(submitter.privateKey).getAddress()
         : await input({
             message: 'Enter the user address for JSON-RPC submission:',

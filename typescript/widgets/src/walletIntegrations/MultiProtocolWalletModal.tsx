@@ -82,9 +82,18 @@ export function MultiProtocolWalletModal({
           <ProtocolButton
             protocol={ProtocolType.Aleo}
             onClick={onClickProtocol}
-            subTitle="an Aleo"
+            subTitle="a Aleo"
           >
             Aleo
+          </ProtocolButton>
+        )}
+        {includesProtocol(ProtocolType.Tron) && (
+          <ProtocolButton
+            protocol={ProtocolType.Tron}
+            onClick={onClickProtocol}
+            subTitle="a Tron"
+          >
+            Tron
           </ProtocolButton>
         )}
       </div>

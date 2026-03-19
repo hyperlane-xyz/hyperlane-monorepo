@@ -16,10 +16,10 @@ type RawCosmosModuleMessageRegistry<T> = {
   };
 };
 
-type CoreCosmosModuleMesageRegistry = RawCosmosModuleMessageRegistry<
+type CoreCosmosModuleMessageRegistry = RawCosmosModuleMessageRegistry<
   typeof types.coreTx
 >;
-type IsmCosmosModuleMessafeRegistry = RawCosmosModuleMessageRegistry<
+type IsmCosmosModuleMessageRegistry = RawCosmosModuleMessageRegistry<
   typeof types.isTx
 >;
 type PostDispatchCosmosModuleMessageRegistry = RawCosmosModuleMessageRegistry<
@@ -28,8 +28,8 @@ type PostDispatchCosmosModuleMessageRegistry = RawCosmosModuleMessageRegistry<
 type WarpTransactionCosmosModuleMessageRegistry =
   RawCosmosModuleMessageRegistry<typeof types.warpTx>;
 
-type CosmosModuleMessageRegistry = CoreCosmosModuleMesageRegistry &
-  IsmCosmosModuleMessafeRegistry &
+type CosmosModuleMessageRegistry = CoreCosmosModuleMessageRegistry &
+  IsmCosmosModuleMessageRegistry &
   PostDispatchCosmosModuleMessageRegistry &
   WarpTransactionCosmosModuleMessageRegistry;
 

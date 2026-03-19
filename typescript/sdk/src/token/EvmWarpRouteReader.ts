@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
@@ -22,6 +23,7 @@ import {
   Ownable__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
+  TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
@@ -71,6 +73,7 @@ import {
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
   MovableTokenConfig,
+  OftTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
   OwnerStatus,
@@ -78,12 +81,20 @@ import {
   XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+
+// version that introduced the fractional scale interface
 const SCALE_FRACTION_VERSION = '11.0.0';
+
+// version that introduced the legacy scale interface
+// https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%406.0.0
+const SCALE_VERSION = '6.0.0';
+
 // Version that first introduced ppm precision for CCTP V2 fee storage (was bps before)
 export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
 // Version that renamed maxFeeBps() to maxFeePpm() on-chain
@@ -144,6 +155,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.collateralOft]:
+        this.deriveHypCollateralOftTokenConfig.bind(this),
+      [TokenType.crossCollateral]:
+        this.deriveCrossCollateralTokenConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -169,13 +184,43 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const routerConfig = await this.readRouterConfig(warpRouteAddress);
+
+    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
+    const isOft = type === TokenType.collateralOft;
+    const routerConfig = isOft
+      ? {
+          owner: await Ownable__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).owner(),
+        }
+      : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
+    // OFT contracts don't have destination gas config
+    // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
+    // fetchDestinationGas also reads gas for MC-only enrolled domains.
+    let destinationGas: Record<string, string> | undefined;
+    if (isOft) {
+      destinationGas = undefined;
+    } else {
+      const mcEnrolledDomains: number[] = [];
+      if (
+        isCrossCollateralTokenConfig(tokenConfig) &&
+        tokenConfig.crossCollateralRouters
+      ) {
+        for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
+          mcEnrolledDomains.push(Number(domain));
+        }
+      }
+      destinationGas = await this.fetchDestinationGas(
+        warpRouteAddress,
+        mcEnrolledDomains,
+      );
+    }
 
     const hasRebalancingInterface =
       compareVersions(
@@ -240,7 +285,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
-    if (type === TokenType.collateralCctp) {
+    if (
+      type === TokenType.collateralCctp &&
+      'interchainSecurityModule' in routerConfig
+    ) {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
@@ -427,6 +475,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
+      [TokenType.collateralOft]: {
+        factory: TokenBridgeOft__factory,
+        method: 'oft',
+      },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
         method: 'messageTransmitter',
@@ -521,6 +573,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             } catch (error) {
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+                error,
+              );
+            }
+
+            try {
+              const crossCollateralRouter =
+                CrossCollateralRouter__factory.connect(
+                  warpRouteAddress,
+                  this.provider,
+                );
+              await crossCollateralRouter.getCrossCollateralRouters(0);
+              return TokenType.crossCollateral;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
                 error,
               );
             }
@@ -826,6 +893,39 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     }
   }
 
+  private async deriveHypCollateralOftTokenConfig(
+    hypToken: Address,
+  ): Promise<OftTokenConfig> {
+    const tokenBridge = TokenBridgeOft__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [oft, token, extraOptions, domainMappingsRaw] = await Promise.all([
+      tokenBridge.oft(),
+      tokenBridge.token(),
+      tokenBridge.extraOptions(),
+      tokenBridge.getDomainMappings(),
+    ]);
+
+    const erc20Metadata = await this.fetchERC20Metadata(token);
+
+    const domainMappings: Record<string, number> = {};
+    const [domains, lzEids] = domainMappingsRaw;
+    for (let i = 0; i < domains.length; i++) {
+      domainMappings[domains[i].toString()] = lzEids[i];
+    }
+
+    return {
+      ...erc20Metadata,
+      type: TokenType.collateralOft,
+      token,
+      oft,
+      domainMappings,
+      extraOptions: extraOptions !== '0x' ? extraOptions : undefined,
+    };
+  }
+
   private async deriveHypCollateralTokenConfig(
     hypToken: Address,
   ): Promise<CollateralTokenConfig> {
@@ -1112,6 +1212,71 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     };
   }
 
+  /**
+   * Derives the configuration for a CrossCollateralRouter router.
+   */
+  private async deriveCrossCollateralTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+    const tokenRouter = TokenRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const [
+      collateralTokenAddress,
+      remoteDomains,
+      crossCollateralDomains,
+      localDomain,
+      scale,
+    ] = await Promise.all([
+      crossCollateralRouter.wrappedToken(),
+      tokenRouter.domains(),
+      crossCollateralRouter.getCrossCollateralDomains(),
+      crossCollateralRouter.localDomain(),
+      this.fetchScale(hypTokenAddress),
+    ]);
+
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
+
+    // Merge Router._routers domains, MC-enrolled domains, and localDomain
+    const allDomains = [
+      ...new Set([
+        ...remoteDomains.map(Number),
+        ...crossCollateralDomains.map(Number),
+        localDomain,
+      ]),
+    ];
+    const crossCollateralRouters: Record<string, string[]> = {};
+
+    await Promise.all(
+      allDomains.map(async (domain) => {
+        const routers =
+          await crossCollateralRouter.getCrossCollateralRouters(domain);
+        if (routers.length > 0) {
+          crossCollateralRouters[domain.toString()] = [...routers];
+        }
+      }),
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.crossCollateral,
+      token: collateralTokenAddress,
+      scale,
+      crossCollateralRouters:
+        Object.keys(crossCollateralRouters).length > 0
+          ? crossCollateralRouters
+          : undefined,
+    };
+  }
+
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
     const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
     const [name, symbol, decimals] = await Promise.all([
@@ -1137,6 +1302,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
     const hasScaleFractionInterface =
       compareVersions(packageVersion, SCALE_FRACTION_VERSION) >= 0;
+    const hasScaleInterface =
+      compareVersions(packageVersion, SCALE_VERSION) >= 0;
+
+    if (!hasScaleFractionInterface && !hasScaleInterface) {
+      return;
+    }
 
     const tokenRouter = TokenRouter__factory.connect(
       tokenRouterAddress,
@@ -1144,7 +1315,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     );
 
     let result: NormalizedScale;
-
     if (hasScaleFractionInterface) {
       // Read new format (scaleNumerator and scaleDenominator)
       const [numerator, denominator] = await Promise.all([
@@ -1221,6 +1391,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   async fetchDestinationGas(
     warpRouteAddress: Address,
+    additionalDomains: number[] = [],
   ): Promise<DestinationGas> {
     const warpRoute = TokenRouter__factory.connect(
       warpRouteAddress,
@@ -1231,12 +1402,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
      * @remark
      * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
      * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
+     * For CrossCollateralRouter contracts, additionalDomains includes domains that only
+     * have MC-enrolled routers (not in Router._routers), so their gas is also read.
      */
-    const domains = await warpRoute.domains();
+    const routerDomains = await warpRoute.domains();
+    const allDomains = [
+      ...new Set([...routerDomains.map(Number), ...additionalDomains]),
+    ];
 
     return Object.fromEntries(
       await Promise.all(
-        domains.map(async (domain) => {
+        allDomains.map(async (domain) => {
           return [domain, (await warpRoute.destinationGas(domain)).toString()];
         }),
       ),

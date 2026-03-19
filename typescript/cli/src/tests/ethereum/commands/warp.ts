@@ -28,6 +28,7 @@ import {
   TEMP_PATH,
   WARP_CORE_CONFIG_PATH_2,
   getCombinedWarpRoutePath,
+  getKeyFlags,
 } from '../consts.js';
 
 import {
@@ -59,7 +60,7 @@ export function hyperlaneWarpInitRaw({
   } ${localTestRunCmdPrefix()} hyperlane warp init \
         --registry ${REGISTRY_PATH} \
         ${warpCorePath ? ['--out', warpCorePath] : []} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${privateKey ? getKeyFlags(privateKey) : []} \
         ${advanced ? ['--advanced'] : []} \
         --verbosity debug \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
@@ -100,7 +101,7 @@ export function hyperlaneWarpDeployRaw({
         --registry ${REGISTRY_PATH} \
         ${warpDeployPath ? ['--config', warpDeployPath] : []} \
         ${warpCorePath ? ['--warp', warpCorePath] : []} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${privateKey ? getKeyFlags(privateKey) : []} \
         --verbosity debug \
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
@@ -159,7 +160,7 @@ export function hyperlaneWarpApplyRaw({
         ${warpCorePath ? ['--warp', warpCorePath] : []} \
         ${strategyUrl ? ['--strategy', strategyUrl] : []} \
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
-        --key ${ANVIL_KEY} \
+        ${getKeyFlags(ANVIL_KEY)} \
         --verbosity debug \
         ${relay ? ['--relay'] : []} \
         --yes`;
@@ -249,6 +250,9 @@ export function hyperlaneWarpSendRelay({
   value = 2,
   chains,
   roundTrip,
+  sourceToken,
+  destinationToken,
+  skipValidation,
 }: {
   origin?: string;
   destination?: string;
@@ -257,6 +261,9 @@ export function hyperlaneWarpSendRelay({
   value?: number | string;
   chains?: string[];
   roundTrip?: boolean;
+  sourceToken?: string;
+  destinationToken?: string;
+  skipValidation?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
@@ -264,12 +271,31 @@ export function hyperlaneWarpSendRelay({
         ${origin ? ['--origin', origin] : []} \
         ${destination ? ['--destination', destination] : []} \
         --warp ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        ${getKeyFlags(ANVIL_KEY)} \
         --verbosity debug \
         --yes \
         --amount ${value} \
         ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
-        ${roundTrip ? ['--round-trip'] : []} `;
+        ${roundTrip ? ['--round-trip'] : []} \
+        ${sourceToken ? ['--source-token', sourceToken] : []} \
+        ${destinationToken ? ['--destination-token', destinationToken] : []} \
+        ${skipValidation ? ['--skip-validation'] : []} `;
+}
+
+export function hyperlaneWarpCombine({
+  routes,
+  outputWarpRouteId,
+}: {
+  routes: string;
+  outputWarpRouteId: string;
+}): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp combine \
+        --registry ${REGISTRY_PATH} \
+        --routes ${routes} \
+        ${outputWarpRouteId ? ['--output-warp-route-id', outputWarpRouteId] : []} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
 }
 
 export function hyperlaneWarpRebalancer(
@@ -291,7 +317,7 @@ export function hyperlaneWarpRebalancer(
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
-        --key ${key ?? ANVIL_KEY} \
+        ${getKeyFlags(key ?? ANVIL_KEY)} \
         --verbosity debug \
         --withMetrics ${withMetrics ? ['true'] : ['false']} \
         --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
@@ -448,6 +474,10 @@ export function generateWarpConfigs(
     // No adapter has been implemented yet
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
+    // Collateral-only, can't pair with synthetics; tested separately
+    TokenType.crossCollateral,
+    // Requires a real OFT contract, can't be generated randomly
+    TokenType.collateralOft,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
   ]);
