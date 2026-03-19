@@ -145,7 +145,9 @@ describe('EvmTokenFeeDeployer', () => {
     ](1, addressToBytes32(signer.address), amount);
 
     expect(quote.length).to.equal(1);
-    expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
+    expect(quote[0].amount).to.be.equal(
+      (BigInt(amount) * BigInt(BPS)) / 10_000n,
+    );
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero
