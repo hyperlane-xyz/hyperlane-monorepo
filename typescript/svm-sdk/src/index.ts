@@ -128,5 +128,8 @@ export {
   getSetCrossCollateralRoutersInstruction,
 } from './instructions/cross-collateral-token.js';
 
-// Cross-collateral warp token reader
-export { SvmCrossCollateralTokenReader } from './warp/cross-collateral-token.js';
+// Cross-collateral warp token reader/writer
+export {
+  SvmCrossCollateralTokenReader,
+  SvmCrossCollateralTokenWriter,
+} from './warp/cross-collateral-token.js';
