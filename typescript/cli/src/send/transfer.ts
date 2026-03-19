@@ -494,6 +494,7 @@ async function executeDelivery({
               `On-chain delivery polling not supported for '${destination}' (${destinationProtocol}). ` +
                 `Track at ${EXPLORER_URL}/message/${messageId}`,
             );
+            return;
           } else {
             throw fallbackError;
           }
