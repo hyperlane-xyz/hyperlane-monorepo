@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
@@ -59,7 +62,34 @@ export abstract class BaseService {
       enableProxy: true,
     });
     const metadata = await registry.getMetadata();
+    BaseService.augmentMetadataFromRepoConfig(metadata);
     const multiProvider = new MultiProvider({ ...metadata });
     return multiProvider;
+  }
+
+  private static augmentMetadataFromRepoConfig(
+    metadata: Record<string, unknown>,
+  ): void {
+    const repoConfig = path.resolve(
+      process.cwd(),
+      '..',
+      '..',
+      'rust',
+      'main',
+      'config',
+      'mainnet_config.json',
+    );
+
+    if (!fs.existsSync(repoConfig)) return;
+
+    const parsed = JSON.parse(fs.readFileSync(repoConfig, 'utf8'));
+    const chains = parsed?.chains;
+    if (!chains || typeof chains !== 'object') return;
+
+    for (const [name, chainMetadata] of Object.entries(chains)) {
+      if (!metadata[name]) {
+        metadata[name] = chainMetadata;
+      }
+    }
   }
 }

@@ -10,6 +10,7 @@ import {TokenMessage} from "@hyperlane-xyz/core/token/libs/TokenMessage.sol";
 import {TokenRouter} from "@hyperlane-xyz/core/token/libs/TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {IAggLayerBridge} from "./interfaces/IAggLayerBridge.sol";
 import {IVaultBridgeToken} from "./interfaces/IVaultBridgeToken.sol";
@@ -21,6 +22,7 @@ interface AggLayerService {
 }
 
 contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
+    using Address for address payable;
     using Message for bytes;
     using SafeERC20 for IERC20;
     using TokenMessage for bytes;
@@ -171,12 +173,9 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         RemoteBridgeConfig memory cfg = _mustHaveRemoteConfig(_destination);
 
         address _feeToken = feeToken();
-        uint256 dispatchFee = _quoteGasPayment(
-            _destination,
-            _recipient,
-            _amount,
-            _feeToken
-        );
+        uint256 dispatchFee = redeemsOnHandle
+            ? 0
+            : _quoteGasPayment(_destination, _recipient, _amount, _feeToken);
 
         if (_feeToken == address(0)) {
             quotes = new Quote[](2);
@@ -199,6 +198,11 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         uint256 _amount
     ) public payable override returns (bytes32 messageId) {
         RemoteBridgeConfig memory cfg = _mustHaveRemoteConfig(_destination);
+
+        if (redeemsOnHandle) {
+            return
+                _transferRemoteDirect(_destination, _recipient, _amount, cfg);
+        }
 
         address _feeHook = feeHook();
         address _feeToken = feeToken();
@@ -244,6 +248,35 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _tokenMessage,
             _feeToken
         );
+    }
+
+    function _transferRemoteDirect(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        RemoteBridgeConfig memory _cfg
+    ) internal returns (bytes32) {
+        _transferFromSender(_amount);
+
+        if (msg.value < _cfg.nativeFee) {
+            revert InsufficientNativeFee(_cfg.nativeFee, msg.value);
+        }
+
+        vaultBridgeToken.depositAndBridge{value: _cfg.nativeFee}(
+            _amount,
+            _recipient.bytes32ToAddress(),
+            _cfg.agglayerNetworkId,
+            _cfg.forceUpdateGlobalExitRoot
+        );
+
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        uint256 refund = msg.value - _cfg.nativeFee;
+        if (refund > 0) {
+            payable(msg.sender).sendValue(refund);
+        }
+
+        return bytes32(0);
     }
 
     function verify(
@@ -319,6 +352,23 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         RemoteBridgeConfig memory _cfg,
         uint256 _amount
     ) internal {
+        if (redeemsOnHandle) {
+            agglayerBridge.claimAsset(
+                _claim.smtProofLocalExitRoot,
+                _claim.smtProofRollupExitRoot,
+                _claim.globalIndex,
+                _claim.mainnetExitRoot,
+                _claim.rollupExitRoot,
+                localAgglayerNetworkId,
+                address(vaultBridgeToken),
+                localAgglayerNetworkId,
+                address(this),
+                _amount,
+                _claim.metadata
+            );
+            return;
+        }
+
         agglayerBridge.claimAsset(
             _claim.smtProofLocalExitRoot,
             _claim.smtProofRollupExitRoot,

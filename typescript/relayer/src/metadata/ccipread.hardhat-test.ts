@@ -158,6 +158,44 @@ describe('Offchain Lookup ISM Integration', () => {
     expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
   });
 
+  it('unwraps ABI-encoded bytes returned by the offchain lookup server', async () => {
+    const innerMetadata =
+      '0x0000000000000000000000000000000000000000000000000000000000000001';
+    fetchStub.restore();
+    fetchStub = sinon.stub(global, 'fetch').resolves({
+      ok: true,
+      json: async () => ({
+        data: ethers.utils.defaultAbiCoder.encode(['bytes'], [innerMetadata]),
+      }),
+    } as Response);
+
+    const { dispatchTx, message } = await core.sendMessage(
+      'test1',
+      'test2',
+      testRecipient.address,
+      '0x1234',
+    );
+
+    const derivedIsm = await new EvmIsmReader(
+      multiProvider,
+      'test2',
+    ).deriveOffchainLookupConfig(ccipReadIsm.address);
+
+    const result = await metadataBuilder.build({
+      ism: derivedIsm,
+      message,
+      dispatchTx,
+      hook: {} as any,
+    });
+
+    expect(isMetadataBuildable(result)).to.be.true;
+    if (!isMetadataBuildable(result)) {
+      throw new Error('Metadata should be buildable');
+    }
+
+    expect(result.metadata).to.equal(innerMetadata);
+  });
+
   afterEach(() => {
     fetchStub.restore();
   });

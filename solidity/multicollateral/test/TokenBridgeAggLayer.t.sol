@@ -8,6 +8,8 @@ import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
 import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
 import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
 import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
+import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
+import {TestInterchainGasPaymaster} from "@hyperlane-xyz/core/test/TestInterchainGasPaymaster.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {TokenBridgeAggLayer} from "../contracts/TokenBridgeAggLayer.sol";
@@ -216,10 +218,10 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(quotes.length, 2);
         assertEq(quotes[1].token, address(usdc));
         assertEq(quotes[1].amount, 100e6);
-        assertGe(quotes[0].amount, 0.01 ether);
+        assertEq(quotes[0].amount, 0.01 ether);
     }
 
-    function test_transferRemote_primaryRouteDepositsAndBridgesToRemoteRoute()
+    function test_transferRemote_primaryRouteDepositsAndBridgesToRecipient()
         public
     {
         Quote[] memory quotes = ethRoute.quoteTransferRemote(
@@ -236,7 +238,7 @@ contract TokenBridgeAggLayerTest is Test {
         );
 
         assertEq(vaultBridgeToken.lastDepositAssets(), 100e6);
-        assertEq(vaultBridgeToken.lastDepositReceiver(), address(katanaRoute));
+        assertEq(vaultBridgeToken.lastDepositReceiver(), BOB);
         assertEq(
             vaultBridgeToken.lastDepositDestinationNetwork(),
             KATANA_NETWORK
@@ -266,11 +268,39 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(agglayerBridge.lastValue(), 0.005 ether);
     }
 
-    function test_verify_claimsAgglayerAssetForDestinationRoute() public {
-        bytes memory message = ethMailbox.buildMessage(
-            address(ethRoute),
-            KATANA_DOMAIN,
-            address(katanaRoute).addressToBytes32(),
+    function test_quoteTransferRemote_secondaryRouteIncludesConfigurableGas()
+        public
+    {
+        TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster();
+        GasRouter.GasRouterConfig[]
+            memory gasConfigs = new GasRouter.GasRouterConfig[](1);
+        gasConfigs[0] = GasRouter.GasRouterConfig({
+            domain: ETH_DOMAIN,
+            gas: 321_000
+        });
+
+        vm.startPrank(OWNER);
+        katanaRoute.setHook(address(igp));
+        katanaRoute.setDestinationGas(gasConfigs);
+        vm.stopPrank();
+
+        Quote[] memory quotes = katanaRoute.quoteTransferRemote(
+            ETH_DOMAIN,
+            BOB.addressToBytes32(),
+            50e6
+        );
+
+        assertEq(quotes.length, 2);
+        assertEq(quotes[0].token, address(0));
+        assertEq(quotes[0].amount, 0.005 ether + (321_000 * 10));
+        assertEq(quotes[1].amount, 50e6);
+    }
+
+    function test_verify_primaryRouteClaimsAgglayerAssetForRedemption() public {
+        bytes memory message = katanaMailbox.buildMessage(
+            address(katanaRoute),
+            ETH_DOMAIN,
+            address(ethRoute).addressToBytes32(),
             abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
         );
 
@@ -285,17 +315,23 @@ contract TokenBridgeAggLayerTest is Test {
             })
         );
 
-        katanaRoute.verify(metadata, message);
+        ethRoute.verify(metadata, message);
 
-        assertEq(agglayerBridge.lastClaimOriginNetwork(), ETH_NETWORK);
+        assertEq(
+            agglayerBridge.lastClaimOriginNetwork(),
+            agglayerBridge.NETWORK_ID()
+        );
         assertEq(
             agglayerBridge.lastClaimOriginToken(),
             address(vaultBridgeToken)
         );
-        assertEq(agglayerBridge.lastClaimDestinationNetwork(), KATANA_NETWORK);
+        assertEq(
+            agglayerBridge.lastClaimDestinationNetwork(),
+            agglayerBridge.NETWORK_ID()
+        );
         assertEq(
             agglayerBridge.lastClaimDestinationAddress(),
-            address(katanaRoute)
+            address(ethRoute)
         );
         assertEq(agglayerBridge.lastClaimAmount(), 100e6);
         assertEq(

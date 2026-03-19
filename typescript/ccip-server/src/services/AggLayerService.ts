@@ -40,6 +40,9 @@ const AGGLAYER_SERVICE_FACTORY = {
 const BRIDGE_EVENT_INTERFACE = new ethers.utils.Interface([
   'event BridgeEvent(uint8 leafType,uint32 originNetwork,address originAddress,uint32 destinationNetwork,address destinationAddress,uint256 amount,bytes metadata,uint32 depositCount)',
 ]);
+const AGGLAYER_ROUTE_INTERFACE = new ethers.utils.Interface([
+  'function remoteBridgeConfigs(uint32) view returns (uint32 agglayerNetworkId, address remoteToken, uint256 nativeFee, bool forceUpdateGlobalExitRoot)',
+]);
 
 const ZERO_HASH = ethers.constants.HashZero;
 const MAINNET_FLAG = 1n << 64n;
@@ -66,13 +69,6 @@ type ClaimProofResponse = {
     main_exit_root?: string;
     rollup_exit_root?: string;
   };
-};
-
-type L1InfoTreeIndexResponse = {
-  l1_info_tree_index?: number;
-  l1InfoTreeIndex?: number;
-  leaf_index?: number;
-  leafIndex?: number;
 };
 
 class AggLayerService extends BaseService {
@@ -142,15 +138,16 @@ class AggLayerService extends BaseService {
       parsedWarpMessage.amount,
       log,
     );
-    const leafIndex = await this.getL1InfoTreeIndex(
+    const sourceAggLayerNetworkId = await this.getSourceAggLayerNetworkId(
+      parsedMessage.destination,
+      recipient,
+      parsedMessage.origin,
       bridgeEvent.originNetwork,
-      bridgeEvent.depositCount,
       log,
     );
     const proof = await this.getClaimProof(
-      bridgeEvent.originNetwork,
+      sourceAggLayerNetworkId,
       bridgeEvent.depositCount,
-      leafIndex,
       log,
     );
 
@@ -171,7 +168,7 @@ class AggLayerService extends BaseService {
               proof.rollup_merkle_proof,
           ),
           globalIndex: this.computeGlobalIndex(
-            bridgeEvent.originNetwork,
+            sourceAggLayerNetworkId,
             bridgeEvent.depositCount,
           ),
           mainnetExitRoot:
@@ -182,6 +179,33 @@ class AggLayerService extends BaseService {
         },
       ],
     );
+  }
+
+  private async getSourceAggLayerNetworkId(
+    destinationDomain: number,
+    routeAddress: string,
+    originDomain: number,
+    fallbackNetworkId: number,
+    logger: Logger,
+  ): Promise<number> {
+    try {
+      const provider = this.multiProvider.getProvider(destinationDomain);
+      const route = new ethers.Contract(
+        routeAddress,
+        AGGLAYER_ROUTE_INTERFACE,
+        provider,
+      );
+      const remoteConfig = await route.remoteBridgeConfigs(originDomain);
+      const networkId = Number(remoteConfig.agglayerNetworkId.toString());
+      assert(networkId >= 0, 'Invalid AggLayer network id');
+      return networkId;
+    } catch (error) {
+      logger.warn(
+        { error, routeAddress, originDomain, fallbackNetworkId },
+        'Falling back to bridge event origin network id',
+      );
+      return fallbackNetworkId;
+    }
   }
 
   private getBridgeEventFromReceipt(
@@ -220,41 +244,35 @@ class AggLayerService extends BaseService {
     return match;
   }
 
-  private async getL1InfoTreeIndex(
-    networkId: number,
-    depositCount: number,
-    logger: Logger,
-  ): Promise<number> {
-    const response = await this.fetchJson<L1InfoTreeIndexResponse>(
-      'l1-info-tree-index',
-      {
-        network_id: networkId.toString(),
-        deposit_count: depositCount.toString(),
-      },
-      logger,
-    );
-    const leafIndex =
-      response.l1_info_tree_index ??
-      response.l1InfoTreeIndex ??
-      response.leaf_index ??
-      response.leafIndex;
-    assert(leafIndex !== undefined, 'Missing AggLayer leaf index');
-    return Number(leafIndex);
-  }
-
   private async getClaimProof(
     networkId: number,
     depositCount: number,
-    leafIndex: number,
     logger: Logger,
   ) {
     const response = await this.fetchJson<ClaimProofResponse>(
-      'claim-proof',
-      {
-        network_id: networkId.toString(),
-        deposit_count: depositCount.toString(),
-        leaf_index: leafIndex.toString(),
-      },
+      [
+        {
+          endpoint: 'bridge/v1/claim-proof',
+          params: {
+            network_id: networkId.toString(),
+            deposit_count: depositCount.toString(),
+          },
+        },
+        {
+          endpoint: 'merkle-proof',
+          params: {
+            net_id: networkId.toString(),
+            deposit_cnt: depositCount.toString(),
+          },
+        },
+        {
+          endpoint: 'v2/merkle-proof',
+          params: {
+            network_id: networkId.toString(),
+            deposit_count: depositCount.toString(),
+          },
+        },
+      ],
       logger,
     );
     assert(response.proof, 'Missing AggLayer claim proof');
@@ -262,20 +280,47 @@ class AggLayerService extends BaseService {
   }
 
   private async fetchJson<T>(
-    endpoint: string,
-    params: Record<string, string>,
+    requests:
+      | string
+      | Array<{ endpoint: string; params: Record<string, string> }>,
     logger: Logger,
+    params?: Record<string, string>,
   ): Promise<T> {
-    const url = new URL(`${this.bridgeServiceUrl}/bridge/v1/${endpoint}`);
-    Object.entries(params).forEach(([key, value]) =>
-      url.searchParams.set(key, value),
-    );
-    logger.info({ url: url.toString() }, 'Fetching AggLayer bridge service');
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`AggLayer bridge service failed: ${response.status}`);
+    const candidates =
+      typeof requests === 'string'
+        ? [{ endpoint: requests, params: params ?? {} }]
+        : requests;
+
+    let lastError: unknown;
+    for (const candidate of candidates) {
+      const url = new URL(
+        candidate.endpoint,
+        `${this.bridgeServiceUrl.replace(/\/$/, '')}/`,
+      );
+      Object.entries(candidate.params).forEach(([key, value]) =>
+        url.searchParams.set(key, value),
+      );
+      logger.info({ url: url.toString() }, 'Fetching AggLayer bridge service');
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(
+            `AggLayer bridge service failed: ${response.status} ${candidate.endpoint}`,
+          );
+        }
+        return response.json() as Promise<T>;
+      } catch (error) {
+        lastError = error;
+        logger.warn(
+          { error, endpoint: candidate.endpoint },
+          'AggLayer bridge service request failed',
+        );
+      }
     }
-    return response.json() as Promise<T>;
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('AggLayer bridge service failed');
   }
 
   private normalizeProof(proof: string[] | undefined): string[] {
