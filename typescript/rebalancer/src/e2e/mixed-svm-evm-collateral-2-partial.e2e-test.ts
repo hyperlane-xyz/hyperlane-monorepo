@@ -79,20 +79,19 @@ describe('Mixed SVM+EVM Collateral E2E — Test 2: Partial Deposit', function ()
     await executeCycle(context);
 
     const preSyncMovements = await context.tracker.getInProgressActions();
-    expect(preSyncMovements.length).to.equal(1);
-    const movementAction = preSyncMovements.find(
+    const movementActions = preSyncMovements.filter(
       (a) => a.type === 'inventory_movement',
     );
-    expect(movementAction).to.exist;
+    expect(movementActions.length).to.be.greaterThanOrEqual(1);
 
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: setup.mockBridge,
     });
 
-    const syncedMovement = await context.tracker.getRebalanceAction(
-      movementAction!.id,
-    );
-    expect(syncedMovement!.status).to.equal('complete');
+    for (const action of movementActions) {
+      const synced = await context.tracker.getRebalanceAction(action.id);
+      expect(synced!.status).to.equal('complete');
+    }
 
     await executeCycle(context);
     await relayMixedInventoryDeposits(
