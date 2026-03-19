@@ -7,7 +7,11 @@ import {
   ZHash,
 } from '../metadata/customZodTypes.js';
 
-import { MAX_BPS_DECIMALS, convertToBps } from './utils.js';
+import {
+  MAX_BPS_DECIMALS,
+  convertToBps,
+  isBpsPrecisionValid,
+} from './utils.js';
 
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
@@ -68,7 +72,7 @@ const StandardFeeConfigBaseSchema =
 
 export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBps.transform((val) => Number(val)),
+  bps: ZBps,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema> & {
   bps: number;
@@ -100,15 +104,12 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
       });
     }
 
-    if (hasBps) {
-      const factor = 10 ** MAX_BPS_DECIMALS;
-      if (Math.round(v.bps! * factor) !== v.bps! * factor) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['bps'],
-          message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
-        });
-      }
+    if (hasBps && !isBpsPrecisionValid(v.bps!)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
+      });
     }
 
     if (v.halfAmount === 0n) {
