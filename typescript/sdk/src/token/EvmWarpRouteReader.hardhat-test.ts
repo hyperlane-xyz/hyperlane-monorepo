@@ -705,7 +705,6 @@ describe('EvmWarpRouteReader', async () => {
         remoteBridgeConfigs: sinon.stub().resolves({
           agglayerNetworkId: 20,
           remoteToken: '0x5555555555555555555555555555555555555555',
-          nativeFee: { toString: () => '1234' },
           forceUpdateGlobalExitRoot: true,
         }),
       } as any);
@@ -733,7 +732,6 @@ describe('EvmWarpRouteReader', async () => {
         '747474': {
           agglayerNetworkId: 20,
           remoteToken: '0x5555555555555555555555555555555555555555',
-          nativeFee: '1234',
           forceUpdateGlobalExitRoot: true,
         },
       },

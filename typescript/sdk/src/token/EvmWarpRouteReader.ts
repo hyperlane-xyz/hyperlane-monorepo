@@ -916,7 +916,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             {
               agglayerNetworkId: Number(cfg.agglayerNetworkId),
               remoteToken: cfg.remoteToken,
-              nativeFee: cfg.nativeFee.toString(),
               forceUpdateGlobalExitRoot: cfg.forceUpdateGlobalExitRoot,
             },
           ];

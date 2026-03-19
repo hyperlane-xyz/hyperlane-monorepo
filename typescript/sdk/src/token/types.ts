@@ -59,7 +59,6 @@ export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 export const AggLayerRemoteBridgeConfigSchema = z.object({
   agglayerNetworkId: z.number().int().nonnegative(),
   remoteToken: ZHash,
-  nativeFee: z.coerce.bigint().nonnegative().optional(),
   forceUpdateGlobalExitRoot: z.boolean().optional(),
 });
 export type AggLayerRemoteBridgeConfig = z.infer<

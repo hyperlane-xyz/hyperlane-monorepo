@@ -32,7 +32,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     struct RemoteBridgeConfig {
         uint32 agglayerNetworkId;
         address remoteToken;
-        uint256 nativeFee;
         bool forceUpdateGlobalExitRoot;
     }
 
@@ -50,13 +49,13 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     error InvalidVaultBridgeToken(address vaultBridgeToken);
     error InvalidRemoteToken(uint32 domain);
     error RemoteConfigNotFound(uint32 domain);
-    error InsufficientNativeFee(uint256 required, uint256 supplied);
+    error UnsupportedHandle();
+    error UnsupportedVerify();
 
     event RemoteBridgeConfigSet(
         uint32 indexed domain,
         uint32 indexed agglayerNetworkId,
         address indexed remoteToken,
-        uint256 nativeFee,
         bool forceUpdateGlobalExitRoot
     );
     event RemoteBridgeConfigRemoved(uint32 indexed domain);
@@ -139,7 +138,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         uint32 _domain,
         uint32 _agglayerNetworkId,
         address _remoteToken,
-        uint256 _nativeFee,
         bool _forceUpdateGlobalExitRoot
     ) external onlyOwner {
         if (_remoteToken == address(0)) revert InvalidRemoteToken(_domain);
@@ -147,7 +145,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         remoteBridgeConfigs[_domain] = RemoteBridgeConfig({
             agglayerNetworkId: _agglayerNetworkId,
             remoteToken: _remoteToken,
-            nativeFee: _nativeFee,
             forceUpdateGlobalExitRoot: _forceUpdateGlobalExitRoot
         });
 
@@ -155,7 +152,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _domain,
             _agglayerNetworkId,
             _remoteToken,
-            _nativeFee,
             _forceUpdateGlobalExitRoot
         );
     }
@@ -170,7 +166,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
-        RemoteBridgeConfig memory cfg = _mustHaveRemoteConfig(_destination);
+        _mustHaveRemoteConfig(_destination);
 
         address _feeToken = feeToken();
         uint256 dispatchFee = redeemsOnHandle
@@ -179,16 +175,12 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
 
         if (_feeToken == address(0)) {
             quotes = new Quote[](2);
-            quotes[0] = Quote({
-                token: address(0),
-                amount: dispatchFee + cfg.nativeFee
-            });
+            quotes[0] = Quote({token: address(0), amount: dispatchFee});
             quotes[1] = Quote({token: token(), amount: _amount});
         } else {
-            quotes = new Quote[](3);
+            quotes = new Quote[](2);
             quotes[0] = Quote({token: _feeToken, amount: dispatchFee});
             quotes[1] = Quote({token: token(), amount: _amount});
-            quotes[2] = Quote({token: address(0), amount: cfg.nativeFee});
         }
     }
 
@@ -214,14 +206,10 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _feeHook
         );
 
-        if (remainingNativeValue < cfg.nativeFee) {
-            revert InsufficientNativeFee(cfg.nativeFee, remainingNativeValue);
-        }
-
         address remoteRouter = _mustHaveRemoteRouter(_destination)
             .bytes32ToAddress();
 
-        agglayerBridge.bridgeAsset{value: cfg.nativeFee}(
+        agglayerBridge.bridgeAsset(
             cfg.agglayerNetworkId,
             remoteRouter,
             _amount,
@@ -235,7 +223,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _destination,
             _recipient,
             _amount,
-            remainingNativeValue - cfg.nativeFee,
+            remainingNativeValue,
             _tokenMessage,
             _feeToken
         );
@@ -248,12 +236,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         RemoteBridgeConfig memory _cfg
     ) internal returns (bytes32) {
         _transferFromSender(_amount);
-
-        if (msg.value < _cfg.nativeFee) {
-            revert InsufficientNativeFee(_cfg.nativeFee, msg.value);
-        }
-
-        vaultBridgeToken.depositAndBridge{value: _cfg.nativeFee}(
+        vaultBridgeToken.depositAndBridge(
             _amount,
             _recipient.bytes32ToAddress(),
             _cfg.agglayerNetworkId,
@@ -262,9 +245,8 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
 
         emit SentTransferRemote(_destination, _recipient, _amount);
 
-        uint256 refund = msg.value - _cfg.nativeFee;
-        if (refund > 0) {
-            payable(msg.sender).sendValue(refund);
+        if (msg.value > 0) {
+            payable(msg.sender).sendValue(msg.value);
         }
 
         return bytes32(0);
@@ -274,15 +256,14 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
+        if (!redeemsOnHandle) revert UnsupportedVerify();
         bytes32 messageId = _message.id();
         if (isVerified[messageId]) {
             return true;
         }
 
         ClaimMetadata memory claim = abi.decode(_metadata, (ClaimMetadata));
-        uint32 origin = _message.origin();
-        RemoteBridgeConfig memory cfg = _mustHaveRemoteConfig(origin);
-        _claimBridgedAsset(claim, cfg, _message.body().amount());
+        _claimBridgedAsset(claim, _message.body().amount());
 
         isVerified[messageId] = true;
         return true;
@@ -314,20 +295,16 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         bytes32,
         bytes calldata _message
     ) internal override {
+        if (!redeemsOnHandle) revert UnsupportedHandle();
         bytes32 recipient = TokenMessage.recipient(_message);
         uint256 amount = TokenMessage.amount(_message);
 
         emit ReceivedTransferRemote(_origin, recipient, amount);
-
-        if (redeemsOnHandle) {
-            vaultBridgeToken.redeem(
-                amount,
-                recipient.bytes32ToAddress(),
-                address(this)
-            );
-        } else {
-            _transferTo(recipient.bytes32ToAddress(), amount);
-        }
+        vaultBridgeToken.redeem(
+            amount,
+            recipient.bytes32ToAddress(),
+            address(this)
+        );
     }
 
     function _mustHaveRemoteConfig(
@@ -340,34 +317,16 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
 
     function _claimBridgedAsset(
         ClaimMetadata memory _claim,
-        RemoteBridgeConfig memory _cfg,
         uint256 _amount
     ) internal {
-        if (redeemsOnHandle) {
-            agglayerBridge.claimAsset(
-                _claim.smtProofLocalExitRoot,
-                _claim.smtProofRollupExitRoot,
-                _claim.globalIndex,
-                _claim.mainnetExitRoot,
-                _claim.rollupExitRoot,
-                localAgglayerNetworkId,
-                address(vaultBridgeToken),
-                localAgglayerNetworkId,
-                address(this),
-                _amount,
-                _claim.metadata
-            );
-            return;
-        }
-
         agglayerBridge.claimAsset(
             _claim.smtProofLocalExitRoot,
             _claim.smtProofRollupExitRoot,
             _claim.globalIndex,
             _claim.mainnetExitRoot,
             _claim.rollupExitRoot,
-            _cfg.agglayerNetworkId,
-            _cfg.remoteToken,
+            localAgglayerNetworkId,
+            address(vaultBridgeToken),
             localAgglayerNetworkId,
             address(this),
             _amount,

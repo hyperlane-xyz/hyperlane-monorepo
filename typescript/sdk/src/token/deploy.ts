@@ -614,7 +614,6 @@ abstract class TokenDeployer<
               Number(domain),
               remoteConfig.agglayerNetworkId,
               remoteConfig.remoteToken,
-              remoteConfig.nativeFee ?? 0,
               remoteConfig.forceUpdateGlobalExitRoot ?? false,
             ),
           );

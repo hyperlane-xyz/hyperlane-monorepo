@@ -184,14 +184,12 @@ contract TokenBridgeAggLayerTest is Test {
             KATANA_DOMAIN,
             KATANA_NETWORK,
             address(vbUsdc),
-            0.01 ether,
             true
         );
         katanaRoute.setRemoteBridgeConfig(
             ETH_DOMAIN,
             ETH_NETWORK,
             address(vaultBridgeToken),
-            0.005 ether,
             false
         );
         vm.stopPrank();
@@ -218,7 +216,7 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(quotes.length, 2);
         assertEq(quotes[1].token, address(usdc));
         assertEq(quotes[1].amount, 100e6);
-        assertEq(quotes[0].amount, 0.01 ether);
+        assertEq(quotes[0].amount, 0);
     }
 
     function test_transferRemote_primaryRouteDepositsAndBridgesToRecipient()
@@ -243,7 +241,7 @@ contract TokenBridgeAggLayerTest is Test {
             vaultBridgeToken.lastDepositDestinationNetwork(),
             KATANA_NETWORK
         );
-        assertEq(vaultBridgeToken.lastDepositValue(), 0.01 ether);
+        assertEq(vaultBridgeToken.lastDepositValue(), 0);
         assertEq(usdc.balanceOf(address(ethRoute)), 100e6);
     }
 
@@ -265,7 +263,7 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(agglayerBridge.lastDestinationAddress(), address(ethRoute));
         assertEq(agglayerBridge.lastAmount(), 50e6);
         assertEq(agglayerBridge.lastToken(), address(vbUsdc));
-        assertEq(agglayerBridge.lastValue(), 0.005 ether);
+        assertEq(agglayerBridge.lastValue(), 0);
     }
 
     function test_quoteTransferRemote_secondaryRouteIncludesConfigurableGas()
@@ -292,7 +290,7 @@ contract TokenBridgeAggLayerTest is Test {
 
         assertEq(quotes.length, 2);
         assertEq(quotes[0].token, address(0));
-        assertEq(quotes[0].amount, 0.005 ether + (321_000 * 10));
+        assertEq(quotes[0].amount, 321_000 * 10);
         assertEq(quotes[1].amount, 50e6);
     }
 
@@ -340,26 +338,6 @@ contract TokenBridgeAggLayerTest is Test {
         );
     }
 
-    function test_handle_secondaryRouteTransfersClaimedTokenToRecipient()
-        public
-    {
-        vbUsdc.mintTo(address(katanaRoute), 100e6);
-
-        bytes memory messageBody = abi.encodePacked(
-            BOB.addressToBytes32(),
-            uint256(100e6)
-        );
-
-        vm.prank(address(katanaMailbox));
-        katanaRoute.handle(
-            ETH_DOMAIN,
-            address(ethRoute).addressToBytes32(),
-            messageBody
-        );
-
-        assertEq(vbUsdc.balanceOf(BOB), 100e6);
-    }
-
     function test_handle_primaryRouteRedeemsToRecipient() public {
         bytes memory messageBody = abi.encodePacked(
             BOB.addressToBytes32(),
@@ -376,6 +354,33 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(vaultBridgeToken.lastRedeemShares(), 100e6);
         assertEq(vaultBridgeToken.lastRedeemReceiver(), BOB);
         assertEq(vaultBridgeToken.lastRedeemOwner(), address(ethRoute));
+    }
+
+    function test_handle_secondaryRouteReverts() public {
+        bytes memory messageBody = abi.encodePacked(
+            BOB.addressToBytes32(),
+            uint256(100e6)
+        );
+
+        vm.prank(address(katanaMailbox));
+        vm.expectRevert(TokenBridgeAggLayer.UnsupportedHandle.selector);
+        katanaRoute.handle(
+            ETH_DOMAIN,
+            address(ethRoute).addressToBytes32(),
+            messageBody
+        );
+    }
+
+    function test_verify_secondaryRouteReverts() public {
+        bytes memory message = katanaMailbox.buildMessage(
+            address(katanaRoute),
+            ETH_DOMAIN,
+            address(katanaRoute).addressToBytes32(),
+            abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
+        );
+
+        vm.expectRevert(TokenBridgeAggLayer.UnsupportedVerify.selector);
+        katanaRoute.verify(hex"", message);
     }
 
     function _emptyProof() internal pure returns (bytes32[32] memory proof) {}

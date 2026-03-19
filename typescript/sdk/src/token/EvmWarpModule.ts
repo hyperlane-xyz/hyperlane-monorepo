@@ -775,7 +775,6 @@ export class EvmWarpModule extends HyperlaneModule<
       if (
         actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
         eqAddress(actualDomainConfig.remoteToken, config.remoteToken) &&
-        `${actualDomainConfig.nativeFee ?? 0}` === `${config.nativeFee ?? 0}` &&
         (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
           (config.forceUpdateGlobalExitRoot ?? false)
       ) {
@@ -792,7 +791,6 @@ export class EvmWarpModule extends HyperlaneModule<
             Number(domain),
             config.agglayerNetworkId,
             config.remoteToken,
-            config.nativeFee ?? 0,
             config.forceUpdateGlobalExitRoot ?? false,
           ],
         ),

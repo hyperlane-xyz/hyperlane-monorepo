@@ -384,7 +384,6 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           katana: {
             agglayerNetworkId: 20,
             remoteToken: SOME_ADDRESS,
-            nativeFee: '0',
             forceUpdateGlobalExitRoot: false,
           },
         },

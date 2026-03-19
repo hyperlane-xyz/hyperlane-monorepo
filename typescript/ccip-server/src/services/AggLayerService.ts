@@ -41,7 +41,7 @@ const BRIDGE_EVENT_INTERFACE = new ethers.utils.Interface([
   'event BridgeEvent(uint8 leafType,uint32 originNetwork,address originAddress,uint32 destinationNetwork,address destinationAddress,uint256 amount,bytes metadata,uint32 depositCount)',
 ]);
 const AGGLAYER_ROUTE_INTERFACE = new ethers.utils.Interface([
-  'function remoteBridgeConfigs(uint32) view returns (uint32 agglayerNetworkId, address remoteToken, uint256 nativeFee, bool forceUpdateGlobalExitRoot)',
+  'function remoteBridgeConfigs(uint32) view returns (uint32 agglayerNetworkId, address remoteToken, bool forceUpdateGlobalExitRoot)',
 ]);
 
 const ZERO_HASH = ethers.constants.HashZero;
