@@ -622,7 +622,12 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
-            .with_relay_send_channels(send_channels);
+            .with_relay_send_channels(send_channels)
+            .with_message_filters(
+                self.message_whitelist.clone(),
+                self.message_blacklist.clone(),
+                self.address_blacklist.clone(),
+            );
 
         // Add relay API
         use crate::relay_api::handlers::TxHashCache;

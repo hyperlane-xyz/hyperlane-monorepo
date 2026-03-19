@@ -85,6 +85,12 @@ pub struct ServerState {
     msg_ctxs: Option<HashMap<(u32, u32), Arc<MessageContext>>>,
     #[new(default)]
     metrics: Option<RelayApiMetrics>,
+    #[new(default)]
+    message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
+    #[new(default)]
+    message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
+    #[new(default)]
+    address_blacklist: Option<Arc<crate::msg::blacklist::AddressBlacklist>>,
 }
 
 impl ServerState {
@@ -126,6 +132,30 @@ impl ServerState {
 
     pub fn with_rate_limiter(mut self, limiter: Arc<RwLock<RateLimiter>>) -> Self {
         self.rate_limiter = Some(limiter);
+        self
+    }
+
+    pub fn with_message_whitelist(
+        mut self,
+        whitelist: Arc<crate::settings::matching_list::MatchingList>,
+    ) -> Self {
+        self.message_whitelist = Some(whitelist);
+        self
+    }
+
+    pub fn with_message_blacklist(
+        mut self,
+        blacklist: Arc<crate::settings::matching_list::MatchingList>,
+    ) -> Self {
+        self.message_blacklist = Some(blacklist);
+        self
+    }
+
+    pub fn with_address_blacklist(
+        mut self,
+        blacklist: Arc<crate::msg::blacklist::AddressBlacklist>,
+    ) -> Self {
+        self.address_blacklist = Some(blacklist);
         self
     }
 }
@@ -473,6 +503,46 @@ async fn create_relay(
             app_context = ?app_context,
             "Classified message app context"
         );
+
+        // Apply message filtering (whitelist, blacklist, address blacklist)
+        // Skip if not whitelisted
+        if let Some(whitelist) = &state.message_whitelist {
+            if !whitelist.msg_matches(&extracted.message, true) {
+                if let Some(ref metrics) = state.metrics {
+                    metrics.inc_failure("message_not_whitelisted");
+                }
+                return Err(ServerError::InvalidRequest(
+                    "Message not whitelisted".to_string(),
+                ));
+            }
+        }
+
+        // Skip if message is blacklisted
+        if let Some(blacklist) = &state.message_blacklist {
+            if blacklist.msg_matches(&extracted.message, false) {
+                if let Some(ref metrics) = state.metrics {
+                    metrics.inc_failure("message_blacklisted");
+                }
+                return Err(ServerError::InvalidRequest(
+                    "Message blacklisted".to_string(),
+                ));
+            }
+        }
+
+        // Skip if message involves a blacklisted address
+        if let Some(blacklist) = &state.address_blacklist {
+            if let Some(blacklisted_address) =
+                blacklist.find_blacklisted_address(&extracted.message)
+            {
+                if let Some(ref metrics) = state.metrics {
+                    metrics.inc_failure("message_blacklisted_address");
+                }
+                return Err(ServerError::InvalidRequest(format!(
+                    "Message involves blacklisted address: {}",
+                    hex::encode(blacklisted_address)
+                )));
+            }
+        }
 
         // Get send channel for destination
         let send_channel = send_channels

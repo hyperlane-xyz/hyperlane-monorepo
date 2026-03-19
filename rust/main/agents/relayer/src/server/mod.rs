@@ -59,6 +59,12 @@ pub struct Server {
     relay_api_metrics: Option<crate::relay_api::RelayApiMetrics>,
     #[new(default)]
     relay_rate_limiter: Option<Arc<StdRwLock<crate::relay_api::handlers::RateLimiter>>>,
+    #[new(default)]
+    message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
+    #[new(default)]
+    message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
+    #[new(default)]
+    address_blacklist: Option<Arc<crate::msg::blacklist::AddressBlacklist>>,
 }
 
 impl Server {
@@ -143,6 +149,18 @@ impl Server {
         self
     }
 
+    pub fn with_message_filters(
+        mut self,
+        message_whitelist: Arc<crate::settings::matching_list::MatchingList>,
+        message_blacklist: Arc<crate::settings::matching_list::MatchingList>,
+        address_blacklist: Arc<crate::msg::blacklist::AddressBlacklist>,
+    ) -> Self {
+        self.message_whitelist = Some(message_whitelist);
+        self.message_blacklist = Some(message_blacklist);
+        self.address_blacklist = Some(address_blacklist);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -213,6 +231,17 @@ impl Server {
             // Add rate limiter if available
             if let Some(limiter) = self.relay_rate_limiter {
                 relay_state = relay_state.with_rate_limiter(limiter);
+            }
+
+            // Add message filters if available
+            if let Some(whitelist) = self.message_whitelist {
+                relay_state = relay_state.with_message_whitelist(whitelist);
+            }
+            if let Some(blacklist) = self.message_blacklist {
+                relay_state = relay_state.with_message_blacklist(blacklist);
+            }
+            if let Some(addr_blacklist) = self.address_blacklist {
+                relay_state = relay_state.with_address_blacklist(addr_blacklist);
             }
 
             router = router.merge(relay_state.router());
