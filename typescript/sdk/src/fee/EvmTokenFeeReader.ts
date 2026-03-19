@@ -154,15 +154,18 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     };
   }
 
-  convertFromBps(bps: bigint): FeeParameters {
-    if (bps === 0n) {
+  convertFromBps(bps: number): FeeParameters {
+    if (bps <= 0) {
       throw new Error('bps must be > 0 to prevent division by zero');
     }
 
     const maxFee =
       BigInt(constants.MaxUint256.toString()) /
       ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
-    const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
+    // Scale bps to bigint for integer arithmetic (multiply before dividing)
+    const PRECISION = 10_000n;
+    const scaledBps = BigInt(Math.round(bps * Number(PRECISION)));
+    const halfAmount = ((maxFee / 2n) * MAX_BPS * PRECISION) / scaledBps;
 
     return {
       maxFee,

@@ -15,11 +15,15 @@ export const ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY = 10n ** 36n;
  * @returns Fee in basis points
  * @throws Error if halfAmount is zero to prevent division by zero
  */
-export function convertToBps(maxFee: bigint, halfAmount: bigint): bigint {
+export function convertToBps(maxFee: bigint, halfAmount: bigint): number {
   if (halfAmount === 0n) {
     throw new Error('halfAmount must be > 0 to prevent division by zero');
   }
 
-  const bps = (maxFee * MAX_BPS) / (halfAmount * 2n);
-  return bps;
+  // Use precision scaling to preserve fractional bps (e.g., 1.5)
+  // Multiply by PRECISION before bigint division, then divide back in Number space
+  const PRECISION = 10_000n;
+  const scaledBps = (maxFee * MAX_BPS * PRECISION) / (halfAmount * 2n);
+  // Round to 4 decimal places to prevent floating point drift in equality checks
+  return Math.round((Number(scaledBps) / Number(PRECISION)) * 10000) / 10000;
 }
