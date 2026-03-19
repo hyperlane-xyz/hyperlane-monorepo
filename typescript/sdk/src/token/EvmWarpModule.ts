@@ -510,6 +510,9 @@ export class EvmWarpModule extends HyperlaneModule<
     ) {
       return [];
     }
+    if (!expectedConfig.enrolledRouters) {
+      return [];
+    }
 
     const actualEnrolled = resolveRouterMapConfig(
       this.multiProvider,
@@ -517,7 +520,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
     const expectedEnrolled = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.enrolledRouters ?? {},
+      expectedConfig.enrolledRouters,
     );
 
     const domainsToUnenroll: number[] = [];
