@@ -51,12 +51,6 @@ export type SvmIgpHookWriterConfig = Readonly<{
   program: SvmProgramTarget;
 }>;
 
-/** @deprecated Use SvmIgpHookWriterConfig instead. Kept for backward compat. */
-export interface SvmIgpHookConfig extends IgpHookConfig {
-  program: SvmProgramTarget;
-  context?: string;
-}
-
 export function deriveIgpSalt(context: string): Uint8Array {
   return keccak_256(new TextEncoder().encode(context));
 }

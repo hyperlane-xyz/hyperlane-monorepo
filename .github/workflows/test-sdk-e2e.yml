@@ -129,6 +129,8 @@ jobs:
         test:
           - ism
           - hook
+          - mailbox
+          - validator-announce
           - native-token
           - synthetic-token
           - collateral-token
