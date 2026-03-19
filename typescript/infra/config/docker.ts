@@ -4,6 +4,7 @@ export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
   NODE_SERVICES: 'hyperlane-node-services',
+  TOLLKEEPER: 'hyperlane-tollkeeper',
 } as const;
 
 type DockerImageReposType = {
@@ -33,6 +34,7 @@ interface MainnetDockerTags extends BaseDockerTags {
   checkWarpDeploy: string;
   warpMonitor: string;
   rebalancer: string;
+  tollkeeper: string;
 }
 
 export const mainnetDockerTags: MainnetDockerTags = {
@@ -48,9 +50,10 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: '3b17358-20260315-183126',
   warpMonitor: '3b17358-20260315-183126',
   rebalancer: '3b17358-20260315-183126',
+  tollkeeper: 'latest',
 };
 
-export const testnetDockerTags: BaseDockerTags = {
+export const testnetDockerTags: BaseDockerTags & { tollkeeper: string } = {
   // rust agents
   relayer: '910e8e8-20260318-204227',
   relayerRC: '910e8e8-20260318-204227',
@@ -59,4 +62,5 @@ export const testnetDockerTags: BaseDockerTags = {
   scraper: '910e8e8-20260318-204227',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
+  tollkeeper: 'latest',
 };

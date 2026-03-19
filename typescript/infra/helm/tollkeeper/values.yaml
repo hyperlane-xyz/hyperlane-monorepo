@@ -1,0 +1,26 @@
+image:
+  repository: ghcr.io/hyperlane-xyz/hyperlane-tollkeeper
+  tag: latest
+
+hyperlane:
+  runEnv: ''
+  chains: []
+
+secrets:
+  name: tollkeeper
+  prefix: ''
+  secret_envs:
+    - DATABASE_URL
+
+port: 3000
+prometheus_port: 9090
+
+ingress:
+  host: ''
+  staticIpName: ''
+
+cloudArmor:
+  enabled: true
+  policyName: ''
+
+env: []

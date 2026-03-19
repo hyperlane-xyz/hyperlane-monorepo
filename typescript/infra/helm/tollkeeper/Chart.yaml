@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tollkeeper
+description: Hyperlane fee recommendation service (pricing engine for IGP and warp route fees)
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
