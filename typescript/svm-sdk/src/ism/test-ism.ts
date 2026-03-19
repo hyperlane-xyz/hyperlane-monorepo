@@ -35,11 +35,6 @@ export type SvmTestIsmWriterConfig = Readonly<{
   program: SvmProgramTarget;
 }>;
 
-/** @deprecated Use SvmTestIsmWriterConfig instead. Kept for backward compat. */
-export interface SvmTestIsmConfig extends TestIsmConfig {
-  program: SvmProgramTarget;
-}
-
 export class SvmTestIsmReader implements ArtifactReader<
   TestIsmConfig,
   SvmDeployedIsm
