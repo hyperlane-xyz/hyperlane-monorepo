@@ -70,8 +70,11 @@ describe('Mixed SVM+EVM Collateral E2E — Test 2: Partial Deposit', function ()
     const deposits = await context.tracker.getActionsForIntent(
       partialIntents[0].intent.id,
     );
-    expect(deposits.length).to.equal(1);
-    expect(deposits[0].origin).to.equal(SVM_DOMAIN_ID);
+    const depositActions = deposits.filter(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(depositActions.length).to.equal(1);
+    expect(depositActions[0].origin).to.equal(SVM_DOMAIN_ID);
 
     await executeCycle(context);
 

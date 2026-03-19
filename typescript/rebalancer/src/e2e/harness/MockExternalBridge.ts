@@ -201,7 +201,10 @@ export class MockExternalBridge implements IExternalBridge {
 
     const bridgeRouteAddress =
       this.deployedAddresses.bridgeRoute[fromChainName as TestChain];
-    const destinationDomain = this.multiProvider.getDomainId(toChainName);
+    const destinationDomain =
+      toChainName === SVM_CHAIN_NAME
+        ? SVM_DOMAIN_ID
+        : this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
     const evmKey = privateKeys[ProtocolType.Ethereum];

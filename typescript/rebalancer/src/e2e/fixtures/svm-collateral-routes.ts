@@ -127,7 +127,7 @@ export const COLLATERAL_SIGNER_PRESETS: Record<
   },
   COLLATERAL_SIGNER_PARTIAL_ANVIL2: {
     anvil2: '5000000000',
-    sealeveltest1: '5000000000',
+    sealeveltest1: '3000000000',
   },
   COLLATERAL_SIGNER_FUNDED_ANVIL1: {
     anvil1: '20000000000',
