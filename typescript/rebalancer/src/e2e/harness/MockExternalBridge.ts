@@ -182,7 +182,7 @@ export class MockExternalBridge implements IExternalBridge {
               mailbox: ctx.mailboxProgramId,
             });
 
-      const destinationDomain = this.multiProvider.getDomainId(toChainName);
+      const destinationDomain = this.resolveDomainId(toChainName);
       const tx = await adapter.populateTransferRemoteTx({
         weiAmountOrId: quote.fromAmount,
         destination: destinationDomain,
@@ -204,7 +204,7 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain =
       toChainName === SVM_CHAIN_NAME
         ? SVM_DOMAIN_ID
-        : this.multiProvider.getDomainId(toChainName);
+        : this.resolveDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
     const evmKey = privateKeys[ProtocolType.Ethereum];
@@ -342,7 +342,7 @@ export class MockExternalBridge implements IExternalBridge {
       const relayer = new HyperlaneRelayer({ core: this.core });
       const receipts = await relayer.relayAll(dispatchTxReceipt);
 
-      const destinationDomain = this.multiProvider.getDomainId(toChainName);
+      const destinationDomain = this.resolveDomainId(toChainName);
       const destinationReceipts =
         receipts[toChainName] ??
         receipts[toChain] ??
@@ -427,7 +427,7 @@ export class MockExternalBridge implements IExternalBridge {
 
     const bridgeRouteAddress =
       this.deployedAddresses.bridgeRoute[fromChainName as TestChain];
-    const destinationDomain = this.multiProvider.getDomainId(toChainName);
+    const destinationDomain = this.resolveDomainId(toChainName);
     const provider = this.multiProvider.getProvider(fromChainName);
 
     let recipientBytes32: string;
@@ -492,6 +492,11 @@ export class MockExternalBridge implements IExternalBridge {
     };
   }
 
+  private resolveDomainId(chainName: string): number {
+    if (chainName === SVM_CHAIN_NAME) return SVM_DOMAIN_ID;
+    return this.resolveDomainId(chainName);
+  }
+
   private resolveChainName(chainRef: number): string {
     // Check SVM chain by domain ID
     if (chainRef === SVM_DOMAIN_ID) {
@@ -504,7 +509,7 @@ export class MockExternalBridge implements IExternalBridge {
 
     for (const chainName of chainNames) {
       const chainId = Number(this.multiProvider.getChainId(chainName));
-      const domainId = this.multiProvider.getDomainId(chainName);
+      const domainId = this.resolveDomainId(chainName);
       if (chainId === chainRef || domainId === chainRef) {
         return chainName;
       }
