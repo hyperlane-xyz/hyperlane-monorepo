@@ -30,10 +30,6 @@ import type {
   TestChain,
 } from '../fixtures/routes.js';
 import { SVM_CHAIN_NAME, SVM_DOMAIN_ID } from '../fixtures/svm-routes.js';
-import {
-  relaySvmToEvmMessages,
-  type SvmToEvmRelayOpts,
-} from './SvmRelayHelper.js';
 
 export interface SvmBridgeContext {
   connection: Connection;
@@ -289,36 +285,19 @@ export class MockExternalBridge implements IExternalBridge {
         return { status: 'pending' };
       }
 
-      try {
-        const relayOpts: SvmToEvmRelayOpts = {
-          connection: ctx.connection,
-          mailboxProgramId: new PublicKey(ctx.mailboxProgramId),
-          evmCore: ctx.evmCore,
-          multiProvider: ctx.evmMultiProvider,
-          logger: this.logger,
-        };
-        await relaySvmToEvmMessages(relayOpts);
-
-        const txInfo = await ctx.connection.getTransaction(txHash, {
-          commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0,
-        });
-        if (!txInfo) {
-          return { status: 'pending' };
-        }
-
-        return {
-          status: 'complete',
-          receivingTxHash: txHash,
-          receivedAmount: amount,
-        };
-      } catch (error) {
-        this.logger.debug(
-          { txHash, error },
-          'SVM bridge getStatus relay failed',
-        );
+      const txInfo = await ctx.connection.getTransaction(txHash, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      });
+      if (!txInfo) {
         return { status: 'pending' };
       }
+
+      return {
+        status: 'complete',
+        receivingTxHash: txHash,
+        receivedAmount: amount,
+      };
     }
 
     try {
