@@ -21,6 +21,8 @@ import {
 import {
   ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
   MAX_BPS,
+  MAX_BPS_DECIMALS,
+  assertBpsPrecision,
   convertToBps,
 } from './utils.js';
 
@@ -158,12 +160,12 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     if (bps <= 0) {
       throw new Error('bps must be > 0 to prevent division by zero');
     }
+    assertBpsPrecision(bps);
 
     const maxFee =
       BigInt(constants.MaxUint256.toString()) /
       ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
-    // Scale bps to bigint for integer arithmetic (multiply before dividing)
-    const PRECISION = 10_000n;
+    const PRECISION = BigInt(10 ** MAX_BPS_DECIMALS);
     const scaledBps = BigInt(Math.round(bps * Number(PRECISION)));
     const halfAmount = ((maxFee / 2n) * MAX_BPS * PRECISION) / scaledBps;
 

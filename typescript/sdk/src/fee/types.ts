@@ -7,7 +7,7 @@ import {
   ZHash,
 } from '../metadata/customZodTypes.js';
 
-import { convertToBps } from './utils.js';
+import { MAX_BPS_DECIMALS, convertToBps } from './utils.js';
 
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
@@ -92,13 +92,23 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
       });
     }
 
-    // Reject bps = 0 to prevent division by zero in convertFromBps
     if (hasBps && v.bps! <= 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['bps'],
         message: 'bps must be > 0',
       });
+    }
+
+    if (hasBps) {
+      const factor = 10 ** MAX_BPS_DECIMALS;
+      if (Math.round(v.bps! * factor) !== v.bps! * factor) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
+        });
+      }
     }
 
     if (v.halfAmount === 0n) {
