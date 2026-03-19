@@ -11,7 +11,7 @@ import type {
   DeployedValidatorAnnounceAddress,
   RawValidatorAnnounceConfig,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -85,12 +85,29 @@ export class SvmValidatorAnnounceWriter
     );
     receipts.push(...deployReceipts);
 
+    const existing = await fetchValidatorAnnounceAccount(
+      this.rpc,
+      programAddress,
+    );
+    const deployed: ArtifactDeployed<
+      RawValidatorAnnounceConfig,
+      DeployedValidatorAnnounceAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: { address: programAddress },
+    };
+
+    if (!isNullish(existing)) {
+      return [deployed, receipts];
+    }
+
     const initIx = await buildInitValidatorAnnounceInstruction(
       programAddress,
       this.svmSigner.signer,
       {
         mailbox: parseAddress(artifact.config.mailboxAddress),
-        localDomain: this.config.localDomain,
+        localDomain: this.config.domainId,
       },
     );
 
@@ -102,7 +119,7 @@ export class SvmValidatorAnnounceWriter
       }),
     );
 
-    return [await this.read(programAddress), receipts];
+    return [deployed, receipts];
   }
 
   async update(

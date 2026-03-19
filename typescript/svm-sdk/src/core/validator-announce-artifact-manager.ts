@@ -22,7 +22,7 @@ import {
 export class SvmValidatorAnnounceArtifactManager implements IRawValidatorAnnounceArtifactManager {
   constructor(
     private readonly rpc: SvmRpc,
-    private readonly localDomain: number,
+    private readonly domainId: number,
   ) {}
 
   async readValidatorAnnounce(
@@ -53,7 +53,7 @@ export class SvmValidatorAnnounceArtifactManager implements IRawValidatorAnnounc
         program: {
           programBytes: HYPERLANE_SVM_PROGRAM_BYTES.validatorAnnounce,
         },
-        localDomain: this.localDomain,
+        domainId: this.domainId,
       },
       this.rpc,
       signer,

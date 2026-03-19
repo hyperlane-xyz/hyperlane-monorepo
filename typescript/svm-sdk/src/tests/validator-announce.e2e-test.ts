@@ -76,7 +76,7 @@ describe('SVM Validator Announce E2E Tests', function () {
     vaWriter = new SvmValidatorAnnounceWriter(
       {
         program: { programId: TEST_PROGRAM_IDS.validatorAnnounce },
-        localDomain: TEST_SVM_CHAIN_METADATA.domainId,
+        domainId: TEST_SVM_CHAIN_METADATA.domainId,
       },
       rpc,
       signer,

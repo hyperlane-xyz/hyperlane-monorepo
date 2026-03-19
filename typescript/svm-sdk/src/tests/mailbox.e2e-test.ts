@@ -9,6 +9,7 @@ import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmMailboxReader, SvmMailboxWriter } from '../core/mailbox.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -112,6 +113,57 @@ describe('SVM Mailbox E2E Tests', function () {
       const current = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
       const updateTxs = await mailboxWriter.update(current);
       expect(updateTxs).to.have.length(0);
+    });
+
+    it('should update default ISM via update()', async () => {
+      // Deploy a second test ISM from bytes to get a different ISM address.
+      const secondIsmWriter = new SvmTestIsmWriter(
+        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.testIsm } },
+        rpc,
+        signer,
+      );
+      const [secondIsm] = await secondIsmWriter.create({
+        artifactState: ArtifactState.NEW,
+        config: { type: 'testIsm' },
+      });
+      const secondIsmAddress = secondIsm.deployed.address;
+
+      // Read current state and update default ISM.
+      const current = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      expect(current.config.defaultIsm.deployed.address).to.equal(
+        testIsmAddress,
+      );
+
+      const updateTxs = await mailboxWriter.update({
+        ...current,
+        config: makeMailboxConfig({
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: secondIsmAddress },
+          },
+        }),
+      });
+      expect(updateTxs.length).to.be.greaterThan(0);
+      expect(updateTxs[0].annotation).to.include('set default ISM');
+      await executeUpdateTxs(updateTxs);
+
+      // Verify on-chain.
+      const updated = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      expect(updated.config.defaultIsm.deployed.address).to.equal(
+        secondIsmAddress,
+      );
+
+      // Restore original ISM so subsequent tests are unaffected.
+      const restoreTxs = await mailboxWriter.update({
+        ...updated,
+        config: makeMailboxConfig(),
+      });
+      await executeUpdateTxs(restoreTxs);
+
+      const restored = await mailboxWriter.read(TEST_PROGRAM_IDS.mailbox);
+      expect(restored.config.defaultIsm.deployed.address).to.equal(
+        testIsmAddress,
+      );
     });
 
     it('should transfer ownership and allow new owner to update', async () => {

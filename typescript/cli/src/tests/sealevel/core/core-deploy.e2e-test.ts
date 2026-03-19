@@ -80,8 +80,13 @@ describe('hyperlane core deploy (Sealevel E2E tests)', async function () {
     const rpc = createRpc(
       TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl,
     );
+    // Zero salt matches DEFAULT_IGP_SALT used by the CLI core deploy flow.
     const igpReader = new SealevelIgpHookReader(rpc, new Uint8Array(32));
-    const igpArtifact = await igpReader.read(addresses.interchainGasPaymaster!);
+    assert(
+      addresses.interchainGasPaymaster,
+      'Expected interchainGasPaymaster address to be defined',
+    );
+    const igpArtifact = await igpReader.read(addresses.interchainGasPaymaster);
     assert(
       igpArtifact.config.type === HookType.INTERCHAIN_GAS_PAYMASTER,
       `Expected hook to be of type ${HookType.INTERCHAIN_GAS_PAYMASTER}, got ${igpArtifact.config.type}`,

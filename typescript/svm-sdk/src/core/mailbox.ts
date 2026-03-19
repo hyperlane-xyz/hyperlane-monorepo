@@ -16,6 +16,7 @@ import {
   assert,
   eqAddressSol,
   eqOptionalAddress,
+  isEmptyAddress,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -135,18 +136,17 @@ export class SvmMailboxWriter
       }),
     );
 
-    // Apply post-init updates (ownership transfer) if needed.
-    const deployed = await this.read(programAddress);
-    const updateTxs = await this.computeUpdateInstructions(
-      deployed.config,
-      mailboxConfig,
-      programAddress,
-    );
-    for (const tx of updateTxs) {
-      receipts.push(await this.svmSigner.send(tx));
-    }
-
-    return [await this.read(programAddress), receipts];
+    return [
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: { ...mailboxConfig, owner: this.svmSigner.signer.address },
+        deployed: {
+          address: programAddress,
+          domainId: this.config.domainId,
+        },
+      },
+      receipts,
+    ];
   }
 
   async update(
@@ -160,29 +160,18 @@ export class SvmMailboxWriter
       `Cannot update mailbox ${programId}: mailbox has no owner`,
     );
 
-    return this.computeUpdateInstructions(
-      current.config,
-      artifact.config,
-      programId,
-    );
-  }
-
-  private async computeUpdateInstructions(
-    current: MailboxOnChain,
-    expected: MailboxOnChain,
-    programId: string,
-  ): Promise<AnnotatedSvmTransaction[]> {
-    const ownerAddress = parseAddress(current.owner);
+    const expected = artifact.config;
+    const ownerAddress = parseAddress(current.config.owner);
     const txs: AnnotatedSvmTransaction[] = [];
 
     // 1. Default ISM update
-    const currentIsm = current.defaultIsm.deployed.address;
+    const currentIsm = current.config.defaultIsm.deployed.address;
     const expectedIsm = expected.defaultIsm.deployed.address;
     if (!eqAddressSol(currentIsm, expectedIsm)) {
       txs.push({
         instructions: [
           await buildSetDefaultIsmInstruction(
-            parseAddress(programId),
+            programId,
             ownerAddress,
             parseAddress(expectedIsm),
           ),
@@ -192,15 +181,16 @@ export class SvmMailboxWriter
     }
 
     // 2. Ownership transfer — always last
-    if (!eqOptionalAddress(current.owner, expected.owner, eqAddressSol)) {
-      const expectedOwner =
-        expected.owner && !isZeroishAddress(expected.owner)
-          ? parseAddress(expected.owner)
-          : null;
+    if (
+      !eqOptionalAddress(current.config.owner, expected.owner, eqAddressSol)
+    ) {
+      const expectedOwner = !isEmptyAddress(expected.owner)
+        ? parseAddress(expected.owner)
+        : null;
       txs.push({
         instructions: [
           await buildTransferMailboxOwnershipInstruction(
-            parseAddress(programId),
+            programId,
             ownerAddress,
             expectedOwner,
           ),

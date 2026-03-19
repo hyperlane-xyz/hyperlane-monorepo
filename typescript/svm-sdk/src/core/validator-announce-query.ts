@@ -1,5 +1,7 @@
 import { getAddressCodec, type Address } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { ByteCursor } from '../codecs/binary.js';
 import { decodeAccountData } from '../codecs/account-data.js';
 import {
@@ -11,7 +13,7 @@ import type { SvmRpc } from '../types.js';
 
 const ADDRESS_CODEC = getAddressCodec();
 
-export interface ValidatorAnnounceData {
+export interface ValidatorAnnounceAccountData {
   bumpSeed: number;
   mailbox: Address;
   localDomain: number;
@@ -24,7 +26,7 @@ export interface ValidatorStorageLocationsData {
 
 export function decodeValidatorAnnounceAccount(
   raw: Uint8Array,
-): ValidatorAnnounceData | null {
+): ValidatorAnnounceAccountData | null {
   const { data } = decodeAccountData(raw, (cursor: ByteCursor) => ({
     bumpSeed: cursor.readU8(),
     mailbox: cursor.readWithDecoder(ADDRESS_CODEC),
@@ -51,7 +53,7 @@ export function decodeValidatorStorageLocationsAccount(
 export async function fetchValidatorAnnounceAccount(
   rpc: SvmRpc,
   programId: Address,
-): Promise<ValidatorAnnounceData | null> {
+): Promise<ValidatorAnnounceAccountData | null> {
   const { address: announcePda } = await deriveValidatorAnnouncePda(programId);
   const raw = await fetchAccountDataRaw(rpc, announcePda);
   if (!raw) return null;
@@ -63,6 +65,10 @@ export async function fetchValidatorStorageLocations(
   programId: Address,
   validatorH160: Uint8Array,
 ): Promise<ValidatorStorageLocationsData | null> {
+  assert(
+    validatorH160.length === 20,
+    `Validator address must be 20 bytes (H160), got ${validatorH160.length}`,
+  );
   const { address: storageLocationsPda } =
     await deriveValidatorStorageLocationsPda(programId, validatorH160);
   const raw = await fetchAccountDataRaw(rpc, storageLocationsPda);

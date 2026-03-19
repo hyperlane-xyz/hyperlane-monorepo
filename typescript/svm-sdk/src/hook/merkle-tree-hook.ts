@@ -1,8 +1,4 @@
-import {
-  address as parseAddress,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -14,13 +10,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { assert } from '@hyperlane-xyz/utils';
-
 import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedHook,
   SvmReceipt,
+  SvmRpc,
 } from '../types.js';
 
 /**
@@ -39,7 +34,7 @@ export class SvmMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
   SvmDeployedHook
 > {
-  constructor(protected readonly _rpc: Rpc<SolanaRpcApi>) {}
+  constructor(protected readonly _rpc: SvmRpc) {}
 
   async read(
     address: string,
@@ -59,8 +54,8 @@ export class SvmMerkleTreeHookWriter
   implements ArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
 {
   constructor(
-    private readonly writerConfig: SvmMerkleTreeHookWriterConfig,
-    rpc: Rpc<SolanaRpcApi>,
+    private readonly config: SvmMerkleTreeHookWriterConfig,
+    rpc: SvmRpc,
     protected readonly _signer: SvmSigner,
   ) {
     super(rpc);
@@ -71,8 +66,7 @@ export class SvmMerkleTreeHookWriter
   ): Promise<
     [ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>, SvmReceipt[]]
   > {
-    const programId = parseAddress(this.writerConfig.mailboxAddress);
-    assert(programId, 'Merkle tree hook requires the mailbox address');
+    const programId = parseAddress(this.config.mailboxAddress);
 
     return [
       {

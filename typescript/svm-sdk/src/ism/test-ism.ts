@@ -1,8 +1,4 @@
-import {
-  address as parseAddress,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -22,6 +18,7 @@ import type {
   SvmDeployedIsm,
   SvmProgramTarget,
   SvmReceipt,
+  SvmRpc,
 } from '../types.js';
 
 import { fetchTestIsmStorageAccount } from './ism-query.js';
@@ -39,7 +36,7 @@ export class SvmTestIsmReader implements ArtifactReader<
   TestIsmConfig,
   SvmDeployedIsm
 > {
-  constructor(protected readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     address: string,
@@ -63,8 +60,8 @@ export class SvmTestIsmWriter
   implements ArtifactWriter<TestIsmConfig, SvmDeployedIsm>
 {
   constructor(
-    private readonly writerConfig: SvmTestIsmWriterConfig,
-    rpc: Rpc<SolanaRpcApi>,
+    private readonly config: SvmTestIsmWriterConfig,
+    rpc: SvmRpc,
     private readonly svmSigner: SvmSigner,
   ) {
     super(rpc);
@@ -74,7 +71,7 @@ export class SvmTestIsmWriter
     _artifact: ArtifactNew<TestIsmConfig>,
   ): Promise<[ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>, SvmReceipt[]]> {
     const { programAddress, receipts } = await resolveProgram(
-      this.writerConfig.program,
+      this.config.program,
       this.svmSigner,
       this.rpc,
     );

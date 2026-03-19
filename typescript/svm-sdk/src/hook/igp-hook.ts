@@ -1,9 +1,4 @@
-import {
-  address as parseAddress,
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress, type Address } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -33,6 +28,7 @@ import type {
   SvmDeployedIgpHook,
   SvmProgramTarget,
   SvmReceipt,
+  SvmRpc,
 } from '../types.js';
 
 import {
@@ -63,7 +59,7 @@ export class SvmIgpHookReader implements ArtifactReader<
   SvmDeployedIgpHook
 > {
   constructor(
-    protected readonly rpc: Rpc<SolanaRpcApi>,
+    protected readonly rpc: SvmRpc,
     protected readonly salt: Uint8Array,
   ) {}
 
@@ -133,8 +129,8 @@ export class SvmIgpHookWriter
   implements ArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
 {
   constructor(
-    private readonly writerConfig: SvmIgpHookWriterConfig,
-    rpc: Rpc<SolanaRpcApi>,
+    private readonly config: SvmIgpHookWriterConfig,
+    rpc: SvmRpc,
     salt: Uint8Array,
     private readonly svmSigner: SvmSigner,
   ) {
@@ -148,7 +144,7 @@ export class SvmIgpHookWriter
   > {
     const config = artifact.config;
     const { programAddress: programId, receipts } = await resolveProgram(
-      this.writerConfig.program,
+      this.config.program,
       this.svmSigner,
       this.rpc,
     );

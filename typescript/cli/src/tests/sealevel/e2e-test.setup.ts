@@ -43,20 +43,25 @@ before(async function () {
   const { programs, cleanup } = getPreloadedPrograms([]);
   programCleanup = cleanup;
 
-  validator = await runSolanaNode(
-    TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-    programs,
-  );
+  try {
+    validator = await runSolanaNode(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      programs,
+    );
 
-  // Fund the deployer
-  const rpc = createRpc(
-    TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl,
-  );
-  await airdropSol(
-    rpc,
-    HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel as any,
-    50_000_000_000n,
-  );
+    // Fund the deployer
+    const rpc = createRpc(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl,
+    );
+    await airdropSol(
+      rpc,
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel as any,
+      50_000_000_000n,
+    );
+  } catch (error: unknown) {
+    cleanup();
+    throw error;
+  }
 });
 
 // Reset the test registry for each test invocation

@@ -2,6 +2,8 @@ import type { Address, Instruction, TransactionSigner } from '@solana/kit';
 import { getAddressCodec } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { concatBytes, u8, u32le, vecBytes } from '../codecs/binary.js';
 import { encodeH160 } from '../codecs/shared.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
@@ -58,6 +60,10 @@ function encodeBorshString(value: string): Uint8Array {
 }
 
 function encodeAnnounce(data: ValidatorAnnounceData): Uint8Array {
+  assert(
+    data.signature.length === 65,
+    `ECDSA signature must be 65 bytes (r + s + v), got ${data.signature.length}`,
+  );
   return Uint8Array.from(
     concatBytes(
       u8(ValidatorAnnounceInstructionVariant.Announce),

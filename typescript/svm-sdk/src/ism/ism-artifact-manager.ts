@@ -1,8 +1,4 @@
-import {
-  address as parseAddress,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
@@ -17,13 +13,13 @@ import type {
 
 import type { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
-import type { SvmDeployedIsm } from '../types.js';
+import type { SvmDeployedIsm, SvmRpc } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
 export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
-  constructor(private readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(private readonly rpc: SvmRpc) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const programId = parseAddress(address);

@@ -19,5 +19,5 @@ export type SvmValidatorAnnounceConfig = Readonly<{
   /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
   program: SvmProgramTarget;
   /** The local domain ID for this validator announce. */
-  localDomain: number;
+  domainId: number;
 }>;
