@@ -46,6 +46,7 @@ export const PROGRAM_BINARIES = {
   tokenSynthetic: 'hyperlane_sealevel_token.so',
   tokenNative: 'hyperlane_sealevel_token_native.so',
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
+  tokenCrossCollateral: 'hyperlane_sealevel_token_cross_collateral.so',
 } as const;
 
 export type PreloadableProgram = keyof typeof PROGRAM_BINARIES &
