@@ -46,6 +46,7 @@ const AGGLAYER_ROUTE_INTERFACE = new ethers.utils.Interface([
 
 const ZERO_HASH = ethers.constants.HashZero;
 const MAINNET_FLAG = 1n << 64n;
+const FETCH_TIMEOUT_MS = 10_000;
 
 type BridgeEventData = {
   originNetwork: number;
@@ -141,6 +142,7 @@ class AggLayerService extends BaseService {
 
     const bridgeEvent = this.getBridgeEventFromReceipt(
       receipt,
+      messageId,
       recipient,
       parsedWarpMessage.amount,
       log,
@@ -205,6 +207,9 @@ class AggLayerService extends BaseService {
       const remoteConfig = await route.remoteBridgeConfigs(originDomain);
       const networkId = Number(remoteConfig.agglayerNetworkId.toString());
       assert(networkId >= 0, 'Invalid AggLayer network id');
+      if (networkId === 0) {
+        throw new Error('AggLayer remote config not set');
+      }
       return networkId;
     } catch (error) {
       logger.warn(
@@ -217,11 +222,16 @@ class AggLayerService extends BaseService {
 
   private getBridgeEventFromReceipt(
     receipt: ethers.providers.TransactionReceipt,
+    messageId: string,
     recipient: string,
     amount: bigint,
     logger: Logger,
   ): BridgeEventData {
     const events: BridgeEventData[] = [];
+    const expectedMetadata = ethers.utils.defaultAbiCoder.encode(
+      ['bytes32'],
+      [messageId],
+    );
 
     for (const receiptLog of receipt.logs) {
       try {
@@ -243,7 +253,8 @@ class AggLayerService extends BaseService {
     const match = events.find(
       (event) =>
         event.destinationAddress.toLowerCase() === recipient.toLowerCase() &&
-        event.amount === amount,
+        event.amount === amount &&
+        event.metadata.toLowerCase() === expectedMetadata.toLowerCase(),
     );
     assert(match, 'Unable to find matching AggLayer BridgeEvent in logs');
 
@@ -313,20 +324,24 @@ class AggLayerService extends BaseService {
         url.searchParams.set(key, value),
       );
       logger.info({ url: url.toString() }, 'Fetching AggLayer bridge service');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
           throw new Error(
             `AggLayer bridge service failed: ${response.status} ${candidate.endpoint}`,
           );
         }
-        return response.json() as Promise<T>;
+        return (await response.json()) as T;
       } catch (error) {
         lastError = error;
         logger.warn(
           { error, endpoint: candidate.endpoint },
           'AggLayer bridge service request failed',
         );
+      } finally {
+        clearTimeout(timeout);
       }
     }
 

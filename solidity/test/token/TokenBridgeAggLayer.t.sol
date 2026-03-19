@@ -430,9 +430,9 @@ contract TokenBridgeAggLayerTest is Test {
     }
 
     function test_verify_secondaryRouteReverts() public {
-        bytes memory message = katanaMailbox.buildMessage(
-            address(katanaRoute),
-            ETH_DOMAIN,
+        bytes memory message = ethMailbox.buildMessage(
+            address(ethRoute),
+            KATANA_DOMAIN,
             address(katanaRoute).addressToBytes32(),
             abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
         );
