@@ -207,7 +207,7 @@ class AggLayerService extends BaseService {
       const remoteConfig = await route.remoteBridgeConfigs(originDomain);
       const networkId = Number(remoteConfig.agglayerNetworkId.toString());
       assert(networkId >= 0, 'Invalid AggLayer network id');
-      if (networkId === 0) {
+      if (remoteConfig.remoteToken === ethers.constants.AddressZero) {
         throw new Error('AggLayer remote config not set');
       }
       return networkId;
