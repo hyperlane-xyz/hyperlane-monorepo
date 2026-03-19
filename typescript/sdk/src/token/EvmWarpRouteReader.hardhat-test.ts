@@ -30,6 +30,7 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -1005,6 +1006,56 @@ describe('EvmWarpRouteReader', async () => {
 
     fetchPackageVersionStub.restore();
     fetchScaleStub.restore();
+  });
+
+  it('derives deposit-address bridge config', async () => {
+    const bridgeAddress = '0x1000000000000000000000000000000000000002';
+    const tokenAddress = '0x2000000000000000000000000000000000000002';
+    const recipient = addressToBytes32(
+      '0x3000000000000000000000000000000000000003',
+    );
+    const depositAddress = '0x4000000000000000000000000000000000000004';
+
+    const bridgeStub = sinon
+      .stub(TokenBridgeDepositAddress__factory, 'connect')
+      .returns({
+        token: sinon.stub().resolves(tokenAddress),
+        getDomainConfigs: sinon
+          .stub()
+          .resolves([[101], [depositAddress], [recipient], ['1234']]),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
+      .resolves({
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
+        isNft: false,
+      });
+
+    const deriveDepositAddressConfig = (evmERC20WarpRouteReader as any)
+      .deriveHypCollateralDepositAddressTokenConfig as (
+      address: string,
+    ) => Promise<any>;
+    try {
+      const derivedConfig = await deriveDepositAddressConfig.call(
+        evmERC20WarpRouteReader,
+        bridgeAddress,
+      );
+
+      expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
+      expect(derivedConfig.token).to.equal(tokenAddress);
+      expect(derivedConfig.destinationConfigs).to.deep.equal({
+        '101': {
+          depositAddress,
+          recipient,
+          feeBps: '1234',
+        },
+      });
+    } finally {
+      bridgeStub.restore();
+      metadataStub.restore();
+    }
   });
 
   describe('Backward compatibility for token type detection', () => {

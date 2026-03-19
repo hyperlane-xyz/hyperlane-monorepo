@@ -11,6 +11,7 @@ export const TokenType = {
   collateralUri: 'collateralUri',
   collateralCctp: 'collateralCctp',
   collateralEverclear: 'collateralEverclear',
+  collateralDepositAddress: 'collateralDepositAddress',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
   nativeOpL1: 'nativeOpL1',
@@ -44,6 +45,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
+  [TokenType.collateralDepositAddress]: false,
   [TokenType.unknown]: false,
 } as const;
 

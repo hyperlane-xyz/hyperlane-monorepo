@@ -15,6 +15,7 @@ import {
   WarpRouteDeployConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isDepositAddressTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isNativeTokenConfig,
@@ -65,6 +66,7 @@ export async function deriveTokenMetadata(
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
+      isDepositAddressTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)
     ) {
       const provider = multiProvider.getProvider(chain);

@@ -26,6 +26,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
@@ -64,6 +65,7 @@ import {
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
+  DepositAddressTokenConfig,
   DerivedTokenRouterConfig,
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
@@ -144,6 +146,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.collateralDepositAddress]:
+        this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -169,13 +173,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const routerConfig = await this.readRouterConfig(warpRouteAddress);
+    const isDirectBridge = type === TokenType.collateralDepositAddress;
+    const routerConfig = isDirectBridge
+      ? {
+          owner: await Ownable__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).owner(),
+        }
+      : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
+    const destinationGas = isDirectBridge
+      ? undefined
+      : await this.fetchDestinationGas(warpRouteAddress);
 
     const hasRebalancingInterface =
       compareVersions(
@@ -426,6 +440,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       [TokenType.XERC20Lockbox]: {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
+      },
+      [TokenType.collateralDepositAddress]: {
+        factory: TokenBridgeDepositAddress__factory,
+        method: 'getDomainConfigs',
       },
       [TokenType.collateralCctp]: {
         factory: TokenBridgeCctpBase__factory,
@@ -824,6 +842,41 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
     }
+  }
+
+  private async deriveHypCollateralDepositAddressTokenConfig(
+    hypToken: Address,
+  ): Promise<DepositAddressTokenConfig> {
+    const tokenBridge = TokenBridgeDepositAddress__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [token, destinationConfigRaw] = await Promise.all([
+      tokenBridge.token(),
+      tokenBridge.getDomainConfigs(),
+    ]);
+
+    const erc20Metadata = await this.fetchERC20Metadata(token);
+    const [domains, depositAddresses, recipients, feeBpsValues] =
+      destinationConfigRaw;
+
+    const destinationConfigs: DepositAddressTokenConfig['destinationConfigs'] =
+      {};
+    for (let i = 0; i < domains.length; i++) {
+      destinationConfigs[domains[i].toString()] = {
+        depositAddress: depositAddresses[i],
+        recipient: recipients[i],
+        feeBps: feeBpsValues[i].toString(),
+      };
+    }
+
+    return {
+      ...erc20Metadata,
+      type: TokenType.collateralDepositAddress,
+      token,
+      destinationConfigs,
+    };
   }
 
   private async deriveHypCollateralTokenConfig(

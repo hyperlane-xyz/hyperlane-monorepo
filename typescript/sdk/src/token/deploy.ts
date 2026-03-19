@@ -14,6 +14,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
+import { TokenBridgeDepositAddress__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   ProtocolType,
@@ -60,6 +61,7 @@ import {
 import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   CctpTokenConfig,
+  DepositAddressTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
@@ -69,6 +71,7 @@ import {
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
+  isDepositAddressTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
@@ -192,6 +195,8 @@ abstract class TokenDeployer<
         config.mailbox,
         collateralDomain,
       ];
+    } else if (isDepositAddressTokenConfig(config)) {
+      return [config.token, config.owner];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -245,7 +250,9 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (
+    if (isDepositAddressTokenConfig(config)) {
+      throw new Error('Direct bridge adapters do not use initialize');
+    } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isNativeTokenConfig(config)
@@ -407,6 +414,54 @@ abstract class TokenDeployer<
               }),
             );
           }
+        }
+      }),
+    );
+  }
+
+  protected async configureDepositAddressDestinations(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const depositConfigs = objFilter(
+      configMap,
+      (_, config): config is DepositAddressTokenConfig =>
+        isDepositAddressTokenConfig(config),
+    );
+
+    await promiseObjAll(
+      objMap(depositConfigs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeDepositAddress__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedConfigs = resolveRouterMapConfig(
+          this.multiProvider,
+          config.destinationConfigs,
+        );
+
+        for (const [domainId, destinationConfig] of Object.entries(
+          resolvedConfigs,
+        )) {
+          this.logger.info(
+            `Setting deposit-address bridge destination config on ${chain}`,
+            {
+              destination: domainId,
+              depositAddress: destinationConfig.depositAddress,
+              recipient: destinationConfig.recipient,
+            },
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.setDestinationConfig(
+              Number(domainId),
+              destinationConfig.depositAddress,
+              destinationConfig.recipient,
+              BigNumber.from(destinationConfig.feeBps ?? 0),
+            ),
+          );
         }
       }),
     );
@@ -663,13 +718,41 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
-    const deployedContractsMap = await super.deploy(resolvedConfigMap);
+    const directBridgeContracts: Record<string, Record<string, unknown>> = {};
+    for (const [chain, config] of Object.entries(resolvedConfigMap)) {
+      if (!isDepositAddressTokenConfig(config)) {
+        continue;
+      }
+      const contractKey = this.routerContractKey(config);
+      const constructorArgs = await this.constructorArgs(chain, config);
+      const contract = await this.deployContract(
+        chain,
+        contractKey,
+        constructorArgs,
+      );
+      directBridgeContracts[chain] = { [contractKey]: contract };
+      delete resolvedConfigMap[chain];
+    }
+
+    const deployedContractsMap =
+      Object.keys(resolvedConfigMap).length > 0
+        ? await super.deploy(resolvedConfigMap)
+        : (this.deployedContracts as HyperlaneContractsMap<Factories>);
+
+    for (const [chain, contracts] of Object.entries(directBridgeContracts)) {
+      this.addDeployedContracts(chain, contracts);
+    }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
 
     // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
     await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
+
+    await this.configureDepositAddressDestinations(
+      configMap,
+      deployedContractsMap,
+    );
 
     await this.setRebalancers(configMap, deployedContractsMap);
 

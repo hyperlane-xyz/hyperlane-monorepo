@@ -2,7 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { isAddressEvm, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -226,6 +226,41 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
+export const DepositAddressDestinationConfigSchema = z.object({
+  depositAddress: z
+    .string()
+    .refine(isAddressEvm, 'depositAddress must be a valid EVM address'),
+  recipient: ZHash.describe('Expected destination recipient as bytes32'),
+  feeBps: z
+    .string()
+    .or(z.number())
+    .optional()
+    .refine((value) => value === undefined || BigInt(value) <= 10_000n, {
+      message: 'feeBps must be <= 10000',
+    })
+    .describe('Bridge fee in basis points for this destination'),
+});
+export type DepositAddressDestinationConfig = z.infer<
+  typeof DepositAddressDestinationConfigSchema
+>;
+
+export const DepositAddressTokenConfigSchema = TokenMetadataSchema.partial().extend(
+  {
+    type: z.literal(TokenType.collateralDepositAddress),
+    token: z.string().describe('Underlying ERC20 token address'),
+    destinationConfigs: z.record(
+      RemoteRouterDomainOrChainNameSchema,
+      DepositAddressDestinationConfigSchema,
+    ),
+  },
+);
+export type DepositAddressTokenConfig = z.infer<
+  typeof DepositAddressTokenConfigSchema
+>;
+export const isDepositAddressTokenConfig = isCompliant(
+  DepositAddressTokenConfigSchema,
+);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -340,6 +375,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   CctpTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  DepositAddressTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 
@@ -445,7 +481,8 @@ export const WarpRouteDeployConfigSchema = z
           isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
-          isEverclearTokenBridgeConfig(config),
+          isEverclearTokenBridgeConfig(config) ||
+          isDepositAddressTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)

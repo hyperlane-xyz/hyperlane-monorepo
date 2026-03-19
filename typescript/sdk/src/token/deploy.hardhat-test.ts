@@ -123,6 +123,46 @@ describe('TokenDeployer', async () => {
     await deployer.deploy(config);
   });
 
+  it('deploys a deposit-address bridge and derives its config', async () => {
+    const depositAddress = ethers.Wallet.createRandom().address;
+    const recipient = ethers.utils.hexZeroPad(
+      ethers.Wallet.createRandom().address,
+      32,
+    );
+
+    const depositConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.collateralDepositAddress,
+        token: erc20.address,
+        destinationConfigs: {
+          [TestChainName.test2]: {
+            depositAddress,
+            recipient,
+            feeBps: '1000',
+          },
+        },
+      },
+    };
+
+    const contracts = await deployer.deploy(depositConfig);
+    const routerAddress =
+      contracts[chain][TokenType.collateralDepositAddress].address;
+
+    const reader = new EvmWarpRouteReader(multiProvider, chain);
+    const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
+
+    expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
+    expect(derivedConfig.token).to.equal(erc20.address);
+    expect(derivedConfig.destinationConfigs).to.deep.equal({
+      [multiProvider.getDomainId(TestChainName.test2).toString()]: {
+        depositAddress,
+        recipient: recipient.toLowerCase(),
+        feeBps: '1000',
+      },
+    });
+  });
+
   for (const type of [
     TokenType.collateral,
     TokenType.synthetic,
