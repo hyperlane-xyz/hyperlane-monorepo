@@ -310,6 +310,18 @@ export class MockExternalBridge implements IExternalBridge {
         return { status: 'not_found' };
       }
 
+      if (toChainName === SVM_CHAIN_NAME) {
+        const receivedAmount = await this.getTransferredAmount(
+          provider,
+          dispatchTxReceipt,
+        );
+        return {
+          status: 'complete',
+          receivingTxHash: txHash,
+          receivedAmount,
+        };
+      }
+
       const dispatchedMessages =
         HyperlaneCore.getDispatchedMessages(dispatchTxReceipt);
       assert(
