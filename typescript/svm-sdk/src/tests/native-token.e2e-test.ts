@@ -12,7 +12,7 @@ import {
   SvmIgpHookWriter,
   type SvmIgpHookConfig,
 } from '../hook/igp-hook.js';
-import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
+import { SvmTestIsmWriter } from '../ism/test-ism.js';
 
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -67,14 +67,14 @@ describe('SVM Native Warp Token E2E Tests', function () {
     });
 
     testIsmAddress = TEST_PROGRAM_IDS.testIsm;
-    const ismConfig: SvmTestIsmConfig = {
-      type: 'testIsm',
-      program: { programId: testIsmAddress },
-    };
-    const ismWriter = new SvmTestIsmWriter(rpc, signer);
+    const ismWriter = new SvmTestIsmWriter(
+      { program: { programId: testIsmAddress } },
+      rpc,
+      signer,
+    );
     await ismWriter.create({
       artifactState: ArtifactState.NEW,
-      config: ismConfig,
+      config: { type: 'testIsm' },
     });
 
     writer = new SvmNativeTokenWriter(

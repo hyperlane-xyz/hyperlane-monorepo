@@ -9,7 +9,7 @@ import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmMailboxReader, SvmMailboxWriter } from '../core/mailbox.js';
-import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
+import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
@@ -64,14 +64,14 @@ describe('SVM Mailbox E2E Tests', function () {
 
     // Deploy Test ISM — required as the default ISM for mailbox init.
     testIsmAddress = TEST_PROGRAM_IDS.testIsm;
-    const ismConfig: SvmTestIsmConfig = {
-      type: 'testIsm',
-      program: { programId: testIsmAddress },
-    };
-    const ismWriter = new SvmTestIsmWriter(rpc, signer);
+    const ismWriter = new SvmTestIsmWriter(
+      { program: { programId: testIsmAddress } },
+      rpc,
+      signer,
+    );
     await ismWriter.create({
       artifactState: ArtifactState.NEW,
-      config: ismConfig,
+      config: { type: 'testIsm' },
     });
 
     mailboxWriter = new SvmMailboxWriter(

@@ -11,7 +11,7 @@ import {
   SvmValidatorAnnounceReader,
   SvmValidatorAnnounceWriter,
 } from '../core/validator-announce.js';
-import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
+import { SvmTestIsmWriter } from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
@@ -36,14 +36,14 @@ describe('SVM Validator Announce E2E Tests', function () {
 
     // Deploy Test ISM — required for mailbox init.
     const testIsmAddress: Address = TEST_PROGRAM_IDS.testIsm;
-    const ismConfig: SvmTestIsmConfig = {
-      type: 'testIsm',
-      program: { programId: testIsmAddress },
-    };
-    const ismWriter = new SvmTestIsmWriter(rpc, signer);
+    const ismWriter = new SvmTestIsmWriter(
+      { program: { programId: testIsmAddress } },
+      rpc,
+      signer,
+    );
     await ismWriter.create({
       artifactState: ArtifactState.NEW,
-      config: ismConfig,
+      config: { type: 'testIsm' },
     });
 
     // Deploy Mailbox — required as the mailbox reference for validator announce.

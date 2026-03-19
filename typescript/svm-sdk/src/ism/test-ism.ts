@@ -26,6 +26,16 @@ import type {
 
 import { fetchTestIsmStorageAccount } from './ism-query.js';
 
+/**
+ * Deployment-time configuration for the SVM test ISM writer.
+ * Passed to the writer constructor; separate from the on-chain artifact config.
+ */
+export type SvmTestIsmWriterConfig = Readonly<{
+  /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
+  program: SvmProgramTarget;
+}>;
+
+/** @deprecated Use SvmTestIsmWriterConfig instead. Kept for backward compat. */
 export interface SvmTestIsmConfig extends TestIsmConfig {
   program: SvmProgramTarget;
 }
@@ -58,6 +68,7 @@ export class SvmTestIsmWriter
   implements ArtifactWriter<TestIsmConfig, SvmDeployedIsm>
 {
   constructor(
+    private readonly writerConfig: SvmTestIsmWriterConfig,
     rpc: Rpc<SolanaRpcApi>,
     private readonly svmSigner: SvmSigner,
   ) {
@@ -65,13 +76,10 @@ export class SvmTestIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<TestIsmConfig>,
+    _artifact: ArtifactNew<TestIsmConfig>,
   ): Promise<[ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>, SvmReceipt[]]> {
-    // CAST: ArtifactWriter interface uses base TestIsmConfig, but SVM
-    // needs the extra `program` field from SvmTestIsmConfig.
-    const config = artifact.config as SvmTestIsmConfig;
     const { programAddress, receipts } = await resolveProgram(
-      config.program,
+      this.writerConfig.program,
       this.svmSigner,
       this.rpc,
     );
@@ -84,6 +92,7 @@ export class SvmTestIsmWriter
       );
       const initReceipt = await this.svmSigner.send({
         instructions: [instruction],
+        skipPreflight: true,
       });
       receipts.push(initReceipt);
     }

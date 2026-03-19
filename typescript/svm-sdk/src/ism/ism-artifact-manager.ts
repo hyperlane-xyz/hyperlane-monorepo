@@ -16,6 +16,7 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import type { SvmDeployedIsm } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
@@ -63,7 +64,12 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
         SvmDeployedIsm
       >;
     } = {
-      testIsm: () => new SvmTestIsmWriter(this.rpc, signer),
+      testIsm: () =>
+        new SvmTestIsmWriter(
+          { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.testIsm } },
+          this.rpc,
+          signer,
+        ),
       messageIdMultisigIsm: () =>
         new SvmMessageIdMultisigIsmWriter(this.rpc, signer),
     };
