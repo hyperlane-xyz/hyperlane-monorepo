@@ -118,6 +118,9 @@ export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
 export interface DerivedCrossCollateralWarpConfig extends BaseDerivedWarpConfig {
   type: 'crossCollateral';
   token: string;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
   crossCollateralRouters: Record<string, string[]>;
 }
 
