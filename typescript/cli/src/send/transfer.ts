@@ -19,6 +19,7 @@ import {
   assert,
   parseWarpRouteMessage,
   timeout,
+  pick,
 } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
@@ -186,9 +187,16 @@ async function executeDelivery({
   }
 
   const chainAddresses = await registry.getAddresses();
+  const filteredChainAddresses =
+    origin && destination
+      ? pick(chainAddresses, [origin, destination])
+      : chainAddresses;
 
   // Core is needed for on-chain wait (EVM destinations)
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+  const core = HyperlaneCore.fromAddressesMap(
+    filteredChainAddresses,
+    multiProvider,
+  );
 
   // Extract mailbox addresses from registry for each chain
   // Required for Sealevel/non-EVM token adapters during validation
