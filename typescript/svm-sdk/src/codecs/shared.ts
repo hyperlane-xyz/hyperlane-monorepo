@@ -369,6 +369,23 @@ export function decodeMapU32H256(cursor: ByteCursor): Map<number, H256> {
   return entries;
 }
 
+export function decodeMapU32SetH256(
+  cursor: ByteCursor,
+): Map<number, Uint8Array[]> {
+  const mapLen = cursor.readU32LE();
+  const entries = new Map<number, Uint8Array[]>();
+  for (let i = 0; i < mapLen; i += 1) {
+    const key = cursor.readU32LE();
+    const setLen = cursor.readU32LE();
+    const set: Uint8Array[] = [];
+    for (let j = 0; j < setLen; j += 1) {
+      set.push(cursor.readBytes(32));
+    }
+    entries.set(key, set);
+  }
+  return entries;
+}
+
 export function decodeMapU32GasOracle(
   cursor: ByteCursor,
 ): Map<number, GasOracle> {
