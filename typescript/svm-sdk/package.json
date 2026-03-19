@@ -62,6 +62,7 @@
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "mocha": "^10.4.0",
+    "mocha-steps": "catalog:",
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
     "tsx": "catalog:",

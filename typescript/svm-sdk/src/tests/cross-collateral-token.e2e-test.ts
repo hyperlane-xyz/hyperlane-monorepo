@@ -1,6 +1,7 @@
 import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
+import { step } from 'mocha-steps';
 
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
@@ -164,99 +165,113 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
       expect(token.config.mailbox).to.equal(mailboxAddress);
     });
 
-    it('should deploy with CC routers and read them back', async () => {
-      const ccRouters: Record<number, Set<string>> = {
-        1: new Set([
-          '0x1111111111111111111111111111111111111111111111111111111111111111',
-        ]),
-        2: new Set([
-          '0x2222222222222222222222222222222222222222222222222222222222222222',
-          '0x3333333333333333333333333333333333333333333333333333333333333333',
-        ]),
-      };
+    describe('Cross collateral token', function () {
+      let ccUpdateProgramId: string;
 
-      const [deployed] = await writer.create({
-        config: {
-          type: TokenType.crossCollateral,
-          owner: signer.getSignerAddress(),
-          mailbox: mailboxAddress,
-          token: collateralMint,
-          remoteRouters: {},
-          destinationGas: {},
-          crossCollateralRouters: ccRouters,
-        },
-      });
+      step('should deploy with CC routers and read them back', async () => {
+        const ccRouters: Record<number, Set<string>> = {
+          1: new Set([
+            '0x1111111111111111111111111111111111111111111111111111111111111111',
+          ]),
+          2: new Set([
+            '0x2222222222222222222222222222222222222222222222222222222222222222',
+            '0x3333333333333333333333333333333333333333333333333333333333333333',
+          ]),
+        };
 
-      const onChain = await writer.read(deployed.deployed.address);
-      const domain1Routers = onChain.config.crossCollateralRouters[1];
-      expect(domain1Routers).to.not.be.undefined;
-      expect(domain1Routers?.size).to.equal(1);
-      expect(
-        domain1Routers?.has(
-          '0x1111111111111111111111111111111111111111111111111111111111111111',
-        ),
-      ).to.be.true;
-
-      const domain2Routers = onChain.config.crossCollateralRouters[2];
-      expect(domain2Routers).to.not.be.undefined;
-      expect(domain2Routers?.size).to.equal(2);
-    });
-
-    it('should enroll CC routers via update', async () => {
-      const current = await writer.read(deployedProgramId);
-      expect(Object.keys(current.config.crossCollateralRouters)).to.have.length(
-        0,
-      );
-
-      const updateTxs = await writer.update({
-        ...current,
-        config: {
-          ...current.config,
-          crossCollateralRouters: {
-            1: new Set([
-              '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            ]),
+        const [deployed] = await writer.create({
+          config: {
+            type: TokenType.crossCollateral,
+            owner: signer.getSignerAddress(),
+            mailbox: mailboxAddress,
+            token: collateralMint,
+            remoteRouters: {},
+            destinationGas: {},
+            crossCollateralRouters: ccRouters,
           },
-        },
+        });
+
+        const onChain = await writer.read(deployed.deployed.address);
+        const domain1Routers = onChain.config.crossCollateralRouters[1];
+        expect(domain1Routers).to.not.be.undefined;
+        expect(domain1Routers?.size).to.equal(1);
+        expect(
+          domain1Routers?.has(
+            '0x1111111111111111111111111111111111111111111111111111111111111111',
+          ),
+        ).to.be.true;
+
+        const domain2Routers = onChain.config.crossCollateralRouters[2];
+        expect(domain2Routers).to.not.be.undefined;
+        expect(domain2Routers?.size).to.equal(2);
+
+        ccUpdateProgramId = deployed.deployed.address;
       });
 
-      expect(updateTxs.length).to.be.greaterThan(0);
-      for (const tx of updateTxs) {
-        await signer.send({ instructions: tx.instructions });
-      }
+      step('should enroll additional CC routers via update', async () => {
+        const current = await writer.read(ccUpdateProgramId);
+        expect(
+          Object.keys(current.config.crossCollateralRouters),
+        ).to.have.length(2);
 
-      const updated = await writer.read(deployedProgramId);
-      const domain1 = updated.config.crossCollateralRouters[1];
-      expect(domain1).to.not.be.undefined;
-      expect(domain1?.size).to.equal(1);
-      expect(
-        domain1?.has(
-          '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        ),
-      ).to.be.true;
-    });
+        const updateTxs = await writer.update({
+          ...current,
+          config: {
+            ...current.config,
+            crossCollateralRouters: {
+              ...current.config.crossCollateralRouters,
+              3: new Set([
+                '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              ]),
+            },
+          },
+        });
 
-    it('should unenroll CC routers via update', async () => {
-      const current = await writer.read(deployedProgramId);
-      expect(current.config.crossCollateralRouters[1]).to.not.be.undefined;
+        expect(updateTxs.length).to.be.greaterThan(0);
+        for (const tx of updateTxs) {
+          await signer.send({ instructions: tx.instructions });
+        }
 
-      const updateTxs = await writer.update({
-        ...current,
-        config: {
-          ...current.config,
-          crossCollateralRouters: {},
-        },
+        const updated = await writer.read(ccUpdateProgramId);
+        expect(
+          Object.keys(updated.config.crossCollateralRouters),
+        ).to.have.length(3);
+        expect(updated.config.crossCollateralRouters[1]?.size).to.equal(1);
+        expect(updated.config.crossCollateralRouters[2]?.size).to.equal(2);
+        const domain3 = updated.config.crossCollateralRouters[3];
+        expect(domain3).to.not.be.undefined;
+        expect(domain3?.size).to.equal(1);
+        expect(
+          domain3?.has(
+            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          ),
+        ).to.be.true;
       });
 
-      expect(updateTxs.length).to.be.greaterThan(0);
-      for (const tx of updateTxs) {
-        await signer.send({ instructions: tx.instructions });
-      }
+      step('should unenroll all CC routers via update', async () => {
+        const current = await writer.read(ccUpdateProgramId);
+        expect(
+          Object.keys(current.config.crossCollateralRouters),
+        ).to.have.length(3);
 
-      const updated = await writer.read(deployedProgramId);
-      expect(Object.keys(updated.config.crossCollateralRouters)).to.have.length(
-        0,
-      );
+        const updateTxs = await writer.update({
+          ...current,
+          config: {
+            ...current.config,
+            crossCollateralRouters: {},
+          },
+        });
+
+        expect(updateTxs.length).to.be.greaterThan(0);
+        for (const tx of updateTxs) {
+          await signer.send({ instructions: tx.instructions });
+        }
+
+        const updated = await writer.read(ccUpdateProgramId);
+        expect(
+          Object.keys(updated.config.crossCollateralRouters),
+        ).to.have.length(0);
+      });
     });
   });
 });
