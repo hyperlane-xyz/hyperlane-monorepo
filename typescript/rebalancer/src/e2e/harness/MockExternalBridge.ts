@@ -494,7 +494,7 @@ export class MockExternalBridge implements IExternalBridge {
 
   private resolveDomainId(chainName: string): number {
     if (chainName === SVM_CHAIN_NAME) return SVM_DOMAIN_ID;
-    return this.resolveDomainId(chainName);
+    return this.multiProvider.getDomainId(chainName);
   }
 
   private resolveChainName(chainRef: number): string {

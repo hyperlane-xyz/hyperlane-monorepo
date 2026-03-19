@@ -1298,21 +1298,24 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
 
     // Calculate minViableTransfer for the target chain
-    // If bridging less than this, the received amount won't be enough to execute transferRemote
-    // So we over-bridge to ensure we can complete the intent in the next cycle
-    const costs = await calculateTransferCosts(
-      targetChain, // FROM chain for transferRemote (the target of this bridge)
-      sourceChain, // TO chain for transferRemote (Hyperlane message destination)
-      amount, // availableInventory (not used for minViableTransfer calculation)
-      amount, // requestedAmount
-      this.multiProvider,
-      this.warpCore.multiProvider,
-      this.getTokenForChain.bind(this),
-      this.getInventorySignerAddress(targetChain),
-      isNativeTokenStandard,
-      this.logger,
-    );
-    const { minViableTransfer } = costs;
+    // Skip for non-EVM target chains — transferRemote gas estimation requires EVM providers
+    const targetProtocol = this.warpCore.multiProvider.getProtocol(targetChain);
+    let minViableTransfer = 0n;
+    if (targetProtocol === ProtocolType.Ethereum) {
+      const costs = await calculateTransferCosts(
+        targetChain,
+        sourceChain,
+        amount,
+        amount,
+        this.multiProvider,
+        this.warpCore.multiProvider,
+        this.getTokenForChain.bind(this),
+        this.getInventorySignerAddress(targetChain),
+        isNativeTokenStandard,
+        this.logger,
+      );
+      minViableTransfer = costs.minViableTransfer;
+    }
 
     // If the requested amount is below minViableTransfer, adjust it up
     // This ensures we bridge enough to actually complete the final transferRemote
