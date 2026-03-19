@@ -224,7 +224,7 @@ describe('configUtils', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
-        bps: 100n,
+        bps: 100,
       };
 
       const result = resolveTokenFeeAddress(
@@ -241,7 +241,7 @@ describe('configUtils', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
-        bps: 100n,
+        bps: 100,
       };
 
       const result = resolveTokenFeeAddress(
@@ -257,7 +257,7 @@ describe('configUtils', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
-        bps: 100n,
+        bps: 100,
       };
 
       const result = resolveTokenFeeAddress(
