@@ -18,6 +18,7 @@ import type {
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
@@ -106,7 +107,12 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
         );
       },
       interchainGasPaymaster: () =>
-        new SvmIgpHookWriter(this.rpc, this.salt, signer),
+        new SvmIgpHookWriter(
+          { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+          this.rpc,
+          this.salt,
+          signer,
+        ),
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported hook type: ${type}`);

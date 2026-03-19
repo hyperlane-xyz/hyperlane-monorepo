@@ -11,8 +11,9 @@ import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+
 import {
-  type SvmIgpHookConfig,
   SvmIgpHookReader,
   SvmIgpHookWriter,
   deriveIgpSalt,
@@ -97,11 +98,15 @@ describe('SVM Hook E2E Tests', function () {
   describe('IGP Hook', () => {
     it('should create and read IGP Hook with gas oracle configs', async function () {
       const salt = deriveIgpSalt('hyperlane-test');
-      const writer = new SvmIgpHookWriter(rpc, salt, signer);
+      const writer = new SvmIgpHookWriter(
+        { program: { programId: TEST_PROGRAM_IDS.igp } },
+        rpc,
+        salt,
+        signer,
+      );
 
-      const igpConfig: SvmIgpHookConfig = {
+      const igpConfig: IgpHookConfig = {
         type: HookType.INTERCHAIN_GAS_PAYMASTER,
-        program: { programId: TEST_PROGRAM_IDS.igp },
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
         oracleKey: signer.getSignerAddress(),
@@ -141,11 +146,15 @@ describe('SVM Hook E2E Tests', function () {
 
     it('should generate update transactions for config changes', async function () {
       const salt = deriveIgpSalt('hyperlane-update-test');
-      const writer = new SvmIgpHookWriter(rpc, salt, signer);
+      const writer = new SvmIgpHookWriter(
+        { program: { programId: TEST_PROGRAM_IDS.igp } },
+        rpc,
+        salt,
+        signer,
+      );
 
-      const updateConfig: SvmIgpHookConfig = {
+      const updateConfig: IgpHookConfig = {
         type: HookType.INTERCHAIN_GAS_PAYMASTER,
-        program: { programId: TEST_PROGRAM_IDS.igp },
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
         oracleKey: signer.getSignerAddress(),

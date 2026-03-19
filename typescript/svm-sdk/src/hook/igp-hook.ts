@@ -42,6 +42,16 @@ import {
   remoteGasDataToConfig,
 } from './hook-query.js';
 
+/**
+ * Deployment-time configuration for the SVM IGP hook writer.
+ * Passed to the writer constructor; separate from the on-chain artifact config.
+ */
+export type SvmIgpHookWriterConfig = Readonly<{
+  /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
+  program: SvmProgramTarget;
+}>;
+
+/** @deprecated Use SvmIgpHookWriterConfig instead. Kept for backward compat. */
 export interface SvmIgpHookConfig extends IgpHookConfig {
   program: SvmProgramTarget;
   context?: string;
@@ -129,6 +139,7 @@ export class SvmIgpHookWriter
   implements ArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
 {
   constructor(
+    private readonly writerConfig: SvmIgpHookWriterConfig,
     rpc: Rpc<SolanaRpcApi>,
     salt: Uint8Array,
     private readonly svmSigner: SvmSigner,
@@ -141,9 +152,9 @@ export class SvmIgpHookWriter
   ): Promise<
     [ArtifactDeployed<IgpHookConfig, SvmDeployedIgpHook>, SvmReceipt[]]
   > {
-    const config = artifact.config as SvmIgpHookConfig;
+    const config = artifact.config;
     const { programAddress: programId, receipts } = await resolveProgram(
-      config.program,
+      this.writerConfig.program,
       this.svmSigner,
       this.rpc,
     );
@@ -157,6 +168,7 @@ export class SvmIgpHookWriter
       );
       const initProgramReceipt = await this.svmSigner.send({
         instructions: [initProgramIx],
+        skipPreflight: true,
       });
       receipts.push(initProgramReceipt);
     }
@@ -177,6 +189,7 @@ export class SvmIgpHookWriter
 
       const initReceipt = await this.svmSigner.send({
         instructions: [initIgpIx],
+        skipPreflight: true,
       });
       receipts.push(initReceipt);
 
@@ -207,6 +220,7 @@ export class SvmIgpHookWriter
 
       const initOverheadReceipt = await this.svmSigner.send({
         instructions: [initOverheadIx],
+        skipPreflight: true,
       });
       receipts.push(initOverheadReceipt);
     }

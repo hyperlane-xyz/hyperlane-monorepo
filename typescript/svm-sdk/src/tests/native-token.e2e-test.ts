@@ -7,11 +7,9 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { SvmSigner } from '../clients/signer.js';
-import {
-  DEFAULT_IGP_SALT,
-  SvmIgpHookWriter,
-  type SvmIgpHookConfig,
-} from '../hook/igp-hook.js';
+import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+
+import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
 
 import { createRpc } from '../rpc.js';
@@ -49,7 +47,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
     mailboxAddress = TEST_PROGRAM_IDS.mailbox;
     igpProgramId = TEST_PROGRAM_IDS.igp;
 
-    const igpConfig: SvmIgpHookConfig = {
+    const igpConfig: IgpHookConfig = {
       type: 'interchainGasPaymaster',
       owner: signer.getSignerAddress(),
       beneficiary: signer.getSignerAddress(),
@@ -58,9 +56,13 @@ describe('SVM Native Warp Token E2E Tests', function () {
       oracleConfig: {
         1: { gasPrice: '1', tokenExchangeRate: '1000000000000000000' },
       },
-      program: { programId: igpProgramId },
     };
-    const igpWriter = new SvmIgpHookWriter(rpc, DEFAULT_IGP_SALT, signer);
+    const igpWriter = new SvmIgpHookWriter(
+      { program: { programId: igpProgramId } },
+      rpc,
+      DEFAULT_IGP_SALT,
+      signer,
+    );
     await igpWriter.create({
       artifactState: ArtifactState.NEW,
       config: igpConfig,
