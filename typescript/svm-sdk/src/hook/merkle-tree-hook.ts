@@ -14,17 +14,26 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedHook,
-  SvmProgramTarget,
   SvmReceipt,
 } from '../types.js';
 
-export interface SvmMerkleTreeHookConfig extends MerkleTreeHookConfig {
-  program: SvmProgramTarget;
-}
+/**
+ * Deployment-time configuration for the SVM merkle tree hook writer.
+ * Passed to the writer constructor; separate from the on-chain artifact config.
+ *
+ * On SVM the merkle tree hook IS the mailbox program, so the writer only
+ * needs the mailbox address to reference it — no separate deployment needed.
+ */
+export type SvmMerkleTreeHookWriterConfig = Readonly<{
+  /** The already-deployed mailbox program address. */
+  mailboxAddress: string;
+}>;
 
 export class SvmMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
@@ -50,6 +59,7 @@ export class SvmMerkleTreeHookWriter
   implements ArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
 {
   constructor(
+    private readonly writerConfig: SvmMerkleTreeHookWriterConfig,
     rpc: Rpc<SolanaRpcApi>,
     protected readonly _signer: SvmSigner,
   ) {
@@ -57,19 +67,12 @@ export class SvmMerkleTreeHookWriter
   }
 
   async create(
-    artifact: ArtifactNew<MerkleTreeHookConfig>,
+    _artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
     [ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>, SvmReceipt[]]
   > {
-    // CAST: ArtifactWriter interface uses base MerkleTreeHookConfig, but SVM
-    // needs the extra `program` field from SvmMerkleTreeHookConfig.
-    const config = artifact.config as SvmMerkleTreeHookConfig;
-    if (!('programId' in config.program)) {
-      throw new Error(
-        'Merkle tree hook requires an existing mailbox programId',
-      );
-    }
-    const programId = config.program.programId;
+    const programId = parseAddress(this.writerConfig.mailboxAddress);
+    assert(programId, 'Merkle tree hook requires the mailbox address');
 
     return [
       {

@@ -18,7 +18,6 @@ import {
   deriveIgpSalt,
 } from '../hook/igp-hook.js';
 import {
-  type SvmMerkleTreeHookConfig,
   SvmMerkleTreeHookReader,
   SvmMerkleTreeHookWriter,
 } from '../hook/merkle-tree-hook.js';
@@ -49,15 +48,15 @@ describe('SVM Hook E2E Tests', function () {
 
   describe('Merkle Tree Hook', () => {
     it('should create and read Merkle Tree Hook (returns mailbox address)', async () => {
-      const writer = new SvmMerkleTreeHookWriter(rpc, signer);
+      const writer = new SvmMerkleTreeHookWriter(
+        { mailboxAddress: TEST_PROGRAM_IDS.mailbox },
+        rpc,
+        signer,
+      );
 
-      const config: SvmMerkleTreeHookConfig = {
-        type: HookType.MERKLE_TREE,
-        program: { programId: TEST_PROGRAM_IDS.mailbox },
-      };
       const [deployed, receipts] = await writer.create({
         artifactState: ArtifactState.NEW,
-        config,
+        config: { type: HookType.MERKLE_TREE },
       });
 
       expect(receipts).to.have.length(0);
@@ -74,7 +73,11 @@ describe('SVM Hook E2E Tests', function () {
     });
 
     it('should return empty transactions for update', async () => {
-      const writer = new SvmMerkleTreeHookWriter(rpc, signer);
+      const writer = new SvmMerkleTreeHookWriter(
+        { mailboxAddress: TEST_PROGRAM_IDS.mailbox },
+        rpc,
+        signer,
+      );
 
       const artifact: ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook> =
         {

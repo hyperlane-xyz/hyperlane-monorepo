@@ -94,7 +94,17 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
         SvmDeployedHook | SvmDeployedIgpHook
       >;
     } = {
-      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
+      merkleTreeHook: () => {
+        assert(
+          this.mailboxAddress,
+          'Mailbox address is required to create a merkle tree hook writer on SVM',
+        );
+        return new SvmMerkleTreeHookWriter(
+          { mailboxAddress: this.mailboxAddress },
+          this.rpc,
+          signer,
+        );
+      },
       interchainGasPaymaster: () =>
         new SvmIgpHookWriter(this.rpc, this.salt, signer),
     };
