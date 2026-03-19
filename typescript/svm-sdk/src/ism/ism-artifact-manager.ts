@@ -20,10 +20,6 @@ import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import type { SvmDeployedIsm } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
-import {
-  SvmMessageIdMultisigIsmReader,
-  SvmMessageIdMultisigIsmWriter,
-} from './multisig-ism.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
 export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
@@ -47,7 +43,10 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       >;
     } = {
       testIsm: () => new SvmTestIsmReader(this.rpc),
-      messageIdMultisigIsm: () => new SvmMessageIdMultisigIsmReader(this.rpc),
+      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
+      messageIdMultisigIsm: () => {
+        throw new Error('Multisig ISM reading not supported on SVM chains');
+      },
     };
     const factory = readers[type];
     if (!factory) throw new Error(`Unsupported ISM type: ${type}`);
@@ -70,8 +69,10 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
           this.rpc,
           signer,
         ),
-      messageIdMultisigIsm: () =>
-        new SvmMessageIdMultisigIsmWriter(this.rpc, signer),
+      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
+      messageIdMultisigIsm: () => {
+        throw new Error('Multisig ISM deployment not supported on SVM chains');
+      },
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported ISM type: ${type}`);
