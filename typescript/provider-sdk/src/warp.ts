@@ -38,6 +38,7 @@ export const TokenType = {
   synthetic: 'synthetic',
   collateral: 'collateral',
   native: 'native',
+  crossCollateral: 'crossCollateral',
 } as const;
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
@@ -72,10 +73,17 @@ export interface NativeWarpConfig extends BaseWarpConfig {
   type: 'native';
 }
 
+export interface CrossCollateralWarpConfig extends BaseWarpConfig {
+  type: 'crossCollateral';
+  token: string;
+  crossCollateralRouters?: Record<string, string[]>;
+}
+
 export type WarpConfig =
   | CollateralWarpConfig
   | SyntheticWarpConfig
-  | NativeWarpConfig;
+  | NativeWarpConfig
+  | CrossCollateralWarpConfig;
 
 export interface BaseDerivedWarpConfig {
   owner: string;
@@ -107,10 +115,17 @@ export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
   type: 'native';
 }
 
+export interface DerivedCrossCollateralWarpConfig extends BaseDerivedWarpConfig {
+  type: 'crossCollateral';
+  token: string;
+  crossCollateralRouters: Record<string, string[]>;
+}
+
 export type DerivedWarpConfig =
   | DerivedCollateralWarpConfig
   | DerivedSyntheticWarpConfig
-  | DerivedNativeWarpConfig;
+  | DerivedNativeWarpConfig
+  | DerivedCrossCollateralWarpConfig;
 
 export type WarpRouteAddresses = {
   deployedTokenRoute: string;
@@ -157,10 +172,17 @@ export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
   type: typeof TokenType.native;
 }
 
+export interface CrossCollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
+  type: typeof TokenType.crossCollateral;
+  token: string;
+  crossCollateralRouters: Record<number, Set<string>>;
+}
+
 export interface WarpArtifactConfigs {
   collateral: CollateralWarpArtifactConfig;
   synthetic: SyntheticWarpArtifactConfig;
   native: NativeWarpArtifactConfig;
+  crossCollateral: CrossCollateralWarpArtifactConfig;
 }
 
 export type WarpType = keyof WarpArtifactConfigs;
@@ -198,10 +220,14 @@ export type RawSyntheticWarpArtifactConfig =
 export type RawNativeWarpArtifactConfig =
   ConfigOnChain<NativeWarpArtifactConfig>;
 
+export type RawCrossCollateralWarpArtifactConfig =
+  ConfigOnChain<CrossCollateralWarpArtifactConfig>;
+
 export interface RawWarpArtifactConfigs {
   collateral: RawCollateralWarpArtifactConfig;
   synthetic: RawSyntheticWarpArtifactConfig;
   native: RawNativeWarpArtifactConfig;
+  crossCollateral: RawCrossCollateralWarpArtifactConfig;
 }
 
 /**
@@ -382,6 +408,21 @@ export function warpConfigToArtifact(
         },
       };
 
+    case 'crossCollateral':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          ...baseArtifactConfig,
+          type: 'crossCollateral',
+          token: config.token,
+          crossCollateralRouters: convertCrossCollateralRoutersToArtifact(
+            config.crossCollateralRouters,
+            chainLookup,
+            logger,
+          ),
+        },
+      };
+
     default: {
       const invalidConfig: never = config;
       throw new Error(
@@ -496,6 +537,16 @@ export function warpArtifactToDerivedConfig(
         type: TokenType.native,
       };
 
+    case 'crossCollateral':
+      return {
+        ...baseDerivedConfig,
+        type: TokenType.crossCollateral,
+        token: config.token,
+        crossCollateralRouters: convertCrossCollateralRoutersToDerived(
+          config.crossCollateralRouters,
+          chainLookup,
+        ),
+      };
     default: {
       const invalidConfig: never = config;
       throw new Error(
@@ -503,6 +554,46 @@ export function warpArtifactToDerivedConfig(
       );
     }
   }
+}
+
+// Cross-Collateral Router Utilities
+
+function convertCrossCollateralRoutersToArtifact(
+  crossCollateralRouters: Record<string, string[]> | undefined,
+  chainLookup: ChainLookup,
+  logger?: Logger,
+): Record<number, Set<string>> {
+  const result: Record<number, Set<string>> = {};
+  if (!crossCollateralRouters) return result;
+
+  for (const [chainName, routers] of Object.entries(crossCollateralRouters)) {
+    const domainId = chainLookup.getDomainId(chainName);
+    if (isNullish(domainId)) {
+      logger?.warn(
+        `Skipping cross-collateral routers for unknown chain: ${chainName}. ` +
+          `Chain not found in chain lookup.`,
+      );
+      continue;
+    }
+    result[domainId] = new Set(routers);
+  }
+  return result;
+}
+
+function convertCrossCollateralRoutersToDerived(
+  crossCollateralRouters: Record<number, Set<string>>,
+  chainLookup: ChainLookup,
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+
+  for (const [domainIdStr, routers] of Object.entries(crossCollateralRouters)) {
+    const domainId = parseInt(domainIdStr);
+    const chainName = chainLookup.getChainName(domainId);
+    if (!chainName) continue;
+    result[chainName] = Array.from(routers);
+  }
+
+  return result;
 }
 
 // Warp Router Update Utilities
