@@ -9,12 +9,28 @@ export const MAX_BPS = 10_000n; // 100% in bps
 export const MAX_BPS_DECIMALS = 4;
 
 /**
+ * Bigint precision multiplier for fractional bps arithmetic.
+ * Equals 10^MAX_BPS_DECIMALS = 10_000n.
+ */
+export const BPS_PRECISION = BigInt(10 ** MAX_BPS_DECIMALS);
+
+/**
+ * Returns true if bps has at most MAX_BPS_DECIMALS decimal places.
+ * Uses epsilon comparison to avoid IEEE 754 false positives
+ * (e.g. 0.3 * 10000 = 2999.9999... which strict equality would wrongly reject).
+ */
+export function isBpsPrecisionValid(bps: number): boolean {
+  const factor = 10 ** MAX_BPS_DECIMALS;
+  const scaled = bps * factor;
+  return Math.abs(Math.round(scaled) - scaled) <= 1e-9;
+}
+
+/**
  * Validates that a bps value does not exceed MAX_BPS_DECIMALS decimal places.
  * @throws Error if bps has too many decimal places
  */
 export function assertBpsPrecision(bps: number): void {
-  const factor = 10 ** MAX_BPS_DECIMALS;
-  if (Math.round(bps * factor) !== bps * factor) {
+  if (!isBpsPrecisionValid(bps)) {
     throw new Error(
       `bps must have at most ${MAX_BPS_DECIMALS} decimal places, got ${bps}`,
     );
@@ -42,10 +58,11 @@ export function convertToBps(maxFee: bigint, halfAmount: bigint): number {
   }
 
   // Use precision scaling to preserve fractional bps (e.g., 1.5)
-  // Multiply by PRECISION before bigint division, then divide back in Number space
-  const PRECISION = BigInt(10 ** MAX_BPS_DECIMALS);
-  const scaledBps = (maxFee * MAX_BPS * PRECISION) / (halfAmount * 2n);
+  // Multiply by BPS_PRECISION before bigint division, then divide back in Number space
+  const scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2n);
   // Round to MAX_BPS_DECIMALS decimal places to prevent floating point drift
   const factor = 10 ** MAX_BPS_DECIMALS;
-  return Math.round((Number(scaledBps) / Number(PRECISION)) * factor) / factor;
+  return (
+    Math.round((Number(scaledBps) / Number(BPS_PRECISION)) * factor) / factor
+  );
 }
