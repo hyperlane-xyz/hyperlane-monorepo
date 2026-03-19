@@ -83,7 +83,8 @@ export async function estimateTransferRemoteGas(
   }
 
   try {
-    const destinationDomain = multiProvider.getDomainId(destinationChain);
+    const destinationDomain =
+      warpCoreMultiProvider.getDomainId(destinationChain);
     const adapter = originToken.getHypAdapter(warpCoreMultiProvider);
 
     // Quote the IGP gas first (needed for the full transaction)
@@ -175,7 +176,7 @@ export async function calculateTransferCosts(
     throw new Error(`No token found for origin chain: ${originChain}`);
   }
 
-  const destinationDomain = multiProvider.getDomainId(destinationChain);
+  const destinationDomain = warpCoreMultiProvider.getDomainId(destinationChain);
   const adapter = originToken.getHypAdapter(warpCoreMultiProvider);
 
   // Always quote IGP for the gas quote (needed for populateTransferRemoteTx)

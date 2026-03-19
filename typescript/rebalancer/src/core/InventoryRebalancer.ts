@@ -1412,8 +1412,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       await this.actionTracker.createRebalanceAction({
         intentId: intent.id,
-        origin: this.multiProvider.getDomainId(sourceChain),
-        destination: this.multiProvider.getDomainId(targetChain),
+        origin: this.warpCore.multiProvider.getDomainId(sourceChain),
+        destination: this.warpCore.multiProvider.getDomainId(targetChain),
         amount: inputRequired,
         type: 'inventory_movement',
         txHash: result.txHash,
