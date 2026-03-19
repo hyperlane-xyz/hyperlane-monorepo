@@ -120,7 +120,7 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
 
 /// Populates the gas limit and price for a transaction
 pub(crate) async fn fill_tx_gas_params<M, D>(
-    tx: ContractCall<M, D>,
+    mut tx: ContractCall<M, D>,
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
@@ -131,6 +131,15 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
+    // Some chains estimate gas from address(0) when `from` is missing,
+    // which can fail with insufficient-funds on L1 fee checks.
+    // If signer/provider has a default sender, use it for gas estimation.
+    if tx.tx.from().is_none() {
+        if let Some(default_sender) = provider.default_sender() {
+            tx.tx.set_from(default_sender);
+        }
+    }
+
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
