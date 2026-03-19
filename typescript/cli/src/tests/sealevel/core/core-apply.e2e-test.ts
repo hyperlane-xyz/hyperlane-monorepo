@@ -7,11 +7,14 @@ import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   BURN_ADDRESS_BY_PROTOCOL,
-  CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
 } from '../../constants.js';
+
+// Uses merkleTreeHook as defaultHook to match what core read returns on SVM,
+// avoiding a hook mismatch that would cause apply to redeploy the IGP.
+const CORE_APPLY_CONFIG_PATH = './examples/sealevel/core-config-apply.yaml';
 
 // SVM deploys programs from bytes (~90+ write-chunk transactions per program),
 // so the suite needs a generous timeout.
@@ -24,15 +27,13 @@ describe('hyperlane core apply (Sealevel E2E tests)', async function () {
     ProtocolType.Sealevel,
     'svmlocal1',
     REGISTRY_PATH,
-    CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
+    CORE_APPLY_CONFIG_PATH,
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
   );
 
-  // Deploy fresh core before each test
-  beforeEach(async function () {
-    const coreConfig: CoreConfig = await readYamlOrJson(
-      CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
-    );
+  // Deploy once before all tests to avoid repeated ~7min deploys
+  before(async function () {
+    const coreConfig: CoreConfig = await readYamlOrJson(CORE_APPLY_CONFIG_PATH);
     writeYamlOrJson(
       CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
       coreConfig,
@@ -48,7 +49,7 @@ describe('hyperlane core apply (Sealevel E2E tests)', async function () {
   describe('hyperlane core apply (mailbox updates)', function () {
     it('should update the mailbox owner to the specified one', async () => {
       const coreConfig: CoreConfig = await readYamlOrJson(
-        CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
+        CORE_APPLY_CONFIG_PATH,
       );
 
       coreConfig.owner = BURN_ADDRESS_BY_PROTOCOL.sealevel;
