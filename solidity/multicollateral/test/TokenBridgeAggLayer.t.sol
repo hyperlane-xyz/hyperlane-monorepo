@@ -25,6 +25,7 @@ contract MockAgglayerBridge is IAggLayerBridge {
     address public lastToken;
     bool public lastForceUpdateGlobalExitRoot;
     uint256 public lastValue;
+    bytes public lastPermitData;
 
     uint32 public lastClaimOriginNetwork;
     address public lastClaimOriginToken;
@@ -43,7 +44,7 @@ contract MockAgglayerBridge is IAggLayerBridge {
         uint256 amount,
         address token,
         bool forceUpdateGlobalExitRoot,
-        bytes calldata
+        bytes calldata permitData
     ) external payable {
         lastDestinationNetwork = destinationNetwork;
         lastDestinationAddress = destinationAddress;
@@ -51,6 +52,7 @@ contract MockAgglayerBridge is IAggLayerBridge {
         lastToken = token;
         lastForceUpdateGlobalExitRoot = forceUpdateGlobalExitRoot;
         lastValue = msg.value;
+        lastPermitData = permitData;
     }
 
     function claimAsset(
@@ -264,6 +266,10 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(agglayerBridge.lastAmount(), 50e6);
         assertEq(agglayerBridge.lastToken(), address(vbUsdc));
         assertEq(agglayerBridge.lastValue(), 0);
+        assertEq(
+            abi.decode(agglayerBridge.lastPermitData(), (bytes32)),
+            keccak256(abi.encodePacked(BOB.addressToBytes32(), uint256(50e6)))
+        );
     }
 
     function test_quoteTransferRemote_secondaryRouteIncludesConfigurableGas()
@@ -295,11 +301,15 @@ contract TokenBridgeAggLayerTest is Test {
     }
 
     function test_verify_primaryRouteClaimsAgglayerAssetForRedemption() public {
+        bytes memory tokenMessage = abi.encodePacked(
+            BOB.addressToBytes32(),
+            uint256(100e6)
+        );
         bytes memory message = katanaMailbox.buildMessage(
             address(katanaRoute),
             ETH_DOMAIN,
             address(ethRoute).addressToBytes32(),
-            abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
+            tokenMessage
         );
 
         bytes memory metadata = abi.encode(
@@ -309,7 +319,7 @@ contract TokenBridgeAggLayerTest is Test {
                 globalIndex: 7,
                 mainnetExitRoot: bytes32(uint256(1)),
                 rollupExitRoot: bytes32(uint256(2)),
-                metadata: hex"1234"
+                metadata: abi.encode(keccak256(tokenMessage))
             })
         );
 
@@ -334,8 +344,35 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(agglayerBridge.lastClaimAmount(), 100e6);
         assertEq(
             keccak256(agglayerBridge.lastClaimMetadata()),
-            keccak256(hex"1234")
+            keccak256(abi.encode(keccak256(tokenMessage)))
         );
+    }
+
+    function test_verify_revertsWhenClaimMetadataDoesNotMatchMessage() public {
+        bytes memory tokenMessage = abi.encodePacked(
+            BOB.addressToBytes32(),
+            uint256(100e6)
+        );
+        bytes memory message = katanaMailbox.buildMessage(
+            address(katanaRoute),
+            ETH_DOMAIN,
+            address(ethRoute).addressToBytes32(),
+            tokenMessage
+        );
+
+        bytes memory metadata = abi.encode(
+            TokenBridgeAggLayer.ClaimMetadata({
+                smtProofLocalExitRoot: _emptyProof(),
+                smtProofRollupExitRoot: _emptyProof(),
+                globalIndex: 7,
+                mainnetExitRoot: bytes32(uint256(1)),
+                rollupExitRoot: bytes32(uint256(2)),
+                metadata: abi.encode(bytes32(uint256(0x1234)))
+            })
+        );
+
+        vm.expectRevert(TokenBridgeAggLayer.InvalidClaimMetadata.selector);
+        ethRoute.verify(metadata, message);
     }
 
     function test_handle_primaryRouteRedeemsToRecipient() public {

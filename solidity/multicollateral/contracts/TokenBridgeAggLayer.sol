@@ -51,6 +51,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     error RemoteConfigNotFound(uint32 domain);
     error UnsupportedHandle();
     error UnsupportedVerify();
+    error InvalidClaimMetadata();
 
     event RemoteBridgeConfigSet(
         uint32 indexed domain,
@@ -205,6 +206,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             msg.value,
             _feeHook
         );
+        bytes memory _tokenMessage = TokenMessage.format(_recipient, _amount);
 
         address remoteRouter = _mustHaveRemoteRouter(_destination)
             .bytes32ToAddress();
@@ -215,10 +217,9 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _amount,
             address(localToken),
             cfg.forceUpdateGlobalExitRoot,
-            ""
+            abi.encode(keccak256(_tokenMessage))
         );
 
-        bytes memory _tokenMessage = TokenMessage.format(_recipient, _amount);
         messageId = _emitAndDispatch(
             _destination,
             _recipient,
@@ -263,9 +264,14 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         }
 
         ClaimMetadata memory claim = abi.decode(_metadata, (ClaimMetadata));
-        _claimBridgedAsset(claim, _message.body().amount());
-
+        if (
+            claim.metadata.length != 32 ||
+            abi.decode(claim.metadata, (bytes32)) != keccak256(_message.body())
+        ) {
+            revert InvalidClaimMetadata();
+        }
         isVerified[messageId] = true;
+        _claimBridgedAsset(claim, _message.body().amount());
         return true;
     }
 
