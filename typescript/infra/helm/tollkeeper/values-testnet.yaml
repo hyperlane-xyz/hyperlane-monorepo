@@ -1,0 +1,38 @@
+environment: testnet
+
+image:
+  repository: ghcr.io/hyperlane-xyz/hyperlane-tollkeeper
+  # Update this tag to deploy a new revision.
+  # Images: https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-tollkeeper
+  tag: latest
+
+hyperlane:
+  runEnv: testnet4
+  chains:
+    - ethereum
+    - arbitrum
+    - optimism
+    - base
+    - polygon
+    - bsc
+    - avalanche
+    - eclipsemainnet
+
+secrets:
+  prefix: 'hyperlane-testnet4'
+
+ingress:
+  host: testnet-tollkeeper.services.hyperlane.xyz
+  staticIpName: tollkeeper-testnet
+
+cloudArmor:
+  enabled: true
+  policyName: tollkeeper-testnet-policy
+
+env:
+  - name: SERVER_PORT
+    value: '3000'
+  - name: TOLLKEEPER_CONFIG
+    value: './config/system.yaml'
+  - name: NODE_ENV
+    value: 'production'

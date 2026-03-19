@@ -1,0 +1,38 @@
+environment: mainnet
+
+image:
+  repository: ghcr.io/hyperlane-xyz/hyperlane-tollkeeper
+  # Update this tag to deploy a new revision.
+  # Images: https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-tollkeeper
+  tag: latest
+
+hyperlane:
+  runEnv: mainnet3
+  chains:
+    - ethereum
+    - arbitrum
+    - optimism
+    - base
+    - polygon
+    - bsc
+    - avalanche
+    - eclipsemainnet
+
+secrets:
+  prefix: 'hyperlane-mainnet3'
+
+ingress:
+  host: tollkeeper.services.hyperlane.xyz
+  staticIpName: tollkeeper-mainnet
+
+cloudArmor:
+  enabled: true
+  policyName: tollkeeper-mainnet-policy
+
+env:
+  - name: SERVER_PORT
+    value: '3000'
+  - name: TOLLKEEPER_CONFIG
+    value: './config/system.yaml'
+  - name: NODE_ENV
+    value: 'production'
