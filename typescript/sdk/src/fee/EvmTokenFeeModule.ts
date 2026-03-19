@@ -49,6 +49,13 @@ type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
 
+function getConfiguredToken(config: TokenFeeConfigInput): Address | undefined {
+  if ('token' in config && typeof config.token === 'string') {
+    return config.token;
+  }
+  return undefined;
+}
+
 function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
   token: Address,
@@ -262,7 +269,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
     const routingDestinations = params?.routingDestinations;
-    const token = params?.token;
+    const token = params?.token ?? getConfiguredToken(this.args.config);
 
     return this.reader.deriveTokenFeeConfig({
       address,

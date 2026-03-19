@@ -14,7 +14,10 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
-import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
+import {
+  DerivedRoutingFeeConfig,
+  TokenFeeReaderParams,
+} from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
   ResolvedTokenFeeConfigInput,
@@ -357,6 +360,47 @@ describe('EvmTokenFeeModule', () => {
         });
       } finally {
         readStub.restore();
+      }
+    });
+
+    it('should reuse stored token when updating routing fees without reader params', async () => {
+      const routingConfig: RoutingFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+      };
+      const deployedFee = randomAddress();
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: routingConfig,
+        addresses: { deployedFee },
+      });
+      const actualConfig: DerivedRoutingFeeConfig = {
+        ...routingConfig,
+        address: deployedFee,
+        feeContracts: {},
+        maxFee: constants.MaxUint256.toBigInt(),
+        halfAmount: constants.MaxUint256.toBigInt(),
+      };
+      const deriveTokenFeeConfigStub = sinon
+        .stub(module['reader'], 'deriveTokenFeeConfig')
+        .resolves(actualConfig);
+
+      try {
+        const txs = await module.update({
+          type: TokenFeeType.RoutingFee,
+          owner: randomAddress(),
+        });
+
+        expect(txs).to.have.lengthOf(1);
+        expect(deriveTokenFeeConfigStub.calledOnce).to.be.true;
+        expect(deriveTokenFeeConfigStub.firstCall.args[0]).to.deep.equal({
+          address: deployedFee,
+          routingDestinations: undefined,
+          token: token.address,
+        });
+      } finally {
+        deriveTokenFeeConfigStub.restore();
       }
     });
 
