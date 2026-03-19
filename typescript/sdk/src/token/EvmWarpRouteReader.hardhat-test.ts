@@ -25,15 +25,13 @@ import {
   MockWETH__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
+  TokenBridgeAggLayer__factory,
   TokenRouter__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import {
-  MultiCollateral__factory,
-  TokenBridgeAggLayer__factory,
-} from '@hyperlane-xyz/multicollateral';
+import { MultiCollateral__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,

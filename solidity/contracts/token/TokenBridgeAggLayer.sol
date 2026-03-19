@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IInterchainSecurityModule} from "@hyperlane-xyz/core/interfaces/IInterchainSecurityModule.sol";
-import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
-import {AbstractCcipReadIsm} from "@hyperlane-xyz/core/isms/ccip-read/AbstractCcipReadIsm.sol";
-import {Message} from "@hyperlane-xyz/core/libs/Message.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
-import {TokenMessage} from "@hyperlane-xyz/core/token/libs/TokenMessage.sol";
-import {TokenRouter} from "@hyperlane-xyz/core/token/libs/TokenRouter.sol";
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {Quote} from "../interfaces/ITokenBridge.sol";
+import {AbstractCcipReadIsm} from "../isms/ccip-read/AbstractCcipReadIsm.sol";
+import {Message} from "../libs/Message.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -51,7 +51,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     error RemoteConfigNotFound(uint32 domain);
     error UnsupportedHandle();
     error UnsupportedVerify();
-    error NotMailbox();
     error InvalidClaimMetadata();
 
     event RemoteBridgeConfigSet(
@@ -258,7 +257,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        if (msg.sender != address(mailbox)) revert NotMailbox();
         if (!redeemsOnHandle) revert UnsupportedVerify();
         bytes32 messageId = _message.id();
         if (isVerified[messageId]) {

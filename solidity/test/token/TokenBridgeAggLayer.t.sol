@@ -3,18 +3,18 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {Message} from "@hyperlane-xyz/core/libs/Message.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/libs/TypeCasts.sol";
-import {MockMailbox} from "@hyperlane-xyz/core/mock/MockMailbox.sol";
-import {Quote} from "@hyperlane-xyz/core/interfaces/ITokenBridge.sol";
-import {ERC20Test} from "@hyperlane-xyz/core/test/ERC20Test.sol";
-import {GasRouter} from "@hyperlane-xyz/core/client/GasRouter.sol";
-import {TestInterchainGasPaymaster} from "@hyperlane-xyz/core/test/TestInterchainGasPaymaster.sol";
+import {Message} from "../../contracts/libs/Message.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
+import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {GasRouter} from "../../contracts/client/GasRouter.sol";
+import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {TokenBridgeAggLayer} from "../contracts/TokenBridgeAggLayer.sol";
-import {IAggLayerBridge} from "../contracts/interfaces/IAggLayerBridge.sol";
-import {IVaultBridgeToken} from "../contracts/interfaces/IVaultBridgeToken.sol";
+import {TokenBridgeAggLayer} from "../../contracts/token/TokenBridgeAggLayer.sol";
+import {IAggLayerBridge} from "../../contracts/token/interfaces/IAggLayerBridge.sol";
+import {IVaultBridgeToken} from "../../contracts/token/interfaces/IVaultBridgeToken.sol";
 
 contract MockAgglayerBridge is IAggLayerBridge {
     uint32 public constant NETWORK_ID = 20;
@@ -323,7 +323,6 @@ contract TokenBridgeAggLayerTest is Test {
             })
         );
 
-        vm.prank(address(ethMailbox));
         ethRoute.verify(metadata, message);
 
         assertEq(
@@ -372,35 +371,7 @@ contract TokenBridgeAggLayerTest is Test {
             })
         );
 
-        vm.prank(address(ethMailbox));
         vm.expectRevert(TokenBridgeAggLayer.InvalidClaimMetadata.selector);
-        ethRoute.verify(metadata, message);
-    }
-
-    function test_verify_revertsWhenCallerIsNotMailbox() public {
-        bytes memory tokenMessage = abi.encodePacked(
-            BOB.addressToBytes32(),
-            uint256(100e6)
-        );
-        bytes memory message = katanaMailbox.buildMessage(
-            address(katanaRoute),
-            ETH_DOMAIN,
-            address(ethRoute).addressToBytes32(),
-            tokenMessage
-        );
-
-        bytes memory metadata = abi.encode(
-            TokenBridgeAggLayer.ClaimMetadata({
-                smtProofLocalExitRoot: _emptyProof(),
-                smtProofRollupExitRoot: _emptyProof(),
-                globalIndex: 7,
-                mainnetExitRoot: bytes32(uint256(1)),
-                rollupExitRoot: bytes32(uint256(2)),
-                metadata: abi.encode(keccak256(tokenMessage))
-            })
-        );
-
-        vm.expectRevert(TokenBridgeAggLayer.NotMailbox.selector);
         ethRoute.verify(metadata, message);
     }
 
@@ -445,7 +416,6 @@ contract TokenBridgeAggLayerTest is Test {
             abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
         );
 
-        vm.prank(address(katanaMailbox));
         vm.expectRevert(TokenBridgeAggLayer.UnsupportedVerify.selector);
         katanaRoute.verify(hex"", message);
     }
