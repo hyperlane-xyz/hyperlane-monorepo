@@ -278,7 +278,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const tokenFee = {
         type: TokenFeeType.LinearFee,
         token: tokenChain2.address,
-        bps: 1n,
+        bps: 1,
       };
 
       const warpConfig = WarpRouteDeployConfigSchema.parse({
@@ -316,7 +316,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const tokenFee = {
         type: TokenFeeType.LinearFee,
         owner: ownerAddress,
-        bps: 1n,
+        bps: 1,
       };
 
       const warpConfig = WarpRouteDeployConfigSchema.parse({
@@ -419,7 +419,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           owner: ownerAddress,
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
