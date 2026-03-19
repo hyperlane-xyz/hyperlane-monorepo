@@ -45,28 +45,28 @@ Convert a protocol-specific address to bytes32 format.
 **Syntax:**
 
 ```bash
-hyperlane utils addressToBytes32 <address> [protocol]
+hyperlane address to-bytes32 --address <address> [--protocol <protocol>]
 ```
 
 **Parameters:**
 
-- `address` - The address to convert (required)
-- `protocol` - Protocol type (optional - auto-detected for most formats)
+- `--address` - The address to convert (required)
+- `--protocol` - Protocol type (optional - auto-detected for most formats)
 
 **Examples:**
 
 ```bash
 # EVM address (auto-detected)
-hyperlane utils addressToBytes32 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+hyperlane address to-bytes32 --address 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 
 # Solana address
-hyperlane utils addressToBytes32 EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v sealevel
+hyperlane address to-bytes32 --address EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v --protocol sealevel
 
 # Cosmos address
-hyperlane utils addressToBytes32 cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng cosmos
+hyperlane address to-bytes32 --address cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng --protocol cosmos
 
 # CosmosNative with explicit protocol
-hyperlane utils addressToBytes32 hyp1wj9q2x06carugtqaeafhjxcazhwcv96hvselyh cosmosnative
+hyperlane address to-bytes32 --address hyp1wj9q2x06carugtqaeafhjxcazhwcv96hvselyh --protocol cosmosnative
 ```
 
 ### bytes32ToAddress
@@ -76,32 +76,32 @@ Convert bytes32 format back to a protocol-specific address.
 **Syntax:**
 
 ```bash
-hyperlane utils bytes32ToAddress <bytes32> <protocol> [prefix]
+hyperlane address from-bytes32 --bytes32 <bytes32> --protocol <protocol> [--prefix <prefix>]
 ```
 
 **Parameters:**
 
-- `bytes32` - The 32-byte hex string (with or without 0x prefix) (required)
-- `protocol` - Target protocol type (required)
-- `prefix` - Address prefix (required for Cosmos and Radix chains)
+- `--bytes32` - The 32-byte hex string (with or without 0x prefix) (required)
+- `--protocol` - Target protocol type (required)
+- `--prefix` - Address prefix (required for Cosmos and Radix chains)
 
 **Examples:**
 
 ```bash
 # Convert to EVM address
-hyperlane utils bytes32ToAddress 0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266 ethereum
+hyperlane address from-bytes32 --bytes32 0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266 --protocol ethereum
 
 # Convert to Solana address
-hyperlane utils bytes32ToAddress 0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61 sealevel
+hyperlane address from-bytes32 --bytes32 0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61 --protocol sealevel
 
 # Convert to Cosmos address (prefix required)
-hyperlane utils bytes32ToAddress 0x000000000000000000000000748a0519fac747c42c1dcf53791b1d15dd861757 cosmos cosmos
+hyperlane address from-bytes32 --bytes32 0x000000000000000000000000748a0519fac747c42c1dcf53791b1d15dd861757 --protocol cosmos --prefix cosmos
 
 # Convert to CosmosNative with custom prefix
-hyperlane utils bytes32ToAddress 0x000000000000000000000000748a0519fac747c42c1dcf53791b1d15dd861757 cosmosnative hyp
+hyperlane address from-bytes32 --bytes32 0x000000000000000000000000748a0519fac747c42c1dcf53791b1d15dd861757 --protocol cosmosnative --prefix hyp
 
 # Convert to Osmosis address
-hyperlane utils bytes32ToAddress 0x000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b cosmos osmo
+hyperlane address from-bytes32 --bytes32 0x000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix osmo
 ```
 
 ## Common Cosmos Prefixes
@@ -150,7 +150,7 @@ When constructing a warp transfer to a non-EVM chain:
 
 ```bash
 # Convert recipient address to bytes32 for message encoding
-hyperlane utils addressToBytes32 cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng cosmos
+hyperlane address to-bytes32 --address cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng --protocol cosmos
 ```
 
 ### 2. Decode Message Recipient
@@ -159,7 +159,7 @@ When analyzing a cross-chain message:
 
 ```bash
 # Extract bytes32 recipient from message and decode
-hyperlane utils bytes32ToAddress 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b cosmos cosmos
+hyperlane address from-bytes32 --bytes32 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix cosmos
 ```
 
 ### 3. Verify Round-Trip Conversion
@@ -171,10 +171,10 @@ Ensure address encoding is correct:
 ADDR="hyp1wj9q2x06carugtqaeafhjxcazhwcv96hvselyh"
 
 # Convert to bytes32
-BYTES32=$(hyperlane utils addressToBytes32 $ADDR cosmosnative | grep "Bytes32:" | awk '{print $2}')
+BYTES32=$(hyperlane address to-bytes32 --address $ADDR --protocol cosmosnative | grep "Bytes32:" | awk '{print $2}')
 
 # Convert back and verify
-hyperlane utils bytes32ToAddress $BYTES32 cosmosnative hyp
+hyperlane address from-bytes32 --bytes32 $BYTES32 --protocol cosmosnative --prefix hyp
 ```
 
 ### 4. Multi-Chain Message Analysis
@@ -188,10 +188,10 @@ RECIPIENT_BYTES32="0x000000000000000000000000748a0519fac747c42c1dcf53791b1d15dd8
 
 # Decode both
 echo "Sender (EVM):"
-hyperlane utils bytes32ToAddress $SENDER_BYTES32 ethereum
+hyperlane address from-bytes32 --bytes32 $SENDER_BYTES32 --protocol ethereum
 
 echo "Recipient (Cosmos):"
-hyperlane utils bytes32ToAddress $RECIPIENT_BYTES32 cosmosnative hyp
+hyperlane address from-bytes32 --bytes32 $RECIPIENT_BYTES32 --protocol cosmosnative --prefix hyp
 ```
 
 ## Troubleshooting
@@ -214,10 +214,10 @@ hyperlane utils bytes32ToAddress $RECIPIENT_BYTES32 cosmosnative hyp
 
 ```bash
 # Wrong
-hyperlane utils bytes32ToAddress 0x... cosmos
+hyperlane address from-bytes32 --bytes32 0x... --protocol cosmos
 
 # Correct
-hyperlane utils bytes32ToAddress 0x... cosmos osmo
+hyperlane address from-bytes32 --bytes32 0x... --protocol cosmos --prefix osmo
 ```
 
 ### Error: "addresses are 20 bytes and must have 12 zero bytes of padding"
@@ -241,8 +241,8 @@ If you get padding errors but believe the address is valid:
 2. **Verify the protocol:**
    ```bash
    # Try both cosmos and cosmosnative
-   hyperlane utils bytes32ToAddress <bytes32> cosmos <prefix>
-   hyperlane utils bytes32ToAddress <bytes32> cosmosnative <prefix>
+   hyperlane address from-bytes32 --bytes32 <bytes32> --protocol cosmos --prefix <prefix>
+   hyperlane address from-bytes32 --bytes32 <bytes32> --protocol cosmosnative --prefix <prefix>
    ```
 
 ## Your Task
@@ -269,7 +269,7 @@ When a user asks for help with address conversions:
 
 ```bash
 # Convert the Neutron address to bytes32 format
-hyperlane utils addressToBytes32 neutron1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2m7khwyl cosmos
+hyperlane address to-bytes32 --address neutron1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2m7khwyl --protocol cosmos
 
 # This will give you the bytes32 representation to use in your warp transfer message
 # Expected output format: 0x000000000000000000000000<20-byte-address>
@@ -282,35 +282,35 @@ hyperlane utils addressToBytes32 neutron1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2m7khwyl 
 ```bash
 # Since you don't have a specific prefix, let's try common Cosmos chains
 # For Cosmos Hub:
-hyperlane utils bytes32ToAddress 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b cosmos cosmos
+hyperlane address from-bytes32 --bytes32 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix cosmos
 
 # For Osmosis:
-hyperlane utils bytes32ToAddress 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b cosmos osmo
+hyperlane address from-bytes32 --bytes32 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix osmo
 
 # For Neutron:
-hyperlane utils bytes32ToAddress 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b cosmos neutron
+hyperlane address from-bytes32 --bytes32 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix neutron
 ```
 
 ## Quick Reference Card
 
 ```bash
 # EVM → bytes32
-hyperlane utils addressToBytes32 0x<address>
+hyperlane address to-bytes32 --address 0x<address>
 
 # Cosmos → bytes32
-hyperlane utils addressToBytes32 <bech32-address> cosmos
+hyperlane address to-bytes32 --address <bech32-address> --protocol cosmos
 
 # Solana → bytes32
-hyperlane utils addressToBytes32 <base58-address> sealevel
+hyperlane address to-bytes32 --address <base58-address> --protocol sealevel
 
 # bytes32 → EVM
-hyperlane utils bytes32ToAddress 0x<bytes32> ethereum
+hyperlane address from-bytes32 --bytes32 0x<bytes32> --protocol ethereum
 
 # bytes32 → Cosmos (specify prefix!)
-hyperlane utils bytes32ToAddress 0x<bytes32> cosmos <prefix>
+hyperlane address from-bytes32 --bytes32 0x<bytes32> --protocol cosmos --prefix <prefix>
 
 # bytes32 → Solana
-hyperlane utils bytes32ToAddress 0x<bytes32> sealevel
+hyperlane address from-bytes32 --bytes32 0x<bytes32> --protocol sealevel
 ```
 
 ## Key Reminders
