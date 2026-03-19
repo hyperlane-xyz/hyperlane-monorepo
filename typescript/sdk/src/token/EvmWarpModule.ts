@@ -754,10 +754,13 @@ export class EvmWarpModule extends HyperlaneModule<
     ) {
       return [];
     }
+    if (!expectedConfig.remoteBridgeConfigs) {
+      return [];
+    }
 
     const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.remoteBridgeConfigs ?? {},
+      expectedConfig.remoteBridgeConfigs,
     );
     const actualRemoteBridgeConfigs = resolveRouterMapConfig(
       this.multiProvider,
@@ -808,10 +811,13 @@ export class EvmWarpModule extends HyperlaneModule<
     ) {
       return [];
     }
+    if (!expectedConfig.remoteBridgeConfigs) {
+      return [];
+    }
 
     const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
       this.multiProvider,
-      expectedConfig.remoteBridgeConfigs ?? {},
+      expectedConfig.remoteBridgeConfigs,
     );
     const actualRemoteBridgeConfigs = resolveRouterMapConfig(
       this.multiProvider,

@@ -71,6 +71,11 @@ type ClaimProofResponse = {
   };
 };
 
+type BridgeServiceRequest = {
+  endpoint: string;
+  params: Record<string, string>;
+};
+
 class AggLayerService extends BaseService {
   public router: Router;
   private hyperlaneService: HyperlaneService;
@@ -251,34 +256,39 @@ class AggLayerService extends BaseService {
     depositCount: number,
     logger: Logger,
   ) {
-    const response = await this.fetchJson<ClaimProofResponse>(
-      [
-        {
-          endpoint: 'bridge/v1/claim-proof',
-          params: {
-            network_id: networkId.toString(),
-            deposit_count: depositCount.toString(),
-          },
+    const candidates: BridgeServiceRequest[] = [
+      {
+        endpoint: 'bridge/v1/claim-proof',
+        params: {
+          network_id: networkId.toString(),
+          deposit_count: depositCount.toString(),
         },
-        {
-          endpoint: 'merkle-proof',
-          params: {
-            net_id: networkId.toString(),
-            deposit_cnt: depositCount.toString(),
-          },
+      },
+      {
+        endpoint: 'merkle-proof',
+        params: {
+          net_id: networkId.toString(),
+          deposit_cnt: depositCount.toString(),
         },
-        {
-          endpoint: 'v2/merkle-proof',
-          params: {
-            network_id: networkId.toString(),
-            deposit_count: depositCount.toString(),
-          },
+      },
+      {
+        endpoint: 'v2/merkle-proof',
+        params: {
+          network_id: networkId.toString(),
+          deposit_count: depositCount.toString(),
         },
-      ],
-      logger,
-    );
-    assert(response.proof, 'Missing AggLayer claim proof');
-    return response.proof;
+      },
+    ];
+
+    for (const candidate of candidates) {
+      const response = await this.fetchJson<ClaimProofResponse>(
+        [candidate],
+        logger,
+      ).catch(() => undefined);
+      if (response?.proof) return response.proof;
+    }
+
+    throw new Error('Missing AggLayer claim proof');
   }
 
   private async fetchJson<T>(

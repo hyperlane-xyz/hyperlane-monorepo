@@ -68,6 +68,8 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     bool public immutable redeemsOnHandle;
 
     mapping(uint32 => RemoteBridgeConfig) public remoteBridgeConfigs;
+    mapping(uint32 => bool) internal _hasRemoteBridgeConfigDomain;
+    uint32[] internal _remoteBridgeConfigDomains;
     mapping(bytes32 => bool) public isVerified;
 
     constructor(
@@ -148,6 +150,10 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             remoteToken: _remoteToken,
             forceUpdateGlobalExitRoot: _forceUpdateGlobalExitRoot
         });
+        if (!_hasRemoteBridgeConfigDomain[_domain]) {
+            _hasRemoteBridgeConfigDomain[_domain] = true;
+            _remoteBridgeConfigDomains.push(_domain);
+        }
 
         emit RemoteBridgeConfigSet(
             _domain,
@@ -159,7 +165,30 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
 
     function removeRemoteBridgeConfig(uint32 _domain) external onlyOwner {
         delete remoteBridgeConfigs[_domain];
+        if (_hasRemoteBridgeConfigDomain[_domain]) {
+            _hasRemoteBridgeConfigDomain[_domain] = false;
+            uint256 len = _remoteBridgeConfigDomains.length;
+            for (uint256 i = 0; i < len; i += 1) {
+                if (_remoteBridgeConfigDomains[i] != _domain) continue;
+                uint256 lastIndex = len - 1;
+                if (i != lastIndex) {
+                    _remoteBridgeConfigDomains[i] = _remoteBridgeConfigDomains[
+                        lastIndex
+                    ];
+                }
+                _remoteBridgeConfigDomains.pop();
+                break;
+            }
+        }
         emit RemoteBridgeConfigRemoved(_domain);
+    }
+
+    function remoteBridgeConfigDomains()
+        external
+        view
+        returns (uint32[] memory)
+    {
+        return _remoteBridgeConfigDomains;
     }
 
     function quoteTransferRemote(
@@ -207,6 +236,14 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _feeHook
         );
         bytes memory _tokenMessage = TokenMessage.format(_recipient, _amount);
+        messageId = _emitAndDispatch(
+            _destination,
+            _recipient,
+            _amount,
+            remainingNativeValue,
+            _tokenMessage,
+            _feeToken
+        );
 
         address remoteRouter = _mustHaveRemoteRouter(_destination)
             .bytes32ToAddress();
@@ -217,16 +254,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _amount,
             address(localToken),
             cfg.forceUpdateGlobalExitRoot,
-            abi.encode(keccak256(_tokenMessage))
-        );
-
-        messageId = _emitAndDispatch(
-            _destination,
-            _recipient,
-            _amount,
-            remainingNativeValue,
-            _tokenMessage,
-            _feeToken
+            abi.encode(messageId)
         );
     }
 
@@ -266,7 +294,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         ClaimMetadata memory claim = abi.decode(_metadata, (ClaimMetadata));
         if (
             claim.metadata.length != 32 ||
-            abi.decode(claim.metadata, (bytes32)) != keccak256(_message.body())
+            abi.decode(claim.metadata, (bytes32)) != messageId
         ) {
             revert InvalidClaimMetadata();
         }

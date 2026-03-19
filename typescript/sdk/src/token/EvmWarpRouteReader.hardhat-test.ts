@@ -699,7 +699,7 @@ describe('EvmWarpRouteReader', async () => {
         agglayerBridge: sinon.stub().resolves(agglayerBridgeAddress),
         vaultBridgeToken: sinon.stub().resolves(vaultBridgeToken),
         urls: sinon.stub().resolves(['https://lookup.example']),
-        domains: sinon.stub().resolves([747474]),
+        remoteBridgeConfigDomains: sinon.stub().resolves([747474]),
         remoteBridgeConfigs: sinon.stub().resolves({
           agglayerNetworkId: 20,
           remoteToken: '0x5555555555555555555555555555555555555555',

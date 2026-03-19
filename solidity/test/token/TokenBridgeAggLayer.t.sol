@@ -277,7 +277,7 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(katanaAgglayerBridge.lastValue(), 0);
         assertEq(
             abi.decode(katanaAgglayerBridge.lastPermitData(), (bytes32)),
-            keccak256(abi.encodePacked(BOB.addressToBytes32(), uint256(50e6)))
+            katanaMailbox.latestDispatchedId()
         );
     }
 
@@ -328,7 +328,7 @@ contract TokenBridgeAggLayerTest is Test {
                 globalIndex: 7,
                 mainnetExitRoot: bytes32(uint256(1)),
                 rollupExitRoot: bytes32(uint256(2)),
-                metadata: abi.encode(keccak256(tokenMessage))
+                metadata: abi.encode(message.id())
             })
         );
 
@@ -347,7 +347,7 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(ethAgglayerBridge.lastClaimAmount(), 100e6);
         assertEq(
             keccak256(ethAgglayerBridge.lastClaimMetadata()),
-            keccak256(abi.encode(keccak256(tokenMessage)))
+            keccak256(abi.encode(message.id()))
         );
     }
 
@@ -376,6 +376,24 @@ contract TokenBridgeAggLayerTest is Test {
 
         vm.expectRevert(TokenBridgeAggLayer.InvalidClaimMetadata.selector);
         ethRoute.verify(metadata, message);
+    }
+
+    function test_remoteBridgeConfigDomainsTracksConfiguredDomains() public {
+        uint32[] memory configuredDomains = ethRoute
+            .remoteBridgeConfigDomains();
+        assertEq(configuredDomains.length, 1);
+        assertEq(configuredDomains[0], KATANA_DOMAIN);
+
+        vm.prank(OWNER);
+        ethRoute.setRemoteBridgeConfig(3, 30, address(0x1234), false);
+        configuredDomains = ethRoute.remoteBridgeConfigDomains();
+        assertEq(configuredDomains.length, 2);
+
+        vm.prank(OWNER);
+        ethRoute.removeRemoteBridgeConfig(KATANA_DOMAIN);
+        configuredDomains = ethRoute.remoteBridgeConfigDomains();
+        assertEq(configuredDomains.length, 1);
+        assertEq(configuredDomains[0], 3);
     }
 
     function test_handle_primaryRouteRedeemsToRecipient() public {

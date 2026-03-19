@@ -897,7 +897,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenBridge.agglayerBridge(),
         tokenBridge.vaultBridgeToken(),
         tokenBridge.urls(),
-        tokenBridge.domains().catch(() => []),
+        tokenBridge.remoteBridgeConfigDomains(),
       ]);
 
     const [erc20TokenMetadata, scale] = await Promise.all([
