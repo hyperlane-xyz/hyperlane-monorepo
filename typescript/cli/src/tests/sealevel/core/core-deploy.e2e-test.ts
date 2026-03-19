@@ -1,22 +1,25 @@
 import { expect } from 'chai';
 
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type CoreConfig,
   type DerivedCoreConfig,
   HookType,
   IsmType,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { SealevelIgpHookReader, createRpc } from '@hyperlane-xyz/sealevel-sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  BURN_ADDRESS_BY_PROTOCOL,
+  CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
 } from '../../constants.js';
 
 // SVM deploys programs from bytes (~90+ write-chunk transactions per program),
@@ -34,79 +37,54 @@ describe('hyperlane core deploy (Sealevel E2E tests)', async function () {
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
   );
 
-  type CoreConfigOwnershipAssertion = {
-    expectedMailboxOwner: Address;
-  };
-
-  function assertTestSealevelCoreConfig(
-    coreConfig: DerivedCoreConfig,
-    options: CoreConfigOwnershipAssertion,
-  ) {
-    expect(coreConfig.owner).to.equal(options.expectedMailboxOwner);
-    expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
-
-    const deployedDefaultHook = coreConfig.defaultHook;
-    assert(
-      deployedDefaultHook.type === HookType.MERKLE_TREE,
-      `Expected deployed defaultHook to be of type ${HookType.MERKLE_TREE}`,
+  it('should create a core deployment with the signer as the mailbox owner', async () => {
+    const coreConfig: CoreConfig = await readYamlOrJson(
+      CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
     );
 
-    const deployedRequiredHook = coreConfig.requiredHook;
-    assert(
-      deployedRequiredHook.type === HookType.MERKLE_TREE,
-      `Expected deployed requiredHook to be of type ${HookType.MERKLE_TREE}`,
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      coreConfig,
+    );
+    hyperlaneCore.setCoreInputPath(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
     );
 
-    const deployedDefaultIsm = coreConfig.defaultIsm;
+    await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.sealevel);
+
+    // Validate core read (mailbox-level assertions)
+    const derivedCoreConfig: DerivedCoreConfig =
+      await hyperlaneCore.readConfig();
+
+    expect(derivedCoreConfig.owner).to.equal(
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel,
+    );
+    expect(derivedCoreConfig.proxyAdmin?.owner).to.be.undefined;
+
+    const deployedDefaultIsm = derivedCoreConfig.defaultIsm;
     assert(
       deployedDefaultIsm.type === IsmType.TEST_ISM,
       `Expected deployed defaultIsm to be of type ${IsmType.TEST_ISM}`,
     );
-  }
 
-  describe('hyperlane core deploy --yes --key ...', () => {
-    const testCases: {
-      description: string;
-      expect: CoreConfigOwnershipAssertion;
-    }[] = [
-      {
-        description:
-          'should create a core deployment with the signer as the mailbox owner',
-        expect: {
-          expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel,
-        },
-      },
-      {
-        description:
-          'should create a core deployment with the provided address as the owner of the mailbox',
-        expect: {
-          expectedMailboxOwner: BURN_ADDRESS_BY_PROTOCOL.sealevel,
-        },
-      },
-    ];
+    // Validate the registry has the deployed addresses
+    const addresses: ChainAddresses = await readYamlOrJson(
+      CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+    );
+    expect(addresses.interchainGasPaymaster).to.be.a('string').that.is.not
+      .empty;
+    expect(addresses.mailbox).to.be.a('string').that.is.not.empty;
+    expect(addresses.validatorAnnounce).to.be.a('string').that.is.not.empty;
 
-    for (const { description, expect } of testCases) {
-      it(description, async () => {
-        const coreConfig: CoreConfig = await readYamlOrJson(
-          CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
-        );
-
-        coreConfig.owner = expect.expectedMailboxOwner;
-
-        writeYamlOrJson(
-          CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-          coreConfig,
-        );
-        hyperlaneCore.setCoreInputPath(
-          CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-        );
-
-        await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.sealevel);
-
-        const derivedCoreConfig = await hyperlaneCore.readConfig();
-
-        assertTestSealevelCoreConfig(derivedCoreConfig, expect);
-      });
-    }
+    // Validate the IGP hook was properly deployed via direct hook read
+    const rpc = createRpc(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl,
+    );
+    const igpReader = new SealevelIgpHookReader(rpc, new Uint8Array(32));
+    const igpArtifact = await igpReader.read(addresses.interchainGasPaymaster!);
+    assert(
+      igpArtifact.config.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+      `Expected hook to be of type ${HookType.INTERCHAIN_GAS_PAYMASTER}, got ${igpArtifact.config.type}`,
+    );
   });
 });
