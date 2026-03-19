@@ -98,6 +98,9 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
       native: () => {
         throw new Error('Native tokens are not supported on Cosmos');
       },
+      crossCollateral: () => {
+        throw new Error('Cross-collateral tokens are not supported on Cosmos');
+      },
     };
 
     return readers[type]();
@@ -142,6 +145,9 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
       synthetic: () => new CosmosSyntheticTokenWriter(query, signer),
       native: () => {
         throw new Error('Native tokens are not supported on Cosmos');
+      },
+      crossCollateral: () => {
+        throw new Error('Cross-collateral tokens are not supported on Cosmos');
       },
     };
 
