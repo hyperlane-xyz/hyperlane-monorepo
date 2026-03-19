@@ -47,7 +47,11 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.secrets.name }}
-{{- with .Values.env }}
           env:
+            - name: TOLLKEEPER_MANAGED_CHAINS
+              value: {{ .Values.hyperlane.chains | join "," | quote }}
+            - name: TOLLKEEPER_ROUTES
+              value: {{ .Values.hyperlane.routes | join "," | quote }}
+{{- with .Values.env }}
 {{ toYaml . | indent 12 }}
 {{- end }}

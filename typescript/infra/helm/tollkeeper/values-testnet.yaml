@@ -1,20 +1,7 @@
 environment: testnet
 
-image:
-  repository: ghcr.io/hyperlane-xyz/hyperlane-tollkeeper
-  tag: latest
-
 hyperlane:
   runEnv: testnet4
-  chains:
-    - ethereum
-    - arbitrum
-    - optimism
-    - base
-    - polygon
-    - bsc
-    - avalanche
-    - eclipsemainnet
 
 secrets:
   prefix: 'hyperlane-testnet4'
@@ -24,13 +11,10 @@ ingress:
   staticIpName: tollkeeper-testnet
 
 cloudArmor:
-  enabled: true
   policyName: tollkeeper-testnet-policy
 
 env:
   - name: SERVER_PORT
     value: '3000'
-  - name: TOLLKEEPER_CONFIG
-    value: './config/system.yaml'
   - name: NODE_ENV
     value: 'production'

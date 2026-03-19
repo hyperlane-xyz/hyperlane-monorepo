@@ -10,7 +10,11 @@ import { HelmCommand } from '../../src/utils/helm.js';
 import { assertCorrectKubeContext, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// Managed chains — must match values-{env}.yaml
+// ── Single source of truth for managed chains and routes ──
+// These flow through: deploy script → HelmManager → helm values → env vars
+// The tollkeeper service reads TOLLKEEPER_MANAGED_CHAINS and TOLLKEEPER_ROUTES
+// at startup to override what's in system.yaml.
+
 const MANAGED_CHAINS = [
   'ethereum',
   'arbitrum',
@@ -22,6 +26,8 @@ const MANAGED_CHAINS = [
   'eclipsemainnet',
 ];
 
+const ROUTES = ['USDC/eclipsemainnet'];
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -29,11 +35,17 @@ async function main() {
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
-  rootLogger.info(`Deploying Tollkeeper to ${environment}`);
+  rootLogger.info({
+    msg: 'Deploying Tollkeeper',
+    environment,
+    chains: MANAGED_CHAINS.length,
+    routes: ROUTES.length,
+  });
 
   const helmManager = new TollkeeperHelmManager(
     environment,
     MANAGED_CHAINS,
+    ROUTES,
   );
 
   await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);

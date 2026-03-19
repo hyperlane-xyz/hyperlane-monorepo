@@ -18,6 +18,7 @@ export class TollkeeperHelmManager extends HelmManager {
   constructor(
     readonly environment: DeployEnvironment,
     readonly chains: string[],
+    readonly routes: string[],
   ) {
     super();
   }
@@ -49,6 +50,7 @@ export class TollkeeperHelmManager extends HelmManager {
       hyperlane: {
         runEnv,
         chains: this.chains,
+        routes: this.routes,
       },
     };
   }

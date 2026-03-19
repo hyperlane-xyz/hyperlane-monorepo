@@ -4,7 +4,9 @@ image:
 
 hyperlane:
   runEnv: ''
+  # Populated by deploy script — no defaults here
   chains: []
+  routes: []
 
 secrets:
   name: tollkeeper
