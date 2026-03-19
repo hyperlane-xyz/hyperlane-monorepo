@@ -141,9 +141,8 @@ export class MultiProtocolProvider<
 
     if (this.providers[name]?.[type]) return this.providers[name][type]!;
 
-    // Tron chains requesting EthersV5 must use TronJsonRpcProvider (appends
-    // /jsonrpc to the RPC URL). The default EthersV5 builder creates a
-    // HyperlaneSmartProvider that uses the bare URL, which Tron nodes reject.
+    // Tron chains requesting EthersV5 must use TronJsonRpcProvider instead of
+    // HyperlaneSmartProvider, which doesn't handle Tron's JSON-RPC quirks.
     let builder;
     if (protocol === ProtocolType.Tron && type === ProviderType.EthersV5) {
       builder = (urls: ChainMetadata['rpcUrls'], network: number | string) => ({
