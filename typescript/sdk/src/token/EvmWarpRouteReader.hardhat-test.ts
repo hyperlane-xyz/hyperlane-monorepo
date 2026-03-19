@@ -715,32 +715,34 @@ describe('EvmWarpRouteReader', async () => {
       .stub(evmERC20WarpRouteReader as any, 'fetchScale')
       .resolves(undefined);
 
-    const config = await (
-      evmERC20WarpRouteReader as any
-    ).deriveAggLayerTokenConfig(routeAddress);
+    try {
+      const config = await (
+        evmERC20WarpRouteReader as any
+      ).deriveAggLayerTokenConfig(routeAddress);
 
-    expect(config).to.deep.equal({
-      name: 'USDC',
-      symbol: 'USDC',
-      decimals: 6,
-      type: TokenType.collateralAggLayer,
-      token: localToken,
-      agglayerBridge: agglayerBridgeAddress,
-      vaultBridgeToken,
-      urls: ['https://lookup.example'],
-      remoteBridgeConfigs: {
-        '747474': {
-          agglayerNetworkId: 20,
-          remoteToken: '0x5555555555555555555555555555555555555555',
-          forceUpdateGlobalExitRoot: true,
+      expect(config).to.deep.equal({
+        name: 'USDC',
+        symbol: 'USDC',
+        decimals: 6,
+        type: TokenType.collateralAggLayer,
+        token: localToken,
+        agglayerBridge: agglayerBridgeAddress,
+        vaultBridgeToken,
+        urls: ['https://lookup.example'],
+        remoteBridgeConfigs: {
+          '747474': {
+            agglayerNetworkId: 20,
+            remoteToken: '0x5555555555555555555555555555555555555555',
+            forceUpdateGlobalExitRoot: true,
+          },
         },
-      },
-      scale: undefined,
-    });
-
-    connectStub.restore();
-    metadataStub.restore();
-    scaleStub.restore();
+        scale: undefined,
+      });
+    } finally {
+      connectStub.restore();
+      metadataStub.restore();
+      scaleStub.restore();
+    }
   });
 
   it('should return 0x0 if ism is not set onchain', async () => {

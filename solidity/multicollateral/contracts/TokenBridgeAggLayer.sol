@@ -51,6 +51,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     error RemoteConfigNotFound(uint32 domain);
     error UnsupportedHandle();
     error UnsupportedVerify();
+    error NotMailbox();
     error InvalidClaimMetadata();
 
     event RemoteBridgeConfigSet(
@@ -257,6 +258,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
+        if (msg.sender != address(mailbox)) revert NotMailbox();
         if (!redeemsOnHandle) revert UnsupportedVerify();
         bytes32 messageId = _message.id();
         if (isVerified[messageId]) {

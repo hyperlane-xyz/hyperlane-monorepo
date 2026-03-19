@@ -323,6 +323,7 @@ contract TokenBridgeAggLayerTest is Test {
             })
         );
 
+        vm.prank(address(ethMailbox));
         ethRoute.verify(metadata, message);
 
         assertEq(
@@ -371,7 +372,35 @@ contract TokenBridgeAggLayerTest is Test {
             })
         );
 
+        vm.prank(address(ethMailbox));
         vm.expectRevert(TokenBridgeAggLayer.InvalidClaimMetadata.selector);
+        ethRoute.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhenCallerIsNotMailbox() public {
+        bytes memory tokenMessage = abi.encodePacked(
+            BOB.addressToBytes32(),
+            uint256(100e6)
+        );
+        bytes memory message = katanaMailbox.buildMessage(
+            address(katanaRoute),
+            ETH_DOMAIN,
+            address(ethRoute).addressToBytes32(),
+            tokenMessage
+        );
+
+        bytes memory metadata = abi.encode(
+            TokenBridgeAggLayer.ClaimMetadata({
+                smtProofLocalExitRoot: _emptyProof(),
+                smtProofRollupExitRoot: _emptyProof(),
+                globalIndex: 7,
+                mainnetExitRoot: bytes32(uint256(1)),
+                rollupExitRoot: bytes32(uint256(2)),
+                metadata: abi.encode(keccak256(tokenMessage))
+            })
+        );
+
+        vm.expectRevert(TokenBridgeAggLayer.NotMailbox.selector);
         ethRoute.verify(metadata, message);
     }
 
@@ -416,6 +445,7 @@ contract TokenBridgeAggLayerTest is Test {
             abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
         );
 
+        vm.prank(address(katanaMailbox));
         vm.expectRevert(TokenBridgeAggLayer.UnsupportedVerify.selector);
         katanaRoute.verify(hex"", message);
     }
