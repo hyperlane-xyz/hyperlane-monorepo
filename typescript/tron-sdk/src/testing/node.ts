@@ -144,7 +144,7 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
       // Create fresh instances each attempt — the TRE proxy accepts TCP
       // connections before internal services are ready, causing requests
       // to hang. A hung ethers provider poisons all subsequent calls.
-      const provider = new TronJsonRpcProvider(tronUrl);
+      const provider = new TronJsonRpcProvider(`${tronUrl}/jsonrpc`);
       const tronweb = new TronWeb({ fullHost: tronUrl });
 
       const [blockNumber, block] = await withTimeout(

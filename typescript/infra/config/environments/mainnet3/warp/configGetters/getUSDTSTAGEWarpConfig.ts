@@ -64,6 +64,7 @@ export async function getUSDTSTAGEWarpConfig(
       foreignDeployment: STAGING_PROGRAM_IDS.solanamainnet,
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       owner: SOLANA_OWNER,
+      decimals: 6,
     },
     mode: {
       ...routerConfig.mode,

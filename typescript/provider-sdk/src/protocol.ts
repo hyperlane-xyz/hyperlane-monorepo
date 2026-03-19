@@ -4,6 +4,7 @@ import { IProvider, ISigner } from './altvm.js';
 import type { ChainMetadataForAltVM } from './chain.js';
 import { IRawHookArtifactManager } from './hook.js';
 import { IRawIsmArtifactManager } from './ism.js';
+import { IRawMailboxArtifactManager } from './mailbox.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import {
@@ -12,6 +13,7 @@ import {
   TransactionSubmitterConfig,
 } from './submitter.js';
 import { IRawWarpArtifactManager } from './warp.js';
+import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
@@ -100,6 +102,32 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawWarpArtifactManager;
+
+  /**
+   * Creates a Mailbox artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle Mailbox operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific Mailbox artifact manager
+   */
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager;
+
+  /**
+   * Creates a Validator Announce artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle Validator Announce operations using the Artifact API pattern.
+   *
+   * Not all protocols support validator announce (e.g., Cosmos does not).
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific Validator Announce artifact manager, or null if not supported
+   */
+  createValidatorAnnounceArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

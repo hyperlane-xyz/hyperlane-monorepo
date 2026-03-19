@@ -1,12 +1,13 @@
 {
     "name": "@hyperlane-xyz/core",
     "description": "Core solidity contracts for Hyperlane",
-    "version": "11.0.2",
+    "version": "11.0.3",
     "devDependencies": {
         "@ethersproject/abi": "*",
-        "@hyperlane-xyz/utils": "workspace:*",
         "@ethersproject/providers": "*",
+        "@hyperlane-xyz/eslint-config": "workspace:*",
         "@hyperlane-xyz/tsconfig": "workspace:^",
+        "@hyperlane-xyz/utils": "workspace:*",
         "@matterlabs/hardhat-zksync-solc": "1.2.5",
         "@matterlabs/hardhat-zksync-verify": "1.7.1",
         "@nomicfoundation/hardhat-foundry": "1.2.0",

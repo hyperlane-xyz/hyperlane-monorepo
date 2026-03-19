@@ -354,8 +354,8 @@ mod tests {
                     ..Default::default()
                 },
                 consider_null_transaction_receipt: false,
-                grpc_urls: None,
-                solidity_grpc_urls: None,
+                wallet_urls: None,
+                wallet_solidity_urls: None,
                 energy_multiplier: None,
             }),
             metrics_conf: Default::default(),

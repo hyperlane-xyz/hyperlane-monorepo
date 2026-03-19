@@ -75,7 +75,9 @@ export function execCmd(
         }
         if (err) {
           if (rejectWithOutput) {
-            reject([err, stdout.toString(), stderr.toString()]);
+            reject(
+              new Error([err, stdout.toString(), stderr.toString()].join('\n')),
+            );
           } else {
             reject(err);
           }

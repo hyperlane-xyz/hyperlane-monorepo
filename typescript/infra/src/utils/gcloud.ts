@@ -439,23 +439,9 @@ export function warnIfPrTag(component: string, tag: string) {
   }
 }
 
-export async function checkKeyfunderImageExists(tag: string) {
+export async function checkNodeServicesImageExists(tag: string) {
   return checkDockerTagExists({
-    image: DockerImageNames.KEY_FUNDER,
-    tag,
-  });
-}
-
-export async function checkWarpMonitorImageExists(tag: string) {
-  return checkDockerTagExists({
-    image: DockerImageNames.WARP_MONITOR,
-    tag,
-  });
-}
-
-export async function checkRebalancerImageExists(tag: string) {
-  return checkDockerTagExists({
-    image: DockerImageNames.REBALANCER,
+    image: DockerImageNames.NODE_SERVICES,
     tag,
   });
 }

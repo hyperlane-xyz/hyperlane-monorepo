@@ -31,14 +31,6 @@ tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
-tonic = { workspace = true, features = [
-    "transport",
-    "tls",
-    "tls-roots",
-    "tls-native-roots",
-] }
-tower.workspace = true
-pin-project.workspace = true
 prost = { version = "0.13", default-features = true }
 prost-types = "0.13"
 time.workspace = true

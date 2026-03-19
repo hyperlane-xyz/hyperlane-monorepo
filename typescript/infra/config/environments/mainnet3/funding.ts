@@ -44,7 +44,7 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
 > = {
   docker: {
-    repo: DockerImageRepos.KEY_FUNDER,
+    repo: DockerImageRepos.NODE_SERVICES,
     tag: mainnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer/key funder key as mainnet2.

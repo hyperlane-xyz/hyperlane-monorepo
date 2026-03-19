@@ -9,15 +9,13 @@ Find existing Hyperlane Docker images on GHCR (`ghcr.io/hyperlane-xyz/*`).
 
 ## Image Repositories
 
-| Image                              | Contents                         |
-| ---------------------------------- | -------------------------------- |
-| `hyperlane-agent`                  | Rust relayer, validator, scraper |
-| `hyperlane-monorepo`               | Full TS/Solidity monorepo        |
-| `hyperlane-rebalancer`             | Rebalancer node service          |
-| `hyperlane-warp-monitor`           | Warp monitor node service        |
-| `hyperlane-key-funder`             | Key funder node service          |
-| `hyperlane-ts-relayer`             | TypeScript relayer node service  |
-| `hyperlane-offchain-lookup-server` | Offchain lookup server           |
+| Image                     | Contents                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `hyperlane-agent`         | Rust relayer, validator, scraper                                                 |
+| `hyperlane-monorepo`      | Full TS/Solidity monorepo                                                        |
+| `hyperlane-node-services` | All TS node services (rebalancer, warp-monitor, ccip-server, keyfunder, relayer) |
+
+The `hyperlane-node-services` image is a unified image. Set `SERVICE_NAME` env var at runtime to select which service to run.
 
 ## Tag Format
 

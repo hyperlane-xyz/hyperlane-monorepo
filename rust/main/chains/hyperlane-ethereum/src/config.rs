@@ -54,11 +54,11 @@ pub struct ConnectionConf {
     /// non-null
     pub consider_null_transaction_receipt: bool,
 
-    // Tron specific rpcs
-    /// gRPC urls
-    pub grpc_urls: Option<Vec<Url>>,
-    /// Solidity gRPC urls
-    pub solidity_grpc_urls: Option<Vec<Url>>,
+    // Tron specific
+    /// Wallet HTTP API urls (full node REST endpoints)
+    pub wallet_urls: Option<Vec<Url>>,
+    /// Wallet Solidity HTTP API urls (solidity node REST endpoints)
+    pub wallet_solidity_urls: Option<Vec<Url>>,
     /// Tron energy multiplier
     pub energy_multiplier: Option<f64>,
 }

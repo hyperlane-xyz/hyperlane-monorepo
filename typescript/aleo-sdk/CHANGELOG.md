@@ -1,5 +1,18 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 28.0.0
+
+### Minor Changes
+
+- 26d08de: Implemented mailbox and validator announce artifact API for Aleo protocol, enabling deployment and configuration management through the unified artifact pattern.
+
+### Patch Changes
+
+- Updated dependencies [83767b9]
+- Updated dependencies [a6b7bf3]
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 27.1.0
 
 ### Patch Changes

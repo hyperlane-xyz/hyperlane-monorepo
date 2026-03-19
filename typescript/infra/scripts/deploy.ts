@@ -16,6 +16,7 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  IcaRouterType,
   InterchainAccount,
   InterchainAccountConfig,
   InterchainAccountDeployer,
@@ -32,7 +33,7 @@ import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
-import { chainsToSkip } from '../src/config/chain.js';
+import { chainsToSkip, minimalIcaChains } from '../src/config/chain.js';
 import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
@@ -174,15 +175,20 @@ async function main() {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = objMap(
       core.getRouterConfig(envConfig.owners) as ChainMap<RouterConfig>,
-      (_, routerConfig): InterchainAccountConfig => {
+      (chain, routerConfig): InterchainAccountConfig => {
+        const isMinimal = minimalIcaChains.includes(chain);
         return {
           ...routerConfig,
-          commitmentIsm: {
-            type: IsmType.OFFCHAIN_LOOKUP,
-            owner: routerConfig.owner,
-            ownerOverrides: routerConfig.ownerOverrides,
-            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
-          },
+          ...(isMinimal
+            ? { routerType: IcaRouterType.MINIMAL }
+            : {
+                commitmentIsm: {
+                  type: IsmType.OFFCHAIN_LOOKUP,
+                  owner: routerConfig.owner,
+                  ownerOverrides: routerConfig.ownerOverrides,
+                  urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+                },
+              }),
         };
       },
     );
