@@ -27,7 +27,7 @@
     }
   },
   "scripts": {
-    "build": "rm -rf ./dist && tsc",
+    "build": "rm -rf ./dist && tsc && cp -r ./src/testing/fixtures ./dist/testing/fixtures",
     "program:build": "(cd ../../rust/sealevel/programs && bash build-programs.sh)",
     "program:generate": "node scripts/generate-program-bytes.mjs",
     "program:check": "node scripts/check-program-bytes-hash.mjs",
