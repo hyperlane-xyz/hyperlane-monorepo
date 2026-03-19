@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   ZBigNumberish,
+  ZBps,
   ZChainName,
   ZHash,
 } from '../metadata/customZodTypes.js';
@@ -67,14 +68,16 @@ const StandardFeeConfigBaseSchema =
 
 export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish,
+  bps: ZBps.transform((val) => Number(val)),
 });
-export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
+export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema> & {
+  bps: number;
+};
 
 // Linear Fee Input - only requires bps & type, token is optional
 export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish.optional(),
+  bps: ZBps.optional(),
   ...FeeParametersSchema.partial().shape,
 })
   .superRefine((v, ctx) => {
@@ -90,7 +93,7 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
     }
 
     // Reject bps = 0 to prevent division by zero in convertFromBps
-    if (hasBps && BigInt(v.bps!) === 0n) {
+    if (hasBps && v.bps! <= 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['bps'],
