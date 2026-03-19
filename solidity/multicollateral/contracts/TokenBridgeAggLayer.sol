@@ -221,23 +221,14 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         address remoteRouter = _mustHaveRemoteRouter(_destination)
             .bytes32ToAddress();
 
-        if (redeemsOnHandle) {
-            vaultBridgeToken.depositAndBridge{value: cfg.nativeFee}(
-                _amount,
-                remoteRouter,
-                cfg.agglayerNetworkId,
-                cfg.forceUpdateGlobalExitRoot
-            );
-        } else {
-            agglayerBridge.bridgeAsset{value: cfg.nativeFee}(
-                cfg.agglayerNetworkId,
-                remoteRouter,
-                _amount,
-                address(localToken),
-                cfg.forceUpdateGlobalExitRoot,
-                ""
-            );
-        }
+        agglayerBridge.bridgeAsset{value: cfg.nativeFee}(
+            cfg.agglayerNetworkId,
+            remoteRouter,
+            _amount,
+            address(localToken),
+            cfg.forceUpdateGlobalExitRoot,
+            ""
+        );
 
         bytes memory _tokenMessage = TokenMessage.format(_recipient, _amount);
         messageId = _emitAndDispatch(
