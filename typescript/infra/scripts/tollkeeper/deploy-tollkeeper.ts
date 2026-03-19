@@ -21,9 +21,9 @@ const MANAGED_CHAINS = [
   'optimism',
   'base',
   'polygon',
-  'bsc',
-  'avalanche',
+  'unichain',
   'eclipsemainnet',
+  'solanamainnet',
 ];
 
 const ROUTES = ['USDC/eclipsemainnet'];
