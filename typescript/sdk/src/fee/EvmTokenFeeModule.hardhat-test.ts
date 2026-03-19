@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
@@ -307,6 +308,56 @@ describe('EvmTokenFeeModule', () => {
       // which results in a setFeeContract transaction
       const txs = await module.update(updatedConfig);
       expect(txs.length).to.equal(1);
+    });
+
+    it('should forward token reader params when updating routing fees', async () => {
+      const routingConfig: RoutingFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingConfig,
+      });
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      const actualConfig = await module.read({
+        routingDestinations: [routingDestination],
+      });
+      const readStub = sinon.stub(module, 'read').resolves(actualConfig);
+
+      try {
+        const txs = await module.update(
+          {
+            type: TokenFeeType.RoutingFee,
+            owner: signer.address,
+            feeContracts: {
+              [test4Chain]: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                bps: BPS,
+              },
+            },
+          },
+          {
+            routingDestinations: [routingDestination],
+            token: token.address,
+          },
+        );
+
+        expect(txs).to.have.lengthOf(0);
+        expect(readStub.calledOnce).to.be.true;
+        expect(readStub.firstCall.args[0]).to.deep.equal({
+          routingDestinations: [routingDestination],
+          token: token.address,
+        });
+      } finally {
+        readStub.restore();
+      }
     });
 
     it('should deploy new sub-fee contract when adding a new destination', async () => {
