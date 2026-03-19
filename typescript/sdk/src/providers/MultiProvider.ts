@@ -18,7 +18,9 @@ import {
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   addBufferToGasLimit,
+  assert,
   pick,
   rootLogger,
   timeout,
@@ -120,7 +122,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls, technicalStack } = metadata;
+    const { name, chainId, rpcUrls, protocol, technicalStack } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
@@ -136,7 +138,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
-      } else if (technicalStack === ChainTechnicalStack.Tron) {
+      } else if (protocol === ProtocolType.Tron) {
         this.providers[name] = defaultTronEthersProviderBuilder(
           rpcUrls,
           chainId,
@@ -170,8 +172,20 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
-    if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
+    if (signer && signer.provider && !this.useSharedSigner) {
+      try {
+        this.setSigner(chainName, signer.connect(provider));
+      } catch (e: unknown) {
+        // JsonRpcSigner throws UNSUPPORTED_OPERATION for .connect();
+        // use a type guard instead of `as` cast to safely access .code
+        const code =
+          typeof e === 'object' && e !== null && 'code' in e
+            ? String((e as Record<string, unknown>).code)
+            : undefined;
+        if (code !== 'UNSUPPORTED_OPERATION') {
+          throw e;
+        }
+      }
     }
     return provider;
   }
@@ -182,8 +196,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   setProviders(providers: ChainMap<Provider>): void {
     for (const chain of Object.keys(providers)) {
-      const chainName = this.getChainName(chain);
-      this.providers[chainName] = providers[chain];
+      this.setProvider(chain, providers[chain]);
     }
   }
 
@@ -200,7 +213,15 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
     if (!provider) return signer;
-    return signer.connect(provider);
+    const connected = signer.connect(provider);
+    // Only cache when not using a shared signer. In shared-signer mode,
+    // caching pins the signer to this provider; setProvider() skips
+    // reconnection when useSharedSigner is true, so the cached signer
+    // would go stale after a provider swap.
+    if (!this.useSharedSigner) {
+      this.signers[chainName] = connected;
+    }
+    return connected;
   }
 
   /**
@@ -335,6 +356,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     rangeSize = this.getMaxBlockRange(chainNameOrId),
   ): Promise<{ fromBlock: number; toBlock: number }> {
     const toBlock = await this.getProvider(chainNameOrId).getBlock('latest');
+    assert(toBlock, `Unable to fetch latest block for ${chainNameOrId}`);
     const fromBlock = Math.max(toBlock.number - rangeSize, 0);
     return { fromBlock, toBlock: toBlock.number };
   }
@@ -362,7 +384,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
     const metadata = this.getChainMetadata(chainNameOrId);
-    const { technicalStack } = metadata;
+    const { protocol, technicalStack } = metadata;
 
     let contract: Contract;
     let estimatedGas: BigNumber;
@@ -382,7 +404,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // will wait for the deploy tx to be confirmed before returning
     } else {
       const resolved =
-        technicalStack === ChainTechnicalStack.Tron
+        protocol === ProtocolType.Tron
           ? await this.resolveTronFactory(factory)
           : factory;
       const contractFactory = resolved.connect(signer);
@@ -394,6 +416,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         ...overrides,
       });
       // manually wait for deploy tx to be confirmed
+      assert(contract.deployTransaction, 'Deploy transaction missing');
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
 
@@ -488,11 +511,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
     );
-    return timeout(
+    const inclusionReceipt = await timeout(
       response.wait(1),
       timeoutMs,
       `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
     );
+    assert(inclusionReceipt, `Transaction ${response.hash} was not included`);
+    return inclusionReceipt;
   }
 
   /**
@@ -510,6 +535,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   ): Promise<ContractReceipt> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion
+    assert(receipt, `Transaction ${response.hash} was not included`);
+    assert(
+      typeof receipt.blockNumber === 'number',
+      `Receipt missing block number for tx ${response.hash}`,
+    );
     const txBlock = receipt.blockNumber;
 
     // Check if block tag is supported on first call

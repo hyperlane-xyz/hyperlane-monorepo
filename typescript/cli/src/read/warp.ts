@@ -5,7 +5,7 @@ import {
   HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
-import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
+import { createWarpTokenReader } from '@hyperlane-xyz/deploy-sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
   type ChainMap,
@@ -21,7 +21,7 @@ import {
 import {
   type Address,
   ProtocolType,
-  mustGet,
+  isEVMLike,
   objFilter,
   objMap,
   promiseObjAll,
@@ -73,14 +73,13 @@ export async function runWarpRouteRead({
   const filteredAddresses = objFilter(
     addresses,
     (chain, _address): _address is string =>
-      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+      isEVMLike(context.multiProvider.getProtocol(chain)) ||
       hasProtocol(context.multiProvider.getProtocol(chain)),
   );
   if (warpCoreConfig) {
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
       (config) =>
-        context.multiProvider.getProtocol(config.chainName) ===
-          ProtocolType.Ethereum ||
+        isEVMLike(context.multiProvider.getProtocol(config.chainName)) ||
         hasProtocol(context.multiProvider.getProtocol(config.chainName)),
     );
   }
@@ -125,6 +124,7 @@ async function deriveWarpRouteConfigs(
     objMap(addresses, async (chain, address) => {
       const protocol = context.multiProvider.getProtocol(chain);
       switch (protocol) {
+        case ProtocolType.Tron:
         case ProtocolType.Ethereum: {
           return new EvmWarpRouteReader(
             multiProvider,
@@ -132,14 +132,10 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = mustGet(context.altVmProviders, chain);
           const chainLookup = altVmChainLookup(multiProvider);
-          const metadata = chainLookup.getChainMetadata(chain);
-          return new AltVMWarpRouteReader(
-            metadata,
-            chainLookup,
-            provider,
-          ).deriveWarpRouteConfig(address);
+          const chainMetadata = chainLookup.getChainMetadata(chain);
+          const reader = createWarpTokenReader(chainMetadata, chainLookup);
+          return reader.deriveWarpConfig(address);
         }
       }
     }),

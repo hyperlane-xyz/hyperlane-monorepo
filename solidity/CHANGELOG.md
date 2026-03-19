@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 11.0.2
+
+### Patch Changes
+
+- f7ebf6c: `quoteTransferRemoteTo` was fixed to work without a default `Router._routers` enrollment by adding a target-router-aware gas quote helper. `GasRouter._setDestinationGas` was made virtual and overridden in MultiCollateral to accept MC-enrolled-only domains, keeping the existing `setDestinationGas` function selector working for all domain types. Authorization checks were deduplicated into `_requireAuthorizedRouter`. SDK EvmWarpRouteReader was updated to include MC-enrolled domains when reading destination gas.
+
 ## 11.0.1
 
 ### Patch Changes

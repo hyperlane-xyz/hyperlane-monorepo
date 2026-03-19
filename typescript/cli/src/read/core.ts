@@ -37,6 +37,7 @@ export async function executeCoreRead({
   const protocolType = context.multiProvider.getProtocol(chain);
 
   switch (protocolType) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
       try {

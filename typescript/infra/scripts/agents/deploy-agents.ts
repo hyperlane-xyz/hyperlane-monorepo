@@ -7,6 +7,7 @@ import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
   checkAgentImageExists,
   checkMonorepoImageExists,
+  warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
@@ -61,34 +62,36 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
 
   let errors = false;
   for (const { agent, tag } of imagesToCheck) {
-    if (tag) {
-      const agentExists = await checkAgentImageExists(tag);
-      if (!agentExists) {
-        errors = true;
+    if (!tag) continue;
 
+    warnIfPrTag(agent, tag);
+
+    const agentExists = await checkAgentImageExists(tag);
+    if (!agentExists) {
+      errors = true;
+
+      console.log(
+        chalk.red(
+          `Agent ${chalk.bold(agent)} is configured with an invalid Docker image tag: ${chalk.bold(tag)}.`,
+        ),
+      );
+
+      const monorepoExists = await checkMonorepoImageExists(tag);
+      if (monorepoExists) {
         console.log(
           chalk.red(
-            `Agent ${chalk.bold(agent)} is configured with an invalid Docker image tag: ${chalk.bold(tag)}.`,
-          ),
-        );
-
-        const monorepoExists = await checkMonorepoImageExists(tag);
-        if (monorepoExists) {
-          console.log(
-            chalk.red(
-              `You have accidentally configured ${chalk.bold(
-                agent,
-              )} with a monorepo image tag.`,
-            ),
-          );
-        }
-      } else {
-        console.log(
-          chalk.green(
-            `Agent ${chalk.bold(agent)} is configured with a valid Docker image tag: ${chalk.bold(tag)}.`,
+            `You have accidentally configured ${chalk.bold(
+              agent,
+            )} with a monorepo image tag.`,
           ),
         );
       }
+    } else {
+      console.log(
+        chalk.green(
+          `Agent ${chalk.bold(agent)} is configured with a valid Docker image tag: ${chalk.bold(tag)}.`,
+        ),
+      );
     }
   }
 

@@ -4,6 +4,7 @@ import { BigNumberish, constants } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearTokenBridge__factory,
   GasRouter__factory,
   IERC20__factory,
@@ -24,6 +25,7 @@ import {
   deepEquals,
   difference,
   eqAddress,
+  isAddressEvm,
   isNullish,
   isObjEmpty,
   isZeroishAddress,
@@ -79,6 +81,8 @@ import {
   derivedIsmAddress,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
+  isOftTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -196,6 +200,16 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       ),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      // MC unenroll before enroll for consistency with remote routers.
+      // MC enrollment must come before gas setting so that MC-only domains
+      ...this.createUnenrollCrossCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createEnrollCrossCollateralRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
@@ -210,7 +224,6 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
-
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -236,6 +249,10 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // OFT contracts don't have Router interface — no remote router enrollment
+    if (isOftTokenConfig(expectedConfig)) {
+      return [];
+    }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -290,6 +307,10 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // OFT contracts don't have Router interface — no remote router unenrollment
+    if (isOftTokenConfig(expectedConfig)) {
+      return [];
+    }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -410,6 +431,138 @@ export class EvmWarpModule extends HyperlaneModule<
         [rebalancerToRemove],
       ),
     }));
+  }
+
+  /**
+   * Create transactions to enroll CrossCollateralRouter routers.
+   */
+  createEnrollCrossCollateralRoutersTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.crossCollateralRouters) {
+      return [];
+    }
+
+    const actualEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.crossCollateralRouters ?? {},
+    );
+    const expectedEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.crossCollateralRouters,
+    );
+
+    const domainsToEnroll: number[] = [];
+    const routersToEnroll: string[] = [];
+
+    for (const [domain, expectedRouters] of Object.entries(expectedEnrolled)) {
+      const domainId = Number(domain);
+      const actualRouters = new Set(
+        (actualEnrolled[domainId] ?? []).map((router) =>
+          this.toCanonicalRouterId(router),
+        ),
+      );
+      for (const router of expectedRouters) {
+        const canonicalRouter = this.toCanonicalRouterId(router);
+        if (!actualRouters.has(canonicalRouter)) {
+          domainsToEnroll.push(domainId);
+          routersToEnroll.push(canonicalRouter);
+        }
+      }
+    }
+
+    if (domainsToEnroll.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Enrolling ${domainsToEnroll.length} CrossCollateralRouter routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'enrollCrossCollateralRouters',
+          [domainsToEnroll, routersToEnroll],
+        ),
+      },
+    ];
+  }
+
+  /**
+   * Create transactions to unenroll CrossCollateralRouter routers.
+   */
+  createUnenrollCrossCollateralRoutersTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCrossCollateralTokenConfig(expectedConfig) ||
+      !isCrossCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+    const expectedCrossCollateralRouters =
+      expectedConfig.crossCollateralRouters ?? {};
+
+    const actualEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.crossCollateralRouters ?? {},
+    );
+    const expectedEnrolled = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedCrossCollateralRouters,
+    );
+
+    const domainsToUnenroll: number[] = [];
+    const routersToUnenroll: string[] = [];
+
+    for (const [domain, actualRouters] of Object.entries(actualEnrolled)) {
+      const domainId = Number(domain);
+      const expectedRouters = new Set(
+        (expectedEnrolled[domainId] ?? []).map((router) =>
+          this.toCanonicalRouterId(router),
+        ),
+      );
+      for (const router of actualRouters) {
+        const canonicalRouter = this.toCanonicalRouterId(router);
+        if (!expectedRouters.has(canonicalRouter)) {
+          domainsToUnenroll.push(domainId);
+          routersToUnenroll.push(canonicalRouter);
+        }
+      }
+    }
+
+    if (domainsToUnenroll.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Unenrolling ${domainsToUnenroll.length} CrossCollateralRouter routers on ${this.args.addresses.deployedTokenRoute} on ${this.chainName}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'unenrollCrossCollateralRouters',
+          [domainsToUnenroll, routersToUnenroll],
+        ),
+      },
+    ];
+  }
+
+  private toCanonicalRouterId(router: string): string {
+    const lower = router.toLowerCase();
+    if (isAddressEvm(lower)) {
+      return addressToBytes32(lower);
+    }
+    return lower;
   }
 
   async getAllowedBridgesApprovalTxs(
@@ -819,6 +972,10 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // OFT contracts don't have GasRouter interface — no destination gas config
+    if (isOftTokenConfig(expectedConfig)) {
+      return [];
+    }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
@@ -830,22 +987,38 @@ export class EvmWarpModule extends HyperlaneModule<
       'expectedDestinationGas is undefined',
     );
 
-    // Only set gas for domains that will have routers enrolled after the update
-    // Use resolveRouterMapConfig to handle both domain IDs and chain names as keys
+    // Only set gas for domains that will have routers enrolled after the update.
+    // For CrossCollateralRouter configs, also include domains from crossCollateralRouters.
     const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
       this.multiProvider,
       expectedConfig.remoteRouters ?? {},
     );
-    const expectedRemoteRouterDomains = new Set(
+    const expectedRouterDomains = new Set(
       Object.keys(resolvedExpectedRemoteRouters).map(Number),
     );
 
+    // Include MC-enrolled router domains
     if (
-      expectedRemoteRouterDomains.size === 0 &&
+      isCrossCollateralTokenConfig(expectedConfig) &&
+      expectedConfig.crossCollateralRouters
+    ) {
+      const localDomain = this.multiProvider.getDomainId(this.chainName);
+      const resolvedEnrolled = resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.crossCollateralRouters,
+      );
+      for (const domain of Object.keys(resolvedEnrolled).map(Number)) {
+        if (domain === localDomain) continue;
+        expectedRouterDomains.add(domain);
+      }
+    }
+
+    if (
+      expectedRouterDomains.size === 0 &&
       Object.keys(expectedConfig.destinationGas).length > 0
     ) {
       throw new Error(
-        `destinationGas is set but remoteRouters is empty. ` +
+        `destinationGas is set but remoteRouters and crossCollateralRouters are empty. ` +
           `Cannot configure gas for domains without corresponding router enrollments.`,
       );
     }
@@ -862,23 +1035,18 @@ export class EvmWarpModule extends HyperlaneModule<
     // Filter to only domains that will have routers enrolled
     const filteredExpectedGas = Object.fromEntries(
       Object.entries(expectedDestinationGas).filter(([domain]) =>
-        expectedRemoteRouterDomains.has(Number(domain)),
+        expectedRouterDomains.has(Number(domain)),
       ),
     );
 
     // Filter actual gas to the same domains for comparison
     const filteredActualGas = Object.fromEntries(
       Object.entries(actualDestinationGas).filter(([domain]) =>
-        expectedRemoteRouterDomains.has(Number(domain)),
+        expectedRouterDomains.has(Number(domain)),
       ),
     );
 
     if (!deepEquals(filteredActualGas, filteredExpectedGas)) {
-      const contractToUpdate = GasRouter__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
-      );
-
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: {
         domain: BigNumberish;
@@ -890,6 +1058,11 @@ export class EvmWarpModule extends HyperlaneModule<
           gas,
         });
       });
+
+      const contractToUpdate = GasRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
 
       updateTransactions.push({
         chainId: this.chainId,
@@ -1367,6 +1540,21 @@ export class EvmWarpModule extends HyperlaneModule<
       ];
 
       for (const tx of everclearTxs) {
+        await multiProvider.sendTransaction(chain, tx);
+      }
+    }
+
+    if (
+      isCrossCollateralTokenConfig(config) &&
+      config.crossCollateralRouters &&
+      Object.keys(config.crossCollateralRouters).length > 0
+    ) {
+      const enrollTxs = warpModule.createEnrollCrossCollateralRoutersTxs(
+        actualConfig,
+        config,
+      );
+
+      for (const tx of enrollTxs) {
         await multiProvider.sendTransaction(chain, tx);
       }
     }

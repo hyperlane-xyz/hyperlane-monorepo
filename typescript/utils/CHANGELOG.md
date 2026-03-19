@@ -1,5 +1,25 @@
 # @hyperlane-xyz/utils
 
+## 27.1.0
+
+### Patch Changes
+
+- b892e61: Added `isEmptyAddress` utility function that returns true when an address is undefined, null, empty string, or matches a known zero address pattern.
+
+## 27.0.0
+
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- 06aacac: Fix aleo empty program prefix
+
+## 25.5.0
+
 ## 25.4.1
 
 ## 25.4.0

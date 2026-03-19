@@ -359,9 +359,10 @@ export class HyperlaneRelayer {
           .getTransactionReceipt(dispatchTx);
 
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
-      } catch {
+      } catch (error) {
         const newAttempts = attempts + 1;
         this.logger.error(
+          { error },
           `Failed to relay message ${id} (attempt #${newAttempts})`,
         );
         this.observer.onEvent?.({

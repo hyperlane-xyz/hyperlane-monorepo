@@ -6,7 +6,7 @@ import { type Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson } from '../../../utils/files.js';
-import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
+import { ANVIL_KEY, REGISTRY_PATH, getKeyFlags } from '../consts.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -24,7 +24,7 @@ export function hyperlaneCoreDeployRaw(
   } ${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${privateKey ? getKeyFlags(privateKey) : []} \
         --verbosity debug \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
@@ -41,7 +41,7 @@ export async function hyperlaneCoreDeploy(
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --chain ${chain} \
-        --key ${key} \
+        ${getKeyFlags(key)} \
         --verbosity debug \
         --yes`;
 }
@@ -88,7 +88,7 @@ export function hyperlaneCoreInit(
   } ${localTestRunCmdPrefix()} hyperlane core init \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${privateKey ? getKeyFlags(privateKey) : []} \
         --verbosity debug \
         --yes`;
 }
@@ -104,7 +104,7 @@ export async function hyperlaneCoreApply(
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        ${getKeyFlags(ANVIL_KEY)} \
         --verbosity debug \
         --yes`;
 }

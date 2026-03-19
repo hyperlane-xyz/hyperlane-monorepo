@@ -6,6 +6,7 @@ import {
 } from '@hyperlane-xyz/radix-sdk';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { RadixTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
@@ -37,7 +38,10 @@ export class RadixMultiProtocolSignerAdapter implements IMultiProtocolSigner<Pro
     return this.signer.getSignerAddress();
   }
 
-  async sendAndConfirmTransaction(tx: RadixTransaction): Promise<string> {
+  async sendAndConfirmTransaction(
+    tx: RadixTransaction,
+    _options?: SendTransactionOptions,
+  ): Promise<string> {
     try {
       await this.signer.estimateTransactionFee({
         transaction: tx.transaction,

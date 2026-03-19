@@ -1,7 +1,13 @@
 import { expect } from 'chai';
 import { errors as EthersError, providers } from 'ethers';
 
-import { AllProviderMethods, IProviderMethods } from './ProviderMethods.js';
+import {
+  AllProviderMethods,
+  IProviderMethods,
+  ProviderMethod,
+} from './ProviderMethods.js';
+import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 
@@ -9,6 +15,7 @@ import { ProviderStatus } from './types.js';
 class MockProvider extends providers.BaseProvider implements IProviderMethods {
   public readonly supportedMethods = AllProviderMethods;
   public called = false;
+  public callCount = 0;
   public thrownError?: Error;
 
   static success(successValue?: any, responseDelayMs = 0) {
@@ -44,6 +51,7 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
 
   async perform(_method: string, _params: any, _reqId?: number): Promise<any> {
     this.called = true;
+    this.callCount += 1;
 
     if (this.responseDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.responseDelayMs));
@@ -87,6 +95,28 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
       this.mockProviders as any,
       reqId,
     );
+  }
+}
+
+class RetrySpySmartProvider extends HyperlaneSmartProvider {
+  public performWithFallbackCallCount = 0;
+
+  constructor() {
+    super({ chainId: 1, name: 'test' }, [{ http: 'http://provider' }], [], {
+      maxRetries: 3,
+      baseRetryDelayMs: 1,
+      fallbackStaggerMs: 1,
+    });
+  }
+
+  protected override async performWithFallback(
+    _method: string,
+    _params: { [name: string]: any },
+    _providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
+    _reqId: number,
+  ): Promise<any> {
+    this.performWithFallbackCallCount += 1;
+    throw new ProviderError('connection refused', EthersError.SERVER_ERROR);
   }
 }
 
@@ -673,6 +703,43 @@ describe('SmartProvider', () => {
         expect(provider1.thrownError).to.equal(callExceptionJsonRpcCode3);
         expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
       }
+    });
+
+    it('sendTransaction bypasses retryAsync to prevent duplicate submissions', async () => {
+      const smartProvider = new RetrySpySmartProvider();
+
+      // Call perform() (the public entry point) so the SendTransaction bypass in perform() is exercised.
+      // RetrySpySmartProvider.performWithFallback always throws, so if retryAsync
+      // were wrapping it, the call count would be > 1 (maxRetries=3).
+      let threw = false;
+      try {
+        await smartProvider.perform(ProviderMethod.SendTransaction, {
+          signedTransaction: '0x02',
+        });
+      } catch {
+        threw = true;
+      }
+      expect(threw, 'perform should have thrown').to.be.true;
+      // performWithFallback should be called exactly once (no retryAsync wrapping)
+      expect(smartProvider.performWithFallbackCallCount).to.equal(1);
+    });
+
+    it('sendTransaction waits for provider instead of racing against timeout', async () => {
+      // Provider responds slowly (longer than fallbackStaggerMs of 50ms)
+      const provider1 = MockProvider.success('tx-hash', 200);
+      const provider2 = MockProvider.success('tx-hash-2');
+      const smartProvider = new TestableSmartProvider([provider1, provider2]);
+
+      const result = await smartProvider.simplePerform(
+        ProviderMethod.SendTransaction,
+        1,
+      );
+
+      // Should wait for the slow provider instead of timing out and trying provider2
+      expect(result).to.equal('tx-hash');
+      expect(provider1.called).to.be.true;
+      expect(provider1.callCount).to.equal(1);
+      expect(provider2.called).to.be.false;
     });
   });
 });

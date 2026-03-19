@@ -47,7 +47,7 @@ export const SELECT_NATIVE_TOKEN_TYPE = {
   check: (currentOutput: string) =>
     !!currentOutput.match(/Select .+?'s token type/),
   // Scroll up through the token type list and select native
-  input: `${KeyBoardKeys.ARROW_UP.repeat(5)}${KeyBoardKeys.ENTER}`,
+  input: `${KeyBoardKeys.ARROW_UP.repeat(6)}${KeyBoardKeys.ENTER}`,
 };
 
 /**

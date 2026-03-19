@@ -136,7 +136,11 @@ export {
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
+export {
+  executeWarpDeploy,
+  enrollCrossChainRouters,
+  validateWarpConfigForAltVM,
+} from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelIgpProgramAdapter,
@@ -792,7 +796,12 @@ export {
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
+  isCrossCollateralTokenConfig,
+  isOftTokenConfig,
+  CrossCollateralTokenConfig,
   NativeTokenConfig,
+  OftTokenConfig,
+  OftTokenConfigSchema,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
   SyntheticRebaseTokenConfigSchema,
@@ -950,3 +959,4 @@ export {
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
+export { IMultiProtocolSigner } from './signers/types.js';

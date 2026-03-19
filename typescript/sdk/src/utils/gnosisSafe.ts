@@ -98,6 +98,11 @@ const chainOverrides: Record<
     multiSend: '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761',
     multiSendCallOnly: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D',
   },
+  // igra
+  38833: {
+    multiSend: '0x218543288004CD07832472D464648173c77D7eB7',
+    multiSendCallOnly: '0xA83c336B20401Af773B6219BA5027174338D1836',
+  },
 };
 
 export async function getSafe(

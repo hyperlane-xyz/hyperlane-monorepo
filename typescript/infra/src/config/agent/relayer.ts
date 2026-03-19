@@ -15,8 +15,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   addressToBytes32,
+  isEVMLike,
   isValidAddressEvm,
   objMap,
   retryAsync,
@@ -62,6 +62,11 @@ export interface RelayerBatchConfig {
   maxSubmitQueueLength?: ChainMap<number>;
 }
 
+export interface AddressLookupTableOverride {
+  matchingList: MatchingList;
+  addressLookupTable: string;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -72,6 +77,7 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;
+  processAltOverrides?: ChainMap<AddressLookupTableOverride[]>;
   dbBootstrap?: boolean;
   mixing?: RelayerMixingConfig;
   environmentVariableEndpointEnabled?: boolean;
@@ -196,9 +202,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       await awsUser.createIfNotExists();
       const awsKey = (await awsUser.createKeyIfNotExists(this)).keyConfig;
 
-      // AWS keys only work for Ethereum chains
+      // AWS keys only work for EVM-like chains
       for (const chainName of this.relayChains) {
-        if (getChain(chainName).protocol === ProtocolType.Ethereum) {
+        if (isEVMLike(getChain(chainName).protocol)) {
           chainSigners[chainName] = awsKey;
         }
       }
@@ -243,7 +249,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    const sanctionedEthereumAdresses = allSanctionedAddresses
+    const sanctionedEthereumAddresses = allSanctionedAddresses
       .flat()
       .filter((address) => {
         if (!isValidAddressEvm(address)) {
@@ -270,7 +276,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const uniqueAddresses = new Set(
       [
-        ...sanctionedEthereumAdresses,
+        ...sanctionedEthereumAddresses,
         ...radiantExploiter,
         ...flowAddresses,
       ].map((address) => address.toLowerCase()),
