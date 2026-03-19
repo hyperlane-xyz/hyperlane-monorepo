@@ -283,27 +283,6 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
-/**
- * Configuration for MultiCollateral (multi-router collateral routing).
- * Direct 1-message atomic transfers between collateral routers.
- */
-export const MultiCollateralTokenConfigSchema =
-  TokenMetadataSchema.partial().extend({
-    type: z.literal(TokenType.multiCollateral),
-    token: z.string().describe('Collateral token address'),
-    /** Map of domain → router addresses to enroll */
-    enrolledRouters: z
-      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
-      .optional(),
-    ...BaseMovableTokenConfigSchema.shape,
-  });
-export type MultiCollateralTokenConfig = z.infer<
-  typeof MultiCollateralTokenConfigSchema
->;
-export const isMultiCollateralTokenConfig = isCompliant(
-  MultiCollateralTokenConfigSchema,
-);
-
 export const EverclearCollateralTokenConfigSchema = z.object({
   type: z.literal(TokenType.collateralEverclear),
   ...CollateralTokenConfigSchema.omit({ type: true }).shape,
@@ -392,7 +371,6 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   AggLayerTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
-  MultiCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 
@@ -499,8 +477,7 @@ export const WarpRouteDeployConfigSchema = z
           isAggLayerTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
-          isEverclearTokenBridgeConfig(config) ||
-          isMultiCollateralTokenConfig(config),
+          isEverclearTokenBridgeConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
@@ -733,7 +710,6 @@ function extractCCIPIsmMap(
 
 const MovableTokenSchema = z.discriminatedUnion('type', [
   CollateralTokenConfigSchema,
-  MultiCollateralTokenConfigSchema,
   NativeTokenConfigSchema,
 ]);
 export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;
