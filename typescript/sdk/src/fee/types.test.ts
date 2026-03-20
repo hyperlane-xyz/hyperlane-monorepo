@@ -12,7 +12,7 @@ describe('LinearFeeInputConfigSchema', () => {
     const config = {
       type: TokenFeeType.LinearFee,
       owner: SOME_ADDRESS,
-      bps: 100n,
+      bps: 100,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
     expect(result.success).to.be.true;
@@ -79,7 +79,7 @@ describe('LinearFeeInputConfigSchema', () => {
     const config = {
       type: TokenFeeType.LinearFee,
       owner: SOME_ADDRESS,
-      bps: 0n,
+      bps: 0,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
     expect(result.success).to.be.false;
@@ -90,7 +90,7 @@ describe('LinearFeeInputConfigSchema', () => {
     const config = {
       type: TokenFeeType.LinearFee,
       owner: SOME_ADDRESS,
-      bps: 100n,
+      bps: 100,
       maxFee: 10_000n,
       halfAmount: 5_000n,
     };
@@ -168,7 +168,7 @@ describe('ZBps schema validation', () => {
     expect(r1.success).to.be.true;
     if (r1.success) expect(r1.data).to.equal(1.5);
 
-    const r2 = ZBps.safeParse(5n);
+    const r2 = ZBps.safeParse('5');
     expect(r2.success).to.be.true;
     if (r2.success) expect(r2.data).to.equal(5);
 
