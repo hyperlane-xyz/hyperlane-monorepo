@@ -123,7 +123,7 @@ contract TokenBridgeDepositAddressTest is Test {
 
         vm.prank(caller);
         vm.expectEmit(true, true, true, true);
-        emit TokenBridgeDepositAddress.SentTransferRemote(
+        emit TokenBridgeDepositAddress.SentTransferRemoteViaDepositAddress(
             DOMAIN_ARB, recipient, depositAddress, amount, feeAmount, FEE_BPS, expectedTransferId
         );
         bridge.transferRemote(DOMAIN_ARB, recipient, amount);

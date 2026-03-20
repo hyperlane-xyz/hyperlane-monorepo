@@ -40,7 +40,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
         uint32 indexed destination, address indexed depositAddress, bytes32 indexed recipient, uint256 feeBps
     );
     event DestinationRemoved(uint32 indexed destination, bytes32 indexed recipient);
-    event SentTransferRemote(
+    event SentTransferRemoteViaDepositAddress(
         uint32 indexed destination,
         bytes32 indexed recipient,
         address indexed depositAddress,
@@ -111,7 +111,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
         uint256 grossAmount = _amount + feeAmount;
         wrappedToken.safeTransferFrom(msg.sender, config.depositAddress, grossAmount);
 
-        emit SentTransferRemote(
+        emit SentTransferRemoteViaDepositAddress(
             _destination, _recipient, config.depositAddress, _amount, feeAmount, config.feeBps, transferId
         );
     }
