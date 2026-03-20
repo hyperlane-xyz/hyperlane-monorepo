@@ -43,6 +43,7 @@ pub struct CrossCollateralState {
     /// The local domain ID, set at init.
     pub local_domain: u32,
     /// Enrolled CC routers per domain. Each domain maps to a set of router addresses.
+    /// Uses BTreeMap and BTreeSet to ensure deterministic serialization and deserialization
     pub enrolled_routers: BTreeMap<u32, BTreeSet<H256>>,
 }
 
