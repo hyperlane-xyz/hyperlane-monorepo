@@ -4,7 +4,11 @@ import { constants } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import {
+  BaseFee__factory,
+  ERC20Test,
+  ERC20Test__factory,
+} from '@hyperlane-xyz/core';
 import { CrossCollateralRoutingFee__factory } from '@hyperlane-xyz/multicollateral';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -18,6 +22,7 @@ import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
+  OnchainTokenFeeType,
   ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
@@ -455,6 +460,74 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.LinearFee}`,
       );
       expect(onchainConfig.feeContracts?.[test4Chain]?.bps).to.equal(BPS + 1n);
+    });
+
+    it('should detect CCRF via explicit fee type during updates', async () => {
+      const initialSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config,
+      });
+      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
+        signer.address,
+      );
+      await ccrf.deployed();
+
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination],
+        [await ccrf.DEFAULT_ROUTER()],
+        [initialSubFeeModule.serialize().deployedFee],
+      );
+
+      const routingConfig: RoutingFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+      };
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: routingConfig,
+        addresses: { deployedFee: ccrf.address },
+      });
+
+      const originalBaseFeeConnect =
+        BaseFee__factory.connect.bind(BaseFee__factory);
+      const baseFeeConnect = sinon.stub(BaseFee__factory, 'connect');
+      // CAST: this test only overrides the CCRF contract's top-level `feeType()` probe result.
+      baseFeeConnect.callsFake((address, signerOrProvider) => {
+        if (address.toLowerCase() === ccrf.address.toLowerCase()) {
+          return {
+            feeType: async () => OnchainTokenFeeType.CrossCollateralRoutingFee,
+          } as unknown as ReturnType<typeof BaseFee__factory.connect>;
+        }
+        return originalBaseFeeConnect(address, signerOrProvider);
+      });
+
+      try {
+        const txs = await module.update(
+          {
+            type: TokenFeeType.RoutingFee,
+            owner: signer.address,
+            feeContracts: {
+              [test4Chain]: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                bps: BPS + 1n,
+              },
+            },
+          },
+          {
+            routingDestinations: [routingDestination],
+            token: token.address,
+          },
+        );
+
+        expect(txs).to.have.lengthOf(1);
+        expect(txs[0]?.data?.slice(0, 10)).to.equal('0x48d676e1');
+      } finally {
+        baseFeeConnect.restore();
+      }
     });
 
     it('should deploy new sub-fee contract when adding a new destination', async () => {

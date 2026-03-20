@@ -18,7 +18,12 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
-import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
+import {
+  OnchainTokenFeeType,
+  TokenFeeConfig,
+  TokenFeeConfigSchema,
+  TokenFeeType,
+} from './types.js';
 import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
 
 // eslint-disable-next-line jest/no-export -- test fixtures shared across test files
@@ -139,7 +144,7 @@ describe('EvmTokenFeeReader', () => {
   });
 
   describe('RoutingFee', () => {
-    it('should derive CCRF config after verifying DEFAULT_ROUTER', async () => {
+    it('should derive legacy CCRF config after verifying DEFAULT_ROUTER', async () => {
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
         signer.address,
@@ -161,6 +166,40 @@ describe('EvmTokenFeeReader', () => {
         expect.fail(`Expected ${TokenFeeType.RoutingFee}`);
       }
       expect(Object.keys(routingFee.feeContracts ?? {})).to.have.length(0);
+    });
+
+    it('should derive CCRF config from explicit fee type', async () => {
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
+        signer.address,
+      );
+      await ccrf.deployed();
+
+      const connectStub = sinon.stub(BaseFee__factory, 'connect');
+      // CAST: this test only overrides the top-level `feeType()` probe result.
+      connectStub.returns({
+        feeType: async () => OnchainTokenFeeType.CrossCollateralRoutingFee,
+      } as unknown as ReturnType<typeof BaseFee__factory.connect>);
+
+      try {
+        const routingFee = await reader.deriveTokenFeeConfig({
+          address: ccrf.address,
+          token: token.address,
+        });
+
+        expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
+        expect(routingFee.owner).to.equal(signer.address);
+        expect(routingFee.token).to.equal(token.address);
+        expect(routingFee.address).to.equal(ccrf.address);
+        expect(routingFee.maxFee).to.equal(constants.MaxUint256.toBigInt());
+        expect(routingFee.halfAmount).to.equal(constants.MaxUint256.toBigInt());
+        if (routingFee.type !== TokenFeeType.RoutingFee) {
+          expect.fail(`Expected ${TokenFeeType.RoutingFee}`);
+        }
+        expect(Object.keys(routingFee.feeContracts ?? {})).to.have.length(0);
+      } finally {
+        connectStub.restore();
+      }
     });
 
     it('should rethrow feeType errors for non-CCRF contracts', async () => {
