@@ -29,21 +29,20 @@ export async function deriveTokenMetadata(
   configMap: WarpRouteDeployConfig,
 ): Promise<TokenMetadataMap> {
   const metadataMap = new TokenMetadataMap();
+  const prioritizedTypes = new Set<string>([
+    TokenType.collateral,
+    TokenType.collateralVault,
+    TokenType.collateralVaultRebase,
+    TokenType.collateralCctp,
+    TokenType.collateralDepositAddress,
+    TokenType.collateralEverclear,
+    TokenType.XERC20,
+    TokenType.XERC20Lockbox,
+    TokenType.native,
+  ]);
 
   const priorityGetter = (type: string) => {
-    if (
-      [
-        TokenType.collateral,
-        TokenType.collateralVault,
-        TokenType.collateralVaultRebase,
-        TokenType.collateralCctp,
-        TokenType.collateralDepositAddress,
-        TokenType.collateralEverclear,
-        TokenType.XERC20,
-        TokenType.XERC20Lockbox,
-        TokenType.native,
-      ].includes(type as TokenType)
-    ) {
+    if (prioritizedTypes.has(type)) {
       return 1;
     }
     return -1;

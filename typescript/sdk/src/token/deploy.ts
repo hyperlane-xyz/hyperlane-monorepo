@@ -38,7 +38,7 @@ import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
-import { resolveRouterMapConfig } from '../router/types.js';
+import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { normalizeScale } from '../utils/decimals.js';
@@ -68,7 +68,6 @@ import {
   HypTokenRouterConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
@@ -809,7 +808,9 @@ abstract class TokenDeployer<
     );
   }
 
-  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
+  async deploy(
+    configMap: ChainMap<HypTokenRouterConfig>,
+  ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     let tokenMetadataMap: TokenMetadataMap;
     try {
       tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
@@ -869,7 +870,9 @@ abstract class TokenDeployer<
         ? await super.deploy(resolvedConfigMap)
         : // CAST: with no router-style deploys, the accumulated in-memory deploy state already
           // matches the public return shape even though the base field is declared less precisely.
-          (this.deployedContracts as HyperlaneContractsMap<Factories>);
+          (this.deployedContracts as HyperlaneContractsMap<
+            Factories & ProxiedFactories
+          >);
 
     for (const [chain, contracts] of Object.entries(directBridgeContracts)) {
       this.addDeployedContracts(chain, contracts);

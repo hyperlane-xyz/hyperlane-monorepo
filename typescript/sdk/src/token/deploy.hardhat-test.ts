@@ -39,6 +39,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isDepositAddressTokenConfig,
 } from './types.js';
 
 const chain = TestChainName.test1;
@@ -154,6 +155,9 @@ describe('TokenDeployer', async () => {
     const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
 
     expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
+    if (!isDepositAddressTokenConfig(derivedConfig)) {
+      throw new Error('Expected deposit-address token config');
+    }
     expect(derivedConfig.token).to.equal(erc20.address);
     expect(derivedConfig.mailbox).to.equal(ethers.constants.AddressZero);
     expect(derivedConfig.hook).to.equal(ethers.constants.AddressZero);
@@ -211,6 +215,9 @@ describe('TokenDeployer', async () => {
       contracts[TestChainName.test1][TokenType.collateralDepositAddress].address,
     );
 
+    if (!isDepositAddressTokenConfig(derivedConfig)) {
+      throw new Error('Expected deposit-address token config');
+    }
     expect(derivedConfig.destinationConfigs).to.deep.equal({
       [multiProvider.getDomainId(TestChainName.test2).toString()]: {
         [recipient.toLowerCase()]: {
