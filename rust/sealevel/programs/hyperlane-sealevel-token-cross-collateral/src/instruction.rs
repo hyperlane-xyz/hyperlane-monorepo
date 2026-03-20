@@ -26,17 +26,29 @@ use hyperlane_sealevel_token_collateral::{
 /// Discriminator for cross-collateral instructions.
 pub const CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR: [u8; 8] = [2, 2, 2, 2, 2, 2, 2, 2];
 
+/// Update operation for cross-collateral router management.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum CrossCollateralRouterUpdate {
+    /// Enroll a router for a domain.
+    Add {
+        /// The domain to enroll the router for.
+        domain: u32,
+        /// The router address to enroll.
+        router: H256,
+    },
+    /// Remove routers for a domain.
+    /// `Some(router)` removes a specific router from the domain.
+    /// `None` removes all routers for the domain.
+    Remove(RemoteRouterConfig),
+}
+
 /// Cross-collateral instruction set.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum CrossCollateralInstruction {
     /// Creates token PDA, escrow, dispatch authority, CC state PDA, CC dispatch authority PDA.
     Init(Init),
     /// Set CC routers. Owner-only.
-    /// `Some(router)` enrolls the router for the given domain.
-    /// `None` removes all routers for the given domain.
-    /// To remove specific routers, first unenroll all routers for the domain
-    /// with `None` and then re-enroll the desired routers with `Some(router)`.
-    SetCrossCollateralRouters(Vec<RemoteRouterConfig>),
+    SetCrossCollateralRouters(Vec<CrossCollateralRouterUpdate>),
     /// Transfer to a specific enrolled router. If `destination_domain == local_domain`,
     /// performs a same-chain CPI into the target's HandleLocal. Otherwise, dispatches
     /// cross-chain via the mailbox. Account layout diverges after the shared prefix
@@ -162,10 +174,6 @@ pub fn init_instruction(
 }
 
 /// Gets an instruction to set cross-collateral routers.
-/// `Some(router)` enrolls the router for the given domain.
-/// `None` removes all routers for the given domain.
-/// To remove specific routers, first unenroll all routers for the domain
-/// with `None` and then re-enroll the desired routers with `Some(router)`.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
@@ -175,7 +183,7 @@ pub fn init_instruction(
 pub fn set_cross_collateral_routers_instruction(
     program_id: Pubkey,
     owner_payer: Pubkey,
-    configs: Vec<RemoteRouterConfig>,
+    configs: Vec<CrossCollateralRouterUpdate>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (token_key, _token_bump) =
         Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)

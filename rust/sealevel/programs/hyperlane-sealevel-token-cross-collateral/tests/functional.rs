@@ -34,7 +34,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     instruction::{
         init_instruction, set_cross_collateral_routers_instruction, CrossCollateralInstruction,
-        HandleLocal, TransferRemoteTo,
+        CrossCollateralRouterUpdate, HandleLocal, TransferRemoteTo,
     },
     processor::process_instruction,
 };
@@ -415,10 +415,10 @@ async fn set_cc_routers(
     banks_client: &mut BanksClient,
     program_id: &Pubkey,
     payer: &Keypair,
-    configs: Vec<RemoteRouterConfig>,
+    updates: Vec<CrossCollateralRouterUpdate>,
 ) -> Result<(), BanksClientError> {
     let ixn =
-        set_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs).unwrap();
+        set_cross_collateral_routers_instruction(*program_id, payer.pubkey(), updates).unwrap();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[ixn],
@@ -945,7 +945,6 @@ mod base_token {
             &[&token_sender, &unique_message_account_keypair],
             recent_blockhash,
         );
-        let tx_signature = transaction.signatures[0];
         ctx.banks_client
             .process_transaction(transaction)
             .await
@@ -1008,13 +1007,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_a),
+                        router: router_a,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_b),
+                        router: router_b,
                     },
                 ],
             )
@@ -1049,9 +1048,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &non_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(H256::random()),
+                    router: H256::random(),
                 }],
             )
             .await;
@@ -1066,13 +1065,14 @@ mod routers_management {
         async fn test_enroll_cc_routers_owner_not_signer() {
             let mut ctx = TestContext::new(false).await;
 
-            let ixn_data =
-                CrossCollateralInstruction::SetCrossCollateralRouters(vec![RemoteRouterConfig {
+            let ixn_data = CrossCollateralInstruction::SetCrossCollateralRouters(vec![
+                CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(H256::random()),
-                }])
-                .encode()
-                .unwrap();
+                    router: H256::random(),
+                },
+            ])
+            .encode()
+            .unwrap();
 
             let fake_payer =
                 new_funded_keypair(&mut ctx.banks_client, &ctx.payer, ONE_SOL_IN_LAMPORTS).await;
@@ -1113,13 +1113,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router),
+                        router,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router),
+                        router,
                     },
                 ],
             )
@@ -1146,9 +1146,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router),
+                    router,
                 }],
             )
             .await
@@ -1182,9 +1182,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router_a),
+                    router: router_a,
                 }],
             )
             .await
@@ -1196,13 +1196,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_b),
+                        router: router_b,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_c),
+                        router: router_c,
                     },
                 ],
             )
@@ -1241,17 +1241,17 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_a),
+                        router: router_a,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_b),
+                        router: router_b,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: other_domain,
-                        router: Some(router_c),
+                        router: router_c,
                     },
                 ],
             )
@@ -1293,9 +1293,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router_a),
+                    router: router_a,
                 }],
             )
             .await
@@ -1305,10 +1305,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: None,
-                }],
+                })],
             )
             .await
             .unwrap();
@@ -1339,13 +1339,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_a),
+                        router: router_a,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_b),
+                        router: router_b,
                     },
                 ],
             )
@@ -1356,10 +1356,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: None,
-                }],
+                })],
             )
             .await
             .unwrap();
@@ -1391,13 +1391,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_a),
+                        router: router_a,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_b),
+                        router: router_b,
                     },
                 ],
             )
@@ -1409,10 +1409,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: None,
-                }],
+                })],
             )
             .await
             .unwrap();
@@ -1421,9 +1421,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router_b),
+                    router: router_b,
                 }],
             )
             .await
@@ -1455,10 +1455,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: 99999,
                     router: None,
-                }],
+                })],
             )
             .await
             .unwrap();
@@ -1491,13 +1491,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: REMOTE_DOMAIN,
-                        router: Some(router_a),
+                        router: router_a,
                     },
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Add {
                         domain: other_domain,
-                        router: Some(router_b),
+                        router: router_b,
                     },
                 ],
             )
@@ -1511,13 +1511,13 @@ mod routers_management {
                 &ctx.program_id,
                 &ctx.payer,
                 vec![
-                    RemoteRouterConfig {
+                    CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                         domain: REMOTE_DOMAIN,
                         router: None,
-                    },
-                    RemoteRouterConfig {
+                    }),
+                    CrossCollateralRouterUpdate::Add {
                         domain: other_domain,
-                        router: Some(router_c),
+                        router: router_c,
                     },
                 ],
             )
@@ -1553,9 +1553,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router),
+                    router,
                 }],
             )
             .await
@@ -1568,10 +1568,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &non_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: None,
-                }],
+                })],
             )
             .await;
 
@@ -1593,9 +1593,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 old_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router),
+                    router,
                 }],
             )
             .await
@@ -1636,9 +1636,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 old_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(H256::random()),
+                    router: H256::random(),
                 }],
             )
             .await;
@@ -1653,10 +1653,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 old_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: None,
-                }],
+                })],
             )
             .await;
 
@@ -1670,9 +1670,9 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &new_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Add {
                     domain: REMOTE_DOMAIN,
-                    router: Some(H256::random()),
+                    router: H256::random(),
                 }],
             )
             .await
@@ -1683,10 +1683,10 @@ mod routers_management {
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &new_owner,
-                vec![RemoteRouterConfig {
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: None,
-                }],
+                })],
             )
             .await
             .unwrap();
@@ -1722,9 +1722,9 @@ mod handle_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: REMOTE_DOMAIN,
-                router: Some(cc_router),
+                router: cc_router,
             }],
         )
         .await
@@ -1912,9 +1912,9 @@ mod handle_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: REMOTE_DOMAIN,
-                router: Some(cc_router),
+                router: cc_router,
             }],
         )
         .await
@@ -1979,9 +1979,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(local_cc_router),
+                router: local_cc_router,
             }],
         )
         .await
@@ -2106,9 +2106,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_b),
+                router: router_b,
             }],
         )
         .await
@@ -2204,9 +2204,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_b),
+                router: router_b,
             }],
         )
         .await
@@ -2308,9 +2308,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &program_a,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_b),
+                router: router_b,
             }],
         )
         .await
@@ -2319,9 +2319,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &program_b,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_a),
+                router: router_a,
             }],
         )
         .await
@@ -2475,9 +2475,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_b),
+                router: router_b,
             }],
         )
         .await
@@ -2540,9 +2540,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_b),
+                router: router_b,
             }],
         )
         .await
@@ -2606,9 +2606,9 @@ mod handle_local_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(router_b),
+                router: router_b,
             }],
         )
         .await
@@ -2676,9 +2676,9 @@ mod transfer_remote_to_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: REMOTE_DOMAIN,
-                router: Some(target_router),
+                router: target_router,
             }],
         )
         .await
@@ -2871,15 +2871,15 @@ mod transfer_remote_to_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: LOCAL_DOMAIN,
-                router: Some(local_cc_router),
+                router: local_cc_router,
             }],
         )
         .await
         .unwrap();
 
-        let (token_sender, token_sender_ata) = ctx
+        let (token_sender, _token_sender_ata) = ctx
             .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
             .await;
         let token_sender_pubkey = token_sender.pubkey();
@@ -3021,9 +3021,9 @@ mod transfer_remote_to_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: REMOTE_DOMAIN,
-                router: Some(target_router),
+                router: target_router,
             }],
         )
         .await
@@ -3096,9 +3096,9 @@ mod transfer_remote_to_instruction {
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            vec![RemoteRouterConfig {
+            vec![CrossCollateralRouterUpdate::Add {
                 domain: REMOTE_DOMAIN,
-                router: Some(target_router),
+                router: target_router,
             }],
         )
         .await

@@ -9,7 +9,7 @@ use account_utils::{
 use hyperlane_core::{Decode, Encode, H256};
 use hyperlane_sealevel_connection_client::gas_router::HyperlaneGasRouter;
 use hyperlane_sealevel_connection_client::{
-    router::RemoteRouterConfig, HyperlaneConnectionClient, HyperlaneConnectionClientRecipient,
+    HyperlaneConnectionClient, HyperlaneConnectionClientRecipient,
 };
 use hyperlane_sealevel_igp::{
     accounts::InterchainGasPaymasterType,
@@ -48,7 +48,9 @@ use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     error::Error,
-    instruction::{CrossCollateralInstruction, HandleLocal, TransferRemoteTo},
+    instruction::{
+        CrossCollateralInstruction, CrossCollateralRouterUpdate, HandleLocal, TransferRemoteTo,
+    },
     plugin::CollateralPlugin,
 };
 
@@ -345,19 +347,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     Ok(())
 }
 
-/// Enrolls cross-collateral routers. Owner-only.
-/// Each config must have `router: Some(h256)`. `None` entries are ignored.
-///
-/// Accounts:
-/// 0. `[executable]` The system program.
-/// 1. `[writable]` The CC state PDA account.
-/// 2. `[]` The token PDA account.
-/// 3. `[signer]` The owner.
 /// Sets cross-collateral routers. Owner-only.
-/// `Some(router)` enrolls the router for the given domain.
-/// `None` removes all routers for the given domain.
-/// To remove specific routers, first unenroll all routers for the domain
-/// with `None` and then re-enroll the desired routers with `Some(router)`.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
@@ -367,14 +357,14 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 fn set_cross_collateral_routers(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    configs: Vec<RemoteRouterConfig>,
+    updates: Vec<CrossCollateralRouterUpdate>,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program
     let system_program_info = next_account_info(accounts_iter)?;
     if system_program_info.key != &system_program::ID {
-        return Err(ProgramError::InvalidArgument);
+        return Err(ProgramError::IncorrectProgramId);
     }
 
     // Account 1: CC state PDA
@@ -398,26 +388,37 @@ fn set_cross_collateral_routers(
         return Err(Error::ExtraneousAccount.into());
     }
 
-    // Apply configs
-    for config in configs {
-        match config.router {
-            Some(router) => {
+    // Apply updates
+    for update in updates {
+        match update {
+            CrossCollateralRouterUpdate::Add { domain, router } => {
                 cc_state
                     .enrolled_routers
-                    .entry(config.domain)
+                    .entry(domain)
                     .or_default()
                     .insert(router);
 
-                msg!(
-                    "Enrolled CC router {:?} for domain {}",
-                    router,
-                    config.domain
-                );
+                msg!("Enrolled CC router {:?} for domain {}", router, domain);
             }
-            None => {
-                cc_state.enrolled_routers.remove(&config.domain);
-                msg!("Unenrolled all CC routers for domain {}", config.domain);
-            }
+            CrossCollateralRouterUpdate::Remove(config) => match config.router {
+                Some(router) => {
+                    if let Some(routers) = cc_state.enrolled_routers.get_mut(&config.domain) {
+                        routers.remove(&router);
+                        if routers.is_empty() {
+                            cc_state.enrolled_routers.remove(&config.domain);
+                        }
+                    }
+                    msg!(
+                        "Removed CC router {:?} from domain {}",
+                        router,
+                        config.domain
+                    );
+                }
+                None => {
+                    cc_state.enrolled_routers.remove(&config.domain);
+                    msg!("Removed all CC routers for domain {}", config.domain);
+                }
+            },
         }
     }
 
@@ -507,7 +508,7 @@ fn transfer_remote_to(
     // Account 0: System program
     let system_program_account = next_account_info(accounts_iter)?;
     if system_program_account.key != &system_program::ID {
-        return Err(ProgramError::InvalidArgument);
+        return Err(ProgramError::IncorrectProgramId);
     }
 
     // Account 1: Token storage account
@@ -907,7 +908,7 @@ fn transfer_from_remote_cc(
     // Account 1: System program
     let system_program_info = next_account_info(accounts_iter)?;
     if system_program_info.key != &system_program::ID {
-        return Err(ProgramError::InvalidArgument);
+        return Err(ProgramError::IncorrectProgramId);
     }
 
     // Account 2: Token account
@@ -1056,7 +1057,7 @@ fn handle_local(
     // Account 1: System program
     let system_program_info = next_account_info(accounts_iter)?;
     if system_program_info.key != &system_program::ID {
-        return Err(ProgramError::InvalidArgument);
+        return Err(ProgramError::IncorrectProgramId);
     }
 
     // Account 2: Token account
