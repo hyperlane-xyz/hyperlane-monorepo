@@ -152,7 +152,7 @@ impl DangoProvider {
         let nonce = self
             .query_wasm_smart(
                 signer.r#use(self).await?.read().await.deref().address,
-                account::single::QuerySeenNoncesRequest {},
+                account::QuerySeenNoncesRequest {},
                 None,
             )
             .await?

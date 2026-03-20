@@ -66,15 +66,14 @@ where
         let address = *client
             .query_wasm_smart(
                 factory_addr,
-                account_factory::QueryAccountsByUserRequest {
-                    user: UserIndexOrName::Index(user_index),
-                },
+                account_factory::QueryUserRequest(UserIndexOrName::Index(user_index)),
                 None,
             )
             .await?
+            .accounts
             .first_key_value()
             .ok_or(anyhow::anyhow!("No account found"))?
-            .0;
+            .1;
 
         Ok(SingleSigner::new(address, sk).with_user_index(user_index))
     }
