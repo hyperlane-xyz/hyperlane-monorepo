@@ -207,12 +207,14 @@ describe('TokenDeployer', async () => {
       contracts[TestChainName.test1][TokenType.collateralDepositAddress]
         .address,
     ).to.not.equal(ethers.constants.AddressZero);
-    expect(contracts[TestChainName.test2][TokenType.synthetic].address).to.not
-      .equal(ethers.constants.AddressZero);
+    expect(
+      contracts[TestChainName.test2][TokenType.synthetic].address,
+    ).to.not.equal(ethers.constants.AddressZero);
 
     const reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
     const derivedConfig = await reader.deriveWarpRouteConfig(
-      contracts[TestChainName.test1][TokenType.collateralDepositAddress].address,
+      contracts[TestChainName.test1][TokenType.collateralDepositAddress]
+        .address,
     );
 
     if (!isDepositAddressTokenConfig(derivedConfig)) {

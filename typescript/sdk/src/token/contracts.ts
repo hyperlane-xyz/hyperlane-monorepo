@@ -76,7 +76,8 @@ export const hypERC20factories = {
 
   [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
   [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
-  [TokenType.collateralDepositAddress]: new TokenBridgeDepositAddress__factory(),
+  [TokenType.collateralDepositAddress]:
+    new TokenBridgeDepositAddress__factory(),
   [TokenType.collateralOft]: new TokenBridgeOft__factory(),
   [TokenType.crossCollateral]: new CrossCollateralRouter__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;

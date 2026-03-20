@@ -263,16 +263,15 @@ export type DepositAddressDestinationConfig = z.infer<
   typeof DepositAddressDestinationConfigSchema
 >;
 
-export const DepositAddressTokenConfigSchema = TokenMetadataSchema.partial().extend(
-  {
+export const DepositAddressTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralDepositAddress),
     token: z.string().describe('Underlying ERC20 token address'),
     destinationConfigs: z.record(
       RemoteRouterDomainOrChainNameSchema,
       DepositAddressDestinationConfigSchema,
     ),
-  },
-);
+  });
 export type DepositAddressTokenConfig = z.infer<
   typeof DepositAddressTokenConfigSchema
 >;
