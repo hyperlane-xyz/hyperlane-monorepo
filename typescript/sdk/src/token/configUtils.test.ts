@@ -277,12 +277,12 @@ describe('configUtils', () => {
           ethereum: {
             type: TokenFeeType.LinearFee as const,
             owner: OWNER_ADDRESS,
-            bps: 100n,
+            bps: 100,
           },
           arbitrum: {
             type: TokenFeeType.LinearFee as const,
             owner: OWNER_ADDRESS,
-            bps: 50n,
+            bps: 50,
           },
         },
       };
