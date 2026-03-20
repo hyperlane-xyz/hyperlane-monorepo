@@ -12,7 +12,6 @@ import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { JsonRpcSubmitterConfig } from '@hyperlane-xyz/provider-sdk/submitter';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -25,7 +24,6 @@ import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { StarknetProvider } from './provider.js';
 import { StarknetSigner } from './signer.js';
-import { StarknetJsonRpcSubmitter } from './submitter.js';
 
 export class StarknetProtocolProvider implements ProtocolProvider {
   async createProvider(
@@ -54,15 +52,10 @@ export class StarknetProtocolProvider implements ProtocolProvider {
   }
 
   async createSubmitter<TConfig extends TransactionSubmitterConfig>(
-    chainMetadata: ChainMetadataForAltVM,
-    config: TConfig,
+    _chainMetadata: ChainMetadataForAltVM,
+    _config: TConfig,
   ): Promise<ITransactionSubmitter> {
-    assert(
-      config.type === 'jsonRpc',
-      'File submitter is unsupported in @hyperlane-xyz/starknet-sdk; create file submitters at the CLI layer',
-    );
-
-    return this.createJsonRpcSubmitter(chainMetadata, config);
+    throw Error('Not implemented');
   }
 
   createIsmArtifactManager(
@@ -105,18 +98,5 @@ export class StarknetProtocolProvider implements ProtocolProvider {
       AVS_GAS: BigInt(3e8),
       ISM_DEPLOY_GAS: BigInt(5e7),
     };
-  }
-
-  private async createJsonRpcSubmitter(
-    chainMetadata: ChainMetadataForAltVM,
-    config: JsonRpcSubmitterConfig,
-  ): Promise<ITransactionSubmitter> {
-    const env = typeof process === 'undefined' ? undefined : process.env;
-    const signer = await this.createSigner(chainMetadata, {
-      privateKey: config.privateKey ?? env?.['HYP_KEY_STARKNET'],
-      accountAddress:
-        config.accountAddress ?? env?.['HYP_ACCOUNT_ADDRESS_STARKNET'],
-    });
-    return new StarknetJsonRpcSubmitter(signer, { chain: config.chain });
   }
 }
