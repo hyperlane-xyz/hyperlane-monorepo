@@ -101,12 +101,21 @@ const SCALE_VERSION = '6.0.0';
 export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
 // Version that renamed maxFeeBps() to maxFeePpm() on-chain
 export const CCTP_PPM_PRECISION_VERSION = '11.0.0';
+type DepositAddressDomainConfigs = [
+  BigNumber[],
+  string[],
+  string[],
+  BigNumber[],
+];
 
 export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmWarpRouteReader',
   });
-  private readonly depositAddressDomainConfigsCache = new Map<Address, any>();
+  private readonly depositAddressDomainConfigsCache = new Map<
+    Address,
+    DepositAddressDomainConfigs
+  >();
 
   // Using null instead of undefined to force
   // a compile error when adding a new token type

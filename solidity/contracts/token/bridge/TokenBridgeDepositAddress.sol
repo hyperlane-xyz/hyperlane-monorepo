@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
 
 struct DestinationConfig {
     address depositAddress;
@@ -19,13 +20,14 @@ struct DestinationConfig {
  * @notice Generic ITokenBridge adapter for deposit-address-based bridges.
  * @dev Bridges by transferring tokens to a configured deposit address on the origin chain.
  *      Settlement to the destination recipient happens offchain via the external issuer.
- *      Assumes standard ERC20 transfer semantics; fee-on-transfer, rebasing, and ERC-777-style
- *      callback tokens are unsupported.
+ *      Assumes standard ERC20 transfer semantics; native-token deposit lanes, fee-on-transfer,
+ *      rebasing, and ERC-777-style callback tokens are unsupported.
  */
-contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
+contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, EnumerableDomainSet {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
-    using EnumerableSet for EnumerableSet.UintSet;
+
+    uint256 internal constant BPS_DENOMINATOR = 10_000;
 
     error InvalidToken(address token);
     error NativeFeeNotSupported(uint256 value);
@@ -50,7 +52,6 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
 
     IERC20 public immutable wrappedToken;
 
-    EnumerableSet.UintSet private _configuredDomains;
     mapping(uint32 destination => EnumerableSet.Bytes32Set recipients) private _configuredRecipients;
     mapping(uint32 destination => mapping(bytes32 recipient => DestinationConfig config)) private _destinationConfigs;
 
@@ -91,6 +92,8 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
         uint256 feeAmount = _computeFee(_amount, config.feeBps);
         uint256 currentNonce = nonce++;
 
+        // `ITokenBridge` requires a bytes32 return value. This deterministic id lets offchain
+        // issuers correlate the origin transfer with their settlement pipeline and emitted logs.
         transferId = keccak256(
             abi.encode(
                 block.chainid,
@@ -121,11 +124,11 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
         if (_depositAddress == address(0)) {
             revert InvalidDepositAddress(_destination, _recipient);
         }
-        if (_feeBps > 10_000) {
+        if (_feeBps > BPS_DENOMINATOR) {
             revert InvalidFeeBps(_feeBps);
         }
 
-        _configuredDomains.add(_destination);
+        _addDomain(_destination);
         _configuredRecipients[_destination].add(_recipient);
         _destinationConfigs[_destination][_recipient] =
             DestinationConfig({depositAddress: _depositAddress, feeBps: _feeBps});
@@ -134,7 +137,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
     }
 
     function removeDestinationConfig(uint32 _destination, bytes32 _recipient) external onlyOwner {
-        if (!_configuredDomains.contains(_destination)) {
+        if (!_containsDomain(_destination)) {
             revert DestinationNotConfigured(_destination);
         }
         if (!_configuredRecipients[_destination].remove(_recipient)) {
@@ -143,7 +146,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
 
         delete _destinationConfigs[_destination][_recipient];
         if (_configuredRecipients[_destination].length() == 0) {
-            _configuredDomains.remove(_destination);
+            _removeDomain(_destination);
         }
 
         emit DestinationRemoved(_destination, _recipient);
@@ -167,10 +170,11 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
             uint256[] memory feeBpsValues
         )
     {
-        uint256 domainLen = _configuredDomains.length();
+        uint32[] memory configuredDomains = _getDomains();
+        uint256 domainLen = configuredDomains.length;
         uint256 configLen;
         for (uint256 i = 0; i < domainLen; i++) {
-            configLen += _configuredRecipients[uint32(_configuredDomains.at(i))].length();
+            configLen += _configuredRecipients[configuredDomains[i]].length();
         }
 
         domains = new uint32[](configLen);
@@ -180,7 +184,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
 
         uint256 index;
         for (uint256 i = 0; i < domainLen; i++) {
-            uint32 domain = uint32(_configuredDomains.at(i));
+            uint32 domain = configuredDomains[i];
             uint256 recipientLen = _configuredRecipients[domain].length();
             for (uint256 j = 0; j < recipientLen; j++) {
                 bytes32 recipient = _configuredRecipients[domain].at(j);
@@ -195,7 +199,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
     }
 
     function _computeFee(uint256 _amount, uint256 _feeBps) internal pure returns (uint256) {
-        return (_amount * _feeBps) / 10_000;
+        return (_amount * _feeBps) / BPS_DENOMINATOR;
     }
 
     function _getDestinationConfig(uint32 _destination, bytes32 _recipient)
@@ -203,7 +207,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
         view
         returns (DestinationConfig memory config)
     {
-        if (!_configuredDomains.contains(_destination)) {
+        if (!_containsDomain(_destination)) {
             revert DestinationNotConfigured(_destination);
         }
 

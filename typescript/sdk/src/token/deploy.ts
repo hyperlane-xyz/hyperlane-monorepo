@@ -867,15 +867,25 @@ abstract class TokenDeployer<
     const deployedContractsMap =
       Object.keys(resolvedConfigMap).length > 0
         ? await super.deploy(resolvedConfigMap)
-        : (this.deployedContracts as HyperlaneContractsMap<Factories>);
+        : // CAST: with no router-style deploys, the accumulated in-memory deploy state already
+          // matches the public return shape even though the base field is declared less precisely.
+          (this.deployedContracts as HyperlaneContractsMap<Factories>);
 
     for (const [chain, contracts] of Object.entries(directBridgeContracts)) {
       this.addDeployedContracts(chain, contracts);
+      deployedContractsMap[chain] = {
+        ...deployedContractsMap[chain],
+        ...contracts,
+      };
     }
 
     // Now safe to merge direct-bridge / OFT entries — Router-specific methods have already run
     for (const [chain, contracts] of Object.entries(oftContracts)) {
       this.addDeployedContracts(chain, contracts);
+      deployedContractsMap[chain] = {
+        ...deployedContractsMap[chain],
+        ...contracts,
+      };
     }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
