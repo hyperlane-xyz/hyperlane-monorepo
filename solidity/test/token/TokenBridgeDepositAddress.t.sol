@@ -22,14 +22,20 @@ contract TokenBridgeDepositAddressTest is Test {
     address internal owner = makeAddr("owner");
     address internal caller = makeAddr("caller");
     address internal depositAddress = makeAddr("deposit");
-    bytes32 internal recipient = bytes32(uint256(uint160(makeAddr("recipient"))));
+    bytes32 internal recipient =
+        bytes32(uint256(uint160(makeAddr("recipient"))));
 
     function setUp() public {
         token = new ERC20Test("MockUSDC", "mUSDC", 0, 6);
         bridge = new TokenBridgeDepositAddress(address(token), owner);
 
         vm.prank(owner);
-        bridge.setDestinationConfig(DOMAIN_ARB, depositAddress, recipient, FEE_BPS);
+        bridge.setDestinationConfig(
+            DOMAIN_ARB,
+            depositAddress,
+            recipient,
+            FEE_BPS
+        );
 
         token.mintTo(caller, 1_000_000e6);
         vm.deal(caller, 10 ether);
@@ -43,20 +49,40 @@ contract TokenBridgeDepositAddressTest is Test {
     }
 
     function test_constructor_revertsOnInvalidToken() public {
-        vm.expectRevert(abi.encodeWithSelector(TokenBridgeDepositAddress.InvalidToken.selector, address(0)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeDepositAddress.InvalidToken.selector,
+                address(0)
+            )
+        );
         new TokenBridgeDepositAddress(address(0), owner);
     }
 
     function test_setDestinationConfig() public {
         address newDepositAddress = makeAddr("newDeposit");
-        bytes32 newRecipient = bytes32(uint256(uint160(makeAddr("newRecipient"))));
+        bytes32 newRecipient = bytes32(
+            uint256(uint160(makeAddr("newRecipient")))
+        );
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit TokenBridgeDepositAddress.DestinationConfigured(DOMAIN_ETH, newDepositAddress, newRecipient, 700);
-        bridge.setDestinationConfig(DOMAIN_ETH, newDepositAddress, newRecipient, 700);
+        emit TokenBridgeDepositAddress.DestinationConfigured(
+            DOMAIN_ETH,
+            newDepositAddress,
+            newRecipient,
+            700
+        );
+        bridge.setDestinationConfig(
+            DOMAIN_ETH,
+            newDepositAddress,
+            newRecipient,
+            700
+        );
 
-        DestinationConfig memory config = bridge.getDestinationConfig(DOMAIN_ETH, newRecipient);
+        DestinationConfig memory config = bridge.getDestinationConfig(
+            DOMAIN_ETH,
+            newRecipient
+        );
         assertEq(config.depositAddress, newDepositAddress);
         assertEq(config.feeBps, 700);
     }
@@ -69,12 +95,26 @@ contract TokenBridgeDepositAddressTest is Test {
 
     function test_setDestinationConfig_revertsOnInvalidFeeBps() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(TokenBridgeDepositAddress.InvalidFeeBps.selector, MAX_BPS + 1));
-        bridge.setDestinationConfig(DOMAIN_ETH, depositAddress, recipient, MAX_BPS + 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeDepositAddress.InvalidFeeBps.selector,
+                MAX_BPS + 1
+            )
+        );
+        bridge.setDestinationConfig(
+            DOMAIN_ETH,
+            depositAddress,
+            recipient,
+            MAX_BPS + 1
+        );
     }
 
     function test_quoteTransferRemote() public view {
-        Quote[] memory quotes = bridge.quoteTransferRemote(DOMAIN_ARB, recipient, 100e6);
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ARB,
+            recipient,
+            100e6
+        );
 
         assertEq(quotes.length, 1);
         assertEq(quotes[0].token, address(token));
@@ -82,7 +122,9 @@ contract TokenBridgeDepositAddressTest is Test {
     }
 
     function test_quoteTransferRemote_revertsOnMissingRecipient() public {
-        bytes32 wrongRecipient = bytes32(uint256(uint160(makeAddr("wrongRecipient"))));
+        bytes32 wrongRecipient = bytes32(
+            uint256(uint160(makeAddr("wrongRecipient")))
+        );
         vm.expectRevert(
             abi.encodeWithSelector(
                 TokenBridgeDepositAddress.RecipientNotConfigured.selector,
@@ -98,7 +140,11 @@ contract TokenBridgeDepositAddressTest is Test {
         uint256 feeAmount = (amount * FEE_BPS) / MAX_BPS;
 
         vm.prank(caller);
-        bytes32 transferId = bridge.transferRemote(DOMAIN_ARB, recipient, amount);
+        bytes32 transferId = bridge.transferRemote(
+            DOMAIN_ARB,
+            recipient,
+            amount
+        );
 
         assertEq(transferId, bytes32(0));
         assertEq(token.balanceOf(depositAddress), amount + feeAmount);
@@ -113,39 +159,69 @@ contract TokenBridgeDepositAddressTest is Test {
         vm.prank(caller);
         vm.expectEmit(true, true, true, true);
         emit TokenBridgeDepositAddress.SentTransferRemoteViaDepositAddress(
-            DOMAIN_ARB, recipient, depositAddress, amount, feeAmount, FEE_BPS
+            DOMAIN_ARB,
+            recipient,
+            depositAddress,
+            amount,
+            feeAmount,
+            FEE_BPS
         );
         bridge.transferRemote(DOMAIN_ARB, recipient, amount);
     }
 
     function test_transferRemote_revertsOnNativeFee() public {
         vm.prank(caller);
-        vm.expectRevert(abi.encodeWithSelector(TokenBridgeDepositAddress.NativeFeeNotSupported.selector, 1));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeDepositAddress.NativeFeeNotSupported.selector,
+                1
+            )
+        );
         bridge.transferRemote{value: 1}(DOMAIN_ARB, recipient, 100e6);
     }
 
     function test_removeDestinationConfig() public {
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit TokenBridgeDepositAddress.DestinationRemoved(DOMAIN_ARB, recipient);
+        emit TokenBridgeDepositAddress.DestinationRemoved(
+            DOMAIN_ARB,
+            recipient
+        );
         bridge.removeDestinationConfig(DOMAIN_ARB, recipient);
 
         vm.expectRevert(
-            abi.encodeWithSelector(TokenBridgeDepositAddress.DestinationNotConfigured.selector, DOMAIN_ARB)
+            abi.encodeWithSelector(
+                TokenBridgeDepositAddress.DestinationNotConfigured.selector,
+                DOMAIN_ARB
+            )
         );
         bridge.getDestinationConfig(DOMAIN_ARB, recipient);
     }
 
     function test_getDomainConfigs() public {
-        bytes32 recipientTwo = bytes32(uint256(uint160(makeAddr("recipient2"))));
-        bytes32 recipientThree = bytes32(uint256(uint160(makeAddr("recipient3"))));
+        bytes32 recipientTwo = bytes32(
+            uint256(uint160(makeAddr("recipient2")))
+        );
+        bytes32 recipientThree = bytes32(
+            uint256(uint160(makeAddr("recipient3")))
+        );
         address depositAddressTwo = makeAddr("deposit2");
         address depositAddressThree = makeAddr("deposit3");
 
         vm.prank(owner);
-        bridge.setDestinationConfig(DOMAIN_ETH, depositAddressTwo, recipientTwo, 110);
+        bridge.setDestinationConfig(
+            DOMAIN_ETH,
+            depositAddressTwo,
+            recipientTwo,
+            110
+        );
         vm.prank(owner);
-        bridge.setDestinationConfig(DOMAIN_ARB, depositAddressThree, recipientThree, 210);
+        bridge.setDestinationConfig(
+            DOMAIN_ARB,
+            depositAddressThree,
+            recipientThree,
+            210
+        );
 
         (
             uint32[] memory domains,
@@ -163,14 +239,24 @@ contract TokenBridgeDepositAddressTest is Test {
         bool foundEth;
         bool foundArb;
         for (uint256 i = 0; i < domains.length; i++) {
-            if (domains[i] == DOMAIN_ARB && depositAddresses[i] == depositAddress && recipients[i] == recipient) {
+            if (
+                domains[i] == DOMAIN_ARB &&
+                depositAddresses[i] == depositAddress &&
+                recipients[i] == recipient
+            ) {
                 assertEq(feeBpsValues[i], FEE_BPS);
                 foundOriginal = true;
-            } else if (domains[i] == DOMAIN_ETH && depositAddresses[i] == depositAddressTwo && recipients[i] == recipientTwo) {
+            } else if (
+                domains[i] == DOMAIN_ETH &&
+                depositAddresses[i] == depositAddressTwo &&
+                recipients[i] == recipientTwo
+            ) {
                 assertEq(feeBpsValues[i], 110);
                 foundEth = true;
             } else if (
-                domains[i] == DOMAIN_ARB && depositAddresses[i] == depositAddressThree && recipients[i] == recipientThree
+                domains[i] == DOMAIN_ARB &&
+                depositAddresses[i] == depositAddressThree &&
+                recipients[i] == recipientThree
             ) {
                 assertEq(feeBpsValues[i], 210);
                 foundArb = true;
@@ -183,21 +269,38 @@ contract TokenBridgeDepositAddressTest is Test {
     }
 
     function test_allowsMultipleRecipientsPerDomain() public {
-        bytes32 recipientTwo = bytes32(uint256(uint160(makeAddr("recipient2"))));
+        bytes32 recipientTwo = bytes32(
+            uint256(uint160(makeAddr("recipient2")))
+        );
         address depositAddressTwo = makeAddr("deposit2");
 
         vm.prank(owner);
-        bridge.setDestinationConfig(DOMAIN_ARB, depositAddressTwo, recipientTwo, 250);
+        bridge.setDestinationConfig(
+            DOMAIN_ARB,
+            depositAddressTwo,
+            recipientTwo,
+            250
+        );
 
-        DestinationConfig memory configOne = bridge.getDestinationConfig(DOMAIN_ARB, recipient);
-        DestinationConfig memory configTwo = bridge.getDestinationConfig(DOMAIN_ARB, recipientTwo);
+        DestinationConfig memory configOne = bridge.getDestinationConfig(
+            DOMAIN_ARB,
+            recipient
+        );
+        DestinationConfig memory configTwo = bridge.getDestinationConfig(
+            DOMAIN_ARB,
+            recipientTwo
+        );
 
         assertEq(configOne.depositAddress, depositAddress);
         assertEq(configOne.feeBps, FEE_BPS);
         assertEq(configTwo.depositAddress, depositAddressTwo);
         assertEq(configTwo.feeBps, 250);
 
-        Quote[] memory quotes = bridge.quoteTransferRemote(DOMAIN_ARB, recipientTwo, 100e6);
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DOMAIN_ARB,
+            recipientTwo,
+            100e6
+        );
         assertEq(quotes[0].amount, 102_500_000);
     }
 }
@@ -228,7 +331,12 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         router.enrollRemoteRouter(DESTINATION_DOMAIN, remoteRecipient);
         router.addRebalancer(address(this));
         router.addBridge(DESTINATION_DOMAIN, bridge);
-        bridge.setDestinationConfig(DESTINATION_DOMAIN, depositAddress, remoteRecipient, FEE_BPS);
+        bridge.setDestinationConfig(
+            DESTINATION_DOMAIN,
+            depositAddress,
+            remoteRecipient,
+            FEE_BPS
+        );
     }
 
     function test_rebalance_viaDepositAddressBridge() public {
@@ -240,7 +348,10 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         token.approve(address(router), feeAmount);
 
         assertEq(router.allowedRecipient(DESTINATION_DOMAIN), bytes32(0));
-        assertEq(token.allowance(address(router), address(bridge)), type(uint256).max);
+        assertEq(
+            token.allowance(address(router), address(bridge)),
+            type(uint256).max
+        );
 
         vm.expectEmit(true, true, true, true, address(bridge));
         emit TokenBridgeDepositAddress.SentTransferRemoteViaDepositAddress(
@@ -253,7 +364,10 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         );
         vm.expectEmit(true, true, true, true, address(router));
         emit MovableCollateralRouter.CollateralMoved(
-            DESTINATION_DOMAIN, remoteRecipient, collateralAmount, address(this)
+            DESTINATION_DOMAIN,
+            remoteRecipient,
+            collateralAmount,
+            address(this)
         );
 
         router.rebalance(DESTINATION_DOMAIN, collateralAmount, bridge);

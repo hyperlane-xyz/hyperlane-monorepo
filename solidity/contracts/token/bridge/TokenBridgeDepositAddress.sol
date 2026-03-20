@@ -23,7 +23,12 @@ struct DestinationConfig {
  *      Assumes standard ERC20 transfer semantics; native-token deposit lanes, fee-on-transfer,
  *      rebasing, and ERC-777-style callback tokens are unsupported.
  */
-contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, EnumerableDomainSet {
+contract TokenBridgeDepositAddress is
+    ITokenBridge,
+    Ownable,
+    PackageVersioned,
+    EnumerableDomainSet
+{
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -37,9 +42,15 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
     error InvalidFeeBps(uint256 feeBps);
 
     event DestinationConfigured(
-        uint32 indexed destination, address indexed depositAddress, bytes32 indexed recipient, uint256 feeBps
+        uint32 indexed destination,
+        address indexed depositAddress,
+        bytes32 indexed recipient,
+        uint256 feeBps
     );
-    event DestinationRemoved(uint32 indexed destination, bytes32 indexed recipient);
+    event DestinationRemoved(
+        uint32 indexed destination,
+        bytes32 indexed recipient
+    );
     event SentTransferRemoteViaDepositAddress(
         uint32 indexed destination,
         bytes32 indexed recipient,
@@ -51,13 +62,15 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
 
     IERC20 public immutable wrappedToken;
 
-    mapping(uint32 destination => EnumerableSet.Bytes32Set recipients) private _configuredRecipients;
-    mapping(uint32 destination => mapping(bytes32 recipient => DestinationConfig config)) private _destinationConfigs;
+    mapping(uint32 destination => EnumerableSet.Bytes32Set recipients)
+        private _configuredRecipients;
+    mapping(uint32 destination => mapping(bytes32 recipient => DestinationConfig config))
+        private _destinationConfigs;
 
     uint256 public nonce;
 
     constructor(address _token, address _owner) {
-        if (!Address.isContract(_token)) revert InvalidToken(_token);
+        if (!(_token.code.length > 0)) revert InvalidToken(_token);
         wrappedToken = IERC20(_token);
         _transferOwnership(_owner);
     }
@@ -66,45 +79,63 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
         return address(wrappedToken);
     }
 
-    function quoteTransferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
-        external
-        view
-        override
-        returns (Quote[] memory quotes)
-    {
-        DestinationConfig memory config = _getDestinationConfig(_destination, _recipient);
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view override returns (Quote[] memory quotes) {
+        DestinationConfig memory config = _getDestinationConfig(
+            _destination,
+            _recipient
+        );
         uint256 feeAmount = _computeFee(_amount, config.feeBps);
 
         quotes = new Quote[](1);
-        quotes[0] = Quote({token: address(wrappedToken), amount: _amount + feeAmount});
+        quotes[0] = Quote({
+            token: address(wrappedToken),
+            amount: _amount + feeAmount
+        });
     }
 
-    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
-        external
-        payable
-        override
-        returns (bytes32)
-    {
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable override returns (bytes32) {
         if (msg.value != 0) revert NativeFeeNotSupported(msg.value);
 
-        DestinationConfig memory config = _getDestinationConfig(_destination, _recipient);
+        DestinationConfig memory config = _getDestinationConfig(
+            _destination,
+            _recipient
+        );
         uint256 feeAmount = _computeFee(_amount, config.feeBps);
         nonce++;
 
         uint256 grossAmount = _amount + feeAmount;
-        wrappedToken.safeTransferFrom(msg.sender, config.depositAddress, grossAmount);
+        wrappedToken.safeTransferFrom(
+            msg.sender,
+            config.depositAddress,
+            grossAmount
+        );
 
         emit SentTransferRemoteViaDepositAddress(
-            _destination, _recipient, config.depositAddress, _amount, feeAmount, config.feeBps
+            _destination,
+            _recipient,
+            config.depositAddress,
+            _amount,
+            feeAmount,
+            config.feeBps
         );
 
         return bytes32(0);
     }
 
-    function setDestinationConfig(uint32 _destination, address _depositAddress, bytes32 _recipient, uint256 _feeBps)
-        external
-        onlyOwner
-    {
+    function setDestinationConfig(
+        uint32 _destination,
+        address _depositAddress,
+        bytes32 _recipient,
+        uint256 _feeBps
+    ) external onlyOwner {
         if (_depositAddress == address(0)) {
             revert InvalidDepositAddress(_destination, _recipient);
         }
@@ -114,13 +145,23 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
 
         _addDomain(_destination);
         _configuredRecipients[_destination].add(_recipient);
-        _destinationConfigs[_destination][_recipient] =
-            DestinationConfig({depositAddress: _depositAddress, feeBps: _feeBps});
+        _destinationConfigs[_destination][_recipient] = DestinationConfig({
+            depositAddress: _depositAddress,
+            feeBps: _feeBps
+        });
 
-        emit DestinationConfigured(_destination, _depositAddress, _recipient, _feeBps);
+        emit DestinationConfigured(
+            _destination,
+            _depositAddress,
+            _recipient,
+            _feeBps
+        );
     }
 
-    function removeDestinationConfig(uint32 _destination, bytes32 _recipient) external onlyOwner {
+    function removeDestinationConfig(
+        uint32 _destination,
+        bytes32 _recipient
+    ) external onlyOwner {
         if (!_containsDomain(_destination)) {
             revert DestinationNotConfigured(_destination);
         }
@@ -136,11 +177,10 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
         emit DestinationRemoved(_destination, _recipient);
     }
 
-    function getDestinationConfig(uint32 _destination, bytes32 _recipient)
-        external
-        view
-        returns (DestinationConfig memory)
-    {
+    function getDestinationConfig(
+        uint32 _destination,
+        bytes32 _recipient
+    ) external view returns (DestinationConfig memory) {
         return _getDestinationConfig(_destination, _recipient);
     }
 
@@ -172,7 +212,9 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
             uint256 recipientLen = _configuredRecipients[domain].length();
             for (uint256 j = 0; j < recipientLen; j++) {
                 bytes32 recipient = _configuredRecipients[domain].at(j);
-                DestinationConfig memory config = _destinationConfigs[domain][recipient];
+                DestinationConfig memory config = _destinationConfigs[domain][
+                    recipient
+                ];
                 domains[index] = domain;
                 depositAddresses[index] = config.depositAddress;
                 recipients[index] = recipient;
@@ -182,15 +224,17 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
         }
     }
 
-    function _computeFee(uint256 _amount, uint256 _feeBps) internal pure returns (uint256) {
+    function _computeFee(
+        uint256 _amount,
+        uint256 _feeBps
+    ) internal pure returns (uint256) {
         return (_amount * _feeBps) / BPS_DENOMINATOR;
     }
 
-    function _getDestinationConfig(uint32 _destination, bytes32 _recipient)
-        internal
-        view
-        returns (DestinationConfig memory config)
-    {
+    function _getDestinationConfig(
+        uint32 _destination,
+        bytes32 _recipient
+    ) internal view returns (DestinationConfig memory config) {
         if (!_containsDomain(_destination)) {
             revert DestinationNotConfigured(_destination);
         }
