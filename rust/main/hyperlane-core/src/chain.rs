@@ -286,7 +286,7 @@ pub enum KnownHyperlaneDomain {
     Test1 = 9913371,
     Test2 = 9913372,
     Test3 = 9913373,
-    Test4 = 9913374,
+    Test4 = 31337,
     FuelTest1 = 13374,
     SealevelTest1 = 13375,
     SealevelTest2 = 13376,
