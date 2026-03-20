@@ -2,8 +2,14 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import {
+  BaseFee__factory,
+  ERC20Test,
+  ERC20Test__factory,
+} from '@hyperlane-xyz/core';
+import { CrossCollateralRoutingFee__factory } from '@hyperlane-xyz/multicollateral';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -133,6 +139,71 @@ describe('EvmTokenFeeReader', () => {
   });
 
   describe('RoutingFee', () => {
+    it('should derive CCRF config after verifying DEFAULT_ROUTER', async () => {
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
+        signer.address,
+      );
+      await ccrf.deployed();
+
+      const routingFee = await reader.deriveTokenFeeConfig({
+        address: ccrf.address,
+        token: token.address,
+      });
+
+      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
+      expect(routingFee.owner).to.equal(signer.address);
+      expect(routingFee.token).to.equal(token.address);
+      expect(routingFee.address).to.equal(ccrf.address);
+      expect(routingFee.maxFee).to.equal(constants.MaxUint256.toBigInt());
+      expect(routingFee.halfAmount).to.equal(constants.MaxUint256.toBigInt());
+      if (routingFee.type !== TokenFeeType.RoutingFee) {
+        expect.fail(`Expected ${TokenFeeType.RoutingFee}`);
+      }
+      expect(Object.keys(routingFee.feeContracts ?? {})).to.have.length(0);
+    });
+
+    it('should rethrow feeType errors for non-CCRF contracts', async () => {
+      const config = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.LinearFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+        token: token.address,
+        owner: signer.address,
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: config,
+      });
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const feeTypeError = new Error('forced feeType failure');
+      const connectStub = sinon.stub(BaseFee__factory, 'connect');
+      // CAST: this test only exercises the reader's `feeType()` probe path.
+      connectStub.returns({
+        feeType: async () => {
+          throw feeTypeError;
+        },
+      } as unknown as ReturnType<typeof BaseFee__factory.connect>);
+
+      try {
+        await reader.deriveTokenFeeConfig({
+          address:
+            deployedContracts[TestChainName.test2][TokenFeeType.LinearFee]
+              .address,
+          token: token.address,
+        });
+        expect.fail('Expected deriveTokenFeeConfig to throw');
+      } catch (error) {
+        expect(error).to.equal(feeTypeError);
+      } finally {
+        connectStub.restore();
+      }
+    });
+
     it('should be able to derive a routing fee config and its sub fees', async () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
