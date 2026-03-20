@@ -290,6 +290,8 @@ pub enum KnownHyperlaneDomain {
     FuelTest1 = 13374,
     SealevelTest1 = 13375,
     SealevelTest2 = 13376,
+    RadixTest0 = 9913374,
+    RadixTest1 = 9913375,
     CosmosTest99990 = 99990,
     CosmosTest99991 = 99991,
     StarknetTest23448593 = 23448593,
@@ -438,8 +440,10 @@ impl KnownHyperlaneDomain {
             | SonicSvmTestnet
             | StarknetSepolia => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
-            | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1 | CosmosTestNative2
-            | StarknetTest23448593 | StarknetTest23448594 => HyperlaneDomainType::LocalTestChain,
+            | RadixTest0 | RadixTest1 | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1
+            | CosmosTestNative2 | StarknetTest23448593 | StarknetTest23448594 => {
+                HyperlaneDomainType::LocalTestChain
+            }
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -477,7 +481,7 @@ impl KnownHyperlaneDomain {
             | StarknetTest23448594
             | Paradex
             | ParadexSepolia => HyperlaneDomainProtocol::Starknet,
-            Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
+            Radix | RadixTestnet | RadixTest0 | RadixTest1 => HyperlaneDomainProtocol::Radix,
             Aleo | AleoTestnet => HyperlaneDomainProtocol::Aleo,
             _ => HyperlaneDomainProtocol::Ethereum
         }
