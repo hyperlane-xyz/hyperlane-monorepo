@@ -6,6 +6,9 @@ import "forge-std/Test.sol";
 import {TokenBridgeDepositAddress, DestinationConfig} from "../../contracts/token/bridge/TokenBridgeDepositAddress.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
+import {MovableCollateralRouter} from "../../contracts/token/libs/MovableCollateralRouter.sol";
+import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 
 contract TokenBridgeDepositAddressTest is Test {
     uint32 internal constant DOMAIN_ETH = 1;
@@ -210,5 +213,84 @@ contract TokenBridgeDepositAddressTest is Test {
 
         Quote[] memory quotes = bridge.quoteTransferRemote(DOMAIN_ARB, recipientTwo, 100e6);
         assertEq(quotes[0].amount, 102_500_000);
+    }
+}
+
+contract TokenBridgeDepositAddressRebalanceTest is Test {
+    uint32 internal constant ORIGIN_DOMAIN = 1;
+    uint32 internal constant DESTINATION_DOMAIN = 42161;
+    uint256 internal constant FEE_BPS = 100;
+
+    ERC20Test internal token;
+    HypERC20Collateral internal router;
+    TokenBridgeDepositAddress internal bridge;
+    MockMailbox internal mailbox;
+
+    address internal depositAddress = makeAddr("deposit");
+    address internal remoteRouter = makeAddr("remoteRouter");
+    bytes32 internal remoteRecipient;
+
+    function setUp() public {
+        token = new ERC20Test("MockUSDC", "mUSDC", 0, 6);
+        mailbox = new MockMailbox(ORIGIN_DOMAIN);
+        router = new HypERC20Collateral(address(token), 1, 1, address(mailbox));
+        router.initialize(address(0), address(0), address(this));
+
+        bridge = new TokenBridgeDepositAddress(address(token), address(this));
+        remoteRecipient = bytes32(uint256(uint160(remoteRouter)));
+
+        router.enrollRemoteRouter(DESTINATION_DOMAIN, remoteRecipient);
+        router.addRebalancer(address(this));
+        router.addBridge(DESTINATION_DOMAIN, bridge);
+        bridge.setDestinationConfig(DESTINATION_DOMAIN, depositAddress, remoteRecipient, FEE_BPS);
+    }
+
+    function test_rebalance_viaDepositAddressBridge() public {
+        uint256 collateralAmount = 100e6;
+        uint256 feeAmount = (collateralAmount * FEE_BPS) / 10_000;
+        bytes32 expectedTransferId = keccak256(
+            abi.encode(
+                block.chainid,
+                address(bridge),
+                0,
+                address(router),
+                DESTINATION_DOMAIN,
+                remoteRecipient,
+                collateralAmount,
+                feeAmount,
+                FEE_BPS,
+                depositAddress
+            )
+        );
+
+        token.mintTo(address(router), collateralAmount);
+        token.mintTo(address(this), feeAmount);
+        token.approve(address(router), feeAmount);
+
+        assertEq(router.allowedRecipient(DESTINATION_DOMAIN), bytes32(0));
+        assertEq(token.allowance(address(router), address(bridge)), type(uint256).max);
+
+        vm.expectEmit(true, true, true, true, address(bridge));
+        emit TokenBridgeDepositAddress.SentTransferRemoteViaDepositAddress(
+            DESTINATION_DOMAIN,
+            remoteRecipient,
+            depositAddress,
+            collateralAmount,
+            feeAmount,
+            FEE_BPS,
+            expectedTransferId
+        );
+        vm.expectEmit(true, true, true, true, address(router));
+        emit MovableCollateralRouter.CollateralMoved(
+            DESTINATION_DOMAIN, remoteRecipient, collateralAmount, address(this)
+        );
+
+        router.rebalance(DESTINATION_DOMAIN, collateralAmount, bridge);
+
+        assertEq(token.balanceOf(depositAddress), collateralAmount + feeAmount);
+        assertEq(token.balanceOf(address(router)), 0);
+        assertEq(token.balanceOf(address(bridge)), 0);
+        assertEq(token.balanceOf(address(this)), 0);
+        assertEq(bridge.nonce(), 1);
     }
 }
