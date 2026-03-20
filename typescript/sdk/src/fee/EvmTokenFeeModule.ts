@@ -38,6 +38,7 @@ import {
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
+  OnchainTokenFeeType,
   ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -399,8 +400,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const baseFee = BaseFee__factory.connect(address, provider);
 
     try {
-      await baseFee.feeType();
-      return false;
+      return (
+        (await baseFee.feeType()) ===
+        OnchainTokenFeeType.CrossCollateralRoutingFee
+      );
     } catch (feeTypeError) {
       try {
         await CrossCollateralRoutingFee__factory.connect(

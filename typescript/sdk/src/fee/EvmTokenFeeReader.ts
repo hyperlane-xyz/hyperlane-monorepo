@@ -81,6 +81,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       case OnchainTokenFeeType.RegressiveFee:
         derivedConfig = await this.deriveRegressiveFeeConfig(address);
         break;
+      case OnchainTokenFeeType.CrossCollateralRoutingFee:
+        derivedConfig =
+          await this.deriveCrossCollateralRoutingFeeConfig(params);
+        break;
       case OnchainTokenFeeType.RoutingFee:
         derivedConfig = await this.deriveRoutingFeeConfig({
           address,
