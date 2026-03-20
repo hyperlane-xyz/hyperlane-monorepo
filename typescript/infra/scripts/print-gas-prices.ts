@@ -116,6 +116,7 @@ async function getGasPrice(
 ): Promise<GasPriceConfig> {
   const protocolType = mpp.getProtocol(chain);
   switch (protocolType) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const provider = mpp.getProvider(chain);
       const gasPrice = await (provider.provider as Provider).getGasPrice();
@@ -140,6 +141,7 @@ async function getGasPrice(
         return currentGasPrice || createDefaultGasPrice(chain, 1);
       }
     }
+    case ProtocolType.Aleo:
     case ProtocolType.Radix:
     case ProtocolType.Sealevel:
     case ProtocolType.Starknet:

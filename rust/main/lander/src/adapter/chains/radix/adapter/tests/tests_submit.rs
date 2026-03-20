@@ -4,11 +4,7 @@ use std::sync::Arc;
 use core_api_client::models::{FeeSummary, StateUpdates, TransactionReceipt};
 use ethers::utils::hex;
 use eyre::Result;
-
 use gateway_api_client::models::{GatewayStatusResponse, LedgerState, TransactionSubmitResponse};
-use hyperlane_core::{ChainResult, Encode, HyperlaneMessage, H512};
-use hyperlane_radix::{HyperlaneRadixError, RadixProvider, RadixSigner, RadixTxCalldata};
-use hyperlane_sealevel::SealevelTxCostEstimate;
 use radix_common::manifest_args;
 use radix_transactions::model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload};
 use radix_transactions::prelude::{
@@ -23,17 +19,21 @@ use scrypto::prelude::{manifest_encode, ManifestArgs};
 use scrypto::types::{ComponentAddress, Epoch};
 use uuid::Uuid;
 
-use crate::adapter::chains::radix::adapter::NODE_DEPTH;
-use crate::adapter::chains::radix::precursor::RadixTxPrecursor;
-use crate::adapter::chains::radix::{Precursor, VisibleComponents};
+use hyperlane_core::{ChainResult, Encode, HyperlaneMessage, H512};
+use hyperlane_radix::{HyperlaneRadixError, RadixProvider, RadixSigner, RadixTxCalldata};
+
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
 use crate::{FullPayload, TransactionStatus};
 
+use super::super::super::adapter::NODE_DEPTH;
+use super::super::super::precursor::RadixTxPrecursor;
+use super::super::super::transaction::Precursor;
+use super::super::super::VisibleComponents;
 use super::tests_common::{adapter, payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY};
 
-const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
+const MAILBOX_METHOD_NAME_PROCESS: &str = "process";
 
 const ADDRESSES: &[&str] = &[
     "component_rdx1cznxpn5m3kutzr6jrhgnvv0x7uhcs0rf8fl2w59hkclm6m7axzlqgu",
@@ -92,7 +92,7 @@ async fn test_radix_submit_tx() {
 
     let mut precursor = RadixTxPrecursor::new(
         MAILBOX_ADDRESS.into(),
-        MAILBOX_METHOD_NAME_RPOCESS.into(),
+        MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments.clone(),
     );
     let fee_summary = FeeSummary::new(
@@ -113,7 +113,7 @@ async fn test_radix_submit_tx() {
 
     let process_calldata = RadixTxCalldata {
         component_address: MAILBOX_ADDRESS.into(),
-        method_name: MAILBOX_METHOD_NAME_RPOCESS.into(),
+        method_name: MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments,
     };
 
@@ -207,7 +207,7 @@ async fn test_radix_lander_classic_build_transaction() {
 
     let mut precursor = RadixTxPrecursor::new(
         MAILBOX_ADDRESS.into(),
-        MAILBOX_METHOD_NAME_RPOCESS.into(),
+        MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments.clone(),
     );
     let fee_summary = FeeSummary::new(
@@ -228,7 +228,7 @@ async fn test_radix_lander_classic_build_transaction() {
 
     let process_calldata = RadixTxCalldata {
         component_address: MAILBOX_ADDRESS.into(),
-        method_name: MAILBOX_METHOD_NAME_RPOCESS.into(),
+        method_name: MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments,
     };
 

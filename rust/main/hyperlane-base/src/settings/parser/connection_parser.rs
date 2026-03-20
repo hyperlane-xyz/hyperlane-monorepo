@@ -5,8 +5,10 @@ use std::time::Duration;
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
+    ProcessAltOverride,
 };
 use serde_json::Value;
+use solana_sdk::pubkey::Pubkey;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -20,7 +22,10 @@ use hyperlane_dango as h_dango;
 
 use crate::settings::{envs::*, ChainConnectionConf};
 
-use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
+use super::{
+    parse_base_and_override_urls, parse_cosmos_gas_price, parse_json_array, parse_matching_list,
+    ValueParser,
+};
 
 #[allow(clippy::question_mark)] // TODO: `rustc` 1.80.1 clippy issue
 pub fn build_ethereum_connection_conf(
@@ -122,10 +127,45 @@ pub fn build_ethereum_connection_conf(
         })
         .unwrap_or_default();
 
+    let consider_null_transaction_receipt = chain
+        .chain(err)
+        .get_opt_key("considerNullTransactionReceipt")
+        .parse_bool()
+        .unwrap_or(false);
+
+    let wallet_urls =
+        parse_base_and_override_urls(chain, "walletUrls", "customWalletUrls", "http", err, true);
+    let wallet_solidity_urls = parse_base_and_override_urls(
+        chain,
+        "walletSolidityUrls",
+        "customWalletSolidityUrls",
+        "http",
+        err,
+        true,
+    );
+
+    let energy_multiplier = chain
+        .chain(err)
+        .get_opt_key("feeMultiplier")
+        .parse_f64()
+        .end();
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
+        consider_null_transaction_receipt,
+        wallet_urls: if wallet_urls.is_empty() {
+            None
+        } else {
+            Some(wallet_urls)
+        },
+        wallet_solidity_urls: if wallet_solidity_urls.is_empty() {
+            None
+        } else {
+            Some(wallet_solidity_urls)
+        },
+        energy_multiplier,
     }))
 }
 
@@ -137,8 +177,14 @@ pub fn build_cosmos_connection_conf(
     protocol: HyperlaneDomainProtocol,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+    let grpcs = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -385,6 +431,8 @@ fn build_sealevel_connection_conf(
     let native_token = parse_native_token(chain, err, 9);
     let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
+    let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
+    let process_alt_overrides = parse_sealevel_process_alt_overrides(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -399,7 +447,90 @@ fn build_sealevel_connection_conf(
         native_token,
         priority_fee_oracle,
         transaction_submitter,
+        mailbox_process_alt,
+        process_alt_overrides,
     }))
+}
+
+fn parse_sealevel_mailbox_process_alt(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<Pubkey> {
+    let alt_str = chain
+        .chain(err)
+        .get_opt_key("mailboxProcessAlt")
+        .parse_string()
+        .end();
+
+    if let Some(alt_str) = alt_str {
+        match Pubkey::from_str(alt_str) {
+            Ok(pubkey) => Some(pubkey),
+            Err(e) => {
+                err.push(
+                    (&chain.cwp).add("mailboxProcessAlt"),
+                    eyre!("Invalid mailboxProcessAlt pubkey: {e}"),
+                );
+                None
+            }
+        }
+    } else {
+        None
+    }
+}
+
+fn parse_sealevel_process_alt_overrides(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Vec<ProcessAltOverride> {
+    let p = chain.chain(err).get_opt_key("processAltOverrides").end();
+
+    let Some(p) = p else {
+        return vec![];
+    };
+
+    let Some((cwp, val)) = parse_json_array(p) else {
+        return vec![];
+    };
+
+    let entries = match ValueParser::new(cwp, &val).into_array_iter() {
+        Ok(iter) => iter,
+        Err(e) => {
+            err.merge(e);
+            return vec![];
+        }
+    };
+
+    entries
+        .filter_map(|entry| {
+            // If matchingList is absent, defaults to MatchingList(None) which will
+            // never match any message (msg_matches is called with default: false).
+            let matching_list = entry
+                .chain(err)
+                .get_opt_key("matchingList")
+                .and_then(parse_matching_list)
+                .unwrap_or_default();
+
+            let alt_str = entry
+                .chain(err)
+                .get_key("addressLookupTable")
+                .parse_string()
+                .end();
+
+            alt_str.and_then(|s| match Pubkey::from_str(s) {
+                Ok(pubkey) => Some(ProcessAltOverride {
+                    matching_list,
+                    alt_address: pubkey,
+                }),
+                Err(e) => {
+                    err.push(
+                        (&entry.cwp).add("addressLookupTable"),
+                        eyre!("Invalid ALT pubkey: {e}"),
+                    );
+                    None
+                }
+            })
+        })
+        .collect()
 }
 
 fn parse_native_token(
@@ -414,6 +545,14 @@ fn parse_native_token(
         .parse_u32()
         .unwrap_or(default_decimals);
 
+    let native_token_symbol = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("symbol")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
     let native_token_denom = chain
         .chain(err)
         .get_opt_key("nativeToken")
@@ -423,6 +562,7 @@ fn parse_native_token(
 
     NativeToken {
         decimals: native_token_decimals,
+        symbol: native_token_symbol,
         denom: native_token_denom.to_owned(),
     }
 }
@@ -595,6 +735,51 @@ fn parse_duration(
         })
 }
 
+pub fn build_tron_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+    let wallet_urls = parse_base_and_override_urls(
+        chain,
+        "walletUrls",
+        "customWalletUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+    let wallet_solidity_urls = parse_base_and_override_urls(
+        chain,
+        "walletSolidityUrls",
+        "customWalletSolidityUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+
+    let fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("feeMultiplier")
+        .parse_f64()
+        .end();
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        return None;
+    }
+
+    Some(ChainConnectionConf::Tron(
+        hyperlane_tron::ConnectionConf::new(
+            rpcs.to_vec(),
+            wallet_urls,
+            wallet_solidity_urls,
+            fee_multiplier,
+        ),
+    ))
+}
+
 pub fn build_radix_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -608,6 +793,7 @@ pub fn build_radix_connection_conf(
         "customGatewayUrls",
         "http",
         &mut local_err,
+        false,
     );
 
     let network_name = chain
@@ -637,6 +823,7 @@ pub fn build_radix_connection_conf(
     }
 }
 
+#[cfg(feature = "aleo")]
 pub fn build_aleo_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -719,6 +906,21 @@ pub fn build_aleo_connection_conf(
                 .unwrap_or_default()
         });
 
+    let priority_fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("priorityFeeMultiplier")
+        .parse_f64()
+        .end();
+
+    let proving_service_urls = parse_base_and_override_urls(
+        chain,
+        "provingServiceUrls",
+        "customProvingServiceUrls",
+        "http",
+        &mut local_err,
+        true,
+    );
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -732,6 +934,8 @@ pub fn build_aleo_connection_conf(
                 validator_announce_program?.to_string(),
                 chain_id?,
                 consensus_heights,
+                proving_service_urls,
+                priority_fee_multiplier.unwrap_or_default(),
             ),
         ))
     }
@@ -770,11 +974,28 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Tron => {
+            build_tron_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        #[cfg(feature = "aleo")]
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
         }
         HyperlaneDomainProtocol::Dango => {
             build_dango_connection_conf(rpcs, chain, err, operation_batch)
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unsupported protocol chains are pre-filtered"),
+    }
+}
+
+/// Check if a protocol is supported in this build.
+/// Returns false for protocols that are feature-gated and not compiled in.
+pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
+    use HyperlaneDomainProtocol::*;
+    match protocol {
+        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron | Dango => true,
+        // Aleo is feature-gated - only supported when the "aleo" feature is enabled
+        Aleo => cfg!(feature = "aleo"),
     }
 }

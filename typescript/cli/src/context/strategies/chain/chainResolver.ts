@@ -1,0 +1,445 @@
+import {
+  RebalancerConfig,
+  getStrategyChainNames,
+} from '@hyperlane-xyz/rebalancer';
+import {
+  type ChainName,
+  type DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
+  EvmCoreModule,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
+
+import { CommandType } from '../../../commands/signCommands.js';
+import { readCoreDeployConfigs } from '../../../config/core.js';
+import { getTransactions } from '../../../config/submit.js';
+import { getWarpRouteDeployConfig } from '../../../config/warp.js';
+import { readChainSubmissionStrategy } from '../../../deploy/warp.js';
+import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
+import {
+  filterOutDisabledChains,
+  runSingleChainSelectionStep,
+} from '../../../utils/chains.js';
+import { getOrderedWarpSendChains } from '../../../utils/warp-send.js';
+import {
+  getWarpConfigs,
+  getWarpCoreConfigOrExit,
+} from '../../../utils/warp.js';
+import { requestAndSaveApiKeys } from '../../context.js';
+
+/**
+ * Resolves chains based on command type.
+ * @param argv - Command line arguments.
+ * @returns Promise<ChainName[]> - The chains resolved based on the command type.
+ */
+export async function resolveChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
+
+  switch (commandKey) {
+    case CommandType.WARP_DEPLOY:
+      return resolveWarpRouteConfigChains(argv);
+    case CommandType.SEND_MESSAGE:
+      return resolveSendMessageChains(argv);
+    case CommandType.WARP_SEND:
+      return resolveWarpSendChains(argv);
+    case CommandType.STATUS:
+      return resolveStatusChains(argv);
+    case CommandType.RELAYER:
+      return resolveRelayerChains(argv);
+    case CommandType.WARP_READ:
+      return resolveWarpReadChains(argv);
+    case CommandType.WARP_APPLY:
+    case CommandType.WARP_CHECK:
+      return resolveWarpConfigChains(argv);
+    case CommandType.WARP_REBALANCER:
+      return resolveWarpRebalancerChains(argv);
+
+    case CommandType.SUBMIT:
+      return resolveSubmitChains(argv);
+    case CommandType.CORE_APPLY:
+      return resolveCoreApplyChains(argv);
+    case CommandType.CORE_DEPLOY:
+      return resolveCoreDeployChains(argv);
+    case CommandType.CORE_READ:
+    case CommandType.CORE_CHECK:
+    case CommandType.ISM_DEPLOY:
+    case CommandType.ISM_READ:
+      return resolveChain(argv);
+    case CommandType.ICA_DEPLOY:
+      return resolveIcaDeployChains(argv);
+    default:
+      return resolveRelayerChains(argv);
+  }
+}
+
+async function resolveWarpRouteConfigChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { config, resolvedWarpRouteId } = await getWarpRouteDeployConfig({
+    context: argv.context,
+    warpRouteId: argv.warpRouteId,
+  });
+  argv.context.warpDeployConfig = config;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
+  argv.context.chains = Object.keys(config);
+  assert(
+    argv.context.chains.length !== 0,
+    'No chains found in warp route deployment config',
+  );
+  return argv.context.chains;
+}
+
+async function resolveWarpReadChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  if (argv.chain) {
+    argv.context.chains = await resolveChain(argv);
+  }
+
+  if (argv.warpRouteId) {
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
+  }
+
+  assert(
+    argv.context.chains && argv.context.chains.length !== 0,
+    'No chains found set in parameters',
+  );
+
+  return argv.context.chains;
+}
+
+async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
+  const chains = argv.chain ? [argv.chain] : [];
+  assert(chains.length !== 0, 'No chains found set in parameters');
+  return chains;
+}
+
+async function resolveWarpConfigChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
+    await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
+  argv.context.warpCoreConfig = warpCoreConfig;
+  argv.context.warpDeployConfig = warpDeployConfig;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
+  argv.context.chains = Object.keys(warpDeployConfig);
+
+  assert(
+    argv.context.chains.length !== 0,
+    'No chains found in warp route deployment config',
+  );
+  return argv.context.chains;
+}
+
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+  const chainPath: ChainName[] = [];
+
+  if (argv.chains?.length) {
+    chainPath.push(...argv.chains);
+  } else if (argv.origin && argv.destination) {
+    chainPath.push(argv.origin, argv.destination);
+  } else {
+    const filterChains = [argv.origin, argv.destination].filter(
+      Boolean,
+    ) as ChainName[];
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains.length > 0 ? filterChains : undefined,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+
+    const supportedChains = warpCoreConfig.tokens.map(
+      (token) => token.chainName,
+    );
+    chainPath.push(...getOrderedWarpSendChains(supportedChains, multiProvider));
+  }
+
+  // Cache warpCoreConfig on context so the handler doesn't re-fetch it.
+  // This ensures signers and execution use the same resolved config.
+  if (!argv.context.warpCoreConfig && argv.warpRouteId) {
+    const filterChains = chainPath.length > 0 ? chainPath : undefined;
+    argv.context.warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains,
+    });
+  }
+
+  const signerChains = new Set<ChainName>();
+  const normalizedRecipient =
+    typeof argv.recipient === 'string' && argv.recipient.trim().length > 0
+      ? argv.recipient
+      : undefined;
+
+  // Every hop origin needs a signer. For round-trip sends, all chains become origins.
+  const hopOrigins = argv.roundTrip
+    ? chainPath
+    : chainPath.length > 1
+      ? chainPath.slice(0, -1)
+      : chainPath;
+  hopOrigins.forEach((chain) => signerChains.add(chain));
+
+  // EVM destinations need signers when: (a) no explicit recipient (we default
+  // to the destination signer address), or (b) self-relay is enabled (the
+  // relayer submits on the destination chain).
+  if (!normalizedRecipient || argv.relay) {
+    for (let i = 1; i < chainPath.length; i += 1) {
+      const destination = chainPath[i];
+      if (isEVMLike(multiProvider.getProtocol(destination))) {
+        signerChains.add(destination);
+      }
+    }
+  }
+
+  return Array.from(signerChains);
+}
+
+async function resolveWarpRebalancerChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  // Load rebalancer config to get the configured chains
+  const rebalancerConfig = RebalancerConfig.load(argv.config);
+
+  // Extract chain names from all strategies in the rebalancer config
+  // This ensures we only create signers for chains we can actually rebalance
+  const chains = getStrategyChainNames(rebalancerConfig.strategyConfig);
+
+  assert(chains.length !== 0, 'No chains configured in rebalancer config');
+
+  return chains;
+}
+
+/**
+ * Resolves chains for the 'send message' command.
+ * Returns only explicitly provided chains (origin/destination).
+ * If either is missing, returns only the provided ones - signers for
+ * interactively selected chains will be created after selection.
+ */
+async function resolveSendMessageChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+  const selectedChains = [argv.origin, argv.destination].filter(
+    Boolean,
+  ) as ChainName[];
+
+  if (selectedChains.length > 0) {
+    const nonEvmChains = selectedChains.filter(
+      (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
+    );
+    if (nonEvmChains.length > 0) {
+      const chainDetails = nonEvmChains
+        .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+        .join(', ');
+      throw new Error(
+        `'hyperlane send message' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
+      );
+    }
+  }
+
+  // Return only explicitly provided chains - signers for interactively
+  // selected chains will be created after selection
+  return selectedChains;
+}
+
+/**
+ * Resolves chains for the 'status' command.
+ * Returns only explicitly provided chains (origin/destination).
+ * Destination chains discovered from the dispatch tx are resolved lazily.
+ */
+async function resolveStatusChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  // Only origin is declared by the status command builder (messageOptions).
+  // Destination chains are discovered lazily from the dispatch tx.
+  return argv.origin ? [argv.origin] : [];
+}
+
+async function resolveRelayerChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider, chainMetadata } = argv.context;
+  const chains = new Set<ChainName>();
+
+  if (argv.origin) {
+    chains.add(argv.origin);
+  }
+
+  if (argv.chain) {
+    chains.add(argv.chain);
+  }
+
+  if (argv.chains?.length) {
+    return Array.from(new Set([...chains, ...argv.chains]));
+  }
+
+  // If no destination is specified, return all EVM chains only
+  if (!argv.destination) {
+    const chains = Object.keys(filterOutDisabledChains(chainMetadata));
+
+    return chains.filter((chain: string) =>
+      isEVMLike(multiProvider.getProtocol(chain)),
+    );
+  }
+
+  chains.add(argv.destination);
+  return Array.from(chains);
+}
+
+async function resolveCoreApplyChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  try {
+    const config = readCoreDeployConfigs(argv.config);
+
+    if (!config?.interchainAccountRouter) {
+      return [argv.chain];
+    }
+
+    const addresses = await argv.context.registry.getChainAddresses(argv.chain);
+    const coreAddresses = DeployedCoreAddressesSchema.parse(
+      addresses,
+    ) as DeployedCoreAddresses;
+
+    const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
+
+    switch (protocolType) {
+      case ProtocolType.Tron:
+      case ProtocolType.Ethereum: {
+        const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+          chain: argv.chain,
+          config,
+          addresses: coreAddresses,
+        });
+
+        const transactions = await evmCoreModule.update(config);
+
+        return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+          (chainId) => argv.context.multiProvider.getChainName(chainId),
+        );
+      }
+      default: {
+        return [argv.chain];
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to resolve core apply chains`, {
+      cause: error,
+    });
+  }
+}
+
+async function resolveCoreDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  try {
+    const { chainMetadata, registry, skipConfirmation } = argv.context;
+
+    let chain: string;
+
+    if (argv.chain) {
+      chain = argv.chain;
+    } else {
+      if (skipConfirmation) throw new Error('No chain provided');
+      chain = await runSingleChainSelectionStep(
+        chainMetadata,
+        'Select chain to connect:',
+      );
+    }
+    if (!skipConfirmation) {
+      argv.context.apiKeys = await requestAndSaveApiKeys(
+        [chain],
+        chainMetadata,
+        registry,
+      );
+    }
+
+    argv.chain = chain;
+    return [chain];
+  } catch (error) {
+    throw new Error(`Failed to resolve core deploy chains`, {
+      cause: error,
+    });
+  }
+}
+
+async function resolveIcaDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
+  assert(chains.size > 0, 'No chains provided for ICA deploy');
+  return Array.from(chains);
+}
+
+async function resolveSubmitChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  try {
+    const { multiProvider } = argv.context;
+
+    const transactionFilePath = argv.transactions;
+    assert(
+      transactionFilePath,
+      'Expected transactions file path to be provided for submit command',
+    );
+
+    const transactions = getTransactions(transactionFilePath);
+
+    const chainIds = new Set(transactions.map((tx) => tx.chainId));
+    const chains = new Set(
+      Array.from(chainIds).map((chainId) =>
+        multiProvider.getChainName(chainId),
+      ),
+    );
+
+    if (argv.strategy) {
+      const strategy = readChainSubmissionStrategy(argv.strategy);
+      for (const [destChain, config] of Object.entries(strategy)) {
+        chains.add(destChain);
+        for (const c of getSubmitterChains(config.submitter)) {
+          chains.add(c);
+        }
+      }
+    }
+
+    assert(chains.size > 0, 'No transactions found in file');
+    return Array.from(chains);
+  } catch (error) {
+    throw new Error(`Failed to resolve submit command chains`, {
+      cause: error,
+    });
+  }
+}
+
+// Recursively extracts all chain names referenced by a submitter (e.g. ICA origin, destination, nested submitters).
+export function getSubmitterChains(
+  submitter: ExtendedSubmissionStrategy['submitter'],
+): ChainName[] {
+  const chains: ChainName[] = submitter.chain ? [submitter.chain] : [];
+  if (submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+    if (submitter.destinationChain) chains.push(submitter.destinationChain);
+    if (submitter.internalSubmitter)
+      chains.push(...getSubmitterChains(submitter.internalSubmitter));
+  } else if (submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
+    if (submitter.proposerSubmitter)
+      chains.push(...getSubmitterChains(submitter.proposerSubmitter));
+  }
+  return chains;
+}

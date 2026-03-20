@@ -2,9 +2,9 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { getWarpConfig } from '../../config/warp.js';
-import { writeYamlAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
   withKnownWarpRouteIdRequired,
@@ -35,7 +35,7 @@ async function main() {
 
   if (outFile) {
     rootLogger.info(`Writing config to ${outFile}`);
-    writeYamlAtPath(outFile, parsed.data);
+    writeYaml(outFile, parsed.data);
   }
 }
 

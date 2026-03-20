@@ -26,12 +26,6 @@ export const owners: ChainMap<OwnableConfig> = {
   kyvetestnet: {
     owner: 'n/a - CSDK not supported here',
   },
-  milkywaytestnet: {
-    owner: 'n/a - CSDK not supported here',
-  },
-  nobletestnet: {
-    owner: 'n/a - CSDK not supported here',
-  },
   starknetsepolia: {
     owner: 'n/a - Starknet not supported here',
   },
@@ -43,6 +37,9 @@ export const owners: ChainMap<OwnableConfig> = {
   },
   radixtestnet: {
     owner: 'n/a - Radix not supported here',
+  },
+  aleotestnet: {
+    owner: 'n/a - Aleo not supported here',
   },
 };
 

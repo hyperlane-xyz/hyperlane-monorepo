@@ -1,8 +1,10 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Deref};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use borsh::{BorshDeserialize, BorshSerialize};
+use derive_new::new;
+use hex::FromHex;
 use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +46,46 @@ pub enum ModuleType {
     CcipRead,
 }
 
+/// Metadata associated with an ISM verification
+#[derive(Clone, PartialEq, Eq, new)]
+pub struct Metadata(Vec<u8>);
+
+impl Metadata {
+    /// Returns a owned Vec<u8>
+    pub fn to_owned(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
+
+impl AsRef<[u8]> for Metadata {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Deref for Metadata {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl FromHex for Metadata {
+    type Error = hex::FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        let bytes = Vec::from_hex(hex)?;
+        Ok(Metadata(bytes))
+    }
+}
+
+impl Debug for Metadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Metadata(0x{})", hex::encode(&self.0))
+    }
+}
+
 impl ModuleType {
     /// as a str
     pub const fn as_str(&self) -> &str {
@@ -74,6 +116,6 @@ pub trait InterchainSecurityModule: HyperlaneContract + Send + Sync + Debug {
     async fn dry_run_verify(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Option<U256>>;
 }

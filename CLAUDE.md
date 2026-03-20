@@ -1,187 +1,590 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
+
+**Be extremely concise. Sacrifice grammar for concision. Terse responses preferred. No fluff.**
+
+## Plan Mode
+
+- Make the plan extremely concise. Sacrifice grammar for the sake of concision.
+- At the end of each plan, give me a list of unresolved questions to answer, if any.
 
 ## Overview
 
-Hyperlane is an interchain messaging protocol that enables applications to communicate between blockchains. The monorepo contains three main components working together:
+Hyperlane is an interchain messaging protocol that enables applications to communicate between blockchains. The monorepo contains three main components:
 
-1. **Smart Contracts (Solidity)** - Core on-chain messaging infrastructure
-2. **TypeScript SDK** - Developer tools and multi-protocol abstractions
-3. **Rust Agents** - Off-chain relayer network and validator infrastructure
+1. **Smart Contracts (Solidity)** - Core on-chain messaging infrastructure in `solidity/`
+2. **TypeScript Packages** - SDK, CLI, and infrastructure tooling in `typescript/`
+3. **Rust Agents** - Off-chain relayer and validator infrastructure in `rust/`
+
+## Quick Reference
+
+### Most Common Commands
+
+```bash
+# Build everything
+pnpm build
+
+# Run all tests
+pnpm test
+
+# Lint and format
+pnpm lint && pnpm prettier
+
+# Solidity tests (both Hardhat and Forge)
+pnpm -C solidity test
+
+# TypeScript SDK tests
+pnpm -C typescript/sdk test
+
+# Rust tests
+cd rust/main && cargo test
+
+# CLI e2e tests (useful for testing warp routes, core deployments)
+pnpm -C typescript/cli test:ethereum:e2e
+pnpm -C typescript/cli test:cosmosnative:e2e
+pnpm -C typescript/cli test:radix:e2e
+```
+
+### Before Committing
+
+```bash
+# TypeScript/Solidity
+pnpm lint          # Must pass
+pnpm prettier      # Auto-formats code
+pnpm test          # Run relevant tests
+pnpm changeset     # Add changeset if modifying published packages
+
+# Rust (CI-compatible commands)
+cd rust/main && cargo clippy --features aleo,integration_test -- -D warnings
+cd rust/main && cargo test --all-targets --features aleo,integration_test
+cd rust/main && cargo fmt
+```
+
+**Do NOT add `Co-Authored-By` trailers to commit messages.**
+
+### Changeset Style
+
+Write changeset descriptions in past tense describing what changed:
+
+```text
+# Good
+The registry code is restructured by moving filesystem components to a dedicated directory.
+
+# Bad
+Restructures the registry code.
+```
+
+## Repository Structure
+
+```
+├── solidity/              # Smart contracts (Hardhat + Forge)
+│   ├── contracts/         # Solidity source files
+│   │   ├── Mailbox.sol    # Core messaging hub
+│   │   ├── isms/          # Interchain Security Modules
+│   │   ├── hooks/         # Post-dispatch hooks
+│   │   └── token/         # Warp route token contracts
+│   └── test/              # Contract tests
+├── typescript/
+│   ├── sdk/               # Core SDK (@hyperlane-xyz/sdk)
+│   ├── cli/               # Hyperlane CLI tool
+│   ├── infra/             # Infrastructure and deployment scripts
+│   ├── utils/             # Shared utilities (@hyperlane-xyz/utils)
+│   └── [other packages]/  # cosmos-sdk, widgets, etc.
+├── rust/
+│   └── main/              # Rust agents monorepo
+│       ├── agents/        # Relayer, Validator, Scraper
+│       ├── chains/        # Chain-specific implementations
+│       └── config/        # Agent configuration files
+└── starknet/              # Starknet utilities and tooling
+```
+
+## Engineering Philosophy
+
+### Simplicity First
+
+- Before adding functionality:
+  - Verify it cannot be achieved with existing SDK primitives
+  - Ensure it solves a recurring problem, not a one-off edge case
+  - Confirm the logic belongs in the monorepo rather than a consumer app
+- Avoid enterprise-style patterns:
+  - No deep inheritance hierarchies; prefer composition
+  - No over-engineered abstractions for "future-proofing"
+  - No redundant interfaces for single-implementation classes
+
+### Error Handling
+
+The codebase uses `assert()` as the primary error handling pattern:
+
+```typescript
+import { assert } from '@hyperlane-xyz/utils';
+
+// Validate preconditions - fails fast with clear message
+assert(config, `Missing config for chain ${chain}`);
+assert(config.rpcUrls.length > 0, 'At least one RPC URL required');
+
+// Invariant checks
+assert(amount > 0, 'Amount must be positive');
+```
+
+**When to use each pattern:**
+
+| Situation                  | Pattern           | Example                       |
+| -------------------------- | ----------------- | ----------------------------- |
+| Preconditions & invariants | `assert()`        | Missing config, invalid state |
+| External system calls      | `try/catch`       | RPC requests, file I/O        |
+| Graceful degradation       | `try/catch` + log | Optional feature unavailable  |
+
+**Catch block guidelines:**
+
+```typescript
+// Preferred: catch with unknown, narrow with type guard
+try {
+  await provider.getBalance(address);
+} catch (error) {
+  this.logger.error('Failed to fetch balance', { address, error });
+  throw new Error(`Balance fetch failed for ${address}`);
+}
+
+// Acceptable in existing code: catch (e: any) when accessing e.message
+// New code should prefer unknown + type guards
+```
+
+**Do NOT:**
+
+- Swallow errors silently (always log or re-throw)
+- Use exceptions for control flow
+- Add defensive fallbacks that mask bugs (e.g., `catch(() => AddressZero)`)
+
+### Backwards-Compatibility
+
+| Change Location    | Backwards-Compat? | Rationale                                |
+| ------------------ | ----------------- | ---------------------------------------- |
+| Local/uncommitted  | No                | Iteration speed; no external impact      |
+| In main unreleased | Preferred         | Minimize friction for other developers   |
+| Released           | Required          | Prevent breaking downstream integrations |
 
 ## Development Commands
 
 ### Building
 
 ```bash
-# Build everything using Turbo
-yarn build
-
-# Build specific workspaces
-yarn --cwd solidity build          # Solidity contracts with Hardhat + Forge
-yarn --cwd typescript/sdk build    # TypeScript SDK
-cd rust/main && cargo build        # Rust agents
+pnpm build                              # Build all packages (uses Turbo)
+pnpm -C solidity build                  # Build Solidity contracts
+pnpm -C typescript/sdk build            # Build TypeScript SDK
+cd rust/main && cargo build             # Build Rust agents
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
-yarn test
+# Solidity
+pnpm -C solidity test                   # Both Hardhat and Forge tests
+pnpm -C solidity test:hardhat           # Hardhat only
+pnpm -C solidity test:forge             # Forge only
+forge test -vvv --decode-internal       # Detailed Forge output
 
-# Solidity tests
-yarn --cwd solidity test           # Both Hardhat and Forge tests
-yarn --cwd solidity test:hardhat   # Hardhat tests only
-yarn --cwd solidity test:forge     # Forge tests only
+# TypeScript
+pnpm -C typescript/sdk test             # SDK tests
+pnpm -C typescript/sdk test:unit        # Unit tests only
+pnpm -C typescript/cli test:ethereum:e2e          # CLI e2e tests (EVM)
+pnpm -C typescript/cli test:cosmosnative:e2e      # CLI e2e tests (Cosmos)
+pnpm -C typescript/cli test:radix:e2e             # CLI e2e tests (Radix)
 
-# TypeScript SDK tests
-yarn --cwd typescript/sdk test     # Unit, Hardhat, and Foundry tests
-yarn --cwd typescript/sdk test:unit
+# Rust
+cd rust/main && cargo test              # All Rust tests
+cd rust/main && cargo test <test_name>  # Single test
 
-# Rust tests
-cd rust/main && cargo test
-
-# End-to-end testing
+# E2E (runs local chains + agents)
 cd rust/main && cargo run --release --bin run-locally
+
+# VM-specific e2e
+cd rust/main && cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture
+cd rust/main && cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture
 ```
 
 ### Linting & Formatting
 
 ```bash
-yarn lint                          # Lint all workspaces
-yarn prettier                      # Format all workspaces
-yarn --cwd solidity lint           # Solidity-specific linting with solhint
-cd rust/main && cargo clippy       # Rust linting
+pnpm lint                               # Lint all packages
+pnpm prettier                           # Format all packages
+pnpm -C solidity lint                   # Solidity linting (solhint)
+cd rust/main && cargo clippy            # Rust linting
+cd rust/main && cargo fmt               # Rust formatting
 ```
 
-### Development Workflows
+### Solidity-Specific
 
 ```bash
-# Solidity development
-yarn --cwd solidity hardhat-esm compile    # Compile contracts
-yarn --cwd solidity fixtures               # Generate test fixtures
-forge test -vvv --decode-internal          # Detailed Forge testing
+pnpm -C solidity hardhat-esm compile    # Compile contracts
+pnpm -C solidity fixtures               # Generate test fixtures (required before forge tests)
+pnpm -C solidity gas                    # Generate gas snapshots
+pnpm -C solidity coverage               # Coverage report
+pnpm -C solidity storage                # Storage layout analysis
+forge test --match-test <pattern>       # Run specific Forge tests
+```
 
-# Generate gas snapshots
-yarn --cwd solidity gas
+### CLI Development
 
-# Run single Rust test
-cd rust/main && cargo test <test_name>
+```bash
+# Install CLI globally from local build
+pnpm -C typescript/cli build && npm link
 
-# Run specific VM E2E tests
-cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture
-cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture
+# Run CLI commands
+hyperlane --help
+hyperlane core deploy --help
+hyperlane warp deploy --help
 ```
 
 ## Architecture
 
 ### Message Flow
 
-1. **Dispatch**: Applications send messages via `Mailbox.dispatch()` on origin chain
-2. **Index**: Rust relayer agents index dispatched messages from chain events
-3. **Security**: Relayers fetch required security metadata from validators/ISMs
-4. **Delivery**: Messages are delivered to destination `Mailbox.process()` with proofs
-5. **Handle**: Destination applications receive messages via `IMessageRecipient.handle()`
+1. **Dispatch**: Applications call `Mailbox.dispatch()` on origin chain
+2. **Index**: Relayer agents index dispatched messages from chain events
+3. **Security**: Relayer fetches metadata from validators/ISMs
+4. **Delivery**: Messages delivered to `Mailbox.process()` on destination
+5. **Handle**: Recipient contract receives message via `IMessageRecipient.handle()`
 
 ### Core Contracts (`solidity/contracts/`)
 
-**Mailbox** (`Mailbox.sol`)
-
-- Central hub for message dispatch and processing
-- Maintains merkle tree of dispatched messages
-- Processes inbound messages with security verification
-
-**Interchain Security Modules** (`isms/`)
-
-- Pluggable security verification (multisig, merkle proofs, etc.)
-- Each destination can specify its required security model
-- Key types: `MultisigIsm`, `MerkleRootMultisigIsm`, `AggregationIsm`
-
-**Hooks** (`hooks/`)
-
-- Post-dispatch processing (gas payments, etc.)
-- `MerkleTreeHook`: Maintains message merkle tree
-- `InterchainGasPaymaster`: Handles gas fee payments
-
-**Token Bridge** (`token/`)
-
-- `HypERC20`: Native token implementations
-- `HypERC20Collateral`: Wrapped/collateral token implementations
-- Multi-chain token deployments with unified liquidity
+| Contract      | Purpose                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `Mailbox.sol` | Central hub for dispatch/process, maintains merkle tree                                  |
+| `isms/*`      | Interchain Security Modules - pluggable verification (MultisigIsm, AggregationIsm, etc.) |
+| `hooks/*`     | Post-dispatch processing (MerkleTreeHook, InterchainGasPaymaster)                        |
+| `token/*`     | Warp route implementations (HypERC20, HypERC20Collateral, HypNative)                     |
 
 ### TypeScript SDK (`typescript/sdk/src/`)
 
-**Core Abstractions**
+| Module                  | Purpose                                          |
+| ----------------------- | ------------------------------------------------ |
+| `MultiProvider`         | Multi-chain provider management                  |
+| `HyperlaneCore`         | Core contract interactions                       |
+| `ChainMap<T>`           | Type-safe per-chain configuration                |
+| `WarpCore`              | Warp route deployment and management             |
+| `MultiProtocolProvider` | Unified interface across VMs (EVM, Cosmos, etc.) |
 
-- `MultiProvider`: Multi-chain provider management with protocol adapters
-- `HyperlaneCore`: Factory for core contract interactions
-- `MultiProtocolCore`: Protocol-agnostic abstractions (EVM, Cosmos, Sealevel, Starknet)
+### Multi-VM Package Structure
 
-**Key Patterns**
+For AltVM (Cosmos, Sealevel, Starknet, Radix) development:
 
-- `ChainMap<T>`: Type-safe per-chain configuration mapping
-- `MultiProtocolProvider`: Unified interface across different VMs
-- Adapter pattern for protocol-specific implementations
+| Package                       | Purpose                                 |
+| ----------------------------- | --------------------------------------- |
+| `@hyperlane-xyz/provider-sdk` | Protocol-agnostic provider abstractions |
+| `@hyperlane-xyz/deploy-sdk`   | Deployment modules for all VM types     |
+| `@hyperlane-xyz/sdk`          | Core SDK (EVM-specific)                 |
+
+See `docs/2025-11-20-multi-vm-migration.md` for full migration guide.
 
 ### Rust Agents (`rust/main/`)
 
-**Agent Types**
+| Agent       | Purpose                                    |
+| ----------- | ------------------------------------------ |
+| `relayer`   | Indexes messages, delivers to destinations |
+| `validator` | Signs checkpoints for message verification |
+| `scraper`   | Indexes chain data for analytics           |
 
-- **Relayer** (`agents/relayer/`): Indexes origin chains, delivers messages to destinations
-- **Validator** (`agents/validator/`): Signs checkpoints for message verification
-- **Scraper** (`agents/scraper/`): Indexes chain data for analytics
+**Chain Crates** (`chains/`):
 
-**Chain Support** (`chains/`)
+| Crate                | VM Type       |
+| -------------------- | ------------- |
+| `hyperlane-ethereum` | EVM chains    |
+| `hyperlane-cosmos`   | Cosmos chains |
+| `hyperlane-sealevel` | Solana/SVM    |
+| `hyperlane-fuel`     | Fuel          |
+| `hyperlane-aleo`     | Aleo          |
+| `hyperlane-radix`    | Radix         |
+| `hyperlane-starknet` | Starknet      |
 
-- `hyperlane-ethereum`: EVM chain support
-- `hyperlane-cosmos`: Cosmos ecosystem support
-- `hyperlane-sealevel`: Solana/SVM support
-- `hyperlane-fuel`: Fuel VM support
-
-**Architecture**
-
-- `hyperlane-core`: Core traits and message types
-- `hyperlane-base`: Shared agent utilities and configuration
-- Chain-specific implementations provide VM-specific contract interactions
+**Core Crates**: `hyperlane-core` (traits, message types), `hyperlane-base` (shared agent utilities)
 
 ## Key Concepts
 
-**Domain**: Unique identifier for each blockchain (not the same as chain ID)
+| Term           | Definition                                                       |
+| -------------- | ---------------------------------------------------------------- |
+| **Domain**     | Unique identifier for each blockchain (not chain ID)             |
+| **Message**    | Core struct: sender, recipient, origin/destination domains, body |
+| **ISM**        | Interchain Security Module - pluggable verification logic        |
+| **Hook**       | Post-dispatch processing (gas payments, merkle tree, etc.)       |
+| **Checkpoint** | Validator-signed commitment to merkle root at index              |
+| **Warp Route** | Token bridge deployment across chains                            |
 
-**Message**: Core data structure containing sender, recipient, origin/destination domains, and body
+## Configuration
 
-**ISM (Interchain Security Module)**: Pluggable security verification - destinations choose their security requirements
+### Chain Configs
 
-**Hook**: Post-dispatch processing module (gas payments, message indexing, etc.)
+- `rust/main/config/` - Agent chain configurations (mainnet3, testnet4)
+- `typescript/sdk/src/consts/` - SDK chain metadata
+- Registry: External package `@hyperlane-xyz/registry` contains canonical chain configs
 
-**Checkpoint**: Validator-signed commitment to a message merkle root at specific index
+### Environment Files
 
-**Gas Price Escalation**: Automatic gas price increases for stuck transactions using formula: `Max(Min(Max(Escalate(oldGasPrice), newEstimatedGasPrice), gasPriceCapMultiplier × newEstimatedGasPrice), oldGasPrice)` - preventing indefinite escalation while maintaining competitiveness and ensuring RBF compatibility. The `gasPriceCapMultiplier` is configurable per chain in transactionOverrides (default: 3)
+- `.registryrc` - Points to registry version/path
+- `typescript/infra/config/` - Infrastructure deployment configs
 
-## Configuration Files
+## Solidity Security Guidelines
 
-- `rust/main/config/`: Contains chain configurations for mainnet/testnet deployments
-- Contract addresses and deployment metadata automatically synced from these configs
-- Agents automatically discover and use all configurations in this directory
+Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 
-## Incident Debugging & Operations
+### Core Principles
 
-When debugging Hyperlane operational incidents (stuck messages, RPC failures, validator issues, gas problems, warp route imbalances, etc.), **always check the documentation in `docs/ai-agents/operational-debugging.md`** first. This contains:
+- Preserve backward compatibility of interfaces and storage layout unless absolutely necessary
+- Check for reentrancy vulnerabilities - follow checks-effects-interactions pattern (SWC-107)
+- Ensure access control modifiers (`onlyOwner`, etc.) are on privileged functions
+- Avoid unchecked arithmetic unless explicitly safe (SWC-101)
 
-- **AI-powered debugging workflows** using Grafana and GCP logging integration
-- **Grafana dashboard analysis** with key panels for incident triage (Easy Dashboard, Validator Dashboards, Lander Dashboard, RPC Usage & Errors)
-- **Progressive GCP log query strategies** to efficiently analyze logs with minimal token usage
-- **Error pattern recognition and decoding techniques** (gas estimation failures, validator delays, RPC issues)
-- **Hyperlane Explorer integration** for finding stuck messages before querying logs
-- **Specific debugging workflows** for common incident types (queue length alerts, CouldNotFetchMetadata errors, RPC provider issues, etc.)
+### Variables & Storage
 
-**Manual Operations Runbook**: The comprehensive [Operations Runbook](https://www.notion.so/hyperlanexyz/Runbook-AI-Agent-24a6d35200d680229b38e8501164ca66) contains detailed procedures for:
+- Set visibility explicitly on all variables (SWC-108)
+- Pack storage variables when possible (adjacent smaller types)
+- Use `constant` for compile-time values, `immutable` for constructor-set values
+- Use 256-bit types except when packing for gas efficiency
+- Never shadow state variables (SWC-119)
 
-- Agent deployment and redeployment procedures
-- RPC URL rotation when providers fail
-- Validator operations and reorg recovery
-- Manual message processing and retry procedures
-- Balance management and key funding
-- Security incident response protocols
-- Lander (transaction submitter) configuration and troubleshooting
+### Functions
+
+- Use `external` visibility when function is only called externally
+- Validate all parameters within safe bounds
+- Follow checks-before-effects pattern to prevent reentrancy
+- Check for front-running vulnerabilities (SWC-114)
+- Ensure return values are always assigned
+- Don't assume `msg.sender` is the operated-upon user
+
+### External Calls
+
+- Verify external call necessity and assess DoS risk from errors (SWC-113)
+- Check harmlessness if reentering current or other functions
+- Use SafeERC20 or safely check return values for token transfers
+- Use `.call{value: ...}("")` instead of `transfer`/`send` (SWC-134)
+- Check contract existence before low-level calls
+- Don't assume success implies function existence (phantom functions)
+
+### Math & Data
+
+- Multiply before dividing (unless overflow risk)
+- Document precision loss and which actors benefit/suffer
+- Use `abi.encode()` over `abi.encodePacked()` for dynamic types (SWC-133)
+- Protect signatures with nonce and `block.chainid` (SWC-121)
+- Implement EIP-712 for signature standards (SWC-117, SWC-122)
+
+### Events
+
+- Emit events for all storage mutations
+- Index action creator and operated-upon users/IDs
+- Never index dynamic types (strings, bytes)
+- Avoid function calls in event arguments
+
+### DeFi-Specific
+
+- Don't use AMM spot price as oracle
+- Separate internal accounting from actual balances
+- Document rebasing token, fee-on-transfer, and ERC-777 support status
+- Use sanity checks against price manipulation
+- Prevent arbitrary calls from user input in approval targets
+
+## Code Review Guidelines
+
+### Security-Critical Areas
+
+| Area                  | Key Concerns                                                             |
+| --------------------- | ------------------------------------------------------------------------ |
+| `solidity/contracts/` | Reentrancy, access control, overflow, storage collisions, upgrade safety |
+| `isms/`               | Message verification, multisig thresholds, validator sets                |
+| `hooks/`              | Fee calculations, merkle tree integrity                                  |
+| `rust/main/agents/`   | Key management, checkpoint signing, message validation                   |
+| `typescript/infra/`   | Secrets exposure, RPC endpoints, deployment parameters                   |
+
+### Common Patterns to Enforce
+
+- Use `onlyOwner` or appropriate access modifiers on privileged functions
+- Validate inputs at system boundaries using `assert()`
+- Follow existing naming conventions and code organization
+- Ensure backward compatibility for protocol upgrades
+- Include tests for new functionality (especially edge cases)
+- Gas efficiency for Solidity (avoid unnecessary storage writes)
+- Use `ChainMap` for per-chain configurations in TypeScript
+
+### TypeScript Review Checklist
+
+Common issues caught in code review:
+
+| Issue                       | Bad                          | Good                                      |
+| --------------------------- | ---------------------------- | ----------------------------------------- |
+| Unnecessary type assertions | `{} as SomeType`             | Let TypeScript infer or use proper typing |
+| Double-cast                 | `x as unknown as Y`          | Fix the types so they're compatible       |
+| `as any` escape hatch       | `value as any`               | `unknown` + type guard                    |
+| Bandaid cast                | `x as Partial<T>`            | Build object with correct shape           |
+| Non-null assertion          | `obj.field!`                 | `if (obj.field != null)` or `??`          |
+| `: any` annotation          | `param: any`                 | Proper type or `unknown`                  |
+| String literals for enums   | `type: 'standard'`           | `type: XERC20Type.Standard`               |
+| Duplicated constants/ABIs   | Same ABI in multiple files   | Extract to shared module                  |
+| Hardcoded discriminants     | `if (x === 'velo')`          | `if (x === XERC20Type.Velo)`              |
+| Existing utilities ignored  | `code === '0x'` check inline | Use `isContractAddress()` from SDK        |
+| Inconsistent method naming  | `detectType()`               | Follow codebase pattern: `derive*()`      |
+
+**Enum usage**: When interfaces have discriminant fields (`type: 'foo'`), use enum values:
+
+```typescript
+// Define
+export enum MyType { Foo = 'foo', Bar = 'bar' }
+
+// In interfaces - use the enum member type directly
+export interface FooConfig { type: MyType.Foo; ... }
+
+// In comparisons
+if (config.type === MyType.Foo) { ... }
+```
+
+**Deduplication**: Extract shared constants (ABIs, selectors) to dedicated files when used in 2+ places.
+
+### What NOT to Flag
+
+- Minor style issues handled by prettier/linters
+- Existing intentional patterns (check git history if unsure)
+- Theoretical issues without practical exploit paths
+
+### What NOT to Add
+
+| Pattern                          | Why Problematic                    | Alternative                                               |
+| -------------------------------- | ---------------------------------- | --------------------------------------------------------- |
+| Fallbacks for unlikely scenarios | Masks bugs, hides real failures    | Let errors propagate; log and re-throw                    |
+| Excessive validation layers      | Bloats code, slows review          | Validate at system boundaries only                        |
+| "Just in case" abstractions      | Premature generalization           | Build for current use case; refactor when pattern repeats |
+| Defensive defaults               | Silently fails instead of alerting | Fail fast with `assert()`                                 |
+
+## Debugging & Operations
+
+### Skills for Common Tasks
+
+| Skill                                       | Use For                                      |
+| ------------------------------------------- | -------------------------------------------- |
+| `/debug-message`                            | Debug why a specific message isn't processed |
+| `/gcp-logs`                                 | Query GCP logs with efficient filtering      |
+| `/debug-validator-checkpoint-inconsistency` | Debug validator checkpoint issues            |
+
+### Primary References
+
+- `docs/ai-agents/operational-debugging.md` - Detailed Grafana/GCP debugging workflows
+- [Operations Runbook](https://www.notion.so/hyperlanexyz/Runbook-AI-Agent-24a6d35200d680229b38e8501164ca66) - Manual procedures
+
+### Debugging Priority Order
+
+1. **Use skills first** - `/debug-message` for message issues, `/gcp-logs` for log queries
+2. **Start with Grafana** - Check alerts and dashboards for context
+3. **Use Hyperlane Explorer** - Find stuck messages before querying logs
+4. **Query GCP logs** - Use `gcloud` CLI (not MCP server)
+
+### Key Dashboards
+
+| Dashboard          | UID                                    | Use For                          |
+| ------------------ | -------------------------------------- | -------------------------------- |
+| Easy Dashboard     | `fdf6ada6uzvgga`                       | Queue lengths, reprepare reasons |
+| Relayers v2 & v3   | `k4aYDtK4k`                            | Prepare queues, message flow     |
+| RPC Usage & Errors | `bdbwtrzoms5c0c`                       | RPC error rates                  |
+| Lander Dashboard   | `197feea9-f831-48ce-b936-eaaa3294a3f6` | Transaction submission           |
+| Validator In-house | `xrNCvpK4k`                            | Internal validator health        |
+| Validator External | `cdqntgxna4vswd`                       | External validator status        |
+
+### Common Error Patterns
+
+| Error                      | Priority | Action                                               |
+| -------------------------- | -------- | ---------------------------------------------------- |
+| `eth_estimateGas` failures | HIGH     | Check for contract reverts, decode with `cast 4byte` |
+| High retry counts (40+)    | HIGH     | Investigate persistent issues                        |
+| `CouldNotFetchMetadata`    | LOW      | Only check validators after 5+ min delays            |
+| Nonce errors               | LOW      | Normal during gas escalation unless persistent       |
+| Connection resets          | LOW      | Normal RPC hiccups unless frequent                   |
+| 503 errors                 | LOW      | Provider issues, only investigate if persistent      |
+
+### Validator Debugging
+
+Use `hyperlane_observed_validator_latest_index{origin="[chain]"}` for ALL validators (including external).
+
+Convert addresses to names: `grep -i "[address]" typescript/sdk/src/consts/multisigIsm.ts`
+
+## TypeScript Style
+
+### Type Safety — Zero Tolerance for Extraneous Casts
+
+**NEVER introduce `as` casts or `any` types to make code compile.** This is the single most common mistake — fix the types instead.
+
+- **No `as` assertions** — every `as` cast is a potential bug. If types don't match, fix the underlying types:
+  - Adjust interface definitions to be compatible
+  - Use type guards for runtime narrowing (`if ('field' in obj)`, `instanceof`, Zod `.parse()`)
+  - Compose objects explicitly (spread + missing properties)
+  - Use generics or overloads to express the relationship
+- **No `as unknown as X` double-casts** — this completely bypasses type checking and always indicates a design problem
+- **No `as any`** — use `unknown` with type guards if the type is truly unknown
+- **No bandaid casts** like `as T['field']`, `as Partial<T>`, `as Record<string, any>` — these mask real type errors
+- **No `!` (non-null assertions)** — use proper null checks (`if (x != null)`, `??`, optional chaining)
+- **Check before committing** — review your diff for any `as ` tokens. If you added one, find another way
+
+When you encounter a type error, the fix priority is:
+
+1. Fix the function signature or interface
+2. Add a type guard
+3. Restructure the code to avoid the mismatch
+4. As an absolute last resort, add a cast with a `// CAST:` comment explaining why it's unavoidable
+
+### SDK Patterns
+
+- Use `ChainMap<T>` for per-chain configurations
+- Use `MultiProvider` for multi-chain provider management
+- Import types from `@hyperlane-xyz/sdk` rather than redefining
+- Use `MultiProtocolProvider` for cross-VM abstractions
+
+### Schema Validation
+
+The SDK uses Zod for config validation. Follow existing patterns in `typescript/sdk/src/` for schema definitions.
+
+### Infrastructure Code (`typescript/infra/`)
+
+- Never expose secrets in code or logs
+- Validate RPC endpoints and deployment parameters
+- Use config files from `typescript/infra/config/` as examples
+
+## MCP Server Setup
+
+For AI agent integrations, see `docs/ai-agents/mcp-server-setup.md`.
+
+Available MCP servers:
+
+| Server               | Purpose                       |
+| -------------------- | ----------------------------- |
+| `google-cloud-mcp`   | GCP logging queries           |
+| `grafana`            | Grafana dashboards and alerts |
+| `hyperlane-explorer` | Message status queries        |
+| `notion`             | Documentation access          |
+
+## Tips for Claude Code Sessions
+
+1. **Run tests incrementally** - Don't run full test suite; run specific tests for changed code
+2. **Check existing patterns** - Search codebase for similar implementations before writing new code
+3. **Use TypeScript SDK types** - The SDK has comprehensive types; import from `@hyperlane-xyz/sdk`
+4. **Solidity inheritance** - Many contracts inherit from base classes; check the hierarchy
+5. **Config-driven** - Most deployments are config-driven; check `typescript/infra/config/` for examples
+6. **Registry is external** - Chain metadata lives in `@hyperlane-xyz/registry`, not this repo
+7. **Keep changes minimal** - Only modify what's necessary; avoid scope creep
+8. **Use `assert()` liberally** - For preconditions, invariants, and unexpected states
+9. **Check error patterns first** - Review existing error handling before adding new try/catch
+10. **Question fallbacks** - Undefined values often signal bugs; don't mask with defaults
+11. **Rebuild shared packages** - After changing `typescript/sdk` or `typescript/utils`, run `pnpm build` from repo root; Turbo handles deps/caching
+
+## Verify Before Acting
+
+**Always search the codebase before assuming.** Don't hallucinate file paths, function names, or patterns.
+
+- `grep` or search before claiming "X doesn't exist"
+- Read the actual file before suggesting changes to it
+- Check `git log` or blame before assuming why code exists
+- Verify imports exist in `package.json` before using them
+
+## When Claude Gets It Wrong
+
+If output seems wrong, check:
+
+1. **Did I read the actual file?** Or did I assume its contents?
+2. **Did I search for existing patterns?** The codebase likely has examples
+3. **Am I using stale context?** Re-read files that may have changed
+4. **Did I verify the error message?** Run the command and read actual output

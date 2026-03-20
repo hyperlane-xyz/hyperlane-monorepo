@@ -1,11 +1,13 @@
 {
   "name": "@hyperlane-xyz/provider-sdk",
-  "version": "0.1.0",
+  "version": "4.1.0",
   "description": "Protocol Provider SDK for the Hyperlane Protocol",
-  "type": "module",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist"
   ],
+  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./altvm": "./dist/altvm.js",
@@ -15,6 +17,8 @@
     "./hook": "./dist/hook.js",
     "./ism": "./dist/ism.js",
     "./core": "./dist/core.js",
+    "./mailbox": "./dist/mailbox.js",
+    "./validator-announce": "./dist/validator-announce.js",
     "./warp": "./dist/warp.js",
     "./factory": "./dist/factory.js",
     "./submitter": "./dist/submitter.js",
@@ -27,17 +31,25 @@
     "dev": "tsc --watch",
     "lint": "eslint",
     "clean": "rm -rf ./dist",
-    "prettier": "prettier --write ."
+    "format": "oxfmt --write .",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json"
   },
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.9.0",
-    "zod": "^3.21.2"
+    "@hyperlane-xyz/utils": "workspace:*",
+    "pino": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/node": "^18.14.5",
-    "eslint": "^9.31.0",
-    "typescript": "5.3.3"
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "chai": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   }
 }

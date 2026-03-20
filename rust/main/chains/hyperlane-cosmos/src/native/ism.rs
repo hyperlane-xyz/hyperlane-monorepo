@@ -12,8 +12,8 @@ use tonic::async_trait;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    MultisigIsm, RoutingIsm, H160, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata,
+    ModuleType, MultisigIsm, RoutingIsm, H160, H256, U256,
 };
 
 use crate::{CosmosProvider, HyperlaneCosmosError};
@@ -99,7 +99,7 @@ impl InterchainSecurityModule for CosmosNativeIsm {
     async fn dry_run_verify(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         // NOTE: is only relevant for aggeration isms -> cosmos native does not support them yet
         Ok(Some(1.into()))
@@ -119,6 +119,16 @@ impl MultisigIsm for CosmosNativeIsm {
         match ism.type_url.as_str() {
             t if t == MerkleRootMultisigIsm::type_url() => {
                 let ism = MerkleRootMultisigIsm::decode(ism.value.as_slice())
+                    .map_err(HyperlaneCosmosError::from)?;
+                let validators = ism
+                    .validators
+                    .iter()
+                    .map(|v| H160::from_str(v).map(H256::from))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((validators, ism.threshold as u8))
+            }
+            t if t == MessageIdMultisigIsm::type_url() => {
+                let ism = MessageIdMultisigIsm::decode(ism.value.as_slice())
                     .map_err(HyperlaneCosmosError::from)?;
                 let validators = ism
                     .validators

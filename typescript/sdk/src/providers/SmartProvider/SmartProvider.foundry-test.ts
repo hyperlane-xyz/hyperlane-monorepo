@@ -14,7 +14,8 @@ const PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const NETWORK = 31337;
 const URL = 'http://127.0.0.1:8545';
 
-describe('SmartProvider', async () => {
+describe('SmartProvider', function () {
+  this.timeout(10_000);
   let signer: Wallet;
   let smartProvider: HyperlaneSmartProvider;
   let contractAddress: string;
@@ -131,9 +132,12 @@ describe('SmartProvider', async () => {
 
   it('handles invalid and valid RPCs', async () => {
     const INVALID_URL = 'http://127.0.0.1:33331337';
+    // Valid RPC is listed first so that SendTransaction (which does not fall
+    // through to the next provider) succeeds. Read-only calls like estimateGas
+    // would still fall through, but deploy() needs the valid provider first.
     const smartProvider = new HyperlaneSmartProvider(
       NETWORK,
-      [{ http: INVALID_URL }, { http: URL }],
+      [{ http: URL }, { http: INVALID_URL }],
       [],
       {
         maxRetries: 3,

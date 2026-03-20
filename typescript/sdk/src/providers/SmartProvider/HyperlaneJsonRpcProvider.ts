@@ -28,8 +28,12 @@ export class HyperlaneJsonRpcProvider
     public readonly rpcConfig: RpcConfigWithConnectionInfo,
     network: providers.Networkish,
     public readonly options?: { debug?: boolean },
+    connectionOverride?: utils.ConnectionInfo,
   ) {
-    super(rpcConfig.connection ?? rpcConfig.http, network);
+    super(
+      connectionOverride ?? rpcConfig.connection ?? rpcConfig.http,
+      network,
+    );
   }
 
   prepareRequest(method: string, params: any): [string, any[]] {

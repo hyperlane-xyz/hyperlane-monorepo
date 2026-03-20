@@ -5,16 +5,22 @@ import {
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
+
+export const SAFE_API_RETRIES = 10;
+export const SAFE_API_BASE_RETRY_MS = 1000;
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
 }
 
-export function getSafeService(chain: ChainName, multiProvider: MultiProvider) {
+export function getSafeService(
+  chain: ChainName,
+  multiProvider: MultiProvider,
+): SafeApiKit.default {
   const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
     multiProvider.getChainMetadata(chain);
   let txServiceUrl = gnosisSafeTransactionServiceUrl;
@@ -92,6 +98,11 @@ const chainOverrides: Record<
     multiSend: '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761',
     multiSendCallOnly: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D',
   },
+  // igra
+  38833: {
+    multiSend: '0x218543288004CD07832472D464648173c77D7eB7',
+    multiSendCallOnly: '0xA83c336B20401Af773B6219BA5027174338D1836',
+  },
 };
 
 export async function getSafe(
@@ -99,15 +110,18 @@ export async function getSafe(
   multiProvider: MultiProvider,
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
-) {
+): Promise<Safe.default> {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
 
-  const { version: rawSafeVersion } =
-    await safeService.getSafeInfo(safeAddress);
+  const { version: rawSafeVersion } = await retryAsync(
+    () => safeService.getSafeInfo(safeAddress),
+    SAFE_API_RETRIES,
+    SAFE_API_BASE_RETRY_MS,
+  );
   // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
   const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
 
@@ -155,8 +169,12 @@ export async function getSafe(
 export async function getSafeDelegates(
   service: SafeApiKit.default,
   safeAddress: Address,
-) {
-  const delegateResponse = await service.getSafeDelegates({ safeAddress });
+): Promise<string[]> {
+  const delegateResponse = await retryAsync(
+    () => service.getSafeDelegates({ safeAddress }),
+    SAFE_API_RETRIES,
+    SAFE_API_BASE_RETRY_MS,
+  );
   return delegateResponse.results.map((r) => r.delegate);
 }
 
@@ -165,7 +183,7 @@ export async function canProposeSafeTransactions(
   chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
-) {
+): Promise<boolean> {
   let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);

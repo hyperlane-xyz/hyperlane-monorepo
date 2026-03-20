@@ -28,8 +28,8 @@ npm uninstall -g @hyperlane-xyz/cli
 ```bash
 # Run via NPM's npx command
 npx @hyperlane-xyz/cli
-# Or via Yarn's dlx command
-yarn dlx @hyperlane-xyz/cli
+# Or via pnpm's dlx command
+pnpm dlx @hyperlane-xyz/cli
 ```
 
 **Option 3: Run from source:**
@@ -37,9 +37,9 @@ yarn dlx @hyperlane-xyz/cli
 ```bash
 git clone https://github.com/hyperlane-xyz/hyperlane-monorepo.git
 cd hyperlane-monorepo
-yarn install && yarn build
+pnpm install && pnpm build
 cd typescript/cli
-yarn hyperlane
+pnpm hyperlane
 ```
 
 ## Common commands
@@ -56,6 +56,12 @@ View SDK contract addresses: `hyperlane chains addresses`
 
 Send test message: `hyperlane send message`
 
+### Address conversion utilities
+
+Convert address to bytes32: `hyperlane address to-bytes32 --address <address> [--protocol <protocol>]`
+
+Convert bytes32 to address: `hyperlane address from-bytes32 --bytes32 <bytes32> --protocol <protocol> [--prefix <prefix> | --chain <chain>]`
+
 ## Logging
 
 The logging format can be toggled between human-readable vs JSON-structured logs using the `LOG_FORMAT` environment variable or the `--log <pretty|json>` flag.
@@ -63,3 +69,82 @@ The logging format can be toggled between human-readable vs JSON-structured logs
 Note: If you are unable to see color output after setting `LOG_FORMAT`, you may set the `FORCE_COLOR=true` environment variable as a last resort. See https://force-color.org/ & https://github.com/chalk for more info.
 
 The logging verbosity can be configured using the `LOG_LEVEL` environment variable or the `--verbosity <trace|debug|info|warn|error|off>` flag.
+
+## Address Conversion Utilities
+
+Hyperlane uses bytes32 format for addresses in cross-chain messages to support multiple blockchain protocols. The CLI provides utilities to convert between protocol-specific addresses and bytes32 format.
+
+### to-bytes32
+
+Convert an address to bytes32 format (used in Hyperlane messages).
+
+**Usage:**
+
+```bash
+hyperlane address to-bytes32 --address <address> [--protocol <protocol>]
+```
+
+**Flags:**
+
+- `--address, -a` - The address to convert (required)
+- `--protocol, -p` (optional) - Protocol type: ethereum, sealevel, cosmos, cosmosnative, starknet, radix, aleo, tron. Auto-detected if not specified.
+
+**Examples:**
+
+```bash
+# EVM address (auto-detected)
+hyperlane address to-bytes32 --address 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+
+# Solana address with explicit protocol
+hyperlane address to-bytes32 -a EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v -p sealevel
+
+# Cosmos address
+hyperlane address to-bytes32 --address cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng --protocol cosmos
+```
+
+### from-bytes32
+
+Convert bytes32 to an address for a specific protocol.
+
+**Usage:**
+
+```bash
+hyperlane address from-bytes32 --bytes32 <bytes32> --protocol <protocol> [--prefix <prefix> | --chain <chain>]
+```
+
+**Flags:**
+
+- `--bytes32, -b` - The bytes32 hex string to convert (with or without 0x prefix) (required)
+- `--protocol, -p` - Target protocol type (required)
+- `--prefix` (optional) - Address prefix for Cosmos chains (e.g., "cosmos", "osmo", "neutron") and Radix chains (e.g., "account_rdx")
+- `--chain, -c` (optional) - Chain name to automatically lookup the prefix from registry (e.g., "osmosis", "neutron", "cosmoshub"). Cannot be used with `--prefix`.
+
+**Examples:**
+
+```bash
+# Convert to EVM address
+hyperlane address from-bytes32 --bytes32 0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266 --protocol ethereum
+
+# Convert to Solana address (using aliases)
+hyperlane address from-bytes32 -b 0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61 -p sealevel
+
+# Convert to Cosmos address with explicit prefix
+hyperlane address from-bytes32 --bytes32 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix cosmos
+
+# Convert to Osmosis address using chain lookup
+hyperlane address from-bytes32 -b 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b -p cosmos --chain osmosis
+
+# Convert to Neutron address using chain name
+hyperlane address from-bytes32 -b 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b -p cosmos -c neutron
+```
+
+**Supported Protocols:**
+
+- `ethereum` - EVM-compatible chains (Ethereum, Polygon, Arbitrum, etc.)
+- `sealevel` - Solana and SVM chains
+- `cosmos` - Cosmos SDK chains using CosmWasm
+- `cosmosnative` - Cosmos SDK chains using native modules
+- `starknet` - StarkNet
+- `radix` - Radix DLT
+- `aleo` - Aleo
+- `tron` - Tron

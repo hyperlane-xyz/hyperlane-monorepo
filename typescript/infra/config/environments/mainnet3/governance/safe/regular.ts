@@ -15,6 +15,10 @@ export const regularSafes: ChainMap<Address> = {
   zeronetwork: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
   zksync: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
 
+  // Jan 29, 2026 - Migrating Viction to Safes
+  // ----------------------------------------------------------
+  viction: '0x6a4aA5e0E732Fd4EA096FaFcB80F1a993aD01B91',
+
   // Not in use after ICA 2.0 migration
   // berachain: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
   // blast: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
@@ -27,4 +31,8 @@ export const regularSafes: ChainMap<Address> = {
   // swell: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
   // taiko: '0x890ac177Fe3052B8676A65f32C1589Bc329f3d50',
   // zircuit: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
+
+  // Mar 12, 2026 - Igra Chain Deployment
+  // ----------------------------------------------------------
+  // igra: '0xb511a9046A1F9Df17E3CEC3Ff9d937071B986935',
 };

@@ -254,6 +254,23 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
+    // Check raw message dispatches (stored without RPC dependencies for CCTP availability)
+    let raw_dispatches_scraped = fetch_metric(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "raw_message_dispatch"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if raw_dispatches_scraped != total_messages_dispatched {
+        log!(
+            "Scraper has scraped {} raw message dispatches, expected {}",
+            raw_dispatches_scraped,
+            total_messages_dispatched,
+        );
+        return Ok(false);
+    }
+
     let gas_payments_scraped = fetch_metric(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",

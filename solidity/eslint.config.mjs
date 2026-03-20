@@ -1,7 +1,7 @@
-import MonorepoDefaults from '../eslint.config.mjs';
+import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...MonorepoDefaults,
+  ...defaultConfig,
   {
     ignores: [
       '**/lib/**/*',
@@ -9,6 +9,8 @@ export default [
       '**/dist/**/*',
       '**/lib/**/*',
       '**/typechain/**/*',
+      '**/multicollateral/**/*',
+      '**/dependencies/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
     ],

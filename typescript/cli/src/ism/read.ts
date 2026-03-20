@@ -1,13 +1,13 @@
-import { AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
-import { ChainName, DerivedIsmConfig, EvmIsmReader } from '@hyperlane-xyz/sdk';
+import { createIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  Address,
-  ProtocolType,
-  assert,
-  stringifyObject,
-} from '@hyperlane-xyz/utils';
+  type ChainName,
+  type DerivedIsmConfig,
+  EvmIsmReader,
+  altVmChainLookup,
+} from '@hyperlane-xyz/sdk';
+import { type Address, isEVMLike, stringifyObject } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
@@ -28,17 +28,15 @@ export async function readIsmConfig({
   let config: DerivedIsmConfig;
   let stringConfig: string;
 
-  if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+  const protocol = context.multiProvider.getProtocol(chain);
+  if (isEVMLike(protocol)) {
     const ismReader = new EvmIsmReader(context.multiProvider, chain);
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   } else {
-    const provider = context.altVmProvider.get(chain);
-    assert(provider, `Cannot find provider for ${chain}`);
-    const ismReader = new AltVMIsmReader(
-      (chain) => context.multiProvider.tryGetChainName(chain),
-      provider,
-    );
+    const chainLookup = altVmChainLookup(context.multiProvider);
+    const metadata = chainLookup.getChainMetadata(chain);
+    const ismReader = createIsmReader(metadata, chainLookup);
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   }

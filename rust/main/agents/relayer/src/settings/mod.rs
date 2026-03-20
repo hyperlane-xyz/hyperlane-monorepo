@@ -4,16 +4,15 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf};
+use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc};
 
-use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use ethers::utils::hex;
 use eyre::{eyre, Context};
 use hyperlane_base::{
     impl_loadable_from_settings,
     settings::{
-        parser::{recase_json_value, RawAgentConf, ValueParser},
+        parser::{parse_json_array, parse_matching_list, RawAgentConf, ValueParser},
         Settings,
     },
 };
@@ -63,7 +62,7 @@ pub struct RelayerSettings {
     /// Not intended for production use.
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
-    pub metric_app_contexts: Vec<(MatchingList, String)>,
+    pub metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     /// Whether to allow contract call caching at all.
     pub allow_contract_call_caching: bool,
     /// The ISM cache policies to use
@@ -338,6 +337,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 .collect_vec()
             })
             .unwrap_or_default();
+        let metric_app_contexts: Arc<Vec<(MatchingList, String)>> = Arc::new(metric_app_contexts);
 
         let allow_contract_call_caching = p
             .chain(&mut err)
@@ -389,42 +389,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             igp_indexing_enabled,
         })
     }
-}
-
-fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
-    let mut err = ConfigParsingError::default();
-
-    match p {
-        ValueParser {
-            val: Value::String(array_str),
-            cwp,
-        } => serde_json::from_str::<Value>(array_str)
-            .context("Expected JSON string")
-            .take_err(&mut err, || cwp.clone())
-            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
-        ValueParser {
-            val: value @ Value::Array(_),
-            cwp,
-        } => Some((cwp, value.clone())),
-        _ => Err(eyre!("Expected JSON array or stringified JSON"))
-            .take_err(&mut err, || p.cwp.clone()),
-    }
-}
-
-fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
-    let mut err = ConfigParsingError::default();
-
-    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
-    let Some(raw_list) = raw_list else {
-        return err.into_result(MatchingList::default());
-    };
-    let p = ValueParser::new(p.cwp.clone(), &raw_list);
-    let ml = p
-        .parse_value::<MatchingList>("Expected matching list")
-        .take_config_err(&mut err)
-        .unwrap_or_default();
-
-    err.into_result(ml)
 }
 
 fn parse_ism_cache_configs(p: ValueParser) -> ConfigResult<Vec<IsmCacheConfig>> {

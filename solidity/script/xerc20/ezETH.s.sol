@@ -46,6 +46,7 @@ contract ezETH is Script {
         HypXERC20Lockbox hypXERC20Lockbox = new HypXERC20Lockbox(
             ethereumLockbox,
             1,
+            1,
             ethereumMailbox
         );
         ProxyAdmin ethAdmin = new ProxyAdmin();
@@ -60,7 +61,7 @@ contract ezETH is Script {
         hypXERC20Lockbox = HypXERC20Lockbox(address(ethProxy));
 
         vm.selectFork(blastFork);
-        HypXERC20 hypXERC20 = new HypXERC20(blastXERC20, 1, blastMailbox);
+        HypXERC20 hypXERC20 = new HypXERC20(blastXERC20, 1, 1, blastMailbox);
         ProxyAdmin blastAdmin = new ProxyAdmin();
         TransparentUpgradeableProxy blastProxy = new TransparentUpgradeableProxy(
                 address(hypXERC20),

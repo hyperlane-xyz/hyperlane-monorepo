@@ -35,6 +35,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -63,7 +64,7 @@ contract TokenBridgeCctpV1Test is Test {
     MockToken internal tokenDestination;
 
     uint32 internal version = CCTP_VERSION_1;
-    uint256 internal amount = 1_000_000; // 1 USDC
+    uint256 internal amount = 100_010; // 1 USDC
     address internal user = address(11);
     uint256 internal balance = 10_000_000; // 10 USDC
 
@@ -472,7 +473,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid mint amount"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidMintAmount.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -490,7 +491,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid mint recipient"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidMintRecipient.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -512,7 +513,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid burn sender"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidBurnSender.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -543,17 +544,21 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid token message recipient"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.InvalidTokenMessageRecipient.selector
+        );
         tbDestination.verify(metadata, invalidMessage);
 
-        vm.expectRevert(bytes("Invalid token message recipient"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.InvalidTokenMessageRecipient.selector
+        );
         mailboxDestination.process(metadata, invalidMessage);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
         tokenMessengerOrigin.setVersion(CCTP_VERSION_2);
 
-        vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         TokenBridgeCctpV1 v1 = new TokenBridgeCctpV1(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -562,7 +567,7 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_2);
-        vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         v1 = new TokenBridgeCctpV1(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -618,7 +623,7 @@ contract TokenBridgeCctpV1Test is Test {
         vm.assume(unconfiguredHyperlaneDomain != origin);
         vm.assume(unconfiguredHyperlaneDomain != destination);
 
-        vm.expectRevert(bytes("Circle domain not configured"));
+        vm.expectRevert(TokenBridgeCctpBase.CircleDomainNotConfigured.selector);
         tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain);
 
         // covers the case where circleDomain is 0
@@ -708,7 +713,7 @@ contract TokenBridgeCctpV1Test is Test {
             hook.messageTransmitter().nextAvailableNonce(),
             address(hook).addressToBytes32(),
             router,
-            bytes32(0),
+            bytes32(0), // destinationCaller
             abi.encode(Message.id(message))
         );
 
@@ -754,7 +759,7 @@ contract TokenBridgeCctpV1Test is Test {
         ism.addDomain(origin, 6);
 
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         ism.verify(metadata, message);
 
         // CCTP message was sent by deployer on origin chain
@@ -783,7 +788,7 @@ contract TokenBridgeCctpV1Test is Test {
             recipient,
             body
         );
-        vm.expectRevert(bytes("Message not dispatched"));
+        vm.expectRevert(TokenBridgeCctpBase.MessageNotDispatched.selector);
         tbOrigin.postDispatch(bytes(""), message);
     }
 
@@ -882,7 +887,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -908,7 +913,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid message id"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidMessageId.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -936,7 +941,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid circle recipient"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCircleRecipient.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -964,7 +969,7 @@ contract TokenBridgeCctpV1Test is Test {
     ) public virtual {
         // Try to call from an unauthorized address
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             evil.addressToBytes32(),
@@ -977,7 +982,7 @@ contract TokenBridgeCctpV1Test is Test {
     ) public virtual {
         // Try to call from a non-message-transmitter address
         vm.prank(evil);
-        vm.expectRevert(bytes("Not message transmitter"));
+        vm.expectRevert(TokenBridgeCctpBase.NotMessageTransmitter.selector);
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             address(tbOrigin).addressToBytes32(),
@@ -994,7 +999,9 @@ contract TokenBridgeCctpV1Test is Test {
         vm.assume(badDomain != cctpDestination);
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.HyperlaneDomainNotConfigured.selector
+        );
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             badDomain,
             address(tbOrigin).addressToBytes32(),
@@ -1010,7 +1017,7 @@ contract TokenBridgeCctpV1Test is Test {
         vm.assume(badRouter != address(tbOrigin).addressToBytes32());
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             badRouter,
@@ -1062,12 +1069,8 @@ contract TokenBridgeCctpV1Test is Test {
             amount
         );
 
-        // Deliver the CCTP message directly via receiveMessage (simulates CCTP delivering the burn message)
-        // This mints the tokens to the recipient
-        messageTransmitterDestination.receiveMessage(cctpMessage, bytes(""));
-
-        // Now try to verify with the same message - should revert because CCTP already processed it
         bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+        tbDestination.verify(metadata, message);
 
         // The exact revert message depends on the mock implementation
         // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
@@ -1079,7 +1082,7 @@ contract TokenBridgeCctpV1Test is Test {
 contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     using TypeCasts for address;
 
-    uint256 constant maxFee = 1;
+    uint256 constant maxFee = 100; // 100 ppm = 1 bps = 0.01%
     uint32 constant minFinalityThreshold = 1000;
 
     address constant deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
@@ -1116,6 +1119,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 initData
             );
         tbOrigin = TokenBridgeCctpV2(address(proxyOrigin));
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(maxFee);
 
         TokenBridgeCctpV2 destinationImplementation = new TokenBridgeCctpV2(
             address(tokenDestination),
@@ -1133,6 +1137,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             );
 
         tbDestination = TokenBridgeCctpV2(address(proxyDestination));
+        TokenBridgeCctpV2(address(tbDestination)).setMaxFeePpm(maxFee);
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
     }
@@ -1152,11 +1157,17 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint256 amount,
         address sender
     ) internal view override returns (bytes memory cctpMessage) {
+        uint256 fee = Math.mulDiv(
+            amount,
+            maxFee,
+            1_000_000 - maxFee,
+            Math.Rounding.Up
+        );
         bytes memory burnMessage = BurnMessageV2._formatMessageForRelay(
             version,
             address(tokenOrigin).addressToBytes32(),
             recipient,
-            amount + (amount * maxFee) / (10_000 - maxFee),
+            amount + fee,
             sender.addressToBytes32(),
             maxFee,
             bytes("")
@@ -1220,7 +1231,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         // deploy proxy code to deployer address, which is configured as recipient on cctp messages
         deployCodeTo(
-            "../node_modules/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
+            "dependencies/@openzeppelin-contracts-4.9.3/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
             abi.encode(
                 address(implementation),
                 proxyAdmin,
@@ -1234,7 +1245,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(deployer)
         );
 
-        return TokenBridgeCctpV2(address(deployer));
+        TokenBridgeCctpV2 v2 = TokenBridgeCctpV2(address(deployer));
+        v2.setMaxFeePpm(maxFee);
+        return v2;
     }
 
     function testFork_verify() public override {
@@ -1313,7 +1326,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             bytes32(
                 0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d
             ), // tokenMessengerDestination
-            bytes32(0), // destinationCaller
+            ism, // destinationCaller
             fastFee,
             minFinalityThreshold,
             bytes("")
@@ -1405,7 +1418,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             hook.hyperlaneDomainToCircleDomain(destination),
             address(hook).addressToBytes32(),
             ism,
-            bytes32(0),
+            ism, // destinationCaller
             minFinalityThreshold,
             abi.encode(Message.id(message))
         );
@@ -1443,7 +1456,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
-                    bytes32(0),
+                    address(tbDestination).addressToBytes32(),
                     fastFee,
                     minFinalityThreshold
                 )
@@ -1491,7 +1504,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
-                    bytes32(0),
+                    address(tbDestination).addressToBytes32(),
                     fastFee,
                     minFinalityThreshold
                 )
@@ -1521,14 +1534,15 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             )
         );
 
+        bytes32 ism = address(tbDestination).addressToBytes32();
         vm.expectCall(
             address(messageTransmitterOrigin),
             abi.encodeCall(
                 IRelayerV2.sendMessage,
                 (
                     cctpDestination,
-                    address(tbDestination).addressToBytes32(),
-                    address(0).addressToBytes32(),
+                    ism,
+                    ism, // destinationCaller
                     minFinalityThreshold,
                     abi.encode(id)
                 )
@@ -1547,7 +1561,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     function test_revertsWhen_versionIsNotSupported() public override {
         tokenMessengerOrigin.setVersion(CCTP_VERSION_1);
 
-        vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -1558,7 +1572,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
-        vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         v2 = new TokenBridgeCctpV2(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -1593,7 +1607,14 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
         assertEq(quotes[1].token, address(tokenOrigin));
         assertEq(quotes[1].amount, amount);
-        uint256 fastFee = (amount * maxFee) / (10_000 - maxFee);
+        // rounded up using Math.mulDiv with Rounding.Up
+        // maxFee is in ppm (parts per million), where 100 ppm = 1 bps = 0.01%
+        uint256 fastFee = Math.mulDiv(
+            amount,
+            maxFee,
+            1_000_000 - maxFee,
+            Math.Rounding.Up
+        );
         assertEq(quotes[2].token, address(tokenOrigin));
         assertEq(quotes[2].amount, fastFee);
     }
@@ -1656,7 +1677,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             evil.addressToBytes32(),
@@ -1670,7 +1691,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(evil);
-        vm.expectRevert(bytes("Not message transmitter"));
+        vm.expectRevert(TokenBridgeCctpBase.NotMessageTransmitter.selector);
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             address(tbOrigin).addressToBytes32(),
@@ -1688,7 +1709,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badDomain != cctpDestination);
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.HyperlaneDomainNotConfigured.selector
+        );
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             badDomain,
             address(tbOrigin).addressToBytes32(),
@@ -1705,7 +1728,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badRouter != address(tbOrigin).addressToBytes32());
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             badRouter,
@@ -1742,7 +1765,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
@@ -1757,7 +1780,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(evil);
-        vm.expectRevert(bytes("Not message transmitter"));
+        vm.expectRevert(TokenBridgeCctpBase.NotMessageTransmitter.selector);
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
@@ -1776,7 +1799,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badDomain != cctpDestination);
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.HyperlaneDomainNotConfigured.selector
+        );
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 badDomain,
@@ -1794,7 +1819,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badRouter != address(tbOrigin).addressToBytes32());
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
@@ -1879,16 +1904,137 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             amount
         );
 
-        // Deliver the CCTP message directly via receiveMessage (simulates CCTP delivering the burn message)
-        // This mints the tokens to the recipient
-        messageTransmitterDestination.receiveMessage(cctpMessage, bytes(""));
-
-        // Now try to verify with the same message - should revert because CCTP already processed it
         bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+        tbDestination.verify(metadata, message);
 
         // The exact revert message depends on the mock implementation
         // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
         vm.expectRevert();
         tbDestination.verify(metadata, message);
+    }
+
+    // ============ Mutable Fee Configuration Tests ============
+
+    function test_setMaxFeePpm() public {
+        uint256 newMaxFeePpm = 50; // 50 ppm = 0.5 bps = 0.005%
+
+        vm.expectEmit(true, true, true, true);
+        emit TokenBridgeCctpV2.MaxFeePpmSet(newMaxFeePpm);
+
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(newMaxFeePpm);
+
+        assertEq(
+            TokenBridgeCctpV2(address(tbOrigin)).maxFeePpm(),
+            newMaxFeePpm
+        );
+    }
+
+    function test_setMaxFeePpm_revertsWhen_notOwner() public {
+        vm.prank(user);
+        vm.expectRevert("Ownable: caller is not the owner");
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(50);
+    }
+
+    function test_setMaxFeePpm_revertsWhen_feeTooHigh() public {
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(1_000_000);
+
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(1_000_001);
+    }
+
+    function test_constructor_setsMaxFeePpm() public {
+        uint256 constructorFee = 500; // 500 ppm = 5 bps
+        TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            address(mailboxOrigin),
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            constructorFee,
+            minFinalityThreshold
+        );
+        assertEq(v2.maxFeePpm(), constructorFee);
+    }
+
+    function test_constructor_revertsWhen_feeTooHigh() public {
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            address(mailboxOrigin),
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            1_000_000, // 100% fee - should revert
+            minFinalityThreshold
+        );
+    }
+
+    function test_quoteTransferRemote_updatesAfterFeeChange() public {
+        uint256 newMaxFeePpm = 10_000; // 10,000 ppm = 100 bps = 1%
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(newMaxFeePpm);
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        // Verify the external fee quote is updated
+        uint256 expectedFee = Math.mulDiv(
+            amount,
+            newMaxFeePpm,
+            1_000_000 - newMaxFeePpm,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+    }
+
+    function test_feeConfiguration_values() public {
+        assertEq(TokenBridgeCctpV2(address(tbOrigin)).maxFeePpm(), maxFee);
+        assertEq(
+            TokenBridgeCctpV2(address(tbOrigin)).minFinalityThreshold(),
+            minFinalityThreshold
+        );
+    }
+
+    function test_quoteTransferRemote_fractionalBps() public {
+        // 130 ppm = 1.3 bps (Circle's typical Optimism/Arbitrum/Base fee)
+        uint256 fractionalFeePpm = 130;
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(fractionalFeePpm);
+
+        uint256 transferAmount = 1_000_000; // 1 USDC (6 decimals)
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            transferAmount
+        );
+
+        // Expected fee: 1_000_000 * 130 / (1_000_000 - 130) = 130.016... rounds up to 131
+        uint256 expectedFee = Math.mulDiv(
+            transferAmount,
+            fractionalFeePpm,
+            1_000_000 - fractionalFeePpm,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+        assertEq(expectedFee, 131); // 0.000131 USDC = 131 micro-USDC
+
+        // Test with 150 ppm = 1.5 bps (Circle's typical Unichain fee)
+        uint256 unichainFeePpm = 150;
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeePpm(unichainFeePpm);
+
+        quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            transferAmount
+        );
+
+        expectedFee = Math.mulDiv(
+            transferAmount,
+            unichainFeePpm,
+            1_000_000 - unichainFeePpm,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+        assertEq(expectedFee, 151); // 0.000151 USDC = 151 micro-USDC
     }
 }

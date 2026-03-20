@@ -16,63 +16,54 @@ on:
 jobs:
   diff-check:
     runs-on: ubuntu-latest
-
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
-      - name: yarn-cache
-        uses: ./.github/actions/yarn-cache
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
         with:
           cache-provider: buildjet
 
-      - name: yarn-install
-        run: yarn install
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       # Run the command on PR branch
       - name: Run command on PR branch
-        run: yarn workspace @hyperlane-xyz/core storage HEAD-storage
+        run: pnpm -C solidity storage HEAD-storage
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
         env:
           BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
         run: |
-          # Fetch the base reference
           git fetch origin $BASE_REF
-          # Check if BASE_REF is a commit SHA (40 hex characters) or a branch name
+          # Remove then checkout to ensure clean state
+          # (git checkout alone doesn't delete files that only exist in HEAD)
+          rm -rf solidity/contracts
           if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            # For commit SHAs, checkout directly without origin/ prefix
             git checkout $BASE_REF -- solidity/contracts
           else
-            # For branch names, use origin/ prefix
             git checkout origin/$BASE_REF -- solidity/contracts
           fi
 
       # Run the command on the target branch
       - name: Run command on target branch
-        run: yarn workspace @hyperlane-xyz/core storage base-storage
+        run: pnpm -C solidity storage base-storage
 
       # Compare outputs
-      - name: Compare outputs (fail on removals only)
-        run: |
-          DIFF_OUTPUT=$(diff --unified solidity/base-storage solidity/HEAD-storage || true)
-          echo "$DIFF_OUTPUT"
-          # Fail only if there are removal lines in diff hunks (lines starting with '-' but not '---')
-          if echo "$DIFF_OUTPUT" | grep -E '^-([^-])' >/dev/null; then
-            echo "Detected storage removals in diff. Failing job."
-            exit 1
-          else
-            echo "No storage removals detected."
-          fi
+      - name: Compare outputs
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: .github/scripts/check-diff-changeset.sh storage solidity/base-storage solidity/HEAD-storage "$BASE_REF"

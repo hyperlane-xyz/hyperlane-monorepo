@@ -21,6 +21,11 @@ use crate::{
 
 pub type GasLimit = U256;
 
+#[derive(Clone, Debug)]
+pub enum AdaptsChainAction {
+    OverwriteUpperNonce { nonce: Option<u64> },
+}
+
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
@@ -98,10 +103,18 @@ pub trait AdaptsChain: Send + Sync {
 
     /// Returns the maximum batch size for this chain. Used to decide how many payloads to batch together, as well as
     /// how many network calls to perform in parallel
-    fn max_batch_size(&self) -> u32;
+    fn max_batch_size(&self) -> u32 {
+        1
+    }
 
     /// Update any metrics related to sent transactions, such as gas price, nonce, etc.
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
+
+    /// Run actions that need to be performed after a transaction has been finalized.
+    /// NOP as a default implementation.
+    async fn post_finalized(&self) -> Result<(), LanderError> {
+        Ok(())
+    }
 
     // methods below are excluded from the MVP
 
@@ -132,5 +145,10 @@ pub trait AdaptsChain: Send + Sync {
     /// as part of determining which transactions need reprocessing.
     async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
         Ok(Vec::new())
+    }
+
+    async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
+        tracing::debug!(?action, "Not implemented");
+        Ok(())
     }
 }

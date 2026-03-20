@@ -1,5 +1,437 @@
 # @hyperlane-xyz/widgets
 
+## 28.1.0
+
+### Patch Changes
+
+- 83cbe4d: Fixed `MessageTimeline` rendering invalid `width="auto"` on SVG chevrons, which could break consumers on newer React/browser combinations.
+- Updated dependencies [5caac66]
+- Updated dependencies [6c715a7]
+- Updated dependencies [2e622e8]
+- Updated dependencies [2e622e8]
+- Updated dependencies [e93a4c8]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/radix-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@28.1.0
+  - @hyperlane-xyz/aleo-sdk@28.1.0
+  - @hyperlane-xyz/sdk@28.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.3
+  - @hyperlane-xyz/utils@28.1.0
+
+## 28.0.0
+
+### Patch Changes
+
+- Updated dependencies [26d08de]
+- Updated dependencies [83767b9]
+- Updated dependencies [228ed9f]
+- Updated dependencies [b9c6844]
+- Updated dependencies [a6b7bf3]
+- Updated dependencies [5a5d172]
+- Updated dependencies [a4a74d8]
+  - @hyperlane-xyz/aleo-sdk@28.0.0
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/cosmos-sdk@28.0.0
+  - @hyperlane-xyz/sdk@28.0.0
+  - @hyperlane-xyz/radix-sdk@28.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.2
+  - @hyperlane-xyz/utils@28.0.0
+
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [de5f6b5]
+- Updated dependencies [a1f9e41]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [7af7728]
+  - @hyperlane-xyz/sdk@27.1.0
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/radix-sdk@27.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/aleo-sdk@27.1.0
+  - @hyperlane-xyz/cosmos-sdk@27.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.1
+
+## 27.0.0
+
+### Minor Changes
+
+- e7f9cc4: Added inline icon mode and customization props to MessageTimeline component. New props: `iconPosition` ('above' | 'inline'), `barClassName`, `chevronColor`, `iconColor`.
+
+### Patch Changes
+
+- Updated dependencies [f2620a1]
+- Updated dependencies [4a816e3]
+- Updated dependencies [f7ebf6c]
+- Updated dependencies [8a6f742]
+- Updated dependencies [b05e242]
+- Updated dependencies [aee625c]
+  - @hyperlane-xyz/sdk@27.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.0
+  - @hyperlane-xyz/aleo-sdk@27.0.0
+  - @hyperlane-xyz/cosmos-sdk@27.0.0
+  - @hyperlane-xyz/radix-sdk@27.0.0
+  - @hyperlane-xyz/utils@27.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.1
+
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/tron-sdk@22.0.0
+  - @hyperlane-xyz/aleo-sdk@26.0.0
+  - @hyperlane-xyz/cosmos-sdk@26.0.0
+  - @hyperlane-xyz/radix-sdk@26.0.0
+
+## 25.5.0
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/aleo-sdk@25.5.0
+  - @hyperlane-xyz/cosmos-sdk@25.5.0
+  - @hyperlane-xyz/radix-sdk@25.5.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/utils@25.5.0
+
+## 25.4.1
+
+### Patch Changes
+
+- Updated dependencies [5a7efbb]
+  - @hyperlane-xyz/sdk@25.4.1
+  - @hyperlane-xyz/aleo-sdk@25.4.1
+  - @hyperlane-xyz/cosmos-sdk@25.4.1
+  - @hyperlane-xyz/radix-sdk@25.4.1
+  - @hyperlane-xyz/utils@25.4.1
+  - @hyperlane-xyz/provider-sdk@1.4.1
+
+## 25.4.0
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/aleo-sdk@25.4.0
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/cosmos-sdk@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/radix-sdk@25.4.0
+
+## 25.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.2
+- @hyperlane-xyz/aleo-sdk@25.3.2
+- @hyperlane-xyz/cosmos-sdk@25.3.2
+- @hyperlane-xyz/radix-sdk@25.3.2
+- @hyperlane-xyz/utils@25.3.2
+- @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.1
+- @hyperlane-xyz/aleo-sdk@25.3.1
+- @hyperlane-xyz/cosmos-sdk@25.3.1
+- @hyperlane-xyz/radix-sdk@25.3.1
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/provider-sdk@1.3.5
+
+## 25.3.0
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/aleo-sdk@25.3.0
+  - @hyperlane-xyz/cosmos-sdk@25.3.0
+  - @hyperlane-xyz/radix-sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+
+## 25.2.0
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [6091a31]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/aleo-sdk@25.2.0
+  - @hyperlane-xyz/cosmos-sdk@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/radix-sdk@25.2.0
+
+## 25.1.0
+
+### Patch Changes
+
+- 9fb1e89: Added Aleo wallet popup that links to the Chrome extension store when Shield wallet is not installed.
+- Updated dependencies [b930534]
+- Updated dependencies [cbd400c]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/radix-sdk@25.1.0
+  - @hyperlane-xyz/aleo-sdk@25.1.0
+  - @hyperlane-xyz/cosmos-sdk@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/cosmos-sdk@25.0.0
+  - @hyperlane-xyz/aleo-sdk@25.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/radix-sdk@25.0.0
+
+## 24.0.0
+
+### Patch Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [b1b941e]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/radix-sdk@24.0.0
+
+## 23.0.0
+
+### Major Changes
+
+- 80f3635: feat: aleo nexus ui support
+
+### Patch Changes
+
+- Updated dependencies [d1d90d2]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [c8f6f6c]
+- Updated dependencies [7c22cff]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [6ddef74]
+- Updated dependencies [80f3635]
+- Updated dependencies [576cd95]
+- Updated dependencies [9aa93f4]
+- Updated dependencies [42b72c3]
+- Updated dependencies [a5d6cae]
+  - @hyperlane-xyz/sdk@23.0.0
+  - @hyperlane-xyz/aleo-sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@23.0.0
+  - @hyperlane-xyz/radix-sdk@23.0.0
+
+## 22.0.0
+
+### Patch Changes
+
+- Updated dependencies [c6a6d5f]
+- Updated dependencies [7f31d77]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [4c58992]
+- Updated dependencies [99948bc]
+- Updated dependencies [99948bc]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [7a0a9e4]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/sdk@22.0.0
+  - @hyperlane-xyz/cosmos-sdk@22.0.0
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/radix-sdk@22.0.0
+
+## 21.1.0
+
+### Patch Changes
+
+- Updated dependencies [db857b5]
+- Updated dependencies [57a2053]
+- Updated dependencies [57a2053]
+  - @hyperlane-xyz/cosmos-sdk@21.1.0
+  - @hyperlane-xyz/provider-sdk@1.1.0
+  - @hyperlane-xyz/sdk@21.1.0
+  - @hyperlane-xyz/radix-sdk@21.1.0
+  - @hyperlane-xyz/utils@21.1.0
+
+## 21.0.0
+
+### Patch Changes
+
+- c3ab8b6: Updated 'Chain Id' and 'Domain Id' labels to use uppercase 'ID' in the chain details metadata modal for consistency.
+- Updated dependencies [c08fa32]
+- Updated dependencies [68310db]
+- Updated dependencies [b6b206d]
+- Updated dependencies [239e1a1]
+- Updated dependencies [bc8b22f]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/sdk@21.0.0
+  - @hyperlane-xyz/provider-sdk@1.0.0
+  - @hyperlane-xyz/radix-sdk@21.0.0
+  - @hyperlane-xyz/cosmos-sdk@21.0.0
+  - @hyperlane-xyz/utils@21.0.0
+
+## 20.1.0
+
+### Minor Changes
+
+- 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
+  - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
+  - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
+  - Converted internal const enums to 'as const' pattern for better compatibility
+  - Updated @types/node from ^18.14.5 to ^20.17.0 for TypeScript 5.7+ compatibility
+  - Fixed JSON imports to use required 'with { type: "json" }' attribute (TS 5.7+ requirement)
+  - No breaking changes to public API - all changes are internal or non-breaking
+
+### Patch Changes
+
+- Updated dependencies [11fa887]
+  - @hyperlane-xyz/sdk@20.1.0
+  - @hyperlane-xyz/utils@20.1.0
+  - @hyperlane-xyz/cosmos-sdk@20.1.0
+  - @hyperlane-xyz/radix-sdk@20.1.0
+  - @hyperlane-xyz/provider-sdk@0.7.0
+
+## 20.0.0
+
+### Patch Changes
+
+- Updated dependencies [b3ebc08]
+- Updated dependencies [a7dc73d]
+- Updated dependencies [aeac943]
+  - @hyperlane-xyz/utils@20.0.0
+  - @hyperlane-xyz/sdk@20.0.0
+  - @hyperlane-xyz/provider-sdk@0.6.0
+  - @hyperlane-xyz/cosmos-sdk@20.0.0
+  - @hyperlane-xyz/radix-sdk@20.0.0
+
+## 19.13.0
+
+### Patch Changes
+
+- Updated dependencies [ae8ef4389]
+- Updated dependencies [3592f258a]
+  - @hyperlane-xyz/radix-sdk@19.13.0
+  - @hyperlane-xyz/sdk@19.13.0
+  - @hyperlane-xyz/cosmos-sdk@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/provider-sdk@0.5.0
+
+## 19.12.0
+
+### Patch Changes
+
+- Updated dependencies [38a1165c8]
+- Updated dependencies [08cf7eca9]
+- Updated dependencies [af2cd1729]
+- Updated dependencies [43b3756d9]
+- Updated dependencies [618615dc4]
+- Updated dependencies [e37100e2e]
+- Updated dependencies [08cf7eca9]
+  - @hyperlane-xyz/provider-sdk@0.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.12.0
+  - @hyperlane-xyz/radix-sdk@19.12.0
+  - @hyperlane-xyz/sdk@19.12.0
+  - @hyperlane-xyz/utils@19.12.0
+
+## 19.11.0
+
+### Patch Changes
+
+- Updated dependencies [dd6260eea]
+- Updated dependencies [dd6260eea]
+- Updated dependencies [156a37d6e]
+- Updated dependencies [4c29cd341]
+  - @hyperlane-xyz/provider-sdk@0.3.0
+  - @hyperlane-xyz/radix-sdk@19.11.0
+  - @hyperlane-xyz/sdk@19.11.0
+  - @hyperlane-xyz/cosmos-sdk@19.11.0
+  - @hyperlane-xyz/utils@19.11.0
+
+## 19.10.0
+
+### Patch Changes
+
+- Updated dependencies [aad2988c9]
+- Updated dependencies [b2a693ac6]
+- Updated dependencies [c2a64e8c5]
+- Updated dependencies [c0583af62]
+- Updated dependencies [9770b732c]
+- Updated dependencies [a97a9939c]
+- Updated dependencies [a0ba5e2fb]
+- Updated dependencies [66bed7126]
+- Updated dependencies [43ecd628c]
+- Updated dependencies [f604423b9]
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/sdk@19.10.0
+  - @hyperlane-xyz/cosmos-sdk@19.10.0
+  - @hyperlane-xyz/radix-sdk@19.10.0
+  - @hyperlane-xyz/provider-sdk@0.2.0
+
 ## 19.9.0
 
 ### Patch Changes
@@ -885,7 +1317,6 @@
 ### Minor Changes
 
 - f438d442a: Update widgets with components from explorer and warp ui
-
   - Add icons: Discord, Docs, Github, History, LinkedIn, Medium, Twitter, Wallet and Web
   - Add animation component: Fade component
   - Add components: DatetimeField and SelectField

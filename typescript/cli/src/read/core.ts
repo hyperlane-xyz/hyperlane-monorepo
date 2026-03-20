@@ -1,13 +1,13 @@
-import { AltVMCoreReader } from '@hyperlane-xyz/deploy-sdk';
+import { createCoreReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  ChainName,
-  CoreConfig,
+  type ChainName,
+  type CoreConfig,
   EvmCoreReader,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
 
 export async function executeCoreRead({
@@ -32,6 +32,7 @@ export async function executeCoreRead({
   const protocolType = context.multiProvider.getProtocol(chain);
 
   switch (protocolType) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
       try {
@@ -49,13 +50,10 @@ export async function executeCoreRead({
       break;
     }
     default: {
-      const provider = context.altVmProvider.get(chain);
-      assert(provider, `Cannot find provider for ${chain}`);
-      const coreReader = new AltVMCoreReader(
-        altVmChainLookup(context.multiProvider),
-        provider,
-      );
       try {
+        const chainLookup = altVmChainLookup(context.multiProvider);
+        const metadata = chainLookup.getChainMetadata(chain);
+        const coreReader = createCoreReader(metadata, chainLookup);
         return await coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
         errorRed(

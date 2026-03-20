@@ -1,13 +1,16 @@
+import { TEST_ALEO_PRIVATE_KEY } from '@hyperlane-xyz/aleo-sdk/testing';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { ChainMetadata, ProtocolMap } from '@hyperlane-xyz/sdk';
+import { type ChainMetadata, type ProtocolMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
+export const CROSS_CHAIN_E2E_TEST_TIMEOUT = 300_000; // Cross-VM tests need more time (3 VMs to deploy)
 
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/test-registry`;
@@ -16,6 +19,10 @@ export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_READ_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}-read.yaml`;
+
+const EXAMPLES_PATH = './examples';
+export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
+export const JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`;
 
 export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: {
@@ -34,6 +41,10 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Radix]: {
     CHAIN_NAME_1: 'radix1',
     CHAIN_NAME_2: 'radix2',
+  },
+  [ProtocolType.Aleo]: {
+    CHAIN_NAME_1: 'aleo1',
+    CHAIN_NAME_2: 'aleo2',
   },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
@@ -57,6 +68,14 @@ export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: `./examples/core-config.yaml`,
   [ProtocolType.CosmosNative]: './examples/cosmosnative/core-config.yaml',
   [ProtocolType.Radix]: './examples/radix/core-config.yaml',
+  [ProtocolType.Aleo]: './examples/aleo/core-config.yaml',
+} as const satisfies ProtocolMap<string>;
+
+export const CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: './examples/crosschain/ethereum/core-config.yaml',
+  [ProtocolType.CosmosNative]:
+    './examples/crosschain/cosmosnative/core-config.yaml',
+  [ProtocolType.Radix]: './examples/crosschain/radix/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
 export const HYP_KEY_BY_PROTOCOL = {
@@ -66,6 +85,9 @@ export const HYP_KEY_BY_PROTOCOL = {
     '33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51',
   [ProtocolType.Radix]:
     '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
+  [ProtocolType.Aleo]: TEST_ALEO_PRIVATE_KEY,
+  [ProtocolType.Sealevel]:
+    '0x0000000000000000000000000000000000000000000000000000000000000001',
 } as const satisfies ProtocolMap<string>;
 
 type ProtocolChainMap<
@@ -82,6 +104,9 @@ export const HYP_DEPLOYER_ADDRESS_BY_PROTOCOL = {
   [ProtocolType.CosmosNative]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
   [ProtocolType.Radix]:
     'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3',
+  [ProtocolType.Aleo]:
+    'aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px',
+  [ProtocolType.Sealevel]: '6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt',
 } as const satisfies ProtocolMap<string>;
 
 export const BURN_ADDRESS_BY_PROTOCOL = {
@@ -104,6 +129,10 @@ export const BURN_ADDRESS_BY_PROTOCOL = {
   // );
   [ProtocolType.Radix]:
     'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
+  [ProtocolType.Aleo]:
+    'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
+  // Solana incinerator — canonical burn address on SVM
+  [ProtocolType.Sealevel]: '1nc1nerator11111111111111111111111111111111',
 } as const satisfies ProtocolMap<string>;
 
 type CoreDeploymentPath<TChainName extends string> =
@@ -156,15 +185,6 @@ export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
   );
 }) as any;
 
-export type TestChainMetadata = ChainMetadata & {
-  rpcPort: number;
-  restPort: number;
-  // The ChainMetadata type does not define this property yet
-  gatewayUrls?: { http: string }[];
-  // Used for radix tests
-  packageAddress?: string;
-};
-
 export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
   typeof TEST_CHAIN_NAMES_BY_PROTOCOL,
   TestChainMetadata
@@ -183,11 +203,21 @@ export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
 
     return {
       ...currentChainMetadata,
+      rpcUrl,
       rpcPort,
       restPort,
     };
   });
 }) as any;
+
+export function getArtifactReadPath(
+  tokenSymbol: string,
+  seeds: string[] = [],
+): string {
+  return `${TEMP_PATH}/${
+    seeds.length !== 0 ? getWarpId(tokenSymbol.toUpperCase(), seeds) : ['read']
+  }.yaml`;
+}
 
 export function getWarpCoreConfigPath(
   tokenSymbol: string,
@@ -217,3 +247,17 @@ export function getWarpId(tokenSymbol: string, chains: string[]): string {
 }
 
 export const TEST_TOKEN_SYMBOL = 'TST';
+
+export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getArtifactReadPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  'read',
+]);
+export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);

@@ -14,16 +14,25 @@ import { ChainService } from './src/services/chainService.js';
 import { RegistryService } from './src/services/registryService.js';
 import { RootService } from './src/services/rootService.js';
 import { WarpService } from './src/services/warpService.js';
+import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
+
+export interface HttpServerOptions {
+  writeMode?: boolean;
+}
 
 export class HttpServer {
   app: Express;
   protected readonly logger: Logger;
+  private registryService: RegistryService | null = null;
+  protected readonly writeMode: boolean;
 
   private constructor(
     protected getRegistry: () => Promise<IRegistry>,
     logger: Logger,
+    options: HttpServerOptions = {},
   ) {
     this.logger = logger;
+    this.writeMode = options.writeMode ?? false;
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
     this.app.use(express.json());
@@ -31,12 +40,13 @@ export class HttpServer {
 
   static async create(
     getRegistry: () => Promise<IRegistry>,
+    options: HttpServerOptions = {},
   ): Promise<HttpServer> {
     const logger = await createServiceLogger({
       service: 'http-registry-server',
       version: packageJson.version,
     });
-    return new HttpServer(getRegistry, logger);
+    return new HttpServer(getRegistry, logger, options);
   }
 
   async start(
@@ -69,12 +79,13 @@ export class HttpServer {
     }
 
     try {
-      const registryService = new RegistryService(
+      this.registryService = new RegistryService(
         this.getRegistry,
         refreshInterval,
         this.logger,
+        new FileSystemRegistryWatcher(),
       );
-      await registryService.initialize();
+      await this.registryService.initialize();
 
       // add health check routes
       this.app.use(
@@ -89,14 +100,19 @@ export class HttpServer {
       );
 
       // add routes
-      this.app.use('/', createRootRouter(new RootService(registryService)));
+      this.app.use(
+        '/',
+        createRootRouter(new RootService(this.registryService)),
+      );
       this.app.use(
         '/chain',
-        createChainRouter(new ChainService(registryService)),
+        createChainRouter(new ChainService(this.registryService)),
       );
       this.app.use(
         '/warp-route',
-        createWarpRouter(new WarpService(registryService)),
+        createWarpRouter(new WarpService(this.registryService), {
+          writeMode: this.writeMode,
+        }),
       );
 
       // add error handler to the end of the middleware stack
@@ -117,6 +133,7 @@ export class HttpServer {
       // add shutdown handler
       const shutdown = () => {
         this.logger.info('Shutting down…');
+        this.registryService?.stop();
         server.close(() => process.exit(0));
       };
       process.on('SIGTERM', shutdown);

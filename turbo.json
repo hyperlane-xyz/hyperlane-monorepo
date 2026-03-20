@@ -3,7 +3,19 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "cache/**", "types/**", "src/generated/**"]
+      "outputs": ["dist/**", "cache/**", "src/generated/**"]
+    },
+    "build:zk": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**", "artifacts-zk/**", "cache-zk/**"]
+    },
+    "build:tron": {
+      "dependsOn": ["build"],
+      "outputs": [
+        "cache-tron/**",
+        "artifacts-tron/**",
+        "dist/tron/typechain/**"
+      ]
     },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]
@@ -14,7 +26,7 @@
     "clean": {
       "cache": false
     },
-    "prettier": {},
+    "format": {},
     "lint": {},
     "version:update": {
       "cache": false
@@ -22,6 +34,10 @@
     "coverage": {
       "dependsOn": ["build"],
       "outputs": ["coverage/**", "fixtures/**"]
+    },
+    "bundle": {
+      "dependsOn": ["build"],
+      "outputs": ["bundle/**"]
     }
   }
 }

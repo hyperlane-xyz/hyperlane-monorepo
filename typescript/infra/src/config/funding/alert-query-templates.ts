@@ -11,14 +11,14 @@ export const LOW_URGENCY_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-
     # Any ATA payer on Eclipse
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.01 or
     # SOL/eclipsemainnet-solanamainnet
-    last_over_time(hyperlane_wallet_balance{wallet_name=~"SOL/eclipsemainnet-solanamainnet/ata-payer | USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.1 or
+    last_over_time(hyperlane_wallet_balance{wallet_name=~"SOL/eclipsemainnet-solanamainnet/ata-payer | USDC/eclipsemainnet/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.1 or
 
     # Solana
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"solanamainnet"}[1d]) - 27 or
     # Any ATA payer on Solana
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"solanamainnet"}[1d]) - 0.2 or
-    # USDC/eclipsemainnet-ethereum-solanamainnet
-    last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.8 or
+    # USDC/eclipsemainnet
+    last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.8 or
     # TIA/celestia-solanamainnet
     last_over_time(hyperlane_wallet_balance{wallet_name=~"TIA/celestia-solanamainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 1 or
 
@@ -53,14 +53,14 @@ export const LOW_URGENCY_ENG_KEY_FUNDER_FOOTER = `    # Mainnets that don't use 
     # Any ATA payer on Eclipse
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.005 or
     # SOL/eclipsemainnet-solanamainnet
-    last_over_time(hyperlane_wallet_balance{wallet_name=~"SOL/eclipsemainnet-solanamainnet/ata-payer | USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.05 or
+    last_over_time(hyperlane_wallet_balance{wallet_name=~"SOL/eclipsemainnet-solanamainnet/ata-payer | USDC/eclipsemainnet/ata-payer", chain=~"eclipsemainnet"}[1d]) - 0.05 or
 
     # Solana
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"solanamainnet"}[1d]) - 13.5 or
     # Any ATA payer on Solana
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"solanamainnet"}[1d]) - 0.1 or
     # Any ATA payer on Solana
-    last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.4 or
+    last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.4 or
 
     # SOON
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"soon"}[1d]) - 0.05 or

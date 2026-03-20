@@ -1,0 +1,31 @@
+warpRouteId: ETHSTAGE/stage
+
+inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5'
+
+externalBridges:
+  lifi:
+    integrator: 'rebalancer'
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 30
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+
+    base:
+      weighted:
+        weight: 40
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+
+    optimism:
+      weighted:
+        weight: 30
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi

@@ -2,20 +2,18 @@
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
-// eslint-disable-next-line
-import fs from 'fs';
-import path, { dirname, join } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { parse as yamlParse } from 'yaml';
 
 import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
+  isEVMLike,
   objFilter,
-  objMerge,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
+import { pathExists, readJson, writeToFile } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import { testChainNames } from '../../config/environments/test/chains.js';
@@ -77,7 +75,9 @@ export function execCmd(
         }
         if (err) {
           if (rejectWithOutput) {
-            reject([err, stdout.toString(), stderr.toString()]);
+            reject(
+              new Error([err, stdout.toString(), stderr.toString()].join('\n')),
+            );
           } else {
             reject(err);
           }
@@ -138,31 +138,10 @@ export function warn(text: string, padded = false) {
   }
 }
 
-export function writeMergedJSONAtPath(filepath: string, obj: any) {
-  if (fs.existsSync(filepath)) {
-    const previous = readJSONAtPath(filepath);
-    writeJsonAtPath(filepath, objMerge(previous, obj));
-  } else {
-    writeJsonAtPath(filepath, obj);
-  }
-}
-
-export function writeMergedJSON(directory: string, filename: string, obj: any) {
-  writeMergedJSONAtPath(path.join(directory, filename), obj);
-}
-
-function ensureDirectoryExists(filepath: string) {
-  const dir = path.dirname(filepath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-export function writeToFile(filepath: string, content: string) {
-  ensureDirectoryExists(filepath);
-  fs.writeFileSync(filepath, content + '\n');
-}
-
+/**
+ * Writes a JSON file using stringifyObject for consistent formatting.
+ * Use this for infra-specific JSON output that needs consistent formatting.
+ */
 export function writeJsonAtPath(filepath: string, obj: any) {
   const content = stringifyObject(obj, 'json', 2);
   writeToFile(filepath, content);
@@ -170,7 +149,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
 
 export async function writeAndFormatJsonAtPath(filepath: string, obj: any) {
   writeJsonAtPath(filepath, obj);
-  await formatFileWithPrettier(filepath);
+  await formatFile(filepath);
 }
 
 /**
@@ -183,8 +162,8 @@ export async function writeJsonWithAppendMode(
   appendMode: boolean,
 ) {
   let data = newData;
-  if (appendMode && fs.existsSync(filepath)) {
-    const existing = readJSONAtPath(filepath);
+  if (appendMode && pathExists(filepath)) {
+    const existing = readJson<Record<string, any>>(filepath);
     data = Object.fromEntries(
       Object.keys(newData).map((key) => [key, existing[key] ?? newData[key]]),
     );
@@ -200,52 +179,36 @@ export function getMonorepoRoot(): string {
 }
 
 /**
- * Formats a file using prettier
+ * Formats a file using oxfmt (JS/TS) or prettier (other file types)
  * @param filepath - The path to the file to format
  */
-export async function formatFileWithPrettier(filepath: string): Promise<void> {
+const OXFMT_EXTENSIONS = new Set([
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.cjs',
+]);
+
+export async function formatFile(filepath: string): Promise<void> {
+  const ext = filepath.slice(filepath.lastIndexOf('.'));
+  const formatter = OXFMT_EXTENSIONS.has(ext)
+    ? `npx oxfmt --write "${filepath}"`
+    : `npx prettier --write "${filepath}"`;
+
   try {
     const monorepoRoot = getMonorepoRoot();
-    await execCmd(`npx prettier --write "${filepath}"`, {
+    await execCmd(formatter, {
       cwd: monorepoRoot,
       stdio: 'pipe',
     });
   } catch (error) {
-    // Silently fail if prettier is not available or fails
-    // This ensures the deployment process continues even if formatting fails
     console.warn(
-      `Warning: Failed to format file with prettier: ${filepath}`,
+      `Warning: Failed to format file: ${filepath}`,
       error instanceof Error ? error.message : error,
     );
   }
-}
-
-export function writeYamlAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'yaml', 2);
-  writeToFile(filepath, content);
-}
-
-export function writeJSON(directory: string, filename: string, obj: any) {
-  writeJsonAtPath(path.join(directory, filename), obj);
-}
-
-export function readFileAtPath(filepath: string) {
-  if (!fs.existsSync(filepath)) {
-    throw Error(`file doesn't exist at ${filepath}`);
-  }
-  return fs.readFileSync(filepath, 'utf8');
-}
-
-export function readJSONAtPath(filepath: string) {
-  return JSON.parse(readFileAtPath(filepath));
-}
-
-export function readJSON(directory: string, filename: string) {
-  return readJSONAtPath(path.join(directory, filename));
-}
-
-export function readYaml<T>(filepath: string): T {
-  return yamlParse(readFileAtPath(filepath)) as T;
 }
 
 export function assertRole(roleStr: string) {
@@ -258,11 +221,7 @@ export function assertRole(roleStr: string) {
 
 export function assertFundableRole(roleStr: string): FundableRole {
   const role = roleStr as Role;
-  if (
-    role !== Role.Relayer &&
-    role !== Role.Kathy &&
-    role !== Role.Rebalancer
-  ) {
+  if (role !== Role.Relayer && role !== Role.Rebalancer) {
     throw Error(`Invalid fundable role ${role}`);
   }
   return role;
@@ -339,7 +298,9 @@ export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
-  return chainIsProtocol(chainName, ProtocolType.Ethereum);
+  const metadata = getChain(chainName);
+  if (!metadata) throw new Error(`Unknown chain ${chainName}`);
+  return isEVMLike(metadata.protocol);
 }
 
 export function getInfraPath() {

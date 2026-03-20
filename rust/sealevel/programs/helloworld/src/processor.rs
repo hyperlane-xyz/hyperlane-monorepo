@@ -2,7 +2,7 @@
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, SizedData};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 
 use hyperlane_sealevel_connection_client::{
     router::{HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig},
@@ -25,9 +25,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_program,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::{HelloWorldStorage, HelloWorldStorageAccount},
@@ -111,7 +111,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
 
     // Account 0: System program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -270,7 +270,7 @@ fn send_hello_world(
             // 6. `[]` Overhead IGP account (optional).
 
             let mut igp_payment_account_metas = vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(*payer_info.key, true),
                 AccountMeta::new(*igp_program_data_account_info.key, false),
                 AccountMeta::new_readonly(*unique_message_account_info.key, true),
@@ -459,12 +459,7 @@ fn get_interchain_security_module(program_id: &Pubkey, accounts: &[AccountInfo])
     let storage =
         HelloWorldStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
-    set_return_data(
-        &storage
-            .ism
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-    );
+    set_return_data(&borsh::to_vec(&storage.ism).map_err(|_| ProgramError::BorshIoError)?[..]);
 
     Ok(())
 }
@@ -480,9 +475,8 @@ fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(account_metas)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
 
     Ok(())
@@ -503,7 +497,7 @@ fn enroll_remote_routers(
 
     // Account 0: System program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 

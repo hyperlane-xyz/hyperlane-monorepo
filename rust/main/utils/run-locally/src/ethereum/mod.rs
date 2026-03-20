@@ -22,14 +22,14 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     let workspace_path = get_workspace_path();
     let ts_infra_path = get_ts_infra_path();
 
-    let yarn_monorepo = Program::new("yarn").working_dir(workspace_path);
+    let pnpm_monorepo = Program::new("pnpm").working_dir(workspace_path);
     if !config.is_ci_env {
         // test.yaml workflow installs dependencies
-        yarn_monorepo.clone().cmd("install").run().join();
+        pnpm_monorepo.clone().cmd("install").run().join();
         // don't need to clean in the CI
-        yarn_monorepo.clone().cmd("clean").run().join();
+        pnpm_monorepo.clone().cmd("clean").run().join();
         // test.yaml workflow builds the monorepo
-        yarn_monorepo.clone().cmd("build").run().join();
+        pnpm_monorepo.clone().cmd("build").run().join();
     }
 
     if !config.is_ci_env {
@@ -46,16 +46,16 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
 
     sleep(Duration::from_secs(10));
 
-    let yarn_infra = Program::new("yarn").working_dir(&ts_infra_path);
+    let pnpm_infra = Program::new("pnpm").working_dir(&ts_infra_path);
 
     log!("Deploying hyperlane ism contracts...");
-    yarn_infra.clone().cmd("deploy-ism").run().join();
+    pnpm_infra.clone().cmd("deploy-ism").run().join();
 
     log!("Deploying hyperlane core contracts...");
-    yarn_infra.clone().cmd("deploy-core").run().join();
+    pnpm_infra.clone().cmd("deploy-core").run().join();
 
     log!("Updating agent config...");
-    yarn_infra
+    pnpm_infra
         .clone()
         .cmd("update-agent-config:test")
         .run()

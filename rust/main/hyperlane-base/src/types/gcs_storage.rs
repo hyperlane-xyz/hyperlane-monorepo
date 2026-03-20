@@ -2,7 +2,9 @@ use crate::CheckpointSyncer;
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
-use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+};
 use std::fmt;
 use tracing::{error, info, instrument};
 use ya_gcp::{
@@ -281,15 +283,34 @@ impl CheckpointSyncer for GcsStorageClient {
 
     /// Read the reorg status from this syncer
     #[instrument(skip(self))]
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        match self.inner.get_object(&self.bucket, REORG_FLAG_KEY).await {
-            Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
-            Err(e) => match e {
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
+        let object = match self.inner.get_object(&self.bucket, REORG_FLAG_KEY).await {
+            Ok(data) => data,
+            Err(err) => match err {
                 ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
-                    Ok(None)
+                    return Ok(ReorgEventResponse {
+                        exists: false,
+                        event: None,
+                        content: None,
+                    });
                 }
-                _ => bail!(e),
+                _ => bail!(err),
             },
+        };
+        match serde_json::from_slice(&object) {
+            Ok(s) => Ok(ReorgEventResponse {
+                exists: true,
+                event: Some(s),
+                content: Some(String::from_utf8_lossy(&object).to_string()),
+            }),
+            Err(err) => {
+                error!(?err, "Failed to parse reorg event");
+                Ok(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: Some(String::from_utf8_lossy(&object).to_string()),
+                })
+            }
         }
     }
 }

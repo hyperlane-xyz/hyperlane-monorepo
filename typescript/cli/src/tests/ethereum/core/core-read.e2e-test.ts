@@ -1,12 +1,12 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { type Signer, Wallet, ethers } from 'ethers';
 
 import {
-  ChainMetadata,
-  CoreConfig,
-  ProtocolFeeHookConfig,
+  type ChainMetadata,
+  type CoreConfig,
+  type ProtocolFeeHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

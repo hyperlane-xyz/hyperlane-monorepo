@@ -3,7 +3,7 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 // REGISTRY_URI=/Users/pbio/work/tmpauditq2/hyperlane-registry \
-// yarn tsx scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --deploy \
+// pnpm tsx scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --deploy \
 // --governanceType abacusWorks
 // -c <chain1> <chain2> ... \
 export const awIcas: ChainMap<Address> = {
@@ -22,7 +22,7 @@ export const awIcas: ChainMap<Address> = {
   apechain: '0x4745601a50CEE53b66221032318a2547D5741ae8',
   appchain: '0xA843bFe58EbffaDc274b6718b238d60141E1281b',
   arbitrumnova: '0x29eE2B1F2cA4C53DcbC237d81ea1e7d6a885FeDC',
-  // arcadia: '0x2616bb811BBE23A85D828d0732C170aC29ddf68A',
+  arcadia: '0x2616bb811BBE23A85D828d0732C170aC29ddf68A',
   artela: '0x17C13CD3211d1b0532faC4Ec967254e63A2D4625',
   astar: '0x6E8BAA8b8326A984D231ccD98421184D1a0826e0',
   aurora: '0x8B56A03460515A073eb28cD6EBECbf609fCCa163',
@@ -48,7 +48,6 @@ export const awIcas: ChainMap<Address> = {
   flare: '0x6BA6f07b8f7186413Cdfe6D606d040cB8bBD5386',
   flowmainnet: '0x82fa5cB2e567248aD37CCd96b6Fc3111B8956293',
   fluence: '0xd4beC84030d88D0EbF72dCDae361B449a29C4c34',
-  form: '0x3cFd16e8fC1Fa344f00af3D8A18672A8C1Fd9a45',
   fraxtal: '0x1f8f770c963b17721C0cb084c18b3a3166a8d659',
   fusemainnet: '0x5aDD39216bABc8215974ed033a83868d00C71810',
   galactica: '0x085DC299cB1ceB3d4b584b320bb07C074F6A7c8a',
@@ -59,7 +58,6 @@ export const awIcas: ChainMap<Address> = {
   hemi: '0x07a66eBd9B0D8F438F889ecbcfd8D4681C21Fbc6',
   hyperevm: '0x7934e65283455BF25e6E9a6E3C48350D66944812',
   immutablezkevmmainnet: '0xEC23b0e4fb816B921940c4F11f70de63D0FcCa49',
-  inevm: '0x15dF0C4F54615e6053Bb2CC9B5f2a7231a50F7B1',
   ink: '0x92EdF061E46Dcf15941CA4D5F2d168f643079343',
   kaia: '0x890CF3fD86fb02bE2448433667d83D542Ec9fc9d',
   katana: '0x956993Aee1CFFA32942b5ddC6Db2E8620b85cfbC',
@@ -73,15 +71,14 @@ export const awIcas: ChainMap<Address> = {
   merlin: '0x27C61d7A6839C170a73ECfE06Aa7f5C728cfa16E',
   metal: '0x0F6c9f5753f03748fB61A8C7b038f1D7C2240C10',
   metis: '0xd37fD87a28A5702643a0f937de248E7673594528',
-  mint: '0xf540577E128127aD395FA62A8947E5359825282B',
   miraclechain: '0x15Fe5787c215E200Cb164AdcB2bFbe9BF4300053',
   mode: '0x7Ef84bbc24118619655031f6404d6C81BC1AB534',
   molten: '0x84C72d2C3Ce2f5AF43D189BcF79Bc2778B72610E',
+  monad: '0x40DdDF59209dAA5aE927207ab697e66D51581D87',
   moonbeam: '0xe09a9a00c6EeC364A018Db91E0429F41a1CD0735',
   morph: '0x8fe7d190e657D20e1958AB1497AbC7F1Ab4503F5',
   nibiru: '0x985D77eeC388e7A8b827d8f3f7EF853b3d70320f',
   oortmainnet: '0xE92Bf41B0fd76f72274fECa87179AE6E235c3c7F',
-  // ontology: '0x6F9c6b3979E46B64bE0Cb3E29376A1e1aa54a160',
   opbnb: '0xc8B74D2bD580F122a9d5Ce40d4631afa2Ae8FB3C',
   orderly: '0x60021F107A32e7E747bDeca64e6FCC21DD45C4AC',
   peaq: '0xbeCd9B31ba4DbAC6DDc5C42cCC5fAF408CAd4921',
@@ -110,7 +107,6 @@ export const awIcas: ChainMap<Address> = {
   torus: '0x3d3461DF23038f108ccF074947A958c93750CA9a',
   unichain: '0x20c2B4B4C7409D08AD70D5F9e317E98cfA9F49f7',
   vana: '0xcdB472A1411360151308be799cc36db7f982533E',
-  // viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
   worldchain: '0xF618140B147beeD17cB83d4Bb8343484D5295cd2',
   xai: '0x0bE9B6460fb9300F88bC56B9E6668275f49DBe9b',
   xlayer: '0xda9dbF5a41eAFE58D76120Adc2442F2c02AA76dF',
@@ -126,4 +122,13 @@ export const awIcas: ChainMap<Address> = {
   // Sept 22, 2025
   // ----------------------------------------------------------
   zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
+
+  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
+  // ----------------------------------------------------------
+  ontology: '0xa822324f214c2081ea6Cc50fAae011cC74fDcCA3',
+
+  // Mar 16, 2026
+  // ----------------------------------------------------------
+  // igra: '0xfA14458b1907BDa6E48bA619aF715c4532c3486c',
+  // tron: '0xB960616C7E2ee0F2a296A4b2B9D0b3308E23A69D',
 } as const;

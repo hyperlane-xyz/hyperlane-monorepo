@@ -20,8 +20,8 @@ export const multisigConfigToIsmConfig = (
 });
 
 // build multisigIsmConfig from multisigConfig
-// eg. for { sepolia (local), arbitrumsepolia, scrollsepolia }
-// arbitrumsepolia => Ism, scrollsepolia => Ism
+// eg. for { sepolia (local), arbitrumsepolia, basesepolia }
+// arbitrumsepolia => Ism, basesepolia => Ism
 export const buildMultisigIsmConfigs = (
   type: MultisigIsmConfig['type'],
   local: ChainName,
@@ -46,7 +46,7 @@ export const buildAggregationIsmConfigs = (
   return objMap(
     objFilter(
       multisigConfigs,
-      (chain, config): config is MultisigConfig =>
+      (chain, _config): _config is MultisigConfig =>
         chain !== local && chains.includes(chain),
     ),
     (_, config): AggregationIsmConfig => ({

@@ -3,6 +3,9 @@ import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 
+// Re-export Logger type for other packages to use
+export type { Logger };
+
 // Level and format here should correspond with the agent options as much as possible
 // https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
 
@@ -179,6 +182,9 @@ export async function createServiceLogger(options: {
 
   const gcpLogger = await tryInitializeGcpLogger({ service, version });
   if (gcpLogger) {
+    // Also update rootLogger so SDK components (like SmartProvider) that use
+    // rootLogger.child() will inherit the GCP logging configuration
+    setRootLogger(gcpLogger);
     return gcpLogger;
   }
 

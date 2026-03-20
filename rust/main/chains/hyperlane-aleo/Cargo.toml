@@ -11,10 +11,12 @@ version.workspace = true
 
 [dependencies]
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 aleo-serialize = { path = "../../utils/aleo-serialize" }
 aleo-serialize-macro = { path = "../../utils/aleo-serialize-macro" }
+reqwest-utils = { path = "../../utils/reqwest-utils" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -37,7 +39,7 @@ snarkvm-algorithms.workspace = true
 snarkvm-console-account.workspace = true
 aleo-std.workspace = true
 aleo-std-storage.workspace = true
-reqwest = { workspace = true, features = ["json", "blocking"] }
+reqwest = { workspace = true, features = ["json", "blocking", "cookies"] }
 anyhow.workspace = true
 futures.workspace = true
 url.workspace = true
@@ -46,3 +48,5 @@ derive-new = { workspace = true }
 hex.workspace = true
 indexmap = "2.0"
 rand_chacha = { version = "0.3.0" }
+sodiumbox = "0.1.0"
+base64.workspace = true

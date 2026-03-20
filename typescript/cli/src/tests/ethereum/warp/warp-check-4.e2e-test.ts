@@ -1,20 +1,17 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
-import { ERC20Test } from '@hyperlane-xyz/core';
+import { type ERC20Test } from '@hyperlane-xyz/core';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainAddresses,
-  createWarpRouteConfigId,
-} from '@hyperlane-xyz/registry';
-import {
-  HookConfig,
+  type HookConfig,
   MUTABLE_HOOK_TYPE,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
   randomHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
+import { type Address, assert, deepCopy } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -31,6 +28,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
+  getWarpRouteId,
 } from '../consts.js';
 
 describe('hyperlane warp check e2e tests', async function () {
@@ -58,23 +56,17 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
   });
 
-  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
+  async function deployAndExportWarpRoute(): Promise<{
+    warpConfig: WarpRouteDeployConfig;
+    warpRouteId: string;
+  }> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    // currently warp deploy is not writing the deploy config to the registry
-    // should remove this once the deploy config is written to the registry
-    writeYamlOrJson(
-      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-      warpConfig,
-    );
 
-    const currentWarpId = createWarpRouteConfigId(
-      await token.symbol(),
-      CHAIN_NAME_3,
-    );
+    const currentWarpId = getWarpRouteId(tokenSymbol, [CHAIN_NAME_3]);
 
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
 
-    return warpConfig;
+    return { warpConfig, warpRouteId: currentWarpId };
   }
 
   // Reset config before each test to avoid test changes intertwining
@@ -98,7 +90,7 @@ describe('hyperlane warp check e2e tests', async function () {
   for (const hookType of MUTABLE_HOOK_TYPE) {
     it(`should find owner differences between the local config and the on chain config for hook of type ${hookType}`, async function () {
       warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
-      await deployAndExportWarpRoute();
+      const { warpRouteId } = await deployAndExportWarpRoute();
 
       const mutatedWarpConfig = deepCopy(warpConfig);
 
@@ -110,14 +102,18 @@ describe('hyperlane warp check e2e tests', async function () {
       const wrongOwner = randomAddress();
       assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
       hookConfig.owner = wrongOwner;
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
+
+      const registryDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
+      );
+      writeYamlOrJson(registryDeployPath, mutatedWarpConfig);
 
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId,
       }).nothrow();
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;

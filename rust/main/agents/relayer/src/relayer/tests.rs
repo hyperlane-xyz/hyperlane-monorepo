@@ -6,7 +6,7 @@ use std::time::Duration;
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::eyre;
-use prometheus::{opts, IntGaugeVec, Registry};
+use prometheus::Registry;
 use reqwest::Url;
 use tokio::time::error::Elapsed;
 
@@ -17,7 +17,6 @@ use hyperlane_base::settings::{
 };
 use hyperlane_base::{
     AgentMetadata, AgentMetrics, BaseAgent, ChainMetrics, CoreMetrics, RuntimeMetrics,
-    BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
 };
 use hyperlane_core::{
     config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
@@ -82,6 +81,10 @@ fn generate_test_chain_conf(
                 max_batch_size: 1,
                 ..Default::default()
             },
+            consider_null_transaction_receipt: false,
+            wallet_urls: None,
+            wallet_solidity_urls: None,
+            energy_multiplier: None,
         }),
         metrics_conf: PrometheusMiddlewareConf {
             contracts: HashMap::new(),
@@ -92,8 +95,15 @@ fn generate_test_chain_conf(
             chunk_size: 1,
             mode: IndexMode::Block,
         },
+        confirmations: Default::default(),
+        chain_id: Default::default(),
         ignore_reorg_reports: false,
+        native_token: Default::default(),
     }
+}
+
+fn generate_test_chain_metrics() -> ChainMetrics {
+    ChainMetrics::test_default()
 }
 
 /// Builds a test RelayerSetting
@@ -131,7 +141,7 @@ fn generate_test_relayer_settings(
         transaction_gas_limit: None,
         skip_transaction_gas_limit_for: HashSet::new(),
         allow_local_checkpoint_syncers: true,
-        metric_app_contexts: Vec::new(),
+        metric_app_contexts: Vec::new().into(),
         allow_contract_call_caching: true,
         ism_cache_configs: Default::default(),
         max_retries: 1,
@@ -187,19 +197,7 @@ async fn test_failed_build_destinations() {
 
     let registry = Registry::new();
     let core_metrics = Arc::new(CoreMetrics::new("relayer", 4000, registry).unwrap());
-    let chain_metrics = ChainMetrics {
-        block_height: IntGaugeVec::new(
-            opts!("block_height", BLOCK_HEIGHT_HELP),
-            BLOCK_HEIGHT_LABELS,
-        )
-        .unwrap(),
-        gas_price: None,
-        critical_error: IntGaugeVec::new(
-            opts!("critical_error", CRITICAL_ERROR_HELP),
-            CRITICAL_ERROR_LABELS,
-        )
-        .unwrap(),
-    };
+    let chain_metrics = generate_test_chain_metrics();
 
     let db = DB::from_path(db_path).unwrap();
 
@@ -277,19 +275,7 @@ async fn test_failed_build_origin() {
 
     let registry = Registry::new();
     let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
-    let chain_metrics = ChainMetrics {
-        block_height: IntGaugeVec::new(
-            opts!("block_height", BLOCK_HEIGHT_HELP),
-            BLOCK_HEIGHT_LABELS,
-        )
-        .unwrap(),
-        gas_price: None,
-        critical_error: IntGaugeVec::new(
-            opts!("critical_error", CRITICAL_ERROR_HELP),
-            CRITICAL_ERROR_LABELS,
-        )
-        .unwrap(),
-    };
+    let chain_metrics = generate_test_chain_metrics();
 
     let db = DB::from_path(db_path).expect("Failed to initialize database");
     let origins =

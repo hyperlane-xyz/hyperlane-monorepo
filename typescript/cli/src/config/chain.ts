@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  ChainMetadata,
+  type ChainMetadata,
   ChainMetadataSchema,
   ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { indentYamlOrJson, readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
@@ -138,7 +138,10 @@ export async function createChainConfig({
       sortMapEntries: true,
     });
     log(indentYamlOrJson(metadataYaml, 4));
-    await context.registry.updateChain({ chainName: metadata.name, metadata });
+    await context.registry.updateChain({
+      chainName: metadata.name,
+      metadata,
+    });
   } else {
     errorRed(
       `Chain config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
@@ -165,7 +168,9 @@ async function addBlockExplorerConfig(metadata: ChainMetadata): Promise<void> {
     });
     const family = (await select({
       message: 'Select the type (family) of block explorer:',
-      choices: Object.entries(ExplorerFamily).map(([_, value]) => ({ value })),
+      choices: Object.entries(ExplorerFamily).map(([_, value]) => ({
+        value,
+      })),
       pageSize: 10,
     })) as ExplorerFamily;
     const apiKey =

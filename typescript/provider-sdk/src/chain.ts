@@ -1,5 +1,7 @@
 import { ChainId, Domain } from '@hyperlane-xyz/utils';
 
+import { ProtocolType } from './protocol.js';
+
 type ChainNameOrId = string | number;
 
 /**
@@ -9,11 +11,15 @@ type ChainNameOrId = string | number;
  */
 export interface ChainMetadataForAltVM {
   name: string;
+  bech32Prefix?: string;
+  protocol: ProtocolType;
   domainId: Domain;
   chainId: ChainId;
   nativeToken?: {
     decimals?: number;
     denom?: string;
+    symbol: string;
+    name: string;
   };
   blocks?: {
     confirmations?: number;
@@ -22,6 +28,26 @@ export interface ChainMetadataForAltVM {
   rpcUrls?: {
     http: string;
   }[];
+  gatewayUrls?: {
+    http: string;
+  }[];
+  // Used in radix tests after deploying
+  // the package address to the local chain
+  packageAddress?: string;
+}
+
+/**
+ * Test chain metadata type with additional fields for testing
+ */
+export interface TestChainMetadata extends ChainMetadataForAltVM {
+  rpcPort: number;
+  rpcUrl: string;
+  restPort: number;
+  gnosisSafeTransactionServiceUrl?: string;
+  gasPrice?: {
+    amount: string;
+    denom: string;
+  };
 }
 
 /**

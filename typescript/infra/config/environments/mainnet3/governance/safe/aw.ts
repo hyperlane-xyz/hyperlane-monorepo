@@ -12,11 +12,9 @@ export const awSafes: ChainMap<Address> = {
   optimism: '0xbd7db3821806bc72D223F0AE521Bf82FcBd6Ef4d',
   moonbeam: '0x594203849E52BF6ee0E511cD807Ca2D658893e37',
   gnosis: '0x0Ac72fBc82c9c39F81242229631dfC38aA13031B',
-  inevm: '0x77F3863ea99F2360D84d4BA1A2E441857D0357fa', // caldera + injective
   base: '0x3949eD0CD036D9FF662d97BD7aC1686051c4aeBF',
   scroll: '0x6EeEbB9F7FB18DD5E59F82658c59B846715eD4F7',
   polygonzkevm: '0x1610f578D4d77Fc4ae7ce2DD9AA0b98A5Cd0a9b2',
-  // injective: 'inj1632x8j35kenryam3mkrsez064sqg2y2fr0frzt',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
@@ -59,4 +57,16 @@ export const awSafes: ChainMap<Address> = {
   ronin: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   metis: '0xf6B817Cf8b4440F38951851cf1160969039966A2',
   metal: '0x41A4e3425c7FeE8711D1C1b2c2acc1879F849b45',
+
+  // Jan 29, 2026 - Migrating Viction to Safes
+  // ----------------------------------------------------------
+  viction: '0x18165B1cb2969B79D2a0f67AECe0bf7bb44a7CaD',
+
+  // Feb 4, 2026 - FPWR ProxyAdmin on Safes
+  // ----------------------------------------------------------
+  monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
+
+  // Mar 12, 2026 - Igra Chain Deployment
+  // ----------------------------------------------------------
+  // igra: '0x0c205894f0cA786AB1693f232F4e19a60Af5c72B',
 };

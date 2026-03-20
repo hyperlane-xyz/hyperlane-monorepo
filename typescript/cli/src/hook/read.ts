@@ -1,13 +1,12 @@
-import { AltVMHookReader } from '@hyperlane-xyz/deploy-sdk';
-import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
+import { createHookReader } from '@hyperlane-xyz/deploy-sdk';
+import { type ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
-  assert,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
@@ -25,7 +24,9 @@ export async function readHookConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  switch (context.multiProvider.getProtocol(chain)) {
+  const protocol = context.multiProvider.getProtocol(chain);
+  switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const hookReader = new EvmHookReader(context.multiProvider, chain);
       const config = await hookReader.deriveHookConfig(address);
@@ -40,12 +41,11 @@ export async function readHookConfig({
       break;
     }
     default: {
-      const provider = context.altVmProvider.get(chain);
-      assert(provider, `Cannot find provider for chain ${chain}`);
-      const hookReader = new AltVMHookReader(
-        (chain) => context.multiProvider.getChainMetadata(chain),
-        provider,
-      );
+      const metadata = context.multiProvider.getChainMetadata(chain);
+      const addresses = await context.registry.getChainAddresses(chain);
+      const hookReader = createHookReader(metadata, context.multiProvider, {
+        mailbox: addresses?.mailbox,
+      });
       const config = await hookReader.deriveHookConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

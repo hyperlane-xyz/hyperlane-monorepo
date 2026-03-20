@@ -24,6 +24,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         router = new HypERC20Collateral(
             address(token),
             1e18,
+            1,
             address(new MockMailbox(uint32(1)))
         );
         // Initialize the router -> we are the admin

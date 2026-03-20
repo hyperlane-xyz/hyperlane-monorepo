@@ -17,11 +17,11 @@ runs:
         fi
 
     - name: Checkout hyperlane-registry
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         repository: hyperlane-xyz/hyperlane-registry
         ref: ${{ env.REGISTRY_VERSION }}
-        fetch-depth: 0
+        fetch-depth: 1
         path: ./hyperlane-registry
 
     - name: Move hyperlane-registry to parent directory

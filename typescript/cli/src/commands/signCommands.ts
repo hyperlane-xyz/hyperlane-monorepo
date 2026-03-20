@@ -6,16 +6,30 @@ export const SIGN_COMMANDS = [
   'apply',
   'deploy',
   'send',
-  'status',
   'submit',
   'relayer',
   'rebalancer',
 ];
 
+// Commands that conditionally require keys based on flags
+// (e.g., status only needs keys when --relay is passed)
+export const CONDITIONAL_SIGN_COMMANDS = ['status'];
+
 export function isSignCommand(argv: any): boolean {
-  return (
-    SIGN_COMMANDS.includes(argv._[0]) ||
-    (argv._.length > 1 && SIGN_COMMANDS.includes(argv._[1]))
+  const command = argv._[0];
+  const subCommand = argv._.length > 1 ? argv._[1] : undefined;
+
+  // Check if it's a conditional command that only needs keys with --relay
+  if (
+    CONDITIONAL_SIGN_COMMANDS.includes(command) ||
+    (subCommand && CONDITIONAL_SIGN_COMMANDS.includes(subCommand))
+  ) {
+    return !!argv.relay;
+  }
+
+  return !!(
+    SIGN_COMMANDS.includes(command) ||
+    (subCommand && SIGN_COMMANDS.includes(subCommand))
   );
 }
 
@@ -24,9 +38,9 @@ export enum CommandType {
   WARP_READ = 'warp:read',
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
+  WARP_CHECK = 'warp:check',
   WARP_REBALANCER = 'warp:rebalancer',
   SEND_MESSAGE = 'send:message',
-  AGENT_KURTOSIS = 'deploy:kurtosis-agents',
   STATUS = 'status:',
   SUBMIT = 'submit:',
   RELAYER = 'relayer:',
@@ -34,4 +48,7 @@ export enum CommandType {
   CORE_DEPLOY = 'core:deploy',
   CORE_READ = 'core:read',
   CORE_CHECK = 'core:check',
+  ICA_DEPLOY = 'ica:deploy',
+  ISM_DEPLOY = 'ism:deploy',
+  ISM_READ = 'ism:read',
 }

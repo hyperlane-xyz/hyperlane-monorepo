@@ -9,7 +9,7 @@ use super::tests_common::{adapter, payload, precursor};
 async fn test_submit() {
     // given
     let adapter = adapter();
-    let mut transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(precursor(), &payload());
 
     // when
     let result = adapter.submit(&mut transaction).await;
@@ -22,7 +22,7 @@ async fn test_submit() {
 async fn test_ready_for_resubmission() {
     // given
     let adapter = adapter();
-    let mut transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(precursor(), &payload());
 
     let expected_resubmission_time = adapter.time_before_resubmission();
 

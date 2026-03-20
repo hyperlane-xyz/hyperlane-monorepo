@@ -1,6 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(unused_imports)]
 
+pub mod command_entrypoint;
 mod core;
 mod db;
 pub mod entrypoint;

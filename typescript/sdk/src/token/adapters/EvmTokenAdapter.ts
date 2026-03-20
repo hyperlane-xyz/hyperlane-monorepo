@@ -8,7 +8,6 @@ import {
   ERC20,
   ERC20__factory,
   ERC4626__factory,
-  GasRouter__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -35,12 +34,15 @@ import {
 import {
   Address,
   Domain,
+  LazyAsync,
   Numberish,
+  ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToByteHexString,
   addressToBytes32,
   assert,
   bytes32ToAddress,
+  convertToProtocolAddress,
   isNullish,
   isZeroishAddress,
   normalizeAddress,
@@ -49,6 +51,7 @@ import {
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
+import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
@@ -71,11 +74,18 @@ import {
   TransferRemoteParams,
   xERC20Limits,
 } from './ITokenAdapter.js';
+import { buildBlockTagOverrides } from './utils.js';
+
+// Ensures an address is in EVM hex format (e.g. converts Tron bs58 addresses)
+const toEvmAddress = (address: Address): Address =>
+  convertToProtocolAddress(address, ProtocolType.Ethereum);
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+type RawTupleQuote = { 0: string; 1: BigNumber };
+type RawTokenBridgeQuote = { token: string; amount: BigNumber };
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -83,7 +93,7 @@ export class EvmNativeTokenAdapter
   implements ITokenAdapter<PopulatedTransaction>
 {
   async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.getProvider().getBalance(address);
+    const balance = await this.getProvider().getBalance(toEvmAddress(address));
     return BigInt(balance.toString());
   }
 
@@ -131,7 +141,7 @@ export class EvmNativeTokenAdapter
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
     const value = BigNumber.from(weiAmountOrId.toString());
-    return { value, to: recipient };
+    return { value, to: toEvmAddress(recipient) };
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
@@ -161,7 +171,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   }
 
   override async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.contract.balanceOf(address);
+    const balance = await this.contract.balanceOf(toEvmAddress(address));
     return BigInt(balance.toString());
   }
 
@@ -179,7 +189,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(owner, spender);
+    const allowance = await this.contract.allowance(
+      toEvmAddress(owner),
+      toEvmAddress(spender),
+    );
     return allowance.lt(weiAmountOrId);
   }
 
@@ -187,7 +200,10 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     owner: Address,
     spender: Address,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(owner, spender);
+    const allowance = await this.contract.allowance(
+      toEvmAddress(owner),
+      toEvmAddress(spender),
+    );
 
     return !allowance.isZero();
   }
@@ -197,7 +213,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
     return this.contract.populateTransaction.approve(
-      recipient,
+      toEvmAddress(recipient),
       weiAmountOrId.toString(),
     );
   }
@@ -207,7 +223,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
     return this.contract.populateTransaction.transfer(
-      recipient,
+      toEvmAddress(recipient),
       weiAmountOrId.toString(),
     );
   }
@@ -273,8 +289,12 @@ export class EvmHypSyntheticAdapter
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  getBridgedSupply(): Promise<bigint | undefined> {
-    return this.getTotalSupply();
+  async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalSupply = await this.contract.totalSupply(overrides);
+    return totalSupply.toBigInt();
   }
 
   async getContractPackageVersion() {
@@ -310,14 +330,12 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
-      destination,
-      recipBytes32,
-      amount.toString(),
-    );
+    const [igpQuote, ...feeQuotes] = await this.contract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, amount.toString());
     const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
+    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: RawTupleQuote) => ({
       addressOrDenom: quote[0],
       amount: BigInt(quote[1].toString()),
     }));
@@ -381,7 +399,9 @@ class BaseEvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public readonly collateralContract: TokenRouter;
-  protected wrappedTokenAddress?: Address;
+  protected readonly wrappedTokenAddress = new LazyAsync(() =>
+    this.loadWrappedTokenAddress(),
+  );
 
   constructor(
     public readonly chainName: ChainName,
@@ -396,10 +416,11 @@ class BaseEvmHypCollateralAdapter
   }
 
   async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.token();
-    }
-    return this.wrappedTokenAddress!;
+    return this.wrappedTokenAddress.get();
+  }
+
+  protected async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.token();
   }
 
   protected async getWrappedTokenAdapter(): Promise<EvmTokenAdapter> {
@@ -413,8 +434,20 @@ class BaseEvmHypCollateralAdapter
     return wrappedTokenAdapter.getBalance(address);
   }
 
-  override getBridgedSupply(): Promise<bigint | undefined> {
-    return this.getBalance(this.addresses.token);
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const wrappedContract = ERC20__factory.connect(
+      wrappedTokenAddress,
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const balance = await wrappedContract.balanceOf(
+      this.addresses.token,
+      overrides,
+    );
+    return BigInt(balance.toString());
   }
 
   override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
@@ -476,11 +509,8 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  override async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
-    }
-    return this.wrappedTokenAddress!;
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.wrappedToken();
   }
 }
 
@@ -498,7 +528,7 @@ export class EvmMovableCollateralAdapter
   async isRebalancer(account: Address): Promise<boolean> {
     const rebalancers = await this.movableCollateral().allowedRebalancers();
 
-    return rebalancers.includes(account);
+    return rebalancers.includes(toEvmAddress(account));
   }
 
   async getAllowedDestination(domain: Domain): Promise<Address> {
@@ -522,7 +552,7 @@ export class EvmMovableCollateralAdapter
 
     return allowedBridges
       .map((bridgeAddress) => normalizeAddress(bridgeAddress))
-      .includes(normalizeAddress(bridge));
+      .includes(normalizeAddress(toEvmAddress(bridge)));
   }
 
   async getRebalanceQuotes(
@@ -530,34 +560,17 @@ export class EvmMovableCollateralAdapter
     domain: Domain,
     recipient: Address,
     amount: Numberish,
-    isWarp: boolean,
   ): Promise<InterchainGasQuote[]> {
-    // TODO: In the future, all bridges should get quotes from the quoteTransferRemote function.
-    // Given that currently warp routes used as bridges do not, quotes need to be obtained differently.
-    // This can probably be removed in the future.
-    if (isWarp) {
-      const gasRouter = GasRouter__factory.connect(bridge, this.getProvider());
-      const gasPayment = await gasRouter.quoteGasPayment(domain);
-
-      return [
-        {
-          igpQuote: { amount: BigInt(gasPayment.toString()) },
-        },
-      ];
-    }
-
     const bridgeContract = ITokenBridge__factory.connect(
-      bridge,
+      toEvmAddress(bridge),
       this.getProvider(),
     );
 
-    const quotes = await bridgeContract.quoteTransferRemote(
-      domain,
-      addressToBytes32(recipient),
-      amount,
-    );
+    const quotes = await bridgeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](domain, addressToBytes32(recipient), amount);
 
-    return quotes.map((quote) => ({
+    return quotes.map((quote: RawTokenBridgeQuote) => ({
       igpQuote: {
         addressOrDenom:
           quote.token === ethersConstants.AddressZero ? undefined : quote.token,
@@ -602,9 +615,17 @@ export class EvmHypCollateralFiatAdapter
    * of the fiat token, which may be used by other bridges.
    * However this is the best we can do with a simple view call.
    */
-  override async getBridgedSupply(): Promise<bigint> {
-    const wrapped = await this.getWrappedTokenAdapter();
-    return wrapped.getTotalSupply();
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const wrappedContract = ERC20__factory.connect(
+      wrappedTokenAddress,
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalSupply = await wrappedContract.totalSupply(overrides);
+    return BigInt(totalSupply.toString());
   }
 
   async getMintLimit(): Promise<bigint> {
@@ -651,19 +672,19 @@ export class EvmHypRebaseCollateralAdapter
     );
   }
 
-  override async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
-    }
-    return this.wrappedTokenAddress!;
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.wrappedToken();
   }
 
-  override async getBridgedSupply(): Promise<bigint> {
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
     const vault = ERC4626__factory.connect(
       await this.collateralContract.vault(),
       this.getProvider(),
     );
-    const balance = await vault.balanceOf(this.addresses.token);
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const balance = await vault.balanceOf(this.addresses.token, overrides);
     return balance.toBigInt();
   }
 }
@@ -682,8 +703,11 @@ export class EvmHypSyntheticRebaseAdapter
     super(chainName, multiProvider, addresses, HypERC4626__factory);
   }
 
-  override async getBridgedSupply(): Promise<bigint> {
-    const totalShares = await this.contract.totalShares();
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalShares = await this.contract.totalShares(overrides);
     return totalShares.toBigInt();
   }
 }
@@ -713,10 +737,13 @@ abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
     return this.connectXERC20(xerc20Addr);
   }
 
-  override async getBridgedSupply(): Promise<bigint> {
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
     const xerc20 = await this.getXERC20();
     // Both IXERC20 and IXERC20VS have totalSupply, name, etc. if they extend ERC20
-    const totalSupply = await xerc20.totalSupply();
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalSupply = await xerc20.totalSupply(overrides);
     return totalSupply.toBigInt();
   }
 
@@ -764,14 +791,27 @@ abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
     );
   }
 
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.hypXERC20Lockbox.wrappedToken();
+  }
+
   /**
    * Note this may be inaccurate, as this returns the balance
    * of the lockbox contract, which may be used by other bridges.
    * However this is the best we can do with a simple view call.
    */
-  override async getBridgedSupply(): Promise<bigint> {
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
     const lockboxAddress = await this.hypXERC20Lockbox.lockbox();
-    return this.getBalance(lockboxAddress);
+    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const wrappedContract = ERC20__factory.connect(
+      wrappedTokenAddress,
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const balance = await wrappedContract.balanceOf(lockboxAddress, overrides);
+    return BigInt(balance.toString());
   }
 
   async getXERC20(): Promise<X> {
@@ -935,7 +975,7 @@ export class EvmHypNativeAdapter
 {
   override async getBalance(address: Address): Promise<bigint> {
     const provider = this.getProvider();
-    const balance = await provider.getBalance(address);
+    const balance = await provider.getBalance(toEvmAddress(address));
 
     return BigInt(balance.toString());
   }
@@ -996,8 +1036,13 @@ export class EvmHypNativeAdapter
     );
   }
 
-  override async getBridgedSupply(): Promise<bigint | undefined> {
-    const balance = await this.getProvider().getBalance(this.addresses.token);
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const balance = await this.getProvider().getBalance(
+      this.addresses.token,
+      options?.blockTag,
+    );
     return BigInt(balance.toString());
   }
 }
@@ -1019,8 +1064,8 @@ export class EvmXERC20Adapter
   }
 
   async getLimits(bridge: Address): Promise<xERC20Limits> {
-    const mint = await this.xERC20.mintingMaxLimitOf(bridge);
-    const burn = await this.xERC20.burningMaxLimitOf(bridge);
+    const mint = await this.xERC20.mintingMaxLimitOf(toEvmAddress(bridge));
+    const burn = await this.xERC20.burningMaxLimitOf(toEvmAddress(bridge));
 
     return {
       mint: BigInt(mint.toString()),
@@ -1034,7 +1079,7 @@ export class EvmXERC20Adapter
     burn: bigint,
   ): Promise<PopulatedTransaction> {
     return this.xERC20.populateTransaction.setLimits(
-      bridge,
+      toEvmAddress(bridge),
       mint.toString(),
       burn.toString(),
     );
@@ -1061,7 +1106,7 @@ export class EvmXERC20VSAdapter
   }
 
   async getRateLimits(bridge: Address): Promise<RateLimitMidPoint> {
-    const result = await this.xERC20VS.rateLimits(bridge);
+    const result = await this.xERC20VS.rateLimits(toEvmAddress(bridge));
 
     const rateLimits: RateLimitMidPoint = {
       rateLimitPerSecond: BigInt(result.rateLimitPerSecond.toString()),
@@ -1076,7 +1121,7 @@ export class EvmXERC20VSAdapter
 
   // remove bridge
   async populateRemoveBridgeTx(bridge: Address): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.removeBridge(bridge);
+    return this.xERC20VS.populateTransaction.removeBridge(toEvmAddress(bridge));
   }
 
   async populateSetBufferCapTx(
@@ -1084,7 +1129,7 @@ export class EvmXERC20VSAdapter
     newBufferCap: bigint,
   ): Promise<PopulatedTransaction> {
     return this.xERC20VS.populateTransaction.setBufferCap(
-      bridge,
+      toEvmAddress(bridge),
       newBufferCap.toString(),
     );
   }
@@ -1094,7 +1139,7 @@ export class EvmXERC20VSAdapter
     newRateLimitPerSecond: bigint,
   ): Promise<PopulatedTransaction> {
     return this.xERC20VS.populateTransaction.setRateLimitPerSecond(
-      bridge,
+      toEvmAddress(bridge),
       newRateLimitPerSecond.toString(),
     );
   }
@@ -1107,7 +1152,7 @@ export class EvmXERC20VSAdapter
     return this.xERC20VS.populateTransaction.addBridge({
       bufferCap: bufferCap.toString(),
       rateLimitPerSecond: rateLimitPerSecond.toString(),
-      bridge,
+      bridge: toEvmAddress(bridge),
     });
   }
 }

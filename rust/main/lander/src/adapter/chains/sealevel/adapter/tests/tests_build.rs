@@ -14,10 +14,11 @@ async fn test_build_transactions() {
     // given
     let adapter = adapter();
     let payload = payload();
-    let data = VmSpecificTxData::Svm(SealevelTxPrecursor::new(
+    let data = VmSpecificTxData::Svm(Box::new(SealevelTxPrecursor::new(
         instruction(),
+        None,
         SealevelTxCostEstimate::default(),
-    ));
+    )));
     let expected = (payload.details.clone(), data);
 
     // when

@@ -11,15 +11,21 @@ export const TokenType = {
   collateralUri: 'collateralUri',
   collateralCctp: 'collateralCctp',
   collateralEverclear: 'collateralEverclear',
+  collateralOft: 'collateralOft',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
   nativeOpL1: 'nativeOpL1',
   ethEverclear: 'ethEverclear',
   // backwards compatible alias to native
   nativeScaled: 'nativeScaled',
+  // Canonical value for cross-collateral routing tokens
+  crossCollateral: 'crossCollateral',
+  unknown: 'unknown',
 } as const;
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
+
+export type DeployableTokenType = Exclude<TokenType, typeof TokenType.unknown>;
 
 // A token is defined movable collateral if its solidity contract implementation
 // is a subclass of MovableCollateralRouter
@@ -41,6 +47,9 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
+  [TokenType.collateralOft]: false,
+  [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
+  [TokenType.unknown]: false,
 } as const;
 
 export type MovableTokenType = {

@@ -47,6 +47,7 @@ impl Indexable for HyperlaneMessage {
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Dango => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Tron => CursorType::SequenceAware,
         }
     }
 
@@ -72,6 +73,7 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Dango => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Tron => CursorType::RateLimited,
         }
     }
 
@@ -92,6 +94,7 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Dango => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Tron => CursorType::SequenceAware,
         }
     }
 
@@ -112,6 +115,7 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Dango => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Tron => CursorType::RateLimited,
         }
     }
 

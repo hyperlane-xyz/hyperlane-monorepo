@@ -2,6 +2,7 @@
 pub(super) use core::NonceManagerState;
 pub(super) use validate::NonceAction;
 
+mod action;
 mod assign;
 mod boundary;
 mod core;
@@ -10,3 +11,6 @@ mod validate;
 
 #[cfg(test)]
 pub(crate) use core::NonceManagerState;
+
+#[cfg(test)]
+mod tests;

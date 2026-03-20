@@ -1,24 +1,25 @@
 import {
-  AccountData,
+  type AccountData,
   DirectSecp256k1HdWallet,
   DirectSecp256k1Wallet,
-  EncodeObject,
-  OfflineSigner,
+  type EncodeObject,
+  type OfflineSigner,
 } from '@cosmjs/proto-signing';
 import {
   AminoTypes,
-  DeliverTxResponse,
+  type DeliverTxResponse,
   GasPrice,
   SigningStargateClient,
-  StdFee,
+  type StdFee,
   assertIsDeliverTxSuccess,
 } from '@cosmjs/stargate';
-import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
+import { type CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
+import { getProtoConverter } from '../utils/base.js';
 
 import { CosmosNativeProvider } from './provider.js';
 
@@ -134,16 +135,6 @@ export class CosmosNativeSigner
     this.options = options;
   }
 
-  private getProtoConverter(typeUrl: string) {
-    for (const { proto } of Object.values(R)) {
-      if (typeUrl === proto.type) {
-        return proto.converter;
-      }
-    }
-
-    throw new Error(`found no proto converter for type ${typeUrl}`);
-  }
-
   private async submitTx(msg: EncodeObject): Promise<any> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
@@ -154,9 +145,7 @@ export class CosmosNativeSigner
     assertIsDeliverTxSuccess(receipt);
 
     const msgResponse = receipt.msgResponses[0];
-    return this.getProtoConverter(msgResponse.typeUrl).decode(
-      msgResponse.value,
-    );
+    return getProtoConverter(msgResponse.typeUrl).decode(msgResponse.value);
   }
 
   getSignerAddress(): string {
@@ -204,6 +193,12 @@ export class CosmosNativeSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Cosmos. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.account.address,
@@ -456,6 +451,18 @@ export class CosmosNativeSigner
     return { validatorAnnounceId: '' };
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Cosmos Native');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Cosmos Native');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
@@ -467,6 +474,12 @@ export class CosmosNativeSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Cosmos Native. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.account.address,
@@ -481,6 +494,12 @@ export class CosmosNativeSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Cosmos Native. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.account.address,
@@ -509,6 +528,10 @@ export class CosmosNativeSigner
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
+    assert(
+      req.ismAddress,
+      'Cosmos does not support setting ism to the default ism yet',
+    );
     const msg = await this.getSetTokenIsmTransaction({
       ...req,
       signer: this.account.address,

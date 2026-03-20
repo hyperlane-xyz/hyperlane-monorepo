@@ -16,6 +16,9 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
     programId: 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf',
     multisigPda: 'EvptYJrjGUB3FXDoW8w8LTpwg1TTS4W1f628c1BnscB4',
     vault: '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa',
+    // AW Squads
+    // multisigPda: 'BjKsMZUxVovbzZf3uZjdhorE1YqAtvD7yKF2E8wv2cje',
+    // vault: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
   },
   soon: {
     programId: 'Hz8Zg8JYFshThnKHXSZV9XJFbyYUUKBb5NJUrxDvF8PB',
@@ -26,6 +29,9 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
     programId: 'eSQDSMLf3qxwHVHeTr9amVAGmZbRLY2rFdSURandt6f',
     multisigPda: 'CSnrKeqrrLm6v9NvChYKT58mfRGYnMk8MeLGWhKvBdbk',
     vault: 'D742EWw9wpV47jRAvEenG1oWHfMmpiQNJLjHTBfXhuRm',
+    // AW Squads
+    // multisigPda: 'EC5f1WufYD5SHXyH5XEAy8Ud66eh88N1MuekpQJuVpV6',
+    // vault: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
   },
   sonicsvm: {
     programId: 'sqdsFBUUwbsuoLUhoWdw343Je6mvn7dGVVRYCa4wtqJ',
@@ -37,11 +43,6 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
     multisigPda: 'XgeE3uXEy5bKPbgYv3D9pWovhu3PWrxt3RR5bdp9RkW',
     vault: '4chV16Dea6CW6xyQcHj9RPwBZitfxYgpafkSoZgzy4G8',
   },
-  // svmbnb: {
-  //   programId: 'Hz8Zg8JYFshThnKHXSZV9XJFbyYUUKBb5NJUrxDvF8PB',
-  //   multisigPda: '9eQpT28rq83sc2wtsGK7TYirXJ4sL1QmQENSMz2TbHEv',
-  //   vault: '3JiYeSX1rN2nsh78Xqypg87vQd2Y5Y9h5w9ns6Hjii5B',
-  // },
 };
 
 export function getSquadsKeys(chainName: ChainName): SquadsKeys {

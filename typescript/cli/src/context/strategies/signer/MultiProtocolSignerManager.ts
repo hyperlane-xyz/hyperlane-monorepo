@@ -1,28 +1,29 @@
-import { BigNumber, Signer } from 'ethers';
-import { Logger } from 'pino';
+import { type BigNumber, type Signer } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
-  ChainName,
-  IMultiProtocolSignerManager,
-  MultiProtocolProvider,
-  MultiProvider,
-  ProtocolMap,
+  type ChainName,
+  type IMultiProtocolSignerManager,
+  type MultiProtocolProvider,
+  type MultiProvider,
+  type ProtocolMap,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
   assert,
+  isEVMLike,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
-import { SignerKeyProtocolMap } from '../../types.js';
+import { type ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
+import { type SignerKeyProtocolMap } from '../../types.js';
 
 import {
-  IMultiProtocolSigner,
-  SignerConfig,
-  TypedSigner,
+  type IMultiProtocolSigner,
+  type SignerConfig,
+  type TypedSigner,
 } from './BaseMultiProtocolSigner.js';
 import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
@@ -35,9 +36,8 @@ function getSignerCompatibleChains(
   multiProtocolProvider: MultiProtocolProvider,
   chains: ChainName[],
 ): ReadonlyArray<ChainName> {
-  return chains.filter(
-    (chain) =>
-      multiProtocolProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  return chains.filter((chain) =>
+    isEVMLike(multiProtocolProvider.getProtocol(chain)),
   );
 }
 
@@ -126,9 +126,8 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   async getMultiProvider(): Promise<MultiProvider> {
     const multiProvider = this.multiProtocolProvider.toMultiProvider();
 
-    const evmChains = this.chains.filter(
-      (chain) =>
-        this.multiProtocolProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    const evmChains = this.chains.filter((chain) =>
+      isEVMLike(this.multiProtocolProvider.getProtocol(chain)),
     );
 
     for (const chain of evmChains) {
@@ -195,10 +194,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
   getEVMSigner(chain: ChainName): Signer {
     const protocolType = this.multiProtocolProvider.getProtocol(chain);
-    assert(
-      protocolType === ProtocolType.Ethereum,
-      `Chain ${chain} is not an Ethereum chain`,
-    );
+    assert(isEVMLike(protocolType), `Chain ${chain} is not an EVM-like chain`);
     return this.getSpecificSigner<Signer>(chain);
   }
 
@@ -206,6 +202,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     const metadata = this.multiProtocolProvider.getChainMetadata(chain);
 
     switch (metadata.protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         const signer = this.getEVMSigner(chain);
         return signer.getAddress();
@@ -226,6 +223,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     const metadata = this.multiProtocolProvider.getChainMetadata(params.chain);
 
     switch (metadata.protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         try {
           const provider = this.multiProtocolProvider.getEthersV5Provider(

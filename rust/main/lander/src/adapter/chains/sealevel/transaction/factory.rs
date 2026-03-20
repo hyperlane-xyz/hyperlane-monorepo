@@ -1,25 +1,12 @@
-use uuid::Uuid;
-
 use crate::{
-    adapter::chains::sealevel::SealevelTxPrecursor,
-    payload::FullPayload,
-    transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData},
+    adapter::chains::sealevel::SealevelTxPrecursor, payload::FullPayload, transaction::Transaction,
 };
 
 pub struct TransactionFactory {}
 
 impl TransactionFactory {
-    pub fn build(payload: &FullPayload, precursor: SealevelTxPrecursor) -> Transaction {
-        Transaction {
-            uuid: TransactionUuid::new(Uuid::new_v4()),
-            tx_hashes: vec![],
-            vm_specific_data: VmSpecificTxData::Svm(precursor),
-            payload_details: vec![payload.details.clone()],
-            status: TransactionStatus::PendingInclusion,
-            submission_attempts: 0,
-            creation_timestamp: chrono::Utc::now(),
-            last_submission_attempt: None,
-            last_status_check: None,
-        }
+    /// Builds a transaction using the type-safe generic Transaction builder
+    pub fn build(precursor: SealevelTxPrecursor, payload: &FullPayload) -> Transaction {
+        Transaction::new(precursor, vec![payload.details.clone()])
     }
 }

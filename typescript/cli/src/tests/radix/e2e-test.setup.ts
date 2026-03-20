@@ -1,5 +1,11 @@
 import fs from 'fs';
+import { type StartedDockerComposeEnvironment } from 'testcontainers';
 
+import {
+  deployHyperlaneRadixPackage,
+  downloadRadixContracts,
+  runRadixNode,
+} from '@hyperlane-xyz/radix-sdk/testing';
 import { ProtocolType, deepCopy } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
@@ -10,46 +16,18 @@ import {
   TEST_CHAIN_METADATA_PATH_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
-import { runRadixNode } from '../nodes.js';
 
-import { deployHyperlaneRadixPackageDefinition } from './utils.js';
+// Store the Radix node instance to tear it down in the after hook
+let radixNodeInstance: StartedDockerComposeEnvironment;
 
-const HYPERLANE_RADIX_GIT = 'https://github.com/hyperlane-xyz/hyperlane-radix';
-const HYPERLANE_RADIX_VERSION = '1.1.0';
-
-let orginalRadixTestMentadata:
+let originalRadixTestMetadata:
   | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
   | undefined;
 
-async function downloadFile(url: string): Promise<Uint8Array> {
-  const response = await fetch(url);
-  if (!response.ok || !response.body) {
-    throw new Error(`Failed to download ${url}: ${response.statusText}`);
-  }
-
-  return new Uint8Array(await response.arrayBuffer());
-}
-
-async function downloadRadixContracts(): Promise<{
-  code: Uint8Array;
-  packageDefinition: Uint8Array;
-}> {
-  console.log(`Downloading hyperlane-radix v${HYPERLANE_RADIX_VERSION}...`);
-
-  const wasmUrl = `${HYPERLANE_RADIX_GIT}/releases/download/v${HYPERLANE_RADIX_VERSION}/hyperlane_radix.wasm`;
-  const rpdUrl = `${HYPERLANE_RADIX_GIT}/releases/download/v${HYPERLANE_RADIX_VERSION}/hyperlane_radix.rpd`;
-
-  const [code, packageDefinition] = await Promise.all([
-    downloadFile(wasmUrl),
-    downloadFile(rpdUrl),
-  ]);
-
-  console.log('Downloaded Radix contracts successfully');
-  return { code, packageDefinition };
-}
-
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  // Use 3x timeout for setup since Docker container startup can be slow in CI
+  // (image pulling, postgres init, fullnode sync, gateway sync)
+  this.timeout(3 * DEFAULT_E2E_TEST_TIMEOUT);
 
   // Clean up existing chain addresses
   Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(
@@ -68,20 +46,23 @@ before(async function () {
   const { code, packageDefinition } = await downloadRadixContracts();
 
   // Store the original metadata so that it can be restored after all the test run
-  orginalRadixTestMentadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
+  originalRadixTestMetadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
 
   // Run only one node for now
-  await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1, {
-    code: new Uint8Array(code),
-    packageDefinition: new Uint8Array(packageDefinition),
-  });
+  radixNodeInstance = await runRadixNode(
+    TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    {
+      code: new Uint8Array(code),
+      packageDefinition: new Uint8Array(packageDefinition),
+    },
+  );
 
   const t = Object.keys(
     TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix,
   ) as (keyof typeof TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix)[];
 
   for (const chain of t) {
-    await deployHyperlaneRadixPackageDefinition(
+    const { packageAddress, xrdAddress } = await deployHyperlaneRadixPackage(
       TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain],
       {
         code: new Uint8Array(code),
@@ -93,6 +74,16 @@ before(async function () {
     // when starting the node
     const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
     const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
+
+    updatedMetadata.packageAddress = packageAddress;
+
+    // Update the native token denom with the actual XRD resource address for this network.
+    // This is critical because the XRD address is derived from the network ID and must match
+    // the token used in the faucet for funding accounts and the IGP for gas payments.
+    if (updatedMetadata.nativeToken && xrdAddress) {
+      updatedMetadata.nativeToken.denom = xrdAddress;
+    }
+
     writeYamlOrJson(metadataPath, updatedMetadata);
   }
 });
@@ -106,16 +97,27 @@ beforeEach(() => {
   }
 });
 
-after(function () {
-  // Restore the original test metadata
-  for (const [chainName, originalMetadata] of Object.entries(
-    orginalRadixTestMentadata ?? {},
-  )) {
-    const metadataPath =
-      TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][
-        chainName as keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
-      ];
+// Restore original Radix metadata files and tear down the Radix node after tests.
+// This prevents subsequent test runs from using stale package addresses
+// that point to a Radix node that's no longer running.
+after(async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
-    writeYamlOrJson(metadataPath, originalMetadata);
+  try {
+    // Restore the original test metadata
+    for (const [chainName, originalMetadata] of Object.entries(
+      originalRadixTestMetadata ?? {},
+    )) {
+      const metadataPath =
+        TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][
+          chainName as keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
+        ];
+
+      writeYamlOrJson(metadataPath, originalMetadata);
+    }
+  } finally {
+    if (radixNodeInstance) {
+      await radixNodeInstance.down();
+    }
   }
 });

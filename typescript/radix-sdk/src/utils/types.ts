@@ -5,10 +5,14 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
+import { Annotated } from '@hyperlane-xyz/utils';
+
 export interface RadixSDKTransaction {
   networkId: number;
   manifest: TransactionManifest | string;
 }
+
+export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
 export interface RadixSDKReceipt extends TransactionCommittedDetailsResponse {
   transactionHash: string;
@@ -52,30 +56,77 @@ export enum RadixIsmTypes {
 
 export type MultisigIsms =
   | RadixIsmTypes.MERKLE_ROOT_MULTISIG
-  | RadixIsmTypes.MESSAGE_ID_MULTISIG
-  | RadixIsmTypes.NOOP_ISM;
-
-export type Isms =
-  | RadixIsmTypes.MERKLE_ROOT_MULTISIG
-  | RadixIsmTypes.MESSAGE_ID_MULTISIG
-  | RadixIsmTypes.ROUTING_ISM
-  | RadixIsmTypes.NOOP_ISM;
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG;
 
 export enum RadixHookTypes {
   IGP = 'InterchainGasPaymaster',
   MERKLE_TREE = 'MerkleTreeHook',
 }
 
-export type Hooks = RadixHookTypes.IGP | RadixHookTypes.MERKLE_TREE;
+export const RADIX_COMPONENT_NAMES = {
+  HYP_TOKEN: 'HypToken',
+} as const;
+
+export const RADIX_WARP_TOKEN_FIELD_NAMES = {
+  TOKEN_TYPE: 'token_type',
+  MAILBOX: 'mailbox',
+  ISM: 'ism',
+  ENROLLED_ROUTERS: 'enrolled_routers',
+  RESOURCE_MANAGER: 'resource_manager',
+  RECIPIENT: 'recipient',
+  GAS: 'gas',
+} as const;
+
+export const RadixWarpTokenType = {
+  COLLATERAL: 'Collateral',
+  SYNTHETIC: 'Synthetic',
+} as const;
+
+export type RadixWarpTokenType =
+  (typeof RadixWarpTokenType)[keyof typeof RadixWarpTokenType];
+
+export interface BaseRadixWarpTokenConfig<TType extends RadixWarpTokenType> {
+  owner: string;
+  mailbox: string;
+  interchainSecurityModule?: string;
+  remoteRouters: Record<number, { address: string }>;
+  destinationGas: Record<number, string>;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+  type: TType;
+}
+
+export interface RadixSyntheticWarpTokenConfig extends BaseRadixWarpTokenConfig<'Synthetic'> {
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface RadixCollateralWarpTokenConfig extends BaseRadixWarpTokenConfig<'Collateral'> {
+  token: string;
+}
+
+export type RadixWarpTokenConfig =
+  | RadixSyntheticWarpTokenConfig
+  | RadixCollateralWarpTokenConfig;
+
+export interface RadixElement {
+  kind: string;
+  type_name: string;
+  element_kind: string;
+  hex: string;
+}
 
 export interface EntityField {
   field_name: string;
   type_name: string;
   variant_name?: string;
   value?: any;
-  elements?: any[];
+  elements?: RadixElement[];
   fields?: EntityField[];
   hex?: string;
+  kind: string;
 }
 
 export interface EntityDetails {

@@ -7,7 +7,6 @@ import {
   LogLevel,
   configureRootLogger,
   rootLogger,
-  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
@@ -19,7 +18,6 @@ import {
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
 import { getPendingTimelockTxs } from '../../src/utils/timelock.js';
-import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

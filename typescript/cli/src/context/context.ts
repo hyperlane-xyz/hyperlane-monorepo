@@ -1,36 +1,41 @@
 import { confirm } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { type ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVM,
+  type AltVM,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  isEVMLike,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
-import { AltVMSignerFactory } from './altvm.js';
-import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
+import { createAltVMSigners } from './altvm.js';
+import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
-  CommandContext,
-  ContextSettings,
-  SignerKeyProtocolMap,
+  type CommandContext,
+  type ContextSettings,
+  type SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
 } from './types.js';
 
@@ -59,21 +64,15 @@ export async function signerMiddleware(argv: Record<string, any>) {
     : {};
 
   /**
-   * Intercepts Hyperlane command to determine chains.
+   * Resolves chains based on the command type.
    */
-  const chainStrategy = ChainResolverFactory.getStrategy(argv);
-
-  /**
-   * Resolves chains based on the chain strategy.
-   */
-  const chains = await chainStrategy.resolveChains(argv);
+  const chains = await resolveChains(argv);
 
   /**
    * Load and create AltVM Providers
    */
   const altVmChains = chains.filter(
-    (chain) =>
-      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(argv.context.multiProvider.getProtocol(chain)),
   );
 
   try {
@@ -93,15 +92,17 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   await Promise.all(
     altVmChains.map(async (chain) => {
-      const { altVmProvider, multiProvider } = argv.context;
+      const { altVmProviders, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
-      if (hasProtocol(protocol))
-        altVmProvider.set(
-          chain,
-          await getProtocolProvider(protocol).createProvider(metadata),
-        );
+      if (hasProtocol(protocol)) {
+        const provider =
+          await getProtocolProvider(protocol).createProvider(metadata);
+        altVmProviders[chain] = provider;
+        // multiProtocolProvider keeps its own typed providers from metadata/rpcUrls.
+        // Avoid injecting AltVM.IProvider here because it requires unsafe casting.
+      }
     }),
   );
 
@@ -125,7 +126,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Creates AltVM signers
    */
-  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+  argv.context.altVmSigners = await createAltVMSigners(
     argv.context.multiProvider,
     chains,
     key,
@@ -164,12 +165,15 @@ export async function getContext({
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
   // This mapping gets populated as part of signerMiddleware
-  const altVmProvider = new Map<string, AltVM.IProvider>();
+  const altVmProviders: ChainMap<AltVM.IProvider> = {};
 
   const supportedProtocols = [
     ProtocolType.Ethereum,
+    ProtocolType.Tron,
     ProtocolType.CosmosNative,
     ProtocolType.Radix,
+    ProtocolType.Aleo,
+    ProtocolType.Sealevel,
   ];
 
   return {
@@ -178,7 +182,7 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    altVmProvider,
+    altVmProviders,
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
@@ -300,4 +304,61 @@ export async function requestAndSaveApiKeys(
   }
 
   return apiKeys;
+}
+
+/**
+ * Ensures EVM signers are attached to multiProvider for the specified chains.
+ * This is useful for commands that do interactive chain selection after the
+ * initial signer middleware has run.
+ *
+ * Uses the same signer strategy infrastructure as the middleware, which properly
+ * handles ZkSync chains and strategy-based keys.
+ *
+ * @param context - The write command context with key, multiProvider, and multiProtocolProvider
+ * @param chains - The chains to ensure signers for
+ */
+export async function ensureEvmSignersForChains(
+  context: {
+    key: SignerKeyProtocolMap;
+    multiProvider: MultiProvider;
+    multiProtocolProvider: MultiProtocolProvider;
+    strategyPath?: string;
+  },
+  chains: ChainName[],
+): Promise<void> {
+  // Filter to only EVM chains
+  const evmChains = chains.filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
+  );
+
+  // Find chains that are missing signers
+  const missingSignerChains = evmChains.filter(
+    (chain) => !context.multiProvider.tryGetSigner(chain),
+  );
+
+  // If all signers already exist, nothing to do
+  if (missingSignerChains.length === 0) {
+    return;
+  }
+
+  // Load strategy config if provided
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  // Use MultiProtocolSignerManager to create signers properly
+  // This handles ZkSync chains and strategy-based keys
+  const signerManager = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    missingSignerChains,
+    context.multiProtocolProvider,
+    { key: context.key },
+  );
+
+  // Attach the created signers to multiProvider
+  for (const chain of missingSignerChains) {
+    const signer = signerManager.getEVMSigner(chain);
+    const provider = context.multiProvider.getProvider(chain);
+    context.multiProvider.setSigner(chain, signer.connect(provider));
+  }
 }

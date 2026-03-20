@@ -6,15 +6,16 @@ use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     instruction::AccountMeta,
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::Transaction as SealevelTransaction,
 };
+
+use hyperlane_sealevel::SealevelTxType;
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
@@ -143,7 +144,6 @@ impl SealevelAdapter {
         })
     }
 
-    #[allow(unused)]
     #[cfg(test)]
     fn new_internal_default(
         client: Arc<dyn SubmitSealevelRpc>,
@@ -160,9 +160,10 @@ impl SealevelAdapter {
         )
     }
 
-    #[allow(unused)]
-    #[cfg(test)]
-    pub fn new_internal_with_block_time(
+    /// Create a SealevelAdapter for testing with custom block time
+    /// This is used by unit tests (with #[cfg(test)]) and integration tests (via feature gate)
+    #[cfg(any(test, feature = "integration_test"))]
+    pub(crate) fn new_internal_with_block_time(
         estimated_block_time: Duration,
         client: Arc<dyn SubmitSealevelRpc>,
         provider: Arc<dyn SealevelProviderForLander>,
@@ -200,10 +201,12 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 self.oracle.clone(),
+                precursor.alt_address,
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
             precursor.instruction.clone(),
+            precursor.alt_address,
             estimate,
         ))
     }
@@ -211,14 +214,14 @@ impl SealevelAdapter {
     async fn create_unsigned_transaction(
         &self,
         precursor: &SealevelTxPrecursor,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         self.create_sealevel_transaction(precursor, false).await
     }
 
     async fn create_signed_transaction(
         &self,
         precursor: &SealevelTxPrecursor,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         self.create_sealevel_transaction(precursor, true).await
     }
 
@@ -226,9 +229,10 @@ impl SealevelAdapter {
         &self,
         precursor: &SealevelTxPrecursor,
         sign: bool,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         let SealevelTxPrecursor {
             instruction,
+            alt_address,
             estimate,
         } = precursor;
 
@@ -240,13 +244,15 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 sign,
+                *alt_address,
             )
             .await
     }
 
     #[instrument(skip(self))]
     async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, LanderError> {
-        let signature = Signature::new(tx_hash.as_ref());
+        let signature = Signature::try_from(tx_hash.as_ref())
+            .map_err(|e| LanderError::TxSubmissionError(format!("Invalid signature: {e}")))?;
 
         // query the tx hash from most to least finalized to learn what level of finality it has
         // the calls below can be parallelized if needed, but for now avoid rate limiting
@@ -256,20 +262,9 @@ impl SealevelAdapter {
             .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
             .await;
 
-        if let Ok(tx) = tx_resp {
-            if let Some(meta) = tx.transaction.meta {
-                // It is possible for a failed transaction to be finalized.
-                // In this case, we need to re-submit.
-                if meta.err.is_some() {
-                    warn!(?signature, ?tx_hash, "Transaction finalized, but failed");
-                    return Ok(TransactionStatus::Dropped(
-                        TransactionDropReason::DroppedByChain,
-                    ));
-                } else {
-                    info!(?tx_hash, "transaction finalized");
-                    return Ok(TransactionStatus::Finalized);
-                }
-            }
+        if tx_resp.is_ok() {
+            info!("transaction finalized");
+            return Ok(TransactionStatus::Finalized);
         }
 
         let tx_resp = self
@@ -278,20 +273,9 @@ impl SealevelAdapter {
             .await;
 
         // the "confirmed" commitment is equivalent to being "included" in a block on evm
-        if let Ok(tx) = tx_resp {
-            if let Some(meta) = tx.transaction.meta {
-                // It is possible for a failed transaction to be confirmed.
-                // In this case, we need to re-submit.
-                if meta.err.is_some() {
-                    warn!(?signature, ?tx_hash, "Transaction included, but failed");
-                    return Ok(TransactionStatus::Dropped(
-                        TransactionDropReason::DroppedByChain,
-                    ));
-                } else {
-                    info!(?tx_hash, "transaction included");
-                    return Ok(TransactionStatus::Included);
-                }
-            }
+        if tx_resp.is_ok() {
+            info!(?tx_hash, "transaction included");
+            return Ok(TransactionStatus::Included);
         }
 
         match self
@@ -340,7 +324,7 @@ impl AdaptsChain for SealevelAdapter {
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
             // We are not estimating transaction here since we will estimate it just before submission
-            let transaction = TransactionFactory::build(payload, not_estimated);
+            let transaction = TransactionFactory::build(not_estimated, payload);
             transactions.push(TxBuildingResult::new(
                 vec![payload.details.clone()],
                 Some(transaction),
@@ -355,13 +339,17 @@ impl AdaptsChain for SealevelAdapter {
         info!(?tx, "simulating transaction");
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
-        self.client
-            .simulate_transaction(&svm_transaction)
-            .await
-            .map_err(|e| {
-                error!(?tx, ?e, "failed to simulate transaction");
-                LanderError::SimulationFailed(vec![e.to_string()])
-            })?;
+
+        // Simulate based on transaction type
+        let result = match &svm_transaction {
+            SealevelTxType::Legacy(t) => self.client.simulate_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.client.simulate_versioned_transaction(t).await,
+        };
+
+        result.map_err(|e| {
+            error!(?tx, ?e, "failed to simulate transaction");
+            LanderError::SimulationFailed(vec![e.to_string()])
+        })?;
         info!(?tx, "simulated transaction successfully");
         Ok(vec![])
     }
@@ -381,7 +369,7 @@ impl AdaptsChain for SealevelAdapter {
             }
         };
 
-        tx.vm_specific_data = VmSpecificTxData::Svm(estimated);
+        tx.vm_specific_data = VmSpecificTxData::Svm(Box::new(estimated));
         info!(?tx, "estimated transaction");
         Ok(())
     }

@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
+import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -11,127 +11,21 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress } from '../test/testUtils.js';
+import {
+  randomAddress,
+  randomDeployableIsmConfig,
+  randomMultisigIsmConfig,
+} from '../test/testUtils.js';
 
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
-  AggregationIsmConfig,
   DomainRoutingIsmConfig,
-  IsmConfig,
   IsmType,
-  ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
-  WeightedMultisigIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
-
-function randomModuleType(): ModuleType {
-  const choices = [
-    ModuleType.AGGREGATION,
-    ModuleType.MESSAGE_ID_MULTISIG,
-    ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG,
-    ModuleType.ROUTING,
-    ModuleType.NULL,
-  ];
-  return randomElement(choices);
-}
-
-const randomMultisigIsmConfig = (
-  m: number,
-  n: number,
-  addresses?: string[],
-): MultisigIsmConfig => {
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray
-    .map(() => (addresses ? randomElement(addresses) : randomAddress()))
-    .sort();
-  return {
-    type: IsmType.MESSAGE_ID_MULTISIG,
-    validators,
-    threshold: m,
-  };
-};
-
-const randomWeightedMultisigIsmConfig = (
-  n: number,
-  addresses?: string[],
-): WeightedMultisigIsmConfig => {
-  const totalWeight = 1e10;
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => ({
-    signingAddress: addresses ? randomElement(addresses) : randomAddress(),
-    weight: 0,
-  }));
-  let remainingWeight = totalWeight;
-
-  for (let i = 0; i < n; i++) {
-    if (i === n - 1) {
-      validators[i].weight = remainingWeight;
-    } else {
-      const weight = Math.floor(Math.random() * (remainingWeight + 1));
-      validators[i].weight = weight;
-      remainingWeight -= weight;
-    }
-  }
-
-  const thresholdWeight = Math.floor(Math.random() * totalWeight);
-  return {
-    type: IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
-    validators,
-    thresholdWeight,
-  };
-};
-
-export const randomIsmConfig = (
-  maxDepth = 5,
-  validatorAddresses?: string[],
-  relayerAddress?: string,
-): Exclude<IsmConfig, Address> => {
-  const moduleType =
-    maxDepth === 0 ? ModuleType.MESSAGE_ID_MULTISIG : randomModuleType();
-  if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
-    const n = randomInt(validatorAddresses?.length ?? 5, 1);
-    return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
-  } else if (moduleType === ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG) {
-    const n = randomInt(validatorAddresses?.length ?? 5, 1);
-    return randomWeightedMultisigIsmConfig(randomInt(n, 1), validatorAddresses);
-  } else if (moduleType === ModuleType.ROUTING) {
-    const config: RoutingIsmConfig = {
-      type: IsmType.ROUTING,
-      owner: randomAddress(),
-      domains: Object.fromEntries(
-        testChains.map((c) => [
-          c,
-          randomIsmConfig(maxDepth - 1, validatorAddresses, relayerAddress),
-        ]),
-      ),
-    };
-    return config;
-  } else if (moduleType === ModuleType.AGGREGATION) {
-    const n = randomInt(5, 2);
-    const modules = new Array<number>(n)
-      .fill(0)
-      .map(() =>
-        randomIsmConfig(maxDepth - 1, validatorAddresses, relayerAddress),
-      );
-    const config: AggregationIsmConfig = {
-      type: IsmType.AGGREGATION,
-      threshold: randomInt(n, 1),
-      modules,
-    };
-    return config;
-  } else if (moduleType === ModuleType.NULL) {
-    const config: TrustedRelayerIsmConfig = {
-      type: IsmType.TRUSTED_RELAYER,
-      relayer: relayerAddress ?? randomAddress(),
-    };
-    return config;
-  } else {
-    throw new Error(`Unsupported ISM type: ${moduleType}`);
-  }
-};
 
 describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -217,7 +111,7 @@ describe('HyperlaneIsmFactory', async () => {
 
   for (let i = 0; i < 16; i++) {
     it('deploys a random ism config', async () => {
-      const config = randomIsmConfig();
+      const config = randomDeployableIsmConfig();
       let ismAddress: string;
       try {
         const ism = await ismFactory.deploy({
@@ -526,8 +420,8 @@ describe('HyperlaneIsmFactory', async () => {
   it(`should deploy a ${IsmType.AMOUNT_ROUTING}`, async () => {
     const config: RoutingIsmConfig = {
       type: IsmType.AMOUNT_ROUTING,
-      lowerIsm: randomIsmConfig(),
-      upperIsm: randomIsmConfig(),
+      lowerIsm: randomDeployableIsmConfig(),
+      upperIsm: randomDeployableIsmConfig(),
       threshold: randomInt(1e6, 1),
     };
 

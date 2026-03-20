@@ -1,25 +1,16 @@
 {
-  "tabWidth": 2,
-  "singleQuote": true,
-  "trailingComma": "all",
+  "printWidth": 80,
+  "tabWidth": 4,
+  "useTabs": false,
+  "singleQuote": false,
+  "bracketSpacing": false,
+  "plugins": ["prettier-plugin-solidity"],
   "overrides": [
     {
-      "files": "*.sol",
+      "files": ["*.json", "*.yaml", "*.yml"],
       "options": {
-        "printWidth": 80,
-        "tabWidth": 4,
-        "useTabs": false,
-        "singleQuote": false,
-        "bracketSpacing": false
+        "tabWidth": 2
       }
     }
-  ],
-  "importOrder": ["^@hyperlane-xyz/(.*)$", "^../(.*)$", "^./(.*)$"],
-  "importOrderSeparation": true,
-  "importOrderSortSpecifiers": true,
-  "importOrderParserPlugins": ["importAssertions", "typescript", "jsx"],
-  "plugins": [
-    "prettier-plugin-solidity",
-    "@trivago/prettier-plugin-sort-imports"
   ]
 }

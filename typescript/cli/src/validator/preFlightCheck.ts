@@ -1,8 +1,8 @@
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import { HyperlaneCore, S3Validator } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
 
 export const checkValidatorSetup = async (

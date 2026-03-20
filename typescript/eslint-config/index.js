@@ -1,11 +1,23 @@
 import js from '@eslint/js';
 import prettierConfig from 'eslint-config-prettier/flat';
 import importPlugin from 'eslint-plugin-import';
+import jest from 'eslint-plugin-jest';
+import oxlint from 'eslint-plugin-oxlint';
 import { globalIgnores } from 'eslint/config';
+import globals from 'globals';
 import ts from 'typescript-eslint';
 
 export const jsRules = [
-  globalIgnores(['**/dist/']),
+  globalIgnores([
+    '**/node_modules',
+    '**/dist',
+    '**/bundle',
+    '**/coverage',
+    '**/*.cjs',
+    '**/*.cts',
+    '**/*.mjs',
+    'jest.config.js',
+  ]),
   { name: 'js/recommended', ...js.configs.recommended },
   prettierConfig,
   importPlugin.flatConfigs.recommended,
@@ -14,13 +26,19 @@ export const jsRules = [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
     },
     rules: {
       'guard-for-in': 'error',
       'no-console': 'error',
       'no-eval': 'error',
+      'no-constant-condition': 'off',
       'import/namespace': 'off', // This is very slow, should be in the full-check config
       'import/no-cycle': 'off', // This is very slow, should be in the full-check config
+      'import/no-named-as-default-member': 'off',
     },
     settings: {
       'import/resolver': 'typescript', // This is the only resolver that works, even for JavaScript files
@@ -30,27 +48,12 @@ export const jsRules = [
 
 export const typescriptRules = ts.config({
   name: 'hyperlane-ts-rules',
-  files: ['**/*.ts'],
-  extends: [
-    ts.configs.recommendedTypeChecked,
-    importPlugin.flatConfigs.typescript,
-  ],
-  languageOptions: {
-    parserOptions: {
-      projectService: true,
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
+  files: ['**/*.ts', '**/*.tsx'],
+  extends: [ts.configs.recommended, importPlugin.flatConfigs.typescript],
   rules: {
-    '@typescript-eslint/require-await': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/ban-ts-comment': 'off',
+    '@typescript-eslint/no-empty-object-type': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-misused-promises': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-argument': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-assignment': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-call': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-enum-comparison': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-member-access': 'off', // Recommended rule, but we have many violations
-    '@typescript-eslint/no-unsafe-return': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-unused-expressions': 'off',
     '@typescript-eslint/no-unused-vars': [
       'error',
@@ -65,6 +68,20 @@ export const typescriptRules = ts.config({
     'import/resolver': 'typescript',
   },
 });
+
+export const jestRules = [
+  {
+    name: 'hyperlane-jest-rules',
+    files: ['**/*.test.ts', '**/*.hardhat-test.ts', '**/*.foundry-test.ts'],
+    plugins: { jest },
+    rules: {
+      'jest/no-disabled-tests': 'warn',
+      'jest/no-focused-tests': 'error',
+      'jest/no-identical-title': 'error',
+      'jest/valid-expect': 'error',
+    },
+  },
+];
 
 export const restrictedSdkAndUtilsImportRules = [
   {
@@ -83,6 +100,11 @@ export const restrictedSdkAndUtilsImportRules = [
                 'Imports from @hyperlane-xyz/sdk are not allowed in this package',
             },
             {
+              name: '@hyperlane-xyz/utils/fs',
+              message:
+                'The @hyperlane-xyz/utils/fs submodule requires Node.js and cannot be used in browser packages',
+            },
+            {
               name: '@hyperlane-xyz/utils',
               // These have been duplicated to reduce the changes
               // while work is completed on the multivm packages
@@ -99,6 +121,17 @@ export const restrictedSdkAndUtilsImportRules = [
       ],
     },
   },
+];
+
+// Disables ESLint rules that oxlint handles — must be last in config array
+export const oxlintIntegration = oxlint.configs['flat/recommended'];
+
+// Standard config for all packages: JS + TS + Jest + oxlint dedup
+export const defaultConfig = [
+  ...jsRules,
+  ...typescriptRules,
+  ...jestRules,
+  ...oxlintIntegration,
 ];
 
 export default jsRules;

@@ -7,8 +7,8 @@ use {
     dango_hyperlane_types::isms,
     grug::QueryClientExt,
     hyperlane_core::{
-        ChainResult, ContractLocator, HyperlaneMessage, InterchainSecurityModule, ModuleType,
-        RawHyperlaneMessage, H256, U256,
+        ChainResult, ContractLocator, HyperlaneMessage, InterchainSecurityModule, Metadata,
+        ModuleType, RawHyperlaneMessage, H256, U256,
     },
 };
 
@@ -42,7 +42,7 @@ impl InterchainSecurityModule for DangoIsm {
     async fn dry_run_verify(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         self.provider
             .query_wasm_smart(

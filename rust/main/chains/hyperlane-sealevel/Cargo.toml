@@ -20,10 +20,20 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-account-decoder.workspace = true
+solana-address-lookup-table-interface.workspace = true
 solana-client.workspace = true
+solana-rpc-client.workspace = true
+solana-commitment-config.workspace = true
+solana-compute-budget-interface.workspace = true
+solana-loader-v3-interface.workspace = true
 solana-program.workspace = true
+solana-pubsub-client.workspace = true
 solana-sdk.workspace = true
+solana-sdk-ids.workspace = true
+solana-stake-interface.workspace = true
+solana-system-interface.workspace = true
 solana-transaction-status.workspace = true
+solana-vote-interface.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
@@ -34,6 +44,7 @@ account-utils = { path = "../../../sealevel/libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "solana",
     "async",
+    "matching-list",
 ] }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
@@ -56,4 +67,5 @@ multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }
 
 [dev-dependencies]
+hex.workspace = true
 rstest.workspace = true

@@ -11,6 +11,8 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
@@ -20,17 +22,26 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     using Message for bytes;
     using TypeCasts for bytes32;
+    using StorageSlot for bytes32;
+
+    error MaxFeeTooHigh();
+
+    event MaxFeePpmSet(uint256 maxFeePpm);
+
+    bytes32 private constant MAX_FEE_PPM_SLOT =
+        keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeePpm");
+
+    uint256 private constant MAX_FEE_DENOMINATOR = 1_000_000;
 
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
     uint32 public immutable minFinalityThreshold;
-    uint256 public immutable maxFeeBps;
 
     constructor(
         address _erc20,
         address _mailbox,
         IMessageTransmitterV2 _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger,
-        uint256 _maxFeeBps,
+        uint256 _maxFeePpm,
         uint32 _minFinalityThreshold
     )
         TokenBridgeCctpBase(
@@ -40,9 +51,40 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
-        require(_maxFeeBps < 10_000, "maxFeeBps must be less than 100%");
-        maxFeeBps = _maxFeeBps;
+        _setMaxFeePpm(_maxFeePpm);
         minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ External Functions ============
+
+    /**
+     * @notice Returns the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @return The maximum fee rate in ppm.
+     */
+    function maxFeePpm() public view returns (uint256) {
+        return MAX_FEE_PPM_SLOT.getUint256Slot().value;
+    }
+
+    /**
+     * @notice Sets the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @param _maxFeePpm The new maximum fee in ppm (must be < 1_000_000).
+     */
+    function setMaxFeePpm(uint256 _maxFeePpm) external onlyOwner {
+        _setMaxFeePpm(_maxFeePpm);
+    }
+
+    function _setMaxFeePpm(uint256 _maxFeePpm) internal {
+        if (_maxFeePpm >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
+        MAX_FEE_PPM_SLOT.getUint256Slot().value = _maxFeePpm;
+        emit MaxFeePpmSet(_maxFeePpm);
     }
 
     // ============ TokenRouter overrides ============
@@ -63,21 +105,33 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      * The formula solves for the fee needed such that after Circle takes their percentage,
      * the recipient receives exactly `amount`:
      *
-     *   (amount + fee) * (10_000 - maxFeeBps) / 10_000 = amount
+     *   (amount + fee) * (MAX_FEE_DENOMINATOR - maxFeePpm) / MAX_FEE_DENOMINATOR = amount
      *
      * Solving for fee:
-     *   fee = (amount * maxFeeBps) / (10_000 - maxFeeBps)
+     *   fee = (amount * maxFeePpm) / (MAX_FEE_DENOMINATOR - maxFeePpm)
      *
-     * Example: If amount = 100 USDC and maxFeeBps = 10 (0.1%):
-     *   fee = (100 * 10) / (10_000 - 10) = 1000 / 9990 ≈ 0.1001 USDC
-     *   We deposit 100.1001 USDC, Circle takes 0.1001 USDC, recipient gets exactly 100 USDC.
+     * Example: If amount = 100 USDC and maxFeePpm = 130 (1.3 bps = 0.013%):
+     *   fee = (100 * 130) / (1_000_000 - 130) = 13000 / 999870 ≈ 0.013 USDC
+     *   We deposit 100.013 USDC, Circle takes up to 0.013 USDC, recipient gets exactly 100 USDC.
+     *
+     * Note: maxFeePpm is in parts per million (ppm), where 100 ppm = 1 bps = 0.01%.
+     * This precision allows representing fractional basis points like Circle's 1.3 bps fees.
      */
     function _externalFeeAmount(
         uint32,
         bytes32,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / (10_000 - maxFeeBps);
+        // round up because depositForBurn maxFee is an upper bound
+        // enforced offchain by the Iris attestation service without precision loss
+        uint256 _maxFeePpm = maxFeePpm();
+        return
+            Math.mulDiv(
+                amount,
+                _maxFeePpm,
+                MAX_FEE_DENOMINATOR - _maxFeePpm,
+                Math.Rounding.Up
+            );
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -98,23 +152,18 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         burnMessage._validateBurnMessageFormat();
 
         bytes32 circleBurnSender = burnMessage._getMessageSender();
-        require(
-            circleBurnSender == hyperlaneMessage.sender(),
-            "Invalid burn sender"
-        );
+        if (circleBurnSender != hyperlaneMessage.sender())
+            revert InvalidBurnSender();
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
 
-        require(
-            TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
-            "Invalid mint amount"
-        );
+        if (TokenMessage.amount(tokenMessage) != burnMessage._getAmount())
+            revert InvalidMintAmount();
 
-        require(
-            TokenMessage.recipient(tokenMessage) ==
-                burnMessage._getMintRecipient(),
-            "Invalid mint recipient"
-        );
+        if (
+            TokenMessage.recipient(tokenMessage) !=
+            burnMessage._getMintRecipient()
+        ) revert InvalidMintRecipient();
     }
 
     function _validateHookMessage(
@@ -122,7 +171,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes29 cctpMessage
     ) internal pure override {
         bytes32 circleMessageId = cctpMessage._getMessageBody().index(0, 32);
-        require(circleMessageId == hyperlaneMessage.id(), "Invalid message id");
+        if (circleMessageId != hyperlaneMessage.id()) revert InvalidMessageId();
     }
 
     // @inheritdoc IMessageHandlerV2
@@ -163,7 +212,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         IMessageTransmitterV2(address(messageTransmitter)).sendMessage(
             destinationDomain,
             ism,
-            bytes32(0), // allow anyone to relay
+            ism,
             minFinalityThreshold,
             abi.encode(messageId)
         );
@@ -173,14 +222,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _maxFee
+        uint256 _maxFee,
+        bytes32 _ism
     ) internal override {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             _amount,
             circleDomain,
             _recipient,
             address(wrappedToken),
-            bytes32(0), // allow anyone to relay
+            _ism,
             _maxFee,
             minFinalityThreshold
         );

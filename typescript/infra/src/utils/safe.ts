@@ -11,16 +11,7 @@ import {
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
-import {
-  Hex,
-  bytesToHex,
-  decodeFunctionData,
-  encodePacked,
-  getAddress,
-  isHex,
-  parseAbi,
-  toBytes,
-} from 'viem';
+import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
 import {
@@ -36,7 +27,6 @@ import {
   CallData,
   deepCopy,
   eqAddress,
-  retryAsync,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -47,12 +37,64 @@ import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
 import { fetchGCPSecret } from './gcloud.js';
 
-const TX_FETCH_RETRIES = 5;
-const TX_FETCH_RETRY_DELAY = 5000;
-
 const safeApiKeySecretName = 'gnosis-safe-api-key';
 
 const MIN_SAFE_API_VERSION = '5.18.0';
+
+const SAFE_API_MAX_RETRIES = 10;
+const SAFE_API_MIN_DELAY_MS = 1000;
+const SAFE_API_MAX_DELAY_MS = 3000;
+
+/**
+ * Retry helper for Safe API calls with random delay between 1-3 seconds.
+ * Handles rate limiting (429) errors with jittered backoff.
+ */
+export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= SAFE_API_MAX_RETRIES; attempt++) {
+    try {
+      return await runner();
+    } catch (error) {
+      const isLastAttempt = attempt === SAFE_API_MAX_RETRIES;
+      if (isLastAttempt) {
+        throw error;
+      }
+
+      const delayMs =
+        Math.floor(
+          Math.random() * (SAFE_API_MAX_DELAY_MS - SAFE_API_MIN_DELAY_MS),
+        ) + SAFE_API_MIN_DELAY_MS;
+
+      const warningMessage = chalk.yellow(
+        `Safe API call failed (attempt ${attempt}/${SAFE_API_MAX_RETRIES}), retrying in ${delayMs}ms: ${error}`,
+      );
+      if (attempt > SAFE_API_MAX_RETRIES - 3) {
+        rootLogger.warn(warningMessage);
+      } else {
+        rootLogger.debug(warningMessage);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error('Unreachable');
+}
+
+async function fetchSafeApi<T>(url: string, safeApiKey: string): Promise<T> {
+  return retrySafeApi(async () => {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'node-fetch',
+        Authorization: `Bearer ${safeApiKey}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  });
+}
 
 export async function getSafeApiKey(): Promise<string> {
   return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
@@ -72,7 +114,7 @@ export async function getSafeAndService(
     );
   }
 
-  const { version } = await safeService.getServiceInfo();
+  const { version } = await retrySafeApi(() => safeService.getServiceInfo());
   const isLegacy = await isLegacySafeApi(version);
   if (isLegacy) {
     throw new Error(
@@ -89,10 +131,8 @@ export async function getSafeAndService(
   );
   let safeSdk: Safe.default;
   try {
-    safeSdk = await retryAsync(
-      () => getSafe(chain, multiProvider, safeAddress, deployerKey),
-      5,
-      1000,
+    safeSdk = await retrySafeApi(() =>
+      getSafe(chain, multiProvider, safeAddress, deployerKey),
     );
   } catch (error) {
     throw new Error(`Failed to initialize Safe for chain ${chain}: ${error}`);
@@ -136,7 +176,9 @@ export async function executeTx(
     multiProvider,
     safeAddress,
   );
-  const safeTransaction = await safeService.getTransaction(safeTxHash);
+  const safeTransaction = await retrySafeApi(() =>
+    safeService.getTransaction(safeTxHash),
+  );
   if (!safeTransaction) {
     throw new Error(`Failed to fetch transaction details for ${safeTxHash}`);
   }
@@ -144,9 +186,8 @@ export async function executeTx(
   // Throw if the safe doesn't have enough balance to cover the gas
   let estimate;
   try {
-    estimate = await safeService.estimateSafeTransaction(
-      safeAddress,
-      safeTransaction,
+    estimate = await retrySafeApi(() =>
+      safeService.estimateSafeTransaction(safeAddress, safeTransaction),
     );
   } catch (error) {
     throw new Error(
@@ -173,17 +214,14 @@ export async function executeTx(
 
 export async function createSafeTransaction(
   safeSdk: Safe.default,
-  safeService: SafeApiKit.default,
-  safeAddress: Address,
   transactions: MetaTransactionData[],
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
-  const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     transactions,
     onlyCalls,
-    options: { nonce: Number(nonce ?? nextNonce) },
+    ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
   });
 }
 
@@ -199,13 +237,15 @@ export async function proposeSafeTransaction(
   const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
 
-  await safeService.proposeTransaction({
-    safeAddress: safeAddress,
-    safeTransactionData: safeTransaction.data,
-    safeTxHash,
-    senderAddress,
-    senderSignature: senderSignature.data,
-  });
+  await retrySafeApi(() =>
+    safeService.proposeTransaction({
+      safeAddress: safeAddress,
+      safeTransactionData: safeTransaction.data,
+      safeTxHash,
+      senderAddress,
+      senderSignature: senderSignature.data,
+    }),
+  );
 
   rootLogger.info(
     chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
@@ -223,22 +263,19 @@ export async function deleteAllPendingSafeTxs(
 
   // Fetch all pending transactions
   const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
-  const pendingTxsResponse = await fetch(pendingTxsUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${safeApiKey}`,
-    },
-  });
-
-  if (!pendingTxsResponse.ok) {
+  let pendingTxs;
+  try {
+    pendingTxs = await fetchSafeApi<{ results: { safeTxHash: string }[] }>(
+      pendingTxsUrl,
+      safeApiKey,
+    );
+  } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+      error,
     );
     return;
   }
-
-  const pendingTxs = await pendingTxsResponse.json();
 
   // Delete each pending transaction
   for (const tx of pendingTxs.results) {
@@ -262,29 +299,11 @@ export async function getSafeTx(
   const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
 
   try {
-    return await retryAsync(
-      async () => {
-        const txDetailsResponse = await fetch(txDetailsUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${safeApiKey}`,
-          },
-        });
-
-        if (!txDetailsResponse.ok) {
-          throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
-        }
-
-        return txDetailsResponse.json();
-      },
-      TX_FETCH_RETRIES,
-      TX_FETCH_RETRY_DELAY,
-    );
+    return await fetchSafeApi(txDetailsUrl, safeApiKey);
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+        `Failed to fetch transaction details for ${safeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
       ),
     );
     return;
@@ -305,22 +324,19 @@ export async function deleteSafeTx(
 
   // Fetch the transaction details to get the proposer
   const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
-  const txDetailsResponse = await fetch(txDetailsUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${safeApiKey}`,
-    },
-  });
-
-  if (!txDetailsResponse.ok) {
+  let txDetails;
+  try {
+    txDetails = await fetchSafeApi<{ proposer?: string }>(
+      txDetailsUrl,
+      safeApiKey,
+    );
+  } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+      error,
     );
     return;
   }
-
-  const txDetails = await txDetailsResponse.json();
   const proposer = txDetails.proposer;
 
   if (!proposer) {
@@ -379,30 +395,39 @@ export async function deleteSafeTx(
 
     // Make the API call to delete the transaction
     const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
-    const res = await fetch(deleteUrl, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${safeApiKey}`,
-      },
-      body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
-    });
+    await retrySafeApi(async () => {
+      const res = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'node-fetch',
+          Authorization: `Bearer ${safeApiKey}`,
+        },
+        body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
+      });
 
-    if (res.status === 204) {
-      rootLogger.info(
-        chalk.green(
-          `Successfully deleted transaction ${safeTxHash} on ${chain}`,
-        ),
+      if (res.status === 204) {
+        rootLogger.info(
+          chalk.green(
+            `Successfully deleted transaction ${safeTxHash} on ${chain}`,
+          ),
+        );
+        return;
+      }
+
+      // 404: already deleted (e.g. prior retry succeeded but response was lost)
+      if (res.status === 404) {
+        rootLogger.info(
+          chalk.green(`Transaction ${safeTxHash} on ${chain} already deleted`),
+        );
+        return;
+      }
+
+      const errorBody = await res.text();
+      throw new Error(
+        `Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
       );
-      return;
-    }
-
-    const errorBody = await res.text();
-    rootLogger.error(
-      chalk.red(
-        `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
-      ),
-    );
+    });
   } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to delete transaction ${safeTxHash} on ${chain}:`),
@@ -695,15 +720,13 @@ export async function getPendingTxsForChains(
         ),
       );
       try {
-        pendingTxs = await retryAsync(
-          () => safeService.getPendingTransactions(safes[chain]),
-          TX_FETCH_RETRIES,
-          TX_FETCH_RETRY_DELAY,
+        pendingTxs = await retrySafeApi(() =>
+          safeService.getPendingTransactions(safes[chain]),
         );
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
           ),
         );
         return;

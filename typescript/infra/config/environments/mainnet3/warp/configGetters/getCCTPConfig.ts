@@ -27,6 +27,11 @@ import {
 
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
+// Contract version for CCTP V2 standard routes
+const CONTRACT_VERSION_STANDARD = '10.1.3';
+// Contract version for CCTP V2 fast routes - includes updated fee config
+const CONTRACT_VERSION_FAST = '10.1.5';
+
 export const CCTP_CHAINS = Object.keys(tokenMessengerV1Addresses);
 
 // TODO: remove this once the route has been updated to be owned by non-legacy ownership
@@ -114,6 +119,8 @@ const getCCTPV2WarpConfig = (
 
     return {
       ...config,
+      contractVersion:
+        mode === 'fast' ? CONTRACT_VERSION_FAST : CONTRACT_VERSION_STANDARD,
       maxFeeBps,
       minFinalityThreshold,
     };
@@ -154,7 +161,8 @@ const safeSubmitter: SubmitterMetadata = {
   safeAddress: icaOwner,
 };
 
-const icaChains = Object.keys(awIcasLegacy);
+const icaChainsLegacy = Object.keys(awIcasLegacy);
+const icaChainsV2 = Object.keys(awIcas);
 
 const getCCTPStrategyConfig = (
   version: 'V1' | 'V2' = 'V1',
@@ -163,8 +171,13 @@ const getCCTPStrategyConfig = (
     version === 'V1'
       ? Object.keys(tokenMessengerV1Addresses)
       : Object.keys(tokenMessengerV2Addresses);
+
+  // For V1, use legacy ICAs; for V2, use new ICAs
+  const icaChains = version === 'V1' ? icaChainsLegacy : icaChainsV2;
+
   const submitterMetadata = chains.map((chain): SubmitterMetadata => {
-    if (!icaChains.includes(chain)) {
+    const hasIca = icaChains.includes(chain);
+    if (!hasIca) {
       return {
         type: TxSubmitterType.GNOSIS_SAFE,
         chain,

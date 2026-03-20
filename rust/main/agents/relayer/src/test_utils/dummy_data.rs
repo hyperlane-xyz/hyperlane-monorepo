@@ -41,10 +41,17 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
+            consider_null_transaction_receipt: false,
+            wallet_urls: None,
+            wallet_solidity_urls: None,
+            energy_multiplier: None,
         }),
         metrics_conf: Default::default(),
         index: Default::default(),
+        confirmations: Default::default(),
+        chain_id: Default::default(),
         ignore_reorg_reports: false,
+        native_token: Default::default(),
     }
 }
 
@@ -84,7 +91,7 @@ pub fn dummy_metadata_builder(
         Arc::new(core_metrics),
         cache,
         db.clone(),
-        IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+        IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
         IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         None,
         false,

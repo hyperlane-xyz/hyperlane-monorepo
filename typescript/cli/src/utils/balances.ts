@@ -2,10 +2,22 @@ import { BigNumber as BN } from 'bignumber.js';
 import { BigNumber } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
-import { AltVM, GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import {
+  type AltVM,
+  type GasAction,
+  ProtocolType,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type ChainMap,
+  type ChainName,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
@@ -13,7 +25,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>,
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
@@ -33,6 +45,7 @@ export async function nativeBalancesAreSufficient(
     let deployerBalance: string = '0';
 
     switch (protocolType) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         address = await multiProvider.getSignerAddress(chain);
 
@@ -51,8 +64,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = altVmSigner.get(chain);
-
+        const signer = mustGet(altVmSigners, chain);
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =
@@ -68,7 +80,7 @@ export async function nativeBalancesAreSufficient(
           return;
         }
 
-        const ALT_VM_GAS = altVmSigner.getMinGas(protocol);
+        const ALT_VM_GAS = getProtocolProvider(protocol).getMinGas();
         requiredMinBalanceNativeDenom = BigNumber.from(
           new BN(gasPrice.amount)
             .times(ALT_VM_GAS[minGas].toString())
@@ -80,7 +92,10 @@ export async function nativeBalancesAreSufficient(
         );
 
         deployerBalanceNativeDenom = BigNumber.from(
-          await signer.getBalance({ address, denom: nativeToken.denom }),
+          await signer.getBalance({
+            address,
+            denom: nativeToken.denom,
+          }),
         );
         deployerBalance = formatUnits(
           deployerBalanceNativeDenom,

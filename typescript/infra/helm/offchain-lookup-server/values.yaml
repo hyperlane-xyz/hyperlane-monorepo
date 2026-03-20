@@ -2,11 +2,12 @@ environment: testnet
 
 # General deployment configuration
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   # Modify this tag to deploy a new revision.
   # Images can be found here:
-  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
-  tag: 88afca1-20250702-173601
+  # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-node-services
+  tag: 3b17358-20260315-183126
+serviceName: ccip-server
 
 secrets:
   name: 'offchain-lookup-server'

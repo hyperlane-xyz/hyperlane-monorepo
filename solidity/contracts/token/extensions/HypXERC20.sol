@@ -14,9 +14,10 @@ contract HypXERC20 is TokenRouter {
 
     constructor(
         address _xerc20,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {
         wrappedToken = IXERC20(_xerc20);
         _disableInitializers();
     }

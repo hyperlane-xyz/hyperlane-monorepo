@@ -49,6 +49,18 @@ pub struct ConnectionConf {
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
     pub op_submission_config: OpSubmissionConfig,
+    /// If enabled and eth_getTransactionReceipt returns Ok(Value::null())
+    /// we will try other providers and see if another provider returns something
+    /// non-null
+    pub consider_null_transaction_receipt: bool,
+
+    // Tron specific
+    /// Wallet HTTP API urls (full node REST endpoints)
+    pub wallet_urls: Option<Vec<Url>>,
+    /// Wallet Solidity HTTP API urls (solidity node REST endpoints)
+    pub wallet_solidity_urls: Option<Vec<Url>>,
+    /// Tron energy multiplier
+    pub energy_multiplier: Option<f64>,
 }
 
 impl ConnectionConf {

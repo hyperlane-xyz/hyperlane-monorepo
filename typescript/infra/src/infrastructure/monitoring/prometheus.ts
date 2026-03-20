@@ -95,10 +95,22 @@ async function getPrometheusConfig(
             {
               action: 'keep',
               regex: `(${[
-                'container.*',
-                'prometheus.*',
+                // Container metrics - only those with actual dashboard/query usage
+                'container_cpu_usage_seconds_total',
+                'container_memory_working_set_bytes',
+                'container_memory_usage_bytes',
+                'container_network_receive_bytes_total',
+                'container_network_transmit_bytes_total',
+                'container_fs_reads_total',
+                'container_fs_writes_total',
+                // Prometheus remote write health (heavily queried)
+                'prometheus_remote_storage_samples_failed_total',
+                'prometheus_remote_storage_samples_pending',
+                'prometheus_remote_storage_samples_total',
+                // Application metrics
                 'ethereum.*',
                 'hyperlane.*',
+                // Kubernetes metrics
                 'kube_pod_status_phase',
                 'kube_pod_container_status_restarts_total',
                 'kube_pod_container_resource_requests',

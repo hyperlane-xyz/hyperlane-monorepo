@@ -1,13 +1,19 @@
 import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
-import { ChainMetadataForAltVM } from './chain.js';
+import type { ChainMetadataForAltVM } from './chain.js';
+import { IRawHookArtifactManager } from './hook.js';
+import { IRawIsmArtifactManager } from './ism.js';
+import { IRawMailboxArtifactManager } from './mailbox.js';
+import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
+import { IRawWarpArtifactManager } from './warp.js';
+import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
@@ -16,6 +22,9 @@ export enum ProtocolType {
   CosmosNative = 'cosmosnative',
   Starknet = 'starknet',
   Radix = 'radix',
+  Aleo = 'aleo',
+  Tron = 'tron',
+  Unknown = 'unknown',
 }
 
 // A type that also allows for literal values of the enum
@@ -28,6 +37,9 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.CosmosNative]: 'uATOM',
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
+  [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Tron]: 'SUN',
+  [ProtocolType.Unknown]: 'unknown',
 };
 
 export type SignerConfig = Pick<
@@ -50,6 +62,74 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter>;
+
+  /**
+   * Creates an ISM artifact manager for reading and deploying ISM configurations.
+   * This factory method enables the protocol-specific instantiation of artifact managers
+   * that handle ISM operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific ISM artifact manager
+   */
+  createIsmArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager;
+
+  /**
+   * Creates a Hook artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle Hook operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @param context Optional deployment context (mailbox address, etc.) needed by some hook types
+   * @returns A protocol-specific Hook artifact manager
+   */
+  createHookArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawHookArtifactManager;
+
+  /**
+   * Creates a Warp artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle warp token operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @param context Optional deployment context (mailbox address, etc.)
+   * @returns A protocol-specific Warp artifact manager
+   */
+  createWarpArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawWarpArtifactManager;
+
+  /**
+   * Creates a Mailbox artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle Mailbox operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific Mailbox artifact manager
+   */
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager;
+
+  /**
+   * Creates a Validator Announce artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle Validator Announce operations using the Artifact API pattern.
+   *
+   * Not all protocols support validator announce (e.g., Cosmos does not).
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific Validator Announce artifact manager, or null if not supported
+   */
+  createValidatorAnnounceArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager | null;
+
+  getMinGas(): MinimumRequiredGasByAction;
 }
 
 /**

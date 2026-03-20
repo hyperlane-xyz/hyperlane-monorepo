@@ -66,15 +66,15 @@ impl InclusionStage {
         let futures = vec![
             tokio::spawn(
                 Self::receive_reprocess_txs(domain.clone(), pool.clone(), state.clone())
-                    .instrument(info_span!("receive_reprocess_txs")),
+                    .instrument(info_span!("receive_reprocess_txs_task")),
             ),
             tokio::spawn(
                 Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
-                    .instrument(info_span!("receive_txs")),
+                    .instrument(info_span!("receive_txs_task")),
             ),
             tokio::spawn(
                 Self::process_txs(pool, finality_stage_sender, state, domain)
-                    .instrument(info_span!("process_txs")),
+                    .instrument(info_span!("process_txs_task")),
             ),
         ];
         if let Err(err) = try_join_all(futures).await {
@@ -85,7 +85,7 @@ impl InclusionStage {
         }
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     pub async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
@@ -114,7 +114,7 @@ impl InclusionStage {
         }
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     async fn process_txs(
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,
@@ -178,13 +178,19 @@ impl InclusionStage {
                 Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
                 error!(?err, ?tx, "Error processing transaction. Dropping it");
-                Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
+
+                let drop_reason = match &err {
+                    LanderError::TxDropped(reason) => reason.clone(),
+                    _ => TxDropReason::Other(err.to_string()),
+                };
+                Self::drop_tx(state, &mut tx, drop_reason, pool).await?;
+                Self::update_inclusion_stage_metric(state, domain, &err);
             }
         }
         Ok(())
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     pub async fn receive_reprocess_txs(
         domain: String,
         pool: InclusionStagePool,
@@ -278,7 +284,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), LanderError> {
         info!(?tx, "Processing inclusion stage transaction");
 
         // Update the last status check timestamp before querying
@@ -313,7 +319,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), LanderError> {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
@@ -327,18 +333,21 @@ impl InclusionStage {
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_uuid = tx.uuid.clone();
-                finality_stage_sender.send(tx).await?;
+                finality_stage_sender.send(tx).await.map_err(|err| {
+                    tracing::error!(?err, "Failed to send tx to finality stage");
+                    LanderError::ChannelSendFailure(Box::new(err))
+                })?;
                 info!(?tx_uuid, ?tx_status, "Transaction included in block");
                 pool.lock().await.remove(&tx_uuid);
                 Ok(())
             }
-            TransactionStatus::Dropped(_) => {
+            TransactionStatus::Dropped(ref reason) => {
                 error!(
                     ?tx,
                     ?tx_status,
                     "Transaction has invalid status for inclusion stage"
                 );
-                Err(eyre!("Transaction has invalid status for inclusion stage"))
+                Err(LanderError::TxDropped(reason.clone()))
             }
         }
     }
@@ -348,7 +357,7 @@ impl InclusionStage {
         mut tx: Transaction,
         state: &DispatcherState,
         pool: &InclusionStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), LanderError> {
         info!(?tx, "Processing pending transaction");
 
         // update tx submission attempts
@@ -480,5 +489,13 @@ impl InclusionStage {
         update_tx_status(state, tx, new_tx_status.clone()).await?;
         pool.lock().await.remove(&tx.uuid);
         Ok(())
+    }
+
+    fn update_inclusion_stage_metric(state: &DispatcherState, domain: &str, err: &LanderError) {
+        state.metrics.update_inclusion_stage_error_metric(
+            domain,
+            &err.to_metrics_label(),
+            err.is_infra_error(),
+        )
     }
 }

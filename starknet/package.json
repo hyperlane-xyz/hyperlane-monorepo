@@ -1,49 +1,49 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
+  "version": "28.1.0",
   "description": "Core cairo contracts for Hyperlane",
-  "version": "19.9.0",
-  "type": "module",
+  "keywords": [
+    "Cairo",
+    "Hyperlane",
+    "Starknet"
+  ],
   "homepage": "https://www.hyperlane.xyz",
   "license": "Apache-2.0",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "scripts": {
-    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
-    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
-    "build": "tsc && yarn fetch-contracts && yarn generate-artifacts",
-    "clean": "rm -rf ./dist ./release",
-    "lint": "eslint -c ./eslint.config.mjs .",
-    "prettier": "prettier --write ./src ./package.json"
-  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "keywords": [
-    "Hyperlane",
-    "Cairo",
-    "Starknet"
-  ],
+  "scripts": {
+    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
+    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
+    "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
+    "clean": "rm -rf ./dist ./release",
+    "lint": "eslint -c ./eslint.config.mjs .",
+    "format": "oxfmt --write ./src"
+  },
   "dependencies": {
-    "starknet": "^7.4.0"
+    "starknet": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "^9.31.0",
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@typescript-eslint/eslint-plugin": "^8.1.6",
-    "@typescript-eslint/parser": "^8.1.6",
-    "eslint": "^9.31.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-import-resolver-typescript": "^4.4.4",
-    "eslint-plugin-import": "^2.32.0",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
     "globby": "^14.1.0",
-    "prettier": "^3.5.3",
-    "tsx": "^4.19.1",
-    "typescript": "5.3.3"
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   }
 }

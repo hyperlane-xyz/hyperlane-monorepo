@@ -11,6 +11,7 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 
 import { RadixBase } from './base.js';
+import { EPOCH_VALIDITY_RANGE } from './constants.js';
 import { Account, RadixSDKReceipt } from './types.js';
 
 export class RadixBaseSigner {
@@ -31,6 +32,10 @@ export class RadixBaseSigner {
     this.account = account;
   }
 
+  public getAddress(): string {
+    return this.account.address;
+  }
+
   public async signAndBroadcast(
     manifest: TransactionManifest,
   ): Promise<RadixSDKReceipt> {
@@ -42,7 +47,8 @@ export class RadixBaseSigner {
     const transactionHeader: TransactionHeader = {
       networkId: this.networkId,
       startEpochInclusive: constructionMetadata.ledger_state.epoch,
-      endEpochExclusive: constructionMetadata.ledger_state.epoch + 2,
+      endEpochExclusive:
+        constructionMetadata.ledger_state.epoch + EPOCH_VALIDITY_RANGE,
       nonce: generateRandomNonce(),
       notaryPublicKey: this.account.publicKey,
       notaryIsSignatory: true,

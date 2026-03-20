@@ -1,3 +1,11 @@
+## [2.2.0] - 2026-03-09
+
+* chore: migrate spellchecker from codespell to typos (#8214)
+
+## [2.0.0] - 2026-01-06
+
+* feat: always log metadata bytes as hex (#7566)
+
 ## [1.6.0] - 2025-11-06
 
 * feat: add process_calldata and build_transactions for radix (#7087)

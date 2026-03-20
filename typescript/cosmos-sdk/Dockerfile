@@ -1,3 +1,10 @@
+# Cosmos simapp Docker image for e2e testing.
+# Builds hypd from the external hyperlane-cosmos repo.
+# Triggered manually via simapp-docker.yml workflow_dispatch.
+#
+# This Dockerfile was deleted in 57a20536ec and has been restored
+# because, believe it or not, we still need it.
+
 FROM golang:1.22
 
 WORKDIR /app

@@ -7,7 +7,10 @@ domainId: 31347
 name: anvil3
 protocol: ethereum
 rpcUrls:
-  - http: http://127.0.0.1:8600
+  # Temporarily changing this until all the existing chain specific tests have been migrated
+  # to not use the script to run anvil
+  # - http: http://127.0.0.1:8600
+  - http: http://127.0.0.1:8597
 blockExplorers: # Array: List of BlockExplorer configs
   # Required fields:
   - name: My Chain Explorer # String: Human-readable name for the explorer
@@ -20,3 +23,4 @@ nativeToken:
   name: Ether
   symbol: ETH
   decimals: 18
+gnosisSafeTransactionServiceUrl: http://127.0.0.1:2496

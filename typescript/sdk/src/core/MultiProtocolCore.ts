@@ -1,10 +1,16 @@
-import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  HexString,
+  ProtocolType,
+  isEVMLike,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { TypedTransactionReceipt } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { AleoCoreAdapter } from './adapters/AleoCoreAdapter.js';
 import { CosmNativeCoreAdapter } from './adapters/CosmNativeCoreAdapter.js';
 import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter.js';
 import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
@@ -39,12 +45,13 @@ export class MultiProtocolCore extends MultiProtocolApp<
   override protocolToAdapter(
     protocol: ProtocolType,
   ): AdapterClassType<ICoreAdapter> {
-    if (protocol === ProtocolType.Ethereum) return EvmCoreAdapter;
+    if (isEVMLike(protocol)) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     if (protocol === ProtocolType.CosmosNative) return CosmNativeCoreAdapter;
     if (protocol === ProtocolType.Starknet) return StarknetCoreAdapter;
     if (protocol === ProtocolType.Radix) return RadixCoreAdapter;
+    if (protocol === ProtocolType.Aleo) return AleoCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 

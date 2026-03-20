@@ -1,0 +1,14 @@
+# Tron test chain aliased as anvil1 for test compatibility
+# Placeholder chain to maintain parity with anvil registry structure
+---
+chainId: 3360022319
+domainId: 3360022317
+name: anvil1
+displayName: Tron Local 1
+protocol: tron
+rpcUrls:
+  - http: http://127.0.0.1:9090/jsonrpc
+nativeToken:
+  name: TRX
+  symbol: TRX
+  decimals: 6

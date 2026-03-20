@@ -7,6 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use axum::Router;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
@@ -18,7 +19,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
@@ -31,10 +32,10 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
-    H512, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
+    QueueOperation, H512, U256,
 };
-use lander::DispatcherMetrics;
+use lander::{CommandEntrypoint, DispatcherMetrics};
 
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -89,7 +90,7 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
-    metric_app_contexts: Vec<(MatchingList, String)>,
+    metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
@@ -523,6 +524,48 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
+        let relayer_router = self.build_router(prep_queues, sender.clone()).await;
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = tokio::spawn(
+            async move {
+                let _ = server.run_with_custom_router(relayer_router).await;
+            }
+            .instrument(info_span!("Relayer server")),
+        );
+        tasks.push(server_task);
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started relayer server", "Relayer startup duration measurement");
+
+        tasks.push(self.runtime_metrics.spawn());
+
+        debug!(elapsed = ?start.elapsed(), event = "fully started", "Relayer startup duration measurement");
+
+        if let Err(err) = try_join_all(tasks).await {
+            tracing::error!(
+                error=?err,
+                "Relayer task panicked"
+            );
+        }
+    }
+}
+
+type PrepQueue = HashMap<
+    u32,
+    Arc<
+        tokio::sync::Mutex<
+            std::collections::BinaryHeap<std::cmp::Reverse<Box<dyn PendingOperation + 'static>>>,
+        >,
+    >,
+>;
+impl Relayer {
+    async fn build_router(
+        &self,
+        prep_queues: PrepQueue,
+        sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
+    ) -> Router {
         // create a db mapping for server handlers
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
             .origins
@@ -551,43 +594,29 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let relayer_router = relayer_server::Server::new(self.destinations.len())
-            .with_op_retry(sender.clone())
+        let dispatcher_entrypoints: HashMap<_, _> = self
+            .destinations
+            .iter()
+            .filter_map(|(domain, dest)| {
+                dest.dispatcher_entrypoint.as_ref().map(|entrypoint| {
+                    (
+                        domain.id(),
+                        Arc::new(entrypoint.clone()) as Arc<dyn CommandEntrypoint>,
+                    )
+                })
+            })
+            .collect();
+        relayer_server::Server::new(self.destinations.len())
+            .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
-            .router();
-
-        let server = self
-            .core
-            .settings
-            .server(self.core_metrics.clone())
-            .expect("Failed to create server");
-        let server_task = tokio::spawn(
-            async move {
-                server.run_with_custom_router(relayer_router);
-            }
-            .instrument(info_span!("Relayer server")),
-        );
-        tasks.push(server_task);
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started relayer server", "Relayer startup duration measurement");
-
-        tasks.push(self.runtime_metrics.spawn());
-
-        debug!(elapsed = ?start.elapsed(), event = "fully started", "Relayer startup duration measurement");
-
-        if let Err(err) = try_join_all(tasks).await {
-            tracing::error!(
-                error=?err,
-                "Relayer task panicked"
-            );
-        }
+            .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
+            .router()
     }
-}
 
-impl Relayer {
     fn record_critical_error(
         domain: &HyperlaneDomain,
         chain_metrics: &ChainMetrics,
@@ -800,11 +829,7 @@ impl Relayer {
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageDbLoaderMetrics::new(
-            &self.core.metrics,
-            &origin.domain,
-            self.destinations.keys(),
-        );
+        let metrics = MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain);
         let destination_ctxs: HashMap<_, _> = self
             .destinations
             .keys()

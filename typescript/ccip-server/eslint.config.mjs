@@ -1,7 +1,7 @@
-import MonorepoDefaults from '../../eslint.config.mjs';
+import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...MonorepoDefaults,
+  ...defaultConfig,
   {
     files: ['./src/**/*.ts'],
   },
@@ -17,6 +17,8 @@ export default [
       '**/tests/*',
       'src/**/*.js',
       'src/generated/**',
+      'bundle/**',
+      'prisma/config.ts',
     ],
   },
 ];

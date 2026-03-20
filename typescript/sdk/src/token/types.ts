@@ -1,5 +1,4 @@
 import { compareVersions } from 'compare-versions';
-import { constants } from 'ethers';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
@@ -38,7 +37,19 @@ export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
   decimals: z.number().gt(0).optional(),
-  scale: z.number().optional(),
+  scale: z
+    .union([
+      z.number().int().gt(0),
+      z.object({
+        numerator: z.number().int().gt(0),
+        denominator: z.number().int().gt(0),
+      }),
+      z.object({
+        numerator: z.coerce.bigint(),
+        denominator: z.coerce.bigint(),
+      }),
+    ])
+    .optional(),
   isNft: z.boolean().optional(),
   contractVersion: z.string().optional(),
 });
@@ -201,12 +212,38 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       .describe('CCTP Token Messenger contract address'),
     cctpVersion: z.enum(['V1', 'V2']),
     minFinalityThreshold: z.number().optional(),
-    maxFeeBps: z.number().optional(),
+    maxFeeBps: z
+      .number()
+      .min(0)
+      .max(9_999.99)
+      .optional()
+      .describe(
+        'Maximum fee in basis points (bps), supports decimals for fractional bps. 1 bps = 0.01%. Examples: 1.3 bps for Circle Optimism/Arbitrum/Base fee, 1.5 bps for Circle Unichain fee. Internally converted to ppm (parts per million) for contract precision.',
+      ),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
+
+export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.literal(TokenType.collateralOft),
+  token: z
+    .string()
+    .describe('Underlying ERC20 token address (resolved from OFT)'),
+  oft: z.string().describe('OFT / OFTAdapter / OFTWrapper contract address'),
+  domainMappings: z
+    .record(
+      RemoteRouterDomainOrChainNameSchema,
+      z.number().int().nonnegative().max(4294967295),
+    )
+    .describe(
+      'Mapping of Hyperlane domain (or chain name) to LayerZero endpoint ID',
+    ),
+  extraOptions: z.string().optional().describe('LayerZero extra options (hex)'),
+});
+export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
+export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
 
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
@@ -219,6 +256,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
+  metadataUri: z.string().url().optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -233,6 +271,27 @@ export type SyntheticRebaseTokenConfig = z.infer<
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
+);
+
+/**
+ * Configuration for CrossCollateralRouter (multi-router collateral routing).
+ * Direct 1-message atomic transfers between collateral routers.
+ */
+export const CrossCollateralTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.crossCollateral),
+    token: z.string().describe('Collateral token address'),
+    /** Map of domain → router addresses to enroll */
+    crossCollateralRouters: z
+      .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
+      .optional(),
+    ...BaseMovableTokenConfigSchema.shape,
+  });
+export type CrossCollateralTokenConfig = z.infer<
+  typeof CrossCollateralTokenConfigSchema
+>;
+export const isCrossCollateralTokenConfig = isCompliant(
+  CrossCollateralTokenConfigSchema,
 );
 
 export const EverclearCollateralTokenConfigSchema = z.object({
@@ -299,12 +358,19 @@ export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema
 >;
 
-/**
- * @remarks
- * The discriminatedUnion is basically a switch statement for zod schemas
- * It uses the 'type' key to pick from the array of schemas to validate
- */
-export const HypTokenConfigSchema = z.discriminatedUnion('type', [
+export const UnknownTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
+    type: z.literal(TokenType.unknown),
+  })
+  .passthrough();
+export type UnknownTokenConfig = z.infer<typeof UnknownTokenConfigSchema>;
+export const isUnknownTokenConfig = isCompliant(UnknownTokenConfigSchema);
+
+const KnownTokenTypes: string[] = Object.values(TokenType).filter(
+  (t) => t !== TokenType.unknown,
+);
+
+const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   OpL2TokenConfigSchema,
   OpL1TokenConfigSchema,
@@ -313,10 +379,32 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  OftTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  CrossCollateralTokenConfigSchema,
+  UnknownTokenConfigSchema,
 ]);
-export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
+
+export type HypTokenConfig = z.infer<typeof AllHypTokenConfigSchema>;
+
+/**
+ * @remarks
+ * The discriminatedUnion is basically a switch statement for zod schemas
+ * It uses the 'type' key to pick from the array of schemas to validate
+ */
+export const HypTokenConfigSchema = z.preprocess((val) => {
+  if (typeof val === 'object' && val !== null && 'type' in val) {
+    const obj = val as { type: unknown };
+    if (
+      typeof obj.type === 'string' &&
+      !KnownTokenTypes.includes(obj.type as TokenType)
+    ) {
+      return { ...obj, type: TokenType.unknown };
+    }
+  }
+  return val;
+}, AllHypTokenConfigSchema);
 
 export const HypTokenRouterConfigSchema = z.preprocess(
   preprocessWarpRouteDeployConfig,
@@ -354,39 +442,10 @@ export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalBaseSchema
 >;
 
-export const HypTokenRouterConfigMailboxOptionalSchema = z
-  .preprocess(
-    preprocessWarpRouteDeployConfig,
-    HypTokenRouterConfigMailboxOptionalBaseSchema,
-  ) // Check that each tokenFee.token is the same as config.token
-  .transform((config, ctx) => {
-    if (!isCollateralTokenConfig(config) || !config.tokenFee) return config;
-
-    if (config.tokenFee.token !== config.token) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `${config.tokenFee.type} must have the same token as warp route`,
-      });
-    }
-
-    if (
-      config.tokenFee.type === TokenFeeType.RoutingFee &&
-      config.tokenFee.feeContracts
-    ) {
-      const hasSameTokens = Object.entries(config.tokenFee.feeContracts).every(
-        ([_, subFee]) => subFee.token === config.token,
-      );
-
-      if (!hasSameTokens) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${TokenFeeType.RoutingFee} sub fees must have the same token as warp route`,
-        });
-      }
-    }
-
-    return config;
-  });
+export const HypTokenRouterConfigMailboxOptionalSchema = z.preprocess(
+  preprocessWarpRouteDeployConfig,
+  HypTokenRouterConfigMailboxOptionalBaseSchema,
+);
 
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
@@ -394,31 +453,24 @@ export type HypTokenRouterConfigMailboxOptional = z.infer<
 
 function preprocessWarpRouteDeployConfig(value: unknown) {
   const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
-  return populateTokenFeeOwners({
+  return populateFeeOwner({
     tokenConfig: mutatedConfig,
     feeConfig: mutatedConfig.tokenFee,
   });
 }
 
-function populateTokenFeeOwners(params: {
+function populateFeeOwner(params: {
   tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
   feeConfig?: TokenFeeConfigInput;
 }) {
   const { tokenConfig, feeConfig } = params;
   if (!feeConfig) return tokenConfig;
 
-  if (isCollateralTokenConfig(tokenConfig))
-    // Default fee.token to the router token, if not specified
-    feeConfig.token = feeConfig.token ?? tokenConfig.token;
-  else if (isNativeTokenConfig(tokenConfig))
-    // This must be defined for contract deployment
-    feeConfig.token = constants.AddressZero;
-
   feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
 
   if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
     objMap(feeConfig.feeContracts, (_, innerConfig) => {
-      populateTokenFeeOwners({ tokenConfig, feeConfig: innerConfig });
+      populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
     });
   }
   return tokenConfig;
@@ -436,7 +488,9 @@ export const WarpRouteDeployConfigSchema = z
           isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
-          isEverclearTokenBridgeConfig(config),
+          isEverclearTokenBridgeConfig(config) ||
+          isCrossCollateralTokenConfig(config) ||
+          isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
@@ -669,6 +723,7 @@ function extractCCIPIsmMap(
 
 const MovableTokenSchema = z.discriminatedUnion('type', [
   CollateralTokenConfigSchema,
+  CrossCollateralTokenConfigSchema,
   NativeTokenConfigSchema,
 ]);
 export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;

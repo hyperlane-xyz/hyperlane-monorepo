@@ -1,5 +1,8 @@
 import { expect } from 'chai';
 
+import { AgentConfig } from '@hyperlane-xyz/sdk';
+import { readJson } from '@hyperlane-xyz/utils/fs';
+
 import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
 import { mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent.js';
@@ -10,21 +13,20 @@ import {
   ensureAgentChainConfigIncludesAllChainNames,
 } from '../src/config/agent/agent.js';
 import { AgentEnvironment } from '../src/config/environment.js';
-import { readJSONAtPath } from '../src/utils/utils.js';
 
 const environmentChainConfigs = {
   mainnet3: {
     agentChainConfig: mainnet3AgentChainConfig,
     // We read the agent config from the file system instead of importing
     // to get around the agent JSON configs living outside the typescript rootDir
-    agentJsonConfig: readJSONAtPath(
+    agentJsonConfig: readJson<AgentConfig>(
       getAgentConfigJsonPath(AgentEnvironment.Mainnet),
     ),
     supportedChainNames: mainnet3SupportedChainNames,
   },
   testnet4: {
     agentChainConfig: testnet4AgentChainConfig,
-    agentJsonConfig: readJSONAtPath(
+    agentJsonConfig: readJson<AgentConfig>(
       getAgentConfigJsonPath(AgentEnvironment.Testnet),
     ),
     supportedChainNames: testnet4SupportedChainNames,
@@ -34,6 +36,7 @@ const environmentChainConfigs = {
 describe('Agent configs', () => {
   Object.entries(environmentChainConfigs).forEach(([environment, config]) => {
     describe(`Environment: ${environment}`, () => {
+      // eslint-disable-next-line jest/expect-expect -- ensureAgentChainConfigIncludesAllChainNames throws on failure
       it('AgentChainConfig specifies all chains for each role in the agent chain config', () => {
         // This will throw if there are any inconsistencies
         ensureAgentChainConfigIncludesAllChainNames(

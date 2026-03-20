@@ -1,14 +1,38 @@
 use std::ops::Deref;
 
-use aleo_serialize::AleoSerialize;
+use anyhow::Result;
 use async_trait::async_trait;
 use derive_new::new;
-use hyperlane_core::ChainResult;
 use serde::de::DeserializeOwned;
+use snarkvm::ledger::query::QueryTrait;
 use snarkvm::ledger::{Block, ConfirmedTransaction};
-use snarkvm::prelude::{Network, Plaintext, Program, ProgramID, Transaction};
+use snarkvm::prelude::{
+    Authorization, Network, Plaintext, Program, ProgramID, StatePath, Transaction,
+};
+use snarkvm_console_account::Field;
+use snarkvm_console_account::ToBytes;
+use tokio::runtime::Handle;
+use tokio::task::block_in_place;
+use url::Url;
 
-use crate::{CurrentNetwork, HyperlaneAleoError};
+use aleo_serialize::AleoSerialize;
+use hyperlane_core::{ChainResult, H512};
+
+use crate::utils::{encrypt_message, get_tx_id};
+use crate::{
+    CurrentNetwork, EncryptedProvingRequest, HyperlaneAleoError, ProvingRequest, ProvingResponse,
+    X25519PublicKey,
+};
+
+/// Aleo Http Client trait alias
+pub trait AleoClient: HttpClient + Clone + std::fmt::Debug + Send + Sync + 'static {}
+impl<T> AleoClient for T where T: HttpClient + Clone + std::fmt::Debug + Send + Sync + 'static {}
+
+pub trait HttpClientBuilder {
+    type Client: HttpClient;
+
+    fn build(url: Url, network: u16) -> ChainResult<Self::Client>;
+}
 
 #[async_trait]
 /// HttpClient trait defines the base layer that Aleo provider will use
@@ -19,6 +43,15 @@ pub trait HttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T>;
+
+    /// Makes a GET request to the API in a blocking manner
+    fn request_blocking<T: DeserializeOwned + Send>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<T> {
+        block_in_place(|| Handle::current().block_on(async { self.request(path, query).await }))
+    }
 
     /// Makes a POST request to the API
     async fn request_post<T: DeserializeOwned + Send>(
@@ -98,15 +131,21 @@ impl<Client: HttpClient> RpcClient<Client> {
         self.request(&format!("program/{program_id}"), None).await
     }
 
-    /// Gets a program by ID and edition
-    pub async fn get_program_by_edition(
+    pub async fn get_latest_edition<N: Network>(
         &self,
-        program_id: &str,
-        edition: u64,
-        metadata: Option<bool>,
-    ) -> ChainResult<String> {
-        let query = metadata.map(|m| serde_json::json!({ "metadata": m }));
-        self.request(&format!("program/{program_id}/{edition}"), query)
+        program_id: &ProgramID<N>,
+    ) -> ChainResult<u16> {
+        self.request(&format!("program/{program_id}/latest_edition"), None)
+            .await
+    }
+
+    /// Gets a program by ID and [edition]
+    pub async fn get_program_by_edition<N: Network>(
+        &self,
+        program_id: &ProgramID<N>,
+        edition: u16,
+    ) -> ChainResult<Program<N>> {
+        self.request(&format!("program/{program_id}/{edition}"), None)
             .await
     }
 
@@ -145,18 +184,23 @@ impl<Client: HttpClient> RpcClient<Client> {
         program_id: &str,
         mapping_name: &str,
         mapping_key: &K,
-    ) -> ChainResult<T> {
+    ) -> ChainResult<Option<T>> {
         let plaintext_key = mapping_key
             .to_plaintext()
             .map_err(HyperlaneAleoError::from)?;
-        let plain_text: Plaintext<CurrentNetwork> = self
+        let plain_text: Option<Plaintext<CurrentNetwork>> = self
             .request(
                 &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
                 None,
             )
             .await?;
-        let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
-        Ok(result)
+        match plain_text {
+            None => Ok(None),
+            Some(plain_text) => {
+                let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
+                Ok(Some(result))
+            }
+        }
     }
 
     /// Gets a value from a program mapping
@@ -186,12 +230,23 @@ impl<Client: HttpClient> RpcClient<Client> {
             .await
     }
 
-    /// Gets a transaction by ID
-    pub async fn get_transaction_status(
+    /// Gets a confirmed transaction by ID
+    pub async fn get_confirmed_transaction(
         &self,
-        transaction_id: &str,
+        transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
-        self.request(&format!("transaction/confirmed/{transaction_id}"), None)
+        let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/confirmed/{tx_id}"), None)
+            .await
+    }
+
+    /// Gets an unconfirmed transaction by ID from the mempool
+    pub async fn get_unconfirmed_transaction(
+        &self,
+        transaction_id: H512,
+    ) -> ChainResult<Transaction<CurrentNetwork>> {
+        let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/unconfirmed/{tx_id}"), None)
             .await
     }
 
@@ -203,5 +258,121 @@ impl<Client: HttpClient> RpcClient<Client> {
     ) -> ChainResult<String> {
         let body = serde_json::to_value(transaction).map_err(HyperlaneAleoError::from)?;
         self.request_post("transaction/broadcast", &body).await
+    }
+}
+
+/// Implements high level Aleo Proving Service requests based on a raw HttpClient
+#[derive(Debug, Clone, new)]
+pub struct ProvingClient<Client: HttpClient>(Client);
+
+impl<Client: HttpClient> ProvingClient<Client> {
+    /// Makes a POST request to the API
+    pub async fn proving_request<N: Network>(
+        &self,
+        authorization: Authorization<N>,
+        fee: Authorization<N>,
+    ) -> ChainResult<Transaction<N>> {
+        let plain_request = ProvingRequest::<N> {
+            authorization,
+            fee_authorization: Some(fee),
+            broadcast: false,
+        };
+
+        let bytes = plain_request
+            .to_bytes_le()
+            .map_err(HyperlaneAleoError::from)?;
+
+        // 1. First request a new public key for encryption from the proving service
+        // 2. Encrypt the ProvingRequest using the X25519 public key
+        // 3. Send the encrypted request to the proving service and get back the decrypted response
+        let public_key: X25519PublicKey = self.0.request("pubkey", None).await?;
+        let ciphertext = encrypt_message(&public_key.public_key, &bytes)?;
+
+        let request = serde_json::to_value(EncryptedProvingRequest {
+            key_id: public_key.key_id,
+            ciphertext,
+        })?;
+
+        let response: ProvingResponse = self.0.request_post("prove/encrypted", &request).await?;
+
+        Ok(
+            serde_json::from_value::<Transaction<N>>(response.transaction)
+                .map_err(HyperlaneAleoError::from)?,
+        )
+    }
+}
+
+#[async_trait(?Send)]
+impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
+    /// Returns the current state root.
+    fn current_state_root(&self) -> Result<N::StateRoot> {
+        Ok(self.request_blocking("stateRoot/latest", None)?)
+    }
+
+    /// Returns the current state root.
+    async fn current_state_root_async(&self) -> Result<N::StateRoot> {
+        Ok(self.request("stateRoot/latest", None).await?)
+    }
+
+    /// Returns a state path for the given `commitment`.
+    fn get_state_path_for_commitment(&self, commitment: &Field<N>) -> Result<StatePath<N>> {
+        Ok(self.request_blocking(&format!("statePath/{commitment}"), None)?)
+    }
+
+    /// Returns a state path for the given `commitment`.
+    async fn get_state_path_for_commitment_async(
+        &self,
+        commitment: &Field<N>,
+    ) -> Result<StatePath<N>> {
+        Ok(self
+            .request(&format!("statePath/{commitment}"), None)
+            .await?)
+    }
+
+    /// Returns a list of state paths for the given list of `commitment`s.
+    fn get_state_paths_for_commitments(
+        &self,
+        commitments: &[Field<N>],
+    ) -> Result<Vec<StatePath<N>>> {
+        let commitments_string = commitments
+            .iter()
+            .map(|cm| cm.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        Ok(self
+            .request_blocking(
+                &format!("statePaths?commitments={commitments_string}"),
+                None,
+            )
+            .unwrap_or_default())
+    }
+
+    /// Returns a list of state paths for the given list of `commitment`s.
+    async fn get_state_paths_for_commitments_async(
+        &self,
+        commitments: &[Field<N>],
+    ) -> Result<Vec<StatePath<N>>> {
+        let commitments_string = commitments
+            .iter()
+            .map(|cm| cm.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        Ok(self
+            .request(
+                &format!("statePaths?commitments={commitments_string}"),
+                None,
+            )
+            .await
+            .unwrap_or_default())
+    }
+
+    /// Returns the current block height
+    fn current_block_height(&self) -> Result<u32> {
+        Ok(self.request_blocking("block/height/latest", None)?)
+    }
+
+    /// Returns the current block height
+    async fn current_block_height_async(&self) -> Result<u32> {
+        Ok(self.get_latest_height().await?)
     }
 }

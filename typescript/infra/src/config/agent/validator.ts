@@ -6,7 +6,7 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
@@ -67,23 +67,26 @@ export type CheckpointSyncerConfig =
   | GcsCheckpointSyncerConfig;
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
-export const enum CheckpointSyncerType {
-  LocalStorage = 'localStorage',
-  S3 = 's3',
-  Gcs = 'gcs',
-}
+export const CheckpointSyncerType = {
+  LocalStorage: 'localStorage',
+  S3: 's3',
+  Gcs: 'gcs',
+} as const;
+
+export type CheckpointSyncerType =
+  (typeof CheckpointSyncerType)[keyof typeof CheckpointSyncerType];
 
 export interface LocalCheckpointSyncerConfig {
-  type: CheckpointSyncerType.LocalStorage;
+  type: typeof CheckpointSyncerType.LocalStorage;
   path: string;
 }
 
 export type S3CheckpointSyncerConfig = S3Config & {
-  type: CheckpointSyncerType.S3;
+  type: typeof CheckpointSyncerType.S3;
 };
 
 export type GcsCheckpointSyncerConfig = {
-  type: CheckpointSyncerType.Gcs;
+  type: typeof CheckpointSyncerType.Gcs;
   bucket: string;
   folder?: string;
   service_account_key?: string;
@@ -148,8 +151,8 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       if (this.aws) {
         validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
 
-        // AWS-based chain signer keys are only used for Ethereum
-        if (protocol === ProtocolType.Ethereum) {
+        // AWS-based chain signer keys are only used for EVM-like chains
+        if (isEVMLike(protocol)) {
           chainSigner = validator;
         }
       }

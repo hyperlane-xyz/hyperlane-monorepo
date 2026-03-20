@@ -7,8 +7,8 @@ use {
     dango_hyperlane_types::{mailbox, recipients::RecipientQuery},
     grug::{Coins, HexBinary, Message, QueryClientExt},
     hyperlane_core::{
-        ChainResult, ContractLocator, HyperlaneMessage, Mailbox, RawHyperlaneMessage, ReorgPeriod,
-        TxCostEstimate, TxOutcome, H256, U256,
+        ChainResult, ContractLocator, HyperlaneMessage, Mailbox, Metadata, RawHyperlaneMessage,
+        ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
     },
 };
 
@@ -99,7 +99,7 @@ impl Mailbox for DangoMailbox {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         Ok(self
@@ -122,7 +122,7 @@ impl Mailbox for DangoMailbox {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         Ok(self
             .provider
@@ -141,7 +141,7 @@ impl Mailbox for DangoMailbox {
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         todo!()
     }

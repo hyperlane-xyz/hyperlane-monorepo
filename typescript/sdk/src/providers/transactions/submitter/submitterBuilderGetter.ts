@@ -110,6 +110,7 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
 const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
   {
     [ProtocolType.Ethereum]: EVM_SUBMITTERS_FACTORIES,
+    [ProtocolType.Tron]: EVM_SUBMITTERS_FACTORIES,
   };
 
 /**

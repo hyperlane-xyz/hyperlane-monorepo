@@ -1,0 +1,14 @@
+diff --git a/package.json b/package.json
+index 3a4d76cca0314269c26f5b5c18b3f724cdfe7e34..7fca47590a72b20509bfac37493a047f7d444e72 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,8 @@
+ {
+   "name": "@provablehq/wasm",
+   "version": "0.9.11",
+-  
++  "type": "module",
++
+   "description": "SnarkVM WASM binaries with javascript bindings",
+   "collaborators": [
+     "The Provable Team"

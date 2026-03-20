@@ -1,4 +1,4 @@
-import type { TransactionReceipt } from '@ethersproject/providers';
+import type { Log, TransactionReceipt } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
@@ -80,10 +80,22 @@ export class CallCommitmentsService extends BaseService {
     const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
 
-    const commitment = commitmentFromIcaCalls(
-      normalizeCalls(data.calls),
-      data.salt,
-    );
+    let commitment: string;
+    try {
+      commitment = commitmentFromIcaCalls(
+        normalizeCalls(data.calls),
+        data.salt,
+      );
+    } catch (error: unknown) {
+      logger.warn(
+        {
+          error: error instanceof Error ? error.message : error,
+          calls: data.calls,
+        },
+        'Invalid call data',
+      );
+      return res.status(400).json({ error: 'Invalid call data' });
+    }
     logger.setBindings({ commitment });
 
     logger.info(
@@ -233,7 +245,7 @@ export class CallCommitmentsService extends BaseService {
 
     // Find the index of the CommitRevealDispatched log with the given commitment
     const revealIndex = receipt.logs.findIndex(
-      (log) =>
+      (log: Log) =>
         log.topics[0] === revealDispatchedTopic &&
         iface.parseLog(log).args.commitment === commitment,
     );
@@ -248,7 +260,7 @@ export class CallCommitmentsService extends BaseService {
     // Find the next two DispatchId logs after the CommitRevealDispatched
     const dispatchLogsAfterReveal = receipt.logs
       .slice(revealIndex + 1)
-      .filter((log) => log.topics[0] === dispatchIdTopic);
+      .filter((log: Log) => log.topics[0] === dispatchIdTopic);
 
     if (dispatchLogsAfterReveal.length < 2) {
       logger.warn(
@@ -432,7 +444,7 @@ export class CallCommitmentsService extends BaseService {
   ): Promise<string> {
     const iface = InterchainAccountRouter__factory.createInterface();
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
-    const callLog = receipt.logs.find((l) => l.topics[0] === callTopic);
+    const callLog = receipt.logs.find((l: Log) => l.topics[0] === callTopic);
     if (!callLog) {
       logger.warn(
         {

@@ -1,14 +1,20 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 import {
-  OperationType,
+  MetaTransactionData,
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
-// prettier-ignore
-// @ts-ignore
-import { canProposeSafeTransactions, getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
+import {
+  SAFE_API_BASE_RETRY_MS,
+  SAFE_API_RETRIES,
+  canProposeSafeTransactions,
+  getSafe,
+  getSafeService,
+} from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -27,15 +33,16 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
-    private safe: any,
-    private safeService: any,
+    protected safe: Safe.default,
+    protected safeService: SafeApiKit.default,
   ) {}
 
-  static async create(
+  protected static async initSafeAndService(
+    chain: string,
     multiProvider: MultiProvider,
-    props: EV5GnosisSafeTxSubmitterProps,
-  ): Promise<EV5GnosisSafeTxSubmitter> {
-    const { chain, safeAddress } = props;
+    safeAddress: Address,
+    signerKey?: string,
+  ): Promise<{ safe: Safe.default; safeService: SafeApiKit.default }> {
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
     assert(
@@ -43,7 +50,19 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
     );
 
-    const signerAddress = await multiProvider.getSigner(chain).getAddress();
+    const safe = await getSafe(chain, multiProvider, safeAddress, signerKey);
+    const safeService = await getSafeService(chain, multiProvider);
+    return { safe, safeService };
+  }
+
+  static async create(
+    multiProvider: MultiProvider,
+    props: EV5GnosisSafeTxSubmitterProps,
+  ): Promise<EV5GnosisSafeTxSubmitter> {
+    const { chain, safeAddress } = props;
+
+    const signer = multiProvider.getSigner(chain);
+    const signerAddress = await signer.getAddress();
     const authorized = await canProposeSafeTransactions(
       signerAddress,
       chain,
@@ -55,8 +74,21 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
     );
 
-    const safe = await getSafe(chain, multiProvider, safeAddress);
-    const safeService = await getSafeService(chain, multiProvider);
+    const safeSignerKey =
+      'privateKey' in signer
+        ? (signer as { privateKey: string }).privateKey
+        : undefined;
+    assert(
+      safeSignerKey,
+      'Signer must have a private key to propose Safe transactions',
+    );
+    const { safe, safeService } =
+      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+        chain,
+        multiProvider,
+        safeAddress,
+        safeSignerKey,
+      );
 
     return new EV5GnosisSafeTxSubmitter(
       multiProvider,
@@ -67,7 +99,13 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   protected async getNextNonce(): Promise<number> {
-    return await this.safeService.getNextNonce(this.props.safeAddress);
+    const nextNonce = await retryAsync(
+      () => this.safeService.getNextNonce(this.props.safeAddress),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
+
+    return parseInt(nextNonce);
   }
 
   public async createSafeTransaction(
@@ -77,11 +115,19 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
 
     const safeTransactionData = transactions.map(
-      ({ to, data, value, chainId }) => {
+      ({ to, data, value, chainId }): MetaTransactionData => {
         assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
         assert(
           chainId === submitterChainId,
           `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
+        );
+        assert(
+          data,
+          `Invalid AnnotatedEV5Transaction: calldata is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
+        );
+        assert(
+          to,
+          `Invalid AnnotatedEV5Transaction: target address is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
         );
         return { to, data, value: value?.toString() ?? '0' };
       },
@@ -89,13 +135,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
 
     const isMultiSend = transactions.length > 1;
     const safeTransaction = await this.safe.createTransaction({
-      safeTransactionData,
+      transactions: safeTransactionData,
       onlyCalls: isMultiSend,
       options: {
         nonce: nextNonce,
-        operation: isMultiSend
-          ? OperationType.DelegateCall
-          : OperationType.Call,
       },
     });
 
@@ -122,12 +165,17 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
     );
 
-    return this.safeService.proposeTransaction({
-      safeAddress: this.props.safeAddress,
-      safeTransactionData: safeTransaction.data,
-      safeTxHash,
-      senderAddress,
-      senderSignature,
-    });
+    return retryAsync(
+      () =>
+        this.safeService.proposeTransaction({
+          safeAddress: this.props.safeAddress,
+          safeTransactionData: safeTransaction.data,
+          safeTxHash,
+          senderAddress,
+          senderSignature,
+        }),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
   }
 }

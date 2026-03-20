@@ -1,5 +1,6 @@
 //! A test program that sends and receives messages.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

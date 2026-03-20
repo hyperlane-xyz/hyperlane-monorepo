@@ -46,7 +46,7 @@ pub async fn estimate_gas_limit(
         .ok_or_else(|| eyre::eyre!("Latest block not found"))?;
 
     let block_gas_limit: U256 = latest_block.gas_limit.into();
-    let gas_limit = if gas_limit > block_gas_limit {
+    let gas_limit = if !block_gas_limit.is_zero() && gas_limit > block_gas_limit {
         warn!(
                 ?gas_limit,
                 ?block_gas_limit,

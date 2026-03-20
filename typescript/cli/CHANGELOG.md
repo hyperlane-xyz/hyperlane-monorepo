@@ -1,5 +1,269 @@
 # @hyperlane-xyz/cli
 
+## 28.1.0
+
+### Minor Changes
+
+- 63100a2: Added bytes32 address conversion utility commands to the CLI for converting between protocol-specific addresses and bytes32 format used in cross-chain messages.
+- e93a4c8: Added multi-VM support to `hyperlane warp send` command. The command now supports transfers across all WarpCore-supported VMs including EVM, Sealevel (Solana), Cosmos, CosmosNative, Starknet, and Radix. Non-EVM destinations use Explorer GraphQL polling for delivery verification with automatic fallback to on-chain polling. Self-relay is only supported for EVM destinations and will warn/skip otherwise.
+
+### Patch Changes
+
+- ba9e35a: Only loaded relevant chains for warp send command, improving performance by avoiding loading all chain configurations.
+
+## 28.0.0
+
+### Major Changes
+
+- 5a5d172: CLI warp route reference methods were consolidated into a single `--warp-route-id` flag with `-w` and `--id` aliases. The `--config/-wd` (deploy config path) and `--warp/-wc` (warp config path) flags were removed in favor of registry-based warp route IDs. Symbol-only references (for example, `-w ETH`) now auto-resolve when unique or prompt for selection when multiple matches exist.
+
+  Migration examples:
+  - Before: `hyperlane warp deploy --config ./config.yaml`
+  - After: `hyperlane warp deploy -w ETH/ethereum-arbitrum`
+
+### Minor Changes
+
+- b9c6844: MultiCollateral contracts and SDK/CLI terminology were renamed to CrossCollateral.
+
+  The Solidity ABI was updated with renamed contracts, interfaces, router enrollment methods, domain/route getters, fee-quote method, events, and revert prefixes.
+
+  The SDK token type was migrated to `crossCollateral`.
+
+  Reader compatibility for legacy deployed contracts was not retained; readers now require the renamed CrossCollateral ABI methods.
+
+### Patch Changes
+
+- 83767b9: Removed `AltVMCoreModule`, `AltVMCoreReader`, and `coreModuleProvider` from deploy-sdk in favor of the new core artifact API (`CoreWriter`, `createCoreReader`). Added `coreConfigToArtifact` and `coreResultToDeployedAddresses` helpers to provider-sdk. Updated CLI core deploy and read commands to use the new API.
+- a4a74d8: TokenBridgeOft was refactored to remove TokenRouter inheritance, implementing ITokenBridge directly with OwnableUpgradeable. The contract no longer requires a mailbox, remote router enrollment, or destination gas configuration. Fee recipient support was removed and OFT fee quotes were consolidated into a single token quote entry. SDK deployer, warp route reader, and warp module were updated to handle OFT configs separately from Router-based configs.
+- 5ebefdb: Added support for `hyperlane warp send` from EVM chains to non-EVM destinations (Eclipse, Solana, Cosmos). Transaction is submitted on EVM origin, Rust relayer handles delivery. Non-EVM destinations require explicit `--recipient`.
+
+## 27.1.0
+
+## 27.0.0
+
+### Patch Changes
+
+- 22cb5cb: The `@hyperlane-xyz/sealevel-sdk` package (renamed from `@hyperlane-xyz/svm-sdk`) was published as a Solana/SVM client for Hyperlane Sealevel programs. It provides `SealevelProtocolProvider`, `SealevelProvider`, and `SealevelSigner` implementing the AltVM provider-sdk interfaces, along with warp token readers/writers (native, synthetic, collateral), ISM readers/writers (multisig message-ID, test), hook readers/writers (IGP, merkle tree), BPF program deployment/upgrade plans, PDA derivation utilities, and account decoders. ISM and hook deployment are not yet functional.
+
+  `SealevelProtocolProvider` was registered in the deploy-sdk for `ProtocolType.Sealevel`, and `ProtocolType.Sealevel` was added to the CLI's supported protocols list, enabling `hyperlane warp deploy` for Solana chains.
+
+- 98ac676: The `status` command resolved all EVM chains instead of only the origin/destination chains, causing crashes when unrelated chains had bad RPCs. Chain resolution was narrowed to only explicitly provided chains, with destination chains from the dispatch tx getting signers lazily via `ensureEvmSignersForChains`.
+
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Minor Changes
+
+- 43255a9: CrossCollateralRouter warp route support was added across the SDK, CLI, and warp monitor.
+
+  SDK: WarpCore gained `transferRemoteTo` flows for crossCollateral tokens, including fee quoting, ERC-20 approval, and destination token resolution. EvmWarpModule now handles CrossCollateral router enrollment/unenrollment with canonical router ID normalization. EvmWarpRouteReader derives crossCollateral token config including on-chain scale. A new `EvmCrossCollateralAdapter` provides quote, approve, and transfer operations.
+
+  CLI: `warp deploy` and `warp extend` support crossCollateral token types. A new `warp combine` command merges independent warp route configs into a single crossCollateral route. `warp send` and `warp check` work with crossCollateral routes.
+
+  Warp monitor: Pending-transfer and inventory metrics were added for crossCollateral routes, with projected deficit scoped to collateralized routes only.
+
+## 25.5.0
+
+### Patch Changes
+
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+## 25.4.1
+
+## 25.4.0
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+### Minor Changes
+
+- 1970a32: Updated CLI warp rebalancer command to match new RebalancerService constructor signature.
+
+## 25.2.0
+
+### Minor Changes
+
+- 9d38b07: Warp route extension deployments were changed to run per-chain in parallel. Successful deployments are now written to the registry before reporting failures, making `warp apply` resumable — re-running after a partial failure skips already-deployed chains.
+
+### Patch Changes
+
+- 176b684: Fixed `hl submit` with ICA/timelock strategies failing with missing chain signer errors by extracting all referenced chains from the strategy file in `resolveSubmitChains`.
+
+## 25.1.0
+
+### Minor Changes
+
+- cae845c: Added top-level `xerc20 read` and `xerc20 apply` commands for viewing and managing XERC20 mint/burn limits.
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
+## 25.0.0
+
+### Patch Changes
+
+- 04b877e: Fixed submit command failing with "warp id not provided" error by creating dedicated chain resolver that reads transaction file to determine required chains.
+
+## 24.0.0
+
+### Minor Changes
+
+- 9c021b7: Added `ism deploy` command for standalone ISM deployment.
+
+### Patch Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+## 23.0.0
+
+### Minor Changes
+
+- c094f7f: Allowed `warp check --ica` to validate ICA ownership on chains before warp apply/extension by moving config filtering after the ICA check.
+- 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
+  - Moved `HyperlaneRelayer` class from SDK to new package
+  - Moved ISM metadata builders from SDK to relayer package
+  - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
+  - Added Prometheus metrics support with `/metrics` endpoint (enabled by default on port 9090)
+  - CLI and infra now import from new package
+  - **Breaking**: The following exports were removed from `@hyperlane-xyz/sdk` and are now available from `@hyperlane-xyz/relayer`:
+    - `HyperlaneRelayer`, `RelayerCacheSchema`, `messageMatchesWhitelist`
+    - `BaseMetadataBuilder`, `decodeIsmMetadata`
+    - All metadata builder classes (`AggregationMetadataBuilder`, `MultisigMetadataBuilder`, etc.)
+  - `offchainLookupRequestMessageHash` remains exported from SDK for ccip-server compatibility
+  - Added `randomDeployableIsmConfig` test utility to SDK for generating deployable ISM configs with custom validators
+
+- c0873f8: Added `warp get-fees` command to display fees for warp route connections with USD estimates.
+
+### Patch Changes
+
+- 0b8c4ea: Fixed hook update logic for warp routes. The warp route reader now properly reads hook addresses from deployed contracts instead of hardcoding zero address. Hook update idempotency check fixed to use deepEquals with config normalization instead of reference equality, preventing unnecessary redeployments when applying identical configs. Aleo provider updated to handle null/zero hook addresses correctly. Protocol capability check added to restrict hook updates to Aleo only. Comprehensive test suite added covering hook type transitions (none→MerkleTree, MerkleTree→IGP, MerkleTree→none), IGP config updates (gas configs, beneficiary), and idempotency validation.
+- a10cfc8: ISM update test coverage was improved by creating a shared test factory that works across AltVM protocols (Cosmos, Aleo, Radix). The factory supports explicit test skipping configuration through a `skipTests` parameter, making protocol-specific limitations clear in test configuration rather than hidden in implementation.
+
+  Aleo address handling was fixed to properly support ISM unsetting. The `isZeroishAddress` regex now matches Aleo null addresses both with and without program ID prefix. The `fromAleoAddress` helper was updated to handle addresses without the '/' separator. The `getSetTokenIsmTransaction` method now converts zero addresses to `ALEO_NULL_ADDRESS` before processing.
+
+- 576cd95: Updated `proxyAdminUpdateTxs()` to respect `ownerOverrides.proxyAdmin` when determining the expected proxyAdmin owner. The priority is now: `ownerOverrides.proxyAdmin` > `proxyAdmin.owner` > `owner`.
+- 22b9e14: Fixed warp fee command failing for Cosmos chains with non-standard bech32 prefixes (e.g., osmo1, inj1) by generating placeholder addresses dynamically using the chain's bech32Prefix from metadata.
+
+## 22.0.0
+
+### Major Changes
+
+- 51a37ae: Renamed `--destinations` flag to `--chains` in `hyperlane ica deploy` and `hyperlane warp check --ica` commands for consistency with other CLI commands.
+- 9116ab0: CLI array input handling changed from CSV parsing to native yargs array syntax. Commands now use `--chains a b c` or `--chains a --chains b` instead of `--chains a,b`. Affected options: `--chains`, `--validators`, `--destinations`. Fixed a bug in chain resolver where string spreading produced individual characters instead of chain names.
+
+### Minor Changes
+
+- 9e167b3: Added `--ica` flag to `hyperlane warp check` command for verifying ICA (Interchain Account) ownership across destination chains. When used with `--origin` and optionally `--destinations`, the command checks that destination chain owners match expected ICA addresses derived from the origin chain owner. Non-EVM chains are automatically skipped with a warning.
+- 53c12b1: Metadata fields (logoURI, coinGeckoId, igpTokenAddressOrDenom, scale) and top-level options are now preserved when extending warp routes to new chains.
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- cc17360: Signer initialization is now deferred until after interactive chain selection for the `send message` command. This improves startup performance by only creating signers for the chains that will actually be used, rather than all EVM chains upfront.
+- 347ca12: Disabled chains (including deprecated ones) are now filtered out from CLI interactive prompts and the `hyperlane registry list` command output. This prevents users from accidentally selecting unsupported chains when deploying warp routes, sending messages, or running relayers.
+- 223fd7f: Fixed broken error handler in ncc.post-bundle.mjs that referenced undefined variables in the catch block.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 223fd7f: Suppressed harmless startup warnings via pnpm patches instead of runtime suppression. The bigint-buffer native bindings warning and node-fetch .data deprecation warning are now patched at the source, avoiding the need for --no-warnings flags or console.warn overrides.
+
+## 21.1.0
+
+## 21.0.0
+
+### Major Changes
+
+- 68310db: feat: aleo cli support
+- 4f9bf92: Removed deprecated Kurtosis agent deployment functionality. The `hyperlane deploy kurtosis-agents` command was removed as it was no longer maintained.
+
+### Minor Changes
+
+- 239e1a1: Migrate AltVm JsonSubmittor and FileSubmittor to deploy-sdk (from provider-sdk and cli, respectively)
+- bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
+- 7032a7c: Added `hyperlane ica deploy` command to deploy Interchain Accounts (ICAs) on destination chains for a specified owner on an origin chain. The command accepts `--origin`, `--destinations`, `--owner`, and `--key` parameters, and outputs a table showing the deployment status for each destination chain.
+- 9963e0e: feat: separate rebalancer package
+  - Extract rebalancer logic from CLI into dedicated `@hyperlane-xyz/rebalancer` package
+  - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
+  - CLI now imports from new package, maintaining backward compatibility for manual rebalancing
+
+### Patch Changes
+
+- e4fed47: Fixed CLI e2e tests failing locally by properly marking type imports with the `type` keyword. This ensures compatibility with tsx which reads JS files directly, while tests in CI continue to work with the bundled CLI.
+- fb12649: `hyperlane status` no longer requires private keys when checking message status. Keys are now only required when using `--relay` flag, and only for the destination chain protocol you're relaying to.
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+
+## 20.1.0
+
+### Minor Changes
+
+- 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
+  - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
+  - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
+  - Converted internal const enums to 'as const' pattern for better compatibility
+  - Updated @types/node from ^18.14.5 to ^20.17.0 for TypeScript 5.7+ compatibility
+  - Fixed JSON imports to use required 'with { type: "json" }' attribute (TS 5.7+ requirement)
+  - No breaking changes to public API - all changes are internal or non-breaking
+
+## 20.0.0
+
+### Minor Changes
+
+- b12fe7e: Update `hyperlane submit` to use a sequential `for` loop instead of `promiseObjAll` to prevent API rate limiting, Output transaction receipts as unique JSON files per chain with timestamped filenames.
+- aeac943: Refactor AltVMJsonRpcTxSubmitter to implement ITransactionSubmitter. Remove ALT_VM_SUPPORTED_PROTOCOLS, createAltVMSubmitterFactories in favor of simplified getSubmitterByStrategy
+
+## 19.13.0
+
+### Minor Changes
+
+- ae8ef4389: Fixed bug in `core deploy` which allowed to deploy unverified and possibly invalid configs due to missing validation using zod
+
+## 19.12.0
+
+### Minor Changes
+
+- 38a1165c8: - Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`,
+  - Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+  - Update all existing getter methods to use `mustTry`, instead of `assert`.
+  - Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+  - Move functions from `AltVMSignerFactory` to top-level functions.
+  - Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
+
+### Patch Changes
+
+- 1133c7a3f: Migrate filesystem utilities to use `@hyperlane-xyz/utils/fs` submodule, reducing code duplication.
+
+## 19.11.0
+
+## 19.10.0
+
+### Minor Changes
+
+- b3d7e8373: Remove MultiChainResolver for simplified chainResolver module
+- 66bed7126: migrated AltVm modules to provider-sdk and deploy-sdk
+- f604423b9: - Remove AltVMProviderFactory to new API in deploy-sdk (loadlProtocolProviders) and Registry singleton.
+  - Add `chainId` and `rpcUrls` to `ChainMetadataForAltVM`. Add `CosmosNativeProtocolProvider` and `RadixProtocolProvider` to both cosmos-sdk and radix-sdk, respectively.
+  - Add `forWarpRead`, `forCoreRead`, and `forCoreCheck` to signerMiddleware to enable chain resolving for these CLI functions.
+  - Add `assert` after some `altVmProvider.get` calls in SDK configUtils.
+
 ## 19.9.0
 
 ## 19.8.0
@@ -1241,7 +1505,6 @@
 
 - f44589e45: Improve warp and kurtosis deploy command UX
 - 2da6ccebe: Allow users to only configure validators for their chain
-
   - Don't restrict user to having two chains for ism config
   - If the user accidentally picks two chains, we prompt them again to confirm if they don't want to use the hyperlane validators for their multisigConfig
 
