@@ -41,7 +41,7 @@ const CROSS_COLLATERAL_ROUTING_FEE_ABI = [
   'function feeContracts(uint32,bytes32) view returns (address)',
 ] as const;
 
-const DEFAULT_ROUTER_KEY = utils.keccak256(
+export const DEFAULT_ROUTER_KEY = utils.keccak256(
   utils.toUtf8Bytes('RoutingFee.DEFAULT_ROUTER'),
 );
 
@@ -121,6 +121,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
           const subFeeConfig = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
             routingDestinations,
+            token: resolvedToken ?? token,
           });
           feeContracts[chainName] = subFeeConfig;
           resolvedToken ??= subFeeConfig.token;
