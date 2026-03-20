@@ -239,13 +239,14 @@ export const DepositAddressRecipientConfigSchema = z.object({
         if (value === undefined) return true;
         if (typeof value === 'string' && value.trim() === '') return false;
         try {
-          return BigInt(value) <= 10_000n;
+          const feeBps = BigInt(value);
+          return feeBps >= 0n && feeBps <= 10_000n;
         } catch {
           return false;
         }
       },
       {
-        message: 'feeBps must be a valid number <= 10000',
+        message: 'feeBps must be a valid number >= 0 and <= 10000',
       },
     )
     .describe('Bridge fee in basis points for this destination'),
