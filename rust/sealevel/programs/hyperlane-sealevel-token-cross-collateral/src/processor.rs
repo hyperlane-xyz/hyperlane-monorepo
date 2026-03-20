@@ -1,5 +1,7 @@
 //! Program processor.
 
+use borsh::BorshDeserialize;
+
 use access_control::AccessControl;
 use account_utils::{
     create_pda_account, DiscriminatorDecode, DiscriminatorEncode, SizedData, SPL_NOOP_PROGRAM_ID,
@@ -68,8 +70,8 @@ pub fn process_instruction(
     if let Ok(cc_instruction) = CrossCollateralInstruction::decode(instruction_data) {
         return match cc_instruction {
             CrossCollateralInstruction::Init(init) => initialize(program_id, accounts, init),
-            CrossCollateralInstruction::EnrollCrossCollateralRouters(configs) => {
-                enroll_cross_collateral_routers(program_id, accounts, configs)
+            CrossCollateralInstruction::SetCrossCollateralRouters(configs) => {
+                set_cross_collateral_routers(program_id, accounts, configs)
             }
             CrossCollateralInstruction::TransferRemoteTo(transfer) => {
                 transfer_remote_to(program_id, accounts, transfer)
@@ -82,9 +84,6 @@ pub fn process_instruction(
             }
             CrossCollateralInstruction::HandleLocalAccountMetas(handle) => {
                 handle_local_account_metas(program_id, accounts, handle)
-            }
-            CrossCollateralInstruction::UnenrollCrossCollateralRouters(configs) => {
-                unenroll_cross_collateral_routers(program_id, accounts, configs)
             }
         };
     }
@@ -372,7 +371,18 @@ fn initialize(
 /// 1. `[writable]` The CC state PDA account.
 /// 2. `[]` The token PDA account.
 /// 3. `[signer]` The owner.
-fn enroll_cross_collateral_routers(
+/// Sets cross-collateral routers. Owner-only.
+/// `Some(router)` enrolls the router for the given domain.
+/// `None` removes all routers for the given domain.
+/// To remove specific routers, first unenroll all routers for the domain
+/// with `None` and then re-enroll the desired routers with `Some(router)`.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writable]` The CC state PDA account.
+/// 2. `[]` The token PDA account.
+/// 3. `[signer]` The owner.
+fn set_cross_collateral_routers(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     configs: Vec<RemoteRouterConfig>,
@@ -406,90 +416,18 @@ fn enroll_cross_collateral_routers(
         return Err(Error::ExtraneousAccount.into());
     }
 
-    // Apply configs — enroll only
-    for config in configs {
-        if let Some(router) = config.router {
-            cc_state
-                .enrolled_routers
-                .entry(config.domain)
-                .or_default()
-                .insert(router);
-
-            msg!(
-                "Enrolled CC router {:?} for domain {}",
-                router,
-                config.domain
-            );
-        }
-    }
-
-    // Store updated CC state with realloc if needed
-    CrossCollateralStateAccount::from(cc_state).store_with_rent_exempt_realloc(
-        cc_state_account,
-        &Rent::get()?,
-        owner_account,
-        system_program_info,
-    )?;
-
-    Ok(())
-}
-
-/// Unenrolls cross-collateral routers. Owner-only.
-/// `Some(router)` removes that specific router from the domain's set.
-/// `None` removes all routers for the domain.
-/// If a domain's set becomes empty after removal, the domain key is removed.
-///
-/// Accounts:
-/// 0. `[executable]` The system program.
-/// 1. `[writable]` The CC state PDA account.
-/// 2. `[]` The token PDA account.
-/// 3. `[signer]` The owner.
-fn unenroll_cross_collateral_routers(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    configs: Vec<RemoteRouterConfig>,
-) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0: System program
-    let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &system_program::ID {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    // Account 1: CC state PDA
-    let cc_state_account = next_account_info(accounts_iter)?;
-    let mut cc_state =
-        CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
-
-    // Account 2: Token PDA (for owner verification)
-    let token_account = next_account_info(accounts_iter)?;
-    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
-        program_id,
-        token_account,
-    )?;
-
-    // Account 3: Owner (signer)
-    let owner_account = next_account_info(accounts_iter)?;
-    token.ensure_owner_signer(owner_account)?;
-
-    // Extraneous account check
-    if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
-    }
-
-    // Apply unenrollments
+    // Apply configs
     for config in configs {
         match config.router {
             Some(router) => {
-                if let Some(routers) = cc_state.enrolled_routers.get_mut(&config.domain) {
-                    routers.remove(&router);
-                    if routers.is_empty() {
-                        cc_state.enrolled_routers.remove(&config.domain);
-                    }
-                }
+                cc_state
+                    .enrolled_routers
+                    .entry(config.domain)
+                    .or_default()
+                    .insert(router);
+
                 msg!(
-                    "Unenrolled CC router {:?} for domain {}",
+                    "Enrolled CC router {:?} for domain {}",
                     router,
                     config.domain
                 );

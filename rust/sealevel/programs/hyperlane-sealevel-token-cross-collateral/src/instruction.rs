@@ -32,8 +32,12 @@ pub const CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR: [u8; 8] = [2, 2, 2, 2, 2, 
 pub enum CrossCollateralInstruction {
     /// Creates token PDA, escrow, dispatch authority, CC state PDA, CC dispatch authority PDA.
     Init(CrossCollateralInit),
-    /// Enroll CC routers. Owner-only. Each config must have `router: Some(h256)`.
-    EnrollCrossCollateralRouters(Vec<RemoteRouterConfig>),
+    /// Set CC routers. Owner-only.
+    /// `Some(router)` enrolls the router for the given domain.
+    /// `None` removes all routers for the given domain.
+    /// To remove specific routers, first unenroll all routers for the domain
+    /// with `None` and then re-enroll the desired routers with `Some(router)`.
+    SetCrossCollateralRouters(Vec<RemoteRouterConfig>),
     /// Cross-chain transfer to a specific enrolled router via mailbox dispatch.
     TransferRemoteTo(TransferRemoteTo),
     /// Same-chain transfer via CPI into target's HandleLocal. Escrows tokens locally,
@@ -43,11 +47,6 @@ pub enum CrossCollateralInstruction {
     HandleLocal(HandleLocal),
     /// Returns account metas needed for HandleLocal (off-chain simulation).
     HandleLocalAccountMetas(HandleLocal),
-    /// Unenroll CC routers. Owner-only.
-    /// `Some(router)` removes that specific router from the domain's set.
-    /// `None` removes all routers for the domain.
-    /// If a domain's set becomes empty, the domain key is removed.
-    UnenrollCrossCollateralRouters(Vec<RemoteRouterConfig>),
 }
 
 impl DiscriminatorData for CrossCollateralInstruction {
@@ -193,14 +192,18 @@ pub fn init_instruction(
     })
 }
 
-/// Gets an instruction to enroll cross-collateral routers.
+/// Gets an instruction to set cross-collateral routers.
+/// `Some(router)` enrolls the router for the given domain.
+/// `None` removes all routers for the given domain.
+/// To remove specific routers, first unenroll all routers for the domain
+/// with `None` and then re-enroll the desired routers with `Some(router)`.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
 /// 1. `[writable]` The CC state PDA account.
 /// 2. `[]` The token PDA account.
 /// 3. `[signer]` The owner.
-pub fn enroll_cross_collateral_routers_instruction(
+pub fn set_cross_collateral_routers_instruction(
     program_id: Pubkey,
     owner_payer: Pubkey,
     configs: Vec<RemoteRouterConfig>,
@@ -213,43 +216,7 @@ pub fn enroll_cross_collateral_routers_instruction(
         Pubkey::try_find_program_address(cross_collateral_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = CrossCollateralInstruction::EnrollCrossCollateralRouters(configs);
-
-    let accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new(cc_state_key, false),
-        AccountMeta::new_readonly(token_key, false),
-        AccountMeta::new(owner_payer, true),
-    ];
-
-    Ok(SolanaInstruction {
-        program_id,
-        data: ixn.encode()?,
-        accounts,
-    })
-}
-
-/// Gets an instruction to unenroll cross-collateral routers.
-///
-/// Accounts:
-/// 0. `[executable]` The system program.
-/// 1. `[writable]` The CC state PDA account.
-/// 2. `[]` The token PDA account.
-/// 3. `[signer]` The owner.
-pub fn unenroll_cross_collateral_routers_instruction(
-    program_id: Pubkey,
-    owner_payer: Pubkey,
-    configs: Vec<RemoteRouterConfig>,
-) -> Result<SolanaInstruction, ProgramError> {
-    let (token_key, _token_bump) =
-        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
-
-    let (cc_state_key, _cc_state_bump) =
-        Pubkey::try_find_program_address(cross_collateral_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
-
-    let ixn = CrossCollateralInstruction::UnenrollCrossCollateralRouters(configs);
+    let ixn = CrossCollateralInstruction::SetCrossCollateralRouters(configs);
 
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),

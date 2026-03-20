@@ -33,7 +33,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     accounts::CrossCollateralStateAccount,
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     instruction::{
-        enroll_cross_collateral_routers_instruction, init_instruction, CrossCollateralInit,
+        init_instruction, set_cross_collateral_routers_instruction, CrossCollateralInit,
         CrossCollateralInstruction, HandleLocal, TransferLocal, TransferRemoteTo,
     },
     processor::process_instruction,
@@ -412,34 +412,14 @@ async fn set_destination_gas_config(
     Ok(())
 }
 
-async fn enroll_cc_routers(
+async fn set_cc_routers(
     banks_client: &mut BanksClient,
     program_id: &Pubkey,
     payer: &Keypair,
     configs: Vec<RemoteRouterConfig>,
 ) -> Result<(), BanksClientError> {
     let ixn =
-        enroll_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs).unwrap();
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[ixn],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await?;
-    Ok(())
-}
-
-async fn unenroll_cc_routers(
-    banks_client: &mut BanksClient,
-    program_id: &Pubkey,
-    payer: &Keypair,
-    configs: Vec<RemoteRouterConfig>,
-) -> Result<(), BanksClientError> {
-    use hyperlane_sealevel_token_cross_collateral::instruction::unenroll_cross_collateral_routers_instruction;
-    let ixn = unenroll_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs)
-        .unwrap();
+        set_cross_collateral_routers_instruction(*program_id, payer.pubkey(), configs).unwrap();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[ixn],
@@ -972,7 +952,7 @@ mod routers_management {
             let router_a = H256::random();
             let router_b = H256::random();
 
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1014,7 +994,7 @@ mod routers_management {
             let non_owner =
                 new_funded_keypair(&mut ctx.banks_client, &ctx.payer, ONE_SOL_IN_LAMPORTS).await;
 
-            let result = enroll_cc_routers(
+            let result = set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &non_owner,
@@ -1035,14 +1015,13 @@ mod routers_management {
         async fn test_enroll_cc_routers_owner_not_signer() {
             let mut ctx = TestContext::new(false).await;
 
-            let ixn_data = CrossCollateralInstruction::EnrollCrossCollateralRouters(vec![
-                RemoteRouterConfig {
+            let ixn_data =
+                CrossCollateralInstruction::SetCrossCollateralRouters(vec![RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
                     router: Some(H256::random()),
-                },
-            ])
-            .encode()
-            .unwrap();
+                }])
+                .encode()
+                .unwrap();
 
             let fake_payer =
                 new_funded_keypair(&mut ctx.banks_client, &ctx.payer, ONE_SOL_IN_LAMPORTS).await;
@@ -1078,7 +1057,7 @@ mod routers_management {
 
             let router = H256::random();
 
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1112,7 +1091,7 @@ mod routers_management {
             assert!(routers_for_domain.contains(&router));
 
             // Enroll the same router again in a separate transaction
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1138,18 +1117,17 @@ mod routers_management {
             let routers_for_domain = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
             assert_eq!(routers_for_domain.len(), 1);
         }
-    }
-
-    mod cc_unenroll_instruction {
-        use super::*;
 
         #[tokio::test]
-        async fn test_set_cc_routers_unenroll() {
+        async fn test_enroll_multiple_routers_same_domain_across_txs() {
             let mut ctx = TestContext::new(false).await;
 
             let router_a = H256::random();
+            let router_b = H256::random();
+            let router_c = H256::random();
 
-            enroll_cc_routers(
+            // First tx: enroll router_a
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1161,7 +1139,118 @@ mod routers_management {
             .await
             .unwrap();
 
-            unenroll_cc_routers(
+            // Second tx: enroll router_b and router_c on the same domain
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_b),
+                    },
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_c),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            let routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+            assert_eq!(routers.len(), 3);
+            assert!(routers.contains(&router_a));
+            assert!(routers.contains(&router_b));
+            assert!(routers.contains(&router_c));
+        }
+
+        #[tokio::test]
+        async fn test_enroll_routers_across_multiple_domains() {
+            let mut ctx = TestContext::new(false).await;
+
+            let other_domain: u32 = 42;
+            let router_a = H256::random();
+            let router_b = H256::random();
+            let router_c = H256::random();
+
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_a),
+                    },
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_b),
+                    },
+                    RemoteRouterConfig {
+                        domain: other_domain,
+                        router: Some(router_c),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            let remote_routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+            assert_eq!(remote_routers.len(), 2);
+            assert!(remote_routers.contains(&router_a));
+            assert!(remote_routers.contains(&router_b));
+
+            let other_routers = cc_state.enrolled_routers.get(&other_domain).unwrap();
+            assert_eq!(other_routers.len(), 1);
+            assert!(other_routers.contains(&router_c));
+        }
+    }
+
+    mod cc_unenroll {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_none_removes_all_routers_for_domain() {
+            let mut ctx = TestContext::new(false).await;
+
+            let router_a = H256::random();
+
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router_a),
+                }],
+            )
+            .await
+            .unwrap();
+
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1188,13 +1277,13 @@ mod routers_management {
         }
 
         #[tokio::test]
-        async fn test_unenroll_cc_routers_single_router() {
+        async fn test_none_removes_multiple_routers_for_domain() {
             let mut ctx = TestContext::new(false).await;
 
             let router_a = H256::random();
             let router_b = H256::random();
 
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1212,59 +1301,13 @@ mod routers_management {
             .await
             .unwrap();
 
-            unenroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
                 vec![RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router_a),
-                }],
-            )
-            .await
-            .unwrap();
-
-            let cc_state_data = ctx
-                .banks_client
-                .get_account(ctx.cc.cc_state)
-                .await
-                .unwrap()
-                .unwrap()
-                .data;
-            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
-                .unwrap()
-                .into_inner();
-
-            let routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
-            assert!(!routers.contains(&router_a));
-            assert!(routers.contains(&router_b));
-        }
-
-        #[tokio::test]
-        async fn test_unenroll_cc_routers_removes_domain_when_empty() {
-            let mut ctx = TestContext::new(false).await;
-
-            let router_a = H256::random();
-
-            enroll_cc_routers(
-                &mut ctx.banks_client,
-                &ctx.program_id,
-                &ctx.payer,
-                vec![RemoteRouterConfig {
-                    domain: REMOTE_DOMAIN,
-                    router: Some(router_a),
-                }],
-            )
-            .await
-            .unwrap();
-
-            unenroll_cc_routers(
-                &mut ctx.banks_client,
-                &ctx.program_id,
-                &ctx.payer,
-                vec![RemoteRouterConfig {
-                    domain: REMOTE_DOMAIN,
-                    router: Some(router_a),
+                    router: None,
                 }],
             )
             .await
@@ -1283,17 +1326,179 @@ mod routers_management {
 
             assert!(!cc_state.enrolled_routers.contains_key(&REMOTE_DOMAIN));
         }
-    }
-
-    mod cc_unenroll_authorization {
-        use super::*;
 
         #[tokio::test]
-        async fn test_unenroll_cc_routers_wrong_signer() {
+        async fn test_none_then_reenroll_subset() {
+            let mut ctx = TestContext::new(false).await;
+
+            let router_a = H256::random();
+            let router_b = H256::random();
+
+            // Enroll both routers
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_a),
+                    },
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_b),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+
+            // Remove all, then re-enroll only router_b
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: None,
+                }],
+            )
+            .await
+            .unwrap();
+
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router_b),
+                }],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            let routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+            assert_eq!(routers.len(), 1);
+            assert!(!routers.contains(&router_a));
+            assert!(routers.contains(&router_b));
+        }
+
+        #[tokio::test]
+        async fn test_none_noop_on_unknown_domain() {
+            let mut ctx = TestContext::new(false).await;
+
+            // Unenroll a domain that was never enrolled — should succeed as a no-op
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![RemoteRouterConfig {
+                    domain: 99999,
+                    router: None,
+                }],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            assert!(!cc_state.enrolled_routers.contains_key(&99999));
+        }
+
+        #[tokio::test]
+        async fn test_mixed_enroll_and_unenroll_across_domains() {
+            let mut ctx = TestContext::new(false).await;
+
+            let other_domain: u32 = 42;
+            let router_a = H256::random();
+            let router_b = H256::random();
+
+            // Enroll routers on two domains
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: Some(router_a),
+                    },
+                    RemoteRouterConfig {
+                        domain: other_domain,
+                        router: Some(router_b),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+
+            // In one call: unenroll REMOTE_DOMAIN, enroll a new router on other_domain
+            let router_c = H256::random();
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![
+                    RemoteRouterConfig {
+                        domain: REMOTE_DOMAIN,
+                        router: None,
+                    },
+                    RemoteRouterConfig {
+                        domain: other_domain,
+                        router: Some(router_c),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            // REMOTE_DOMAIN fully removed
+            assert!(!cc_state.enrolled_routers.contains_key(&REMOTE_DOMAIN));
+            // other_domain has both router_b and router_c
+            let routers = cc_state.enrolled_routers.get(&other_domain).unwrap();
+            assert_eq!(routers.len(), 2);
+            assert!(routers.contains(&router_b));
+            assert!(routers.contains(&router_c));
+        }
+
+        #[tokio::test]
+        async fn test_unenroll_wrong_signer() {
             let mut ctx = TestContext::new(false).await;
 
             let router = H256::random();
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &ctx.payer,
@@ -1308,13 +1513,13 @@ mod routers_management {
             let non_owner =
                 new_funded_keypair(&mut ctx.banks_client, &ctx.payer, ONE_SOL_IN_LAMPORTS).await;
 
-            let result = unenroll_cc_routers(
+            let result = set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &non_owner,
                 vec![RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router),
+                    router: None,
                 }],
             )
             .await;
@@ -1331,9 +1536,9 @@ mod routers_management {
             let old_owner = &ctx.payer;
             let old_owner_pubkey = old_owner.pubkey();
 
-            // Enroll a router as current owner — should succeed
+            // Enroll a router as current owner
             let router = H256::random();
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 old_owner,
@@ -1376,7 +1581,7 @@ mod routers_management {
                 .unwrap();
 
             // Old owner tries to enroll — should fail
-            let result = enroll_cc_routers(
+            let result = set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 old_owner,
@@ -1393,13 +1598,13 @@ mod routers_management {
             );
 
             // Old owner tries to unenroll — should fail
-            let result = unenroll_cc_routers(
+            let result = set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 old_owner,
                 vec![RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router),
+                    router: None,
                 }],
             )
             .await;
@@ -1410,7 +1615,7 @@ mod routers_management {
             );
 
             // New owner can enroll — should succeed
-            enroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &new_owner,
@@ -1423,13 +1628,13 @@ mod routers_management {
             .unwrap();
 
             // New owner can unenroll — should succeed
-            unenroll_cc_routers(
+            set_cc_routers(
                 &mut ctx.banks_client,
                 &ctx.program_id,
                 &new_owner,
                 vec![RemoteRouterConfig {
                     domain: REMOTE_DOMAIN,
-                    router: Some(router),
+                    router: None,
                 }],
             )
             .await
@@ -1462,7 +1667,7 @@ mod handle_instruction {
         .unwrap();
 
         let cc_router = H256::random();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -1652,7 +1857,7 @@ mod handle_instruction {
         .await;
 
         let cc_router = H256::random();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -1719,7 +1924,7 @@ mod handle_local_instruction {
         let mut ctx = TestContext::new(false).await;
 
         let local_cc_router = H256::from([7u8; 32]);
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -1848,7 +2053,7 @@ mod handle_local_instruction {
 
         // Enroll B in A's CC state (so A can call TransferLocal targeting B)
         let router_b = H256::from(program_b.to_bytes());
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -1945,7 +2150,7 @@ mod handle_local_instruction {
         let router_a = H256::from(ctx.program_id.to_bytes());
 
         // Enroll B in A's CC state (so A can call TransferLocal targeting B)
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -2052,7 +2257,7 @@ mod handle_local_instruction {
         // Mutual enrollment
         let router_b = H256::from(program_b.to_bytes());
         let router_a = H256::from(program_a.to_bytes());
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &program_a,
             &ctx.payer,
@@ -2063,7 +2268,7 @@ mod handle_local_instruction {
         )
         .await
         .unwrap();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &program_b,
             &ctx.payer,
@@ -2217,7 +2422,7 @@ mod handle_local_instruction {
         let program_b = second_cc_program_id();
         let router_b = H256::from(program_b.to_bytes());
 
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -2281,7 +2486,7 @@ mod handle_local_instruction {
         let program_b = second_cc_program_id();
         let router_b = H256::from(program_b.to_bytes());
 
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -2413,7 +2618,7 @@ mod transfer_remote_to_instruction {
             (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
 
         let target_router = H256::random();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -2606,7 +2811,7 @@ mod transfer_remote_to_instruction {
         let mut ctx = TestContext::new(false).await;
 
         let local_cc_router = H256::random();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -2768,7 +2973,7 @@ mod transfer_remote_to_instruction {
         let mut ctx = TestContext::new(false).await;
 
         let target_router = H256::random();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
@@ -2843,7 +3048,7 @@ mod transfer_remote_to_instruction {
         let mut ctx = TestContext::new(false).await;
 
         let target_router = H256::random();
-        enroll_cc_routers(
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
