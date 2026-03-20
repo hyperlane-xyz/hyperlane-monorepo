@@ -103,8 +103,6 @@ pub struct HandleLocal {
     /// to prevent spoofing (a caller cannot claim to be a different program
     /// because the PDA signer check ties identity to this program ID).
     pub sender_program_id: Pubkey,
-    /// The origin domain.
-    pub origin: u32,
     /// The message body (TokenMessage encoded).
     pub message: Vec<u8>,
 }

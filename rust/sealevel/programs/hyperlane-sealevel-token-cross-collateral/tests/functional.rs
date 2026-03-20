@@ -1949,7 +1949,6 @@ mod handle_local_instruction {
 
         let handle_local = HandleLocal {
             sender_program_id: fake_sender_program_id,
-            origin: LOCAL_DOMAIN,
             message: TokenMessage::new(recipient, 1000u64.into(), vec![]).to_vec(),
         };
 
@@ -1997,7 +1996,6 @@ mod handle_local_instruction {
 
         let handle_local = HandleLocal {
             sender_program_id: ctx.program_id,
-            origin: LOCAL_DOMAIN,
             message: TokenMessage::new(H256::random(), 1000u64.into(), vec![]).to_vec(),
         };
 
@@ -3214,7 +3212,7 @@ mod account_metas_simulation {
 
         let handle_local = HandleLocal {
             sender_program_id,
-            origin: LOCAL_DOMAIN,
+
             message: token_message.to_vec(),
         };
 

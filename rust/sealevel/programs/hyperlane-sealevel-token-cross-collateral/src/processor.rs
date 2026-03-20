@@ -787,7 +787,6 @@ fn transfer_local(
     let token_message = TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
     let handle_local_data = HandleLocal {
         sender_program_id: *program_id,
-        origin: cc_state.local_domain,
         message: token_message,
     };
     let handle_ixn = CrossCollateralInstruction::HandleLocal(handle_local_data);
@@ -1022,19 +1021,14 @@ fn handle_local(
     let cc_state =
         CrossCollateralState::verify_account_and_fetch_inner(program_id, cc_state_account)?;
 
-    // Same-chain only: reject cross-chain origins
-    if handle.origin != cc_state.local_domain {
-        return Err(Error::InvalidDomain.into());
-    }
-
     // Derive sender H256 from the verified sender_program_id.
     // The PDA signer check above ties the CPI caller to sender_program_id,
     // so we derive the router address from it rather than accepting a separate
     // unvalidated sender field (which would allow spoofing).
     let sender = H256::from(handle.sender_program_id.to_bytes());
 
-    // HandleLocal only accepts CC-enrolled routers
-    if !cc_state.is_enrolled_router(handle.origin, &sender) {
+    // HandleLocal only accepts CC-enrolled routers for the local domain
+    if !cc_state.is_enrolled_router(cc_state.local_domain, &sender) {
         return Err(Error::UnauthorizedRouter.into());
     }
 
@@ -1067,7 +1061,7 @@ fn handle_local(
     msg!(
         "CC handle_local completed from sender: {}, origin: {}, recipient: {}, remote_amount: {}",
         handle.sender_program_id,
-        handle.origin,
+        cc_state.local_domain,
         recipient_wallet.key,
         remote_amount
     );
