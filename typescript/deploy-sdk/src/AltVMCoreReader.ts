@@ -10,7 +10,7 @@ import {
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HookReader, createHookReader } from './hook/hook-reader.js';
+import { createHookReader } from './hook/hook-reader.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMCoreReader implements HypReader<CoreModuleType> {
@@ -18,14 +18,12 @@ export class AltVMCoreReader implements HypReader<CoreModuleType> {
     module: 'AltVMCoreReader',
   });
   private readonly ismReader: IsmReader;
-  protected readonly hookReader: HookReader;
 
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = createHookReader(this.chainMetadata, this.chainLookup);
     this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 
@@ -38,13 +36,15 @@ export class AltVMCoreReader implements HypReader<CoreModuleType> {
       mailboxAddress: mailboxAddress,
     });
 
+    const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {
+      mailbox: mailboxAddress,
+    });
+
     return {
       owner: mailbox.owner,
       defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.defaultIsm),
-      defaultHook: await this.hookReader.deriveHookConfig(mailbox.defaultHook),
-      requiredHook: await this.hookReader.deriveHookConfig(
-        mailbox.requiredHook,
-      ),
+      defaultHook: await hookReader.deriveHookConfig(mailbox.defaultHook),
+      requiredHook: await hookReader.deriveHookConfig(mailbox.requiredHook),
     };
   }
 }

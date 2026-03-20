@@ -412,6 +412,11 @@ Common issues caught in code review:
 | Issue                       | Bad                          | Good                                      |
 | --------------------------- | ---------------------------- | ----------------------------------------- |
 | Unnecessary type assertions | `{} as SomeType`             | Let TypeScript infer or use proper typing |
+| Double-cast                 | `x as unknown as Y`          | Fix the types so they're compatible       |
+| `as any` escape hatch       | `value as any`               | `unknown` + type guard                    |
+| Bandaid cast                | `x as Partial<T>`            | Build object with correct shape           |
+| Non-null assertion          | `obj.field!`                 | `if (obj.field != null)` or `??`          |
+| `: any` annotation          | `param: any`                 | Proper type or `unknown`                  |
 | String literals for enums   | `type: 'standard'`           | `type: XERC20Type.Standard`               |
 | Duplicated constants/ABIs   | Same ABI in multiple files   | Extract to shared module                  |
 | Hardcoded discriminants     | `if (x === 'velo')`          | `if (x === XERC20Type.Velo)`              |
@@ -500,16 +505,27 @@ Convert addresses to names: `grep -i "[address]" typescript/sdk/src/consts/multi
 
 ## TypeScript Style
 
-### Type Safety
+### Type Safety — Zero Tolerance for Extraneous Casts
 
-- Avoid unnecessary type casts (`as` assertions), especially `as unknown as X` double-casts
-- Do not add bandaid casts like `as T['field']`; fix the function/type signatures instead
-- If types don't match, fix the underlying types rather than casting:
+**NEVER introduce `as` casts or `any` types to make code compile.** This is the single most common mistake — fix the types instead.
+
+- **No `as` assertions** — every `as` cast is a potential bug. If types don't match, fix the underlying types:
   - Adjust interface definitions to be compatible
-  - Use type guards for runtime narrowing
+  - Use type guards for runtime narrowing (`if ('field' in obj)`, `instanceof`, Zod `.parse()`)
   - Compose objects explicitly (spread + missing properties)
-- Prefer proper typing over `any` or type assertions
-- Note: spread operators (`{ ...obj }`) don't bypass type checking
+  - Use generics or overloads to express the relationship
+- **No `as unknown as X` double-casts** — this completely bypasses type checking and always indicates a design problem
+- **No `as any`** — use `unknown` with type guards if the type is truly unknown
+- **No bandaid casts** like `as T['field']`, `as Partial<T>`, `as Record<string, any>` — these mask real type errors
+- **No `!` (non-null assertions)** — use proper null checks (`if (x != null)`, `??`, optional chaining)
+- **Check before committing** — review your diff for any `as ` tokens. If you added one, find another way
+
+When you encounter a type error, the fix priority is:
+
+1. Fix the function signature or interface
+2. Add a type guard
+3. Restructure the code to avoid the mismatch
+4. As an absolute last resort, add a cast with a `// CAST:` comment explaining why it's unavoidable
 
 ### SDK Patterns
 

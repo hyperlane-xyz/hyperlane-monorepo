@@ -5,11 +5,8 @@
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
-  "somniatestnet": {
-    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
-  },
-  "arcadiatestnet2": {
-    "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
+  "tronshasta": {
+    "validators": ["0x189ea37efb3764ab638cbaecbe764a8e814e7583"]
   },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
@@ -61,5 +58,8 @@
   },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
+  "somniatestnet": {
+    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
   }
 }

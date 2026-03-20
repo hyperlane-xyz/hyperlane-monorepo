@@ -26,6 +26,7 @@ export async function readHookConfig({
 }): Promise<void> {
   const protocol = context.multiProvider.getProtocol(chain);
   switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const hookReader = new EvmHookReader(context.multiProvider, chain);
       const config = await hookReader.deriveHookConfig(address);
@@ -41,7 +42,10 @@ export async function readHookConfig({
     }
     default: {
       const metadata = context.multiProvider.getChainMetadata(chain);
-      const hookReader = createHookReader(metadata, context.multiProvider);
+      const addresses = await context.registry.getChainAddresses(chain);
+      const hookReader = createHookReader(metadata, context.multiProvider, {
+        mailbox: addresses?.mailbox,
+      });
       const config = await hookReader.deriveHookConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

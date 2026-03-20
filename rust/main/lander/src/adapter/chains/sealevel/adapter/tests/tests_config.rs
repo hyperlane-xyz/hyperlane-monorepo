@@ -36,6 +36,7 @@ fn test_configuration_fields() {
             priority_fee_oracle: Default::default(),
             transaction_submitter: Default::default(),
             mailbox_process_alt: None,
+            process_alt_overrides: vec![],
         }),
         metrics_conf: Default::default(),
         index: Default::default(),

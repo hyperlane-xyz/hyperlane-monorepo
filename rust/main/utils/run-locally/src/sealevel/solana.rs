@@ -187,13 +187,38 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .expect("Failed to remove solana program archive");
 
     let bin_path = concat_path(&solana_cli_tools_path, "cargo-build-sbf");
-    let build_sbf = Program::new(bin_path).env("SBF_OUT_PATH", out_path.to_str().unwrap());
+    let build_sbf = Program::new(bin_path.clone()).env("SBF_OUT_PATH", out_path.to_str().unwrap());
 
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
     let sealevel_programs = concat_path(sealevel_path, "programs");
 
-    // build programs sequentially (cargo-build-sbf downloads shared platform-tools on first run)
+    // Pre-download platform-tools with retries before building any programs.
+    // cargo-build-sbf downloads platform-tools on first run; this can fail due to
+    // transient network errors. Using --install-only isolates the download step so
+    // actual compilation failures are never retried.
+    let max_retries = 3;
+    for attempt in 1..=max_retries {
+        let success = Program::new(bin_path.clone())
+            .flag("install-only")
+            .run_to_success()
+            .join();
+        if success {
+            break;
+        }
+        if attempt < max_retries {
+            log!(
+                "platform-tools download failed, retrying ({}/{})",
+                attempt,
+                max_retries
+            );
+            sleep(Duration::from_secs(10));
+        } else {
+            panic!("Failed to download platform-tools after {max_retries} attempts");
+        }
+    }
+
+    // Build programs sequentially (platform-tools already cached from above)
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()

@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 
@@ -35,7 +36,7 @@ export interface BridgeQuoteParams {
 /**
  * Quote response from a bridge.
  */
-export interface BridgeQuote {
+export interface BridgeQuote<R = unknown> {
   id: string; // Unique quote identifier
   tool: string; // Bridge/DEX tool used (e.g., 'stargate', 'across')
   fromAmount: bigint; // Amount being sent (input required)
@@ -44,7 +45,8 @@ export interface BridgeQuote {
   executionDuration: number; // Estimated execution time in seconds
   gasCosts: bigint; // Sum of gas costs for the bridge operation
   feeCosts: bigint; // Sum of non-included fee costs (protocol fees, etc.)
-  route: unknown; // Bridge-specific route data for execution
+  route: R; // Bridge-specific route data for execution
+  requestParams: BridgeQuoteParams; // Original request parameters
 }
 
 /**
@@ -86,11 +88,11 @@ export interface IExternalBridge {
   /**
    * Execute a bridge transfer using a previously obtained quote.
    * @param quote - Quote obtained from quote()
-   * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
+   * @param privateKeys - Private keys keyed by ProtocolType (e.g., { [ProtocolType.Ethereum]: '0x...' })
    */
   execute(
     quote: BridgeQuote,
-    privateKey: string,
+    privateKeys: Partial<Record<ProtocolType, string>>,
   ): Promise<BridgeTransferResult>;
 
   /**

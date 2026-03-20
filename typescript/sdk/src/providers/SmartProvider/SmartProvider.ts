@@ -229,7 +229,12 @@ export class HyperlaneSmartProvider
       maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
     }
 
-    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
+    return {
+      lastBaseFeePerGas,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      gasPrice,
+    };
   }
 
   static fromChainMetadata(
@@ -277,6 +282,16 @@ export class HyperlaneSmartProvider
 
     this.requestCount += 1;
     const reqId = this.requestCount;
+
+    // SendTransaction must not be retried - it could cause duplicate submissions
+    if (method === ProviderMethod.SendTransaction) {
+      return this.performWithFallback(
+        method,
+        params,
+        supportedProviders,
+        reqId,
+      );
+    }
 
     return retryAsync(
       () => this.performWithFallback(method, params, supportedProviders, reqId),
@@ -357,10 +372,17 @@ export class HyperlaneSmartProvider
         params,
         reqId,
       );
-      const timeoutPromise = timeoutResult(
-        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-      );
-      const result = await Promise.race([resultPromise, timeoutPromise]);
+      // SendTransaction must not race against a timeout - we must wait for the
+      // RPC response to avoid losing track of a submitted transaction
+      let result;
+      if (method === ProviderMethod.SendTransaction) {
+        result = await resultPromise;
+      } else {
+        const timeoutPromise = timeoutResult(
+          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+        );
+        result = await Promise.race([resultPromise, timeoutPromise]);
+      }
 
       const providerMetadata = {
         providerIndex: pIndex,
@@ -383,6 +405,17 @@ export class HyperlaneSmartProvider
           break;
         case ProviderStatus.Error: {
           providerResultErrors.push(result.error);
+
+          // SendTransaction must never fall through to another provider - the tx
+          // may already be in a mempool even if the RPC returned a transient error.
+          if (method === ProviderMethod.SendTransaction) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `SendTransaction error - not falling through to next provider`,
+            );
+            break providerLoop;
+          }
+
           // If this is a blockchain error, stop trying additional providers as it's a permanent failure
           // For CALL_EXCEPTION, we need to distinguish:
           // 1. Real revert with data - permanent (has revert data like "0x08c379a0...")

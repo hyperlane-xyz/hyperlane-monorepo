@@ -291,5 +291,16 @@ export const validatorChainConfig = (
         'aleotestnet',
       ),
     },
+
+    tronshasta: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('tronshasta'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x189ea37efb3764ab638cbaecbe764a8e814e7583'],
+        },
+        'tronshasta',
+      ),
+    },
   };
 };

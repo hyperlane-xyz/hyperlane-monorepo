@@ -12,12 +12,15 @@ export const TokenType = {
   collateralCctp: 'collateralCctp',
   collateralEverclear: 'collateralEverclear',
   collateralDepositAddress: 'collateralDepositAddress',
+  collateralOft: 'collateralOft',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
   nativeOpL1: 'nativeOpL1',
   ethEverclear: 'ethEverclear',
   // backwards compatible alias to native
   nativeScaled: 'nativeScaled',
+  // Canonical value for cross-collateral routing tokens
+  crossCollateral: 'crossCollateral',
   unknown: 'unknown',
 } as const;
 
@@ -46,6 +49,8 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
   [TokenType.collateralDepositAddress]: false,
+  [TokenType.collateralOft]: false,
+  [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
   [TokenType.unknown]: false,
 } as const;
 

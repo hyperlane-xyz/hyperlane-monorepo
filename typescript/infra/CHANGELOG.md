@@ -1,5 +1,100 @@
 # @hyperlane-xyz/infra
 
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [de5f6b5]
+- Updated dependencies [a1f9e41]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [abdbbf5]
+- Updated dependencies [b892e61]
+- Updated dependencies [7af7728]
+  - @hyperlane-xyz/sdk@27.1.0
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/deploy-sdk@3.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/http-registry-server@27.1.0
+  - @hyperlane-xyz/keyfunder@0.1.9
+  - @hyperlane-xyz/metrics@0.2.2
+  - @hyperlane-xyz/rebalancer@27.1.0
+  - @hyperlane-xyz/relayer@1.1.9
+  - @hyperlane-xyz/tron-sdk@22.1.1
+  - @hyperlane-xyz/core@11.0.2
+
+## 27.0.0
+
+### Patch Changes
+
+- 5d69cc8: ccipread revert data extraction was hardened with BFS traversal, isRecord type guard, minimum 64-byte hex threshold, and iteration guard. Relay catch block now logs the error object. Governor SAFE retry was moved to per-batch level to prevent duplicate proposals, and errors are now re-thrown after logging.
+- Updated dependencies [f2620a1]
+- Updated dependencies [4a816e3]
+- Updated dependencies [f7ebf6c]
+- Updated dependencies [b05e242]
+- Updated dependencies [8a6f742]
+- Updated dependencies [354668e]
+- Updated dependencies [5d69cc8]
+- Updated dependencies [b05e242]
+- Updated dependencies [aee625c]
+- Updated dependencies [22cb5cb]
+  - @hyperlane-xyz/sdk@27.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.0
+  - @hyperlane-xyz/core@11.0.2
+  - @hyperlane-xyz/rebalancer@27.0.0
+  - @hyperlane-xyz/relayer@1.1.8
+  - @hyperlane-xyz/deploy-sdk@3.0.1
+  - @hyperlane-xyz/http-registry-server@27.0.0
+  - @hyperlane-xyz/keyfunder@0.1.8
+  - @hyperlane-xyz/metrics@0.2.1
+  - @hyperlane-xyz/utils@27.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.1
+
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- Updated dependencies [43255a9]
+- Updated dependencies [06aacac]
+- Updated dependencies [279b714]
+- Updated dependencies [763a264]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/sdk@26.0.0
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/rebalancer@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/metrics@0.2.0
+  - @hyperlane-xyz/http-registry-server@26.0.0
+  - @hyperlane-xyz/keyfunder@0.1.7
+  - @hyperlane-xyz/relayer@1.1.7
+  - @hyperlane-xyz/core@11.0.1
+  - @hyperlane-xyz/deploy-sdk@3.0.0
+
+## 25.5.0
+
+### Patch Changes
+
+- Updated dependencies [e197331]
+- Updated dependencies [c2304d3]
+- Updated dependencies [cd1c28a]
+- Updated dependencies [69b48fa]
+- Updated dependencies [048df98]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/deploy-sdk@2.0.0
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/sdk@25.5.0
+  - @hyperlane-xyz/rebalancer@25.5.0
+  - @hyperlane-xyz/http-registry-server@25.5.0
+  - @hyperlane-xyz/keyfunder@0.1.6
+  - @hyperlane-xyz/metrics@0.1.11
+  - @hyperlane-xyz/relayer@1.1.6
+  - @hyperlane-xyz/utils@25.5.0
+  - @hyperlane-xyz/core@11.0.1
+
 ## 25.4.1
 
 ### Patch Changes

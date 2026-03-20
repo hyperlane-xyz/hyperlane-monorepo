@@ -1,12 +1,27 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 
-import { type Token, TokenStandard } from '@hyperlane-xyz/sdk';
+import {
+  PROTOCOL_TO_HYP_NATIVE_STANDARD,
+  type Token,
+  TokenStandard,
+} from '@hyperlane-xyz/sdk';
 
 const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
+  TokenStandard.SealevelHypCollateral,
+  TokenStandard.SealevelHypNative,
+]);
+
+// SDK-backed native token standard check scoped to EVM and Sealevel only (2-protocol scope).
+// NOTE: We intentionally do NOT use the full PROTOCOL_TO_HYP_NATIVE_STANDARD map (all 7 protocols)
+// because the rebalancer only supports EVM and Sealevel native token bridging.
+// Expanding this would change gas reservation behavior for other protocols.
+const REBALANCER_NATIVE_STANDARDS = new Set([
+  PROTOCOL_TO_HYP_NATIVE_STANDARD[ProtocolType.Ethereum],
+  PROTOCOL_TO_HYP_NATIVE_STANDARD[ProtocolType.Sealevel],
 ]);
 
 /**
@@ -17,8 +32,7 @@ const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
  * @returns `true` if the token is a native token standard, `false` otherwise.
  */
 export function isNativeTokenStandard(standard: TokenStandard): boolean {
-  // EvmHypNative covers all native token types including scaled variants
-  return standard === TokenStandard.EvmHypNative;
+  return REBALANCER_NATIVE_STANDARDS.has(standard);
 }
 
 /**
@@ -46,8 +60,8 @@ export function isCollateralizedTokenEligibleForRebalancing(
  *
  * For warp route tokens, `addressOrDenom` is the warp router contract address,
  * NOT the underlying token. External bridges need the actual token address:
- * - Native tokens (EvmHypNative): Use the bridge's native token representation
- * - Collateral tokens (EvmHypCollateral): Use `collateralAddressOrDenom` (the underlying ERC20)
+ * - Native tokens (EvmHypNative, SealevelHypNative): Use the bridge's native token representation
+ * - Collateral tokens (EvmHypCollateral, SealevelHypCollateral): Use `collateralAddressOrDenom` (the underlying token)
  * - Synthetic tokens: `collateralAddressOrDenom` is undefined, `addressOrDenom` IS the token
  *
  * @param token - The warp route token to resolve

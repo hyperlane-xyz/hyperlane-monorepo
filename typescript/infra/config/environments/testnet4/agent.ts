@@ -8,6 +8,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -62,6 +63,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
+    tronshasta: true,
   },
   [Role.Relayer]: {
     aleotestnet: true,
@@ -87,6 +89,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
+    tronshasta: true,
   },
   [Role.Scraper]: {
     aleotestnet: true,
@@ -112,6 +115,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
+    tronshasta: true,
   },
 };
 
@@ -257,6 +261,21 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
+const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
+  solanatestnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+          ),
+        },
+      ],
+      addressLookupTable: '4zybokQ8gLLPWUawXaw1JhrPZZsTaTGeaHZhLLb5nPhS',
+    },
+  ],
+};
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   // Ignore kessel runner test recipients.
   // All 5 test recipients have the same address.
@@ -298,6 +317,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
@@ -343,6 +363,7 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
@@ -391,6 +412,7 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
     batch: {
       batchSizeOverrides: {
         starknetsepolia: 16,
