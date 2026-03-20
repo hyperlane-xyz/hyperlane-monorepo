@@ -7,7 +7,11 @@ import {
   HookType,
   IsmType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  isValidAddressSealevel,
+} from '@hyperlane-xyz/utils';
 import { SealevelIgpHookReader, createRpc } from '@hyperlane-xyz/sealevel-sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -71,10 +75,9 @@ describe('hyperlane core deploy (Sealevel E2E tests)', async function () {
     const addresses: ChainAddresses = await readYamlOrJson(
       CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
     );
-    expect(addresses.interchainGasPaymaster).to.be.a('string').that.is.not
-      .empty;
-    expect(addresses.mailbox).to.be.a('string').that.is.not.empty;
-    expect(addresses.validatorAnnounce).to.be.a('string').that.is.not.empty;
+    expect(isValidAddressSealevel(addresses.interchainGasPaymaster)).to.be.true;
+    expect(isValidAddressSealevel(addresses.mailbox)).to.be.true;
+    expect(isValidAddressSealevel(addresses.validatorAnnounce)).to.be.true;
 
     // Validate the IGP hook was properly deployed via direct hook read
     const rpc = createRpc(

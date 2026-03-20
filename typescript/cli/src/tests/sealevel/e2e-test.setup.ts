@@ -24,18 +24,15 @@ let programCleanup: (() => void) | undefined;
 before(async function () {
   this.timeout(SETUP_TIMEOUT_MS);
 
-  // Clean up existing chain addresses
-  Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(
-    ([_protocol, chainNames]) => {
-      Object.entries(chainNames).map(([_key, name]) => {
-        const path = `${REGISTRY_PATH}/chains/${name}/addresses.yaml`;
+  // Clean up existing sealevel chain addresses
+  const sealevelChains = TEST_CHAIN_NAMES_BY_PROTOCOL.sealevel;
+  Object.values(sealevelChains).forEach((name) => {
+    const path = `${REGISTRY_PATH}/chains/${name}/addresses.yaml`;
 
-        if (fs.existsSync(path)) {
-          fs.rmSync(path, { recursive: true, force: true });
-        }
-      });
-    },
-  );
+    if (fs.existsSync(path)) {
+      fs.rmSync(path, { recursive: true, force: true });
+    }
+  });
 
   // Write the Token-2022 override programs to temp files and start the validator.
   // Core programs (mailbox, ISM, hooks, VA) are deployed from embedded bytes

@@ -11,7 +11,7 @@ import type {
   DeployedValidatorAnnounceAddress,
   RawValidatorAnnounceConfig,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { assert, isNullish } from '@hyperlane-xyz/utils';
+import { assert, eqAddressSol, isNullish } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -19,6 +19,7 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import { fetchValidatorAnnounceAccount } from './validator-announce-query.js';
 import { buildInitValidatorAnnounceInstruction } from './validator-announce-tx.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import type { SvmValidatorAnnounceConfig } from './types.js';
 
 export class SvmValidatorAnnounceReader implements ArtifactReader<
@@ -99,6 +100,10 @@ export class SvmValidatorAnnounceWriter
     };
 
     if (!isNullish(existing)) {
+      assert(
+        eqAddressSol(existing.mailbox, artifact.config.mailboxAddress),
+        `Validator announce ${programAddress} already initialized with mailbox ${existing.mailbox}, expected ${artifact.config.mailboxAddress}`,
+      );
       return [deployed, receipts];
     }
 
@@ -114,7 +119,7 @@ export class SvmValidatorAnnounceWriter
     receipts.push(
       await this.svmSigner.send({
         instructions: [initIx],
-        computeUnits: 400_000,
+        computeUnits: DEFAULT_COMPUTE_UNITS,
         skipPreflight: true,
       }),
     );

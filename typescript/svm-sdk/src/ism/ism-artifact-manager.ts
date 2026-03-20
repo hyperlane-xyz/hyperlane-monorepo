@@ -41,7 +41,9 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       testIsm: () => new SvmTestIsmReader(this.rpc),
       // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
       messageIdMultisigIsm: () => {
-        throw new Error('Multisig ISM reading not supported on SVM chains');
+        throw new Error(
+          'Multisig ISM reading not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmReader directly.',
+        );
       },
     };
     const factory = readers[type];
@@ -67,7 +69,9 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
         ),
       // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
       messageIdMultisigIsm: () => {
-        throw new Error('Multisig ISM deployment not supported on SVM chains');
+        throw new Error(
+          'Multisig ISM deployment not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmWriter directly.',
+        );
       },
     };
     const factory = writers[type];

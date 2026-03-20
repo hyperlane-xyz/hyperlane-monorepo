@@ -10,8 +10,8 @@ import {
 } from '@solana/kit';
 
 import type { SvmInstruction, SvmTransaction } from './types.js';
+import { DEFAULT_COMPUTE_UNITS } from './constants.js';
 
-export const DEFAULT_COMPUTE_UNITS = 400_000;
 export const DEFAULT_WRITE_CHUNK_SIZE = 880;
 export const DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS = 1;
 

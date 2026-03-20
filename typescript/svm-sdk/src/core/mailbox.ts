@@ -34,6 +34,7 @@ import {
   fetchMailboxInboxAccount,
   fetchMailboxOutboxAccount,
 } from './mailbox-query.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 import type { SvmMailboxConfig } from './types.js';
 
 // Default protocol fee values for mailbox initialization.
@@ -59,6 +60,10 @@ export class SvmMailboxReader implements ArtifactReader<
 
     // On SVM the mailbox IS the merkle tree hook — return the mailbox
     // address for both defaultHook and requiredHook as UNDERIVED artifacts.
+    // NOTE: This is lossy. The SVM outbox account has no hook fields, so we
+    // cannot recover the original hook config (e.g. IGP). A `core read` →
+    // `core apply` round-trip with a non-merkleTreeHook config will redeploy
+    // hooks that already exist.
     const mailboxHookRef = {
       artifactState: ArtifactState.UNDERIVED,
       deployed: { address: programId },
@@ -112,6 +117,11 @@ export class SvmMailboxWriter
     );
     receipts.push(...deployReceipts);
 
+    const existing = await fetchMailboxInboxAccount(this.rpc, programAddress);
+    if (existing) {
+      return [await this.read(programAddress), receipts];
+    }
+
     const initData: MailboxInitData = {
       localDomain: this.config.domainId,
       defaultIsm: parseAddress(mailboxConfig.defaultIsm.deployed.address),
@@ -131,11 +141,13 @@ export class SvmMailboxWriter
     receipts.push(
       await this.svmSigner.send({
         instructions: [initIx],
-        computeUnits: 400_000,
+        computeUnits: DEFAULT_COMPUTE_UNITS,
         skipPreflight: true,
       }),
     );
 
+    // Ownership is always set to signer at init time.
+    // Ownership transfer is handled separately via update().
     return [
       {
         artifactState: ArtifactState.DEPLOYED,

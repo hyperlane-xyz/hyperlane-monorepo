@@ -17,6 +17,10 @@ import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
+const TEST_PRIVATE_KEY_2 =
+  '0x0000000000000000000000000000000000000000000000000000000000000002';
+const TEST_PRIVATE_KEY_3 =
+  '0x0000000000000000000000000000000000000000000000000000000000000003';
 
 describe('SVM Mailbox E2E Tests', function () {
   this.timeout(300_000);
@@ -169,7 +173,7 @@ describe('SVM Mailbox E2E Tests', function () {
     it('should transfer ownership and allow new owner to update', async () => {
       const newOwnerSigner = await SvmSigner.connectWithSigner(
         [TEST_SVM_CHAIN_METADATA.rpcUrl],
-        '0x0000000000000000000000000000000000000000000000000000000000000002',
+        TEST_PRIVATE_KEY_2,
       );
       await airdropSol(
         rpc,
@@ -212,7 +216,7 @@ describe('SVM Mailbox E2E Tests', function () {
       // Use a throwaway owner since renouncing is irreversible.
       const throwawayOwner = await SvmSigner.connectWithSigner(
         [TEST_SVM_CHAIN_METADATA.rpcUrl],
-        '0x0000000000000000000000000000000000000000000000000000000000000003',
+        TEST_PRIVATE_KEY_3,
       );
       await airdropSol(
         rpc,
