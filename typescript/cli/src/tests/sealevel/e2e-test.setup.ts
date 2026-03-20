@@ -55,7 +55,7 @@ before(async function () {
     );
     await airdropSol(
       rpc,
-      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel as any,
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel,
       50_000_000_000n,
     );
   } catch (error: unknown) {

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
@@ -7,11 +6,13 @@ import {
   type ArtifactDeployed,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import type {
+  MerkleTreeHookConfig,
+  IgpHookConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
 import {
   SvmIgpHookReader,

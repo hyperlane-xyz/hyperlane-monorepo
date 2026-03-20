@@ -1,6 +1,6 @@
 import { getAddressCodec, type Address } from '@solana/kit';
 
-import { ByteCursor } from '../codecs/binary.js';
+import type { ByteCursor } from '../codecs/binary.js';
 import { decodeAccountData } from '../codecs/account-data.js';
 import { deriveMailboxInboxPda, deriveMailboxOutboxPda } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';

@@ -2,8 +2,8 @@ import { getAddressCodec, type Address } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { ByteCursor } from '../codecs/binary.js';
 import { decodeAccountData } from '../codecs/account-data.js';
+import type { ByteCursor } from '../codecs/binary.js';
 import {
   deriveValidatorAnnouncePda,
   deriveValidatorStorageLocationsPda,
