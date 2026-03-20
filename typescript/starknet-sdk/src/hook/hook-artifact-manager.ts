@@ -13,8 +13,7 @@ import {
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
-  createUnsupportedHookReader,
-  createUnsupportedHookWriter,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, eqAddressStarknet, rootLogger } from '@hyperlane-xyz/utils';
@@ -477,31 +476,31 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       case AltVM.HookType.PROTOCOL_FEE:
         return this.createReader(AltVM.HookType.PROTOCOL_FEE).read(address);
       default:
-        throw new Error(`Unsupported Starknet hook type: ${hookType}`);
+        return throwUnsupportedHookType(hookType, 'Starknet');
     }
   }
 
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: {
+    const readers: Partial<{
       [K in HookType]: ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       merkleTreeHook: new StarknetMerkleTreeHookReader(),
-      interchainGasPaymaster: createUnsupportedHookReader(
-        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        'Starknet',
-      ),
       protocolFee: new StarknetProtocolFeeHookReader(
         this.chainMetadata,
         this.provider,
       ),
       unknownHook: new StarknetNoopHookReader(),
     };
-    return readers[type];
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedHookType(type, 'Starknet');
+    }
+    return reader;
   }
 
   createWriter<T extends HookType>(
@@ -514,19 +513,15 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       'mailbox address required for Starknet merkle tree hook deployment',
     );
 
-    const writers: {
+    const writers: Partial<{
       [K in HookType]: ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       merkleTreeHook: new StarknetMerkleTreeHookWriter(
         starknetSigner,
         this.mailboxAddress,
-      ),
-      interchainGasPaymaster: createUnsupportedHookWriter(
-        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        'Starknet',
       ),
       protocolFee: new StarknetProtocolFeeHookWriter(
         this.chainMetadata,
@@ -535,6 +530,10 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       ),
       unknownHook: new StarknetNoopHookWriter(starknetSigner),
     };
-    return writers[type];
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedHookType(type, 'Starknet');
+    }
+    return writer;
   }
 }

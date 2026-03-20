@@ -11,9 +11,7 @@ import * as AltVM from './altvm.js';
 import {
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
   IArtifactManager,
   isArtifactDeployed,
 } from './artifact.js';
@@ -209,53 +207,13 @@ export interface IRawHookArtifactManager extends IArtifactManager<
   readHook(address: string): Promise<DeployedHookArtifact>;
 }
 
-export function createUnsupportedHookReader<T extends HookType>(
-  hookType: T,
+export function throwUnsupportedHookType(
+  hookType: string,
   protocolName: string,
-): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-  return {
-    read: async () => {
-      throw new Error(
-        `${hookType} hook type is unsupported on ${protocolName}`,
-      );
-    },
-  };
-}
-
-export function createUnknownHookReader(): ArtifactReader<
-  RawHookArtifactConfigs['unknownHook'],
-  DeployedHookAddress
-> {
-  return {
-    read: async (address: string) => ({
-      artifactState: ArtifactState.DEPLOYED,
-      config: { type: 'unknownHook' },
-      deployed: { address },
-    }),
-  };
-}
-
-export function createUnsupportedHookWriter<T extends HookType>(
-  hookType: T,
-  protocolName: string,
-): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-  return {
-    read: async () => {
-      throw new Error(
-        `${hookType} hook type is unsupported on ${protocolName}`,
-      );
-    },
-    create: async () => {
-      throw new Error(
-        `${hookType} hook type is unsupported on ${protocolName}`,
-      );
-    },
-    update: async () => {
-      throw new Error(
-        `${hookType} hook type is unsupported on ${protocolName}`,
-      );
-    },
-  };
+): never {
+  throw new Error(
+    `Unsupported hook artifact type ${hookType} for protocol ${protocolName}`,
+  );
 }
 
 // Hook Config Utilities

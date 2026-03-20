@@ -15,6 +15,7 @@ import type {
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { throwUnsupportedHookType } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
@@ -32,38 +33,6 @@ import {
 } from './merkle-tree-hook.js';
 
 export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
-
-function createUnsupportedSvmHookReader<T extends keyof RawHookArtifactConfigs>(
-  type: T,
-): ArtifactReader<
-  RawHookArtifactConfigs[T],
-  SvmDeployedHook | SvmDeployedIgpHook
-> {
-  return {
-    read: async () => {
-      throw new Error(`${type} hook type is unsupported on Sealevel`);
-    },
-  };
-}
-
-function createUnsupportedSvmHookWriter<T extends keyof RawHookArtifactConfigs>(
-  type: T,
-): ArtifactWriter<
-  RawHookArtifactConfigs[T],
-  SvmDeployedHook | SvmDeployedIgpHook
-> {
-  return {
-    read: async () => {
-      throw new Error(`${type} hook type is unsupported on Sealevel`);
-    },
-    create: async () => {
-      throw new Error(`${type} hook type is unsupported on Sealevel`);
-    },
-    update: async () => {
-      throw new Error(`${type} hook type is unsupported on Sealevel`);
-    },
-  };
-}
 
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
   constructor(
@@ -99,19 +68,19 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const readers: {
+    const readers: Partial<{
       [K in keyof RawHookArtifactConfigs]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
-    } = {
+    }> = {
       merkleTreeHook: () => new SvmMerkleTreeHookReader(this.rpc),
       interchainGasPaymaster: () => new SvmIgpHookReader(this.rpc, this.salt),
-      protocolFee: () => createUnsupportedSvmHookReader('protocolFee'),
-      unknownHook: () => createUnsupportedSvmHookReader('unknownHook'),
     };
     const factory = readers[type];
-    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    if (!factory) {
+      return throwUnsupportedHookType(type, 'Sealevel');
+    }
     return factory();
   }
 
@@ -122,20 +91,20 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const writers: {
+    const writers: Partial<{
       [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
-    } = {
+    }> = {
       merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
       interchainGasPaymaster: () =>
         new SvmIgpHookWriter(this.rpc, this.salt, signer),
-      protocolFee: () => createUnsupportedSvmHookWriter('protocolFee'),
-      unknownHook: () => createUnsupportedSvmHookWriter('unknownHook'),
     };
     const factory = writers[type];
-    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    if (!factory) {
+      return throwUnsupportedHookType(type, 'Sealevel');
+    }
     return factory();
   }
 

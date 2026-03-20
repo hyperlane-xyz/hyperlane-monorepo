@@ -4,11 +4,10 @@ import { ArtifactState } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
   HookConfig,
-  createUnsupportedHookReader,
-  createUnsupportedHookWriter,
   hookArtifactToDerivedConfig,
   hookConfigToArtifact,
   shouldDeployNewHook,
+  throwUnsupportedHookType,
 } from './hook.js';
 
 const chainLookup: ChainLookup = {
@@ -159,46 +158,9 @@ describe('hook protocolFee support', () => {
     expect(shouldDeployNewHook(actual, expected)).to.equal(false);
   });
 
-  it('creates unsupported hook reader/writer helpers with clear errors', async () => {
-    const reader = createUnsupportedHookReader('protocolFee', 'Aleo');
-    const writer = createUnsupportedHookWriter('protocolFee', 'Aleo');
-
-    let readerError: unknown;
-    try {
-      await reader.read('0x1');
-    } catch (error) {
-      readerError = error;
-    }
-
-    let writerError: unknown;
-    try {
-      const artifact = {
-        config: {
-          type: 'protocolFee',
-          owner: '0xowner',
-          beneficiary: '0xbeneficiary',
-          maxProtocolFee: '100',
-          protocolFee: '10',
-        },
-      } satisfies {
-        config: {
-          type: 'protocolFee';
-          owner: string;
-          beneficiary: string;
-          maxProtocolFee: string;
-          protocolFee: string;
-        };
-      };
-      await writer.create(artifact);
-    } catch (error) {
-      writerError = error;
-    }
-
-    expect(String(readerError)).to.include(
-      'protocolFee hook type is unsupported on Aleo',
-    );
-    expect(String(writerError)).to.include(
-      'protocolFee hook type is unsupported on Aleo',
+  it('throws clear errors for unsupported hook artifact types', () => {
+    expect(() => throwUnsupportedHookType('protocolFee', 'Aleo')).to.throw(
+      'Unsupported hook artifact type protocolFee for protocol Aleo',
     );
   });
 });

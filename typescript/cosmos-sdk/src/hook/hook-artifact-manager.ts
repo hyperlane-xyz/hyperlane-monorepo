@@ -13,9 +13,7 @@ import {
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
   altVmHookTypeToProviderHookType,
-  createUnknownHookReader,
-  createUnsupportedHookReader,
-  createUnsupportedHookWriter,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
@@ -77,10 +75,6 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const query = await this.getQuery();
     const altVMType = await getHookType(query, address);
-    if (altVMType === AltVM.HookType.CUSTOM) {
-      return this.createReaderWithQuery('unknownHook', query).read(address);
-    }
-
     const reader = this.createReaderWithQuery(
       altVmHookTypeToProviderHookType(altVMType),
       query,
@@ -118,21 +112,22 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: {
+    const readers: Partial<{
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new CosmosIgpHookReader(query),
-      [AltVM.HookType.PROTOCOL_FEE]: () =>
-        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
-      unknownHook: () => createUnknownHookReader(),
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedHookType(type, 'Cosmos');
+    }
+    return reader();
   }
 
   /**
@@ -179,12 +174,12 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const writers: {
+    const writers: Partial<{
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       [AltVM.HookType.MERKLE_TREE]: () => {
         assert(
           this.config.mailboxAddress,
@@ -203,11 +198,12 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
           this.config.nativeTokenDenom,
         );
       },
-      [AltVM.HookType.PROTOCOL_FEE]: () =>
-        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
-      unknownHook: () => createUnsupportedHookWriter('unknownHook', 'Cosmos'),
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedHookType(type, 'Cosmos');
+    }
+    return writer();
   }
 }

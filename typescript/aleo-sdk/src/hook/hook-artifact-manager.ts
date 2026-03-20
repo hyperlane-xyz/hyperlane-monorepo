@@ -10,9 +10,7 @@ import {
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
   altVmHookTypeToProviderHookType,
-  createUnknownHookReader,
-  createUnsupportedHookReader,
-  createUnsupportedHookWriter,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -47,8 +45,11 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   async readHook(address: string): Promise<DeployedHookArtifact> {
     // Detect hook type first
     const aleoHookType = await getHookType(this.aleoClient, address);
-    if (aleoHookType === AltVM.HookType.CUSTOM) {
-      return this.createReader('unknownHook').read(address);
+    if (
+      aleoHookType === AltVM.HookType.CUSTOM ||
+      aleoHookType === AltVM.HookType.PAUSABLE
+    ) {
+      return throwUnsupportedHookType(aleoHookType, 'Aleo');
     }
 
     // Get the appropriate reader and read the hook
@@ -61,23 +62,23 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: {
+    const readers: Partial<{
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       [AltVM.HookType.MERKLE_TREE]: () =>
         new AleoMerkleTreeHookReader(this.aleoClient),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookReader(this.aleoClient),
-      [AltVM.HookType.PROTOCOL_FEE]: () =>
-        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
-      unknownHook: () => createUnknownHookReader(),
     };
 
-    assert(readers[type], `Hook reader for ${type} not found`);
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedHookType(type, 'Aleo');
+    }
+    return reader();
   }
 
   createWriter<T extends HookType>(
@@ -87,22 +88,22 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
     const mailboxAddress = this.mailboxAddress;
     assert(mailboxAddress, 'mailbox address required for hook deployment');
 
-    const writers: {
+    const writers: Partial<{
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       [AltVM.HookType.MERKLE_TREE]: () =>
         new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
-      [AltVM.HookType.PROTOCOL_FEE]: () =>
-        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
-      unknownHook: () => createUnsupportedHookWriter('unknownHook', 'Aleo'),
     };
 
-    assert(writers[type], `Hook writer for ${type} not found`);
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedHookType(type, 'Aleo');
+    }
+    return writer();
   }
 }
