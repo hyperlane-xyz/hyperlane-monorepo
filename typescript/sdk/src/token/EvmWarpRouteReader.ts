@@ -333,8 +333,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const [packageVersion, tokenFee, token] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
-      TokenRouter.feeRecipient().catch(() => constants.AddressZero),
-      TokenRouter.token().catch(() => constants.AddressZero),
+      TokenRouter.feeRecipient().catch((error) => {
+        this.logger.debug(
+          `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
+          error,
+        );
+        return constants.AddressZero;
+      }),
+      TokenRouter.token().catch((error) => {
+        this.logger.debug(
+          `Failed to read token() for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
+          error,
+        );
+        return constants.AddressZero;
+      }),
     ]);
 
     const hasTokenFeeInterface =

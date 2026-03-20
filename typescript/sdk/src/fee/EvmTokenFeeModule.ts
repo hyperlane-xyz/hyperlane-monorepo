@@ -1,6 +1,7 @@
 import { constants } from 'ethers';
 
-import { RoutingFee__factory } from '@hyperlane-xyz/core';
+import { BaseFee__factory, RoutingFee__factory } from '@hyperlane-xyz/core';
+import { CrossCollateralRoutingFee__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   ProtocolType,
@@ -28,6 +29,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
+  DEFAULT_ROUTER_KEY,
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
@@ -379,6 +381,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           10,
           true,
         ) as DerivedRoutingFeeConfig,
+        await this.isCrossCollateralRoutingFee(this.args.addresses.deployedFee),
       )),
       ...this.createOwnershipUpdateTxs(
         normalizedActualConfig,
@@ -389,8 +392,36 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return updateTransactions;
   }
 
-  private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
+  private async isCrossCollateralRoutingFee(
+    address: Address,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    const baseFee = BaseFee__factory.connect(address, provider);
+
+    try {
+      await baseFee.feeType();
+      return false;
+    } catch (feeTypeError) {
+      try {
+        await CrossCollateralRoutingFee__factory.connect(
+          address,
+          provider,
+        ).DEFAULT_ROUTER();
+        return true;
+      } catch {
+        throw feeTypeError;
+      }
+    }
+  }
+
+  private async updateRoutingFee(
+    targetConfig: DerivedRoutingFeeConfig,
+    isCrossCollateralRoutingFee = false,
+  ) {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
+    const ccrfDestinations: number[] = [];
+    const ccrfRouters: string[] = [];
+    const ccrfFeeContracts: string[] = [];
 
     if (!targetConfig.feeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
@@ -417,15 +448,21 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
         const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
         this.logger.debug(annotation);
-        updateTransactions.push({
-          annotation: annotation,
-          chainId: this.chainId,
-          to: currentRoutingAddress,
-          data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
-            [this.multiProvider.getDomainId(chainName), deployedSubFee],
-          ),
-        });
+        if (isCrossCollateralRoutingFee) {
+          ccrfDestinations.push(this.multiProvider.getDomainId(chainName));
+          ccrfRouters.push(DEFAULT_ROUTER_KEY);
+          ccrfFeeContracts.push(deployedSubFee);
+        } else {
+          updateTransactions.push({
+            annotation: annotation,
+            chainId: this.chainId,
+            to: currentRoutingAddress,
+            data: RoutingFee__factory.createInterface().encodeFunctionData(
+              'setFeeContract(uint32,address)',
+              [this.multiProvider.getDomainId(chainName), deployedSubFee],
+            ),
+          });
+        }
       } else {
         // Update existing sub-fee contract
         subFeeModule = new EvmTokenFeeModule(
@@ -450,17 +487,35 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         if (!eqAddress(deployedSubFee, address)) {
           const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
           this.logger.debug(annotation);
-          updateTransactions.push({
-            annotation: annotation,
-            chainId: this.chainId,
-            to: currentRoutingAddress,
-            data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
-              [this.multiProvider.getDomainId(chainName), deployedSubFee],
-            ),
-          });
+          if (isCrossCollateralRoutingFee) {
+            ccrfDestinations.push(this.multiProvider.getDomainId(chainName));
+            ccrfRouters.push(DEFAULT_ROUTER_KEY);
+            ccrfFeeContracts.push(deployedSubFee);
+          } else {
+            updateTransactions.push({
+              annotation: annotation,
+              chainId: this.chainId,
+              to: currentRoutingAddress,
+              data: RoutingFee__factory.createInterface().encodeFunctionData(
+                'setFeeContract(uint32,address)',
+                [this.multiProvider.getDomainId(chainName), deployedSubFee],
+              ),
+            });
+          }
         }
       }
+    }
+
+    if (isCrossCollateralRoutingFee && ccrfDestinations.length > 0) {
+      updateTransactions.push({
+        annotation: `Updating CrossCollateralRoutingFee contracts for ${ccrfDestinations.length} destination(s)`,
+        chainId: this.chainId,
+        to: currentRoutingAddress,
+        data: CrossCollateralRoutingFee__factory.createInterface().encodeFunctionData(
+          'setCrossCollateralRouterFeeContracts',
+          [ccrfDestinations, ccrfRouters, ccrfFeeContracts],
+        ),
+      });
     }
 
     return updateTransactions;

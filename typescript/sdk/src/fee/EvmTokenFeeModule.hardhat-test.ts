@@ -5,6 +5,7 @@ import hre from 'hardhat';
 import sinon from 'sinon';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { CrossCollateralRoutingFee__factory } from '@hyperlane-xyz/multicollateral';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -14,10 +15,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
-import {
-  DerivedRoutingFeeConfig,
-  TokenFeeReaderParams,
-} from './EvmTokenFeeReader.js';
+import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
   ResolvedTokenFeeConfigInput,
@@ -363,45 +361,100 @@ describe('EvmTokenFeeModule', () => {
       }
     });
 
-    it('should reuse stored token when updating routing fees without reader params', async () => {
+    it('should reuse stored token when updating CCRF without reader params', async () => {
+      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
+        signer.address,
+      );
+      await ccrf.deployed();
+
       const routingConfig: RoutingFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
       };
-      const deployedFee = randomAddress();
       const module = new EvmTokenFeeModule(multiProvider, {
         chain: test4Chain,
         config: routingConfig,
-        addresses: { deployedFee },
+        addresses: { deployedFee: ccrf.address },
       });
-      const actualConfig: DerivedRoutingFeeConfig = {
-        ...routingConfig,
-        address: deployedFee,
-        feeContracts: {},
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
+
+      const newOwner = randomAddress();
+      const txs = await module.update({
+        type: TokenFeeType.RoutingFee,
+        owner: newOwner,
+      });
+
+      expect(txs).to.have.lengthOf(1);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+      expect(await ccrf.owner()).to.equal(
+        hre.ethers.utils.getAddress(newOwner),
+      );
+    });
+
+    it('should update CCRF fee contracts using the CCRF setter', async () => {
+      const initialSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config,
+      });
+      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
+        signer.address,
+      );
+      await ccrf.deployed();
+
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination],
+        [await ccrf.DEFAULT_ROUTER()],
+        [initialSubFeeModule.serialize().deployedFee],
+      );
+
+      const routingConfig: RoutingFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
       };
-      const deriveTokenFeeConfigStub = sinon
-        .stub(module['reader'], 'deriveTokenFeeConfig')
-        .resolves(actualConfig);
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: routingConfig,
+        addresses: { deployedFee: ccrf.address },
+      });
 
-      try {
-        const txs = await module.update({
+      const txs = await module.update(
+        {
           type: TokenFeeType.RoutingFee,
-          owner: randomAddress(),
-        });
-
-        expect(txs).to.have.lengthOf(1);
-        expect(deriveTokenFeeConfigStub.calledOnce).to.be.true;
-        expect(deriveTokenFeeConfigStub.firstCall.args[0]).to.deep.equal({
-          address: deployedFee,
-          routingDestinations: undefined,
+          owner: signer.address,
+          feeContracts: {
+            [test4Chain]: {
+              type: TokenFeeType.LinearFee,
+              owner: signer.address,
+              bps: BPS + 1n,
+            },
+          },
+        },
+        {
+          routingDestinations: [routingDestination],
           token: token.address,
-        });
-      } finally {
-        deriveTokenFeeConfigStub.restore();
-      }
+        },
+      );
+
+      expect(txs).to.have.lengthOf(1);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
+
+      const onchainConfig = await module.read({
+        routingDestinations: [routingDestination],
+        token: token.address,
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      assert(
+        onchainConfig.feeContracts?.[test4Chain]?.type ===
+          TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
+      expect(onchainConfig.feeContracts?.[test4Chain]?.bps).to.equal(BPS + 1n);
     });
 
     it('should deploy new sub-fee contract when adding a new destination', async () => {
