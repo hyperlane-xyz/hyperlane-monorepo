@@ -1100,13 +1100,21 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<StarknetAnnotatedTx> {
+    return this.buildRemoteTransferTransaction(req);
+  }
+
+  protected async buildRemoteTransferTransaction(
+    req: AltVM.ReqRemoteTransfer,
+    tokenInfo?: AltVM.ResGetToken,
+  ): Promise<StarknetAnnotatedTx> {
     if (req.customHookAddress || req.customHookMetadata) {
       throw new Error(
         'Custom hook metadata/addresses are unsupported for Starknet transfer_remote in provider-sdk',
       );
     }
 
-    const tokenType = await this.determineTokenType(req.tokenAddress);
+    const tokenType =
+      tokenInfo?.tokenType ?? (await this.determineTokenType(req.tokenAddress));
     const token = this.withContract(
       StarknetContractName.HYP_ERC20,
       req.tokenAddress,
@@ -1118,8 +1126,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     if (tokenType === AltVM.TokenType.native) {
       value = toBigInt(req.amount) + toBigInt(req.maxFee.amount);
     } else if (tokenType === AltVM.TokenType.collateral) {
-      const tokenInfo = await this.getToken({ tokenAddress: req.tokenAddress });
-      const collateralDenom = normalizeStarknetAddressSafe(tokenInfo.denom);
+      const collateralToken =
+        tokenInfo ?? (await this.getToken({ tokenAddress: req.tokenAddress }));
+      const collateralDenom = normalizeStarknetAddressSafe(
+        collateralToken.denom,
+      );
       const feeDenom = normalizeStarknetAddressSafe(req.maxFee.denom);
       value =
         toBigInt(req.amount) +

@@ -28,6 +28,8 @@ class StarknetSignerTestHarness extends StarknetSigner {
   capturedCreateMailboxReq?: Omit<AltVM.ReqCreateMailbox, 'signer'> & {
     signer: string;
   };
+  capturedRemoteTransferToken?: AltVM.ResGetToken;
+  getTokenCalls = 0;
   testTokenType: AltVM.TokenType = AltVM.TokenType.native;
   tokenDenom = TEST_METADATA.nativeToken.denom;
 
@@ -42,6 +44,7 @@ class StarknetSignerTestHarness extends StarknetSigner {
   }
 
   override async getToken(): Promise<AltVM.ResGetToken> {
+    this.getTokenCalls += 1;
     return {
       address: '0xabc',
       owner: this.getSignerAddress(),
@@ -56,7 +59,11 @@ class StarknetSignerTestHarness extends StarknetSigner {
     };
   }
 
-  override async getRemoteTransferTransaction(): Promise<StarknetAnnotatedTx> {
+  protected override async buildRemoteTransferTransaction(
+    _req: AltVM.ReqRemoteTransfer,
+    tokenInfo?: AltVM.ResGetToken,
+  ): Promise<StarknetAnnotatedTx> {
+    this.capturedRemoteTransferToken = tokenInfo;
     return {
       kind: 'invoke',
       contractAddress: '0xabc',
@@ -124,6 +131,10 @@ describe('StarknetSigner remoteTransfer', () => {
       entrypoint: 'transfer_remote',
       calldata: ['0x1'],
     });
+    expect(signer.getTokenCalls).to.equal(1);
+    expect(signer.capturedRemoteTransferToken?.tokenType).to.equal(
+      AltVM.TokenType.native,
+    );
   });
 
   it('batches collateral token approval before transfer', async () => {
@@ -156,6 +167,10 @@ describe('StarknetSigner remoteTransfer', () => {
       TEST_METADATA.nativeToken.denom,
     );
     expect(signer.capturedBatch?.[1]?.entrypoint).to.equal('approve');
+    expect(signer.getTokenCalls).to.equal(1);
+    expect(signer.capturedRemoteTransferToken?.denom).to.equal(
+      signer.tokenDenom,
+    );
   });
 
   it('batches fee token approval before synthetic transfer', async () => {
@@ -181,6 +196,10 @@ describe('StarknetSigner remoteTransfer', () => {
       TEST_METADATA.nativeToken.denom,
     );
     expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
+    expect(signer.getTokenCalls).to.equal(1);
+    expect(signer.capturedRemoteTransferToken?.tokenType).to.equal(
+      AltVM.TokenType.synthetic,
+    );
   });
 
   it('merges collateral and fee approvals when both use the same token', async () => {
@@ -213,6 +232,10 @@ describe('StarknetSigner remoteTransfer', () => {
       entrypoint: 'transfer_remote',
       calldata: ['0x1'],
     });
+    expect(signer.getTokenCalls).to.equal(1);
+    expect(signer.capturedRemoteTransferToken?.denom).to.equal(
+      TEST_METADATA.nativeToken.denom,
+    );
   });
 });
 

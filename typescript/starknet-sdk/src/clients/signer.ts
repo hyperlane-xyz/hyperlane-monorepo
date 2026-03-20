@@ -675,10 +675,13 @@ export class StarknetSigner
   ): Promise<AltVM.ResRemoteTransfer> {
     const token = await this.getToken({ tokenAddress: req.tokenAddress });
     const tokenType = token.tokenType;
-    const tx = await this.getRemoteTransferTransaction({
-      signer: this.signerAddress,
-      ...req,
-    });
+    const tx = await this.buildRemoteTransferTransaction(
+      {
+        signer: this.signerAddress,
+        ...req,
+      },
+      token,
+    );
     const batchedTxs: StarknetAnnotatedTx[] = [];
 
     if (tokenType === AltVM.TokenType.native) {
