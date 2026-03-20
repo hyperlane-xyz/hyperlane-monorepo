@@ -25,7 +25,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
-    instruction::{Init, Instruction as TokenIxn},
+    instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
 use hyperlane_warp_route::TokenMessage;
@@ -126,8 +126,7 @@ pub fn process_instruction(
     match TokenIxn::decode(instruction_data)? {
         // Block TokenIxn::Init — must use CrossCollateralInstruction::Init
         TokenIxn::Init(_) => Err(Error::BaseInitNotAllowed.into()),
-        // Block base TransferRemote — must use CrossCollateralInstruction::TransferRemoteTo
-        TokenIxn::TransferRemote(_) => Err(Error::BaseTransferRemoteNotAllowed.into()),
+        TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
         TokenIxn::EnrollRemoteRouter(config) => {
             HyperlaneSealevelToken::<CollateralPlugin>::enroll_remote_router(
                 program_id, accounts, config,
@@ -442,6 +441,44 @@ fn set_cross_collateral_routers(
 ///
 /// Accounts:
 /// 0.    `[executable]` system_program
+/// Resolves the primary router for the destination domain and delegates
+/// to `transfer_remote_to`. Same account layout as `transfer_remote_to`.
+fn transfer_remote(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    xfer: TransferRemote,
+) -> ProgramResult {
+    // Peek at account 2 (token PDA) to resolve the primary router.
+    // transfer_remote_to will re-validate this account.
+    let hyperlane_token_account = accounts.get(2).ok_or(ProgramError::NotEnoughAccountKeys)?;
+    let hyperlane_token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+        program_id,
+        hyperlane_token_account,
+    )?;
+
+    let target_router = *hyperlane_token
+        .remote_routers
+        .get(&xfer.destination_domain)
+        .ok_or(Error::UnauthorizedRouter)?;
+
+    transfer_remote_to(
+        program_id,
+        accounts,
+        TransferRemoteTo {
+            destination_domain: xfer.destination_domain,
+            recipient: xfer.recipient,
+            amount_or_id: xfer.amount_or_id,
+            target_router,
+        },
+    )
+}
+
+/// Transfers tokens to a specific enrolled router (cross-chain via mailbox dispatch).
+/// Cannot reuse base `dispatch()` because it hardcodes `self.router(domain)` as recipient.
+/// Builds mailbox CPI manually with `target_router` as the recipient.
+///
+/// Accounts:
+/// 0.    `[executable]` system program
 /// 1.    `[executable]` SPL Noop
 /// 2.    `[]` token PDA
 /// 3.    `[]` CC state PDA

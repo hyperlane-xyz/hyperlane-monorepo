@@ -29,10 +29,6 @@ pub enum Error {
     /// Failed to decode token message.
     #[error("Failed to decode token message")]
     MessageDecodeError = 6,
-
-    /// TokenIxn::TransferRemote is not allowed; use CrossCollateralInstruction::TransferRemoteTo.
-    #[error("Base transfer remote not allowed, use cross-collateral transfer remote to")]
-    BaseTransferRemoteNotAllowed = 7,
 }
 
 impl From<Error> for ProgramError {

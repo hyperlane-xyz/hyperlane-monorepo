@@ -864,38 +864,128 @@ mod base_token {
     }
 
     #[tokio::test]
-    async fn test_base_transfer_remote_blocked() {
-        let ctx = TestContext::new(false).await;
+    async fn test_base_transfer_remote_uses_primary_router() {
+        let mut ctx = TestContext::new(true).await;
+        let igp = ctx.igp_accounts.as_ref().unwrap();
+        let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+            (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
 
+        // Enroll a primary (base) router for REMOTE_DOMAIN
+        let primary_router = H256::random();
+        enroll_remote_router(
+            &mut ctx.banks_client,
+            &ctx.program_id,
+            &ctx.payer,
+            &ctx.cc.token,
+            REMOTE_DOMAIN,
+            primary_router,
+        )
+        .await
+        .unwrap();
+
+        let (token_sender, token_sender_ata) = ctx
+            .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+            .await;
+        let token_sender_pubkey = token_sender.pubkey();
+        let transfer_amount = 42 * 10u64.pow(LOCAL_DECIMALS_U32);
+
+        let unique_message_account_keypair = Keypair::new();
+        let (dispatched_message_key, _) = Pubkey::find_program_address(
+            mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+            &ctx.mailbox_program_id,
+        );
+        let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+            igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+            &igp_program_id(),
+        );
+
+        let remote_token_recipient = H256::random();
+        let remote_transfer_amount =
+            convert_decimals(transfer_amount.into(), LOCAL_DECIMALS, REMOTE_DECIMALS).unwrap();
+
+        // Use base TransferRemote (no target_router field) — should resolve to primary_router
         use hyperlane_sealevel_token_lib::instruction::TransferRemote;
         let ixn_data = HyperlaneTokenInstruction::TransferRemote(TransferRemote {
             destination_domain: REMOTE_DOMAIN,
-            recipient: H256::random(),
-            amount_or_id: 100u64.into(),
+            recipient: remote_token_recipient,
+            amount_or_id: transfer_amount.into(),
         })
         .encode()
         .unwrap();
 
+        // Same account layout as TransferRemoteTo
         let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
         let transaction = Transaction::new_signed_with_payer(
             &[Instruction::new_with_bytes(
                 ctx.program_id,
                 &ixn_data,
-                // Minimal accounts — instruction should be rejected at decode stage
-                vec![AccountMeta::new(ctx.payer.pubkey(), true)],
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                    AccountMeta::new(dispatched_message_key, false),
+                    AccountMeta::new_readonly(igp_program, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_overhead_igp, false),
+                    AccountMeta::new(igp_igp, false),
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
             )],
-            Some(&ctx.payer.pubkey()),
-            &[&ctx.payer],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_message_account_keypair],
             recent_blockhash,
         );
-        let result = ctx.banks_client.process_transaction(transaction).await;
-        assert!(result.is_err());
-        assert_transaction_error(
-            result,
-            TransactionError::InstructionError(
-                0,
-                InstructionError::Custom(7), // BaseTransferRemoteNotAllowed
-            ),
+        let tx_signature = transaction.signatures[0];
+        ctx.banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
+
+        // Verify escrow received the tokens
+        assert_token_balance(&mut ctx.banks_client, &ctx.cc.escrow, transfer_amount).await;
+        assert_token_balance(
+            &mut ctx.banks_client,
+            &token_sender_ata,
+            58 * 10u64.pow(LOCAL_DECIMALS_U32),
+        )
+        .await;
+
+        // Verify the dispatched message was sent to the primary_router
+        let dispatched_message_account_data = ctx
+            .banks_client
+            .get_account(dispatched_message_key)
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+        let dispatched_message =
+            DispatchedMessageAccount::fetch(&mut &dispatched_message_account_data[..])
+                .unwrap()
+                .into_inner();
+
+        let expected_message = HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: LOCAL_DOMAIN,
+            sender: ctx.program_id.to_bytes().into(),
+            destination: REMOTE_DOMAIN,
+            recipient: primary_router,
+            body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, vec![])
+                .to_vec(),
+        };
+        assert_eq!(
+            dispatched_message.encoded_message,
+            expected_message.to_vec()
         );
     }
 }
