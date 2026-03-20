@@ -27,8 +27,6 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.UintSet;
 
-    uint256 internal constant MAX_BPS = 10_000;
-
     error InvalidToken(address token);
     error NativeFeeNotSupported(uint256 value);
     error DestinationNotConfigured(uint32 destination);
@@ -123,7 +121,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
         if (_depositAddress == address(0)) {
             revert InvalidDepositAddress(_destination, _recipient);
         }
-        if (_feeBps > MAX_BPS) {
+        if (_feeBps > 10_000) {
             revert InvalidFeeBps(_feeBps);
         }
 
@@ -197,7 +195,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
     }
 
     function _computeFee(uint256 _amount, uint256 _feeBps) internal pure returns (uint256) {
-        return (_amount * _feeBps) / MAX_BPS;
+        return (_amount * _feeBps) / 10_000;
     }
 
     function _getDestinationConfig(uint32 _destination, bytes32 _recipient)
