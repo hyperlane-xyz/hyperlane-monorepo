@@ -794,16 +794,15 @@ describe('EvmWarpRouteReader', async () => {
     try {
       const config = await (
         evmERC20WarpRouteReader as any
-      ).deriveAggLayerTokenConfig(routeAddress);
+      ).deriveVaultBridgeTokenConfig(routeAddress);
 
       expect(config).to.deep.equal({
         name: 'USDC',
         symbol: 'USDC',
         decimals: 6,
-        type: TokenType.collateralAggLayer,
+        type: TokenType.collateralVaultBridge,
         token: localToken,
         vaultBridgeToken,
-        urls: [],
         remoteBridgeConfigs: {
           '747474': {
             agglayerNetworkId: 20,
@@ -816,6 +815,26 @@ describe('EvmWarpRouteReader', async () => {
       connectStub.restore();
       metadataStub.restore();
       scaleStub.restore();
+    }
+  });
+
+  it('should derive VaultBridge token type', async () => {
+    const routeAddress = '0x1111111111111111111111111111111111111111';
+
+    const vaultConnectStub = sinon
+      .stub(TokenBridgeVaultBridge__factory, 'connect')
+      .returns({
+        vaultBridgeToken: sinon
+          .stub()
+          .resolves('0x3333333333333333333333333333333333333333'),
+      } as any);
+
+    try {
+      const derivedType =
+        await evmERC20WarpRouteReader.deriveTokenType(routeAddress);
+      expect(derivedType).to.equal(TokenType.collateralVaultBridge);
+    } finally {
+      vaultConnectStub.restore();
     }
   });
 

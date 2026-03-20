@@ -55,6 +55,8 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
     'A collateral token that can be transferred via CCTP',
   [TokenType.collateralAggLayer]:
     'A collateral token that can be transferred via AggLayer',
+  [TokenType.collateralVaultBridge]:
+    'A collateral token that deposits into VaultBridge before bridging',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:

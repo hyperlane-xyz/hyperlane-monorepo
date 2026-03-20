@@ -81,6 +81,7 @@ import {
   isAggLayerTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isVaultBridgeTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -607,8 +608,10 @@ export class EvmWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     if (
-      !isAggLayerTokenConfig(expectedConfig) ||
-      !isAggLayerTokenConfig(actualConfig)
+      (!isAggLayerTokenConfig(expectedConfig) &&
+        !isVaultBridgeTokenConfig(expectedConfig)) ||
+      (!isAggLayerTokenConfig(actualConfig) &&
+        !isVaultBridgeTokenConfig(actualConfig))
     ) {
       return [];
     }
@@ -616,10 +619,6 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
-      this.multiProvider,
-      expectedConfig.remoteBridgeConfigs,
-    );
     const actualRemoteBridgeConfigs = resolveRouterMapConfig(
       this.multiProvider,
       actualConfig.remoteBridgeConfigs ?? {},
@@ -627,49 +626,72 @@ export class EvmWarpModule extends HyperlaneModule<
 
     const txs: AnnotatedEV5Transaction[] = [];
 
-    for (const [domain, config] of Object.entries(
-      expectedRemoteBridgeConfigs,
-    )) {
-      const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
-      const matchesBase =
-        actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
-        (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
-          (config.forceUpdateGlobalExitRoot ?? false);
-      const matches = expectedConfig.vaultBridgeToken
-        ? matchesBase
-        : matchesBase &&
-          !!actualDomainConfig?.remoteToken &&
-          !!config.remoteToken &&
-          eqAddress(actualDomainConfig.remoteToken, config.remoteToken);
-      if (matches) {
-        continue;
-      }
+    if (isVaultBridgeTokenConfig(expectedConfig)) {
+      const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.remoteBridgeConfigs,
+      );
 
-      txs.push({
-        chainId: this.chainId,
-        annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
-        to: this.args.addresses.deployedTokenRoute,
-        data: expectedConfig.vaultBridgeToken
-          ? (
-              TokenBridgeVaultBridge__factory.createInterface() as any
-            ).encodeFunctionData('setRemoteBridgeConfig', [
+      for (const [domain, config] of Object.entries(
+        expectedRemoteBridgeConfigs,
+      )) {
+        const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
+        const matches =
+          actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
+          (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
+            (config.forceUpdateGlobalExitRoot ?? false);
+        if (matches) continue;
+
+        txs.push({
+          chainId: this.chainId,
+          annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: TokenBridgeVaultBridge__factory.createInterface().encodeFunctionData(
+            'setRemoteBridgeConfig',
+            [
               Number(domain),
               config.agglayerNetworkId,
               config.forceUpdateGlobalExitRoot ?? false,
-            ])
-          : (() => {
-              assert(config.remoteToken, 'remoteToken is undefined');
-              return TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
-                'setRemoteBridgeConfig',
-                [
-                  Number(domain),
-                  config.agglayerNetworkId,
-                  config.remoteToken,
-                  config.forceUpdateGlobalExitRoot ?? false,
-                ],
-              );
-            })(),
-      });
+            ],
+          ),
+        });
+      }
+    } else {
+      const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.remoteBridgeConfigs,
+      );
+
+      for (const [domain, config] of Object.entries(
+        expectedRemoteBridgeConfigs,
+      )) {
+        const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
+        assert(config.remoteToken, 'remoteToken is undefined');
+        const matches =
+          actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
+          (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
+            (config.forceUpdateGlobalExitRoot ?? false) &&
+          !!actualDomainConfig &&
+          'remoteToken' in actualDomainConfig &&
+          typeof actualDomainConfig.remoteToken === 'string' &&
+          eqAddress(actualDomainConfig.remoteToken, config.remoteToken);
+        if (matches) continue;
+
+        txs.push({
+          chainId: this.chainId,
+          annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+            'setRemoteBridgeConfig',
+            [
+              Number(domain),
+              config.agglayerNetworkId,
+              config.remoteToken,
+              config.forceUpdateGlobalExitRoot ?? false,
+            ],
+          ),
+        });
+      }
     }
 
     return txs;
@@ -680,8 +702,10 @@ export class EvmWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     if (
-      !isAggLayerTokenConfig(expectedConfig) ||
-      !isAggLayerTokenConfig(actualConfig)
+      (!isAggLayerTokenConfig(expectedConfig) &&
+        !isVaultBridgeTokenConfig(expectedConfig)) ||
+      (!isAggLayerTokenConfig(actualConfig) &&
+        !isVaultBridgeTokenConfig(actualConfig))
     ) {
       return [];
     }
@@ -704,10 +728,15 @@ export class EvmWarpModule extends HyperlaneModule<
         chainId: this.chainId,
         annotation: `Removing AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
         to: this.args.addresses.deployedTokenRoute,
-        data: TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
-          'removeRemoteBridgeConfig',
-          [Number(domain)],
-        ),
+        data: isVaultBridgeTokenConfig(expectedConfig)
+          ? TokenBridgeVaultBridge__factory.createInterface().encodeFunctionData(
+              'removeRemoteBridgeConfig',
+              [Number(domain)],
+            )
+          : TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+              'removeRemoteBridgeConfig',
+              [Number(domain)],
+            ),
       }));
   }
 

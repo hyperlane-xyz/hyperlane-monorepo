@@ -392,4 +392,24 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
     expect(parseResults.success).to.be.true;
   });
+
+  it('should parse VaultBridge token config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      ethereum: {
+        type: TokenType.collateralVaultBridge,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        token: SOME_ADDRESS,
+        vaultBridgeToken: SOME_ADDRESS,
+        remoteBridgeConfigs: {
+          katana: {
+            agglayerNetworkId: 20,
+            forceUpdateGlobalExitRoot: false,
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.true;
+  });
 });

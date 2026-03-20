@@ -39,6 +39,7 @@ export const hypERC20contracts = {
   [TokenType.collateralVaultRebase]: 'HypERC4626Collateral',
   [TokenType.collateralCctp]: 'TokenBridgeCctp',
   [TokenType.collateralAggLayer]: 'TokenBridgeAggLayer',
+  [TokenType.collateralVaultBridge]: 'TokenBridgeVaultBridge',
   [TokenType.native]: 'HypNative',
   [TokenType.nativeOpL2]: 'OPL2TokenBridgeNative',
   [TokenType.nativeOpL1]: 'OpL1TokenBridgeNative',
@@ -60,6 +61,7 @@ export const hypERC20factories = {
   // use V1 here to satisfy type requirements
   [TokenType.collateralCctp]: new TokenBridgeCctpV1__factory(),
   [TokenType.collateralAggLayer]: new TokenBridgeAggLayer__factory(),
+  [TokenType.collateralVaultBridge]: new TokenBridgeVaultBridge__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),
   [TokenType.collateralVaultRebase]: new HypERC4626Collateral__factory(),
   [TokenType.syntheticRebase]: new HypERC4626__factory(),
@@ -82,12 +84,6 @@ export function getCctpFactory(version: 'V1' | 'V2') {
   return version === 'V1'
     ? new TokenBridgeCctpV1__factory()
     : new TokenBridgeCctpV2__factory();
-}
-
-export function getAggLayerFactory(kind: 'route' | 'vault') {
-  return kind === 'route'
-    ? new TokenBridgeAggLayer__factory()
-    : new TokenBridgeVaultBridge__factory();
 }
 
 export const hypERC721contracts = {

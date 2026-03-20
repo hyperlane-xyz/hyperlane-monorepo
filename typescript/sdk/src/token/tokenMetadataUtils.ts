@@ -13,12 +13,14 @@ import { TokenType } from './config.js';
 import {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  isAggLayerTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isNativeTokenConfig,
   isTokenMetadata,
+  isVaultBridgeTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -65,6 +67,8 @@ export async function deriveTokenMetadata(
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
+      isAggLayerTokenConfig(config) ||
+      isVaultBridgeTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)
     ) {
       const provider = multiProvider.getProvider(chain);

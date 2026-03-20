@@ -341,6 +341,7 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
   [TokenType.collateralCctp]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralAggLayer]: TokenStandard.EvmHypCollateral,
+  [TokenType.collateralVaultBridge]: TokenStandard.EvmHypCollateral,
   [TokenType.nativeOpL1]: TokenStandard.EvmHypNative,
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
   [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,

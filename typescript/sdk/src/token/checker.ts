@@ -27,10 +27,12 @@ import { HypERC20Factories } from './contracts.js';
 import {
   HypTokenRouterConfig,
   TokenMetadata,
+  isAggLayerTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
+  isVaultBridgeTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -72,6 +74,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       (isCollateralTokenConfig(this.configMap[chain]) ||
+        isVaultBridgeTokenConfig(this.configMap[chain]) ||
         isXERC20TokenConfig(this.configMap[chain])) &&
       hasCollateralProxyOverrides
     ) {
@@ -171,7 +174,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     } else if (isSyntheticTokenConfig(expectedConfig)) {
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (
+      isAggLayerTokenConfig(expectedConfig) ||
       isCollateralTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
@@ -241,7 +246,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     } else if (isSyntheticTokenConfig(expectedConfig)) {
       decimals = await (hypToken as unknown as ERC20).decimals();
     } else if (
+      isAggLayerTokenConfig(expectedConfig) ||
       isCollateralTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig)
     ) {
@@ -261,7 +268,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     let collateralToken: ERC20 | undefined = undefined;
 
     if (
+      isAggLayerTokenConfig(expectedConfig) ||
       isCollateralTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {

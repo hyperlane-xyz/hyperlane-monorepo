@@ -53,7 +53,6 @@ import {
   HypERC721Factories,
   TokenFactories,
   getCctpFactory,
-  getAggLayerFactory,
   hypERC20contracts,
   hypERC20factories,
   hypERC721contracts,
@@ -78,6 +77,7 @@ import {
   isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
+  isVaultBridgeTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -245,12 +245,9 @@ abstract class TokenDeployer<
           throw new Error('Unsupported CCTP version');
       }
     } else if (isAggLayerTokenConfig(config)) {
-      if (!config.vaultBridgeToken) {
-        assert(config.agglayerBridge, 'agglayerBridge is undefined');
-      }
-      return config.vaultBridgeToken
-        ? [config.token, config.mailbox, config.vaultBridgeToken]
-        : [config.token, config.mailbox, config.agglayerBridge];
+      return [config.token, config.mailbox, config.agglayerBridge];
+    } else if (isVaultBridgeTokenConfig(config)) {
+      return [config.token, config.mailbox, config.vaultBridgeToken];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -289,9 +286,9 @@ abstract class TokenDeployer<
     } else if (isCctpTokenConfig(config)) {
       return [config.hook ?? constants.AddressZero, config.owner, config.urls];
     } else if (isAggLayerTokenConfig(config)) {
-      return config.vaultBridgeToken
-        ? [config.hook ?? constants.AddressZero, config.owner]
-        : [config.hook ?? constants.AddressZero, config.owner, config.urls];
+      return [config.hook ?? constants.AddressZero, config.owner, config.urls];
+    } else if (isVaultBridgeTokenConfig(config)) {
+      return [config.hook ?? constants.AddressZero, config.owner];
     } else if (isSyntheticTokenConfig(config)) {
       return [
         config.initialSupply ?? 0,
@@ -596,20 +593,23 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
-        if (!isAggLayerTokenConfig(config) || !config.remoteBridgeConfigs) {
+        if (
+          (!isAggLayerTokenConfig(config) &&
+            !isVaultBridgeTokenConfig(config)) ||
+          !config.remoteBridgeConfigs
+        ) {
           return;
         }
 
         const router = this.router(deployedContractsMap[chain]).address;
-        const resolvedRemoteBridgeConfigs = resolveRouterMapConfig(
-          this.multiProvider,
-          config.remoteBridgeConfigs,
-        );
-
-        for (const [domain, remoteConfig] of Object.entries(
-          resolvedRemoteBridgeConfigs,
-        )) {
-          if (config.vaultBridgeToken) {
+        if (isVaultBridgeTokenConfig(config)) {
+          const resolvedRemoteBridgeConfigs = resolveRouterMapConfig(
+            this.multiProvider,
+            config.remoteBridgeConfigs,
+          );
+          for (const [domain, remoteConfig] of Object.entries(
+            resolvedRemoteBridgeConfigs,
+          )) {
             const tokenBridge = TokenBridgeVaultBridge__factory.connect(
               router,
               this.multiProvider.getSigner(chain),
@@ -622,7 +622,15 @@ abstract class TokenDeployer<
                 remoteConfig.forceUpdateGlobalExitRoot ?? false,
               ),
             );
-          } else {
+          }
+        } else {
+          const resolvedRemoteBridgeConfigs = resolveRouterMapConfig(
+            this.multiProvider,
+            config.remoteBridgeConfigs,
+          );
+          for (const [domain, remoteConfig] of Object.entries(
+            resolvedRemoteBridgeConfigs,
+          )) {
             assert(remoteConfig.remoteToken, 'remoteToken is undefined');
             const tokenBridge = TokenBridgeAggLayer__factory.connect(
               router,
@@ -808,7 +816,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     if (isCctpTokenConfig(config)) {
       return `TokenBridgeCctp${config.cctpVersion}`;
     }
-    if (isAggLayerTokenConfig(config) && config.vaultBridgeToken) {
+    if (isVaultBridgeTokenConfig(config)) {
       return 'TokenBridgeVaultBridge';
     }
     return hypERC20contracts[this.routerContractKey(config)];
@@ -830,9 +838,9 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         contractName.split('TokenBridgeCctp')[1] as 'V1' | 'V2',
       );
     } else if (contractName === 'TokenBridgeVaultBridge') {
-      factory = getAggLayerFactory('vault');
+      factory = new TokenBridgeVaultBridge__factory();
     } else if (contractName === 'TokenBridgeAggLayer') {
-      factory = getAggLayerFactory('route');
+      factory = new TokenBridgeAggLayer__factory();
     }
 
     // Use the default deployment for other types

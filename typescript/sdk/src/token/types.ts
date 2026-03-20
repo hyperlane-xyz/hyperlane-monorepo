@@ -241,12 +241,7 @@ export const AggLayerTokenConfigSchema = TokenMetadataSchema.partial()
     token: z.string().describe('AggLayer route local token'),
     agglayerBridge: z
       .string()
-      .optional()
       .describe('AggLayer bridge contract address for the generic route'),
-    vaultBridgeToken: z
-      .string()
-      .optional()
-      .describe('Vault bridge token address for the VaultBridge wrapper'),
     remoteBridgeConfigs: z
       .record(
         RemoteRouterDomainOrChainNameSchema,
@@ -258,6 +253,26 @@ export const AggLayerTokenConfigSchema = TokenMetadataSchema.partial()
 
 export type AggLayerTokenConfig = z.infer<typeof AggLayerTokenConfigSchema>;
 export const isAggLayerTokenConfig = isCompliant(AggLayerTokenConfigSchema);
+
+export const VaultBridgeTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.collateralVaultBridge),
+    token: z.string().describe('VaultBridge wrapper local token'),
+    vaultBridgeToken: z.string().describe('Vault bridge token address'),
+    remoteBridgeConfigs: z
+      .record(
+        RemoteRouterDomainOrChainNameSchema,
+        AggLayerRemoteBridgeConfigSchema.omit({ remoteToken: true }),
+      )
+      .optional(),
+  });
+
+export type VaultBridgeTokenConfig = z.infer<
+  typeof VaultBridgeTokenConfigSchema
+>;
+export const isVaultBridgeTokenConfig = isCompliant(
+  VaultBridgeTokenConfigSchema,
+);
 
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
@@ -372,6 +387,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
   AggLayerTokenConfigSchema,
+  VaultBridgeTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
   UnknownTokenConfigSchema,
@@ -478,6 +494,7 @@ export const WarpRouteDeployConfigSchema = z
           isCollateralRebaseTokenConfig(config) ||
           isCctpTokenConfig(config) ||
           isAggLayerTokenConfig(config) ||
+          isVaultBridgeTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config),
