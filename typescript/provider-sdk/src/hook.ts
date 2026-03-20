@@ -215,14 +215,21 @@ function formatUnhandledHookType(value: unknown): string {
     try {
       return JSON.stringify(value);
     } catch {
-      return String(value);
+      const constructor = Reflect.get(value, 'constructor');
+      const constructorName =
+        typeof constructor === 'function'
+          ? Reflect.get(constructor, 'name')
+          : undefined;
+      return typeof constructorName === 'string'
+        ? `[object ${constructorName}]`
+        : '[object]';
     }
   }
 
   return String(value);
 }
 
-function assertNever(value: never, context: string): never {
+function throwUnhandledHookType(value: unknown, context: string): never {
   throw new Error(
     `Unhandled hook type in ${context}: ${formatUnhandledHookType(value)}`,
   );
@@ -360,7 +367,7 @@ export function hookConfigToArtifact(
       };
 
     default: {
-      return assertNever(config as never, 'hookConfigToArtifact');
+      return throwUnhandledHookType(config, 'hookConfigToArtifact');
     }
   }
 }
@@ -416,7 +423,7 @@ export function shouldDeployNewHook(
     }
 
     default: {
-      return assertNever(expected as never, 'shouldDeployNewHook');
+      return throwUnhandledHookType(expected, 'shouldDeployNewHook');
     }
   }
 }
@@ -547,7 +554,7 @@ export function hookArtifactToDerivedConfig(
       };
 
     default: {
-      return assertNever(config as never, 'hookArtifactToDerivedConfig');
+      return throwUnhandledHookType(config, 'hookArtifactToDerivedConfig');
     }
   }
 }

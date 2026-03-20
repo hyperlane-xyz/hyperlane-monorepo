@@ -13,10 +13,12 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
-import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
+import {
+  NODE_SERVICE_NAMES,
+  WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+} from '../utils/consts.js';
 import {
   HelmManager,
   getDeployedRegistryCommit,

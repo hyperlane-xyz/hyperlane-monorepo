@@ -1,5 +1,4 @@
 import {
-  AltVM,
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
@@ -16,6 +15,7 @@ import {
   HookArtifactConfig,
   HookConfig,
   IRawHookArtifactManager,
+  MUTABLE_HOOK_TYPE,
   hookConfigToArtifact,
   shouldDeployNewHook,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -126,10 +126,7 @@ export class HookWriter
   async update(artifact: DeployedHookArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
-    if (
-      config.type === AltVM.HookType.MERKLE_TREE ||
-      config.type === 'unknownHook'
-    ) {
+    if (!MUTABLE_HOOK_TYPE.includes(config.type)) {
       return [];
     }
 

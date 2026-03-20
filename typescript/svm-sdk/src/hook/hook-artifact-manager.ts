@@ -10,12 +10,12 @@ import type {
   ArtifactReader,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedHookArtifact,
-  IRawHookArtifactManager,
-  RawHookArtifactConfigs,
+import {
+  type DeployedHookArtifact,
+  type IRawHookArtifactManager,
+  type RawHookArtifactConfigs,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { throwUnsupportedHookType } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
