@@ -152,25 +152,38 @@ contract TokenBridgeVaultBridge is TokenRouter {
         uint256 _amount
     ) public payable override returns (bytes32) {
         RemoteBridgeConfig memory cfg = _mustHaveRemoteConfig(_destination);
-        localToken.safeTransferFrom(msg.sender, address(this), _amount);
+        (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount,
+            msg.value,
+            address(0)
+        );
         vaultBridgeToken.depositAndBridge(
             _amount,
             _recipient.bytes32ToAddress(),
             cfg.agglayerNetworkId,
             cfg.forceUpdateGlobalExitRoot
         );
-        if (msg.value > 0) {
-            payable(msg.sender).sendValue(msg.value);
+        if (remainingNativeValue > 0) {
+            payable(msg.sender).sendValue(remainingNativeValue);
         }
         return bytes32(0);
     }
 
-    function _transferFromSender(uint256) internal pure override {
-        revert("unused");
+    function _transferFromSender(uint256 _amount) internal override {
+        localToken.safeTransferFrom(msg.sender, address(this), _amount);
     }
 
     function _transferTo(address, uint256) internal pure override {
         revert("unused");
+    }
+
+    function _transferFee(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        localToken.safeTransfer(_recipient, _amount);
     }
 
     function _handle(uint32, bytes32, bytes calldata) internal pure override {
@@ -180,11 +193,8 @@ contract TokenBridgeVaultBridge is TokenRouter {
     function _mustHaveRemoteConfig(
         uint32 _domain
     ) internal view returns (RemoteBridgeConfig memory cfg) {
-        cfg = remoteBridgeConfigs[_domain];
-        if (
-            cfg.agglayerNetworkId == 0 && !_hasRemoteBridgeConfigDomain[_domain]
-        ) {
+        if (!_hasRemoteBridgeConfigDomain[_domain])
             revert RemoteConfigNotFound(_domain);
-        }
+        cfg = remoteBridgeConfigs[_domain];
     }
 }

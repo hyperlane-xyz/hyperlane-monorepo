@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
-import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+import {Quote, ITokenFee} from "../../contracts/interfaces/ITokenBridge.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
@@ -122,6 +122,25 @@ contract MockVaultBridgeToken is IVaultBridgeToken {
     }
 }
 
+contract MockFeeRecipient is ITokenFee {
+    address public immutable feeToken;
+    uint256 public immutable feeAmount;
+
+    constructor(address _feeToken, uint256 _feeAmount) {
+        feeToken = _feeToken;
+        feeAmount = _feeAmount;
+    }
+
+    function quoteTransferRemote(
+        uint32,
+        bytes32,
+        uint256
+    ) external view returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({token: feeToken, amount: feeAmount});
+    }
+}
+
 contract TokenBridgeAggLayerTest is Test {
     using Message for bytes;
     using TypeCasts for address;
@@ -144,6 +163,7 @@ contract TokenBridgeAggLayerTest is Test {
     ERC20Test internal katanaVbUsdc;
     ERC20Test internal usdc;
     MockVaultBridgeToken internal vaultBridgeToken;
+    MockFeeRecipient internal feeRecipient;
 
     TokenBridgeAggLayer internal ethRoute;
     TokenBridgeAggLayer internal katanaRoute;
@@ -161,6 +181,7 @@ contract TokenBridgeAggLayerTest is Test {
         katanaVbUsdc = new ERC20Test("Katana vbUSDC", "kvbUSDC", 0, 6);
         usdc = new ERC20Test("USD Coin", "USDC", 0, 6);
         vaultBridgeToken = new MockVaultBridgeToken(address(usdc));
+        feeRecipient = new MockFeeRecipient(address(usdc), 7e6);
 
         ethRoute = _deployAggLayerRoute(
             address(ethVbUsdc),
@@ -436,6 +457,49 @@ contract TokenBridgeAggLayerTest is Test {
         assertTrue(vaultBridgeToken.lastDepositForceUpdateGlobalExitRoot());
         assertEq(vaultBridgeToken.lastDepositValue(), 0);
         assertEq(usdc.balanceOf(address(vaultWrapper)), 100e6);
+    }
+
+    function test_transferRemote_vaultWrapperChargesFeeRecipient() public {
+        vm.prank(OWNER);
+        vaultWrapper.setFeeRecipient(address(feeRecipient));
+
+        Quote[] memory quotes = vaultWrapper.quoteTransferRemote(
+            KATANA_DOMAIN,
+            BOB.addressToBytes32(),
+            100e6
+        );
+
+        vm.prank(ALICE);
+        vaultWrapper.transferRemote(
+            KATANA_DOMAIN,
+            BOB.addressToBytes32(),
+            100e6
+        );
+
+        assertEq(quotes[1].amount, 107e6);
+        assertEq(usdc.balanceOf(address(feeRecipient)), 7e6);
+        assertEq(usdc.balanceOf(address(vaultWrapper)), 100e6);
+        assertEq(vaultBridgeToken.lastDepositAssets(), 100e6);
+    }
+
+    function test_transferRemote_vaultWrapperRevertsWithoutRemoteConfig()
+        public
+    {
+        vm.prank(OWNER);
+        vaultWrapper.removeRemoteBridgeConfig(KATANA_DOMAIN);
+
+        vm.prank(ALICE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeVaultBridge.RemoteConfigNotFound.selector,
+                KATANA_DOMAIN
+            )
+        );
+        vaultWrapper.transferRemote(
+            KATANA_DOMAIN,
+            BOB.addressToBytes32(),
+            100e6
+        );
     }
 
     function test_handle_vaultWrapperReverts() public {
