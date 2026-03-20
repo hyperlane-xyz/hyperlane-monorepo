@@ -72,7 +72,7 @@ contract CrossCollateralRoutingFee is
     }
 
     function feeType() external pure returns (FeeType) {
-        return FeeType.ROUTING;
+        return FeeType.CROSS_COLLATERAL_ROUTING;
     }
 
     /**

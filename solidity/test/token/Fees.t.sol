@@ -497,6 +497,9 @@ contract CrossCollateralRoutingFeeTest is Test {
         CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
             OWNER
         );
-        assertEq(uint(routingFee.feeType()), uint(FeeType.ROUTING));
+        assertEq(
+            uint(routingFee.feeType()),
+            uint(FeeType.CROSS_COLLATERAL_ROUTING)
+        );
     }
 }
