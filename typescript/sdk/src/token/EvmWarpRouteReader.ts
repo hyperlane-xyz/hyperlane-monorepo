@@ -467,6 +467,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         );
       }
 
+      try {
+        const aggLayerRoute = TokenBridgeAggLayer__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+        await aggLayerRoute.agglayerBridge();
+        return TokenType.collateralAggLayer;
+      } catch (error) {
+        this.logger.debug(
+          `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralAggLayer} standalone route`,
+          error,
+        );
+      }
+
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,

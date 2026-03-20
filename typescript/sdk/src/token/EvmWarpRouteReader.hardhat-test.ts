@@ -744,6 +744,30 @@ describe('EvmWarpRouteReader', async () => {
     }
   });
 
+  it('should derive standalone AggLayer token type', async () => {
+    const routeAddress = '0x1111111111111111111111111111111111111111';
+
+    const vaultConnectStub = sinon
+      .stub(TokenBridgeVaultBridge__factory, 'connect')
+      .throws(new Error('not vault wrapper'));
+    const aggConnectStub = sinon
+      .stub(TokenBridgeAggLayer__factory, 'connect')
+      .returns({
+        agglayerBridge: sinon
+          .stub()
+          .resolves('0x2222222222222222222222222222222222222222'),
+      } as any);
+
+    try {
+      const derivedType =
+        await evmERC20WarpRouteReader.deriveTokenType(routeAddress);
+      expect(derivedType).to.equal(TokenType.collateralAggLayer);
+    } finally {
+      vaultConnectStub.restore();
+      aggConnectStub.restore();
+    }
+  });
+
   it('should derive VaultBridge AggLayer wrapper config', async () => {
     const routeAddress = '0x1111111111111111111111111111111111111111';
     const vaultBridgeToken = '0x3333333333333333333333333333333333333333';

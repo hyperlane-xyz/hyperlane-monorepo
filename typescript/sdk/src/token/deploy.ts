@@ -112,14 +112,18 @@ export const TOKEN_INITIALIZE_SIGNATURE = (contractName: string) => {
       );
       return OP_L1_INITIALIZE_SIGNATURE;
     case 'TokenBridgeCctp':
-    case 'TokenBridgeAggLayer':
       assert(
         TokenBridgeCctpBase__factory.createInterface().functions[
           CCTP_INITIALIZE_SIGNATURE
-        ] ||
-          TokenBridgeAggLayer__factory.createInterface().functions[
-            AGGLAYER_INITIALIZE_SIGNATURE
-          ],
+        ],
+        'missing expected initialize function',
+      );
+      return CCTP_INITIALIZE_SIGNATURE;
+    case 'TokenBridgeAggLayer':
+      assert(
+        TokenBridgeAggLayer__factory.createInterface().functions[
+          AGGLAYER_INITIALIZE_SIGNATURE
+        ],
         'missing expected initialize function',
       );
       return AGGLAYER_INITIALIZE_SIGNATURE;
