@@ -540,7 +540,7 @@ mod test {
     use ethers_core::types::FeeHistory;
     use url::Url;
 
-    use crate::tx::{ensure_from_for_estimation, zksync_estimate_fee};
+    use crate::tx::{ensure_from_for_estimation, zksync_estimate_fee, EVM_RELAYER_ADDRESS};
 
     #[test]
     fn test_is_rewards_non_zero_all_zero() {
@@ -571,7 +571,7 @@ mod test {
             ..Default::default()
         });
 
-        let default_sender = Address::from_str("0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5").unwrap();
+        let default_sender = Address::from_str(EVM_RELAYER_ADDRESS).unwrap();
         ensure_from_for_estimation(&mut tx, Some(default_sender));
 
         assert_eq!(tx.from(), Some(&default_sender));
@@ -585,7 +585,7 @@ mod test {
             ..Default::default()
         });
 
-        let default_sender = Address::from_str("0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5").unwrap();
+        let default_sender = Address::from_str(EVM_RELAYER_ADDRESS).unwrap();
         ensure_from_for_estimation(&mut tx, Some(default_sender));
 
         assert_eq!(tx.from(), Some(&original_sender));
