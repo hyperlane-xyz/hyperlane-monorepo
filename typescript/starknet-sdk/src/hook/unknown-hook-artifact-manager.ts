@@ -14,7 +14,6 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
-import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 
 export class StarknetUnknownHookReader implements ArtifactReader<
@@ -39,12 +38,8 @@ export class StarknetUnknownHookWriter
   implements
     ArtifactWriter<RawHookArtifactConfigs['unknownHook'], DeployedHookAddress>
 {
-  constructor(private readonly signer: StarknetSigner) {
-    super();
-  }
-
   async create(
-    artifact: ArtifactNew<RawHookArtifactConfigs['unknownHook']>,
+    _artifact: ArtifactNew<RawHookArtifactConfigs['unknownHook']>,
   ): Promise<
     [
       ArtifactDeployed<
@@ -54,16 +49,9 @@ export class StarknetUnknownHookWriter
       TxReceipt[],
     ]
   > {
-    const deployed = await this.signer.createNoopHook({ mailboxAddress: '' });
-
-    return [
-      {
-        artifactState: ArtifactState.DEPLOYED,
-        config: artifact.config,
-        deployed: { address: deployed.hookAddress },
-      },
-      [],
-    ];
+    throw new Error(
+      'unknownHook artifacts are read-only on Starknet; deploy noop hooks via signer.createNoopHook',
+    );
   }
 
   async update(

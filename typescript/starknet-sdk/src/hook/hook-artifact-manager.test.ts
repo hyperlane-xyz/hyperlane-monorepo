@@ -127,18 +127,24 @@ describe('StarknetHookArtifactManager', () => {
     );
   });
 
-  it('creates unknownHook artifacts via the Starknet noop hook deployer', async () => {
+  it('rejects creating unknownHook artifacts on Starknet', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
     const signer = new MockStarknetSigner();
     const writer = manager.createWriter('unknownHook', signer);
 
-    const [artifact] = await writer.create({
-      artifactState: ArtifactState.NEW,
-      config: { type: 'unknownHook' },
-    });
+    let error: unknown;
+    try {
+      await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: { type: 'unknownHook' },
+      });
+    } catch (caughtError) {
+      error = caughtError;
+    }
 
-    expect(artifact.config).to.deep.equal({ type: 'unknownHook' });
-    expect(artifact.deployed.address).to.equal('0xabc');
+    expect(String(error)).to.match(
+      /unknownHook artifacts are read-only on Starknet/i,
+    );
   });
 
   it('rejects protocolFee in-place updates when maxProtocolFee changes', async () => {

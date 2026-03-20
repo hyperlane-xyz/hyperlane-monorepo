@@ -5,7 +5,6 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
-import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
@@ -22,15 +21,11 @@ describe('4. starknet sdk validator announce e2e tests', function () {
   let mailboxAddress: string;
   let artifactManager: StarknetValidatorAnnounceArtifactManager;
   let ismArtifactManager: StarknetIsmArtifactManager;
-  let hookArtifactManager: StarknetHookArtifactManager;
   let mailboxArtifactManager: StarknetMailboxArtifactManager;
 
   before(async () => {
     signer = await createSigner();
     ismArtifactManager = new StarknetIsmArtifactManager(
-      TEST_STARKNET_CHAIN_METADATA,
-    );
-    hookArtifactManager = new StarknetHookArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
     mailboxArtifactManager = new StarknetMailboxArtifactManager(
@@ -42,11 +37,7 @@ describe('4. starknet sdk validator announce e2e tests', function () {
       .create({
         config: { type: AltVM.IsmType.TEST_ISM },
       });
-    const [hook] = await hookArtifactManager
-      .createWriter('unknownHook', signer)
-      .create({
-        config: { type: 'unknownHook' },
-      });
+    const hook = await signer.createNoopHook({ mailboxAddress: '' });
     const [mailbox] = await mailboxArtifactManager
       .createWriter('mailbox', signer)
       .create({
@@ -58,11 +49,11 @@ describe('4. starknet sdk validator announce e2e tests', function () {
           },
           defaultHook: {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hook.deployed.address },
+            deployed: { address: hook.hookAddress },
           },
           requiredHook: {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: hook.deployed.address },
+            deployed: { address: hook.hookAddress },
           },
         },
       });

@@ -130,7 +130,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         this.provider,
         starknetSigner,
       ),
-      unknownHook: new StarknetUnknownHookWriter(starknetSigner),
+      unknownHook: new StarknetUnknownHookWriter(),
     };
     const writer = writers[type];
     if (!writer) {
