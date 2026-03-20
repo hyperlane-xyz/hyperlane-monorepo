@@ -1691,6 +1691,165 @@ mod routers_management {
             .await
             .unwrap();
         }
+
+        #[tokio::test]
+        async fn test_remove_specific_router_from_domain() {
+            let mut ctx = TestContext::new(false).await;
+
+            let router_a = H256::random();
+            let router_b = H256::random();
+            let router_c = H256::random();
+
+            // Enroll three routers on one domain
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![
+                    CrossCollateralRouterUpdate::Add {
+                        domain: REMOTE_DOMAIN,
+                        router: router_a,
+                    },
+                    CrossCollateralRouterUpdate::Add {
+                        domain: REMOTE_DOMAIN,
+                        router: router_b,
+                    },
+                    CrossCollateralRouterUpdate::Add {
+                        domain: REMOTE_DOMAIN,
+                        router: router_c,
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+
+            // Remove only router_b
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router_b),
+                })],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            let routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+            assert_eq!(routers.len(), 2);
+            assert!(routers.contains(&router_a));
+            assert!(!routers.contains(&router_b));
+            assert!(routers.contains(&router_c));
+        }
+
+        #[tokio::test]
+        async fn test_remove_specific_router_noop_on_nonexistent() {
+            let mut ctx = TestContext::new(false).await;
+
+            let router_a = H256::random();
+            let router_nonexistent = H256::random();
+
+            // Enroll one router
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![CrossCollateralRouterUpdate::Add {
+                    domain: REMOTE_DOMAIN,
+                    router: router_a,
+                }],
+            )
+            .await
+            .unwrap();
+
+            // Remove a router that was never enrolled — should succeed as no-op
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router_nonexistent),
+                })],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            // Original router still enrolled, unchanged
+            let routers = cc_state.enrolled_routers.get(&REMOTE_DOMAIN).unwrap();
+            assert_eq!(routers.len(), 1);
+            assert!(routers.contains(&router_a));
+        }
+
+        #[tokio::test]
+        async fn test_remove_last_specific_router_cleans_domain() {
+            let mut ctx = TestContext::new(false).await;
+
+            let router_a = H256::random();
+
+            // Enroll a single router
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![CrossCollateralRouterUpdate::Add {
+                    domain: REMOTE_DOMAIN,
+                    router: router_a,
+                }],
+            )
+            .await
+            .unwrap();
+
+            // Remove it specifically (not via None/remove-all)
+            set_cc_routers(
+                &mut ctx.banks_client,
+                &ctx.program_id,
+                &ctx.payer,
+                vec![CrossCollateralRouterUpdate::Remove(RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(router_a),
+                })],
+            )
+            .await
+            .unwrap();
+
+            let cc_state_data = ctx
+                .banks_client
+                .get_account(ctx.cc.cc_state)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let cc_state = CrossCollateralStateAccount::fetch(&mut &cc_state_data[..])
+                .unwrap()
+                .into_inner();
+
+            // Domain entry fully cleaned up (no empty set left behind)
+            assert!(!cc_state.enrolled_routers.contains_key(&REMOTE_DOMAIN));
+        }
     }
 }
 
