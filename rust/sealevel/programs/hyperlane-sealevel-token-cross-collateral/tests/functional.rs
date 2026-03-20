@@ -34,7 +34,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     instruction::{
         init_instruction, set_cross_collateral_routers_instruction, CrossCollateralInstruction,
-        HandleLocal, TransferLocal, TransferRemoteTo,
+        HandleLocal, TransferRemoteTo,
     },
     processor::process_instruction,
 };
@@ -921,9 +921,9 @@ mod base_token {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
@@ -2095,12 +2095,12 @@ mod handle_local_instruction {
 
     #[tokio::test]
     async fn test_handle_local_rejects_unenrolled_sender() {
-        // A calls B.HandleLocal via TransferLocal, but A is NOT enrolled in B's CC state.
+        // A calls B.HandleLocal via TransferRemoteTo (local), but A is NOT enrolled in B's CC state.
         let mut ctx = TestContext::new(false).await;
         let program_b = second_cc_program_id();
         let cc_b = ctx.init_second_cc_token().await;
 
-        // Enroll B in A's CC state (so A can call TransferLocal targeting B)
+        // Enroll B in A's CC state (so A can call TransferRemoteTo (local) targeting B)
         let router_b = H256::from(program_b.to_bytes());
         set_cc_routers(
             &mut ctx.banks_client,
@@ -2137,7 +2137,8 @@ mod handle_local_instruction {
                 &ctx.spl_token_program_id,
             );
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient,
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2188,9 +2189,9 @@ mod handle_local_instruction {
     }
 
     #[tokio::test]
-    async fn test_handle_local_rejects_base_remote_router() {
-        // Base remote router enrollment does NOT authorize HandleLocal —
-        // only CC-enrolled routers are accepted for same-chain transfers.
+    async fn test_handle_local_accepts_base_remote_router() {
+        // Base remote router enrollment also authorizes HandleLocal via
+        // is_authorized_router (checks both CC enrolled and base routers).
         let mut ctx = TestContext::new(false).await;
         let program_b = second_cc_program_id();
         let cc_b = ctx.init_second_cc_token().await;
@@ -2198,7 +2199,7 @@ mod handle_local_instruction {
         let router_b = H256::from(program_b.to_bytes());
         let router_a = H256::from(ctx.program_id.to_bytes());
 
-        // Enroll B in A's CC state (so A can call TransferLocal targeting B)
+        // Enroll B in A's CC state (so A can call TransferRemoteTo (local) targeting B)
         set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
@@ -2244,7 +2245,8 @@ mod handle_local_instruction {
                 &ctx.spl_token_program_id,
             );
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient,
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2287,17 +2289,13 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(2) = Error::UnauthorizedRouter — B rejects A because
-        // A is only enrolled as a base remote router, not a CC router.
-        assert_transaction_error(
-            result,
-            TransactionError::InstructionError(0, InstructionError::Custom(2)),
-        );
+        // Should succeed — is_authorized_router accepts base remote routers too
+        result.unwrap();
     }
 
     #[tokio::test]
     async fn test_transfer_local_same_chain() {
-        // A.TransferLocal escrows in A, CPIs into B.HandleLocal which releases from B.
+        // A.TransferRemoteTo (local) escrows in A, CPIs into B.HandleLocal which releases from B.
         let mut ctx = TestContext::new(false).await;
         let program_a = ctx.program_id;
         let program_b = second_cc_program_id();
@@ -2351,7 +2349,8 @@ mod handle_local_instruction {
                 &ctx.spl_token_program_id,
             );
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient,
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2426,7 +2425,8 @@ mod handle_local_instruction {
         let token_sender_pubkey = token_sender.pubkey();
         let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient: H256::random(),
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2489,7 +2489,8 @@ mod handle_local_instruction {
         let token_sender_pubkey = token_sender.pubkey();
         let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient: H256::random(),
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2553,7 +2554,8 @@ mod handle_local_instruction {
         let token_sender_pubkey = token_sender.pubkey();
         let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient: H256::random(),
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2593,19 +2595,21 @@ mod handle_local_instruction {
     }
 
     #[tokio::test]
-    async fn test_transfer_local_rejects_base_remote_router_only_target() {
+    async fn test_transfer_local_rejects_non_executable_target() {
         let mut ctx = TestContext::new(false).await;
-        let program_b = second_cc_program_id();
-        let router_b = H256::from(program_b.to_bytes());
+        // Use an arbitrary pubkey that is NOT registered as a program in the test bank
+        let non_executable = Pubkey::new_unique();
+        let router_b = H256::from(non_executable.to_bytes());
 
-        // Enroll B as a BASE remote router for the local domain (not CC-enrolled)
-        enroll_remote_router(
+        // Enroll it as a CC router for the local domain
+        set_cc_routers(
             &mut ctx.banks_client,
             &ctx.program_id,
             &ctx.payer,
-            &ctx.cc.token,
-            LOCAL_DOMAIN,
-            router_b,
+            vec![RemoteRouterConfig {
+                domain: LOCAL_DOMAIN,
+                router: Some(router_b),
+            }],
         )
         .await
         .unwrap();
@@ -2616,7 +2620,8 @@ mod handle_local_instruction {
         let token_sender_pubkey = token_sender.pubkey();
         let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
 
-        let ixn_data = CrossCollateralInstruction::TransferLocal(TransferLocal {
+        let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+            destination_domain: LOCAL_DOMAIN,
             recipient: H256::random(),
             amount_or_id: transfer_amount.into(),
             target_router: router_b,
@@ -2635,7 +2640,7 @@ mod handle_local_instruction {
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
                     AccountMeta::new(token_sender_pubkey, true),
                     AccountMeta::new_readonly(ctx.cc.cc_dispatch_authority, false),
-                    AccountMeta::new_readonly(program_b, false),
+                    AccountMeta::new_readonly(non_executable, false),
                     AccountMeta::new_readonly(ctx.spl_token_program_id, false),
                     AccountMeta::new(ctx.mint, false),
                     AccountMeta::new(token_sender_ata, false),
@@ -2648,10 +2653,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(2) = Error::UnauthorizedRouter — rejected at sender's is_enrolled_router check
+        // InvalidAccountData — target program is not executable
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(2)),
+            TransactionError::InstructionError(0, InstructionError::InvalidAccountData),
         );
     }
 }
@@ -2715,9 +2720,9 @@ mod transfer_remote_to_instruction {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
@@ -2827,9 +2832,9 @@ mod transfer_remote_to_instruction {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
@@ -2856,7 +2861,9 @@ mod transfer_remote_to_instruction {
     }
 
     #[tokio::test]
-    async fn test_transfer_remote_to_rejects_same_chain() {
+    async fn test_transfer_remote_to_local_rejects_wrong_accounts() {
+        // Passing remote-path accounts (SPL Noop at index 3) for a local-domain transfer
+        // should fail because the local path expects a signer at index 3.
         let mut ctx = TestContext::new(false).await;
 
         let local_cc_router = H256::random();
@@ -2878,12 +2885,6 @@ mod transfer_remote_to_instruction {
         let token_sender_pubkey = token_sender.pubkey();
         let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
 
-        let unique_message_account_keypair = Keypair::new();
-        let (dispatched_message_key, _) = Pubkey::find_program_address(
-            mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
-            &ctx.mailbox_program_id,
-        );
-
         let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
             destination_domain: LOCAL_DOMAIN,
             recipient: H256::random(),
@@ -2898,33 +2899,27 @@ mod transfer_remote_to_instruction {
             &[Instruction::new_with_bytes(
                 ctx.program_id,
                 &ixn_data,
+                // Intentionally passing remote-path accounts for a local-domain transfer
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
-                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
-                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    // SPL Noop is not a signer — local path rejects this
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
                     AccountMeta::new(token_sender_pubkey, true),
-                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
-                    AccountMeta::new(dispatched_message_key, false),
-                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
-                    AccountMeta::new(ctx.mint, false),
-                    AccountMeta::new(token_sender_ata, false),
-                    AccountMeta::new(ctx.cc.escrow, false),
                 ],
             )],
             Some(&token_sender_pubkey),
-            &[&token_sender, &unique_message_account_keypair],
+            &[&token_sender],
             recent_blockhash,
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(5) = Error::InvalidDomain
+        // MissingRequiredSignature — account 3 is not a signer
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(5)),
+            TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
         );
     }
 
@@ -2979,9 +2974,9 @@ mod transfer_remote_to_instruction {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
@@ -3062,9 +3057,9 @@ mod transfer_remote_to_instruction {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
@@ -3141,9 +3136,9 @@ mod transfer_remote_to_instruction {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),

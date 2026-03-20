@@ -22,13 +22,9 @@ pub enum Error {
     #[error("Base init not allowed, use cross-collateral init")]
     BaseInitNotAllowed = 4,
 
-    /// HandleLocal called with remote domain (origin != local_domain).
-    #[error("Invalid domain for instruction")]
-    InvalidDomain = 5,
-
     /// Failed to decode token message.
     #[error("Failed to decode token message")]
-    MessageDecodeError = 6,
+    MessageDecodeError = 5,
 }
 
 impl From<Error> for ProgramError {

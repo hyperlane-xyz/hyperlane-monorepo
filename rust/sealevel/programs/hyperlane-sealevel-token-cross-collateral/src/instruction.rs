@@ -37,11 +37,11 @@ pub enum CrossCollateralInstruction {
     /// To remove specific routers, first unenroll all routers for the domain
     /// with `None` and then re-enroll the desired routers with `Some(router)`.
     SetCrossCollateralRouters(Vec<RemoteRouterConfig>),
-    /// Cross-chain transfer to a specific enrolled router via mailbox dispatch.
+    /// Transfer to a specific enrolled router. If `destination_domain == local_domain`,
+    /// performs a same-chain CPI into the target's HandleLocal. Otherwise, dispatches
+    /// cross-chain via the mailbox. Account layout diverges after the shared prefix
+    /// (system_program, token PDA, CC state PDA) depending on the path taken.
     TransferRemoteTo(TransferRemoteTo),
-    /// Same-chain transfer via CPI into target's HandleLocal. Escrows tokens locally,
-    /// then invokes the target program's HandleLocal with CC dispatch authority PDA signing.
-    TransferLocal(TransferLocal),
     /// Same-chain CPI receive. PDA-verified caller only.
     HandleLocal(HandleLocal),
     /// Returns account metas needed for HandleLocal (off-chain simulation).
@@ -63,17 +63,6 @@ pub struct TransferRemoteTo {
     /// The amount or ID of the token to transfer.
     pub amount_or_id: hyperlane_core::U256,
     /// The target router to dispatch to (must be enrolled).
-    pub target_router: H256,
-}
-
-/// Instruction data for same-chain transfer via CPI.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct TransferLocal {
-    /// The recipient wallet address on the target program.
-    pub recipient: H256,
-    /// The amount or ID of the token to transfer.
-    pub amount_or_id: hyperlane_core::U256,
-    /// The target router program to CPI into (must be enrolled for local_domain).
     pub target_router: H256,
 }
 
