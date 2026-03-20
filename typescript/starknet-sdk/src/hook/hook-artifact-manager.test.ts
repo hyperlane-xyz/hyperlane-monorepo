@@ -63,7 +63,9 @@ describe('StarknetHookArtifactManager', () => {
     } catch (error) {
       readerError = error;
     }
-    expect(String(readerError)).to.match(/unsupported on Starknet/i);
+    expect(String(readerError)).to.match(
+      /Unsupported hook artifact type .* for protocol Starknet/i,
+    );
 
     let writerError: unknown;
     try {
@@ -75,7 +77,9 @@ describe('StarknetHookArtifactManager', () => {
     } catch (error) {
       writerError = error;
     }
-    expect(String(writerError)).to.match(/unsupported on Starknet/i);
+    expect(String(writerError)).to.match(
+      /Unsupported hook artifact type .* for protocol Starknet/i,
+    );
   });
 
   it('deploys protocolFee hook with maxProtocolFee and protocolFee args', async () => {

@@ -128,6 +128,32 @@ async function readProtocolFeeMaxFromStorage(
   return undefined;
 }
 
+function createUnsupportedStarknetHookReader<
+  T extends keyof RawHookArtifactConfigs,
+>(type: T): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  return {
+    read: async () => {
+      return throwUnsupportedHookType(type, 'Starknet');
+    },
+  };
+}
+
+function createUnsupportedStarknetHookWriter<
+  T extends keyof RawHookArtifactConfigs,
+>(type: T): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  return {
+    read: async () => {
+      return throwUnsupportedHookType(type, 'Starknet');
+    },
+    create: async () => {
+      return throwUnsupportedHookType(type, 'Starknet');
+    },
+    update: async () => {
+      return throwUnsupportedHookType(type, 'Starknet');
+    },
+  };
+}
+
 class StarknetMerkleTreeHookReader implements ArtifactReader<
   RawHookArtifactConfigs['merkleTreeHook'],
   DeployedHookAddress
@@ -490,6 +516,9 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       >;
     }> = {
       merkleTreeHook: new StarknetMerkleTreeHookReader(),
+      interchainGasPaymaster: createUnsupportedStarknetHookReader(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+      ),
       protocolFee: new StarknetProtocolFeeHookReader(
         this.chainMetadata,
         this.provider,
@@ -522,6 +551,9 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       merkleTreeHook: new StarknetMerkleTreeHookWriter(
         starknetSigner,
         this.mailboxAddress,
+      ),
+      interchainGasPaymaster: createUnsupportedStarknetHookWriter(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
       ),
       protocolFee: new StarknetProtocolFeeHookWriter(
         this.chainMetadata,
