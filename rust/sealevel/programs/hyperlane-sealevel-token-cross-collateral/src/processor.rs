@@ -736,7 +736,8 @@ fn transfer_remote_to(
             .interchain_gas_paymaster()
             .ok_or(ProgramError::InvalidArgument)?;
 
-        let message_id = hyperlane_core::H256::from_slice(&returned_data);
+        let message_id = hyperlane_core::H256::try_from_slice(&returned_data)
+            .map_err(|_| ProgramError::InvalidArgument)?;
 
         let destination_gas = hyperlane_token
             .destination_gas(xfer.destination_domain)
