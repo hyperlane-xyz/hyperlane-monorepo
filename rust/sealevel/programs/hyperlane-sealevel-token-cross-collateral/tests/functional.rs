@@ -33,8 +33,8 @@ use hyperlane_sealevel_token_cross_collateral::{
     accounts::CrossCollateralStateAccount,
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     instruction::{
-        init_instruction, set_cross_collateral_routers_instruction, CrossCollateralInit,
-        CrossCollateralInstruction, HandleLocal, TransferLocal, TransferRemoteTo,
+        init_instruction, set_cross_collateral_routers_instruction, CrossCollateralInstruction,
+        HandleLocal, TransferLocal, TransferRemoteTo,
     },
     processor::process_instruction,
 };
@@ -294,7 +294,7 @@ async fn initialize_cc_token(
     let (cc_dispatch_authority_key, _) =
         Pubkey::find_program_address(cross_collateral_dispatch_authority_pda_seeds!(), program_id);
 
-    let init = CrossCollateralInit {
+    let init = Init {
         mailbox: mailbox_program_id,
         interchain_security_module: None,
         interchain_gas_paymaster: igp_accounts.map(|igp| {
@@ -305,7 +305,6 @@ async fn initialize_cc_token(
         }),
         decimals: LOCAL_DECIMALS,
         remote_decimals: REMOTE_DECIMALS,
-        local_domain: LOCAL_DOMAIN,
     };
 
     let ixn =
@@ -789,53 +788,15 @@ mod init_instruction {
     }
 
     #[tokio::test]
-    async fn test_init_wrong_local_domain() {
-        let env = setup_env().await;
-
-        let init = CrossCollateralInit {
-            mailbox: env.mailbox_program_id,
-            interchain_security_module: None,
-            interchain_gas_paymaster: None,
-            decimals: LOCAL_DECIMALS,
-            remote_decimals: REMOTE_DECIMALS,
-            local_domain: 9999,
-        };
-
-        let ixn = init_instruction(
-            env.program_id,
-            env.payer.pubkey(),
-            init,
-            env.spl_token_program_id,
-            env.mint,
-        )
-        .unwrap();
-
-        let recent_blockhash = env.banks_client.get_latest_blockhash().await.unwrap();
-        let transaction = Transaction::new_signed_with_payer(
-            &[ixn],
-            Some(&env.payer.pubkey()),
-            &[&env.payer],
-            recent_blockhash,
-        );
-        let result = env.banks_client.process_transaction(transaction).await;
-
-        assert_transaction_error(
-            result,
-            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
-        );
-    }
-
-    #[tokio::test]
     async fn test_init_extraneous_accounts() {
         let env = setup_env().await;
 
-        let init = CrossCollateralInit {
+        let init = Init {
             mailbox: env.mailbox_program_id,
             interchain_security_module: None,
             interchain_gas_paymaster: None,
             decimals: LOCAL_DECIMALS,
             remote_decimals: REMOTE_DECIMALS,
-            local_domain: LOCAL_DOMAIN,
         };
 
         let mut ixn = init_instruction(

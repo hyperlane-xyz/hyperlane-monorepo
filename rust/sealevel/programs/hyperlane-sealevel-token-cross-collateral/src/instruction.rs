@@ -4,11 +4,10 @@ use account_utils::{DiscriminatorData, DiscriminatorEncode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
 };
-use hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds;
+use hyperlane_sealevel_token_lib::{hyperlane_token_pda_seeds, instruction::Init};
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
@@ -31,7 +30,7 @@ pub const CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR: [u8; 8] = [2, 2, 2, 2, 2, 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum CrossCollateralInstruction {
     /// Creates token PDA, escrow, dispatch authority, CC state PDA, CC dispatch authority PDA.
-    Init(CrossCollateralInit),
+    Init(Init),
     /// Set CC routers. Owner-only.
     /// `Some(router)` enrolls the router for the given domain.
     /// `None` removes all routers for the given domain.
@@ -52,23 +51,6 @@ pub enum CrossCollateralInstruction {
 impl DiscriminatorData for CrossCollateralInstruction {
     const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] =
         CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR;
-}
-
-/// Instruction data for initializing the cross-collateral program.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct CrossCollateralInit {
-    /// The address of the mailbox contract.
-    pub mailbox: Pubkey,
-    /// The interchain security module.
-    pub interchain_security_module: Option<Pubkey>,
-    /// The interchain gas paymaster program and account.
-    pub interchain_gas_paymaster: Option<(Pubkey, InterchainGasPaymasterType)>,
-    /// The local decimals.
-    pub decimals: u8,
-    /// The remote decimals.
-    pub remote_decimals: u8,
-    /// The local domain ID.
-    pub local_domain: u32,
 }
 
 /// Instruction data for transferring to a specific enrolled router.
@@ -121,11 +103,11 @@ pub struct HandleLocal {
 /// 8.  `[writable]` The ATA payer PDA account.
 /// 9.  `[writable]` The CC state PDA account.
 /// 10. `[writable]` The CC dispatch authority PDA account.
-/// 11. `[]` The mailbox outbox PDA account (for local_domain validation).
+/// 11. `[]` The mailbox outbox PDA account (to read local_domain).
 pub fn init_instruction(
     program_id: Pubkey,
     payer: Pubkey,
-    init: CrossCollateralInit,
+    init: Init,
     spl_program: Pubkey,
     mint: Pubkey,
 ) -> Result<SolanaInstruction, ProgramError> {
@@ -179,7 +161,7 @@ pub fn init_instruction(
         // CC-specific accounts
         AccountMeta::new(cc_state_key, false),
         AccountMeta::new(cc_dispatch_authority_key, false),
-        // Mailbox outbox for local_domain validation
+        // Mailbox outbox to read local_domain
         AccountMeta::new_readonly(mailbox_outbox_key, false),
     ];
 

@@ -25,7 +25,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
-    instruction::Instruction as TokenIxn,
+    instruction::{Init, Instruction as TokenIxn},
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
 use hyperlane_warp_route::TokenMessage;
@@ -48,10 +48,7 @@ use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
     error::Error,
-    instruction::{
-        CrossCollateralInit, CrossCollateralInstruction, HandleLocal, TransferLocal,
-        TransferRemoteTo,
-    },
+    instruction::{CrossCollateralInstruction, HandleLocal, TransferLocal, TransferRemoteTo},
     plugin::CollateralPlugin,
 };
 
@@ -183,12 +180,8 @@ pub fn process_instruction(
 /// 8.  `[writable]` The ATA payer PDA account.
 /// 9.  `[writable]` The CC state PDA account.
 /// 10. `[writable]` The CC dispatch authority PDA account.
-/// 11. `[]` The mailbox outbox PDA account (for local_domain validation).
-fn initialize(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    init: CrossCollateralInit,
-) -> ProgramResult {
+/// 11. `[]` The mailbox outbox PDA account (to read local_domain).
+fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program
@@ -266,17 +259,10 @@ fn initialize(
         return Err(ProgramError::AccountAlreadyInitialized);
     }
 
-    // Account 11: Mailbox outbox PDA — validate local_domain matches mailbox
+    // Account 11: Mailbox outbox PDA — read local_domain from mailbox
     let mailbox_outbox_account = next_account_info(accounts_iter)?;
     let outbox = Outbox::verify_account_and_fetch_inner(&init.mailbox, mailbox_outbox_account)?;
-    if outbox.local_domain != init.local_domain {
-        msg!(
-            "local_domain mismatch: init={} mailbox={}",
-            init.local_domain,
-            outbox.local_domain
-        );
-        return Err(ProgramError::InvalidArgument);
-    }
+    let local_domain = outbox.local_domain;
 
     // Extraneous account check
     if accounts_iter.next().is_some() {
@@ -331,7 +317,7 @@ fn initialize(
     let cc_state = CrossCollateralState {
         bump: cc_state_bump,
         dispatch_authority_bump: cc_dispatch_authority_bump,
-        local_domain: init.local_domain,
+        local_domain,
         enrolled_routers: BTreeMap::new(),
     };
     let cc_state_account_data = CrossCollateralStateAccount::from(cc_state);
