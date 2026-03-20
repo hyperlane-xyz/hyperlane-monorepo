@@ -34,8 +34,8 @@ function isObjectRecord(value: unknown): value is ObjectRecord {
 
 function isUint256Like(value: unknown): value is Uint256 {
   if (!isObjectRecord(value)) return false;
-  const low = value.low;
-  const high = value.high;
+  const low = value['low'];
+  const high = value['high'];
   const isNumberish = (v: unknown) =>
     typeof v === 'string' || typeof v === 'number' || typeof v === 'bigint';
   return isNumberish(low) && isNumberish(high);
@@ -52,7 +52,7 @@ function describeUnknown(value: unknown): string {
   }
 
   if (isObjectRecord(value)) {
-    if ('value' in value) return describeUnknown(value.value);
+    if ('value' in value) return describeUnknown(value['value']);
     try {
       return JSON.stringify(value);
     } catch {
@@ -71,8 +71,8 @@ function isPopulatedInvokeTx(value: unknown): value is {
   if (!isObjectRecord(value)) return false;
   return (
     'contractAddress' in value &&
-    typeof value.entrypoint === 'string' &&
-    (!('calldata' in value) || Array.isArray(value.calldata))
+    typeof value['entrypoint'] === 'string' &&
+    (!('calldata' in value) || Array.isArray(value['calldata']))
   );
 }
 
@@ -134,7 +134,7 @@ export function normalizeStarknetAddressSafe(value: unknown): string {
     }
 
     if ('value' in value) {
-      return normalizeStarknetAddressSafe(value.value);
+      return normalizeStarknetAddressSafe(value['value']);
     }
   }
 
@@ -205,9 +205,9 @@ export function extractEnumVariant(value: unknown): string {
   if (
     isObjectRecord(value) &&
     'activeVariant' in value &&
-    typeof value.activeVariant === 'function'
+    typeof value['activeVariant'] === 'function'
   ) {
-    return value.activeVariant();
+    return value['activeVariant']();
   }
 
   if (typeof value === 'string') return value;
@@ -231,7 +231,7 @@ export function toNumber(value: unknown): number {
   if (typeof value === 'bigint') return Number(value);
   if (typeof value === 'string') return Number(value);
   if (isObjectRecord(value) && 'value' in value) {
-    return toNumber(value.value);
+    return toNumber(value['value']);
   }
 
   throw new Error(
@@ -247,7 +247,7 @@ export function toBigInt(value: unknown): bigint {
     if (isUint256Like(value)) {
       return uint256.uint256ToBN(value);
     }
-    if ('value' in value) return toBigInt(value.value);
+    if ('value' in value) return toBigInt(value['value']);
   }
 
   throw new Error(

@@ -122,7 +122,7 @@ async function readProtocolFeeMaxFromStorage(
   ];
 
   if (uniqueValues.length === 1) {
-    return BigInt(uniqueValues[0]);
+    return BigInt(uniqueValues[0]!);
   }
 
   return undefined;

@@ -85,4 +85,39 @@ describe('5a. starknet sdk warp core e2e tests', function () {
     expect(eqAddressStarknet(token.hookAddress, hookAddress)).to.equal(true);
     expect(eqAddressStarknet(token.owner, newOwner)).to.equal(true);
   });
+
+  it('enrolls and unenrolls remote router', async () => {
+    const mailboxAddress = await createMailbox();
+    const { tokenAddress } = await signer.createNativeToken({ mailboxAddress });
+
+    const empty = await signer.getRemoteRouters({ tokenAddress });
+    expect(empty.remoteRouters).to.have.length(0);
+
+    await signer.enrollRemoteRouter({
+      tokenAddress,
+      remoteRouter: {
+        receiverDomainId: 1234,
+        receiverAddress: signer.getSignerAddress(),
+        gas: '200000',
+      },
+    });
+
+    const enrolled = await signer.getRemoteRouters({ tokenAddress });
+    expect(enrolled.remoteRouters).to.have.length(1);
+    expect(enrolled.remoteRouters[0]!.receiverDomainId).to.equal(1234);
+    expect(
+      eqAddressStarknet(
+        enrolled.remoteRouters[0]!.receiverAddress,
+        signer.getSignerAddress(),
+      ),
+    ).to.equal(true);
+
+    await signer.unenrollRemoteRouter({
+      tokenAddress,
+      receiverDomainId: 1234,
+    });
+
+    const cleared = await signer.getRemoteRouters({ tokenAddress });
+    expect(cleared.remoteRouters).to.have.length(0);
+  });
 });

@@ -23,7 +23,7 @@ export class StarknetJsonRpcSubmitter implements ITransactionSubmitter {
 
     const canBatch =
       this.signer.supportsTransactionBatching() &&
-      txs.every((tx) => tx.kind !== 'deploy');
+      txs.every((tx) => tx['kind'] !== 'deploy');
 
     if (canBatch) {
       for (const tx of txs) {

@@ -15,17 +15,60 @@ import {
   RawValidatorAnnounceArtifactConfigs,
   ValidatorAnnounceType,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 
+const STARKNET_STORAGE_ADDRESS_BOUND = (1n << 251n) - 256n;
+const MAILBOX_STORAGE_KEYS = ['mailbox', '_mailbox'].map(
+  (name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND,
+);
+
+async function readStorageAddress(
+  provider: StarknetProvider,
+  contractAddress: string,
+  key: bigint,
+): Promise<string | undefined> {
+  try {
+    const value = await provider
+      .getRawProvider()
+      .getStorageAt(contractAddress, `0x${key.toString(16)}`);
+    return isZeroishAddress(value)
+      ? undefined
+      : normalizeStarknetAddressSafe(value);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readMailboxAddressFromStorage(
+  provider: StarknetProvider,
+  contractAddress: string,
+): Promise<string | undefined> {
+  const candidates = (
+    await Promise.all(
+      MAILBOX_STORAGE_KEYS.map((key) =>
+        readStorageAddress(provider, contractAddress, key),
+      ),
+    )
+  ).filter((value): value is string => Boolean(value));
+
+  if (candidates.length === 0) return undefined;
+
+  const uniqueCandidates = [
+    ...new Set(candidates.map((value) => normalizeStarknetAddressSafe(value))),
+  ];
+  return uniqueCandidates.length === 1 ? uniqueCandidates[0] : undefined;
+}
+
 class StarknetValidatorAnnounceReader implements ArtifactReader<
   RawValidatorAnnounceArtifactConfigs['validatorAnnounce'],
   DeployedValidatorAnnounceAddress
 > {
-  constructor(_provider: StarknetProvider) {}
+  constructor(private readonly provider: StarknetProvider) {}
 
   async read(
     address: string,
@@ -36,12 +79,14 @@ class StarknetValidatorAnnounceReader implements ArtifactReader<
     >
   > {
     const normalizedAddress = normalizeStarknetAddressSafe(address);
+    const mailboxAddress =
+      (await readMailboxAddressFromStorage(this.provider, normalizedAddress)) ??
+      '';
 
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        // ValidatorAnnounce does not expose mailbox as a readable view method.
-        mailboxAddress: '',
+        mailboxAddress,
       },
       deployed: {
         address: normalizedAddress,

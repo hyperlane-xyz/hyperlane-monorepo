@@ -153,10 +153,10 @@ describe('1. starknet sdk ISM e2e tests', function () {
     expect(eqAddressStarknet(updated.config.owner, newOwner)).to.equal(true);
     expect(Object.keys(updated.config.domains)).to.have.length(2);
     expect(
-      eqAddressStarknet(updated.config.domains[111].deployed.address, noopB),
+      eqAddressStarknet(updated.config.domains[111]!.deployed.address, noopB),
     ).to.equal(true);
     expect(
-      eqAddressStarknet(updated.config.domains[333].deployed.address, noopA),
+      eqAddressStarknet(updated.config.domains[333]!.deployed.address, noopA),
     ).to.equal(true);
     expect(updated.config.domains[222]).to.equal(undefined);
   });

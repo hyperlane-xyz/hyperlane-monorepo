@@ -1,5 +1,4 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { assert } from '@hyperlane-xyz/utils';
 
 import {
   ArtifactReader,
@@ -37,21 +36,7 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    const readers: {
-      [K in ValidatorAnnounceType]: () => ArtifactReader<
-        RawValidatorAnnounceArtifactConfigs[K],
-        DeployedValidatorAnnounceAddress
-      >;
-    } = {
-      validatorAnnounce: () => new RadixValidatorAnnounceReader(this.gateway),
-    };
-
-    const readerFactory = readers[_type];
-    assert(
-      typeof readerFactory === 'function',
-      `Unexpected reader type: ${_type}`,
-    );
-    return readerFactory();
+    return new RadixValidatorAnnounceReader(this.gateway);
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -62,21 +47,10 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
     DeployedValidatorAnnounceAddress
   > {
     const baseSigner = signer.getBaseSigner();
-    const writers: {
-      [K in ValidatorAnnounceType]: () => ArtifactWriter<
-        RawValidatorAnnounceArtifactConfigs[K],
-        DeployedValidatorAnnounceAddress
-      >;
-    } = {
-      validatorAnnounce: () =>
-        new RadixValidatorAnnounceWriter(this.gateway, baseSigner, this.base),
-    };
-
-    const writerFactory = writers[_type];
-    assert(
-      typeof writerFactory === 'function',
-      `Unexpected writer type: ${_type}`,
+    return new RadixValidatorAnnounceWriter(
+      this.gateway,
+      baseSigner,
+      this.base,
     );
-    return writerFactory();
   }
 }

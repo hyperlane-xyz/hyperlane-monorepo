@@ -6,6 +6,8 @@ import {
   type ArtifactReader,
   ArtifactState,
   type ArtifactWriter,
+  addressToUnderivedArtifact,
+  artifactOnChainToAddress,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
@@ -24,29 +26,11 @@ import {
   ZERO_ADDRESS_HEX_32,
   assert,
   eqAddressStarknet,
-  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
-
-function toNestedArtifact(address: string | undefined) {
-  if (!address || isZeroishAddress(address)) return undefined;
-  return {
-    artifactState: ArtifactState.UNDERIVED,
-    deployed: { address: normalizeStarknetAddressSafe(address) },
-  };
-}
-
-function getNestedAddress(
-  artifact: { deployed: { address: string } } | undefined,
-): string | undefined {
-  const address = artifact?.deployed.address;
-  return !address || isZeroishAddress(address)
-    ? undefined
-    : normalizeStarknetAddressSafe(address);
-}
 
 function normalizeGas(gas: string | undefined): string {
   return BigInt(gas ?? '0').toString();
@@ -110,8 +94,14 @@ abstract class StarknetWarpTokenReaderBase<
     return {
       owner: normalizeStarknetAddressSafe(token.owner),
       mailbox: normalizeStarknetAddressSafe(token.mailboxAddress),
-      interchainSecurityModule: toNestedArtifact(token.ismAddress),
-      hook: toNestedArtifact(token.hookAddress),
+      interchainSecurityModule: addressToUnderivedArtifact(
+        token.ismAddress,
+        normalizeStarknetAddressSafe,
+      ),
+      hook: addressToUnderivedArtifact(
+        token.hookAddress,
+        normalizeStarknetAddressSafe,
+      ),
       remoteRouters: routers,
       destinationGas,
     };
@@ -248,11 +238,13 @@ abstract class StarknetWarpTokenWriterBase<
       };
     }
 
-    const currentIsm = getNestedAddress(
+    const currentIsm = artifactOnChainToAddress(
       current.config.interchainSecurityModule,
+      normalizeStarknetAddressSafe,
     );
-    const expectedIsm = getNestedAddress(
+    const expectedIsm = artifactOnChainToAddress(
       artifact.config.interchainSecurityModule,
+      normalizeStarknetAddressSafe,
     );
     if (
       !eqAddressStarknet(
@@ -270,8 +262,14 @@ abstract class StarknetWarpTokenWriterBase<
       });
     }
 
-    const currentHook = getNestedAddress(current.config.hook);
-    const expectedHook = getNestedAddress(artifact.config.hook);
+    const currentHook = artifactOnChainToAddress(
+      current.config.hook,
+      normalizeStarknetAddressSafe,
+    );
+    const expectedHook = artifactOnChainToAddress(
+      artifact.config.hook,
+      normalizeStarknetAddressSafe,
+    );
     if (
       !eqAddressStarknet(
         currentHook ?? ZERO_ADDRESS_HEX_32,
@@ -366,7 +364,10 @@ abstract class StarknetWarpTokenWriterBase<
     const receipts: TxReceipt[] = [];
     let ownerTx: AnnotatedTx | undefined;
 
-    const expectedIsm = getNestedAddress(expected.interchainSecurityModule);
+    const expectedIsm = artifactOnChainToAddress(
+      expected.interchainSecurityModule,
+      normalizeStarknetAddressSafe,
+    );
     if (expectedIsm) {
       const tx = await this.signer.getSetTokenIsmTransaction({
         signer: this.signer.getSignerAddress(),
@@ -376,7 +377,10 @@ abstract class StarknetWarpTokenWriterBase<
       receipts.push(await this.signer.sendAndConfirmTransaction(tx));
     }
 
-    const expectedHook = getNestedAddress(expected.hook);
+    const expectedHook = artifactOnChainToAddress(
+      expected.hook,
+      normalizeStarknetAddressSafe,
+    );
     if (expectedHook) {
       const tx = await this.signer.getSetTokenHookTransaction({
         signer: this.signer.getSignerAddress(),
@@ -390,6 +394,10 @@ abstract class StarknetWarpTokenWriterBase<
       .map(Number)
       .sort((a, b) => a - b)) {
       const remoteRouter = expected.remoteRouters[domain];
+      assert(
+        remoteRouter,
+        `Missing remote router for Starknet domain ${domain}`,
+      );
       const tx = await this.signer.getEnrollRemoteRouterTransaction({
         signer: this.signer.getSignerAddress(),
         tokenAddress,

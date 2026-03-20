@@ -112,8 +112,8 @@ export class StarknetSigner
     contractType?: ContractType;
   } {
     return (
-      transaction.kind === 'deploy' &&
-      typeof transaction.contractName === 'string'
+      transaction['kind'] === 'deploy' &&
+      typeof transaction['contractName'] === 'string'
     );
   }
 
@@ -121,10 +121,10 @@ export class StarknetSigner
     transaction: AnnotatedTx,
   ): transaction is StarknetInvokeTx {
     return (
-      transaction.kind === 'invoke' &&
-      typeof transaction.contractAddress === 'string' &&
-      typeof transaction.entrypoint === 'string' &&
-      Array.isArray(transaction.calldata)
+      transaction['kind'] === 'invoke' &&
+      typeof transaction['contractAddress'] === 'string' &&
+      typeof transaction['entrypoint'] === 'string' &&
+      Array.isArray(transaction['calldata'])
     );
   }
 
@@ -269,7 +269,7 @@ export class StarknetSigner
 
   // ### TX CORE ###
 
-  async estimateTransactionFee(
+  override async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<StarknetAnnotatedTx>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     assert(

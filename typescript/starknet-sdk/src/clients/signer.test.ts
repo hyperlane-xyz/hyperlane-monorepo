@@ -113,11 +113,11 @@ describe('StarknetSigner remoteTransfer', () => {
 
     expect(signer.capturedTx).to.equal(undefined);
     expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
     expect(signer.capturedBatch?.[1]).to.deep.equal({
       kind: 'invoke',
       contractAddress: '0xabc',
@@ -146,16 +146,16 @@ describe('StarknetSigner remoteTransfer', () => {
 
     expect(signer.capturedTx).to.equal(undefined);
     expect(signer.capturedBatch).to.have.length(3);
-    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
       normalizeStarknetAddressSafe(signer.tokenDenom),
     );
-    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
-    expect(signer.capturedBatch?.[1].kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[1].contractAddress).to.equal(
+    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[1]?.kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[1]?.contractAddress).to.equal(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[1].entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[1]?.entrypoint).to.equal('approve');
   });
 
   it('batches fee token approval before synthetic transfer', async () => {
@@ -176,11 +176,11 @@ describe('StarknetSigner remoteTransfer', () => {
 
     expect(signer.capturedTx).to.equal(undefined);
     expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
   });
 
   it('merges collateral and fee approvals when both use the same token', async () => {
@@ -202,11 +202,11 @@ describe('StarknetSigner remoteTransfer', () => {
 
     expect(signer.capturedTx).to.equal(undefined);
     expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.[0].kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0].contractAddress).to.equal(
+    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[0].entrypoint).to.equal('approve');
+    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
     expect(signer.capturedBatch?.[1]).to.deep.equal({
       kind: 'invoke',
       contractAddress: '0xabc',

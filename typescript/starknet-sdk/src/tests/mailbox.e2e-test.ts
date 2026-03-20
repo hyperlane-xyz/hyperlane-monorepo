@@ -1,9 +1,12 @@
 import { expect } from 'chai';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
+import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
@@ -16,20 +19,38 @@ describe('2. starknet sdk mailbox e2e tests', function () {
 
   let signer: StarknetSigner;
   let artifactManager: StarknetMailboxArtifactManager;
+  let ismArtifactManager: StarknetIsmArtifactManager;
+  let hookArtifactManager: StarknetHookArtifactManager;
 
   before(async () => {
     signer = await createSigner();
     artifactManager = new StarknetMailboxArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
+    ismArtifactManager = new StarknetIsmArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    hookArtifactManager = new StarknetHookArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
   });
 
   async function createPrerequisites() {
-    const { ismAddress } = await signer.createNoopIsm({});
-    const { hookAddress } = await signer.createNoopHook({
-      mailboxAddress: signer.getSignerAddress(),
-    });
-    return { ismAddress, hookAddress };
+    const [ism] = await ismArtifactManager
+      .createWriter(AltVM.IsmType.TEST_ISM, signer)
+      .create({
+        config: { type: AltVM.IsmType.TEST_ISM },
+      });
+    const [hook] = await hookArtifactManager
+      .createWriter('unknownHook', signer)
+      .create({
+        config: { type: 'unknownHook' },
+      });
+
+    return {
+      ismAddress: ism.deployed.address,
+      hookAddress: hook.deployed.address,
+    };
   }
 
   it('creates and reads mailbox artifact', async () => {

@@ -93,7 +93,7 @@ describe('3. starknet sdk hook e2e tests', function () {
     });
 
     expect(txs.length).to.be.greaterThan(0);
-    expect(txs[txs.length - 1].annotation).to.contain('ownership');
+    expect(txs[txs.length - 1]?.annotation).to.contain('ownership');
 
     for (const tx of txs) {
       await signer.sendAndConfirmTransaction(tx);

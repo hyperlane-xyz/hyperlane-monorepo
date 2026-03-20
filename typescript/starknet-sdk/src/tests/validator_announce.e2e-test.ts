@@ -1,8 +1,13 @@
 import { expect } from 'chai';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
+import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_STARKNET_CHAIN_METADATA,
@@ -16,20 +21,52 @@ describe('4. starknet sdk validator announce e2e tests', function () {
   let signer: StarknetSigner;
   let mailboxAddress: string;
   let artifactManager: StarknetValidatorAnnounceArtifactManager;
+  let ismArtifactManager: StarknetIsmArtifactManager;
+  let hookArtifactManager: StarknetHookArtifactManager;
+  let mailboxArtifactManager: StarknetMailboxArtifactManager;
 
   before(async () => {
     signer = await createSigner();
-    const { ismAddress } = await signer.createNoopIsm({});
-    const { hookAddress } = await signer.createNoopHook({
-      mailboxAddress: signer.getSignerAddress(),
-    });
-    const mailbox = await signer.createMailbox({
-      domainId: TEST_STARKNET_CHAIN_METADATA.domainId,
-      defaultIsmAddress: ismAddress,
-      defaultHookAddress: hookAddress,
-      requiredHookAddress: hookAddress,
-    });
-    mailboxAddress = mailbox.mailboxAddress;
+    ismArtifactManager = new StarknetIsmArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    hookArtifactManager = new StarknetHookArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    mailboxArtifactManager = new StarknetMailboxArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+
+    const [ism] = await ismArtifactManager
+      .createWriter(AltVM.IsmType.TEST_ISM, signer)
+      .create({
+        config: { type: AltVM.IsmType.TEST_ISM },
+      });
+    const [hook] = await hookArtifactManager
+      .createWriter('unknownHook', signer)
+      .create({
+        config: { type: 'unknownHook' },
+      });
+    const [mailbox] = await mailboxArtifactManager
+      .createWriter('mailbox', signer)
+      .create({
+        config: {
+          owner: signer.getSignerAddress(),
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ism.deployed.address },
+          },
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: hook.deployed.address },
+          },
+          requiredHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: hook.deployed.address },
+          },
+        },
+      });
+    mailboxAddress = mailbox.deployed.address;
     artifactManager = new StarknetValidatorAnnounceArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
     );
@@ -52,7 +89,9 @@ describe('4. starknet sdk validator announce e2e tests', function () {
     expect(
       eqAddressStarknet(read.deployed.address, created.deployed.address),
     ).to.equal(true);
-    expect(read.config.mailboxAddress).to.equal('');
+    expect(
+      eqAddressStarknet(read.config.mailboxAddress, mailboxAddress),
+    ).to.equal(true);
   });
 
   it('returns no update txs for immutable validator announce', async () => {

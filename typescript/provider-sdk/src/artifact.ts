@@ -234,3 +234,26 @@ export function toDeployedOrUndefined<C, D extends { address: string }>(
   );
   return undefined;
 }
+
+export function addressToUnderivedArtifact(
+  address: string | undefined,
+  formatter?: (value: string) => string,
+): ArtifactUnderived<{ address: string }> | undefined {
+  if (!address || isEmptyAddress(address)) return undefined;
+
+  return {
+    artifactState: ArtifactState.UNDERIVED,
+    deployed: {
+      address: formatter ? formatter(address) : address,
+    },
+  };
+}
+
+export function artifactOnChainToAddress<C>(
+  artifact: ArtifactOnChain<C, { address: string }> | undefined,
+  formatter?: (value: string) => string,
+): string | undefined {
+  const address = artifact?.deployed.address;
+  if (!address || isEmptyAddress(address)) return undefined;
+  return formatter ? formatter(address) : address;
+}
