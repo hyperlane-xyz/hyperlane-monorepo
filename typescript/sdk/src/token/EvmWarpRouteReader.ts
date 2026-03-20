@@ -174,8 +174,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const isDirectBridge = type === TokenType.collateralDepositAddress;
-    const routerConfig = isDirectBridge
+    const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
+    const routerConfig = isDepositAddressBridge
       ? {
           mailbox: constants.AddressZero,
           owner: await Ownable__factory.connect(
@@ -192,7 +192,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    const destinationGas = isDirectBridge
+    const destinationGas = isDepositAddressBridge
       ? undefined
       : await this.fetchDestinationGas(warpRouteAddress);
 
