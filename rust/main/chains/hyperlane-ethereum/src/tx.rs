@@ -142,12 +142,13 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    ensure_from_for_estimation(&mut tx.tx, provider.default_sender());
-
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
-        None => tx.estimate_gas().await?.into(),
+        None => {
+            ensure_from_for_estimation(&mut tx.tx, provider.default_sender());
+            tx.estimate_gas().await?.into()
+        }
     };
 
     if with_gas_limit_overrides {
@@ -588,6 +589,18 @@ mod test {
         ensure_from_for_estimation(&mut tx, Some(default_sender));
 
         assert_eq!(tx.from(), Some(&original_sender));
+    }
+
+    #[test]
+    fn test_ensure_from_for_estimation_no_default_keeps_none() {
+        let mut tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            from: None,
+            ..Default::default()
+        });
+
+        ensure_from_for_estimation(&mut tx, None);
+
+        assert!(tx.from().is_none());
     }
 
     #[ignore = "Not running a flaky test requiring network"]
