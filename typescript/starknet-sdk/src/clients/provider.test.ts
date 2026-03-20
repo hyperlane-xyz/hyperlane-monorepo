@@ -20,6 +20,9 @@ const TEST_METADATA: ChainMetadataForAltVM = {
   rpcUrls: [{ http: 'http://localhost:9545' }],
 };
 
+const feeDenom =
+  '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
+
 class StarknetProviderTestHarness extends StarknetProvider {
   hookTypeValue: unknown = { MERKLE_TREE: {} };
   hookTypeThrows = false;
@@ -120,6 +123,7 @@ class StarknetBridgedSupplyTestHarness extends StarknetProvider {
 
 class StarknetTxTestHarness extends StarknetProvider {
   tokenType = AltVM.TokenType.synthetic;
+  tokenDenom = feeDenom;
 
   constructor() {
     super(
@@ -140,6 +144,21 @@ class StarknetTxTestHarness extends StarknetProvider {
 
   protected override async determineTokenType(): Promise<AltVM.TokenType> {
     return this.tokenType;
+  }
+
+  override async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
+    return {
+      address: req.tokenAddress,
+      owner: '0x0',
+      tokenType: this.tokenType,
+      mailboxAddress: '0x0',
+      ismAddress: '0x0',
+      hookAddress: '0x0',
+      denom: this.tokenDenom,
+      name: '',
+      symbol: '',
+      decimals: 18,
+    };
   }
 
   override async getMailbox(): Promise<AltVM.ResGetMailbox> {
@@ -347,9 +366,6 @@ describe('StarknetProvider getCreateMailboxTransaction', () => {
 });
 
 describe('StarknetProvider warp tx builders', () => {
-  const feeDenom =
-    '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
-
   it('leaves synthetic token metadata as strings for calldata compilation', async () => {
     const provider = new StarknetTxTestHarness();
 
@@ -418,6 +434,51 @@ describe('StarknetProvider warp tx builders', () => {
 
     expect(tx.kind).to.equal('invoke');
     expect(tx.calldata?.[3]).to.equal(2n);
+  });
+
+  it('includes transfer amount in collateral token remote transfer value', async () => {
+    const provider = new StarknetTxTestHarness();
+    provider.tokenType = AltVM.TokenType.collateral;
+    provider.tokenDenom =
+      '0x999999999999999999999999999999999999999999999999999999999999999';
+
+    const tx = await provider.getRemoteTransferTransaction({
+      signer:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      tokenAddress:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      destinationDomainId: 1234,
+      recipient:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: { denom: feeDenom, amount: '2' },
+    });
+
+    expect(tx.kind).to.equal('invoke');
+    expect(tx.calldata?.[3]).to.equal(1n);
+  });
+
+  it('includes fee in collateral token remote transfer value when fee denom matches collateral denom', async () => {
+    const provider = new StarknetTxTestHarness();
+    provider.tokenType = AltVM.TokenType.collateral;
+    provider.tokenDenom = feeDenom;
+
+    const tx = await provider.getRemoteTransferTransaction({
+      signer:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      tokenAddress:
+        '0x2222222222222222222222222222222222222222222222222222222222222222',
+      destinationDomainId: 1234,
+      recipient:
+        '0x3333333333333333333333333333333333333333333333333333333333333333',
+      amount: '1',
+      gasLimit: '200000',
+      maxFee: { denom: feeDenom, amount: '2' },
+    });
+
+    expect(tx.kind).to.equal('invoke');
+    expect(tx.calldata?.[3]).to.equal(3n);
   });
 
   it('uses mailbox default hook and ism when creating native tokens', async () => {

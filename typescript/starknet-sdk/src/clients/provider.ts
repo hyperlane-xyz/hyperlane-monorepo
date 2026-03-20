@@ -1106,10 +1106,19 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       ContractType.TOKEN,
     );
     const noneOption = new CairoOption(CairoOptionVariant.None);
-    const value =
-      tokenType === AltVM.TokenType.native
-        ? toBigInt(req.amount) + toBigInt(req.maxFee.amount)
-        : toBigInt(req.maxFee.amount);
+    let value: bigint;
+    if (tokenType === AltVM.TokenType.native) {
+      value = toBigInt(req.amount) + toBigInt(req.maxFee.amount);
+    } else if (tokenType === AltVM.TokenType.collateral) {
+      const tokenInfo = await this.getToken({ tokenAddress: req.tokenAddress });
+      const collateralDenom = normalizeStarknetAddressSafe(tokenInfo.denom);
+      const feeDenom = normalizeStarknetAddressSafe(req.maxFee.denom);
+      value =
+        toBigInt(req.amount) +
+        (collateralDenom === feeDenom ? toBigInt(req.maxFee.amount) : 0n);
+    } else {
+      value = toBigInt(req.maxFee.amount);
+    }
 
     return populateInvokeTx(token, 'transfer_remote', [
       req.destinationDomainId,
