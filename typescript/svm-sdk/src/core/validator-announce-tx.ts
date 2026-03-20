@@ -1,23 +1,23 @@
+import { keccak_256 } from '@noble/hashes/sha3';
 import type { Address, Instruction, TransactionSigner } from '@solana/kit';
 import { getAddressCodec } from '@solana/kit';
-import { keccak_256 } from '@noble/hashes/sha3';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { concatBytes, u8, u32le, vecBytes } from '../codecs/binary.js';
+import { concatBytes, u32le, u8, vecBytes } from '../codecs/binary.js';
 import { encodeH160 } from '../codecs/shared.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
-import {
-  deriveReplayProtectionPda,
-  deriveValidatorAnnouncePda,
-  deriveValidatorStorageLocationsPda,
-} from '../pda.js';
 import {
   buildInstruction,
   readonlyAccount,
   readonlySigner,
   writableAccount,
 } from '../instructions/utils.js';
+import {
+  deriveReplayProtectionPda,
+  deriveValidatorAnnouncePda,
+  deriveValidatorStorageLocationsPda,
+} from '../pda.js';
 
 const ADDRESS_CODEC = getAddressCodec();
 const TEXT_ENCODER = new TextEncoder();
