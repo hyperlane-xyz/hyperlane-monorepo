@@ -191,7 +191,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     let (token_key, token_bump) =
         Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
     if &token_key != token_account.key {
-        return Err(ProgramError::IncorrectProgramId);
+        return Err(ProgramError::InvalidArgument);
     }
     if !token_account.data_is_empty() || token_account.owner != &system_program::ID {
         return Err(ProgramError::AccountAlreadyInitialized);
@@ -202,7 +202,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     let (dispatch_authority_key, dispatch_authority_bump) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
     if *dispatch_authority_account.key != dispatch_authority_key {
-        return Err(ProgramError::IncorrectProgramId);
+        return Err(ProgramError::InvalidArgument);
     }
     if !dispatch_authority_account.data_is_empty()
         || dispatch_authority_account.owner != &system_program::ID
@@ -236,7 +236,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     let (cc_state_key, cc_state_bump) =
         Pubkey::find_program_address(cross_collateral_pda_seeds!(), program_id);
     if cc_state_account.key != &cc_state_key {
-        return Err(ProgramError::IncorrectProgramId);
+        return Err(ProgramError::InvalidArgument);
     }
     if !cc_state_account.data_is_empty() || cc_state_account.owner != &system_program::ID {
         return Err(ProgramError::AccountAlreadyInitialized);
@@ -247,7 +247,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     let (cc_dispatch_authority_key, cc_dispatch_authority_bump) =
         Pubkey::find_program_address(cross_collateral_dispatch_authority_pda_seeds!(), program_id);
     if cc_dispatch_authority_account.key != &cc_dispatch_authority_key {
-        return Err(ProgramError::IncorrectProgramId);
+        return Err(ProgramError::InvalidArgument);
     }
     if !cc_dispatch_authority_account.data_is_empty()
         || cc_dispatch_authority_account.owner != &system_program::ID
