@@ -1,4 +1,9 @@
-import { type Logger, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  type Logger,
+  assert,
+  isNullish,
+  isNumeric,
+} from '@hyperlane-xyz/utils';
 
 import {
   Artifact,
@@ -570,7 +575,9 @@ function convertCrossCollateralRoutersToArtifact(
   if (!crossCollateralRouters) return result;
 
   for (const [chainName, routers] of Object.entries(crossCollateralRouters)) {
-    const domainId = chainLookup.getDomainId(chainName);
+    const domainId = isNumeric(chainName)
+      ? parseInt(chainName)
+      : chainLookup.getDomainId(chainName);
     if (isNullish(domainId)) {
       logger?.warn(
         `Skipping cross-collateral routers for unknown chain: ${chainName}. ` +
@@ -592,8 +599,7 @@ function convertCrossCollateralRoutersToDerived(
   for (const [domainIdStr, routers] of Object.entries(crossCollateralRouters)) {
     const domainId = parseInt(domainIdStr);
     const chainName = chainLookup.getChainName(domainId);
-    if (!chainName) continue;
-    result[chainName] = Array.from(routers);
+    result[chainName ?? domainIdStr] = Array.from(routers);
   }
 
   return result;
