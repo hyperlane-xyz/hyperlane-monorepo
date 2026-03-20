@@ -217,7 +217,7 @@ contract TokenBridgeAggLayerTest is Test {
         vm.stopPrank();
     }
 
-    function test_quoteTransferRemote_genericRouteIncludesTokenAndDispatchFee()
+    function test_quoteTransferRemote_genericRouteIncludesFeesAndTokenAmount()
         public
     {
         Quote[] memory quotes = katanaRoute.quoteTransferRemote(
@@ -226,11 +226,13 @@ contract TokenBridgeAggLayerTest is Test {
             50e6
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0);
         assertEq(quotes[1].token, address(katanaVbUsdc));
         assertEq(quotes[1].amount, 50e6);
+        assertEq(quotes[2].token, address(katanaVbUsdc));
+        assertEq(quotes[2].amount, 0);
     }
 
     function test_transferRemote_genericRouteDispatchesAndBridgesToRemoteRoute()
@@ -285,10 +287,11 @@ contract TokenBridgeAggLayerTest is Test {
             50e6
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 321_000 * 10);
         assertEq(quotes[1].amount, 50e6);
+        assertEq(quotes[2].amount, 0);
     }
 
     function test_verify_claimsAgglayerAssetUsingOriginRemoteConfig() public {
@@ -405,11 +408,13 @@ contract TokenBridgeAggLayerTest is Test {
             100e6
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0);
         assertEq(quotes[1].token, address(usdc));
         assertEq(quotes[1].amount, 100e6);
+        assertEq(quotes[2].token, address(usdc));
+        assertEq(quotes[2].amount, 0);
     }
 
     function test_transferRemote_vaultWrapperDepositsAndBridgesToRecipient()

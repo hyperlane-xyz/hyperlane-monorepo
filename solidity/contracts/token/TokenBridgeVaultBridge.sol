@@ -120,13 +120,30 @@ contract TokenBridgeVaultBridge is TokenRouter {
 
     function quoteTransferRemote(
         uint32 _destination,
-        bytes32,
+        bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
         _mustHaveRemoteConfig(_destination);
-        quotes = new Quote[](2);
+        (, uint256 feeAmount) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 externalFeeAmount = _externalFeeAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        quotes = new Quote[](3);
         quotes[0] = Quote({token: address(0), amount: 0});
-        quotes[1] = Quote({token: address(localToken), amount: _amount});
+        quotes[1] = Quote({
+            token: address(localToken),
+            amount: _amount + feeAmount
+        });
+        quotes[2] = Quote({
+            token: address(localToken),
+            amount: externalFeeAmount
+        });
     }
 
     function transferRemote(

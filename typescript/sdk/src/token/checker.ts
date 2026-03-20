@@ -10,6 +10,7 @@ import {
   Ownable__factory,
   ProxyAdmin__factory,
   TokenRouter,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
@@ -175,8 +176,25 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (
       isAggLayerTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig)
+    ) {
+      const collateralToken = await this.getCollateralToken(chain);
+      const actualToken = await TokenRouter__factory.connect(
+        hypToken.address,
+        this.multiProvider.getProvider(chain),
+      ).token();
+      if (!eqAddress(collateralToken.address, actualToken)) {
+        const violation: TokenMismatchViolation = {
+          type: 'CollateralTokenMismatch',
+          chain,
+          expected: collateralToken.address,
+          actual: actualToken,
+          tokenAddress: hypToken.address,
+        };
+        this.addViolation(violation);
+      }
+    } else if (
       isCollateralTokenConfig(expectedConfig) ||
-      isVaultBridgeTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);

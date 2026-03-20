@@ -174,6 +174,16 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         _mustHaveRemoteConfig(_destination);
 
         address _feeToken = feeToken();
+        (, uint256 feeAmount) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 externalFeeAmount = _externalFeeAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
         uint256 dispatchFee = _quoteGasPayment(
             _destination,
             _recipient,
@@ -181,9 +191,10 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _feeToken
         );
 
-        quotes = new Quote[](2);
+        quotes = new Quote[](3);
         quotes[0] = Quote({token: _feeToken, amount: dispatchFee});
-        quotes[1] = Quote({token: token(), amount: _amount});
+        quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
+        quotes[2] = Quote({token: token(), amount: externalFeeAmount});
     }
 
     function transferRemote(
