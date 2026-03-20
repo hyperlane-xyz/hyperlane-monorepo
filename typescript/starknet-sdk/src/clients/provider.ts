@@ -275,6 +275,14 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
 
   protected parseIsmVariant(variant: string): AltVM.IsmType {
     const upper = variant.toUpperCase();
+    if (
+      upper.includes('TEST') ||
+      upper.includes('NOOP') ||
+      upper.includes('NULL') ||
+      upper.includes('UNUSED')
+    ) {
+      return AltVM.IsmType.TEST_ISM;
+    }
     if (upper.includes('MERKLE_ROOT_MULTISIG')) {
       return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
     }

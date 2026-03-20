@@ -1,4 +1,4 @@
-import { type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
@@ -57,6 +57,9 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const type = await this.provider.getIsmType({ ismAddress: address });
+    if (type === AltVM.IsmType.CUSTOM) {
+      return this.createReader(AltVM.IsmType.TEST_ISM).read(address);
+    }
     const reader = this.createReader(altVMIsmTypeToProviderSdkType(type));
     return reader.read(address);
   }

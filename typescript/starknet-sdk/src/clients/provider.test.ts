@@ -319,6 +319,15 @@ describe('StarknetProvider getHookType', () => {
 });
 
 describe('StarknetProvider getIsmType', () => {
+  it('recognizes noop/test module_type variants as testIsm', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.ismTypeValue = { NULL: {} };
+
+    const ismType = await provider.getIsmType({ ismAddress: '0x1' });
+
+    expect(ismType).to.equal(AltVM.IsmType.TEST_ISM);
+  });
+
   it('returns custom for unknown module_type variants', async () => {
     const provider = new StarknetProviderTestHarness();
     provider.ismTypeValue = { AGGREGATION: {} };
