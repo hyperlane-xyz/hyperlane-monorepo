@@ -100,7 +100,7 @@ contract TokenBridgeDepositAddressTest is Test {
         vm.prank(caller);
         bytes32 transferId = bridge.transferRemote(DOMAIN_ARB, recipient, amount);
 
-        assertTrue(transferId != bytes32(0));
+        assertEq(transferId, bytes32(0));
         assertEq(token.balanceOf(depositAddress), amount + feeAmount);
         assertEq(token.balanceOf(address(bridge)), 0);
         assertEq(bridge.nonce(), 1);
@@ -109,25 +109,11 @@ contract TokenBridgeDepositAddressTest is Test {
     function test_transferRemote_emitsEvent() public {
         uint256 amount = 100e6;
         uint256 feeAmount = (amount * FEE_BPS) / MAX_BPS;
-        bytes32 expectedTransferId = keccak256(
-            abi.encode(
-                block.chainid,
-                address(bridge),
-                0,
-                caller,
-                DOMAIN_ARB,
-                recipient,
-                amount,
-                feeAmount,
-                FEE_BPS,
-                depositAddress
-            )
-        );
 
         vm.prank(caller);
         vm.expectEmit(true, true, true, true);
         emit TokenBridgeDepositAddress.SentTransferRemoteViaDepositAddress(
-            DOMAIN_ARB, recipient, depositAddress, amount, feeAmount, FEE_BPS, expectedTransferId
+            DOMAIN_ARB, recipient, depositAddress, amount, feeAmount, FEE_BPS
         );
         bridge.transferRemote(DOMAIN_ARB, recipient, amount);
     }
@@ -248,20 +234,6 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
     function test_rebalance_viaDepositAddressBridge() public {
         uint256 collateralAmount = 100e6;
         uint256 feeAmount = (collateralAmount * FEE_BPS) / 10_000;
-        bytes32 expectedTransferId = keccak256(
-            abi.encode(
-                block.chainid,
-                address(bridge),
-                0,
-                address(router),
-                DESTINATION_DOMAIN,
-                remoteRecipient,
-                collateralAmount,
-                feeAmount,
-                FEE_BPS,
-                depositAddress
-            )
-        );
 
         token.mintTo(address(router), collateralAmount);
         token.mintTo(address(this), feeAmount);
@@ -277,8 +249,7 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
             depositAddress,
             collateralAmount,
             feeAmount,
-            FEE_BPS,
-            expectedTransferId
+            FEE_BPS
         );
         vm.expectEmit(true, true, true, true, address(router));
         emit MovableCollateralRouter.CollateralMoved(

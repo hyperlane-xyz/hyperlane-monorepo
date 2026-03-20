@@ -46,8 +46,7 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
         address indexed depositAddress,
         uint256 amount,
         uint256 feeAmount,
-        uint256 feeBps,
-        bytes32 transferId
+        uint256 feeBps
     );
 
     IERC20 public immutable wrappedToken;
@@ -84,37 +83,22 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned, E
         external
         payable
         override
-        returns (bytes32 transferId)
+        returns (bytes32)
     {
         if (msg.value != 0) revert NativeFeeNotSupported(msg.value);
 
         DestinationConfig memory config = _getDestinationConfig(_destination, _recipient);
         uint256 feeAmount = _computeFee(_amount, config.feeBps);
-        uint256 currentNonce = nonce++;
-
-        // `ITokenBridge` requires a bytes32 return value. This deterministic id lets offchain
-        // issuers correlate the origin transfer with their settlement pipeline and emitted logs.
-        transferId = keccak256(
-            abi.encode(
-                block.chainid,
-                address(this),
-                currentNonce,
-                msg.sender,
-                _destination,
-                _recipient,
-                _amount,
-                feeAmount,
-                config.feeBps,
-                config.depositAddress
-            )
-        );
+        nonce++;
 
         uint256 grossAmount = _amount + feeAmount;
         wrappedToken.safeTransferFrom(msg.sender, config.depositAddress, grossAmount);
 
         emit SentTransferRemoteViaDepositAddress(
-            _destination, _recipient, config.depositAddress, _amount, feeAmount, config.feeBps, transferId
+            _destination, _recipient, config.depositAddress, _amount, feeAmount, config.feeBps
         );
+
+        return bytes32(0);
     }
 
     function setDestinationConfig(uint32 _destination, address _depositAddress, bytes32 _recipient, uint256 _feeBps)
