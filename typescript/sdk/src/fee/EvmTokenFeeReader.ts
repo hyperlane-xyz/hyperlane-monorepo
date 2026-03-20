@@ -5,7 +5,7 @@ import {
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -37,6 +37,7 @@ export type TokenFeeReaderParams = {
 };
 
 const CROSS_COLLATERAL_ROUTING_FEE_ABI = [
+  'function DEFAULT_ROUTER() view returns (bytes32)',
   'function owner() view returns (address)',
   'function feeContracts(uint32,bytes32) view returns (address)',
 ] as const;
@@ -109,8 +110,16 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       CROSS_COLLATERAL_ROUTING_FEE_ABI,
       this.provider,
     );
+    const [defaultRouter, ownerResult] = await Promise.all([
+      ccrf.DEFAULT_ROUTER(),
+      ccrf.owner(),
+    ]);
+    assert(
+      defaultRouter === DEFAULT_ROUTER_KEY,
+      `Contract at ${address} is not a CrossCollateralRoutingFee`,
+    );
     // CAST: ethers Contract with human-readable ABI returns `any`; the ABI guarantees `address`
-    const owner = (await ccrf.owner()) as Address;
+    const owner = ownerResult as Address;
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
     let resolvedToken: Address | undefined = token;
