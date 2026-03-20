@@ -566,3 +566,37 @@ If output seems wrong, check:
 2. **Did I search for existing patterns?** The codebase likely has examples
 3. **Am I using stale context?** Re-read files that may have changed
 4. **Did I verify the error message?** Run the command and read actual output
+
+## Cursor Cloud specific instructions
+
+### System dependencies (pre-installed in snapshot)
+
+- Node.js v24 (via nvm), pnpm 10.30.2 (via corepack)
+- Foundry v1.5.0 (`forge`, `anvil`, `cast`, `chisel`) at `~/.foundry/bin`
+- Rust 1.88.0 (via rustup)
+- `libssl-dev`, `pkg-config`, `g++`, `libclang-dev`, `clang` for native Rust crate compilation
+
+### Rust build environment
+
+RocksDB (used by the scraper/relayer) requires C++ headers and libstdc++. The default `c++` on this image is clang, which cannot find g++'s libstdc++ headers. You **must** set these env vars before any `cargo build`/`test`:
+
+```bash
+export CXX=g++
+export CC=gcc
+export LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:$LIBRARY_PATH"
+```
+
+These are persisted in `~/.bashrc`.
+
+### Running services
+
+- **TypeScript**: `pnpm build` from repo root builds all packages. `pnpm lint` and `pnpm format` for checks.
+- **Solidity**: `forge soldeer install` in `solidity/` for deps, then `forge test` for tests. See `CLAUDE.md` for specific test commands.
+- **Rust agents**: `cd rust/main && cargo test --lib` for library tests. Full e2e requires Docker (optional).
+- **CLI e2e tests**: `pnpm -C typescript/cli test:ethereum:e2e` spins up anvil chains and runs core deployment + warp route tests. This is a good "hello world" to verify the full stack.
+
+### Gotchas
+
+- `pnpm install` will warn about "Ignored build scripts" for native modules. This is pnpm v10's security feature. The build still works because esbuild falls back to WASM and crypto libs have JS fallbacks.
+- After changing `typescript/sdk` or `typescript/utils`, run `pnpm build` from repo root; Turbo handles caching.
+- The `.cursor/environment.json` file has been deleted to allow snapshot-managed environment settings to take effect.
