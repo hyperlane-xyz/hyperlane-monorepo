@@ -163,4 +163,37 @@ describe('hook protocolFee support', () => {
       'Unsupported hook artifact type protocolFee for protocol Aleo',
     );
   });
+
+  it('includes hook type in hookConfigToArtifact errors', () => {
+    expect(() =>
+      hookConfigToArtifact(
+        { type: 'futureHook' } as unknown as HookConfig,
+        chainLookup,
+      ),
+    ).to.throw(/Unhandled hook type in hookConfigToArtifact: futureHook/);
+  });
+
+  it('includes hook type in shouldDeployNewHook errors', () => {
+    expect(() =>
+      shouldDeployNewHook(
+        { type: 'futureHook' } as never,
+        { type: 'futureHook' } as never,
+      ),
+    ).to.throw(/Unhandled hook type in shouldDeployNewHook: futureHook/);
+  });
+
+  it('includes hook type in hookArtifactToDerivedConfig errors', () => {
+    expect(() =>
+      hookArtifactToDerivedConfig(
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: { type: 'futureHook' } as never,
+          deployed: { address: '0xabc' },
+        },
+        chainLookup,
+      ),
+    ).to.throw(
+      /Unhandled hook type in hookArtifactToDerivedConfig: futureHook/,
+    );
+  });
 });

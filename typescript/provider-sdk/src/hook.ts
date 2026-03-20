@@ -207,6 +207,27 @@ export interface IRawHookArtifactManager extends IArtifactManager<
   readHook(address: string): Promise<DeployedHookArtifact>;
 }
 
+function formatUnhandledHookType(value: unknown): string {
+  if (value && typeof value === 'object') {
+    const hookType = Reflect.get(value, 'type');
+    if (hookType !== undefined) return String(hookType);
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
+function assertNever(value: never, context: string): never {
+  throw new Error(
+    `Unhandled hook type in ${context}: ${formatUnhandledHookType(value)}`,
+  );
+}
+
 export function throwUnsupportedHookType(
   hookType: string,
   protocolName: string,
@@ -339,7 +360,7 @@ export function hookConfigToArtifact(
       };
 
     default: {
-      throw new Error(`Unhandled hook type in hookConfigToArtifact`);
+      return assertNever(config as never, 'hookConfigToArtifact');
     }
   }
 }
@@ -395,7 +416,7 @@ export function shouldDeployNewHook(
     }
 
     default: {
-      throw new Error(`Unhandled hook type in shouldDeployNewHook`);
+      return assertNever(expected as never, 'shouldDeployNewHook');
     }
   }
 }
@@ -526,7 +547,7 @@ export function hookArtifactToDerivedConfig(
       };
 
     default: {
-      throw new Error(`Unhandled hook type in hookArtifactToDerivedConfig`);
+      return assertNever(config as never, 'hookArtifactToDerivedConfig');
     }
   }
 }
