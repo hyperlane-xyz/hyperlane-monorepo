@@ -58,7 +58,7 @@ export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
 export const AggLayerRemoteBridgeConfigSchema = z.object({
   agglayerNetworkId: z.number().int().nonnegative(),
-  remoteToken: ZHash,
+  remoteToken: ZHash.optional(),
   forceUpdateGlobalExitRoot: z.boolean().optional(),
 });
 export type AggLayerRemoteBridgeConfig = z.infer<
@@ -239,11 +239,14 @@ export const AggLayerTokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.literal(TokenType.collateralAggLayer),
     token: z.string().describe('AggLayer route local token'),
-    agglayerBridge: z.string().describe('AggLayer bridge contract address'),
+    agglayerBridge: z
+      .string()
+      .optional()
+      .describe('AggLayer bridge contract address for the generic route'),
     vaultBridgeToken: z
       .string()
       .optional()
-      .describe('Vault bridge token address on redeeming chains'),
+      .describe('Vault bridge token address for the VaultBridge wrapper'),
     remoteBridgeConfigs: z
       .record(
         RemoteRouterDomainOrChainNameSchema,

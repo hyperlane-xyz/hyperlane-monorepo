@@ -10,10 +10,8 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {IAggLayerBridge} from "./interfaces/IAggLayerBridge.sol";
-import {IVaultBridgeToken} from "./interfaces/IVaultBridgeToken.sol";
 
 interface AggLayerService {
     function getAggLayerClaimMetadata(
@@ -21,8 +19,10 @@ interface AggLayerService {
     ) external view returns (bytes memory);
 }
 
+/// @notice Generic AggLayer-backed token bridge.
+/// @dev This route only handles AggLayer transport. Any asset-specific wrapping
+/// or redemption, e.g. Vault Bridge deposit/redeem, must happen outside it.
 contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
-    using Address for address payable;
     using Message for bytes;
     using SafeERC20 for IERC20;
     using TokenMessage for bytes;
@@ -41,16 +41,14 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         uint256 globalIndex;
         bytes32 mainnetExitRoot;
         bytes32 rollupExitRoot;
+        // Must equal `abi.encode(messageId)` for the exact Hyperlane message.
         bytes metadata;
     }
 
     error InvalidLocalToken(address token);
     error InvalidAgglayerBridge(address bridge);
-    error InvalidVaultBridgeToken(address vaultBridgeToken);
     error InvalidRemoteToken(uint32 domain);
     error RemoteConfigNotFound(uint32 domain);
-    error UnsupportedHandle();
-    error UnsupportedVerify();
     error InvalidClaimMetadata();
 
     event RemoteBridgeConfigSet(
@@ -63,9 +61,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
 
     IERC20 public immutable localToken;
     IAggLayerBridge public immutable agglayerBridge;
-    IVaultBridgeToken public immutable vaultBridgeToken;
     uint32 public immutable localAgglayerNetworkId;
-    bool public immutable redeemsOnHandle;
 
     mapping(uint32 => RemoteBridgeConfig) public remoteBridgeConfigs;
     mapping(uint32 => bool) internal _hasRemoteBridgeConfigDomain;
@@ -75,8 +71,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     constructor(
         address _localToken,
         address _mailbox,
-        address _agglayerBridge,
-        address _vaultBridgeToken
+        address _agglayerBridge
     ) TokenRouter(1, 1, _mailbox) {
         if (_localToken == address(0) || _localToken.code.length == 0) {
             revert InvalidLocalToken(_localToken);
@@ -88,17 +83,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         localToken = IERC20(_localToken);
         agglayerBridge = IAggLayerBridge(_agglayerBridge);
         localAgglayerNetworkId = IAggLayerBridge(_agglayerBridge).networkID();
-
-        if (_vaultBridgeToken != address(0)) {
-            if (_vaultBridgeToken.code.length == 0) {
-                revert InvalidVaultBridgeToken(_vaultBridgeToken);
-            }
-            vaultBridgeToken = IVaultBridgeToken(_vaultBridgeToken);
-            redeemsOnHandle = true;
-        } else {
-            redeemsOnHandle = false;
-        }
-
         _disableInitializers();
     }
 
@@ -111,16 +95,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         setHook(_hook);
         setInterchainSecurityModule(address(0));
         setUrls(__urls);
-
-        if (redeemsOnHandle) {
-            localToken.forceApprove(
-                address(vaultBridgeToken),
-                type(uint256).max
-            );
-        } else {
-            localToken.forceApprove(address(agglayerBridge), type(uint256).max);
-        }
-
+        localToken.forceApprove(address(agglayerBridge), type(uint256).max);
         _transferOwnership(_owner);
     }
 
@@ -199,19 +174,16 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         _mustHaveRemoteConfig(_destination);
 
         address _feeToken = feeToken();
-        uint256 dispatchFee = redeemsOnHandle
-            ? 0
-            : _quoteGasPayment(_destination, _recipient, _amount, _feeToken);
+        uint256 dispatchFee = _quoteGasPayment(
+            _destination,
+            _recipient,
+            _amount,
+            _feeToken
+        );
 
-        if (_feeToken == address(0)) {
-            quotes = new Quote[](2);
-            quotes[0] = Quote({token: address(0), amount: dispatchFee});
-            quotes[1] = Quote({token: token(), amount: _amount});
-        } else {
-            quotes = new Quote[](2);
-            quotes[0] = Quote({token: _feeToken, amount: dispatchFee});
-            quotes[1] = Quote({token: token(), amount: _amount});
-        }
+        quotes = new Quote[](2);
+        quotes[0] = Quote({token: _feeToken, amount: dispatchFee});
+        quotes[1] = Quote({token: token(), amount: _amount});
     }
 
     function transferRemote(
@@ -220,12 +192,6 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         uint256 _amount
     ) public payable override returns (bytes32 messageId) {
         RemoteBridgeConfig memory cfg = _mustHaveRemoteConfig(_destination);
-
-        if (redeemsOnHandle) {
-            return
-                _transferRemoteDirect(_destination, _recipient, _amount, cfg);
-        }
-
         address _feeHook = feeHook();
         address _feeToken = feeToken();
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
@@ -235,6 +201,7 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             msg.value,
             _feeHook
         );
+
         bytes memory _tokenMessage = TokenMessage.format(_recipient, _amount);
         messageId = _emitAndDispatch(
             _destination,
@@ -245,12 +212,12 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
             _feeToken
         );
 
-        address remoteRouter = _mustHaveRemoteRouter(_destination)
-            .bytes32ToAddress();
-
+        // The bridge transfer commits to the exact Hyperlane `messageId`.
+        // Claim metadata must reproduce that same id in `verify`, so a valid
+        // AggLayer proof cannot be replayed against another Hyperlane message.
         agglayerBridge.bridgeAsset(
             cfg.agglayerNetworkId,
-            remoteRouter,
+            _mustHaveRemoteRouter(_destination).bytes32ToAddress(),
             _amount,
             address(localToken),
             cfg.forceUpdateGlobalExitRoot,
@@ -258,34 +225,10 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         );
     }
 
-    function _transferRemoteDirect(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        RemoteBridgeConfig memory _cfg
-    ) internal returns (bytes32) {
-        _transferFromSender(_amount);
-        vaultBridgeToken.depositAndBridge(
-            _amount,
-            _recipient.bytes32ToAddress(),
-            _cfg.agglayerNetworkId,
-            _cfg.forceUpdateGlobalExitRoot
-        );
-
-        emit SentTransferRemote(_destination, _recipient, _amount);
-
-        if (msg.value > 0) {
-            payable(msg.sender).sendValue(msg.value);
-        }
-
-        return bytes32(0);
-    }
-
     function verify(
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        if (!redeemsOnHandle) revert UnsupportedVerify();
         bytes32 messageId = _message.id();
         if (isVerified[messageId]) {
             return true;
@@ -298,14 +241,15 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         ) {
             revert InvalidClaimMetadata();
         }
+
         isVerified[messageId] = true;
-        _claimBridgedAsset(claim, _message.body().amount());
+        _claimBridgedAsset(_message.origin(), claim, _message.body().amount());
         return true;
     }
 
     function _offchainLookupCalldata(
         bytes calldata _message
-    ) internal view override returns (bytes memory) {
+    ) internal pure override returns (bytes memory) {
         return
             abi.encodeCall(
                 AggLayerService.getAggLayerClaimMetadata,
@@ -329,16 +273,11 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
         bytes32,
         bytes calldata _message
     ) internal override {
-        if (!redeemsOnHandle) revert UnsupportedHandle();
         bytes32 recipient = TokenMessage.recipient(_message);
         uint256 amount = TokenMessage.amount(_message);
 
         emit ReceivedTransferRemote(_origin, recipient, amount);
-        vaultBridgeToken.redeem(
-            amount,
-            recipient.bytes32ToAddress(),
-            address(this)
-        );
+        _transferTo(recipient.bytes32ToAddress(), amount);
     }
 
     function _mustHaveRemoteConfig(
@@ -350,17 +289,19 @@ contract TokenBridgeAggLayer is TokenRouter, AbstractCcipReadIsm {
     }
 
     function _claimBridgedAsset(
+        uint32 _origin,
         ClaimMetadata memory _claim,
         uint256 _amount
     ) internal {
+        RemoteBridgeConfig memory sourceConfig = _mustHaveRemoteConfig(_origin);
         agglayerBridge.claimAsset(
             _claim.smtProofLocalExitRoot,
             _claim.smtProofRollupExitRoot,
             _claim.globalIndex,
             _claim.mainnetExitRoot,
             _claim.rollupExitRoot,
-            localAgglayerNetworkId,
-            address(vaultBridgeToken),
+            sourceConfig.agglayerNetworkId,
+            sourceConfig.remoteToken,
             localAgglayerNetworkId,
             address(this),
             _amount,

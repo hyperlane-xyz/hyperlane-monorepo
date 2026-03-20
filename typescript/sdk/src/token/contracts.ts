@@ -19,6 +19,7 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeAggLayer__factory,
+  TokenBridgeVaultBridge__factory,
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
@@ -81,6 +82,12 @@ export function getCctpFactory(version: 'V1' | 'V2') {
   return version === 'V1'
     ? new TokenBridgeCctpV1__factory()
     : new TokenBridgeCctpV2__factory();
+}
+
+export function getAggLayerFactory(kind: 'route' | 'vault') {
+  return kind === 'route'
+    ? new TokenBridgeAggLayer__factory()
+    : new TokenBridgeVaultBridge__factory();
 }
 
 export const hypERC721contracts = {

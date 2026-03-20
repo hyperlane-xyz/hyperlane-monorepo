@@ -11,6 +11,7 @@ import {
   MovableCollateralRouter__factory,
   ProxyAdmin__factory,
   TokenBridgeAggLayer__factory,
+  TokenBridgeVaultBridge__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -65,9 +66,8 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
-import { DeployableTokenType, TokenType } from './config.js';
+import { TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
-import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
@@ -631,12 +631,17 @@ export class EvmWarpModule extends HyperlaneModule<
       expectedRemoteBridgeConfigs,
     )) {
       const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
-      if (
+      const matchesBase =
         actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
-        eqAddress(actualDomainConfig.remoteToken, config.remoteToken) &&
         (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
-          (config.forceUpdateGlobalExitRoot ?? false)
-      ) {
+          (config.forceUpdateGlobalExitRoot ?? false);
+      const matches = expectedConfig.vaultBridgeToken
+        ? matchesBase
+        : matchesBase &&
+          !!actualDomainConfig?.remoteToken &&
+          !!config.remoteToken &&
+          eqAddress(actualDomainConfig.remoteToken, config.remoteToken);
+      if (matches) {
         continue;
       }
 
@@ -644,15 +649,26 @@ export class EvmWarpModule extends HyperlaneModule<
         chainId: this.chainId,
         annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
         to: this.args.addresses.deployedTokenRoute,
-        data: TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
-          'setRemoteBridgeConfig',
-          [
-            Number(domain),
-            config.agglayerNetworkId,
-            config.remoteToken,
-            config.forceUpdateGlobalExitRoot ?? false,
-          ],
-        ),
+        data: expectedConfig.vaultBridgeToken
+          ? (
+              TokenBridgeVaultBridge__factory.createInterface() as any
+            ).encodeFunctionData('setRemoteBridgeConfig', [
+              Number(domain),
+              config.agglayerNetworkId,
+              config.forceUpdateGlobalExitRoot ?? false,
+            ])
+          : (() => {
+              assert(config.remoteToken, 'remoteToken is undefined');
+              return TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+                'setRemoteBridgeConfig',
+                [
+                  Number(domain),
+                  config.agglayerNetworkId,
+                  config.remoteToken,
+                  config.forceUpdateGlobalExitRoot ?? false,
+                ],
+              );
+            })(),
       });
     }
 
@@ -1340,11 +1356,10 @@ export class EvmWarpModule extends HyperlaneModule<
       this.chainName,
       expectedConfig,
     );
-    const tokenType = expectedConfig.type as DeployableTokenType;
     const implementation = await deployer.deployContractWithName(
       this.chainName,
-      tokenType,
-      hypERC20contracts[tokenType],
+      deployer.routerContractKey(expectedConfig),
+      deployer.routerContractName(expectedConfig),
       constructorArgs,
       undefined,
       false,

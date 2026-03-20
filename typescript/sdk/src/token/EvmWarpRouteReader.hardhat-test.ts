@@ -26,6 +26,7 @@ import {
   PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenBridgeAggLayer__factory,
+  TokenBridgeVaultBridge__factory,
   TokenRouter__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
@@ -688,15 +689,16 @@ describe('EvmWarpRouteReader', async () => {
   it('should derive standalone AggLayer token config', async () => {
     const routeAddress = '0x1111111111111111111111111111111111111111';
     const agglayerBridgeAddress = '0x2222222222222222222222222222222222222222';
-    const vaultBridgeToken = '0x3333333333333333333333333333333333333333';
     const localToken = '0x4444444444444444444444444444444444444444';
 
+    const vaultConnectStub = sinon
+      .stub(TokenBridgeVaultBridge__factory, 'connect')
+      .throws(new Error('not vault wrapper'));
     const connectStub = sinon
       .stub(TokenBridgeAggLayer__factory, 'connect')
       .returns({
         token: sinon.stub().resolves(localToken),
         agglayerBridge: sinon.stub().resolves(agglayerBridgeAddress),
-        vaultBridgeToken: sinon.stub().resolves(vaultBridgeToken),
         urls: sinon.stub().resolves(['https://lookup.example']),
         remoteBridgeConfigDomains: sinon.stub().resolves([747474]),
         remoteBridgeConfigs: sinon.stub().resolves({
@@ -724,12 +726,63 @@ describe('EvmWarpRouteReader', async () => {
         type: TokenType.collateralAggLayer,
         token: localToken,
         agglayerBridge: agglayerBridgeAddress,
-        vaultBridgeToken,
         urls: ['https://lookup.example'],
         remoteBridgeConfigs: {
           '747474': {
             agglayerNetworkId: 20,
             remoteToken: '0x5555555555555555555555555555555555555555',
+            forceUpdateGlobalExitRoot: true,
+          },
+        },
+        scale: undefined,
+      });
+    } finally {
+      vaultConnectStub.restore();
+      connectStub.restore();
+      metadataStub.restore();
+      scaleStub.restore();
+    }
+  });
+
+  it('should derive VaultBridge AggLayer wrapper config', async () => {
+    const routeAddress = '0x1111111111111111111111111111111111111111';
+    const vaultBridgeToken = '0x3333333333333333333333333333333333333333';
+    const localToken = '0x4444444444444444444444444444444444444444';
+
+    const connectStub = sinon
+      .stub(TokenBridgeVaultBridge__factory, 'connect')
+      .returns({
+        token: sinon.stub().resolves(localToken),
+        vaultBridgeToken: sinon.stub().resolves(vaultBridgeToken),
+        remoteBridgeConfigDomains: sinon.stub().resolves([747474]),
+        remoteBridgeConfigs: sinon.stub().resolves({
+          agglayerNetworkId: 20,
+          forceUpdateGlobalExitRoot: true,
+        }),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'fetchERC20Metadata')
+      .resolves({ name: 'USDC', symbol: 'USDC', decimals: 6 });
+    const scaleStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'fetchScale')
+      .resolves(undefined);
+
+    try {
+      const config = await (
+        evmERC20WarpRouteReader as any
+      ).deriveAggLayerTokenConfig(routeAddress);
+
+      expect(config).to.deep.equal({
+        name: 'USDC',
+        symbol: 'USDC',
+        decimals: 6,
+        type: TokenType.collateralAggLayer,
+        token: localToken,
+        vaultBridgeToken,
+        urls: [],
+        remoteBridgeConfigs: {
+          '747474': {
+            agglayerNetworkId: 20,
             forceUpdateGlobalExitRoot: true,
           },
         },

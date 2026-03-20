@@ -13,6 +13,7 @@ import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGas
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {TokenBridgeAggLayer} from "../../contracts/token/TokenBridgeAggLayer.sol";
+import {TokenBridgeVaultBridge} from "../../contracts/token/TokenBridgeVaultBridge.sol";
 import {IAggLayerBridge} from "../../contracts/token/interfaces/IAggLayerBridge.sol";
 import {IVaultBridgeToken} from "../../contracts/token/interfaces/IVaultBridgeToken.sol";
 
@@ -90,10 +91,6 @@ contract MockVaultBridgeToken is IVaultBridgeToken {
     bool public lastDepositForceUpdateGlobalExitRoot;
     uint256 public lastDepositValue;
 
-    uint256 public lastRedeemShares;
-    address public lastRedeemReceiver;
-    address public lastRedeemOwner;
-
     constructor(address _underlying) {
         underlying = ERC20Test(_underlying);
     }
@@ -117,14 +114,11 @@ contract MockVaultBridgeToken is IVaultBridgeToken {
     }
 
     function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external returns (uint256 assets) {
-        lastRedeemShares = shares;
-        lastRedeemReceiver = receiver;
-        lastRedeemOwner = owner;
-        assets = shares;
+        uint256,
+        address,
+        address
+    ) external pure returns (uint256 assets) {
+        revert("unused");
     }
 }
 
@@ -146,12 +140,14 @@ contract TokenBridgeAggLayerTest is Test {
     MockMailbox internal katanaMailbox;
     MockAgglayerBridge internal ethAgglayerBridge;
     MockAgglayerBridge internal katanaAgglayerBridge;
+    ERC20Test internal ethVbUsdc;
+    ERC20Test internal katanaVbUsdc;
     ERC20Test internal usdc;
-    ERC20Test internal vbUsdc;
     MockVaultBridgeToken internal vaultBridgeToken;
 
     TokenBridgeAggLayer internal ethRoute;
     TokenBridgeAggLayer internal katanaRoute;
+    TokenBridgeVaultBridge internal vaultWrapper;
 
     function setUp() public {
         ethMailbox = new MockMailbox(ETH_DOMAIN);
@@ -161,21 +157,24 @@ contract TokenBridgeAggLayerTest is Test {
 
         ethAgglayerBridge = new MockAgglayerBridge(ETH_NETWORK);
         katanaAgglayerBridge = new MockAgglayerBridge(KATANA_NETWORK);
+        ethVbUsdc = new ERC20Test("Ethereum vbUSDC", "evbUSDC", 0, 6);
+        katanaVbUsdc = new ERC20Test("Katana vbUSDC", "kvbUSDC", 0, 6);
         usdc = new ERC20Test("USD Coin", "USDC", 0, 6);
-        vbUsdc = new ERC20Test("Vault Bridge USDC", "vbUSDC", 0, 6);
         vaultBridgeToken = new MockVaultBridgeToken(address(usdc));
 
-        ethRoute = _deployRoute(
-            address(usdc),
+        ethRoute = _deployAggLayerRoute(
+            address(ethVbUsdc),
             address(ethMailbox),
-            address(ethAgglayerBridge),
-            address(vaultBridgeToken)
+            address(ethAgglayerBridge)
         );
-        katanaRoute = _deployRoute(
-            address(vbUsdc),
+        katanaRoute = _deployAggLayerRoute(
+            address(katanaVbUsdc),
             address(katanaMailbox),
-            address(katanaAgglayerBridge),
-            address(0)
+            address(katanaAgglayerBridge)
+        );
+        vaultWrapper = _deployVaultBridgeWrapper(
+            address(usdc),
+            address(vaultBridgeToken)
         );
 
         vm.startPrank(OWNER);
@@ -187,73 +186,56 @@ contract TokenBridgeAggLayerTest is Test {
             ETH_DOMAIN,
             address(ethRoute).addressToBytes32()
         );
-
+        vaultWrapper.enrollRemoteRouter(
+            KATANA_DOMAIN,
+            address(katanaRoute).addressToBytes32()
+        );
         ethRoute.setRemoteBridgeConfig(
             KATANA_DOMAIN,
             KATANA_NETWORK,
-            address(vbUsdc),
+            address(katanaVbUsdc),
             true
         );
         katanaRoute.setRemoteBridgeConfig(
             ETH_DOMAIN,
             ETH_NETWORK,
-            address(vaultBridgeToken),
+            address(ethVbUsdc),
             false
         );
+        vaultWrapper.setRemoteBridgeConfig(KATANA_DOMAIN, KATANA_NETWORK, true);
         vm.stopPrank();
 
         usdc.mintTo(ALICE, 1_000_000e6);
-        vbUsdc.mintTo(ALICE, 1_000_000e6);
+        ethVbUsdc.mintTo(ALICE, 1_000_000e6);
+        katanaVbUsdc.mintTo(ALICE, 1_000_000e6);
         vm.deal(ALICE, 1 ether);
 
-        vm.prank(ALICE);
-        usdc.approve(address(ethRoute), type(uint256).max);
-        vm.prank(ALICE);
-        vbUsdc.approve(address(katanaRoute), type(uint256).max);
+        vm.startPrank(ALICE);
+        usdc.approve(address(vaultWrapper), type(uint256).max);
+        ethVbUsdc.approve(address(ethRoute), type(uint256).max);
+        katanaVbUsdc.approve(address(katanaRoute), type(uint256).max);
+        vm.stopPrank();
     }
 
-    function test_quoteTransferRemote_primaryRouteIncludesDispatchAndBridgeFee()
+    function test_quoteTransferRemote_genericRouteIncludesTokenAndDispatchFee()
         public
     {
-        Quote[] memory quotes = ethRoute.quoteTransferRemote(
-            KATANA_DOMAIN,
+        Quote[] memory quotes = katanaRoute.quoteTransferRemote(
+            ETH_DOMAIN,
             BOB.addressToBytes32(),
-            100e6
+            50e6
         );
 
         assertEq(quotes.length, 2);
-        assertEq(quotes[1].token, address(usdc));
-        assertEq(quotes[1].amount, 100e6);
+        assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0);
+        assertEq(quotes[1].token, address(katanaVbUsdc));
+        assertEq(quotes[1].amount, 50e6);
     }
 
-    function test_transferRemote_primaryRouteDepositsAndBridgesToRecipient()
+    function test_transferRemote_genericRouteDispatchesAndBridgesToRemoteRoute()
         public
     {
-        Quote[] memory quotes = ethRoute.quoteTransferRemote(
-            KATANA_DOMAIN,
-            BOB.addressToBytes32(),
-            100e6
-        );
-
-        vm.prank(ALICE);
-        ethRoute.transferRemote{value: quotes[0].amount}(
-            KATANA_DOMAIN,
-            BOB.addressToBytes32(),
-            100e6
-        );
-
-        assertEq(vaultBridgeToken.lastDepositAssets(), 100e6);
-        assertEq(vaultBridgeToken.lastDepositReceiver(), BOB);
-        assertEq(
-            vaultBridgeToken.lastDepositDestinationNetwork(),
-            KATANA_NETWORK
-        );
-        assertEq(vaultBridgeToken.lastDepositValue(), 0);
-        assertEq(usdc.balanceOf(address(ethRoute)), 100e6);
-    }
-
-    function test_transferRemote_secondaryRouteBridgesToRemoteRoute() public {
         Quote[] memory quotes = katanaRoute.quoteTransferRemote(
             ETH_DOMAIN,
             BOB.addressToBytes32(),
@@ -273,7 +255,7 @@ contract TokenBridgeAggLayerTest is Test {
             address(ethRoute)
         );
         assertEq(katanaAgglayerBridge.lastAmount(), 50e6);
-        assertEq(katanaAgglayerBridge.lastToken(), address(vbUsdc));
+        assertEq(katanaAgglayerBridge.lastToken(), address(katanaVbUsdc));
         assertEq(katanaAgglayerBridge.lastValue(), 0);
         assertEq(
             abi.decode(katanaAgglayerBridge.lastPermitData(), (bytes32)),
@@ -281,7 +263,7 @@ contract TokenBridgeAggLayerTest is Test {
         );
     }
 
-    function test_quoteTransferRemote_secondaryRouteIncludesConfigurableGas()
+    function test_quoteTransferRemote_genericRouteIncludesConfigurableGas()
         public
     {
         TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster();
@@ -309,7 +291,7 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(quotes[1].amount, 50e6);
     }
 
-    function test_verify_primaryRouteClaimsAgglayerAssetForRedemption() public {
+    function test_verify_claimsAgglayerAssetUsingOriginRemoteConfig() public {
         bytes memory tokenMessage = abi.encodePacked(
             BOB.addressToBytes32(),
             uint256(100e6)
@@ -334,10 +316,10 @@ contract TokenBridgeAggLayerTest is Test {
 
         ethRoute.verify(metadata, message);
 
-        assertEq(ethAgglayerBridge.lastClaimOriginNetwork(), ETH_NETWORK);
+        assertEq(ethAgglayerBridge.lastClaimOriginNetwork(), KATANA_NETWORK);
         assertEq(
             ethAgglayerBridge.lastClaimOriginToken(),
-            address(vaultBridgeToken)
+            address(katanaVbUsdc)
         );
         assertEq(ethAgglayerBridge.lastClaimDestinationNetwork(), ETH_NETWORK);
         assertEq(
@@ -378,6 +360,24 @@ contract TokenBridgeAggLayerTest is Test {
         ethRoute.verify(metadata, message);
     }
 
+    function test_handle_transfersClaimedTokensToRecipient() public {
+        katanaVbUsdc.mintTo(address(katanaRoute), 100e6);
+        bytes memory messageBody = abi.encodePacked(
+            BOB.addressToBytes32(),
+            uint256(100e6)
+        );
+
+        vm.prank(address(katanaMailbox));
+        katanaRoute.handle(
+            ETH_DOMAIN,
+            address(ethRoute).addressToBytes32(),
+            messageBody
+        );
+
+        assertEq(katanaVbUsdc.balanceOf(BOB), 100e6);
+        assertEq(katanaVbUsdc.balanceOf(address(katanaRoute)), 0);
+    }
+
     function test_remoteBridgeConfigDomainsTracksConfiguredDomains() public {
         uint32[] memory configuredDomains = ethRoute
             .remoteBridgeConfigDomains();
@@ -396,64 +396,64 @@ contract TokenBridgeAggLayerTest is Test {
         assertEq(configuredDomains[0], 3);
     }
 
-    function test_handle_primaryRouteRedeemsToRecipient() public {
-        bytes memory messageBody = abi.encodePacked(
+    function test_quoteTransferRemote_vaultWrapperQuotesUnderlyingOnly()
+        public
+    {
+        Quote[] memory quotes = vaultWrapper.quoteTransferRemote(
+            KATANA_DOMAIN,
             BOB.addressToBytes32(),
-            uint256(100e6)
+            100e6
         );
 
+        assertEq(quotes.length, 2);
+        assertEq(quotes[0].token, address(0));
+        assertEq(quotes[0].amount, 0);
+        assertEq(quotes[1].token, address(usdc));
+        assertEq(quotes[1].amount, 100e6);
+    }
+
+    function test_transferRemote_vaultWrapperDepositsAndBridgesToRecipient()
+        public
+    {
+        vm.prank(ALICE);
+        vaultWrapper.transferRemote(
+            KATANA_DOMAIN,
+            BOB.addressToBytes32(),
+            100e6
+        );
+
+        assertEq(vaultBridgeToken.lastDepositAssets(), 100e6);
+        assertEq(vaultBridgeToken.lastDepositReceiver(), BOB);
+        assertEq(
+            vaultBridgeToken.lastDepositDestinationNetwork(),
+            KATANA_NETWORK
+        );
+        assertTrue(vaultBridgeToken.lastDepositForceUpdateGlobalExitRoot());
+        assertEq(vaultBridgeToken.lastDepositValue(), 0);
+        assertEq(usdc.balanceOf(address(vaultWrapper)), 100e6);
+    }
+
+    function test_handle_vaultWrapperReverts() public {
         vm.prank(address(ethMailbox));
-        ethRoute.handle(
+        vm.expectRevert(TokenBridgeVaultBridge.UnsupportedHandle.selector);
+        vaultWrapper.handle(
             KATANA_DOMAIN,
             address(katanaRoute).addressToBytes32(),
-            messageBody
+            hex""
         );
-
-        assertEq(vaultBridgeToken.lastRedeemShares(), 100e6);
-        assertEq(vaultBridgeToken.lastRedeemReceiver(), BOB);
-        assertEq(vaultBridgeToken.lastRedeemOwner(), address(ethRoute));
-    }
-
-    function test_handle_secondaryRouteReverts() public {
-        bytes memory messageBody = abi.encodePacked(
-            BOB.addressToBytes32(),
-            uint256(100e6)
-        );
-
-        vm.prank(address(katanaMailbox));
-        vm.expectRevert(TokenBridgeAggLayer.UnsupportedHandle.selector);
-        katanaRoute.handle(
-            ETH_DOMAIN,
-            address(ethRoute).addressToBytes32(),
-            messageBody
-        );
-    }
-
-    function test_verify_secondaryRouteReverts() public {
-        bytes memory message = ethMailbox.buildMessage(
-            address(ethRoute),
-            KATANA_DOMAIN,
-            address(katanaRoute).addressToBytes32(),
-            abi.encodePacked(BOB.addressToBytes32(), uint256(100e6))
-        );
-
-        vm.expectRevert(TokenBridgeAggLayer.UnsupportedVerify.selector);
-        katanaRoute.verify(hex"", message);
     }
 
     function _emptyProof() internal pure returns (bytes32[32] memory proof) {}
 
-    function _deployRoute(
+    function _deployAggLayerRoute(
         address _localToken,
         address _mailbox,
-        address _agglayerBridge,
-        address _vaultBridgeToken
+        address _agglayerBridge
     ) internal returns (TokenBridgeAggLayer route) {
         TokenBridgeAggLayer implementation = new TokenBridgeAggLayer(
             _localToken,
             _mailbox,
-            _agglayerBridge,
-            _vaultBridgeToken
+            _agglayerBridge
         );
 
         string[] memory urls = new string[](1);
@@ -469,5 +469,27 @@ contract TokenBridgeAggLayerTest is Test {
         );
 
         return TokenBridgeAggLayer(address(proxy));
+    }
+
+    function _deployVaultBridgeWrapper(
+        address _localToken,
+        address _vaultBridgeToken
+    ) internal returns (TokenBridgeVaultBridge wrapper) {
+        TokenBridgeVaultBridge implementation = new TokenBridgeVaultBridge(
+            _localToken,
+            address(ethMailbox),
+            _vaultBridgeToken
+        );
+
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeCall(
+                TokenBridgeVaultBridge.initialize,
+                (address(0), OWNER)
+            )
+        );
+
+        return TokenBridgeVaultBridge(address(proxy));
     }
 }
