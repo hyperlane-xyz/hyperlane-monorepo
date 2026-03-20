@@ -1,5 +1,26 @@
 # @hyperlane-xyz/provider-sdk
 
+## 4.1.0
+
+### Minor Changes
+
+- 5caac66: Added `crossCollateral` warp token type to the provider-sdk type system. All protocol SDK artifact managers were updated to handle the new type in their exhaustive switches.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@28.1.0
+
+## 4.0.0
+
+### Minor Changes
+
+- 83767b9: Removed `AltVMCoreModule`, `AltVMCoreReader`, and `coreModuleProvider` from deploy-sdk in favor of the new core artifact API (`CoreWriter`, `createCoreReader`). Added `coreConfigToArtifact` and `coreResultToDeployedAddresses` helpers to provider-sdk. Updated CLI core deploy and read commands to use the new API.
+- a6b7bf3: Added `toDeployedOrUndefined` utility and `UnsetArtifactAddress` type to the artifact module. Extended `ProtocolProvider` interface with `createMailboxArtifactManager` and `createValidatorAnnounceArtifactManager` methods. Updated `mailboxArtifactToDerivedCoreConfig` to handle UNDERIVED artifacts with zero addresses gracefully. Widened `DerivedCoreConfig` fields to accept `UnsetArtifactAddress`.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@28.0.0
+
 ## 3.1.0
 
 ### Minor Changes

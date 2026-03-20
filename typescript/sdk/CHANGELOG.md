@@ -1,5 +1,63 @@
 # @hyperlane-xyz/sdk
 
+## 28.1.0
+
+### Minor Changes
+
+- 6c715a7: Added support for MinimalInterchainAccountRouter deployment and detection.
+
+### Patch Changes
+
+- 2e622e8: `isEVMLike()` replaced direct `ProtocolType.Ethereum` comparisons in `HyperlaneCore`, `RouterApps`, and `HyperlaneAppChecker` so Tron chains are correctly included in router configs, address lookups, and deploy checks.
+- e93a4c8: Fixed Tron EthersV5 provider to use TronJsonRpcProvider (which appends `/jsonrpc` to the RPC URL) instead of HyperlaneSmartProvider, preventing 302 redirect failures on Tron nodes.
+- Updated dependencies [5caac66]
+- Updated dependencies [6c715a7]
+- Updated dependencies [2e622e8]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/radix-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@28.1.0
+  - @hyperlane-xyz/aleo-sdk@28.1.0
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.3
+  - @hyperlane-xyz/deploy-sdk@4.1.0
+  - @hyperlane-xyz/multicollateral@1.0.1
+  - @hyperlane-xyz/starknet-core@28.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
+## 28.0.0
+
+### Major Changes
+
+- b9c6844: MultiCollateral contracts and SDK/CLI terminology were renamed to CrossCollateral.
+
+  The Solidity ABI was updated with renamed contracts, interfaces, router enrollment methods, domain/route getters, fee-quote method, events, and revert prefixes.
+
+  The SDK token type was migrated to `crossCollateral`.
+
+  Reader compatibility for legacy deployed contracts was not retained; readers now require the renamed CrossCollateral ABI methods.
+
+### Patch Changes
+
+- 5a5d172: Added utilities for filtering warp routes by chains: `getChainsFromWarpCoreConfig`, `warpCoreConfigMatchesChains`, and `filterWarpCoreConfigMapByChains`. These enabled CLI commands with origin/destination to auto-resolve warp routes when chains uniquely identify a route.
+- a4a74d8: TokenBridgeOft was refactored to remove TokenRouter inheritance, implementing ITokenBridge directly with OwnableUpgradeable. The contract no longer requires a mailbox, remote router enrollment, or destination gas configuration. Fee recipient support was removed and OFT fee quotes were consolidated into a single token quote entry. SDK deployer, warp route reader, and warp module were updated to handle OFT configs separately from Router-based configs.
+- Updated dependencies [26d08de]
+- Updated dependencies [83767b9]
+- Updated dependencies [228ed9f]
+- Updated dependencies [b9c6844]
+- Updated dependencies [a6b7bf3]
+- Updated dependencies [a6b7bf3]
+- Updated dependencies [a4a74d8]
+  - @hyperlane-xyz/aleo-sdk@28.0.0
+  - @hyperlane-xyz/deploy-sdk@4.0.0
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/cosmos-sdk@28.0.0
+  - @hyperlane-xyz/multicollateral@1.0.0
+  - @hyperlane-xyz/core@11.0.3
+  - @hyperlane-xyz/radix-sdk@28.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.2
+  - @hyperlane-xyz/starknet-core@28.0.0
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 27.1.0
 
 ### Minor Changes

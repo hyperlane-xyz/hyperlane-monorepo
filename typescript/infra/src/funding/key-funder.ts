@@ -8,6 +8,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 
 import { Contexts } from '../../config/contexts.js';
 import { DockerImageRepos } from '../../config/docker.js';
+import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
 import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
 import { getEnvAddresses } from '../../config/registry.js';
@@ -94,9 +95,10 @@ export class KeyFunderHelmManager extends HelmManager {
         prometheusPushGateway: this.config.prometheusPushGateway,
       },
       image: {
-        repository: DockerImageRepos.KEY_FUNDER,
+        repository: DockerImageRepos.NODE_SERVICES,
         tag: this.config.docker.tag,
       },
+      serviceName: NODE_SERVICE_NAMES.KEYFUNDER,
     };
   }
 

@@ -20,7 +20,7 @@ import {
   shouldDeployNewHook,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, isEmptyAddress } from '@hyperlane-xyz/utils';
 
 import { HookReader } from './hook-reader.js';
 
@@ -168,7 +168,7 @@ export class HookWriter
     );
 
     // If no existing hook, deploy new one directly
-    if (!actualAddress) {
+    if (!actualAddress || isEmptyAddress(actualAddress)) {
       const [deployed] = await this.create(expectedArtifact);
       return {
         address: deployed.deployed.address,

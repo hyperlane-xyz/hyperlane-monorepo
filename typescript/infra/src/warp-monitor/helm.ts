@@ -13,6 +13,7 @@ import {
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
+import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import { getRegistry, getWarpCoreConfig } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -111,9 +112,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   async helmValues() {
     return {
       image: {
-        repository: DockerImageRepos.WARP_MONITOR,
+        repository: DockerImageRepos.NODE_SERVICES,
         tag: mainnetDockerTags.warpMonitor,
       },
+      serviceName: NODE_SERVICE_NAMES.WARP_MONITOR,
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {

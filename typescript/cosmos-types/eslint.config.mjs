@@ -1,7 +1,7 @@
-import MonorepoDefaults from '../../eslint.config.mjs';
+import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
-  ...MonorepoDefaults,
+  ...defaultConfig,
   {
     files: ['src/**/*.ts'],
   },

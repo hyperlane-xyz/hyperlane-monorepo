@@ -1,10 +1,12 @@
-# Unified Dockerfile for NCC-bundled TypeScript node services
-# Used by: rebalancer, warp-monitor, ccip-server
+# Single Docker image containing all NCC-bundled TypeScript node services.
+# At runtime, set SERVICE_NAME to select which service to run.
 #
-# Build args (passed from docker-bake.hcl):
-#   SERVICE_DIR - Directory name under typescript/ (e.g., "rebalancer")
-#   SERVICE_PACKAGE - Package name for turbo filter (e.g., "@hyperlane-xyz/rebalancer")
-#   SERVICE_PORT - Optional HTTP port (default: none, only metrics on 9090)
+# Build args:
+#   FOUNDRY_VERSION - Foundry release tag
+#   SERVICE_VERSION - Image version label
+#
+# Runtime env:
+#   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer
 
 FROM node:24-slim AS builder
 
@@ -33,12 +35,12 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 # Copy patches directory (required for pnpm install)
 COPY patches ./patches
 
-# Service-specific arg for the directory
-ARG SERVICE_DIR
-
 # Copy package.json files for all workspace dependencies
-# Note: Using a common set that covers all NCC-bundled services
-COPY typescript/${SERVICE_DIR}/package.json ./typescript/${SERVICE_DIR}/
+COPY typescript/rebalancer/package.json ./typescript/rebalancer/
+COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
+COPY typescript/ccip-server/package.json ./typescript/ccip-server/
+COPY typescript/keyfunder/package.json ./typescript/keyfunder/
+COPY typescript/relayer/package.json ./typescript/relayer/
 COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
@@ -57,11 +59,11 @@ COPY solidity/multicollateral/package.json ./solidity/multicollateral/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-# Copy prisma schema if present (needed for postinstall prisma generate in ccip-server)
-RUN --mount=type=bind,source=typescript/${SERVICE_DIR},target=/tmp/service-src \
-    if [ -d /tmp/service-src/prisma ]; then \
-      mkdir -p typescript/${SERVICE_DIR} && \
-      cp -r /tmp/service-src/prisma typescript/${SERVICE_DIR}/prisma; \
+# Copy prisma schema (needed for postinstall prisma generate in ccip-server)
+RUN --mount=type=bind,source=typescript/ccip-server,target=/tmp/ccip-server-src \
+    if [ -d /tmp/ccip-server-src/prisma ]; then \
+      mkdir -p typescript/ccip-server && \
+      cp -r /tmp/ccip-server-src/prisma typescript/ccip-server/prisma; \
     fi
 
 RUN pnpm install --frozen-lockfile
@@ -104,23 +106,68 @@ COPY typescript/svm-sdk ./typescript/svm-sdk
 COPY typescript/tron-sdk ./typescript/tron-sdk
 COPY typescript/utils ./typescript/utils
 COPY typescript/sdk ./typescript/sdk
-# Service-specific source last — changes here only invalidate the bundle step
-COPY typescript/${SERVICE_DIR} ./typescript/${SERVICE_DIR}
+# Service source last — changes here only invalidate the bundle step
+COPY typescript/rebalancer ./typescript/rebalancer
+COPY typescript/warp-monitor ./typescript/warp-monitor
+COPY typescript/ccip-server ./typescript/ccip-server
+COPY typescript/keyfunder ./typescript/keyfunder
+COPY typescript/relayer ./typescript/relayer
 
-# Build and bundle the service (ncc creates a single-file bundle with all deps)
-ARG SERVICE_PACKAGE
-RUN pnpm turbo run bundle --filter=${SERVICE_PACKAGE}
+# Bundle all services in a single turbo invocation
+RUN pnpm turbo run bundle \
+    --filter=@hyperlane-xyz/rebalancer \
+    --filter=@hyperlane-xyz/warp-monitor \
+    --filter=@hyperlane-xyz/ccip-server \
+    --filter=@hyperlane-xyz/keyfunder \
+    --filter=@hyperlane-xyz/relayer
 
-# Production stage - minimal Alpine image with just the bundled code
+# Deduplicate identical NCC assets across bundles.
+# NCC produces byte-identical copies of WASM files (~18MB each), workers,
+# and native addons in every bundle. Replace duplicates with symlinks to
+# the rebalancer (canonical) copy. Done in the builder so that only the
+# deduped result is COPY'd into the runner stage.
+RUN SERVICES_DIR=/hyperlane-monorepo/services && \
+    mkdir -p $SERVICES_DIR && \
+    for svc in rebalancer warp-monitor ccip-server keyfunder relayer; do \
+      cp -a typescript/${svc}/bundle $SERVICES_DIR/${svc}; \
+    done && \
+    CANONICAL=rebalancer && \
+    cd $SERVICES_DIR && \
+    for svc in warp-monitor ccip-server keyfunder relayer; do \
+      for file in ${CANONICAL}/*; do \
+        fname=$(basename "$file") && \
+        target="${svc}/${fname}" && \
+        [ "$fname" = "index.js" ] && continue; \
+        [ "$fname" = "package.json" ] && continue; \
+        [ ! -f "$target" ] && continue; \
+        if cmp -s "$file" "$target"; then \
+          rm "$target" && \
+          ln -s "../${CANONICAL}/${fname}" "$target"; \
+        fi; \
+      done; \
+      if [ -d "${CANONICAL}/prebuilds" ]; then \
+        for file in ${CANONICAL}/prebuilds/linux-x64/*; do \
+          fname=$(basename "$file") && \
+          target="${svc}/prebuilds/linux-x64/${fname}" && \
+          [ ! -f "$target" ] && continue; \
+          if cmp -s "$file" "$target"; then \
+            rm "$target" && \
+            ln -s "../../../${CANONICAL}/prebuilds/linux-x64/${fname}" "$target"; \
+          fi; \
+        done; \
+      fi; \
+    done
+
+# Production stage - minimal Alpine image with all service bundles
 FROM node:24-alpine AS runner
 
 WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-# Copy only the bundled output (includes all dependencies)
-ARG SERVICE_DIR
-COPY --from=builder /hyperlane-monorepo/typescript/${SERVICE_DIR}/bundle ./bundle
+# Copy all service bundles. COPY --from preserves symlinks, so the deduped
+# symlinks from the builder stage carry through to the final image.
+COPY --from=builder /hyperlane-monorepo/services ./services
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
 # Version read from pnpm-workspace.yaml catalog for consistency
@@ -131,14 +178,17 @@ RUN GCP_LOGGER_VERSION=$(grep "pino-logging-gcp-config" /tmp/pnpm-workspace.yaml
 
 # Environment variables
 ARG SERVICE_VERSION=dev
-ARG SERVICE_PORT
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV SERVICE_VERSION=${SERVICE_VERSION}
-ENV SERVER_PORT=${SERVICE_PORT}
 
-# Expose metrics port; service port published at runtime with -p if needed
+# SERVICE_NAME must be set at runtime (rebalancer, warp-monitor, ccip-server, keyfunder, relayer)
+ENV SERVICE_NAME=""
+
+# Expose metrics port (9090) and optional service port (e.g. 3000 for ccip-server)
 EXPOSE 9090
 
-# Run the service from the bundle
-CMD ["node", "bundle/index.js"]
+# Entrypoint validates SERVICE_NAME and runs the corresponding bundle
+COPY typescript/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]

@@ -234,6 +234,7 @@ jobs:
           # Core Commands
           - core-deploy
           - core-apply
+          - core-apply-updates
           # ISM Commands
           - ism
           # Warp Commands
@@ -300,6 +301,7 @@ jobs:
         test:
           - warp-apply
           - warp-deploy
+          - warp-send
     steps:
       - uses: actions/checkout@v6
         with:

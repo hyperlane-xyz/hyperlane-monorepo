@@ -194,6 +194,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -339,6 +340,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -484,6 +486,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).

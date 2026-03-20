@@ -174,7 +174,9 @@ export function useRadixTransactionFns(
       });
 
       if (transactionResult.isErr()) {
-        throw transactionResult.error;
+        throw new Error(String(transactionResult.error), {
+          cause: transactionResult.error,
+        });
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
@@ -202,7 +204,7 @@ export function useRadixTransactionFns(
       };
       return { hash: transactionResult.value.transactionIntentHash, confirm };
     },
-    [switchNetwork],
+    [rdt, gatewayApi],
   );
 
   const onMultiSendTx = useCallback(
