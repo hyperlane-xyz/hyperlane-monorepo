@@ -95,6 +95,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmWarpRouteReader',
   });
+  private readonly depositAddressDomainConfigsCache = new Map<Address, any>();
 
   // Using null instead of undefined to force
   // a compile error when adding a new token type
@@ -176,10 +177,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const isDirectBridge = type === TokenType.collateralDepositAddress;
     const routerConfig = isDirectBridge
       ? {
+          mailbox: constants.AddressZero,
           owner: await Ownable__factory.connect(
             warpRouteAddress,
             this.provider,
           ).owner(),
+          hook: constants.AddressZero,
+          interchainSecurityModule: constants.AddressZero,
+          remoteRouters: {},
         }
       : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
@@ -470,7 +475,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       )) {
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
-          await warpRoute[method]();
+          const result = await warpRoute[method]();
+          if (tokenType === TokenType.collateralDepositAddress) {
+            this.depositAddressDomainConfigsCache.set(warpRouteAddress, result);
+          }
           if (tokenType === TokenType.collateral) {
             const wrappedToken = await warpRoute.wrappedToken();
             try {
@@ -854,8 +862,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const [token, destinationConfigRaw] = await Promise.all([
       tokenBridge.token(),
-      tokenBridge.getDomainConfigs(),
+      this.depositAddressDomainConfigsCache.get(hypToken) ??
+        tokenBridge.getDomainConfigs(),
     ]);
+    this.depositAddressDomainConfigsCache.delete(hypToken);
 
     const erc20Metadata = await this.fetchERC20Metadata(token);
     const [domains, depositAddresses, recipients, feeBpsValues] =

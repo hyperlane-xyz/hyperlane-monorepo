@@ -119,6 +119,48 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(parseResults.success).to.be.false;
   });
 
+  it('should reject deposit-address bridge config with invalid feeBps string', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: 'abc',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
+  it('should reject deposit-address bridge config with empty feeBps string', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
   it('should throw if collateral type and token is empty', async () => {
     for (const type of COLLATERAL_TYPES) {
       config.arbitrum.type = type;

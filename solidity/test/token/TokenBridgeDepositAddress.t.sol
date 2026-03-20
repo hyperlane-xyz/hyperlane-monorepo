@@ -148,14 +148,15 @@ contract TokenBridgeDepositAddressTest is Test {
     }
 
     function test_getDomainConfigs() public {
+        bytes32 recipientTwo = bytes32(uint256(uint160(makeAddr("recipient2"))));
+        bytes32 recipientThree = bytes32(uint256(uint160(makeAddr("recipient3"))));
+        address depositAddressTwo = makeAddr("deposit2");
+        address depositAddressThree = makeAddr("deposit3");
+
         vm.prank(owner);
-        bridge.setDestinationConfig(
-            DOMAIN_ETH, makeAddr("deposit2"), bytes32(uint256(uint160(makeAddr("recipient2")))), 110
-        );
+        bridge.setDestinationConfig(DOMAIN_ETH, depositAddressTwo, recipientTwo, 110);
         vm.prank(owner);
-        bridge.setDestinationConfig(
-            DOMAIN_ARB, makeAddr("deposit3"), bytes32(uint256(uint160(makeAddr("recipient3")))), 210
-        );
+        bridge.setDestinationConfig(DOMAIN_ARB, depositAddressThree, recipientThree, 210);
 
         (
             uint32[] memory domains,
@@ -168,6 +169,28 @@ contract TokenBridgeDepositAddressTest is Test {
         assertEq(depositAddresses.length, 3);
         assertEq(recipients.length, 3);
         assertEq(feeBpsValues.length, 3);
+
+        bool foundOriginal;
+        bool foundEth;
+        bool foundArb;
+        for (uint256 i = 0; i < domains.length; i++) {
+            if (domains[i] == DOMAIN_ARB && depositAddresses[i] == depositAddress && recipients[i] == recipient) {
+                assertEq(feeBpsValues[i], FEE_BPS);
+                foundOriginal = true;
+            } else if (domains[i] == DOMAIN_ETH && depositAddresses[i] == depositAddressTwo && recipients[i] == recipientTwo) {
+                assertEq(feeBpsValues[i], 110);
+                foundEth = true;
+            } else if (
+                domains[i] == DOMAIN_ARB && depositAddresses[i] == depositAddressThree && recipients[i] == recipientThree
+            ) {
+                assertEq(feeBpsValues[i], 210);
+                foundArb = true;
+            }
+        }
+
+        assertTrue(foundOriginal);
+        assertTrue(foundEth);
+        assertTrue(foundArb);
     }
 
     function test_allowsMultipleRecipientsPerDomain() public {

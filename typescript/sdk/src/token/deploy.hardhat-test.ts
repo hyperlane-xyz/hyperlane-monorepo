@@ -155,6 +155,12 @@ describe('TokenDeployer', async () => {
 
     expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
     expect(derivedConfig.token).to.equal(erc20.address);
+    expect(derivedConfig.mailbox).to.equal(ethers.constants.AddressZero);
+    expect(derivedConfig.hook).to.equal(ethers.constants.AddressZero);
+    expect(derivedConfig.interchainSecurityModule).to.equal(
+      ethers.constants.AddressZero,
+    );
+    expect(derivedConfig.remoteRouters).to.deep.equal({});
     expect(derivedConfig.destinationConfigs).to.deep.equal({
       [multiProvider.getDomainId(TestChainName.test2).toString()]: {
         [recipient.toLowerCase()]: {

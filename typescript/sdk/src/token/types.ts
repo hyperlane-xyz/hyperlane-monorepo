@@ -234,9 +234,20 @@ export const DepositAddressRecipientConfigSchema = z.object({
     .string()
     .or(z.number())
     .optional()
-    .refine((value) => value === undefined || BigInt(value) <= 10_000n, {
-      message: 'feeBps must be <= 10000',
-    })
+    .refine(
+      (value) => {
+        if (value === undefined) return true;
+        if (typeof value === 'string' && value.trim() === '') return false;
+        try {
+          return BigInt(value) <= 10_000n;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message: 'feeBps must be a valid number <= 10000',
+      },
+    )
     .describe('Bridge fee in basis points for this destination'),
 });
 export type DepositAddressRecipientConfig = z.infer<

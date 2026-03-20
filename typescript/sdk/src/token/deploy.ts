@@ -723,18 +723,24 @@ abstract class TokenDeployer<
       })),
     );
     const directBridgeContracts: Record<string, Record<string, unknown>> = {};
+    const directBridgeChains: string[] = [];
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
       if (!isDepositAddressTokenConfig(config)) {
         continue;
       }
       const contractKey = this.routerContractKey(config);
       const constructorArgs = await this.constructorArgs(chain, config);
-      const contract = await this.deployContract(
+      const contract = await this.deployContractWithName(
         chain,
         contractKey,
+        this.routerContractName(config),
         constructorArgs,
       );
       directBridgeContracts[chain] = { [contractKey]: contract };
+      directBridgeChains.push(chain);
+    }
+
+    for (const chain of directBridgeChains) {
       delete resolvedConfigMap[chain];
     }
 

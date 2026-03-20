@@ -30,7 +30,22 @@ export async function deriveTokenMetadata(
   const metadataMap = new TokenMetadataMap();
 
   const priorityGetter = (type: string) => {
-    return ['collateral', 'native'].indexOf(type);
+    if (
+      [
+        TokenType.collateral,
+        TokenType.collateralVault,
+        TokenType.collateralVaultRebase,
+        TokenType.collateralCctp,
+        TokenType.collateralDepositAddress,
+        TokenType.collateralEverclear,
+        TokenType.XERC20,
+        TokenType.XERC20Lockbox,
+        TokenType.native,
+      ].includes(type as TokenType)
+    ) {
+      return 1;
+    }
+    return -1;
   };
 
   const sortedEntries = Object.entries(configMap).sort(

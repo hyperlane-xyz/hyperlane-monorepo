@@ -19,6 +19,8 @@ struct DestinationConfig {
  * @notice Generic ITokenBridge adapter for deposit-address-based bridges.
  * @dev Bridges by transferring tokens to a configured deposit address on the origin chain.
  *      Settlement to the destination recipient happens offchain via the external issuer.
+ *      Assumes standard ERC20 transfer semantics; fee-on-transfer, rebasing, and ERC-777-style
+ *      callback tokens are unsupported.
  */
 contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
     using SafeERC20 for IERC20;
@@ -89,15 +91,13 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
 
         DestinationConfig memory config = _getDestinationConfig(_destination, _recipient);
         uint256 feeAmount = _computeFee(_amount, config.feeBps);
-
-        uint256 grossAmount = _amount + feeAmount;
-        wrappedToken.safeTransferFrom(msg.sender, config.depositAddress, grossAmount);
+        uint256 currentNonce = nonce++;
 
         transferId = keccak256(
             abi.encode(
                 block.chainid,
                 address(this),
-                nonce++,
+                currentNonce,
                 msg.sender,
                 _destination,
                 _recipient,
@@ -107,6 +107,9 @@ contract TokenBridgeDepositAddress is ITokenBridge, Ownable, PackageVersioned {
                 config.depositAddress
             )
         );
+
+        uint256 grossAmount = _amount + feeAmount;
+        wrappedToken.safeTransferFrom(msg.sender, config.depositAddress, grossAmount);
 
         emit SentTransferRemote(
             _destination, _recipient, config.depositAddress, _amount, feeAmount, config.feeBps, transferId
