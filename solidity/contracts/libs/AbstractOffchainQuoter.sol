@@ -98,6 +98,7 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
             _storeTransient(sq);
         } else {
             _storeStanding(sq);
+            // only emit for quotes that will expire in the future
             emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
         }
     }
