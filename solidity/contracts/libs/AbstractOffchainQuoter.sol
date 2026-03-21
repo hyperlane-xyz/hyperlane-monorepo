@@ -73,12 +73,7 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
 
     // ============ Events ============
 
-    event QuoteSubmitted(
-        address indexed submitter,
-        bytes32 salt,
-        uint48 issuedAt,
-        uint48 expiry
-    );
+    event QuoteSubmitted(bytes context, uint48 issuedAt, uint48 expiry);
 
     event QuoteSignerAdded(address signer);
     event QuoteSignerRemoved(address signer);
@@ -103,9 +98,8 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
             _storeTransient(sq);
         } else {
             _storeStanding(sq);
+            emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
         }
-
-        emit QuoteSubmitted(msg.sender, sq.salt, sq.issuedAt, sq.expiry);
     }
 
     // ============ Views ============

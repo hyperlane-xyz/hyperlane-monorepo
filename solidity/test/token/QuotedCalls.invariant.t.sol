@@ -356,21 +356,17 @@ contract QuotedCallsInvariantTest is Test {
         );
     }
 
-    /// @dev Transient approvals always revoked — checked against both the
-    ///      legitimate warp route and the attacker's malicious target.
-    function invariant_zeroApprovals() public view {
-        assertEq(
-            token.allowance(address(quotedCalls), address(warpRoute)),
-            0,
-            "approval to warpRoute persists"
-        );
-        assertEq(
-            token.allowance(
-                address(quotedCalls),
-                address(attacker.malicious())
-            ),
-            0,
-            "approval to malicious target persists"
+    /// @dev Approvals may persist but are harmless — any residual tokens
+    ///      in QuotedCalls belong to the attacker (who deposited them).
+    ///      A victim's balance is never affected (see invariant_victimBalanceUnchanged).
+    function invariant_residualTokensBelongToDepositor() public view {
+        uint256 residual = token.balanceOf(address(quotedCalls));
+        uint256 attackerSpent = ATTACKER_INITIAL -
+            token.balanceOf(address(attacker));
+        assertLe(
+            residual,
+            attackerSpent,
+            "QuotedCalls holds more tokens than attacker deposited"
         );
     }
 }

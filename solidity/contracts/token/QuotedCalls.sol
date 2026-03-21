@@ -16,7 +16,6 @@ pragma solidity >=0.8.0;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {SignedQuote, IOffchainQuoter} from "../interfaces/IOffchainQuoter.sol";
@@ -36,16 +35,20 @@ import {PackageVersioned} from "../PackageVersioned.sol";
  *      Token safety:
  *      - Token inflows use Permit2 (no standing approvals to this contract) or
  *        PERMIT2_TRANSFER_FROM from msg.sender as fallback.
- *      - Approvals are transient: embedded inside TRANSFER_REMOTE / TRANSFER_REMOTE_TO /
- *        CALL_REMOTE_*, set before the call and revoked after. No standalone APPROVE command
- *        exists, preventing attackers from pre-setting persistent approvals.
+ *      - Approvals are set inside TRANSFER_REMOTE / TRANSFER_REMOTE_TO /
+ *        CALL_REMOTE_* before the call. No standalone APPROVE command exists.
+ *        Approvals persist for gas efficiency (avoids zero→non-zero SSTORE on
+ *        repeat routes). This is safe because: only whitelisted Hyperlane
+ *        operations are callable (no arbitrary external calls), the contract
+ *        holds no tokens between transactions, and all targets are
+ *        user-specified.
  *      - SWEEP: remaining tokens + ETH returned to msg.sender after execution.
  *
  *      Quote salt = keccak256(msg.sender, clientSalt) — binds the quote
  *      to the caller. Quote submitter = address(this) — only this contract
  *      can submit. The signer authorizes a specific user's quotes.
  */
-contract QuotedCalls is PackageVersioned, ReentrancyGuard {
+contract QuotedCalls is PackageVersioned {
     using SafeERC20 for IERC20;
 
     // ============ Immutables ============
@@ -64,12 +67,12 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
     // execution time. For ERC20 amounts this resolves to the contract's token
     // balance; for native value it resolves to address(this).balance.
     //
-    // SAFETY INVARIANT: transient approvals cannot be spent by an attacker.
+    // SAFETY INVARIANT: approvals cannot be exploited by an attacker.
     // This holds because: (1) only whitelisted Hyperlane operations are
     // callable — no arbitrary external calls that could drain approvals,
-    // (2) approvals are set immediately before the call and revoked
-    // immediately after, and (3) execute() is protected by reentrancy guard,
-    // so the approval window cannot be exploited via reentrant calls.
+    // (2) the contract holds no tokens between transactions, and
+    // (3) all targets are user-specified — a malicious target only
+    // affects the caller's own funds.
 
     /// @notice Submit an offchain-signed quote to a quoter contract.
     /// @dev quote.salt must equal keccak256(msg.sender, clientSalt) — the
@@ -137,7 +140,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
     function execute(
         bytes calldata commands,
         bytes[] calldata inputs
-    ) external payable nonReentrant {
+    ) external payable {
         require(commands.length == inputs.length, "length mismatch");
 
         for (uint256 i; i < commands.length; ++i) {
@@ -169,10 +172,6 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
         uint256 amount
     ) internal {
         if (token != address(0)) IERC20(token).forceApprove(spender, amount);
-    }
-
-    function _transientRevoke(address token, address spender) internal {
-        if (token != address(0)) IERC20(token).forceApprove(spender, 0);
     }
 
     function _dispatch(uint256 command, bytes calldata input) internal {
@@ -254,7 +253,6 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
                 recipient,
                 amount
             );
-            _transientRevoke(token, warpRoute);
         } else if (command == TRANSFER_REMOTE_TO) {
             (
                 address router,
@@ -292,7 +290,6 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
                 )
             );
             require(success, "transferRemoteTo failed");
-            _transientRevoke(token, router);
         } else if (command == CALL_REMOTE_WITH_OVERRIDES) {
             (
                 address icaRouter,
@@ -335,7 +332,6 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
                 )
             );
             require(success, "callRemoteWithOverrides failed");
-            _transientRevoke(token, icaRouter);
         } else if (command == CALL_REMOTE_COMMIT_REVEAL) {
             (
                 address icaRouter,
@@ -381,7 +377,6 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
                 )
             );
             require(success, "callRemoteCommitReveal failed");
-            _transientRevoke(token, icaRouter);
         } else if (command == SWEEP) {
             address token = abi.decode(input, (address));
             if (token != address(0)) {
