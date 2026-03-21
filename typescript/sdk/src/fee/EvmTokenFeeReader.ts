@@ -202,7 +202,15 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       }),
     );
 
-    const token = Object.values(feeContracts)[0]?.token;
+    let token: Address | undefined;
+    for (const destination of routingDestinations) {
+      const chainName = this.multiProvider.getChainName(destination);
+      const feeConfig = feeContracts[chainName];
+      if (feeConfig) {
+        token = feeConfig.token;
+        break;
+      }
+    }
     if (!token) {
       throw new Error(
         `CrossCollateralRoutingFee at ${address} does not have any readable destination fee contracts`,
