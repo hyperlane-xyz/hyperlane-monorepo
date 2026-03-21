@@ -94,24 +94,24 @@ contract QuotedCalls is PackageVersioned {
     /// inputs: abi.encode(address token, uint256 amount)
     uint256 public constant PERMIT2_TRANSFER_FROM = 0x02;
 
-    /// @notice Execute a warp route transferRemote with transient approval.
+    /// @notice Execute a warp route transferRemote, approving the route first.
     /// @dev amount and approval resolve via _resolveAmount (supports CONTRACT_BALANCE).
     ///      value resolves native ETH to forward (supports CONTRACT_BALANCE).
     /// inputs: abi.encode(address warpRoute, uint32 destination, bytes32 recipient, uint256 amount, uint256 value, address token, uint256 approval)
     uint256 public constant TRANSFER_REMOTE = 0x03;
 
-    /// @notice Execute a cross-collateral transferRemoteTo with transient approval.
+    /// @notice Execute a cross-collateral transferRemoteTo, approving the router first.
     /// @dev Same resolution semantics as TRANSFER_REMOTE.
     /// inputs: abi.encode(address router, uint32 destination, bytes32 recipient, uint256 amount, bytes32 targetRouter, uint256 value, address token, uint256 approval)
     uint256 public constant TRANSFER_REMOTE_TO = 0x04;
 
-    /// @notice Execute ICA callRemoteWithOverrides with transient approval.
+    /// @notice Execute ICA callRemoteWithOverrides, approving the router first.
     /// @dev userSalt is scoped to msg.sender via keccak256(msg.sender, userSalt)
     ///      before being passed to the ICA router.
     /// inputs: abi.encode(address icaRouter, uint32 destination, bytes32 router, bytes32 ism, CallLib.Call[] calls, bytes hookMetadata, bytes32 userSalt, uint256 value, address token, uint256 approval)
     uint256 public constant CALL_REMOTE_WITH_OVERRIDES = 0x05;
 
-    /// @notice Execute ICA callRemoteCommitReveal with transient approval.
+    /// @notice Execute ICA callRemoteCommitReveal, approving the router first.
     /// @dev salt is scoped to msg.sender via keccak256(msg.sender, salt)
     ///      before being passed to the ICA router.
     /// inputs: abi.encode(address icaRouter, uint32 destination, bytes32 router, bytes32 ism, bytes hookMetadata, address hook, bytes32 salt, bytes32 commitment, uint256 value, address token, uint256 approval)
@@ -170,11 +170,7 @@ contract QuotedCalls is PackageVersioned {
         return IERC20(token).balanceOf(address(this));
     }
 
-    function _transientApprove(
-        address token,
-        address spender,
-        uint256 amount
-    ) internal {
+    function _approve(address token, address spender, uint256 amount) internal {
         if (token != address(0)) IERC20(token).forceApprove(spender, amount);
     }
 
@@ -251,7 +247,7 @@ contract QuotedCalls is PackageVersioned {
             amount = _resolveAmount(token, amount);
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
-            _transientApprove(token, warpRoute, approval);
+            _approve(token, warpRoute, approval);
             ITokenBridge(warpRoute).transferRemote{value: value}(
                 destination,
                 recipient,
@@ -283,7 +279,7 @@ contract QuotedCalls is PackageVersioned {
             amount = _resolveAmount(token, amount);
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
-            _transientApprove(token, router, approval);
+            _approve(token, router, approval);
             (bool success, ) = router.call{value: value}(
                 abi.encodeWithSignature(
                     "transferRemoteTo(uint32,bytes32,uint256,bytes32)",
@@ -323,7 +319,7 @@ contract QuotedCalls is PackageVersioned {
                 );
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
-            _transientApprove(token, icaRouter, approval);
+            _approve(token, icaRouter, approval);
             (bool success, ) = icaRouter.call{value: value}(
                 abi.encodeWithSignature(
                     "callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes,bytes32)",
@@ -367,7 +363,7 @@ contract QuotedCalls is PackageVersioned {
                 );
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
-            _transientApprove(token, icaRouter, approval);
+            _approve(token, icaRouter, approval);
             (bool success, ) = icaRouter.call{value: value}(
                 abi.encodeWithSignature(
                     "callRemoteCommitReveal(uint32,bytes32,bytes32,bytes,address,bytes32,bytes32)",
