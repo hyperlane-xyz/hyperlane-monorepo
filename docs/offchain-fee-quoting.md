@@ -45,6 +45,7 @@ struct SignedQuote {
 **Codec layouts**:
 
 IGP quote context (44 bytes packed):
+
 ```
 [0:20]   Fee token address (address)
 [20:24]  Destination domain (uint32)
@@ -52,12 +53,14 @@ IGP quote context (44 bytes packed):
 ```
 
 IGP quote data (32 bytes packed):
+
 ```
 [0:16]   Token exchange rate (uint128)
 [16:32]  Gas price (uint128)
 ```
 
 Fee quote context (68 bytes packed):
+
 ```
 [0:4]    Destination domain (uint32)
 [4:36]   Recipient address (bytes32)
@@ -65,6 +68,7 @@ Fee quote context (68 bytes packed):
 ```
 
 Fee quote data (64 bytes packed):
+
 ```
 [0:32]   Maximum fee (uint256)
 [32:64]  Half amount — transfer size at which fee = maxFee/2 (uint256)
@@ -153,13 +157,13 @@ bytes32 constant TRANSIENT_RECIPIENT_SLOT = keccak256("OffchainQuotedLinearFee.r
 bytes32 constant TRANSIENT_AMOUNT_SLOT = keccak256("OffchainQuotedLinearFee.amount");
 ```
 
-| Priority | Lookup                                                  | Semantics                               |
-| -------- | ------------------------------------------------------- | --------------------------------------- |
+| Priority | Lookup                                                   | Semantics                               |
+| -------- | -------------------------------------------------------- | --------------------------------------- |
 | 1        | transient (field-level matching via `_matchesTransient`) | Real-time quote, tx-scoped              |
-| 2        | `quotes[destination][recipient]`                        | Specific destination-recipient rate     |
-| 3        | `quotes[destination][WILDCARD]`                         | Destination-only rate (any recipient)   |
-| 4        | `quotes[WILDCARD][recipient]`                           | Recipient-only rate (any destination)   |
-| 5        | immutable `maxFee`/`halfAmount`                         | LinearFee fallback (constructor config) |
+| 2        | `quotes[destination][recipient]`                         | Specific destination-recipient rate     |
+| 3        | `quotes[destination][WILDCARD]`                          | Destination-only rate (any recipient)   |
+| 4        | `quotes[WILDCARD][recipient]`                            | Recipient-only rate (any destination)   |
+| 5        | immutable `maxFee`/`halfAmount`                          | LinearFee fallback (constructor config) |
 
 ### Properties
 
@@ -352,41 +356,41 @@ Existing warp routes can adopt offchain quoting by setting the new fee recipient
 
 ## Security Properties
 
-| Property                 | Mechanism                                                                                      |
-| ------------------------ | ---------------------------------------------------------------------------------------------- |
-| Cross-contract replay    | EIP-712 domain separator includes `verifyingContract`                                          |
-| Cross-chain replay       | EIP-712 domain separator includes `chainId`                                                    |
-| Transient isolation      | EIP-1153 transient storage — tx-scoped, invisible to other txs                                 |
-| Field-level matching     | Individual context fields matched (not hash) — supports per-field wildcards                    |
-| Fee token binding (IGP)  | Context includes `feeToken` — exact match required, prevents cross-token reuse                 |
-| Quote expiry             | `uint48(block.timestamp) <= expiry` check on submission                                        |
-| Multi-signer auth        | `EnumerableSet` of signers, `ECDSA.recover` against set                                        |
-| Signer removal caveat    | Removing a signer does NOT invalidate standing quotes already in storage                       |
-| Staleness prevention     | `issuedAt` must be > existing to replace standing quotes (signed field)                        |
-| Scoped salt binding      | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                             |
-| ICA salt scoping         | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                 |
-| Submitter restriction    | `submitter` field checked against `msg.sender` on submission                                   |
-| Intra-tx transient reuse | Acceptable — scoped salt + submitter + context field matching ensure same user, same route      |
-| No standing approvals    | Permit2 for inflows; transient approve/revoke for outflows                                     |
-| No arbitrary calls       | Typed commands only — arbitrary calls could drain transient approvals                          |
-| Reentrancy protection    | `QuotedCalls` uses OpenZeppelin `ReentrancyGuard`                                              |
-| EOA transfer guard       | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                  |
-| Approval safety invariant| Transient approvals cannot be spent by attacker: whitelisted ops + immediate revoke + reentrant guard |
+| Property                  | Mechanism                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Cross-contract replay     | EIP-712 domain separator includes `verifyingContract`                                                 |
+| Cross-chain replay        | EIP-712 domain separator includes `chainId`                                                           |
+| Transient isolation       | EIP-1153 transient storage — tx-scoped, invisible to other txs                                        |
+| Field-level matching      | Individual context fields matched (not hash) — supports per-field wildcards                           |
+| Fee token binding (IGP)   | Context includes `feeToken` — exact match required, prevents cross-token reuse                        |
+| Quote expiry              | `uint48(block.timestamp) <= expiry` check on submission                                               |
+| Multi-signer auth         | `EnumerableSet` of signers, `ECDSA.recover` against set                                               |
+| Signer removal caveat     | Removing a signer does NOT invalidate standing quotes already in storage                              |
+| Staleness prevention      | `issuedAt` must be > existing to replace standing quotes (signed field)                               |
+| Scoped salt binding       | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                    |
+| ICA salt scoping          | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                        |
+| Submitter restriction     | `submitter` field checked against `msg.sender` on submission                                          |
+| Intra-tx transient reuse  | Acceptable — scoped salt + submitter + context field matching ensure same user, same route            |
+| No standing approvals     | Permit2 for inflows; transient approve/revoke for outflows                                            |
+| No arbitrary calls        | Typed commands only — arbitrary calls could drain transient approvals                                 |
+| Reentrancy protection     | `QuotedCalls` uses OpenZeppelin `ReentrancyGuard`                                                     |
+| EOA transfer guard        | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                          |
+| Approval safety invariant | Transient approvals cannot be spent by attacker: whitelisted ops + immediate revoke + reentrant guard |
 
 ## Files
 
-| File                                                        | Status   | Description                                |
-| ----------------------------------------------------------- | -------- | ------------------------------------------ |
-| `contracts/interfaces/IOffchainQuoter.sol`                  | Created  | SignedQuote struct + IOffchainQuoter iface |
-| `contracts/libs/AbstractOffchainQuoter.sol`                 | Created  | Abstract base — EIP-712 sig, multi-signer  |
-| `contracts/libs/TransientStorage.sol`                       | Created  | tstore/tload wrappers for compat           |
-| `contracts/hooks/igp/OffchainQuotedIGP.sol`                 | Created  | IGP offchain quote resolution mixin        |
-| `contracts/hooks/igp/InterchainGasPaymaster.sol`            | Modified | Full cascade: offchain → oracle → revert   |
-| `contracts/token/fees/OffchainQuotedLinearFee.sol`          | Created  | ITokenFee impl, inherits LinearFee         |
-| `contracts/token/fees/LinearFee.sol`                        | Modified | Made `feeType()` virtual                   |
-| `contracts/token/QuotedCalls.sol`                           | Created  | Command-based router with Permit2          |
-| `test/token/OffchainQuotedLinearFee.t.sol`                  | Created  | Unit tests for OffchainQuotedLinearFee     |
-| `test/token/QuotedCalls.t.sol`                              | Created  | Unit tests for QuotedCalls                 |
-| `test/token/QuotedCalls.invariant.t.sol`                    | Created  | Invariant tests — malicious target fuzzing |
-| `test/igps/IGPOffchainQuoting.t.sol`                        | Created  | Unit tests for IGP offchain quoting        |
-| `test/token/CrossCollateralRouter.t.sol`                    | Modified | QuotedCalls + cross-collateral demo test   |
+| File                                               | Status   | Description                                |
+| -------------------------------------------------- | -------- | ------------------------------------------ |
+| `contracts/interfaces/IOffchainQuoter.sol`         | Created  | SignedQuote struct + IOffchainQuoter iface |
+| `contracts/libs/AbstractOffchainQuoter.sol`        | Created  | Abstract base — EIP-712 sig, multi-signer  |
+| `contracts/libs/TransientStorage.sol`              | Created  | tstore/tload wrappers for compat           |
+| `contracts/hooks/igp/OffchainQuotedIGP.sol`        | Created  | IGP offchain quote resolution mixin        |
+| `contracts/hooks/igp/InterchainGasPaymaster.sol`   | Modified | Full cascade: offchain → oracle → revert   |
+| `contracts/token/fees/OffchainQuotedLinearFee.sol` | Created  | ITokenFee impl, inherits LinearFee         |
+| `contracts/token/fees/LinearFee.sol`               | Modified | Made `feeType()` virtual                   |
+| `contracts/token/QuotedCalls.sol`                  | Created  | Command-based router with Permit2          |
+| `test/token/OffchainQuotedLinearFee.t.sol`         | Created  | Unit tests for OffchainQuotedLinearFee     |
+| `test/token/QuotedCalls.t.sol`                     | Created  | Unit tests for QuotedCalls                 |
+| `test/token/QuotedCalls.invariant.t.sol`           | Created  | Invariant tests — malicious target fuzzing |
+| `test/igps/IGPOffchainQuoting.t.sol`               | Created  | Unit tests for IGP offchain quoting        |
+| `test/token/CrossCollateralRouter.t.sol`           | Modified | QuotedCalls + cross-collateral demo test   |
