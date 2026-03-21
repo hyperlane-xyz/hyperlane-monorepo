@@ -46,7 +46,7 @@ import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
-const TYPE_DESCRIPTIONS: Record<string, string> = {
+const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
@@ -84,10 +84,10 @@ const TYPE_DESCRIPTIONS: Record<string, string> = {
 };
 
 // Types that are only configurable via YAML, not the interactive prompt
-const YAML_ONLY_TYPES: string[] = [
+const YAML_ONLY_TYPES: TokenType[] = [
   TokenType.collateralOft,
   TokenType.collateralCctp,
-  'collateralDepositAddress',
+  TokenType.collateralDepositAddress,
 ];
 
 const TYPE_CHOICES = Object.values(TokenType)
