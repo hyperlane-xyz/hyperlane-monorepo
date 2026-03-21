@@ -4,8 +4,9 @@
  */
 export const rootHardhatConfig = {
   solidity: {
-    version: '0.8.22',
+    version: '0.8.33',
     settings: {
+      evmVersion: 'cancun',
       optimizer: {
         enabled: true,
         runs: 25_000,

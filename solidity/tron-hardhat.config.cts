@@ -18,6 +18,11 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
  */
 module.exports = {
   ...rootHardhatConfig,
+  solidity: {
+    ...rootHardhatConfig.solidity,
+    // tron-solc latest is 0.8.24
+    version: '0.8.24',
+  },
   paths: {
     sources: "./contracts",
     artifacts: "./artifacts-tron",
