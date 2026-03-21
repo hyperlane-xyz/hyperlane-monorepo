@@ -9,21 +9,35 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/ta
 
 import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
 
-const TRON_UNSUPPORTED_SOURCE_SUFFIXES = [
-  "/contracts/token/CrossCollateralRouter.sol",
-  "/contracts/token/CrossCollateralRoutingFee.sol",
+// tron-solc WASM aborts when the total compilation input is too large.
+// Exclude contracts not needed for tron deployments to stay under the limit.
+const TRON_EXCLUDED_PATTERNS = [
+  "/contracts/mock/",
+  "/contracts/isms/hook/",
+  "/contracts/hooks/OPStackHook.sol",
+  "/contracts/hooks/aggregation/ERC5164Hook.sol",
+  "/contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol",
+  "/contracts/token/CCTP",
+  "/contracts/libs/CctpMessageV1.sol",
+  "/contracts/AttributeCheckpointFraud.sol",
+  "/contracts/CheckpointFraudProofs.sol",
 ];
 
-// tron-solc currently crashes compiling CrossCollateral contracts. Exclude only
-// those sources from the Tron artifact build until tron-solc is fixed.
+// Test contracts kept for tron-sdk (TestStorage, ERC20Test)
+const TRON_TEST_ALLOWLIST = [
+  "TestStorage.sol",
+  "ERC20Test.sol",
+];
+
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
   const sourcePaths = await runSuper();
-  return sourcePaths.filter(
-    (sourcePath: string) =>
-      !TRON_UNSUPPORTED_SOURCE_SUFFIXES.some((suffix) =>
-        sourcePath.endsWith(suffix),
-      ),
-  );
+  return sourcePaths.filter((sourcePath: string) => {
+    if (TRON_EXCLUDED_PATTERNS.some((p) => sourcePath.includes(p))) return false;
+    if (sourcePath.includes("/contracts/test/")) {
+      return TRON_TEST_ALLOWLIST.some((f) => sourcePath.endsWith(f));
+    }
+    return true;
+  });
 });
 
 /**
