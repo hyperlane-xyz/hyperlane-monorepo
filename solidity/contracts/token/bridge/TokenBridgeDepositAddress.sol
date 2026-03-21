@@ -139,7 +139,7 @@ contract TokenBridgeDepositAddress is
         if (_depositAddress == address(0)) {
             revert InvalidDepositAddress(_destination, _recipient);
         }
-        if (_feeBps > BPS_DENOMINATOR) {
+        if (_feeBps >= BPS_DENOMINATOR) {
             revert InvalidFeeBps(_feeBps);
         }
 

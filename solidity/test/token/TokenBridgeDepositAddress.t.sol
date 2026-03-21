@@ -98,14 +98,14 @@ contract TokenBridgeDepositAddressTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 TokenBridgeDepositAddress.InvalidFeeBps.selector,
-                MAX_BPS + 1
+                MAX_BPS
             )
         );
         bridge.setDestinationConfig(
             DOMAIN_ETH,
             depositAddress,
             recipient,
-            MAX_BPS + 1
+            MAX_BPS
         );
     }
 

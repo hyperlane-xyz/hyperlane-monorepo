@@ -237,9 +237,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       );
     }
 
+    assert(
+      tokenConfig.contractVersion,
+      `Missing contractVersion for ${warpRouteAddress} on ${this.chain}`,
+    );
     const hasRebalancingInterface =
       compareVersions(
-        tokenConfig.contractVersion!,
+        tokenConfig.contractVersion,
         REBALANCING_CONTRACT_VERSION,
       ) >= 0;
 

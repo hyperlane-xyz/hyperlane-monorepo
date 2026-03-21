@@ -119,6 +119,27 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(parseResults.success).to.be.false;
   });
 
+  it('should reject deposit-address bridge config with feeBps of 10000', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '10000',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
   it('should reject deposit-address bridge config with invalid feeBps string', () => {
     const parseResults = WarpRouteDeployConfigSchema.safeParse({
       arbitrum: {
