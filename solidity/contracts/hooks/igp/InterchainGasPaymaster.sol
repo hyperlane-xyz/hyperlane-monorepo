@@ -291,6 +291,8 @@ contract InterchainGasPaymaster is
      *      During dispatch, _quoteDispatch uses message.senderAddress() instead
      *      (typically the warp route). For accurate pre-dispatch estimates with
      *      sender-specific quotes, use quoteDispatch rather than this function.
+     *      Alternatively, set the `from` field in eth_call to simulate the
+     *      correct msg.sender for quote resolution.
      * @param _feeToken The token to pay gas fees in, or NATIVE_TOKEN for native.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for.
