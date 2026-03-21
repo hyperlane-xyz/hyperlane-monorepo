@@ -71,7 +71,7 @@ const TYPE_DESCRIPTIONS: Record<string, string> = {
     'A collateral token that can be transferred via Everclear intents',
   [TokenType.ethEverclear]:
     'An ETH token that can be transferred via Everclear intents',
-  collateralDepositAddress:
+  [TokenType.collateralDepositAddress]:
     'A collateral token that bridges by depositing into a configured address',
   // TODO: describe
   [TokenType.syntheticUri]: '',
