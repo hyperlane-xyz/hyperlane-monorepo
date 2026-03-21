@@ -7,7 +7,7 @@ test = 'test'
 cache_path = 'forge-cache'
 solc_version = '0.8.33'
 evm_version= 'cancun'
-optimizer_runs = 25_000
+optimizer_runs = 10_000
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },

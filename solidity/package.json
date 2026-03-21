@@ -88,7 +88,7 @@
     "test": "pnpm version:exhaustive && pnpm hardhat-esm test && pnpm test:forge",
     "test:hardhat": "pnpm hardhat-esm test",
     "test:forge": "pnpm fixtures && forge test -vvv --decode-internal --no-match-contract 'Everclear|Tron|ForkTest'",
-    "test:ci": "pnpm version:changed && pnpm test:hardhat && pnpm fixtures && forge test -vvv --decode-internal --no-match-contract 'Everclear|Tron|ForkTest' --no-match-test testFork",
+    "test:ci": "pnpm version:changed && pnpm test:hardhat && pnpm fixtures && forge test -vvv --decode-internal --no-match-contract 'Everclear|Tron|ForkTest' --no-match-test testFork && forge build --sizes",
     "test:fork": "sh -c '. ./.env.default && forge test --match-test testFork && forge test --match-contract ForkTest'",
     "gas": "forge snapshot",
     "gas-ci": "pnpm gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",

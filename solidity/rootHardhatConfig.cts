@@ -9,7 +9,7 @@ export const rootHardhatConfig = {
       evmVersion: 'cancun',
       optimizer: {
         enabled: true,
-        runs: 25_000,
+        runs: 10_000,
       },
     },
   },
