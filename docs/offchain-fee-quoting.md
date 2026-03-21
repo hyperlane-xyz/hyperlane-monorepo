@@ -221,7 +221,7 @@ OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee
   ├── addQuoteSigner() / removeQuoteSigner() — owner-gated
   └── Inherits claim(), token, receive() from BaseFee
 
-QuotedCalls is PackageVersioned, ReentrancyGuard
+QuotedCalls is PackageVersioned
   ├── Command-based router: execute(bytes commands, bytes[] inputs)
   ├── Typed commands: SUBMIT_QUOTE, PERMIT2_PERMIT, PERMIT2_TRANSFER_FROM,
   │   TRANSFER_REMOTE, TRANSFER_REMOTE_TO, CALL_REMOTE_WITH_OVERRIDES,
@@ -356,26 +356,26 @@ Existing warp routes can adopt offchain quoting by setting the new fee recipient
 
 ## Security Properties
 
-| Property                  | Mechanism                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Cross-contract replay     | EIP-712 domain separator includes `verifyingContract`                                                 |
-| Cross-chain replay        | EIP-712 domain separator includes `chainId`                                                           |
-| Transient isolation       | EIP-1153 transient storage — tx-scoped, invisible to other txs                                        |
-| Field-level matching      | Individual context fields matched (not hash) — supports per-field wildcards                           |
-| Fee token binding (IGP)   | Context includes `feeToken` — exact match required, prevents cross-token reuse                        |
-| Quote expiry              | `uint48(block.timestamp) <= expiry` check on submission                                               |
-| Multi-signer auth         | `EnumerableSet` of signers, `ECDSA.recover` against set                                               |
-| Signer removal caveat     | Removing a signer does NOT invalidate standing quotes already in storage                              |
-| Staleness prevention      | `issuedAt` must be > existing to replace standing quotes (signed field)                               |
-| Scoped salt binding       | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                    |
-| ICA salt scoping          | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                        |
-| Submitter restriction     | `submitter` field checked against `msg.sender` on submission                                          |
-| Intra-tx transient reuse  | Acceptable — scoped salt + submitter + context field matching ensure same user, same route            |
-| No standing approvals     | Permit2 for inflows; transient approve/revoke for outflows                                            |
-| No arbitrary calls        | Typed commands only — arbitrary calls could drain transient approvals                                 |
-| Reentrancy protection     | `QuotedCalls` uses OpenZeppelin `ReentrancyGuard`                                                     |
-| EOA transfer guard        | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                          |
-| Approval safety invariant | Transient approvals cannot be spent by attacker: whitelisted ops + immediate revoke + reentrant guard |
+| Property                  | Mechanism                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| Cross-contract replay     | EIP-712 domain separator includes `verifyingContract`                                               |
+| Cross-chain replay        | EIP-712 domain separator includes `chainId`                                                         |
+| Transient isolation       | EIP-1153 transient storage — tx-scoped, invisible to other txs                                      |
+| Field-level matching      | Individual context fields matched (not hash) — supports per-field wildcards                         |
+| Fee token binding (IGP)   | Context includes `feeToken` — exact match required, prevents cross-token reuse                      |
+| Quote expiry              | `uint48(block.timestamp) <= expiry` check on submission                                             |
+| Multi-signer auth         | `EnumerableSet` of signers, `ECDSA.recover` against set                                             |
+| Signer removal caveat     | Removing a signer does NOT invalidate standing quotes already in storage                            |
+| Staleness prevention      | `issuedAt` must be > existing to replace standing quotes (signed field)                             |
+| Scoped salt binding       | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                  |
+| ICA salt scoping          | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                      |
+| Submitter restriction     | `submitter` field checked against `msg.sender` on submission                                        |
+| Intra-tx transient reuse  | Acceptable — scoped salt + submitter + context field matching ensure same user, same route          |
+| No standing approvals     | Permit2 for inflows; persistent approvals for outflows (gas-efficient, safe due to whitelisted ops) |
+| No arbitrary calls        | Typed commands only — arbitrary calls could drain standing user approvals to this contract          |
+| Reentrancy                | Not exploitable cross-user: targets are caller-specified, salts are sender-scoped                   |
+| EOA transfer guard        | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                        |
+| Approval safety invariant | Outbound approvals safe: whitelisted ops only, no tokens held between txs, targets user-specified   |
 
 ## Files
 
