@@ -287,8 +287,10 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Quotes the amount of a specific token required to pay for gas.
-     * @dev Checks offchain quotes first (transient → specific → destination-only →
-     *      sender-only), then falls back to tokenGasOracles.
+     * @dev Resolves offchain quotes using msg.sender as the sender dimension.
+     *      During dispatch, _quoteDispatch uses message.senderAddress() instead
+     *      (typically the warp route). For accurate pre-dispatch estimates with
+     *      sender-specific quotes, use quoteDispatch rather than this function.
      * @param _feeToken The token to pay gas fees in, or NATIVE_TOKEN for native.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for.
