@@ -28,20 +28,24 @@ import {PackageVersioned} from "../PackageVersioned.sol";
  * @notice Command-based router for chaining offchain-quoted Hyperlane operations.
  * @dev Follows the UniversalRouter command pattern: execute(bytes commands, bytes[] inputs).
  *      Each command byte maps to a specific Hyperlane operation rather than allowing
- *      arbitrary external calls. Arbitrary calls are not supported because this
- *      contract holds transient token approvals — an arbitrary call could spend
- *      those approvals on behalf of a different user.
+ *      arbitrary external calls. Arbitrary calls are not supported because users
+ *      may hold standing token approvals to this contract. An arbitrary call
+ *      could invoke token.transferFrom(victim, attacker, amount) — draining any
+ *      user who has approved this contract. The whitelisted command set ensures
+ *      the contract never executes caller-controlled calldata against token
+ *      contracts.
  *
  *      Token safety:
- *      - Token inflows use Permit2 (no standing approvals to this contract) or
- *        PERMIT2_TRANSFER_FROM from msg.sender as fallback.
- *      - Approvals are set inside TRANSFER_REMOTE / TRANSFER_REMOTE_TO /
- *        CALL_REMOTE_* before the call. No standalone APPROVE command exists.
- *        Approvals persist for gas efficiency (avoids zero→non-zero SSTORE on
- *        repeat routes). This is safe because: only whitelisted Hyperlane
- *        operations are callable (no arbitrary external calls), the contract
- *        holds no tokens between transactions, and all targets are
- *        user-specified.
+ *      - Token inflows use Permit2 or standing ERC-20 approvals to this
+ *        contract via PERMIT2_TRANSFER_FROM (which falls back to transferFrom
+ *        when Permit2 reverts).
+ *      - Approvals FROM this contract are set inside TRANSFER_REMOTE /
+ *        TRANSFER_REMOTE_TO / CALL_REMOTE_* before the external call. No
+ *        standalone APPROVE command exists. These outbound approvals persist
+ *        for gas efficiency (avoids zero→non-zero SSTORE on repeat routes).
+ *        This is safe because: only whitelisted Hyperlane operations are
+ *        callable (no arbitrary external calls), the contract holds no tokens
+ *        between transactions, and all targets are user-specified.
  *      - SWEEP: remaining tokens + ETH returned to msg.sender after execution.
  *
  *      Quote salt = keccak256(msg.sender, clientSalt) — binds the quote
