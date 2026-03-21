@@ -320,6 +320,8 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
                         uint256
                     )
                 );
+            value = _resolveAmount(address(0), value);
+            approval = _resolveAmount(token, approval);
             _transientApprove(token, icaRouter, approval);
             (bool success, ) = icaRouter.call{value: value}(
                 abi.encodeWithSignature(
@@ -363,6 +365,8 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuard {
                         uint256
                     )
                 );
+            value = _resolveAmount(address(0), value);
+            approval = _resolveAmount(token, approval);
             _transientApprove(token, icaRouter, approval);
             (bool success, ) = icaRouter.call{value: value}(
                 abi.encodeWithSignature(
