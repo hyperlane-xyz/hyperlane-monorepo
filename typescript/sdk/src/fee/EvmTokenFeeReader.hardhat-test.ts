@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
+import { readFileSync } from 'node:fs';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -37,6 +38,16 @@ describe('EvmTokenFeeReader', () => {
     token = await factory.deploy('fake', 'FAKE', TOKEN_TOTAL_SUPPLY, 18);
     await token.deployed();
   });
+
+  const crossCollateralRoutingFeeArtifact = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../../solidity/out/CrossCollateralRoutingFee.sol/CrossCollateralRoutingFee.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
 
   describe('LinearFee', () => {
     it('should read the token fee config', async () => {
@@ -221,6 +232,61 @@ describe('EvmTokenFeeReader', () => {
       expect(
         Object.keys((routingFee as any).feeContracts ?? {}),
       ).to.have.length(0);
+    });
+
+    it('should derive cross collateral routing fee config from destination defaults', async () => {
+      const linearFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: linearFeeConfig,
+      });
+
+      const crossCollateralRoutingFeeFactory = new hre.ethers.ContractFactory(
+        crossCollateralRoutingFeeArtifact.abi,
+        crossCollateralRoutingFeeArtifact.bytecode.object,
+        signer,
+      );
+      const crossCollateralRoutingFee =
+        await crossCollateralRoutingFeeFactory.deploy(signer.address);
+      await crossCollateralRoutingFee.deployed();
+
+      const destination = multiProvider.getDomainId(TestChainName.test3);
+      const defaultRouter = await crossCollateralRoutingFee.DEFAULT_ROUTER();
+      await crossCollateralRoutingFee.setCrossCollateralRouterFeeContracts(
+        [destination],
+        [defaultRouter],
+        [deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address],
+      );
+
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const routingFee = await reader.deriveTokenFeeConfig({
+        address: crossCollateralRoutingFee.address,
+        routingDestinations: [destination],
+      });
+
+      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
+      expect(routingFee.owner).to.equal(signer.address);
+      expect(routingFee.token).to.equal(token.address);
+      expect(normalizeConfig(routingFee)).to.deep.equal(
+        normalizeConfig({
+          type: TokenFeeType.RoutingFee,
+          owner: signer.address,
+          token: token.address,
+          feeContracts: {
+            [TestChainName.test3]: linearFeeConfig,
+          },
+        }),
+      );
     });
   });
 });
