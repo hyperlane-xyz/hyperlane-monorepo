@@ -823,6 +823,75 @@ contract QuotedCallsTest is Test {
         assertEq(address(quotedCalls).balance, 0);
     }
 
+    // ============ Tests: ICA with CONTRACT_BALANCE ============
+
+    /// @dev Use CONTRACT_BALANCE for ICA native value and ERC20 approval
+    function test_callRemote_withContractBalance() public {
+        uint256 CONTRACT_BAL = quotedCalls.CONTRACT_BALANCE();
+
+        string[] memory icaUrls = new string[](1);
+        icaUrls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(igp),
+            address(this),
+            0,
+            icaUrls
+        );
+        icaRouter.enrollRemoteRouter(
+            DESTINATION,
+            address(0xdead).addressToBytes32()
+        );
+
+        localToken.setFeeHook(address(igp));
+        localToken.setHook(address(igp));
+
+        uint256 icaNativeFee = _computeOffchainIgpFee(50_000);
+
+        CallLib.Call[] memory remoteIcaCalls = new CallLib.Call[](1);
+        remoteIcaCalls[0] = CallLib.Call({
+            to: address(0xbeef).addressToBytes32(),
+            value: 0,
+            data: ""
+        });
+
+        bytes memory hookMetadata = StandardHookMetadata.format(
+            icaNativeFee,
+            uint256(50_000),
+            address(quotedCalls)
+        );
+
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(
+            _buildIgpQuote(ALICE, address(0), address(icaRouter))
+        );
+        // CONTRACT_BALANCE for both native value and approval
+        (cmds[1], ins[1]) = _cmdCallRemoteWithOverrides(
+            address(icaRouter),
+            DESTINATION,
+            address(0xdead).addressToBytes32(),
+            bytes32(0),
+            remoteIcaCalls,
+            hookMetadata,
+            bytes32(0),
+            CONTRACT_BAL, // value resolves to address(this).balance
+            address(0),
+            0
+        );
+        (cmds[2], ins[2]) = _cmdSweep(address(0));
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.deal(ALICE, icaNativeFee);
+        vm.startPrank(ALICE);
+        quotedCalls.execute{value: icaNativeFee}(commands, inputs);
+        vm.stopPrank();
+
+        assertEq(address(igp).balance, icaNativeFee);
+        assertEq(address(quotedCalls).balance, 0);
+    }
+
     // ============ Tests: Standing Quotes ============
 
     function test_execute_withStandingFeeQuote() public {
