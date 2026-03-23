@@ -57,3 +57,12 @@ hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce
     "no-entrypoint",
 ] }
 hyperlane-sealevel-hello-world = { path = "../programs/helloworld" }
+hyperlane-sealevel-trusted-relayer-ism = { path = "../programs/ism/trusted-relayer-ism", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-aggregation-ism = { path = "../programs/ism/aggregation-ism", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-amount-routing-ism = { path = "../programs/ism/amount-routing-ism", features = [
+    "no-entrypoint",
+] }
