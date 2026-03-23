@@ -18,13 +18,9 @@ pub enum Error {
     #[error("Invalid dispatch authority")]
     InvalidDispatchAuthority = 3,
 
-    /// TokenIxn::Init is not allowed; use CrossCollateralInstruction::Init.
-    #[error("Base init not allowed, use cross-collateral init")]
-    BaseInitNotAllowed = 4,
-
     /// Failed to decode token message.
     #[error("Failed to decode token message")]
-    MessageDecodeError = 5,
+    MessageDecodeError = 4,
 }
 
 impl From<Error> for ProgramError {

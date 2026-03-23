@@ -25,7 +25,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
-    instruction::{Init, Instruction as TokenIxn, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn},
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
 use hyperlane_warp_route::TokenMessage;
@@ -68,7 +68,6 @@ pub fn process_instruction(
     // Stage 1: Try cross-collateral instruction discriminator [2,2,2,2,2,2,2,2]
     if let Ok(cc_instruction) = CrossCollateralInstruction::decode(instruction_data) {
         return match cc_instruction {
-            CrossCollateralInstruction::Init(init) => initialize(program_id, accounts, init),
             CrossCollateralInstruction::SetCrossCollateralRouters(configs) => {
                 set_cross_collateral_routers(program_id, accounts, configs)
             }
@@ -123,9 +122,10 @@ pub fn process_instruction(
 
     // Stage 3: Token instruction discriminator [1,1,1,1,1,1,1,1]
     match TokenIxn::decode(instruction_data)? {
-        // Block TokenIxn::Init — must use CrossCollateralInstruction::Init
-        TokenIxn::Init(_) => Err(Error::BaseInitNotAllowed.into()),
-        TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+        TokenIxn::Init(init) => initialize(program_id, accounts, init),
+        TokenIxn::TransferRemote(xfer) => {
+            HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote(program_id, accounts, xfer)
+        }
         TokenIxn::EnrollRemoteRouter(config) => {
             HyperlaneSealevelToken::<CollateralPlugin>::enroll_remote_router(
                 program_id, accounts, config,
@@ -433,43 +433,6 @@ fn set_cross_collateral_routers(
     Ok(())
 }
 
-/// Transfers tokens to a specific enrolled router (cross-chain via mailbox dispatch).
-/// Cannot reuse base `dispatch()` because it hardcodes `self.router(domain)` as recipient.
-/// Builds mailbox CPI manually with `target_router` as the recipient.
-///
-/// Resolves the primary router for the destination domain and delegates
-/// to `transfer_remote_to`. Same account layout as `transfer_remote_to`.
-fn transfer_remote(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    xfer: TransferRemote,
-) -> ProgramResult {
-    // Peek at account 1 (token PDA) to resolve the primary router.
-    // Coupled to the shared prefix layout: [0] system_program, [1] token PDA, [2] CC state.
-    // transfer_remote_to will re-validate this account.
-    let hyperlane_token_account = accounts.get(1).ok_or(ProgramError::NotEnoughAccountKeys)?;
-    let hyperlane_token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
-        program_id,
-        hyperlane_token_account,
-    )?;
-
-    let target_router = *hyperlane_token
-        .remote_routers
-        .get(&xfer.destination_domain)
-        .ok_or(Error::UnauthorizedRouter)?;
-
-    transfer_remote_to(
-        program_id,
-        accounts,
-        TransferRemoteTo {
-            destination_domain: xfer.destination_domain,
-            recipient: xfer.recipient,
-            amount_or_id: xfer.amount_or_id,
-            target_router,
-        },
-    )
-}
-
 /// Transfers tokens to a specific enrolled router. Branches based on destination:
 /// - If `destination_domain == local_domain`: same-chain CPI into target's HandleLocal
 /// - Otherwise: cross-chain dispatch via the mailbox
@@ -536,26 +499,24 @@ fn transfer_remote_to(
     // Account layouts diverge after the shared prefix. Each branch validates
     // its own accounts independently, so cross-branch confusion is not possible.
     if cc_state.local_domain == xfer.destination_domain {
-        transfer_remote_to_local(
+        transfer_remote_to_local(program_id, &hyperlane_token, &cc_state, accounts_iter, xfer)
+    } else {
+        transfer_remote_to_remote(
             program_id,
             &hyperlane_token,
-            &cc_state,
-            &accounts[3..],
+            system_program_account,
+            accounts_iter,
             xfer,
         )
-    } else {
-        transfer_remote_to_remote(program_id, &hyperlane_token, accounts, xfer)
     }
 }
 
 /// Remote path of transfer_remote_to: escrows tokens and dispatches cross-chain via the mailbox.
-/// Called when `destination_domain != local_domain`. Receives the full accounts slice;
-/// skips the shared prefix (indices 0-2) already validated by transfer_remote_to.
+/// Called when `destination_domain != local_domain`. Continues consuming from the shared
+/// accounts iterator after the prefix (system_program, token PDA, CC state) parsed by
+/// transfer_remote_to.
 ///
-/// Full account layout:
-/// 0.    `[executable]` system program          (shared prefix, validated by caller)
-/// 1.    `[]` token PDA                         (shared prefix, validated by caller)
-/// 2.    `[]` CC state PDA                      (shared prefix, validated by caller)
+/// Accounts consumed from iterator:
 /// 3.    `[executable]` SPL Noop
 /// 4.    `[executable]` mailbox program
 /// 5.    `[]` mailbox outbox
@@ -565,21 +526,13 @@ fn transfer_remote_to(
 /// 9.    `[writable]` dispatched message PDA
 ///       10..N IGP accounts (optional), then plugin transfer_in accounts.
 #[allow(clippy::too_many_lines)]
-fn transfer_remote_to_remote(
+fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
     program_id: &Pubkey,
     hyperlane_token: &HyperlaneToken<CollateralPlugin>,
-    accounts: &[AccountInfo],
+    system_program_account: &'account_info_slice AccountInfo<'account_info>,
+    accounts_iter: &mut std::slice::Iter<'account_info_slice, AccountInfo<'account_info>>,
     xfer: TransferRemoteTo,
 ) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Re-grab system_program from the shared prefix for IGP payment account infos
-    let system_program_account = next_account_info(accounts_iter)?;
-
-    // Skipping over these 2 accounts as they have been already validated in [transfer_remote_to]
-    let _hyperlane_token_account = next_account_info(accounts_iter)?;
-    let _cc_state_account = next_account_info(accounts_iter)?;
-
     // Account 3: SPL Noop
     let spl_noop = next_account_info(accounts_iter)?;
     if spl_noop.key != &SPL_NOOP_PROGRAM_ID {
@@ -777,27 +730,23 @@ fn transfer_remote_to_remote(
 }
 
 /// Local path of transfer_remote_to: escrows tokens and CPIs into target's HandleLocal.
-/// Called when `destination_domain == local_domain`. Receives accounts starting at index 3
-/// (after the shared prefix parsed by transfer_remote_to).
+/// Called when `destination_domain == local_domain`. Continues consuming from the shared
+/// accounts iterator after the prefix (system_program, token PDA, CC state) parsed by
+/// transfer_remote_to.
 ///
-/// Full account layout (indices relative to the original transaction):
-/// 0.    `[executable]` system program          (shared prefix, validated by caller)
-/// 1.    `[]` token PDA                         (shared prefix, validated by caller)
-/// 2.    `[]` CC state PDA                      (shared prefix, validated by caller)
+/// Accounts consumed from iterator:
 /// 3.    `[signer]` sender wallet / payer
 /// 4.    `[]` CC dispatch authority PDA (this program's, for CPI signing)
 /// 5.    `[executable]` target program
 ///       6..N plugin transfer_in accounts.
 ///       N+1..M target HandleLocal accounts (passthrough for CPI).
-fn transfer_remote_to_local(
+fn transfer_remote_to_local<'account_info_slice, 'account_info>(
     program_id: &Pubkey,
     hyperlane_token: &HyperlaneToken<CollateralPlugin>,
     cc_state: &CrossCollateralState,
-    accounts: &[AccountInfo],
+    accounts_iter: &mut std::slice::Iter<'account_info_slice, AccountInfo<'account_info>>,
     xfer: TransferRemoteTo,
 ) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
     // Account 3: Sender wallet (signer)
     let sender_wallet = next_account_info(accounts_iter)?;
     if !sender_wallet.is_signer {

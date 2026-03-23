@@ -45,8 +45,6 @@ pub enum CrossCollateralRouterUpdate {
 /// Cross-collateral instruction set.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum CrossCollateralInstruction {
-    /// Creates token PDA, escrow, dispatch authority, CC state PDA, CC dispatch authority PDA.
-    Init(Init),
     /// Set CC routers. Owner-only.
     SetCrossCollateralRouters(Vec<CrossCollateralRouterUpdate>),
     /// Transfer to a specific enrolled router. If `destination_domain == local_domain`,
@@ -145,7 +143,7 @@ pub fn init_instruction(
         Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &init.mailbox)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = CrossCollateralInstruction::Init(init);
+    let ixn = hyperlane_sealevel_token_lib::instruction::Instruction::Init(init);
 
     let accounts = vec![
         // Base accounts

@@ -39,7 +39,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
-    accounts::{convert_decimals, HyperlaneTokenAccount},
+    accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{Init, Instruction as HyperlaneTokenInstruction},
 };
@@ -60,6 +60,7 @@ use solana_sdk::{
 };
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use spl_token_2022::instruction::initialize_mint2;
+use std::collections::HashMap;
 
 const ONE_SOL_IN_LAMPORTS: u64 = 1_000_000_000;
 const LOCAL_DOMAIN: u32 = 1234;
@@ -631,31 +632,32 @@ mod init_instruction {
             .unwrap()
             .into_inner();
 
-        assert_eq!(token.bump, ctx.cc.token_bump);
-        assert_eq!(token.mailbox, ctx.mailbox_program_id);
         assert_eq!(
-            token.mailbox_process_authority,
-            ctx.cc.mailbox_process_authority
+            token,
+            Box::new(HyperlaneToken {
+                bump: ctx.cc.token_bump,
+                mailbox: ctx.mailbox_program_id,
+                mailbox_process_authority: ctx.cc.mailbox_process_authority,
+                dispatch_authority_bump: ctx.cc.dispatch_authority_bump,
+                decimals: LOCAL_DECIMALS,
+                remote_decimals: REMOTE_DECIMALS,
+                owner: Some(ctx.payer.pubkey()),
+                interchain_security_module: None,
+                interchain_gas_paymaster: Some((
+                    igp_program,
+                    InterchainGasPaymasterType::OverheadIgp(igp_overhead_igp),
+                )),
+                destination_gas: HashMap::from([(REMOTE_DOMAIN, REMOTE_GAS_AMOUNT)]),
+                remote_routers: HashMap::new(),
+                plugin_data: CollateralPlugin {
+                    spl_token_program: ctx.spl_token_program_id,
+                    mint: ctx.mint,
+                    escrow: ctx.cc.escrow,
+                    escrow_bump: ctx.cc.escrow_bump,
+                    ata_payer_bump: ctx.cc.ata_payer_bump,
+                },
+            }),
         );
-        assert_eq!(
-            token.dispatch_authority_bump,
-            ctx.cc.dispatch_authority_bump
-        );
-        assert_eq!(token.decimals, LOCAL_DECIMALS);
-        assert_eq!(token.remote_decimals, REMOTE_DECIMALS);
-        assert_eq!(token.owner, Some(ctx.payer.pubkey()));
-        assert_eq!(token.interchain_security_module, None);
-        assert_eq!(
-            token.interchain_gas_paymaster,
-            Some((
-                igp_program,
-                InterchainGasPaymasterType::OverheadIgp(igp_overhead_igp),
-            ))
-        );
-        assert_eq!(token.plugin_data.mint, ctx.mint);
-        assert_eq!(token.plugin_data.escrow, ctx.cc.escrow);
-        assert_eq!(token.plugin_data.escrow_bump, ctx.cc.escrow_bump);
-        assert_eq!(token.plugin_data.ata_payer_bump, ctx.cc.ata_payer_bump);
 
         // Verify CC state PDA
         let cc_state_data = ctx
@@ -730,60 +732,6 @@ mod init_instruction {
         assert_transaction_error(
             result,
             TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
-        );
-    }
-
-    #[tokio::test]
-    async fn test_base_init_rejected() {
-        // TokenIxn::Init must return Custom(4) = BaseInitNotAllowed.
-        let env = setup_env().await;
-
-        let (token_account_key, _) =
-            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &env.program_id);
-        let (dispatch_authority_key, _) = Pubkey::find_program_address(
-            mailbox_message_dispatch_authority_pda_seeds!(),
-            &env.program_id,
-        );
-        let (escrow_account_key, _) =
-            Pubkey::find_program_address(hyperlane_token_escrow_pda_seeds!(), &env.program_id);
-        let (ata_payer_account_key, _) =
-            Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &env.program_id);
-
-        let recent_blockhash = env.banks_client.get_latest_blockhash().await.unwrap();
-        let transaction = Transaction::new_signed_with_payer(
-            &[Instruction::new_with_bytes(
-                env.program_id,
-                &HyperlaneTokenInstruction::Init(Init {
-                    mailbox: env.mailbox_program_id,
-                    interchain_security_module: None,
-                    interchain_gas_paymaster: None,
-                    decimals: LOCAL_DECIMALS,
-                    remote_decimals: REMOTE_DECIMALS,
-                })
-                .encode()
-                .unwrap(),
-                vec![
-                    AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new(token_account_key, false),
-                    AccountMeta::new(dispatch_authority_key, false),
-                    AccountMeta::new_readonly(env.payer.pubkey(), true),
-                    AccountMeta::new_readonly(env.spl_token_program_id, false),
-                    AccountMeta::new_readonly(env.mint, false),
-                    AccountMeta::new_readonly(solana_program::sysvar::rent::id(), false),
-                    AccountMeta::new(escrow_account_key, false),
-                    AccountMeta::new(ata_payer_account_key, false),
-                ],
-            )],
-            Some(&env.payer.pubkey()),
-            &[&env.payer],
-            recent_blockhash,
-        );
-        let result = env.banks_client.process_transaction(transaction).await;
-
-        // Custom(4) = Error::BaseInitNotAllowed
-        assert_transaction_error(
-            result,
-            TransactionError::InstructionError(0, InstructionError::Custom(4)),
         );
     }
 
@@ -913,7 +861,7 @@ mod base_token {
         .encode()
         .unwrap();
 
-        // Same account layout as TransferRemoteTo
+        // Standard collateral transfer_remote account layout
         let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
         let transaction = Transaction::new_signed_with_payer(
             &[Instruction::new_with_bytes(
@@ -921,9 +869,8 @@ mod base_token {
                 &ixn_data,
                 vec![
                     AccountMeta::new_readonly(system_program::ID, false),
-                    AccountMeta::new_readonly(ctx.cc.token, false),
-                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
                     AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
                     AccountMeta::new_readonly(ctx.mailbox_program_id, false),
                     AccountMeta::new(ctx.mailbox_accounts.outbox, false),
                     AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
@@ -1859,9 +1806,10 @@ mod handle_instruction {
     #[tokio::test]
     async fn test_handle_from_mailbox_cc_router() {
         let mut ctx = TestContext::new(false).await;
+        let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
         let escrow = ctx.cc.escrow;
         let ata_payer = ctx.cc.ata_payer;
-        ctx.fund_escrow_and_ata_payer(escrow, ata_payer, 100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        ctx.fund_escrow_and_ata_payer(escrow, ata_payer, initial_escrow_balance)
             .await;
 
         let remote_router = H256::random();
@@ -1888,6 +1836,13 @@ mod handle_instruction {
         )
         .await
         .unwrap();
+
+        assert_token_balance(
+            &mut ctx.banks_client,
+            &ctx.cc.escrow,
+            initial_escrow_balance,
+        )
+        .await;
 
         let recipient_pubkey = Pubkey::new_unique();
         let local_transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
@@ -1918,6 +1873,13 @@ mod handle_instruction {
         )
         .await
         .unwrap();
+
+        assert_token_balance(
+            &mut ctx.banks_client,
+            &ctx.cc.escrow,
+            initial_escrow_balance - local_transfer_amount,
+        )
+        .await;
 
         let recipient_ata =
             spl_associated_token_account::get_associated_token_address_with_program_id(
@@ -2036,93 +1998,6 @@ mod handle_instruction {
             result,
             TransactionError::InstructionError(0, InstructionError::Custom(2)),
         );
-    }
-
-    #[tokio::test]
-    async fn test_handle_from_mailbox_cc_router_escrow_balance() {
-        let mut ctx = TestContext::new(false).await;
-        let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
-        let escrow = ctx.cc.escrow;
-        let ata_payer = ctx.cc.ata_payer;
-        ctx.fund_escrow_and_ata_payer(escrow, ata_payer, initial_escrow_balance)
-            .await;
-
-        let remote_router = H256::random();
-        enroll_remote_router(
-            &mut ctx.banks_client,
-            &ctx.program_id,
-            &ctx.payer,
-            &ctx.cc.token,
-            REMOTE_DOMAIN,
-            remote_router,
-        )
-        .await
-        .unwrap();
-
-        assert_token_balance(
-            &mut ctx.banks_client,
-            &ctx.cc.escrow,
-            initial_escrow_balance,
-        )
-        .await;
-
-        let cc_router = H256::random();
-        set_cc_routers(
-            &mut ctx.banks_client,
-            &ctx.program_id,
-            &ctx.payer,
-            vec![CrossCollateralRouterUpdate::Add {
-                domain: REMOTE_DOMAIN,
-                router: cc_router,
-            }],
-        )
-        .await
-        .unwrap();
-
-        let recipient_pubkey = Pubkey::new_unique();
-        let local_transfer_amount = 25 * 10u64.pow(LOCAL_DECIMALS_U32);
-        let remote_transfer_amount = convert_decimals(
-            local_transfer_amount.into(),
-            LOCAL_DECIMALS,
-            REMOTE_DECIMALS,
-        )
-        .unwrap();
-
-        let recipient: H256 = recipient_pubkey.to_bytes().into();
-        let message = HyperlaneMessage {
-            version: 3,
-            nonce: 0,
-            origin: REMOTE_DOMAIN,
-            sender: cc_router,
-            destination: LOCAL_DOMAIN,
-            recipient: ctx.program_id.to_bytes().into(),
-            body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
-        };
-
-        process(
-            &mut ctx.banks_client,
-            &ctx.payer,
-            &ctx.mailbox_accounts,
-            vec![],
-            &message,
-        )
-        .await
-        .unwrap();
-
-        assert_token_balance(
-            &mut ctx.banks_client,
-            &ctx.cc.escrow,
-            initial_escrow_balance - local_transfer_amount,
-        )
-        .await;
-
-        let recipient_ata =
-            spl_associated_token_account::get_associated_token_address_with_program_id(
-                &recipient_pubkey,
-                &ctx.mint,
-                &ctx.spl_token_program_id,
-            );
-        assert_token_balance(&mut ctx.banks_client, &recipient_ata, local_transfer_amount).await;
     }
 }
 
