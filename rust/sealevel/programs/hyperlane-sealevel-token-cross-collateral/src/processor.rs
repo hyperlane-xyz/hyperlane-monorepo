@@ -571,9 +571,14 @@ fn transfer_remote_to_remote(
     accounts: &[AccountInfo],
     xfer: TransferRemoteTo,
 ) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
     // Re-grab system_program from the shared prefix for IGP payment account infos
-    let system_program_account = &accounts[0];
-    let accounts_iter = &mut accounts[3..].iter();
+    let system_program_account = next_account_info(accounts_iter)?;
+
+    // Skipping over these 2 accounts as they have been already validated in [transfer_remote_to]
+    let _hyperlane_token_account = next_account_info(accounts_iter)?;
+    let _cc_state_account = next_account_info(accounts_iter)?;
 
     // Account 3: SPL Noop
     let spl_noop = next_account_info(accounts_iter)?;
