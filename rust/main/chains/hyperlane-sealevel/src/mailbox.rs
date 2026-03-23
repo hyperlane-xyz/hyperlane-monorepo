@@ -48,14 +48,13 @@ use crate::{
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
-lazy_static! {
-    /// SHA256 hash of the trusted relayer ISM ELF bytecode, computed at startup
-    /// from the compiled .so embedded at build time.
-    static ref TRUSTED_RELAYER_ISM_ELF_HASH: H256 = {
-        let elf = include_bytes!("../../../../sealevel/target/deploy/hyperlane_sealevel_trusted_relayer_ism.so");
-        H256::from_slice(&Sha256::digest(elf))
-    };
-}
+/// SHA256 of the trusted relayer ISM ELF bytecode (.so file).
+/// Update after rebuilding: `cd rust/sealevel/programs/ism/trusted-relayer && cargo build-sbf`
+/// then `shasum -a 256 rust/sealevel/target/deploy/hyperlane_sealevel_trusted_relayer_ism.so`
+const TRUSTED_RELAYER_ISM_ELF_HASH: H256 = H256([
+    0x8e, 0xc6, 0x68, 0x9f, 0x5a, 0xd5, 0x78, 0x75, 0x83, 0x2d, 0x9b, 0x35, 0x23, 0xb2, 0x7b, 0xe8,
+    0xc0, 0x5a, 0x0a, 0xfa, 0x66, 0x9e, 0x82, 0xd3, 0xc4, 0x6c, 0x41, 0x2e, 0x7f, 0x6b, 0x7d, 0xed,
+]);
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
@@ -362,7 +361,7 @@ impl SealevelMailbox {
         let elf_bytes = &programdata_account.data[PROGRAMDATA_METADATA_SIZE..];
         let hash = H256::from_slice(&Sha256::digest(elf_bytes));
 
-        if hash != *TRUSTED_RELAYER_ISM_ELF_HASH {
+        if hash != TRUSTED_RELAYER_ISM_ELF_HASH {
             tracing::debug!(
                 ?ism,
                 ?hash,
