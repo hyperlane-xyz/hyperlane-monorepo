@@ -10,12 +10,18 @@ use std::{fs::File, path::Path};
 use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
 use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
+    aggregation_ism::deploy_aggregation_ism,
+    amount_routing_ism::deploy_amount_routing_ism,
     artifacts::{read_json, write_json},
     cmd_utils::{create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
-    Context, CoreCmd, CoreDeploy, CoreSubCmd,
+    trusted_relayer_ism::deploy_trusted_relayer_ism,
+    Context, CoreCmd, CoreDeploy, CoreSubCmd, IsmType,
 };
 use hyperlane_core::H256;
+use hyperlane_sealevel_aggregation_ism::instruction::InitConfig as AggregationInitConfig;
+use hyperlane_sealevel_amount_routing_ism::instruction::ConfigData as AmountRoutingConfigData;
+use hyperlane_sealevel_test_ism::program::TestIsmInstruction;
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
     if chain_name.eq("solanamainnet") {
@@ -83,12 +89,65 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
 
-            let ism_program_id = deploy_multisig_ism_message_id(
-                &mut ctx,
-                &core.built_so_dir,
-                &key_dir,
-                core.local_domain,
-            );
+            let ism_program_id = match core.ism_type {
+                IsmType::MultisigMessageId => deploy_multisig_ism_message_id(
+                    &mut ctx,
+                    &core.built_so_dir,
+                    &key_dir,
+                    core.local_domain,
+                ),
+                IsmType::TrustedRelayer => {
+                    let relayer = core
+                        .relayer
+                        .expect("--relayer is required for --ism-type trusted-relayer");
+                    deploy_trusted_relayer_ism(
+                        &mut ctx,
+                        &core.built_so_dir,
+                        &key_dir,
+                        core.local_domain,
+                        relayer,
+                    )
+                }
+                IsmType::Aggregation => {
+                    let threshold = core
+                        .aggregation_threshold
+                        .expect("--aggregation-threshold is required for --ism-type aggregation");
+                    let modules = core
+                        .aggregation_modules
+                        .clone()
+                        .expect("--aggregation-modules is required for --ism-type aggregation");
+                    deploy_aggregation_ism(
+                        &mut ctx,
+                        &core.built_so_dir,
+                        &key_dir,
+                        core.local_domain,
+                        AggregationInitConfig { threshold, modules },
+                    )
+                }
+                IsmType::AmountRouting => {
+                    let threshold = core.amount_routing_threshold.expect(
+                        "--amount-routing-threshold is required for --ism-type amount-routing",
+                    );
+                    let lower_ism = core
+                        .lower_ism
+                        .expect("--lower-ism is required for --ism-type amount-routing");
+                    let upper_ism = core
+                        .upper_ism
+                        .expect("--upper-ism is required for --ism-type amount-routing");
+                    deploy_amount_routing_ism(
+                        &mut ctx,
+                        &core.built_so_dir,
+                        &key_dir,
+                        core.local_domain,
+                        AmountRoutingConfigData {
+                            threshold,
+                            lower_ism,
+                            upper_ism,
+                        },
+                    )
+                }
+                IsmType::Test => deploy_test_ism(&mut ctx, &core.built_so_dir, &key_dir),
+            };
 
             let mailbox_program_id =
                 deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id, core.local_domain);
@@ -110,6 +169,47 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             write_program_ids(&core_dir, program_ids);
         }
     }
+}
+
+pub(crate) fn deploy_test_ism(ctx: &mut Context, built_so_dir: &Path, key_dir: &Path) -> Pubkey {
+    let program_id = deploy_program(
+        ctx.payer_keypair_path(),
+        key_dir,
+        "hyperlane_sealevel_test_ism",
+        built_so_dir
+            .join("hyperlane_sealevel_test_ism.so")
+            .to_str()
+            .unwrap(),
+        &ctx.client.url(),
+        0,
+    )
+    .unwrap();
+
+    println!("Deployed Test ISM at program ID {}", program_id);
+
+    let (storage_pda, _bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_test_ism::test_ism_storage_pda_seeds!(),
+        &program_id,
+    );
+
+    let instruction = solana_sdk::instruction::Instruction {
+        program_id,
+        accounts: vec![
+            solana_sdk::instruction::AccountMeta::new_readonly(
+                solana_system_interface::program::ID,
+                false,
+            ),
+            solana_sdk::instruction::AccountMeta::new(ctx.payer_pubkey, true),
+            solana_sdk::instruction::AccountMeta::new(storage_pda, false),
+        ],
+        data: borsh::to_vec(&TestIsmInstruction::Init).unwrap(),
+    };
+
+    ctx.new_txn().add(instruction).send_with_payer();
+
+    println!("Initialized Test ISM");
+
+    program_id
 }
 
 fn deploy_mailbox(

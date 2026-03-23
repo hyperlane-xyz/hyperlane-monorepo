@@ -66,3 +66,6 @@ hyperlane-sealevel-aggregation-ism = { path = "../programs/ism/aggregation-ism",
 hyperlane-sealevel-amount-routing-ism = { path = "../programs/ism/amount-routing-ism", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-test-ism = { path = "../programs/ism/test-ism", features = [
+    "no-entrypoint",
+] }
