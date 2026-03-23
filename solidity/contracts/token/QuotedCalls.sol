@@ -36,9 +36,10 @@ import {PackageVersioned} from "../PackageVersioned.sol";
  *      contracts.
  *
  *      Token safety:
- *      - Token inflows use Permit2 or standing ERC-20 approvals to this
- *        contract via PERMIT2_TRANSFER_FROM (which falls back to transferFrom
- *        when Permit2 reverts).
+ *      - Token inflows use standing ERC-20 approvals to this contract or
+ *        Permit2 via PERMIT2_TRANSFER_FROM (tries transferFrom first, falls
+ *        back to Permit2). Standing approvals are safe because no arbitrary
+ *        call command exists — only whitelisted Hyperlane operations.
  *      - Approvals FROM this contract are set inside TRANSFER_REMOTE /
  *        TRANSFER_REMOTE_TO / CALL_REMOTE_* before the external call. No
  *        standalone APPROVE command exists. These outbound approvals persist
@@ -71,12 +72,16 @@ contract QuotedCalls is PackageVersioned {
     // execution time. For ERC20 amounts this resolves to the contract's token
     // balance; for native value it resolves to address(this).balance.
     //
-    // SAFETY INVARIANT: approvals cannot be exploited by an attacker.
-    // This holds because: (1) only whitelisted Hyperlane operations are
-    // callable — no arbitrary external calls that could drain approvals,
-    // (2) the contract holds no tokens between transactions, and
-    // (3) all targets are user-specified — a malicious target only
-    // affects the caller's own funds.
+    // SAFETY INVARIANT: users may hold standing ERC-20 approvals to
+    // this contract (used by transferFrom fallback in PERMIT2_TRANSFER_FROM).
+    // These cannot be drained because:
+    // (1) Only whitelisted Hyperlane operations are callable — no
+    //     arbitrary external call that could invoke
+    //     token.transferFrom(victim, attacker, amount).
+    // (2) No reentrancy guard needed: whitelisted ops (e.g.
+    //     transferRemote) pull tokens from msg.sender, not from this
+    //     contract's balance. A reentering caller with a malicious
+    //     target cannot access another user's tokens.
 
     /// @notice Submit an offchain-signed quote to a quoter contract.
     /// @dev quote.salt must equal keccak256(msg.sender, clientSalt) — the

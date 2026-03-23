@@ -228,7 +228,7 @@ QuotedCalls is PackageVersioned
   │   CALL_REMOTE_COMMIT_REVEAL, SWEEP
   ├── Scoped salt: keccak256(msg.sender, clientSalt) for quotes and ICA salts
   ├── Permit2 for token inflows (no standing approvals)
-  ├── Transient approve/revoke pattern for outflows
+  ├── Persistent approve pattern for outflows (gas-efficient, safe: whitelisted ops only)
   ├── Native value forwarding (TRANSFER_REMOTE, TRANSFER_REMOTE_TO, CALL_REMOTE_*)
   ├── EOA guard on PERMIT2_TRANSFER_FROM (code.length check)
   └── CONTRACT_BALANCE sentinel for balance-relative amounts (ERC20 + native ETH)
@@ -251,12 +251,12 @@ uint256 constant SWEEP = 0x07;                       // Return remaining ERC20 +
 function execute(bytes calldata commands, bytes[] calldata inputs) external payable;
 ```
 
-**Safety invariant**: transient approvals cannot be spent by an attacker because (1) only whitelisted Hyperlane operations are callable — no arbitrary external calls that could drain approvals, (2) approvals are set immediately before the call and revoked immediately after, and (3) `execute()` is protected by reentrancy guard.
+**Safety invariant**: users may hold standing ERC-20 approvals to this contract (used by the `transferFrom` fallback in `PERMIT2_TRANSFER_FROM`). These approvals are safe because only whitelisted Hyperlane operations are callable — there is no arbitrary external call command that could invoke `token.transferFrom(victim, attacker, amount)`. No reentrancy guard is needed: whitelisted operations (e.g. `transferRemote`) pull tokens from `msg.sender` into the target contract, never from QuotedCalls' balance, so a reentering caller with a malicious target cannot drain tokens belonging to another user.
 
 **Token safety**:
 
-- **Inflows**: Permit2 signatures (no standing approvals to this contract). `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before the low-level call to prevent EOAs from silently skipping the Permit2 fallback.
-- **Outflows**: Transient approve/revoke — each `TRANSFER_REMOTE` / `TRANSFER_REMOTE_TO` / `CALL_REMOTE_*` sets approval before the call and revokes after. No standalone APPROVE command exists.
+- **Inflows**: Permit2 signatures or standing ERC-20 approvals to this contract (`PERMIT2_TRANSFER_FROM` tries `transferFrom` first, falls back to Permit2). Standing approvals are safe because no arbitrary call command exists — only whitelisted Hyperlane operations. `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before the low-level call to prevent EOAs from silently skipping the Permit2 fallback.
+- **Outflows**: Persistent approvals — each `TRANSFER_REMOTE` / `TRANSFER_REMOTE_TO` / `CALL_REMOTE_*` sets approval before the call. No standalone APPROVE command exists. Persistent approvals are gas-efficient (avoids zero→non-zero SSTORE on repeat routes) and safe because only whitelisted operations are callable and the contract holds no tokens between transactions.
 - **Value forwarding**: `TRANSFER_REMOTE`, `TRANSFER_REMOTE_TO`, and `CALL_REMOTE_*` accept a `value` field for native ETH forwarding. Supports `CONTRACT_BALANCE` sentinel.
 - **Sweeps**: `SWEEP` returns remaining ERC20 (if token != address(0)) and ETH to `msg.sender`.
 - **`CONTRACT_BALANCE` sentinel**: `0x80...00` resolves to the contract's balance — ERC20 `balanceOf(this)` for token amounts, `address(this).balance` for native value.
@@ -356,26 +356,26 @@ Existing warp routes can adopt offchain quoting by setting the new fee recipient
 
 ## Security Properties
 
-| Property                  | Mechanism                                                                                           |
-| ------------------------- | --------------------------------------------------------------------------------------------------- |
-| Cross-contract replay     | EIP-712 domain separator includes `verifyingContract`                                               |
-| Cross-chain replay        | EIP-712 domain separator includes `chainId`                                                         |
-| Transient isolation       | EIP-1153 transient storage — tx-scoped, invisible to other txs                                      |
-| Field-level matching      | Individual context fields matched (not hash) — supports per-field wildcards                         |
-| Fee token binding (IGP)   | Context includes `feeToken` — exact match required, prevents cross-token reuse                      |
-| Quote expiry              | `uint48(block.timestamp) <= expiry` check on submission                                             |
-| Multi-signer auth         | `EnumerableSet` of signers, `ECDSA.recover` against set                                             |
-| Signer removal caveat     | Removing a signer does NOT invalidate standing quotes already in storage                            |
-| Staleness prevention      | `issuedAt` must be > existing to replace standing quotes (signed field)                             |
-| Scoped salt binding       | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                  |
-| ICA salt scoping          | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                      |
-| Submitter restriction     | `submitter` field checked against `msg.sender` on submission                                        |
-| Intra-tx transient reuse  | Acceptable — scoped salt + submitter + context field matching ensure same user, same route          |
-| No standing approvals     | Permit2 for inflows; persistent approvals for outflows (gas-efficient, safe due to whitelisted ops) |
-| No arbitrary calls        | Typed commands only — arbitrary calls could drain standing user approvals to this contract          |
-| Reentrancy                | Not exploitable cross-user: targets are caller-specified, salts are sender-scoped                   |
-| EOA transfer guard        | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                        |
-| Approval safety invariant | Outbound approvals safe: whitelisted ops only, no tokens held between txs, targets user-specified   |
+| Property                  | Mechanism                                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Cross-contract replay     | EIP-712 domain separator includes `verifyingContract`                                                    |
+| Cross-chain replay        | EIP-712 domain separator includes `chainId`                                                              |
+| Transient isolation       | EIP-1153 transient storage — tx-scoped, invisible to other txs                                           |
+| Field-level matching      | Individual context fields matched (not hash) — supports per-field wildcards                              |
+| Fee token binding (IGP)   | Context includes `feeToken` — exact match required, prevents cross-token reuse                           |
+| Quote expiry              | `uint48(block.timestamp) <= expiry` check on submission                                                  |
+| Multi-signer auth         | `EnumerableSet` of signers, `ECDSA.recover` against set                                                  |
+| Signer removal caveat     | Removing a signer does NOT invalidate standing quotes already in storage                                 |
+| Staleness prevention      | `issuedAt` must be > existing to replace standing quotes (signed field)                                  |
+| Scoped salt binding       | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                       |
+| ICA salt scoping          | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                           |
+| Submitter restriction     | `submitter` field checked against `msg.sender` on submission                                             |
+| Intra-tx transient reuse  | Acceptable — scoped salt + submitter + context field matching ensure same user, same route               |
+| Standing approval safety  | Users may approve this contract; safe because only whitelisted ops are callable (no arbitrary calls)     |
+| No arbitrary calls        | Typed commands only — prevents attacker from calling `transferFrom(victim, attacker, amount)`            |
+| Reentrancy                | No guard needed: whitelisted ops pull from msg.sender not contract balance; targets are caller-specified |
+| EOA transfer guard        | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                             |
+| Approval safety invariant | Outbound approvals safe: whitelisted ops only, no tokens held between txs, targets user-specified        |
 
 ## Files
 
