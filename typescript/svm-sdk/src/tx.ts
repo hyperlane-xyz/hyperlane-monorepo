@@ -2,9 +2,14 @@ import {
   type Address,
   type Blockhash,
   type Instruction,
+  type ReadonlyUint8Array,
   type TransactionSigner,
   appendTransactionMessageInstructions,
+  compileTransactionMessage,
   createTransactionMessage,
+  getBase58Decoder,
+  getCompiledTransactionMessageEncoder,
+  setTransactionMessageFeePayer,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit';
@@ -91,4 +96,89 @@ export function transactionToInstructions(
   const computeUnits = tx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
   const computeBudgetIxs = getComputeBudgetInstructions(computeUnits);
   return [...computeBudgetIxs, ...tx.instructions];
+}
+
+// ---------------------------------------------------------------------------
+// Unsigned transaction serialization (Rust CLI–compatible)
+// ---------------------------------------------------------------------------
+
+const base58Decoder = getBase58Decoder();
+const messageEncoder = getCompiledTransactionMessageEncoder();
+
+/** Default blockhash (32 zero bytes) matching Rust's Hash::default(). */
+const DEFAULT_BLOCKHASH = '11111111111111111111111111111111' as Blockhash;
+
+/**
+ * Encodes a number as Solana's compact-u16 wire format.
+ * Used for the signature count prefix in serialized transactions.
+ */
+function encodeCompactU16(value: number): Uint8Array {
+  if (value < 0x80) return new Uint8Array([value]);
+  if (value < 0x4000)
+    return new Uint8Array([(value & 0x7f) | 0x80, value >> 7]);
+  return new Uint8Array([
+    (value & 0x7f) | 0x80,
+    ((value >> 7) & 0x7f) | 0x80,
+    value >> 14,
+  ]);
+}
+
+/**
+ * Builds the wire bytes of an unsigned versioned (v0) transaction.
+ * Prepends compact-u16 signature count + N zero-filled 64-byte signature
+ * slots to the compiled message bytes.
+ */
+function buildUnsignedTransactionBytes(
+  numSigners: number,
+  messageBytes: ReadonlyUint8Array,
+): Uint8Array {
+  const sigCountBytes = encodeCompactU16(numSigners);
+  const sigsLen = numSigners * 64;
+  const result = new Uint8Array(
+    sigCountBytes.length + sigsLen + messageBytes.length,
+  );
+  result.set(sigCountBytes, 0);
+  // signature slots are already zero-filled by Uint8Array constructor
+  result.set(messageBytes, sigCountBytes.length + sigsLen);
+  return result;
+}
+
+/**
+ * Serializes an SvmTransaction into base58-encoded formats compatible
+ * with the Rust Sealevel CLI output.
+ *
+ * Produces two representations:
+ * - `transaction_base58`: full unsigned v0 transaction (signatures + message)
+ * - `message_base58`: compiled message only (no signature wrapper)
+ *
+ * Both use a default (all-zeros) blockhash since these are unsigned
+ * transactions intended for offline / multisig signing workflows.
+ */
+export function serializeUnsignedTransaction(
+  instructions: SvmInstruction[],
+  feePayer: Address,
+): { transactionBase58: string; messageBase58: string } {
+  const txMessage = createTransactionMessage({ version: 0 });
+  const withFeePayer = setTransactionMessageFeePayer(feePayer, txMessage);
+  const withLifetime = setTransactionMessageLifetimeUsingBlockhash(
+    { blockhash: DEFAULT_BLOCKHASH, lastValidBlockHeight: 0n },
+    withFeePayer,
+  );
+  const withInstructions = appendTransactionMessageInstructions(
+    instructions,
+    withLifetime,
+  );
+
+  const compiled = compileTransactionMessage(withInstructions);
+  const messageBytes = messageEncoder.encode(compiled);
+
+  const transactionBytes = buildUnsignedTransactionBytes(
+    compiled.header.numSignerAccounts,
+    messageBytes,
+  );
+
+  return {
+    transactionBase58: base58Decoder.decode(transactionBytes),
+    messageBase58: base58Decoder.decode(messageBytes),
+  };
 }
