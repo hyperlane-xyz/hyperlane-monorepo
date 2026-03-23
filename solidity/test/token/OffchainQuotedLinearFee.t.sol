@@ -595,7 +595,10 @@ contract OffchainQuotedLinearFeeTest is Test {
     // ============ feeType ============
 
     function test_feeType() public view {
-        assertEq(uint8(quotedFee.feeType()), uint8(FeeType.LINEAR));
+        assertEq(
+            uint8(quotedFee.feeType()),
+            uint8(FeeType.OFFCHAIN_QUOTED_LINEAR)
+        );
     }
 
     // ============ addQuoteSigner / removeQuoteSigner ============

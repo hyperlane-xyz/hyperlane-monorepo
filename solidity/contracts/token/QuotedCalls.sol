@@ -165,6 +165,27 @@ contract QuotedCalls is PackageVersioned {
 
     // ============ Errors ============
 
+    struct TransferRemoteParams {
+        address warpRoute;
+        uint32 destination;
+        bytes32 recipient;
+        uint256 amount;
+        uint256 value;
+        address token;
+        uint256 approval;
+    }
+
+    struct TransferRemoteToParams {
+        address router;
+        uint32 destination;
+        bytes32 recipient;
+        uint256 amount;
+        bytes32 targetRouter;
+        uint256 value;
+        address token;
+        uint256 approval;
+    }
+
     error InvalidCommandType(uint256 commandType);
     error InvalidSalt();
 
@@ -271,61 +292,33 @@ contract QuotedCalls is PackageVersioned {
     }
 
     function _dispatchTransferRemote(bytes calldata input) internal {
-        (
-            address warpRoute,
-            uint32 destination,
-            bytes32 recipient,
-            uint256 amount,
-            uint256 value,
-            address token,
-            uint256 approval
-        ) = abi.decode(
-                input,
-                (address, uint32, bytes32, uint256, uint256, address, uint256)
-            );
-        amount = _resolveAmount(token, amount);
-        value = _resolveAmount(address(0), value);
-        approval = _resolveAmount(token, approval);
-        _approve(token, warpRoute, approval);
-        ITokenBridge(warpRoute).transferRemote{value: value}(
-            destination,
-            recipient,
-            amount
+        TransferRemoteParams memory p = abi.decode(
+            input,
+            (TransferRemoteParams)
+        );
+        p.amount = _resolveAmount(p.token, p.amount);
+        p.value = _resolveAmount(address(0), p.value);
+        _approve(p.token, p.warpRoute, _resolveAmount(p.token, p.approval));
+        ITokenBridge(p.warpRoute).transferRemote{value: p.value}(
+            p.destination,
+            p.recipient,
+            p.amount
         );
     }
 
     function _dispatchTransferRemoteTo(bytes calldata input) internal {
-        (
-            address router,
-            uint32 destination,
-            bytes32 recipient,
-            uint256 amount,
-            bytes32 targetRouter,
-            uint256 value,
-            address token,
-            uint256 approval
-        ) = abi.decode(
-                input,
-                (
-                    address,
-                    uint32,
-                    bytes32,
-                    uint256,
-                    bytes32,
-                    uint256,
-                    address,
-                    uint256
-                )
-            );
-        amount = _resolveAmount(token, amount);
-        value = _resolveAmount(address(0), value);
-        approval = _resolveAmount(token, approval);
-        _approve(token, router, approval);
-        ICrossCollateralRouter(router).transferRemoteTo{value: value}(
-            destination,
-            recipient,
-            amount,
-            targetRouter
+        TransferRemoteToParams memory p = abi.decode(
+            input,
+            (TransferRemoteToParams)
+        );
+        p.amount = _resolveAmount(p.token, p.amount);
+        p.value = _resolveAmount(address(0), p.value);
+        _approve(p.token, p.router, _resolveAmount(p.token, p.approval));
+        ICrossCollateralRouter(p.router).transferRemoteTo{value: p.value}(
+            p.destination,
+            p.recipient,
+            p.amount,
+            p.targetRouter
         );
     }
 

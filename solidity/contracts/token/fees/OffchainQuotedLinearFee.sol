@@ -151,6 +151,10 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
 
     // ============ ITokenFee ============
 
+    function feeType() external pure override returns (FeeType) {
+        return FeeType.OFFCHAIN_QUOTED_LINEAR;
+    }
+
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
