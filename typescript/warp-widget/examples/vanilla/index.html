@@ -35,6 +35,8 @@
 
   <script>
     window.addEventListener('message', function (event) {
+      // Validate origin to prevent spoofed events from other iframes
+      if (event.origin !== 'https://nexus.hyperlane.xyz') return;
       if (event.data?.type === 'hyperlane-warp-widget' && event.data.event?.type === 'ready') {
         document.getElementById('status').innerHTML = '<span class="status">Widget ready!</span>';
       }

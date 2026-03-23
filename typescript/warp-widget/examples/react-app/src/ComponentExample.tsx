@@ -69,7 +69,6 @@ export function ComponentExample() {
 
       <div className="widget-frame">
         <HyperlaneWarpWidget
-          key={activeTheme}
           config={config}
           onEvent={(e) => setEvents((prev) => [...prev, e])}
           width="440px"
