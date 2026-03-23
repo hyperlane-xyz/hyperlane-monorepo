@@ -424,6 +424,7 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
   [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
+  [TokenType.collateralDepositAddress]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralOft]: TokenStandard.EvmHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.EvmHypCrossCollateralRouter,
 };
@@ -536,6 +537,7 @@ export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.TronHypNative,
   [TokenType.ethEverclear]: TokenStandard.TronHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.TronHypEverclearCollateral,
+  [TokenType.collateralDepositAddress]: TokenStandard.TronHypCollateral,
   [TokenType.collateralOft]: TokenStandard.TronHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.TronHypCrossCollateralRouter,
 };
