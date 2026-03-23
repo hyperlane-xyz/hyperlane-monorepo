@@ -1,4 +1,6 @@
-export const MAX_BPS = 10_000n; // 100% in bps
+import { assert } from '@hyperlane-xyz/utils';
+
+export const MAX_BPS = 10_000n;
 
 /**
  * Maximum decimal places supported for fractional bps values.
@@ -30,11 +32,10 @@ export function isBpsPrecisionValid(bps: number): boolean {
  * @throws Error if bps has too many decimal places
  */
 export function assertBpsPrecision(bps: number): void {
-  if (!isBpsPrecisionValid(bps)) {
-    throw new Error(
-      `bps must have at most ${MAX_BPS_DECIMALS} decimal places, got ${bps}`,
-    );
-  }
+  assert(
+    isBpsPrecisionValid(bps),
+    `bps must have at most ${MAX_BPS_DECIMALS} decimal places, got ${bps}`,
+  );
 }
 
 /**
@@ -53,9 +54,10 @@ export const ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY = 10n ** 36n;
  * @throws Error if halfAmount is zero to prevent division by zero
  */
 export function convertToBps(maxFee: bigint, halfAmount: bigint): number {
-  if (halfAmount === 0n) {
-    throw new Error('halfAmount must be > 0 to prevent division by zero');
-  }
+  assert(
+    halfAmount !== 0n,
+    'halfAmount must be > 0 to prevent division by zero',
+  );
 
   // Use precision scaling to preserve fractional bps (e.g., 1.5)
   // Multiply by BPS_PRECISION before bigint division, then divide back in Number space
