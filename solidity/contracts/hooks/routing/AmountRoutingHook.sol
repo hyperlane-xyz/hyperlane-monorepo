@@ -8,6 +8,10 @@ import {AmountPartition} from "../../token/libs/AmountPartition.sol";
 
 /**
  * @title AmountRoutingHook
+ * @notice Routes to different child hooks based on the transfer amount in the message.
+ * @dev Callers must use `quoteTransferRemote` with the actual transfer amount to get
+ * an accurate fee quote. `GasRouter.quoteGasPayment(destination)` does not include the
+ * amount and will not route to the correct child hook.
  */
 contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
     constructor(
