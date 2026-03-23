@@ -13,6 +13,8 @@ interface RouteConfig<T> {
   arbitrum: T;
   mode: T;
   solanamainnet: T;
+  bsc: T;
+  tron: T;
 }
 
 type RouteChains = keyof RouteConfig<any>;
@@ -70,6 +72,30 @@ export async function getUSDTSTAGEWarpConfig(
       ...routerConfig.mode,
       owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
       type: TokenType.synthetic,
+      interchainSecurityModule: ethers.constants.AddressZero,
+      name: 'Tether USD STAGE',
+      symbol: 'USDTSTAGE',
+      decimals: 6,
+    },
+    bsc: {
+      ...routerConfig.bsc,
+      owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
+      type: TokenType.collateral,
+      token: tokens.bsc.USDT,
+      interchainSecurityModule: ethers.constants.AddressZero,
+      name: 'Tether USD STAGE',
+      symbol: 'USDTSTAGE',
+      decimals: 18,
+      scale: {
+        numerator: 1,
+        denominator: 1000000000000, // 10^12: down-scale 18 decimals to 6-decimal message encoding
+      },
+    },
+    tron: {
+      ...routerConfig.tron,
+      owner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
+      type: TokenType.collateral,
+      token: tokens.tron.USDT,
       interchainSecurityModule: ethers.constants.AddressZero,
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',

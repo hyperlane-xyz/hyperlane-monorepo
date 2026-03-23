@@ -84,6 +84,9 @@ export const tokens = {
   solanamainnet: {
     USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   },
+  tron: {
+    USDT: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  },
 };
 
 export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;
