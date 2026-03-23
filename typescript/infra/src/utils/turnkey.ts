@@ -4,7 +4,7 @@ import {
   TurnkeyEvmSigner,
   TurnkeySealevelSigner,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { isEVMLike, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
 import { TurnkeyRole } from '../roles.js';
@@ -103,7 +103,7 @@ export async function setTurnkeySignerForEvmChains(
   const turnkeySigner = await getTurnkeyEvmSigner(deployEnvironment, role);
   await Promise.all(
     multiProvider.getKnownChainNames().reduce<Promise<void>[]>((acc, chain) => {
-      if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+      if (isEVMLike(multiProvider.getProtocol(chain))) {
         acc.push(
           (async () => {
             const provider = multiProvider.getProvider(chain);

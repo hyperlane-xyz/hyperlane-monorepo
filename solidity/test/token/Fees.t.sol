@@ -9,6 +9,7 @@ import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {ProgressiveFee} from "../../contracts/token/fees/ProgressiveFee.sol";
 import {RegressiveFee} from "../../contracts/token/fees/RegressiveFee.sol";
 import {RoutingFee} from "../../contracts/token/fees/RoutingFee.sol";
+import {CrossCollateralRoutingFee} from "../../contracts/token/CrossCollateralRoutingFee.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
 // --- Base Test ---
@@ -486,5 +487,19 @@ contract RoutingFeeTest is BaseFeeTest {
         uint32[] memory domains = routingFee.domains();
         assertEq(domains.length, 1);
         assertEq(domains[0], DEST1);
+    }
+}
+
+contract CrossCollateralRoutingFeeTest is Test {
+    address internal constant OWNER = address(0x123);
+
+    function test_CrossCollateralRoutingFee_Type() public {
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            OWNER
+        );
+        assertEq(
+            uint(routingFee.feeType()),
+            uint(FeeType.CROSS_COLLATERAL_ROUTING)
+        );
     }
 }

@@ -6,7 +6,7 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';

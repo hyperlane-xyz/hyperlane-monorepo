@@ -4,7 +4,7 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -16,8 +16,10 @@ import {
   isAggLayerTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isDepositAddressTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isTokenMetadata,
   isVaultBridgeTokenConfig,
@@ -29,9 +31,23 @@ export async function deriveTokenMetadata(
   configMap: WarpRouteDeployConfig,
 ): Promise<TokenMetadataMap> {
   const metadataMap = new TokenMetadataMap();
+  const prioritizedTypes = new Set<string>([
+    TokenType.collateral,
+    TokenType.collateralVault,
+    TokenType.collateralVaultRebase,
+    TokenType.collateralCctp,
+    TokenType.collateralDepositAddress,
+    TokenType.collateralEverclear,
+    TokenType.XERC20,
+    TokenType.XERC20Lockbox,
+    TokenType.native,
+  ]);
 
   const priorityGetter = (type: string) => {
-    return ['collateral', 'native'].indexOf(type);
+    if (prioritizedTypes.has(type)) {
+      return 1;
+    }
+    return -1;
   };
 
   const sortedEntries = Object.entries(configMap).sort(
@@ -43,7 +59,7 @@ export async function deriveTokenMetadata(
       metadataMap.set(chain, TokenMetadataSchema.parse(config));
     }
 
-    if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+    if (!isEVMLike(multiProvider.getProtocol(chain))) {
       continue;
     }
 
@@ -65,10 +81,12 @@ export async function deriveTokenMetadata(
 
     if (
       isCollateralTokenConfig(config) ||
+      isCrossCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
       isAggLayerTokenConfig(config) ||
       isVaultBridgeTokenConfig(config) ||
+      isDepositAddressTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)
     ) {
       const provider = multiProvider.getProvider(chain);

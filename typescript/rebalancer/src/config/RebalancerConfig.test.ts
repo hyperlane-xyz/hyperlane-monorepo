@@ -102,7 +102,7 @@ describe('RebalancerConfig', () => {
         },
       ],
       intentTTL: DEFAULT_INTENT_TTL_MS,
-      inventorySigner: undefined,
+      inventorySigners: undefined,
       externalBridges: undefined,
     });
   });
@@ -415,6 +415,72 @@ describe('RebalancerConfig', () => {
         '0x1234567890123456789012345678901234567890',
       );
     });
+
+    it('should require externalBridge when override executionType is inventory', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              chain1: {
+                weighted: { weight: 60, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+                override: {
+                  chain2: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              chain2: {
+                weighted: { weight: 40, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+              },
+            },
+          },
+        ],
+        inventorySigners: { ethereum: ethers.constants.AddressZero },
+        externalBridges: { lifi: { integrator: 'test' } },
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        /override.*inventory execution.*externalBridge/i,
+      );
+    });
+
+    it('should require inventorySigners when only override enables inventory execution', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              chain1: {
+                weighted: { weight: 60, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+                override: {
+                  chain2: {
+                    executionType: ExecutionType.Inventory,
+                    externalBridge: ExternalBridgeType.LiFi,
+                  },
+                },
+              },
+              chain2: {
+                weighted: { weight: 40, tolerance: 5 },
+                bridge: ethers.constants.AddressZero,
+              },
+            },
+          },
+        ],
+        externalBridges: { lifi: { integrator: 'test' } },
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        /inventorySigners.*required/i,
+      );
+    });
   });
 
   describe('composite strategy validation', () => {
@@ -533,7 +599,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
       externalBridges: {
         lifi: {
           integrator: 'test-app',
@@ -565,7 +633,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
       externalBridges: {
         lifi: {
           integrator: 'my-app',
@@ -597,7 +667,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
@@ -622,7 +694,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
@@ -646,7 +720,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
       externalBridges: {
         lifi: {
           integrator: 'test-app',

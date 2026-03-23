@@ -2,7 +2,7 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import {
   getHookType,
@@ -193,7 +193,13 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    return getMailboxConfig(this.gateway, req.mailboxAddress);
+    const config = await getMailboxConfig(this.gateway, req.mailboxAddress);
+    return {
+      ...config,
+      defaultIsm: config.defaultIsm ?? ZERO_ADDRESS_HEX_32,
+      defaultHook: config.defaultHook ?? ZERO_ADDRESS_HEX_32,
+      requiredHook: config.requiredHook ?? ZERO_ADDRESS_HEX_32,
+    };
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {

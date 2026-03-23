@@ -249,4 +249,76 @@ describe('MultiProvider', () => {
       waitForBlockTagStub.restore();
     });
   });
+
+  describe('tryGetSigner', () => {
+    it('should cache the connected signer for subsequent calls', () => {
+      const chainMetadata = {
+        [TestChainName.test1]: test1,
+        [TestChainName.test2]: test2,
+      };
+      const mp = new MultiProvider(chainMetadata);
+
+      let connectCallCount = 0;
+      const mockProvider = {} as any;
+      const mockConnectedSigner = { provider: mockProvider } as any;
+      const mockSigner = {
+        provider: undefined,
+        connect: sinon.stub().callsFake(() => {
+          connectCallCount += 1;
+          return mockConnectedSigner;
+        }),
+      } as any;
+
+      mp.signers[TestChainName.test1] = mockSigner;
+      mp.providers[TestChainName.test1] = mockProvider;
+
+      // First call should connect and cache
+      const result1 = mp.tryGetSigner(TestChainName.test1);
+      expect(result1).to.equal(mockConnectedSigner);
+      expect(connectCallCount).to.equal(1);
+
+      // Second call should return cached signer without calling connect again
+      const result2 = mp.tryGetSigner(TestChainName.test1);
+      expect(result2).to.equal(mockConnectedSigner);
+      expect(connectCallCount).to.equal(1);
+    });
+
+    it('should not cache signer in shared-signer mode so provider swaps take effect', () => {
+      const chainMetadata = {
+        [TestChainName.test1]: test1,
+        [TestChainName.test2]: test2,
+      };
+      const mp = new MultiProvider(chainMetadata);
+
+      const oldProvider = {} as any;
+      const newProvider = {} as any;
+
+      let connectArg: any;
+      const mockSigner = {
+        provider: undefined,
+        connect: sinon.stub().callsFake((p: any) => {
+          connectArg = p;
+          return { provider: p, getAddress: () => '0x1' } as any;
+        }),
+      } as any;
+
+      // Use shared signer mode
+      mp.useSharedSigner = true;
+      mp.signers[TestChainName.test1] = mockSigner;
+      mp.providers[TestChainName.test1] = oldProvider;
+
+      // First call connects to old provider
+      const result1 = mp.tryGetSigner(TestChainName.test1);
+      expect(connectArg).to.equal(oldProvider);
+      expect(result1!.provider).to.equal(oldProvider);
+
+      // Swap provider — in shared mode, setProvider skips reconnection
+      mp.providers[TestChainName.test1] = newProvider;
+
+      // Second call should reconnect to new provider (not return stale cached signer)
+      const result2 = mp.tryGetSigner(TestChainName.test1);
+      expect(connectArg).to.equal(newProvider);
+      expect(result2!.provider).to.equal(newProvider);
+    });
+  });
 });

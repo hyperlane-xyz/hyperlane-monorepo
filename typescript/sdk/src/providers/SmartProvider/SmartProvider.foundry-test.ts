@@ -132,9 +132,12 @@ describe('SmartProvider', function () {
 
   it('handles invalid and valid RPCs', async () => {
     const INVALID_URL = 'http://127.0.0.1:33331337';
+    // Valid RPC is listed first so that SendTransaction (which does not fall
+    // through to the next provider) succeeds. Read-only calls like estimateGas
+    // would still fall through, but deploy() needs the valid provider first.
     const smartProvider = new HyperlaneSmartProvider(
       NETWORK,
-      [{ http: INVALID_URL }, { http: URL }],
+      [{ http: URL }, { http: INVALID_URL }],
       [],
       {
         maxRetries: 3,

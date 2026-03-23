@@ -11,7 +11,13 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, toWei } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  ProtocolType,
+  objMap,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -19,10 +25,16 @@ import {
   ExecutionType,
   ExternalBridgeType,
   getAllBridges,
+  getInventoryChainNames,
+  getInventoryOriginChainNames,
+  getOverrideExecutionType,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
-import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
+import {
+  InventoryRebalancer,
+  type InventorySignerConfig,
+} from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { RebalancerOrchestrator } from '../core/RebalancerOrchestrator.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
@@ -62,7 +74,6 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param inventoryMultiProvider - MultiProvider instance for inventory operations (optional)
    * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
@@ -72,16 +83,17 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
-    private readonly inventoryMultiProvider: MultiProvider | undefined,
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
+    private readonly inventorySignerKeysByProtocol?: Partial<
+      Record<ProtocolType, string>
+    >,
   ) {}
 
   /**
    * @param config - The rebalancer config
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param inventoryMultiProvider - MultiProvider instance for inventory operations (optional)
    * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
@@ -89,10 +101,10 @@ export class RebalancerContextFactory {
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
-    inventoryMultiProvider: MultiProvider | undefined,
     multiProtocolProvider: MultiProtocolProvider | undefined,
     registry: IRegistry,
     logger: Logger,
+    inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
     warpCoreConfigOverride?: WarpCoreConfig,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
@@ -119,12 +131,18 @@ export class RebalancerContextFactory {
       );
     }
 
-    // Force-initialize providers for all warp route chains
-    // This ensures fromMultiProvider() snapshots actual provider instances
+    // Force-initialize providers for EVM warp route chains only.
+    // This ensures fromMultiProvider() snapshots actual provider instances.
+    // Non-EVM chains (StarkNet, Sealevel, etc.) don't use ethers providers
+    // and would crash if we tried to build one (e.g. non-numeric chainId).
     const warpChains = [
-      ...new Set(warpCoreConfig.tokens.map((t: any) => t.chainName)),
+      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
     for (const chain of warpChains) {
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        logger.debug({ chain }, 'Skipping provider init for non-EVM chain');
+        continue;
+      }
       multiProvider.getProvider(chain);
     }
 
@@ -153,10 +171,10 @@ export class RebalancerContextFactory {
       warpCore,
       tokensByChainName,
       multiProvider,
-      inventoryMultiProvider,
       extendedMultiProtocolProvider,
       registry,
       logger,
+      inventorySignerKeysByProtocol,
     );
   }
 
@@ -350,7 +368,13 @@ export class RebalancerContextFactory {
       routersByDomain,
       bridges,
       rebalancerAddress,
-      inventorySignerAddress: this.config.inventorySigner,
+      inventorySignerAddresses: this.config.inventorySigners
+        ? (Object.entries(this.config.inventorySigners)
+            .filter(([protocol]) => protocol === ProtocolType.Ethereum)
+            .map(([, signerConfig]) => signerConfig)
+            .map((s) => s.address)
+            .filter(Boolean) as Address[])
+        : undefined,
       intentTTL: this.config.intentTTL,
     };
 
@@ -396,33 +420,92 @@ export class RebalancerContextFactory {
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigner } = this.config;
+    const { inventorySigners } = this.config;
 
-    if (!inventorySigner) {
+    if (!inventorySigners || Object.keys(inventorySigners).length === 0) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
       return null;
     }
 
+    const redactedInventorySigners = Object.fromEntries(
+      Object.entries(inventorySigners).map(([protocol, signerConfig]) => [
+        protocol,
+        signerConfig ? { address: signerConfig.address } : signerConfig,
+      ]),
+    );
+
     this.logger.debug(
-      { warpRouteId: this.config.warpRouteId, inventorySigner },
+      {
+        warpRouteId: this.config.warpRouteId,
+        inventorySigners: redactedInventorySigners,
+      },
       'Creating inventory components',
     );
 
-    const inventoryChains = getStrategyChainNames(
+    const inventoryChains = getInventoryChainNames(this.config.strategyConfig);
+    const inventoryOriginChains = getInventoryOriginChainNames(
       this.config.strategyConfig,
-    ).filter((chainName) => {
-      const chainConfig = getStrategyChainConfig(
-        this.config.strategyConfig,
-        chainName,
-      );
-      return chainConfig?.executionType === ExecutionType.Inventory;
-    });
+    );
+    const allRelevantChains = Array.from(
+      new Set([...inventoryChains, ...inventoryOriginChains]),
+    );
 
-    if (inventoryChains.length === 0) {
+    if (allRelevantChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
+    }
+
+    const requiredProtocols = new Set(
+      allRelevantChains.map((chain) => {
+        const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
+        assert(
+          metadata?.protocol,
+          `No protocol in chain metadata for ${chain}`,
+        );
+        return metadata.protocol;
+      }),
+    );
+    const SUPPORTED_INVENTORY_PROTOCOLS = new Set([
+      ProtocolType.Ethereum,
+      ProtocolType.Sealevel,
+    ]);
+    for (const protocol of requiredProtocols) {
+      const chainsForProtocol = allRelevantChains.filter(
+        (chain) =>
+          this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
+          protocol,
+      );
+      assert(
+        SUPPORTED_INVENTORY_PROTOCOLS.has(protocol),
+        `Inventory rebalancing does not support protocol '${protocol}' (chains: ${chainsForProtocol.join(', ')}). Supported: ethereum, sealevel`,
+      );
+    }
+    for (const protocol of requiredProtocols) {
+      const chainsForProtocol = allRelevantChains.filter(
+        (chain) =>
+          this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
+          protocol,
+      );
+      assert(
+        this.config.inventorySigners?.[protocol]?.key ??
+          this.inventorySignerKeysByProtocol?.[protocol],
+        `Missing inventory signer key for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
+      );
+    }
+
+    // Validate inventory address coverage for all required protocols
+    for (const protocol of requiredProtocols) {
+      const chainsForProtocol = allRelevantChains.filter(
+        (chain) =>
+          this.warpCore.multiProvider.getChainMetadata(chain).protocol ===
+          protocol,
+      );
+      assert(
+        inventorySigners[protocol]?.address,
+        `Missing inventory address for protocol ${protocol} (required by inventory chains: ${chainsForProtocol.join(', ')})`,
+      );
     }
 
     const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
@@ -438,22 +521,71 @@ export class RebalancerContextFactory {
           'No external bridges configured, skipping inventory components',
         );
       }
-      return null;
+      const inventoryAddresses = Object.fromEntries(
+        Object.entries(inventorySigners).map(([protocol, cfg]) => [
+          protocol,
+          cfg.address,
+        ]),
+      ) as Partial<Record<ProtocolType, Address>>;
+      const inventoryConfig: InventoryMonitorConfig = {
+        inventoryAddresses,
+        chains: allRelevantChains,
+      };
+      // Merge config addresses with runtime keys
+      const mergedSigners: Partial<
+        Record<ProtocolType, InventorySignerConfig>
+      > = {};
+      for (const [protocol, cfg] of Object.entries(inventorySigners)) {
+        const protocolKey = protocol as ProtocolType;
+        mergedSigners[protocolKey] = {
+          address: cfg.address,
+          key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocolKey],
+        };
+      }
+      const inventoryRebalancer = new InventoryRebalancer(
+        {
+          inventorySigners: mergedSigners,
+          inventoryChains,
+        },
+        actionTracker,
+        externalBridgeRegistryOverride ?? {},
+        this.warpCore,
+        this.multiProvider,
+        this.logger,
+      );
+      return {
+        inventoryRebalancer,
+        externalBridgeRegistry: externalBridgeRegistryOverride ?? {},
+        inventoryConfig,
+      };
     }
 
     // 3. Build inventory config
+    const inventoryAddresses = Object.fromEntries(
+      Object.entries(inventorySigners).map(([protocol, cfg]) => [
+        protocol,
+        cfg.address,
+      ]),
+    ) as Partial<Record<ProtocolType, Address>>;
     const inventoryConfig: InventoryMonitorConfig = {
-      inventoryAddress: inventorySigner,
-      chains: inventoryChains,
+      inventoryAddresses,
+      chains: allRelevantChains,
     };
 
     // 4. Create InventoryRebalancer
-    // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
+    // Merge config addresses with runtime keys
+    const mergedSigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
+      {};
+    for (const [protocol, cfg] of Object.entries(inventorySigners)) {
+      const protocolKey = protocol as ProtocolType;
+      mergedSigners[protocolKey] = {
+        address: cfg.address,
+        key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocolKey],
+      };
+    }
     const inventoryRebalancer = new InventoryRebalancer(
       {
-        inventorySigner,
-        inventoryMultiProvider:
-          this.inventoryMultiProvider ?? this.multiProvider,
+        inventorySigners: mergedSigners,
         inventoryChains,
       },
       actionTracker,
@@ -463,15 +595,13 @@ export class RebalancerContextFactory {
       this.logger,
     );
 
-    if (externalBridgeRegistryOverride === undefined) {
-      this.logger.info(
-        {
-          inventoryChains,
-          inventorySigner,
-        },
-        'Inventory components created successfully',
-      );
-    }
+    this.logger.info(
+      {
+        inventoryChains,
+        inventorySigners: redactedInventorySigners,
+      },
+      'Inventory components created successfully',
+    );
 
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }
@@ -527,7 +657,7 @@ export class RebalancerContextFactory {
   }> {
     const rebalancers: IRebalancer[] = [];
     let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
-    let inventoryConfig: undefined | InventoryMonitorConfig;
+    let inventoryConfig: InventoryMonitorConfig | undefined;
 
     // Check if any chains use movableCollateral execution type
     const hasMovableCollateral = this.hasMovableCollateralChains();
@@ -588,10 +718,28 @@ export class RebalancerContextFactory {
           this.config.strategyConfig,
           chainName,
         );
-        return (
-          chainConfig?.executionType === ExecutionType.MovableCollateral ||
-          chainConfig?.executionType === undefined
-        ); // Default is movableCollateral
+        if (
+          (chainConfig?.executionType ?? ExecutionType.MovableCollateral) ===
+          ExecutionType.MovableCollateral
+        ) {
+          return true;
+        }
+
+        if (!chainConfig?.override) {
+          return false;
+        }
+
+        return Object.values(chainConfig.override).some((overrideConfig) => {
+          const overrideExecutionType =
+            getOverrideExecutionType(overrideConfig);
+
+          return (
+            (overrideExecutionType ??
+              chainConfig.executionType ??
+              ExecutionType.MovableCollateral) ===
+            ExecutionType.MovableCollateral
+          );
+        });
       },
     );
   }

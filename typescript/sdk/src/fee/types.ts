@@ -14,6 +14,7 @@ export enum OnchainTokenFeeType {
   RegressiveFee = 2,
   ProgressiveFee = 3,
   RoutingFee = 4,
+  CrossCollateralRoutingFee = 5,
 }
 
 export enum TokenFeeType {
@@ -38,6 +39,7 @@ export const onChainTypeToTokenFeeTypeMap: Record<
   [OnchainTokenFeeType.RegressiveFee]: TokenFeeType.RegressiveFee,
   [OnchainTokenFeeType.ProgressiveFee]: TokenFeeType.ProgressiveFee,
   [OnchainTokenFeeType.RoutingFee]: TokenFeeType.RoutingFee,
+  [OnchainTokenFeeType.CrossCollateralRoutingFee]: TokenFeeType.RoutingFee,
 };
 
 // ====== SHARED SCHEMAS ======

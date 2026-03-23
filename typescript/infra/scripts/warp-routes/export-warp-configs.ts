@@ -1,9 +1,8 @@
-import chalk from 'chalk';
 import { ESLint } from 'eslint';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { assert, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';

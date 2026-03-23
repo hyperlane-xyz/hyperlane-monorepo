@@ -143,4 +143,7 @@ export enum WarpRouteIds {
   AleoSOL = 'SOL/aleo',
   AleoUSAD = 'USAD/aleo',
   AleoALEO = 'ALEO/aleo',
+
+  // ctUSD
+  CitreaUSD = 'ctUSD/citrea',
 }

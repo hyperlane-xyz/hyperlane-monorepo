@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { Contract, constants } from 'ethers';
 
 import {
   BaseFee__factory,
@@ -35,6 +35,12 @@ export type TokenFeeReaderParams = {
   routingDestinations?: number[]; // Optional: when provided, derives feeContracts
 };
 
+const crossCollateralRoutingFeeReadAbi = [
+  'function DEFAULT_ROUTER() view returns (bytes32)',
+  'function feeContracts(uint32,bytes32) view returns (address)',
+  'function owner() view returns (address)',
+] as const;
+
 export class EvmTokenFeeReader extends HyperlaneReader {
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -63,6 +69,12 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         break;
       case OnchainTokenFeeType.RoutingFee:
         derivedConfig = await this.deriveRoutingFeeConfig({
+          address,
+          routingDestinations,
+        });
+        break;
+      case OnchainTokenFeeType.CrossCollateralRoutingFee:
+        derivedConfig = await this.deriveCrossCollateralRoutingFeeConfig({
           address,
           routingDestinations,
         });
@@ -147,6 +159,66 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       type: TokenFeeType.RoutingFee,
       maxFee: maxFeeBn,
       halfAmount: halfAmountBn,
+      address,
+      token,
+      owner,
+      feeContracts,
+    };
+  }
+
+  private async deriveCrossCollateralRoutingFeeConfig(
+    params: TokenFeeReaderParams,
+  ): Promise<DerivedTokenFeeConfig> {
+    const { address, routingDestinations } = params;
+    if (!routingDestinations?.length) {
+      throw new Error(
+        'CrossCollateralRoutingFee requires routingDestinations to derive fee config',
+      );
+    }
+
+    const routingFee = new Contract(
+      address,
+      crossCollateralRoutingFeeReadAbi,
+      this.provider,
+    );
+    const [owner, defaultRouter] = await Promise.all([
+      routingFee.owner(),
+      routingFee.DEFAULT_ROUTER(),
+    ]);
+
+    const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
+    await Promise.all(
+      routingDestinations.map(async (destination) => {
+        const subFeeAddress = await routingFee.feeContracts(
+          destination,
+          defaultRouter,
+        );
+        if (subFeeAddress === constants.AddressZero) return;
+        const chainName = this.multiProvider.getChainName(destination);
+        feeContracts[chainName] = await this.deriveTokenFeeConfig({
+          address: subFeeAddress,
+          routingDestinations,
+        });
+      }),
+    );
+
+    let token: Address | undefined;
+    for (const destination of routingDestinations) {
+      const chainName = this.multiProvider.getChainName(destination);
+      const feeConfig = feeContracts[chainName];
+      if (feeConfig) {
+        token = feeConfig.token;
+        break;
+      }
+    }
+    if (!token) {
+      throw new Error(
+        `CrossCollateralRoutingFee at ${address} does not have any readable destination fee contracts`,
+      );
+    }
+
+    return {
+      type: TokenFeeType.RoutingFee,
       address,
       token,
       owner,

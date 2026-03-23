@@ -17,7 +17,7 @@ export type RebalanceActionQueryParams = {
   bridges: string[]; // Bridge contract addresses
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
   rebalancerAddress: string; // Include rebalancer's txs
-  inventorySignerAddress?: string; // Optional: also include inventory signer's txs (for inventory_deposit actions)
+  inventorySignerAddresses?: string[]; // Optional: also include inventory signers' txs (for inventory_deposit actions)
   limit?: number;
 };
 
@@ -292,7 +292,7 @@ export class ExplorerClient implements IExplorerClient {
       bridges,
       routersByDomain,
       rebalancerAddress,
-      inventorySignerAddress,
+      inventorySignerAddresses,
       limit = 100,
     } = params;
 
@@ -302,8 +302,10 @@ export class ExplorerClient implements IExplorerClient {
 
     // Build list of tx senders to include (rebalancer + optional inventory signer)
     const txSenders = [this.toBytea(rebalancerAddress)];
-    if (inventorySignerAddress) {
-      txSenders.push(this.toBytea(inventorySignerAddress));
+    if (inventorySignerAddresses) {
+      for (const addr of inventorySignerAddresses) {
+        txSenders.push(this.toBytea(addr));
+      }
     }
 
     const variables = {

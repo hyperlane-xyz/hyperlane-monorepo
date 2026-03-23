@@ -9,7 +9,7 @@ import {
   EvmCoreModule,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
@@ -42,8 +42,9 @@ export async function resolveChains(
       return resolveWarpRouteConfigChains(argv);
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.STATUS:
+      return resolveStatusChains(argv);
+    case CommandType.WARP_SEND:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
@@ -172,7 +173,7 @@ async function resolveSendMessageChains(
 
   if (selectedChains.length > 0) {
     const nonEvmChains = selectedChains.filter(
-      (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+      (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
     );
     if (nonEvmChains.length > 0) {
       const chainDetails = nonEvmChains
@@ -187,6 +188,19 @@ async function resolveSendMessageChains(
   // Return only explicitly provided chains - signers for interactively
   // selected chains will be created after selection
   return selectedChains;
+}
+
+/**
+ * Resolves chains for the 'status' command.
+ * Returns only explicitly provided chains (origin/destination).
+ * Destination chains discovered from the dispatch tx are resolved lazily.
+ */
+async function resolveStatusChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  // Only origin is declared by the status command builder (messageOptions).
+  // Destination chains are discovered lazily from the dispatch tx.
+  return argv.origin ? [argv.origin] : [];
 }
 
 async function resolveRelayerChains(
@@ -211,9 +225,8 @@ async function resolveRelayerChains(
   if (!argv.destination) {
     const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
-    return chains.filter(
-      (chain: string) =>
-        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+    return chains.filter((chain: string) =>
+      isEVMLike(multiProvider.getProtocol(chain)),
     );
   }
 
@@ -239,6 +252,7 @@ async function resolveCoreApplyChains(
     const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
     switch (protocolType) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
           chain: argv.chain,

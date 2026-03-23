@@ -3,11 +3,13 @@ import { Keypair } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';
 import { Logger } from 'pino';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
+import { TronJsonRpcProvider, TronWallet } from '@hyperlane-xyz/tron-sdk';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
+  isEVMLike,
   rootLogger,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -112,7 +114,11 @@ export class AgentGCPKey extends CloudAgentKey {
     // - is Sealvel then we use the protocol name instead of the chain name as all sealevel chains use the same key
     // - is none of the above, fallback to using the chain name in all other cases as other roles might require it
     let protocolOrChain: string | undefined;
-    if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
+    if (
+      this.role === Role.Deployer &&
+      protocolType &&
+      isEVMLike(protocolType)
+    ) {
       protocolOrChain = undefined;
     } else if (
       this.role === Role.Deployer &&
@@ -152,6 +158,7 @@ export class AgentGCPKey extends CloudAgentKey {
     this.logger.debug(`Getting address for protocol: ${protocol}`);
 
     switch (protocol) {
+      case ProtocolType.Tron:
       case ProtocolType.Ethereum:
         return this.address;
       case ProtocolType.Sealevel:
@@ -283,7 +290,7 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async getSigner(
-    provider: ethers.providers.Provider | ZkProvider,
+    provider: ethers.providers.Provider | ZkProvider | TronJsonRpcProvider,
   ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
@@ -293,6 +300,10 @@ export class AgentGCPKey extends CloudAgentKey {
 
     if (provider instanceof ZkProvider) {
       return new ZkWallet(this.privateKey, provider);
+    }
+
+    if (provider instanceof TronJsonRpcProvider) {
+      return new TronWallet(this.privateKey, provider.host);
     }
     return new Wallet(this.privateKey, provider);
   }

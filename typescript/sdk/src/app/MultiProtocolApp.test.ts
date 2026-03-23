@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -15,7 +15,7 @@ import {
 
 class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
   override protocolToAdapter(protocol: ProtocolType) {
-    if (protocol === ProtocolType.Ethereum) return BaseEvmAdapter;
+    if (isEVMLike(protocol)) return BaseEvmAdapter;
     if (protocol === ProtocolType.Sealevel) return BaseSealevelAdapter;
     if (protocol === ProtocolType.Cosmos) return BaseCosmWasmAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);

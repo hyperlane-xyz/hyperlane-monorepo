@@ -53,6 +53,8 @@ export const MUTABLE_HOOK_TYPE: HookType[] = [
 
 export interface IgpHookModuleConfig {
   type: 'interchainGasPaymaster';
+  // FIXME: oracleKey and owner should be nullable but the change requires too many files to be touched
+  // address is an separate PR
   owner: string;
   beneficiary: string;
   oracleKey: string;
@@ -89,6 +91,8 @@ export interface DeployedHookAddress {
  */
 export interface IgpHookConfig {
   type: 'interchainGasPaymaster';
+  // FIXME: oracleKey and owner should be nullable but the change requires too many files to be touched
+  // address is an separate PR
   owner: string;
   beneficiary: string;
   oracleKey: string;
