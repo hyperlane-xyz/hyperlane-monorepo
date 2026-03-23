@@ -104,15 +104,16 @@ contract QuotedCalls is PackageVersioned {
     // balance; for native value it resolves to address(this).balance.
     //
     // SAFETY INVARIANT: users may hold standing ERC-20 approvals to
-    // this contract (used by TRANSFER_FROM's transferFrom-first path).
+    // this contract (used by TRANSFER_FROM / PERMIT2_TRANSFER_FROM).
     // These cannot be drained because:
     // (1) Only whitelisted Hyperlane operations are callable — no
     //     arbitrary external call that could invoke
     //     token.transferFrom(victim, attacker, amount).
-    // (2) No reentrancy guard needed: whitelisted ops (e.g.
-    //     transferRemote) pull tokens from msg.sender, not from this
-    //     contract's balance. A reentering caller with a malicious
-    //     target cannot access another user's tokens.
+    // (2) Tokens only enter this contract via TRANSFER_FROM or
+    //     PERMIT2_TRANSFER_FROM, both of which pull exclusively from
+    //     msg.sender. Whitelisted ops (e.g. transferRemote) then
+    //     spend from this contract's balance, but a reentering caller
+    //     cannot pull tokens from another user's approval.
 
     /// @notice Submit an offchain-signed quote to a quoter contract.
     /// @dev quote.salt must equal keccak256(msg.sender, clientSalt) — the
