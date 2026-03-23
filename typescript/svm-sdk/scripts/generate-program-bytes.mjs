@@ -19,6 +19,7 @@ const PROGRAMS = {
   igp: 'hyperlane_sealevel_igp.so',
   multisigIsm: 'hyperlane_sealevel_multisig_ism_message_id.so',
   testIsm: 'hyperlane_sealevel_test_ism.so',
+  trustedRelayerIsm: 'hyperlane_sealevel_trusted_relayer_ism.so',
   validatorAnnounce: 'hyperlane_sealevel_validator_announce.so',
   tokenSynthetic: 'hyperlane_sealevel_token.so',
   tokenNative: 'hyperlane_sealevel_token_native.so',
