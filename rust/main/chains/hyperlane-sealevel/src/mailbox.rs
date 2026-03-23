@@ -47,6 +47,11 @@ use crate::{
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
+const BPF_LOADER_UPGRADEABLE: Pubkey = pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
+/// Offset of the upgrade authority Option byte in the programdata account header.
+const PROGRAMDATA_UPGRADE_AUTHORITY_OFFSET: usize = 12;
+/// Size of the programdata account metadata header.
+const PROGRAMDATA_METADATA_SIZE: usize = 45;
 
 /// SHA256 of the trusted relayer ISM ELF bytecode (.so file).
 /// Update after rebuilding: `cd rust/sealevel/programs/ism/trusted-relayer && cargo build-sbf`
@@ -327,12 +332,8 @@ impl SealevelMailbox {
         message: Vec<u8>,
     ) -> ChainResult<Option<Vec<AccountMeta>>> {
         // Fetch the ISM program's executable data and hash it.
-        // The programdata address is a PDA derived from [program_id] under the BPF loader.
-        let bpf_loader_upgradeable =
-            Pubkey::from_str("BPFLoaderUpgradeab1e11111111111111111111111")
-                .map_err(ChainCommunicationError::from_other)?;
         let (programdata_address, _) =
-            Pubkey::find_program_address(&[ism.as_ref()], &bpf_loader_upgradeable);
+            Pubkey::find_program_address(&[ism.as_ref()], &BPF_LOADER_UPGRADEABLE);
         let programdata_account = self
             .provider
             .rpc_client()
@@ -352,20 +353,36 @@ impl SealevelMailbox {
             return Ok(None);
         };
 
-        // The programdata account has a 45-byte header (4-byte enum tag + 8-byte slot +
-        // 1-byte Option + 32-byte upgrade authority), followed by the ELF bytecode.
-        const PROGRAMDATA_METADATA_SIZE: usize = 45;
         if programdata_account.data.len() <= PROGRAMDATA_METADATA_SIZE {
             return Ok(None);
         }
+
+        // Reject programs that still have an upgrade authority (TOCTOU risk).
+        // Byte 12 of the programdata header is the Option discriminant for the
+        // upgrade authority: 0 = None (immutable), 1 = Some(pubkey).
+        if programdata_account.data[PROGRAMDATA_UPGRADE_AUTHORITY_OFFSET] != 0 {
+            tracing::warn!(
+                ?ism,
+                "ISM program has upgrade authority set, refusing trusted relayer path"
+            );
+            return Ok(None);
+        }
+
+        // Hash only the ELF bytes, stripping trailing zero-padding that the deployer
+        // may have allocated (e.g. maxDataLen = 2x program size).
         let elf_bytes = &programdata_account.data[PROGRAMDATA_METADATA_SIZE..];
-        let hash = H256::from_slice(&Sha256::digest(elf_bytes));
+        let trimmed = elf_bytes
+            .iter()
+            .rposition(|&b| b != 0)
+            .map(|i| &elf_bytes[..=i])
+            .unwrap_or(elf_bytes);
+        let hash = H256::from_slice(&Sha256::digest(trimmed));
 
         if hash != TRUSTED_RELAYER_ISM_ELF_HASH {
             tracing::debug!(
                 ?ism,
                 ?hash,
-                "ISM program hash does not match any trusted relayer ISM hashes"
+                "ISM program hash does not match trusted relayer ISM hash"
             );
             return Ok(None);
         }
@@ -392,14 +409,16 @@ impl SealevelMailbox {
                     Pubkey::find_program_address(
                         hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
                         &ism,
-                    ).0,
+                    )
+                    .0,
                     false,
                 )],
             ))
             .await?;
 
-        // Verify the payer is in the account metas as a signer — confirms the
-        // ISM PDA stores our key as the trusted relayer.
+        // Verify the payer is in the account metas as a readonly signer — confirms
+        // the ISM PDA stores our key as the trusted relayer. Force payer to
+        // non-writable to prevent SOL transfers via CPI.
         let payer = self.get_payer()?.pubkey();
         let has_payer_signer = account_metas
             .iter()
@@ -412,6 +431,16 @@ impl SealevelMailbox {
             );
             return Ok(None);
         }
+
+        let account_metas: Vec<AccountMeta> = account_metas
+            .into_iter()
+            .map(|mut meta| {
+                if meta.pubkey == payer {
+                    meta.is_writable = false;
+                }
+                meta
+            })
+            .collect();
 
         Ok(Some(account_metas))
     }

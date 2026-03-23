@@ -1,3 +1,7 @@
+#![allow(unexpected_cfgs)]
+#![deny(warnings)]
+#![deny(unsafe_code)]
+
 pub mod processor;
 
 use account_utils::{AccountData, DiscriminatorData, SizedData, PROGRAM_INSTRUCTION_DISCRIMINATOR};
@@ -60,9 +64,10 @@ impl DiscriminatorData for Instruction {
 
 // ---- Errors ----
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(u32)]
 pub enum Error {
-    AccountOutOfOrder,
+    AccountOutOfOrder = 1,
     AlreadyInitialized,
     AccountNotInitialized,
     ProgramIdNotOwner,
