@@ -27,6 +27,7 @@ import {
   PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
+  TokenBridgeDepositAddress__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
@@ -1008,6 +1009,57 @@ describe('EvmWarpRouteReader', async () => {
     fetchScaleStub.restore();
   });
 
+  it('derives deposit-address bridge config', async () => {
+    const bridgeAddress = '0x1000000000000000000000000000000000000002';
+    const tokenAddress = '0x2000000000000000000000000000000000000002';
+    const recipient = addressToBytes32(
+      '0x3000000000000000000000000000000000000003',
+    );
+    const depositAddress = '0x4000000000000000000000000000000000000004';
+
+    const bridgeStub = sinon
+      .stub(TokenBridgeDepositAddress__factory, 'connect')
+      .returns({
+        token: sinon.stub().resolves(tokenAddress),
+        getDomainConfigs: sinon
+          .stub()
+          .resolves([[101], [depositAddress], [recipient], ['1234']]),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
+      .resolves({
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
+        isNft: false,
+      });
+
+    const deriveDepositAddressConfig = (evmERC20WarpRouteReader as any)
+      .deriveHypCollateralDepositAddressTokenConfig as (
+      address: string,
+    ) => Promise<any>;
+    try {
+      const derivedConfig = await deriveDepositAddressConfig.call(
+        evmERC20WarpRouteReader,
+        bridgeAddress,
+      );
+
+      expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
+      expect(derivedConfig.token).to.equal(tokenAddress);
+      expect(derivedConfig.destinationConfigs).to.deep.equal({
+        '101': {
+          [recipient.toLowerCase()]: {
+            depositAddress,
+            feeBps: '1234',
+          },
+        },
+      });
+    } finally {
+      bridgeStub.restore();
+      metadataStub.restore();
+    }
+  });
+
   it('derives multicollateral config with scale from the router', async () => {
     const routerAddress = '0x1000000000000000000000000000000000000001';
     const wrappedTokenAddress = '0x2000000000000000000000000000000000000002';
@@ -1100,7 +1152,6 @@ describe('EvmWarpRouteReader', async () => {
         [mcOnlyDomain],
       );
 
-      // Both the default domain and the MC-only domain should be present
       expect(gas[defaultDomain]).to.equal('100000');
       expect(gas[mcOnlyDomain]).to.equal('200000');
     } finally {
