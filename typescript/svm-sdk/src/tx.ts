@@ -10,6 +10,7 @@ import {
   createTransactionMessage,
   getBase58Decoder,
   getCompiledTransactionMessageEncoder,
+  getShortU16Encoder,
   setTransactionMessageFeePayer,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -100,29 +101,15 @@ export function transactionToInstructions(
 }
 
 // ---------------------------------------------------------------------------
-// Unsigned transaction serialization (Rust CLI–compatible)
+// Unsigned transaction serialization (Squads-compatible v0 format)
 // ---------------------------------------------------------------------------
 
 const base58Decoder = getBase58Decoder();
 const messageEncoder = getCompiledTransactionMessageEncoder();
+const shortU16Encoder = getShortU16Encoder();
 
 /** Default blockhash (32 zero bytes) that needs to be replaced at submission time */
 const DEFAULT_BLOCKHASH = blockhash('11111111111111111111111111111111');
-
-/**
- * Encodes a number as Solana's compact-u16 wire format.
- * Used for the signature count prefix in serialized transactions.
- */
-function encodeCompactU16(value: number): Uint8Array {
-  if (value < 0x80) return new Uint8Array([value]);
-  if (value < 0x4000)
-    return new Uint8Array([(value & 0x7f) | 0x80, value >> 7]);
-  return new Uint8Array([
-    (value & 0x7f) | 0x80,
-    ((value >> 7) & 0x7f) | 0x80,
-    value >> 14,
-  ]);
-}
 
 /**
  * Builds the wire bytes of an unsigned versioned (v0) transaction.
@@ -133,7 +120,7 @@ function buildUnsignedTransactionBytes(
   numSigners: number,
   messageBytes: ReadonlyUint8Array,
 ): Uint8Array {
-  const sigCountBytes = encodeCompactU16(numSigners);
+  const sigCountBytes = shortU16Encoder.encode(numSigners);
   const sigsLen = numSigners * 64;
   const result = new Uint8Array(
     sigCountBytes.length + sigsLen + messageBytes.length,
@@ -146,7 +133,7 @@ function buildUnsignedTransactionBytes(
 
 /**
  * Serializes an SvmTransaction into base58-encoded formats compatible
- * with the Rust Sealevel CLI output.
+ * with the Squads multisig UI.
  *
  * Produces two representations:
  * - `transaction_base58`: full unsigned v0 transaction (signatures + message)

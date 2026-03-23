@@ -140,8 +140,8 @@ export class SvmSigner
         data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
       })),
       computeUnits: transaction.computeUnits,
-      transactionBase58,
-      messageBase58,
+      transaction_base58: transactionBase58,
+      message_base58: messageBase58,
     };
   }
 
