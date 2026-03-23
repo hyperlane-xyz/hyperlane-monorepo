@@ -101,7 +101,7 @@ Each concrete contract decodes context to extract mapping keys for standing quot
 **Salt and submitter**:
 
 - `salt` binds quotes to a specific caller. `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)` — the signer commits to the scoped salt in the EIP-712 signature, binding the quote to a specific caller while allowing callers to choose their own salt namespace.
-- `submitter` restricts who can call `submitQuote`. If `address(0)`, anyone can submit. If set to `QuotedCalls` address, only that contract can submit.
+- `submitter` restricts who can call `submitQuote`. If `address(0)`, anyone can submit. If set to a specific contract address (e.g. `QuotedCalls`), only that contract can submit.
 - ICA command salts are also scoped via `keccak256(msg.sender, userSalt)` before being passed to the ICA router.
 
 **EIP-712 domain separator** uses `(name="OffchainQuoter", version="1", chainId, verifyingContract)` — prevents cross-contract and cross-chain replay.
