@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
+import { TEST_STARKNET_CHAIN_METADATA } from '../testing/index.js';
 import { createSigner } from '../testing/utils.js';
 
 describe('5b. starknet sdk warp transfer e2e tests', function () {
@@ -27,10 +28,10 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     return mailbox.mailboxAddress;
   }
 
-  it('quotes and executes remote transfer', async () => {
-    const mailboxAddress = await createMailbox();
-    const { tokenAddress } = await signer.createNativeToken({ mailboxAddress });
-
+  async function assertRemoteTransfer(
+    tokenAddress: string,
+    mailboxAddress: string,
+  ) {
     await signer.enrollRemoteRouter({
       tokenAddress,
       remoteRouter: {
@@ -86,5 +87,27 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     expect(afterMailbox.nonce).to.equal(beforeMailbox.nonce + 1);
     expect(afterSenderBalance < beforeSenderBalance).to.equal(true);
     expect(afterEscrowBalance > beforeEscrowBalance).to.equal(true);
+  }
+
+  it('quotes and executes native remote transfer', async () => {
+    const mailboxAddress = await createMailbox();
+    const { tokenAddress } = await signer.createNativeToken({ mailboxAddress });
+
+    await assertRemoteTransfer(tokenAddress, mailboxAddress);
+  });
+
+  it('quotes and executes collateral remote transfer', async () => {
+    const mailboxAddress = await createMailbox();
+    const collateralDenom = TEST_STARKNET_CHAIN_METADATA.nativeToken?.denom;
+    if (!collateralDenom) {
+      throw new Error('Expected Starknet test collateral denom');
+    }
+
+    const { tokenAddress } = await signer.createCollateralToken({
+      mailboxAddress,
+      collateralDenom,
+    });
+
+    await assertRemoteTransfer(tokenAddress, mailboxAddress);
   });
 });
