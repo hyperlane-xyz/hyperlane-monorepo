@@ -75,7 +75,11 @@ export type {
 export { resolveProgram } from './deploy/resolve-program.js';
 
 // Transaction utilities
-export { getComputeBudgetInstructions, buildTransactionMessage } from './tx.js';
+export {
+  getComputeBudgetInstructions,
+  buildTransactionMessage,
+  serializeUnsignedTransaction,
+} from './tx.js';
 
 // PDA derivation
 export {
