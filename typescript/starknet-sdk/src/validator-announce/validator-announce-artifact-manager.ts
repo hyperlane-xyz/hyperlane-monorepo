@@ -119,15 +119,27 @@ class StarknetValidatorAnnounceReader implements ArtifactReader<
     >
   > {
     const normalizedAddress = normalizeStarknetAddressSafe(address);
-    const mailboxAddress =
-      (await readMailboxAddressFromStorage(this.provider, normalizedAddress)) ??
-      '';
+    const mailboxAddress = await readMailboxAddressFromStorage(
+      this.provider,
+      normalizedAddress,
+    );
+    const config: RawValidatorAnnounceArtifactConfigs['validatorAnnounce'] = {
+      mailboxAddress: mailboxAddress ?? '',
+    };
+    if (!mailboxAddress) {
+      logger.warn(
+        { validatorAnnounceAddress: normalizedAddress },
+        'Read Starknet validator announce without mailboxAddress; storage lookup was unavailable or ambiguous',
+      );
+      Object.defineProperty(config, '__mailboxAddressUnknown', {
+        enumerable: true,
+        value: true,
+      });
+    }
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: {
-        mailboxAddress,
-      },
+      config,
       deployed: {
         address: normalizedAddress,
       },

@@ -240,7 +240,7 @@ describe('StarknetSigner remoteTransfer', () => {
 });
 
 describe('StarknetSigner createMailbox', () => {
-  it('preserves omitted requiredHookAddress when default hook is auto-created', async () => {
+  it('keeps requiredHookAddress opt-in when default hook is auto-created', async () => {
     const signer = new StarknetSignerTestHarness();
 
     await signer.createMailbox({

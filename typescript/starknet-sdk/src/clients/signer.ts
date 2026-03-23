@@ -329,12 +329,16 @@ export class StarknetSigner
           mailboxAddress: this.signerAddress,
         })
       ).hookAddress;
+    // Keep required hooks opt-in. Auto-deploying a noop required hook would
+    // change mailbox semantics for callers that intentionally leave it unset.
+    const requiredHookAddress = req.requiredHookAddress;
 
     const tx = await this.getCreateMailboxTransaction({
       signer: this.signerAddress,
       ...req,
       defaultIsmAddress,
       defaultHookAddress,
+      requiredHookAddress,
     });
     const receipt = await this.sendAndConfirmTransaction(tx);
     assert(receipt.contractAddress, 'failed to get Starknet mailbox address');

@@ -70,4 +70,26 @@ describe('StarknetValidatorAnnounceArtifactManager', () => {
     expect(signer.capturedTxs).to.have.length(1);
     expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
   });
+
+  it('marks mailboxAddress as unknown when storage probing is unavailable', async () => {
+    const manager = new StarknetValidatorAnnounceArtifactManager(chainMetadata);
+    const provider = Reflect.get(manager, 'provider') as {
+      getRawProvider: () => { getStorageAt: () => Promise<string> };
+    };
+    provider.getRawProvider = () =>
+      ({
+        getStorageAt: async () => {
+          const error = new Error('method not found');
+          Reflect.set(error, 'code', -32601);
+          throw error;
+        },
+      }) as { getStorageAt: () => Promise<string> };
+
+    const artifact = await manager.readValidatorAnnounce('0xabc');
+
+    expect(artifact.config.mailboxAddress).to.equal('');
+    expect(
+      Reflect.get(artifact.config as object, '__mailboxAddressUnknown'),
+    ).to.equal(true);
+  });
 });
