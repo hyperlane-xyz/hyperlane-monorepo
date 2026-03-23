@@ -48,8 +48,6 @@ use crate::{
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 const BPF_LOADER_UPGRADEABLE: Pubkey = pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
-/// Offset of the upgrade authority Option byte in the programdata account header.
-const PROGRAMDATA_UPGRADE_AUTHORITY_OFFSET: usize = 12;
 /// Size of the programdata account metadata header.
 const PROGRAMDATA_METADATA_SIZE: usize = 45;
 
@@ -57,8 +55,8 @@ const PROGRAMDATA_METADATA_SIZE: usize = 45;
 /// Update after rebuilding: `cd rust/sealevel/programs/ism/trusted-relayer && cargo build-sbf`
 /// then `shasum -a 256 rust/sealevel/target/deploy/hyperlane_sealevel_trusted_relayer_ism.so`
 const TRUSTED_RELAYER_ISM_ELF_HASH: H256 = H256([
-    0x8e, 0xc6, 0x68, 0x9f, 0x5a, 0xd5, 0x78, 0x75, 0x83, 0x2d, 0x9b, 0x35, 0x23, 0xb2, 0x7b, 0xe8,
-    0xc0, 0x5a, 0x0a, 0xfa, 0x66, 0x9e, 0x82, 0xd3, 0xc4, 0x6c, 0x41, 0x2e, 0x7f, 0x6b, 0x7d, 0xed,
+    0x7a, 0x59, 0x71, 0x3f, 0x5b, 0x5e, 0xfb, 0x1b, 0xa4, 0xee, 0xd1, 0x15, 0x54, 0xf9, 0x76, 0x1a,
+    0x4f, 0xe9, 0x2e, 0x48, 0xf1, 0x54, 0xa9, 0xab, 0x90, 0xad, 0xc3, 0x73, 0x7a, 0x58, 0x48, 0x77,
 ]);
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
@@ -354,17 +352,6 @@ impl SealevelMailbox {
         };
 
         if programdata_account.data.len() <= PROGRAMDATA_METADATA_SIZE {
-            return Ok(None);
-        }
-
-        // Reject programs that still have an upgrade authority (TOCTOU risk).
-        // Byte 12 of the programdata header is the Option discriminant for the
-        // upgrade authority: 0 = None (immutable), 1 = Some(pubkey).
-        if programdata_account.data[PROGRAMDATA_UPGRADE_AUTHORITY_OFFSET] != 0 {
-            tracing::warn!(
-                ?ism,
-                "ISM program has upgrade authority set, refusing trusted relayer path"
-            );
             return Ok(None);
         }
 
