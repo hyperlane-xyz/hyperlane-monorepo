@@ -3,9 +3,8 @@ import { before, describe, it } from 'mocha';
 
 import { AccountRole, address as parseAddress } from '@solana/kit';
 
-import { LAMPORTS_PER_SIGNATURE } from '../constants.js';
+import { DEFAULT_COMPUTE_UNITS, LAMPORTS_PER_SIGNATURE } from '../constants.js';
 import { SvmProvider } from '../clients/provider.js';
-import { DEFAULT_COMPUTE_UNITS } from '../tx.js';
 import type { SvmTransaction } from '../types.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 

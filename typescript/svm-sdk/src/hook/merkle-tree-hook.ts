@@ -1,8 +1,4 @@
-import {
-  address as parseAddress,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -18,19 +14,27 @@ import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
   SvmDeployedHook,
-  SvmProgramTarget,
   SvmReceipt,
+  SvmRpc,
 } from '../types.js';
 
-export interface SvmMerkleTreeHookConfig extends MerkleTreeHookConfig {
-  program: SvmProgramTarget;
-}
+/**
+ * Deployment-time configuration for the SVM merkle tree hook writer.
+ * Passed to the writer constructor; separate from the on-chain artifact config.
+ *
+ * On SVM the merkle tree hook IS the mailbox program, so the writer only
+ * needs the mailbox address to reference it — no separate deployment needed.
+ */
+export type SvmMerkleTreeHookWriterConfig = Readonly<{
+  /** The already-deployed mailbox program address. */
+  mailboxAddress: string;
+}>;
 
 export class SvmMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
   SvmDeployedHook
 > {
-  constructor(protected readonly _rpc: Rpc<SolanaRpcApi>) {}
+  constructor(protected readonly _rpc: SvmRpc) {}
 
   async read(
     address: string,
@@ -50,26 +54,19 @@ export class SvmMerkleTreeHookWriter
   implements ArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
 {
   constructor(
-    rpc: Rpc<SolanaRpcApi>,
+    private readonly config: SvmMerkleTreeHookWriterConfig,
+    rpc: SvmRpc,
     protected readonly _signer: SvmSigner,
   ) {
     super(rpc);
   }
 
   async create(
-    artifact: ArtifactNew<MerkleTreeHookConfig>,
+    _artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
     [ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>, SvmReceipt[]]
   > {
-    // CAST: ArtifactWriter interface uses base MerkleTreeHookConfig, but SVM
-    // needs the extra `program` field from SvmMerkleTreeHookConfig.
-    const config = artifact.config as SvmMerkleTreeHookConfig;
-    if (!('programId' in config.program)) {
-      throw new Error(
-        'Merkle tree hook requires an existing mailbox programId',
-      );
-    }
-    const programId = config.program.programId;
+    const programId = parseAddress(this.config.mailboxAddress);
 
     return [
       {

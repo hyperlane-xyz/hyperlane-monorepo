@@ -18,10 +18,11 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
-import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
+import { buildTransactionMessage } from '../tx.js';
 import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
 
 import { SvmProvider } from './provider.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
 type SignatureStatusResponse = Awaited<
   ReturnType<GetSignatureStatusesApi['getSignatureStatuses']>
