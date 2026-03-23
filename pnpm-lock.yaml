@@ -2602,12 +2602,15 @@ importers:
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       '@typescript-eslint/eslint-plugin':
         specifier: 'catalog:'
-        version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
+        version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2))(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)
       '@typescript-eslint/parser':
         specifier: 'catalog:'
-        version: 8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
+        version: 8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)
       chai:
         specifier: 'catalog:'
         version: 4.5.0
@@ -2622,7 +2625,7 @@ importers:
         version: 4.4.4(eslint-plugin-import@2.32.0)(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-import:
         specifier: 'catalog:'
-        version: 2.32.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.2(jiti@2.6.1))
+        version: 2.32.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.2(jiti@2.6.1))
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
@@ -2637,10 +2640,10 @@ importers:
         version: 4.19.1
       typescript:
         specifier: 'catalog:'
-        version: 5.8.3
+        version: 6.0.2
       typescript-eslint:
         specifier: 'catalog:'
-        version: 8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
+        version: 8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)
 
   typescript/svm-sdk:
     dependencies:
