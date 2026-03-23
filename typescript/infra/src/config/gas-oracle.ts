@@ -293,20 +293,23 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,
     taiko: 0.5,
-    // For Solana, special min cost
-    solanamainnet: 0.8,
 
     // Tron uses an energy model, not gas. Delivery costs 80-110K energy
     // ≈ 9-12 TRX ≈ $2.60-$3.50. Standard EVM gas math underestimates Tron costs.
     tron: 4.0,
+
+    // skunkchain special
+    solanamainnet: 0.35,
+    ethereum: 0.07,
+    arbitrum: 0.09,
+    optimism: 0.05,
+    base: 0.05,
+    polygon: 0.05,
+    unichain: 0.05,
+    eclipsemainnet: 0.22,
   };
 
-  const override = remoteMinCostOverrides[remote];
-  if (override !== undefined) {
-    minUsdCost = Math.max(minUsdCost, override);
-  }
-
-  return minUsdCost;
+  return remoteMinCostOverrides[remote] ?? minUsdCost;
 }
 
 function getUsdQuote(
