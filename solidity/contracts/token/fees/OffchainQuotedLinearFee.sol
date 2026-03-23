@@ -256,9 +256,15 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
 
     // Decode context and data, write to persistent storage. Rejects stale quotes.
     function _storeStanding(SignedQuote calldata sq) internal override {
-        // match on transferRemote context
-        // amount omitted because quotes are linear fee params that scale fees with amount
-        (uint32 dest, bytes32 recipient, ) = FeeQuoteContext.decode(sq.context);
+        // amount is signed in the EIP-712 digest but not used as a standing storage key —
+        // linear fee params scale with any transfer amount. Require wildcard to make this
+        // explicit and prevent signers from accidentally committing to a specific amount.
+        (uint32 dest, bytes32 recipient, uint256 amount) = FeeQuoteContext
+            .decode(sq.context);
+        require(
+            amount == WILDCARD_AMOUNT,
+            "standing quote amount must be wildcard"
+        );
         StoredQuote storage existing = quotes[dest][recipient];
 
         // ensure signed quote is issued more recently than standing quote

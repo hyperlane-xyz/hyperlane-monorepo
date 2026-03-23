@@ -285,8 +285,16 @@ contract QuotedCallsTest is Test {
         address caller
     ) internal view returns (bytes memory) {
         uint48 now_ = uint48(block.timestamp);
+        // Standing quotes must use wildcard amount (linear fee scales with any amount)
+        bytes memory context = transient_
+            ? _feeQuoteContext()
+            : FeeQuoteContext.encode(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                type(uint256).max
+            );
         SignedQuote memory sq = SignedQuote({
-            context: _feeQuoteContext(),
+            context: context,
             data: FeeQuoteData.encode(MAX_FEE, HALF_AMOUNT),
             issuedAt: now_,
             expiry: transient_ ? now_ : now_ + 3600,

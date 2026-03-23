@@ -21,6 +21,7 @@ contract OffchainQuotedLinearFeeTest is Test {
     uint32 constant DEST = 42;
     bytes32 constant RECIPIENT = bytes32(uint256(0xBEEF));
     uint256 constant AMOUNT = 1 ether;
+    uint256 constant WILDCARD_AMOUNT = type(uint256).max;
     // Offchain-quoted fee params (used in signed quotes)
     uint256 constant MAX_FEE = 0.01 ether;
     uint256 constant HALF_AMOUNT = 0.5 ether; // fee = maxFee at amount = 2 * halfAmount = 1 ether
@@ -239,7 +240,15 @@ contract OffchainQuotedLinearFeeTest is Test {
 
     function test_standingQuote_zeroFee() public {
         uint48 now_ = uint48(block.timestamp);
-        _submitStanding(DEST, RECIPIENT, AMOUNT, 0, 0, now_, now_ + 3600);
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            0,
+            0,
+            now_,
+            now_ + 3600
+        );
 
         Quote[] memory result = quotedFee.quoteTransferRemote(
             DEST,
@@ -256,7 +265,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             MAX_FEE,
             HALF_AMOUNT,
             now_,
@@ -279,7 +288,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             maxFee,
             halfAmount,
             now_,
@@ -305,7 +314,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             wildcard,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             MAX_FEE,
             HALF_AMOUNT,
             now_,
@@ -327,7 +336,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             wildcardDest,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             MAX_FEE,
             HALF_AMOUNT,
             now_,
@@ -348,7 +357,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             MAX_FEE,
             HALF_AMOUNT,
             now_,
@@ -373,7 +382,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             MAX_FEE,
             HALF_AMOUNT,
             now_,
@@ -382,7 +391,7 @@ contract OffchainQuotedLinearFeeTest is Test {
 
         // Try to submit older quote
         SignedQuote memory sq = SignedQuote({
-            context: _quoteContext(DEST, RECIPIENT, AMOUNT),
+            context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
             data: _encodeFeeData(MAX_FEE + 1, HALF_AMOUNT),
             issuedAt: now_ - 1,
             expiry: now_ + 7200,
@@ -391,6 +400,21 @@ contract OffchainQuotedLinearFeeTest is Test {
         });
         bytes memory sig = _signQuote(sq);
         vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
+        quotedFee.submitQuote(sq, sig);
+    }
+
+    function test_standingQuote_nonWildcardAmount_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: _quoteContext(DEST, RECIPIENT, AMOUNT),
+            data: _encodeFeeData(MAX_FEE, HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_ + 3600,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert("standing quote amount must be wildcard");
         quotedFee.submitQuote(sq, sig);
     }
 
@@ -403,7 +427,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             0.05 ether,
             HALF_AMOUNT,
             now_,
@@ -429,7 +453,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             wildcard,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             0.05 ether,
             HALF_AMOUNT,
             now_,
@@ -438,7 +462,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         _submitStanding(
             DEST,
             RECIPIENT,
-            AMOUNT,
+            WILDCARD_AMOUNT,
             0.01 ether,
             HALF_AMOUNT,
             now_,
