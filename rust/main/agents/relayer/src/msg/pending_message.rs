@@ -845,6 +845,19 @@ impl PendingMessage {
         } else {
             warn!("Repreparing message: {}", reason.clone());
         }
+        // Drop the message if it has exceeded its max retry budget.
+        // This is checked here (rather than relying on calculate_msg_backoff) so that
+        // low max_retries values (e.g. 0 meaning "no retries") are respected even
+        // for retry counts that fall into the fixed early backoff arms (1 => 5s, etc.).
+        if self.num_retries > self.max_retries {
+            warn!(
+                message_id = ?self.message.id(),
+                num_retries = self.num_retries,
+                max_retries = self.max_retries,
+                "Message exceeded max retries, dropping"
+            );
+            return PendingOperationResult::Drop;
+        }
         PendingOperationResult::Reprepare(reason)
     }
 
