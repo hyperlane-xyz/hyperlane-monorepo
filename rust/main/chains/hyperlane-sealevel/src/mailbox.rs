@@ -3,6 +3,8 @@
 
 use std::{collections::HashMap, str::FromStr as _, sync::Arc};
 
+use sha2::{Digest, Sha256};
+
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -92,6 +94,8 @@ pub struct SealevelMailbox {
     mailbox_process_alt: Option<Pubkey>,
     /// Per-message ALT overrides (first match wins, falls back to mailbox_process_alt)
     process_alt_overrides: Vec<ProcessAltOverride>,
+    /// SHA256 hashes of trusted relayer ISM program executable data.
+    trusted_relayer_ism_program_hashes: Vec<H256>,
 
     system_program: Pubkey,
     spl_noop: Pubkey,
@@ -130,6 +134,7 @@ impl SealevelMailbox {
             tx_submitter,
             mailbox_process_alt: conf.mailbox_process_alt,
             process_alt_overrides: conf.process_alt_overrides.clone(),
+            trusted_relayer_ism_program_hashes: conf.trusted_relayer_ism_program_hashes.clone(),
             provider,
 
             system_program,
@@ -307,6 +312,109 @@ impl SealevelMailbox {
         sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
+    /// Checks if the given ISM program matches a trusted relayer ISM program hash.
+    /// If so, returns the verify account metas with the payer as a signer,
+    /// bypassing the normal sanitization that strips signer status.
+    async fn get_trusted_relayer_ism_verify_account_metas(
+        &self,
+        ism: Pubkey,
+        metadata: Vec<u8>,
+        message: Vec<u8>,
+    ) -> ChainResult<Option<Vec<AccountMeta>>> {
+        if self.trusted_relayer_ism_program_hashes.is_empty() {
+            return Ok(None);
+        }
+
+        // Fetch the ISM program's executable data and hash it.
+        // The programdata address is a PDA derived from [program_id] under the BPF loader.
+        let bpf_loader_upgradeable =
+            Pubkey::from_str("BPFLoaderUpgradeab1e11111111111111111111111")
+                .map_err(ChainCommunicationError::from_other)?;
+        let (programdata_address, _) =
+            Pubkey::find_program_address(&[ism.as_ref()], &bpf_loader_upgradeable);
+        let programdata_account = self
+            .provider
+            .rpc_client()
+            .get_account_with_finalized_commitment(programdata_address)
+            .await
+            .map_err(|e| {
+                tracing::debug!(
+                    ?ism,
+                    ?e,
+                    "Failed to fetch ISM programdata, not a trusted relayer ISM"
+                );
+                e
+            })
+            .ok();
+
+        let Some(programdata_account) = programdata_account else {
+            return Ok(None);
+        };
+
+        // The programdata account has a 45-byte header (4-byte enum tag + 8-byte slot +
+        // 1-byte Option + 32-byte upgrade authority), followed by the ELF bytecode.
+        const PROGRAMDATA_METADATA_SIZE: usize = 45;
+        if programdata_account.data.len() <= PROGRAMDATA_METADATA_SIZE {
+            return Ok(None);
+        }
+        let elf_bytes = &programdata_account.data[PROGRAMDATA_METADATA_SIZE..];
+        let hash = H256::from_slice(&Sha256::digest(elf_bytes));
+
+        if !self.trusted_relayer_ism_program_hashes.contains(&hash) {
+            tracing::debug!(
+                ?ism,
+                ?hash,
+                "ISM program hash does not match any trusted relayer ISM hashes"
+            );
+            return Ok(None);
+        }
+
+        tracing::info!(
+            ?ism,
+            ?hash,
+            "ISM matches trusted relayer ISM program hash, allowing payer as signer"
+        );
+
+        // Get the raw verify account metas (without sanitization).
+        let instruction =
+            InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+                metadata,
+                message,
+            });
+        let account_metas = self
+            .get_account_metas(Instruction::new_with_bytes(
+                ism,
+                &instruction
+                    .encode()
+                    .map_err(ChainCommunicationError::from_other)?,
+                vec![AccountMeta::new(
+                    Pubkey::find_program_address(
+                        hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+                        &ism,
+                    ).0,
+                    false,
+                )],
+            ))
+            .await?;
+
+        // Verify the payer is in the account metas as a signer — confirms the
+        // ISM PDA stores our key as the trusted relayer.
+        let payer = self.get_payer()?.pubkey();
+        let has_payer_signer = account_metas
+            .iter()
+            .any(|meta| meta.pubkey == payer && meta.is_signer);
+        if !has_payer_signer {
+            tracing::warn!(
+                ?ism,
+                ?payer,
+                "Trusted relayer ISM does not request payer as signer, skipping"
+            );
+            return Ok(None);
+        }
+
+        Ok(Some(account_metas))
+    }
+
     async fn get_process_payload(
         &self,
         message: &HyperlaneMessage,
@@ -372,9 +480,22 @@ impl SealevelMailbox {
         ]);
 
         // Get the account metas required for the ISM.Verify instruction.
-        let ism_verify_account_metas = self
-            .get_ism_verify_account_metas(ism, metadata.into(), encoded_message)
-            .await?;
+        // For trusted relayer ISMs (matched by program hash), the payer is allowed
+        // as a signer. For all other ISMs, signers are stripped for safety.
+        let ism_verify_account_metas = match self
+            .get_trusted_relayer_ism_verify_account_metas(
+                ism,
+                metadata.into(),
+                encoded_message.clone(),
+            )
+            .await?
+        {
+            Some(metas) => metas,
+            None => {
+                self.get_ism_verify_account_metas(ism, metadata.into(), encoded_message)
+                    .await?
+            }
+        };
         accounts.extend(ism_verify_account_metas);
 
         // The recipient.
