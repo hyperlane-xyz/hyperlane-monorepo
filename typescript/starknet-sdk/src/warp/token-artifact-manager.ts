@@ -44,7 +44,9 @@ function normalizeGas(gas: string | undefined): string {
 export function getStarknetWarpType(tokenType: string): WarpType {
   if (tokenType === TokenType.native) return 'native';
   if (tokenType === TokenType.collateral) return 'collateral';
-  return 'synthetic';
+  if (tokenType === TokenType.synthetic) return 'synthetic';
+  if (tokenType === TokenType.crossCollateral) return 'crossCollateral';
+  throw new Error(`Unsupported Starknet warp token type: ${tokenType}`);
 }
 
 export abstract class StarknetWarpTokenReaderBase<

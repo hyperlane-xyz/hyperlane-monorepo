@@ -67,6 +67,13 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
       native: new StarknetNativeTokenReader(this.provider),
       collateral: new StarknetCollateralTokenReader(this.provider),
       synthetic: new StarknetSyntheticTokenReader(this.provider),
+      crossCollateral: {
+        read: async () => {
+          throw new Error(
+            'Cross-collateral tokens are not supported on Starknet',
+          );
+        },
+      },
     };
     return readers[type];
   }
@@ -86,6 +93,23 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
       native: new StarknetNativeTokenWriter(this.provider, signer),
       collateral: new StarknetCollateralTokenWriter(this.provider, signer),
       synthetic: new StarknetSyntheticTokenWriter(this.provider, signer),
+      crossCollateral: {
+        read: async () => {
+          throw new Error(
+            'Cross-collateral tokens are not supported on Starknet',
+          );
+        },
+        create: async () => {
+          throw new Error(
+            'Cross-collateral tokens are not supported on Starknet',
+          );
+        },
+        update: async () => {
+          throw new Error(
+            'Cross-collateral tokens are not supported on Starknet',
+          );
+        },
+      },
     };
     return writers[type];
   }
