@@ -37,7 +37,6 @@ fn test_configuration_fields() {
             transaction_submitter: Default::default(),
             mailbox_process_alt: None,
             process_alt_overrides: vec![],
-            trusted_relayer_ism_program_hashes: vec![],
         }),
         metrics_conf: Default::default(),
         index: Default::default(),

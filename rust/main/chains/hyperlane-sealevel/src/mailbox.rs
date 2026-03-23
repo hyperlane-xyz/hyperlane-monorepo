@@ -48,6 +48,15 @@ use crate::{
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
+lazy_static! {
+    /// SHA256 hash of the trusted relayer ISM ELF bytecode, computed at startup
+    /// from the compiled .so embedded at build time.
+    static ref TRUSTED_RELAYER_ISM_ELF_HASH: H256 = {
+        let elf = include_bytes!("../../../../sealevel/target/deploy/hyperlane_sealevel_trusted_relayer_ism.so");
+        H256::from_slice(&Sha256::digest(elf))
+    };
+}
+
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
 // and generally requires a higher priority fee to be paid.
@@ -94,8 +103,6 @@ pub struct SealevelMailbox {
     mailbox_process_alt: Option<Pubkey>,
     /// Per-message ALT overrides (first match wins, falls back to mailbox_process_alt)
     process_alt_overrides: Vec<ProcessAltOverride>,
-    /// SHA256 hashes of trusted relayer ISM program executable data.
-    trusted_relayer_ism_program_hashes: Vec<H256>,
 
     system_program: Pubkey,
     spl_noop: Pubkey,
@@ -134,7 +141,6 @@ impl SealevelMailbox {
             tx_submitter,
             mailbox_process_alt: conf.mailbox_process_alt,
             process_alt_overrides: conf.process_alt_overrides.clone(),
-            trusted_relayer_ism_program_hashes: conf.trusted_relayer_ism_program_hashes.clone(),
             provider,
 
             system_program,
@@ -321,10 +327,6 @@ impl SealevelMailbox {
         metadata: Vec<u8>,
         message: Vec<u8>,
     ) -> ChainResult<Option<Vec<AccountMeta>>> {
-        if self.trusted_relayer_ism_program_hashes.is_empty() {
-            return Ok(None);
-        }
-
         // Fetch the ISM program's executable data and hash it.
         // The programdata address is a PDA derived from [program_id] under the BPF loader.
         let bpf_loader_upgradeable =
@@ -360,7 +362,7 @@ impl SealevelMailbox {
         let elf_bytes = &programdata_account.data[PROGRAMDATA_METADATA_SIZE..];
         let hash = H256::from_slice(&Sha256::digest(elf_bytes));
 
-        if !self.trusted_relayer_ism_program_hashes.contains(&hash) {
+        if hash != *TRUSTED_RELAYER_ISM_ELF_HASH {
             tracing::debug!(
                 ?ism,
                 ?hash,

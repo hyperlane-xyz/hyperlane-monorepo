@@ -11,7 +11,7 @@ use url::Url;
 use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256};
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use hyperlane_starknet as h_starknet;
 
@@ -324,8 +324,6 @@ fn build_sealevel_connection_conf(
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
     let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
     let process_alt_overrides = parse_sealevel_process_alt_overrides(chain, &mut local_err);
-    let trusted_relayer_ism_program_hashes =
-        parse_sealevel_trusted_relayer_ism_program_hashes(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -342,7 +340,6 @@ fn build_sealevel_connection_conf(
         transaction_submitter,
         mailbox_process_alt,
         process_alt_overrides,
-        trusted_relayer_ism_program_hashes,
     }))
 }
 
@@ -423,54 +420,6 @@ fn parse_sealevel_process_alt_overrides(
                     None
                 }
             })
-        })
-        .collect()
-}
-
-fn parse_sealevel_trusted_relayer_ism_program_hashes(
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
-) -> Vec<H256> {
-    let p = chain
-        .chain(err)
-        .get_opt_key("trustedRelayerIsmProgramHashes")
-        .end();
-
-    let Some(p) = p else {
-        return vec![];
-    };
-
-    let Some((cwp, val)) = parse_json_array(p) else {
-        return vec![];
-    };
-
-    let entries = match ValueParser::new(cwp.clone(), &val).into_array_iter() {
-        Ok(iter) => iter,
-        Err(e) => {
-            err.merge(e);
-            return vec![];
-        }
-    };
-
-    entries
-        .filter_map(|entry| {
-            let hex_str = entry.chain(err).parse_string().end()?;
-            // H256::from_str expects "0x" prefix
-            let prefixed = if hex_str.starts_with("0x") {
-                hex_str.to_string()
-            } else {
-                format!("0x{hex_str}")
-            };
-            match H256::from_str(&prefixed) {
-                Ok(hash) => Some(hash),
-                Err(e) => {
-                    err.push(
-                        cwp.clone(),
-                        eyre!("Invalid program hash (expected 32-byte hex): {e}"),
-                    );
-                    None
-                }
-            }
         })
         .collect()
 }

@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, matching_list::MatchingList, ChainCommunicationError, NativeToken,
-    H256,
 };
 use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
@@ -42,12 +41,6 @@ pub struct ConnectionConf {
     /// Per-message ALT overrides. First matching entry wins.
     /// Falls back to `mailbox_process_alt` if no match.
     pub process_alt_overrides: Vec<ProcessAltOverride>,
-    /// SHA256 hashes of trusted relayer ISM program executable data.
-    /// When the relayer encounters an ISM whose program data matches one of these hashes,
-    /// it will include itself as a signer in the ISM verify accounts (required for the
-    /// trusted relayer ISM to verify the caller). Programs not matching are subject to
-    /// the default sanitization that strips all signers.
-    pub trusted_relayer_ism_program_hashes: Vec<H256>,
 }
 
 /// An error type when parsing a connection configuration.
