@@ -95,6 +95,19 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
     uint32 constant WILDCARD_DEST = type(uint32).max;
     address constant WILDCARD_SENDER = address(type(uint160).max);
 
+    bytes32 private constant TRANSIENT_QUOTED_SLOT =
+        keccak256("OffchainQuotedIGP.quoted");
+    bytes32 private constant TRANSIENT_EXCHANGE_RATE_SLOT =
+        keccak256("OffchainQuotedIGP.exchangeRate");
+    bytes32 private constant TRANSIENT_GAS_PRICE_SLOT =
+        keccak256("OffchainQuotedIGP.gasPrice");
+    bytes32 private constant TRANSIENT_FEE_TOKEN_SLOT =
+        keccak256("OffchainQuotedIGP.feeToken");
+    bytes32 private constant TRANSIENT_DESTINATION_SLOT =
+        keccak256("OffchainQuotedIGP.destination");
+    bytes32 private constant TRANSIENT_SENDER_SLOT =
+        keccak256("OffchainQuotedIGP.sender");
+
     // ============ Structs ============
 
     struct StoredGasQuote {
@@ -137,21 +150,6 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
                 destination
             ][sender];
     }
-
-    // ============ Transient Storage Slots ============
-
-    bytes32 private constant TRANSIENT_QUOTED_SLOT =
-        keccak256("OffchainQuotedIGP.quoted");
-    bytes32 private constant TRANSIENT_EXCHANGE_RATE_SLOT =
-        keccak256("OffchainQuotedIGP.exchangeRate");
-    bytes32 private constant TRANSIENT_GAS_PRICE_SLOT =
-        keccak256("OffchainQuotedIGP.gasPrice");
-    bytes32 private constant TRANSIENT_FEE_TOKEN_SLOT =
-        keccak256("OffchainQuotedIGP.feeToken");
-    bytes32 private constant TRANSIENT_DESTINATION_SLOT =
-        keccak256("OffchainQuotedIGP.destination");
-    bytes32 private constant TRANSIENT_SENDER_SLOT =
-        keccak256("OffchainQuotedIGP.sender");
 
     // ============ Quote Resolution ============
 

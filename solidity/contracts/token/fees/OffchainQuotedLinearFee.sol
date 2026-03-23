@@ -102,6 +102,19 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
     bytes32 constant WILDCARD_RECIPIENT = bytes32(type(uint256).max);
     uint256 constant WILDCARD_AMOUNT = type(uint256).max;
 
+    bytes32 private constant TRANSIENT_QUOTED_SLOT =
+        keccak256("OffchainQuotedLinearFee.quoted");
+    bytes32 private constant TRANSIENT_MAX_FEE_SLOT =
+        keccak256("OffchainQuotedLinearFee.maxFee");
+    bytes32 private constant TRANSIENT_HALF_AMOUNT_SLOT =
+        keccak256("OffchainQuotedLinearFee.halfAmount");
+    bytes32 private constant TRANSIENT_DESTINATION_SLOT =
+        keccak256("OffchainQuotedLinearFee.destination");
+    bytes32 private constant TRANSIENT_RECIPIENT_SLOT =
+        keccak256("OffchainQuotedLinearFee.recipient");
+    bytes32 private constant TRANSIENT_AMOUNT_SLOT =
+        keccak256("OffchainQuotedLinearFee.amount");
+
     // ============ Structs ============
 
     struct StoredQuote {
@@ -115,21 +128,6 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
 
     mapping(uint32 destination => mapping(bytes32 recipient => StoredQuote))
         public quotes;
-
-    // ============ Transient Storage Slots ============
-
-    bytes32 private constant TRANSIENT_QUOTED_SLOT =
-        keccak256("OffchainQuotedLinearFee.quoted");
-    bytes32 private constant TRANSIENT_MAX_FEE_SLOT =
-        keccak256("OffchainQuotedLinearFee.maxFee");
-    bytes32 private constant TRANSIENT_HALF_AMOUNT_SLOT =
-        keccak256("OffchainQuotedLinearFee.halfAmount");
-    bytes32 private constant TRANSIENT_DESTINATION_SLOT =
-        keccak256("OffchainQuotedLinearFee.destination");
-    bytes32 private constant TRANSIENT_RECIPIENT_SLOT =
-        keccak256("OffchainQuotedLinearFee.recipient");
-    bytes32 private constant TRANSIENT_AMOUNT_SLOT =
-        keccak256("OffchainQuotedLinearFee.amount");
 
     // ============ Constructor ============
 
