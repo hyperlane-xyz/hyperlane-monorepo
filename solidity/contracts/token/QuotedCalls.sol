@@ -18,10 +18,41 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {SignedQuote, IOffchainQuoter} from "../interfaces/IOffchainQuoter.sol";
 import {ITokenBridge} from "../interfaces/ITokenBridge.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
+
+interface ICrossCollateralRouter {
+    function transferRemoteTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 _targetRouter
+    ) external payable returns (bytes32);
+}
+
+interface IInterchainAccountRouter {
+    function callRemoteWithOverrides(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] memory _calls,
+        bytes memory _hookMetadata,
+        bytes32 _userSalt
+    ) external payable returns (bytes32);
+
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        bytes32 _salt,
+        bytes32 _commitment
+    ) external payable returns (bytes32, bytes32);
+}
 
 /**
  * @title QuotedCalls
@@ -36,10 +67,10 @@ import {PackageVersioned} from "../PackageVersioned.sol";
  *      contracts.
  *
  *      Token safety:
- *      - Token inflows use standing ERC-20 approvals to this contract or
- *        Permit2 via PERMIT2_TRANSFER_FROM (tries transferFrom first, falls
- *        back to Permit2). Standing approvals are safe because no arbitrary
- *        call command exists — only whitelisted Hyperlane operations.
+ *      - Token inflows use TRANSFER_FROM (standard ERC-20 transferFrom)
+ *        or PERMIT2_TRANSFER_FROM (Permit2). Standing ERC-20 approvals
+ *        are safe because no arbitrary call command exists — only
+ *        whitelisted Hyperlane operations.
  *      - Approvals FROM this contract are set inside TRANSFER_REMOTE /
  *        TRANSFER_REMOTE_TO / CALL_REMOTE_* before the external call. No
  *        standalone APPROVE command exists. These outbound approvals persist
@@ -73,7 +104,7 @@ contract QuotedCalls is PackageVersioned {
     // balance; for native value it resolves to address(this).balance.
     //
     // SAFETY INVARIANT: users may hold standing ERC-20 approvals to
-    // this contract (used by transferFrom fallback in PERMIT2_TRANSFER_FROM).
+    // this contract (used by TRANSFER_FROM's transferFrom-first path).
     // These cannot be drained because:
     // (1) Only whitelisted Hyperlane operations are callable — no
     //     arbitrary external call that could invoke
@@ -94,39 +125,42 @@ contract QuotedCalls is PackageVersioned {
     /// inputs: abi.encode(IAllowanceTransfer.PermitSingle permitSingle, bytes signature)
     uint256 public constant PERMIT2_PERMIT = 0x01;
 
-    /// @notice Pull ERC20 tokens from msg.sender. Tries transferFrom first,
-    ///         falls back to Permit2 transferFrom if the direct transfer fails.
+    /// @notice Pull ERC20 tokens from msg.sender via Permit2.
     /// inputs: abi.encode(address token, uint256 amount)
     uint256 public constant PERMIT2_TRANSFER_FROM = 0x02;
+
+    /// @notice Pull ERC20 tokens from msg.sender via standard transferFrom.
+    /// inputs: abi.encode(address token, uint256 amount)
+    uint256 public constant TRANSFER_FROM = 0x03;
 
     /// @notice Execute a warp route transferRemote, approving the route first.
     /// @dev amount and approval resolve via _resolveAmount (supports CONTRACT_BALANCE).
     ///      value resolves native ETH to forward (supports CONTRACT_BALANCE).
     /// inputs: abi.encode(address warpRoute, uint32 destination, bytes32 recipient, uint256 amount, uint256 value, address token, uint256 approval)
-    uint256 public constant TRANSFER_REMOTE = 0x03;
+    uint256 public constant TRANSFER_REMOTE = 0x04;
 
     /// @notice Execute a cross-collateral transferRemoteTo, approving the router first.
     /// @dev Same resolution semantics as TRANSFER_REMOTE.
     /// inputs: abi.encode(address router, uint32 destination, bytes32 recipient, uint256 amount, bytes32 targetRouter, uint256 value, address token, uint256 approval)
-    uint256 public constant TRANSFER_REMOTE_TO = 0x04;
+    uint256 public constant TRANSFER_REMOTE_TO = 0x05;
 
     /// @notice Execute ICA callRemoteWithOverrides, approving the router first.
     /// @dev userSalt is scoped to msg.sender via keccak256(msg.sender, userSalt)
     ///      before being passed to the ICA router.
     /// inputs: abi.encode(address icaRouter, uint32 destination, bytes32 router, bytes32 ism, CallLib.Call[] calls, bytes hookMetadata, bytes32 userSalt, uint256 value, address token, uint256 approval)
-    uint256 public constant CALL_REMOTE_WITH_OVERRIDES = 0x05;
+    uint256 public constant CALL_REMOTE_WITH_OVERRIDES = 0x06;
 
     /// @notice Execute ICA callRemoteCommitReveal, approving the router first.
     /// @dev salt is scoped to msg.sender via keccak256(msg.sender, salt)
     ///      before being passed to the ICA router.
     /// inputs: abi.encode(address icaRouter, uint32 destination, bytes32 router, bytes32 ism, bytes hookMetadata, address hook, bytes32 salt, bytes32 commitment, uint256 value, address token, uint256 approval)
-    uint256 public constant CALL_REMOTE_COMMIT_REVEAL = 0x06;
+    uint256 public constant CALL_REMOTE_COMMIT_REVEAL = 0x07;
 
     /// @notice Sweep remaining ERC20 and ETH balances back to msg.sender.
     /// @dev Typically the last command to return unused tokens/ETH after fees.
     ///      Pass token = address(0) to sweep only ETH.
     /// inputs: abi.encode(address token)
-    uint256 public constant SWEEP = 0x07;
+    uint256 public constant SWEEP = 0x08;
 
     // ============ Errors ============
 
@@ -203,31 +237,18 @@ contract QuotedCalls is PackageVersioned {
                 input,
                 (address, uint256)
             );
-            // Low-level call to handle non-standard ERC20s (no return value).
-            // Check code.length first — call to EOA returns success with no data,
-            // which would skip the Permit2 fallback without transferring tokens.
-            bool transferred;
-            if (token.code.length > 0) {
-                (bool success, bytes memory data) = token.call(
-                    abi.encodeWithSelector(
-                        IERC20.transferFrom.selector,
-                        msg.sender,
-                        address(this),
-                        amount
-                    )
-                );
-                transferred =
-                    success &&
-                    (data.length == 0 || abi.decode(data, (bool)));
-            }
-            if (!transferred) {
-                PERMIT2.transferFrom(
-                    msg.sender,
-                    address(this),
-                    uint160(amount),
-                    token
-                );
-            }
+            PERMIT2.transferFrom(
+                msg.sender,
+                address(this),
+                uint160(amount),
+                token
+            );
+        } else if (command == TRANSFER_FROM) {
+            (address token, uint256 amount) = abi.decode(
+                input,
+                (address, uint256)
+            );
+            IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         } else if (command == TRANSFER_REMOTE) {
             (
                 address warpRoute,
@@ -285,16 +306,12 @@ contract QuotedCalls is PackageVersioned {
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
             _approve(token, router, approval);
-            (bool success, ) = router.call{value: value}(
-                abi.encodeWithSignature(
-                    "transferRemoteTo(uint32,bytes32,uint256,bytes32)",
-                    destination,
-                    recipient,
-                    amount,
-                    targetRouter
-                )
+            ICrossCollateralRouter(router).transferRemoteTo{value: value}(
+                destination,
+                recipient,
+                amount,
+                targetRouter
             );
-            require(success, "transferRemoteTo failed");
         } else if (command == CALL_REMOTE_WITH_OVERRIDES) {
             (
                 address icaRouter,
@@ -325,18 +342,16 @@ contract QuotedCalls is PackageVersioned {
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
             _approve(token, icaRouter, approval);
-            (bool success, ) = icaRouter.call{value: value}(
-                abi.encodeWithSignature(
-                    "callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes,bytes32)",
-                    destination,
-                    router,
-                    ism,
-                    calls,
-                    hookMetadata,
-                    _scopeSalt(msg.sender, userSalt)
-                )
+            IInterchainAccountRouter(icaRouter).callRemoteWithOverrides{
+                value: value
+            }(
+                destination,
+                router,
+                ism,
+                calls,
+                hookMetadata,
+                _scopeSalt(msg.sender, userSalt)
             );
-            require(success, "callRemoteWithOverrides failed");
         } else if (command == CALL_REMOTE_COMMIT_REVEAL) {
             (
                 address icaRouter,
@@ -369,19 +384,17 @@ contract QuotedCalls is PackageVersioned {
             value = _resolveAmount(address(0), value);
             approval = _resolveAmount(token, approval);
             _approve(token, icaRouter, approval);
-            (bool success, ) = icaRouter.call{value: value}(
-                abi.encodeWithSignature(
-                    "callRemoteCommitReveal(uint32,bytes32,bytes32,bytes,address,bytes32,bytes32)",
-                    destination,
-                    router,
-                    ism,
-                    hookMetadata,
-                    hook,
-                    _scopeSalt(msg.sender, salt),
-                    commitment
-                )
+            IInterchainAccountRouter(icaRouter).callRemoteCommitReveal{
+                value: value
+            }(
+                destination,
+                router,
+                ism,
+                hookMetadata,
+                IPostDispatchHook(hook),
+                _scopeSalt(msg.sender, salt),
+                commitment
             );
-            require(success, "callRemoteCommitReveal failed");
         } else if (command == SWEEP) {
             address token = abi.decode(input, (address));
             if (token != address(0)) {

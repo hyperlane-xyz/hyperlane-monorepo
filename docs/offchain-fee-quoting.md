@@ -224,13 +224,12 @@ OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee
 QuotedCalls is PackageVersioned
   ├── Command-based router: execute(bytes commands, bytes[] inputs)
   ├── Typed commands: SUBMIT_QUOTE, PERMIT2_PERMIT, PERMIT2_TRANSFER_FROM,
-  │   TRANSFER_REMOTE, TRANSFER_REMOTE_TO, CALL_REMOTE_WITH_OVERRIDES,
-  │   CALL_REMOTE_COMMIT_REVEAL, SWEEP
+  │   TRANSFER_FROM, TRANSFER_REMOTE, TRANSFER_REMOTE_TO,
+  │   CALL_REMOTE_WITH_OVERRIDES, CALL_REMOTE_COMMIT_REVEAL, SWEEP
   ├── Scoped salt: keccak256(msg.sender, clientSalt) for quotes and ICA salts
-  ├── Permit2 for token inflows (no standing approvals)
+  ├── Permit2 or ERC-20 approvals for token inflows (separate commands)
   ├── Persistent approve pattern for outflows (gas-efficient, safe: whitelisted ops only)
   ├── Native value forwarding (TRANSFER_REMOTE, TRANSFER_REMOTE_TO, CALL_REMOTE_*)
-  ├── EOA guard on PERMIT2_TRANSFER_FROM (code.length check)
   └── CONTRACT_BALANCE sentinel for balance-relative amounts (ERC20 + native ETH)
 ```
 
@@ -241,21 +240,22 @@ Command-based router (UniversalRouter pattern) that atomically submits offchain-
 ```solidity
 uint256 constant SUBMIT_QUOTE = 0x00;               // Submit offchain quote to quoter
 uint256 constant PERMIT2_PERMIT = 0x01;              // Set Permit2 allowance via signature
-uint256 constant PERMIT2_TRANSFER_FROM = 0x02;       // Pull tokens (ERC20 fallback → Permit2)
-uint256 constant TRANSFER_REMOTE = 0x03;             // Warp route transfer + value forwarding
-uint256 constant TRANSFER_REMOTE_TO = 0x04;          // Cross-collateral transfer + value forwarding
-uint256 constant CALL_REMOTE_WITH_OVERRIDES = 0x05;  // ICA call + scoped salt
-uint256 constant CALL_REMOTE_COMMIT_REVEAL = 0x06;   // ICA commit-reveal + scoped salt
-uint256 constant SWEEP = 0x07;                       // Return remaining ERC20 + ETH to sender
+uint256 constant PERMIT2_TRANSFER_FROM = 0x02;       // Pull tokens via Permit2
+uint256 constant TRANSFER_FROM = 0x03;               // Pull tokens via ERC20 transferFrom
+uint256 constant TRANSFER_REMOTE = 0x04;             // Warp route transfer + value forwarding
+uint256 constant TRANSFER_REMOTE_TO = 0x05;          // Cross-collateral transfer + value forwarding
+uint256 constant CALL_REMOTE_WITH_OVERRIDES = 0x06;  // ICA call + scoped salt
+uint256 constant CALL_REMOTE_COMMIT_REVEAL = 0x07;   // ICA commit-reveal + scoped salt
+uint256 constant SWEEP = 0x08;                       // Return remaining ERC20 + ETH to sender
 
 function execute(bytes calldata commands, bytes[] calldata inputs) external payable;
 ```
 
-**Safety invariant**: users may hold standing ERC-20 approvals to this contract (used by the `transferFrom` fallback in `PERMIT2_TRANSFER_FROM`). These approvals are safe because only whitelisted Hyperlane operations are callable — there is no arbitrary external call command that could invoke `token.transferFrom(victim, attacker, amount)`. No reentrancy guard is needed: whitelisted operations (e.g. `transferRemote`) pull tokens from `msg.sender` into the target contract, never from QuotedCalls' balance, so a reentering caller with a malicious target cannot drain tokens belonging to another user.
+**Safety invariant**: users may hold standing ERC-20 approvals to this contract (used by `TRANSFER_FROM`'s transferFrom-first path). These approvals are safe because only whitelisted Hyperlane operations are callable — there is no arbitrary external call command that could invoke `token.transferFrom(victim, attacker, amount)`. No reentrancy guard is needed: whitelisted operations (e.g. `transferRemote`) pull tokens from `msg.sender` into the target contract, never from QuotedCalls' balance, so a reentering caller with a malicious target cannot drain tokens belonging to another user.
 
 **Token safety**:
 
-- **Inflows**: Permit2 signatures or standing ERC-20 approvals to this contract (`PERMIT2_TRANSFER_FROM` tries `transferFrom` first, falls back to Permit2). Standing approvals are safe because no arbitrary call command exists — only whitelisted Hyperlane operations. `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before the low-level call to prevent EOAs from silently skipping the Permit2 fallback.
+- **Inflows**: `TRANSFER_FROM` pulls tokens via standard ERC-20 `transferFrom`. `PERMIT2_TRANSFER_FROM` pulls tokens via Permit2. Standing ERC-20 approvals are safe because no arbitrary call command exists — only whitelisted Hyperlane operations.
 - **Outflows**: Persistent approvals — each `TRANSFER_REMOTE` / `TRANSFER_REMOTE_TO` / `CALL_REMOTE_*` sets approval before the call. No standalone APPROVE command exists. Persistent approvals are gas-efficient (avoids zero→non-zero SSTORE on repeat routes) and safe because only whitelisted operations are callable and the contract holds no tokens between transactions.
 - **Value forwarding**: `TRANSFER_REMOTE`, `TRANSFER_REMOTE_TO`, and `CALL_REMOTE_*` accept a `value` field for native ETH forwarding. Supports `CONTRACT_BALANCE` sentinel.
 - **Sweeps**: `SWEEP` returns remaining ERC20 (if token != address(0)) and ETH to `msg.sender`.
@@ -278,7 +278,7 @@ sequenceDiagram
     participant WarpRoute as TokenRouter
     participant Mailbox
 
-    User->>QC: execute(commands=[SUBMIT_QUOTE, SUBMIT_QUOTE, PERMIT2_TRANSFER_FROM, TRANSFER_REMOTE], inputs=[...])
+    User->>QC: execute(commands=[SUBMIT_QUOTE, SUBMIT_QUOTE, TRANSFER_FROM, TRANSFER_REMOTE], inputs=[...])
 
     Note over QC: Verify salt == keccak256(msg.sender, clientSalt)
 
@@ -356,26 +356,26 @@ Existing warp routes can adopt offchain quoting by setting the new fee recipient
 
 ## Security Properties
 
-| Property                  | Mechanism                                                                                                |
-| ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Cross-contract replay     | EIP-712 domain separator includes `verifyingContract`                                                    |
-| Cross-chain replay        | EIP-712 domain separator includes `chainId`                                                              |
-| Transient isolation       | EIP-1153 transient storage — tx-scoped, invisible to other txs                                           |
-| Field-level matching      | Individual context fields matched (not hash) — supports per-field wildcards                              |
-| Fee token binding (IGP)   | Context includes `feeToken` — exact match required, prevents cross-token reuse                           |
-| Quote expiry              | `uint48(block.timestamp) <= expiry` check on submission                                                  |
-| Multi-signer auth         | `EnumerableSet` of signers, `ECDSA.recover` against set                                                  |
-| Signer removal caveat     | Removing a signer does NOT invalidate standing quotes already in storage                                 |
-| Staleness prevention      | `issuedAt` must be > existing to replace standing quotes (signed field)                                  |
-| Scoped salt binding       | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                       |
-| ICA salt scoping          | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                           |
-| Submitter restriction     | `submitter` field checked against `msg.sender` on submission                                             |
-| Intra-tx transient reuse  | Acceptable — scoped salt + submitter + context field matching ensure same user, same route               |
-| Standing approval safety  | Users may approve this contract; safe because only whitelisted ops are callable (no arbitrary calls)     |
-| No arbitrary calls        | Typed commands only — prevents attacker from calling `transferFrom(victim, attacker, amount)`            |
-| Reentrancy                | No guard needed: whitelisted ops pull from msg.sender not contract balance; targets are caller-specified |
-| EOA transfer guard        | `PERMIT2_TRANSFER_FROM` checks `token.code.length > 0` before low-level call                             |
-| Approval safety invariant | Outbound approvals safe: whitelisted ops only, no tokens held between txs, targets user-specified        |
+| Property                   | Mechanism                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Cross-contract replay      | EIP-712 domain separator includes `verifyingContract`                                                    |
+| Cross-chain replay         | EIP-712 domain separator includes `chainId`                                                              |
+| Transient isolation        | EIP-1153 transient storage — tx-scoped, invisible to other txs                                           |
+| Field-level matching       | Individual context fields matched (not hash) — supports per-field wildcards                              |
+| Fee token binding (IGP)    | Context includes `feeToken` — exact match required, prevents cross-token reuse                           |
+| Quote expiry               | `uint48(block.timestamp) <= expiry` check on submission                                                  |
+| Multi-signer auth          | `EnumerableSet` of signers, `ECDSA.recover` against set                                                  |
+| Signer removal caveat      | Removing a signer does NOT invalidate standing quotes already in storage                                 |
+| Staleness prevention       | `issuedAt` must be > existing to replace standing quotes (signed field)                                  |
+| Scoped salt binding        | `QuotedCalls` verifies `salt == keccak256(msg.sender, clientSalt)`                                       |
+| ICA salt scoping           | ICA commands derive `keccak256(msg.sender, userSalt)` before passing to router                           |
+| Submitter restriction      | `submitter` field checked against `msg.sender` on submission                                             |
+| Intra-tx transient reuse   | Acceptable — scoped salt + submitter + context field matching ensure same user, same route               |
+| Standing approval safety   | Users may approve this contract; safe because only whitelisted ops are callable (no arbitrary calls)     |
+| No arbitrary calls         | Typed commands only — prevents attacker from calling `transferFrom(victim, attacker, amount)`            |
+| Reentrancy                 | No guard needed: whitelisted ops pull from msg.sender not contract balance; targets are caller-specified |
+| Separate transfer commands | `TRANSFER_FROM` (ERC-20) and `PERMIT2_TRANSFER_FROM` (Permit2) — no silent fallback                      |
+| Approval safety invariant  | Outbound approvals safe: whitelisted ops only, no tokens held between txs, targets user-specified        |
 
 ## Files
 

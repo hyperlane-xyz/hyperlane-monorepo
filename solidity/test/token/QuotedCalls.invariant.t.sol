@@ -97,10 +97,8 @@ contract AttackerHandler is Test {
             uint256 amount = bound(amountSeeds[i], 0, 100e18);
 
             if (cmdType == 0) {
-                // PERMIT2_TRANSFER_FROM — pull attacker's tokens
-                commands[i] = bytes1(
-                    uint8(quotedCalls.PERMIT2_TRANSFER_FROM())
-                );
+                // TRANSFER_FROM — pull attacker's tokens
+                commands[i] = bytes1(uint8(quotedCalls.TRANSFER_FROM()));
                 inputs[i] = abi.encode(address(token), amount);
             } else if (cmdType == 1) {
                 // TRANSFER_REMOTE with legitimate warp route
@@ -212,7 +210,7 @@ contract AttackerHandler is Test {
         bytes memory commands = new bytes(2);
         bytes[] memory inputs = new bytes[](2);
 
-        commands[0] = bytes1(uint8(quotedCalls.PERMIT2_TRANSFER_FROM()));
+        commands[0] = bytes1(uint8(quotedCalls.TRANSFER_FROM()));
         inputs[0] = abi.encode(address(token), amount);
 
         commands[1] = bytes1(uint8(quotedCalls.TRANSFER_REMOTE()));
@@ -240,7 +238,7 @@ contract AttackerHandler is Test {
         bytes memory commands = new bytes(2);
         bytes[] memory inputs = new bytes[](2);
 
-        commands[0] = bytes1(uint8(quotedCalls.PERMIT2_TRANSFER_FROM()));
+        commands[0] = bytes1(uint8(quotedCalls.TRANSFER_FROM()));
         inputs[0] = abi.encode(address(token), amount);
 
         commands[1] = bytes1(uint8(quotedCalls.CALL_REMOTE_WITH_OVERRIDES()));

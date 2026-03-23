@@ -1592,7 +1592,7 @@ contract CrossCollateralRouterTest is Test {
         commands[0] = bytes1(uint8(quotedCalls.SUBMIT_QUOTE()));
         inputs[0] = _buildFeeQuoteInput(quotedFee, quotedCalls);
 
-        commands[1] = bytes1(uint8(quotedCalls.PERMIT2_TRANSFER_FROM()));
+        commands[1] = bytes1(uint8(quotedCalls.TRANSFER_FROM()));
         inputs[1] = abi.encode(address(originUSDC), totalTokens);
 
         commands[2] = bytes1(uint8(quotedCalls.TRANSFER_REMOTE_TO()));

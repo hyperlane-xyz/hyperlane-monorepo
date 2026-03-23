@@ -403,6 +403,16 @@ contract QuotedCallsTest is Test {
         );
     }
 
+    function _cmdTransferFrom(
+        address token,
+        uint256 amount
+    ) internal view returns (bytes1, bytes memory) {
+        return (
+            bytes1(uint8(quotedCalls.TRANSFER_FROM())),
+            abi.encode(token, amount)
+        );
+    }
+
     function _cmdTransferRemote(
         address warpRoute,
         uint32 destination,
@@ -506,7 +516,7 @@ contract QuotedCallsTest is Test {
         bytes1[] memory cmds = new bytes1[](3);
         bytes[] memory ins = new bytes[](3);
         (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
-        (cmds[1], ins[1]) = _cmdPermit2TransferFrom(
+        (cmds[1], ins[1]) = _cmdTransferFrom(
             address(primaryToken),
             totalTokens
         );
@@ -546,7 +556,7 @@ contract QuotedCallsTest is Test {
 
     /// @dev No direct ERC20 approval to QuotedCalls — ERC20 transferFrom fails,
     ///      falls back to Permit2 which has allowance via PERMIT2_PERMIT
-    function test_transferFrom_permit2Fallback() public {
+    function test_permit2TransferFrom() public {
         uint256 totalTokens = TRANSFER_AMT + MAX_FEE;
 
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer
@@ -610,7 +620,7 @@ contract QuotedCallsTest is Test {
         bytes1[] memory cmds = new bytes1[](3);
         bytes[] memory ins = new bytes[](3);
         (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
-        (cmds[1], ins[1]) = _cmdPermit2TransferFrom(
+        (cmds[1], ins[1]) = _cmdTransferFrom(
             address(primaryToken),
             totalTokens
         );
@@ -647,7 +657,7 @@ contract QuotedCallsTest is Test {
         bytes1[] memory cmds = new bytes1[](3);
         bytes[] memory ins = new bytes[](3);
         (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
-        (cmds[1], ins[1]) = _cmdPermit2TransferFrom(
+        (cmds[1], ins[1]) = _cmdTransferFrom(
             address(primaryToken),
             totalTokens
         );
@@ -679,7 +689,7 @@ contract QuotedCallsTest is Test {
     function test_execute_noQuotes_reverts() public {
         bytes1[] memory cmds = new bytes1[](2);
         bytes[] memory ins = new bytes[](2);
-        (cmds[0], ins[0]) = _cmdPermit2TransferFrom(
+        (cmds[0], ins[0]) = _cmdTransferFrom(
             address(primaryToken),
             TRANSFER_AMT
         );
@@ -715,7 +725,7 @@ contract QuotedCallsTest is Test {
         bytes[] memory ins = new bytes[](4);
         (cmds[0], ins[0]) = _cmdSubmitQuote(_buildIgpQuote(ALICE));
         (cmds[1], ins[1]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
-        (cmds[2], ins[2]) = _cmdPermit2TransferFrom(
+        (cmds[2], ins[2]) = _cmdTransferFrom(
             address(primaryToken),
             totalTokens
         );
@@ -785,10 +795,7 @@ contract QuotedCallsTest is Test {
             _buildIgpQuote(ALICE, address(primaryToken), address(localToken))
         );
         (cmds[1], ins[1]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
-        (cmds[2], ins[2]) = _cmdPermit2TransferFrom(
-            address(primaryToken),
-            totalERC20
-        );
+        (cmds[2], ins[2]) = _cmdTransferFrom(address(primaryToken), totalERC20);
         (cmds[3], ins[3]) = _cmdTransferRemote(
             address(localToken),
             DESTINATION,
@@ -918,7 +925,7 @@ contract QuotedCallsTest is Test {
 
         bytes1[] memory cmds = new bytes1[](2);
         bytes[] memory ins = new bytes[](2);
-        (cmds[0], ins[0]) = _cmdPermit2TransferFrom(
+        (cmds[0], ins[0]) = _cmdTransferFrom(
             address(primaryToken),
             totalTokens
         );
