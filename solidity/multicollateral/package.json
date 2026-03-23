@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/multicollateral",
   "description": "CrossCollateralRouter solidity contracts and typechain artifacts for Hyperlane",
-  "version": "0.2.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -1,5 +1,42 @@
 # @hyperlane-xyz/widgets
 
+## 28.1.0
+
+### Patch Changes
+
+- 83cbe4d: Fixed `MessageTimeline` rendering invalid `width="auto"` on SVG chevrons, which could break consumers on newer React/browser combinations.
+- Updated dependencies [5caac66]
+- Updated dependencies [6c715a7]
+- Updated dependencies [2e622e8]
+- Updated dependencies [2e622e8]
+- Updated dependencies [e93a4c8]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/radix-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@28.1.0
+  - @hyperlane-xyz/aleo-sdk@28.1.0
+  - @hyperlane-xyz/sdk@28.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.3
+  - @hyperlane-xyz/utils@28.1.0
+
+## 28.0.0
+
+### Patch Changes
+
+- Updated dependencies [26d08de]
+- Updated dependencies [83767b9]
+- Updated dependencies [228ed9f]
+- Updated dependencies [b9c6844]
+- Updated dependencies [a6b7bf3]
+- Updated dependencies [5a5d172]
+- Updated dependencies [a4a74d8]
+  - @hyperlane-xyz/aleo-sdk@28.0.0
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/cosmos-sdk@28.0.0
+  - @hyperlane-xyz/sdk@28.0.0
+  - @hyperlane-xyz/radix-sdk@28.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.2
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 27.1.0
 
 ### Patch Changes

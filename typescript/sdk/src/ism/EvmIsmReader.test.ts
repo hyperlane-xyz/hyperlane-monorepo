@@ -179,14 +179,10 @@ describe('EvmIsmReader', () => {
       owner: sandbox.stub().resolves(mockOwner),
       CCIP_READ_ISM: sandbox.stub().resolves(mockccipIsm),
     };
-    // Mock DefaultFallbackRoutingIsm to have owner() succeed but domains() fail
-    // This triggers the ICA path in the optimized deriveRoutingConfig
     const mockDefaultFallbackContract = {
       moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
       owner: sandbox.stub().resolves(mockOwner),
-      domains: sandbox
-        .stub()
-        .rejects(new Error('Not a DefaultFallbackRoutingIsm')),
+      domains: sandbox.stub().resolves([]),
     };
     sandbox
       .stub(AbstractRoutingIsm__factory, 'connect')
@@ -200,6 +196,7 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
+    sandbox.stub(Ownable__factory, 'connect').returns(mockContract as any);
     sandbox
       .stub(DefaultFallbackRoutingIsm__factory, 'connect')
       .returns(

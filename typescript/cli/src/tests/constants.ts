@@ -10,6 +10,7 @@ import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '../utils/files.js';
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
+export const CROSS_CHAIN_E2E_TEST_TIMEOUT = 300_000; // Cross-VM tests need more time (3 VMs to deploy)
 
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/test-registry`;
@@ -35,6 +36,7 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
     CHAIN_NAME_3: 'hyp3',
   },
   [ProtocolType.Sealevel]: {
+    CHAIN_NAME_1: 'svmlocal1',
     UNSUPPORTED_CHAIN: 'sealevel1',
   },
   [ProtocolType.Radix]: {
@@ -68,6 +70,14 @@ export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.CosmosNative]: './examples/cosmosnative/core-config.yaml',
   [ProtocolType.Radix]: './examples/radix/core-config.yaml',
   [ProtocolType.Aleo]: './examples/aleo/core-config.yaml',
+  [ProtocolType.Sealevel]: './examples/sealevel/core-config.yaml',
+} as const satisfies ProtocolMap<string>;
+
+export const CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: './examples/crosschain/ethereum/core-config.yaml',
+  [ProtocolType.CosmosNative]:
+    './examples/crosschain/cosmosnative/core-config.yaml',
+  [ProtocolType.Radix]: './examples/crosschain/radix/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
 export const HYP_KEY_BY_PROTOCOL = {

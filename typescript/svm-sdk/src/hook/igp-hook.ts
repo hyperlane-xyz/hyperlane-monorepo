@@ -1,9 +1,4 @@
-import {
-  address as parseAddress,
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress, type Address } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -33,6 +28,7 @@ import type {
   SvmDeployedIgpHook,
   SvmProgramTarget,
   SvmReceipt,
+  SvmRpc,
 } from '../types.js';
 
 import {
@@ -42,10 +38,14 @@ import {
   remoteGasDataToConfig,
 } from './hook-query.js';
 
-export interface SvmIgpHookConfig extends IgpHookConfig {
+/**
+ * Deployment-time configuration for the SVM IGP hook writer.
+ * Passed to the writer constructor; separate from the on-chain artifact config.
+ */
+export type SvmIgpHookWriterConfig = Readonly<{
+  /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
   program: SvmProgramTarget;
-  context?: string;
-}
+}>;
 
 export function deriveIgpSalt(context: string): Uint8Array {
   return keccak_256(new TextEncoder().encode(context));
@@ -59,7 +59,7 @@ export class SvmIgpHookReader implements ArtifactReader<
   SvmDeployedIgpHook
 > {
   constructor(
-    protected readonly rpc: Rpc<SolanaRpcApi>,
+    protected readonly rpc: SvmRpc,
     protected readonly salt: Uint8Array,
   ) {}
 
@@ -129,7 +129,8 @@ export class SvmIgpHookWriter
   implements ArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
 {
   constructor(
-    rpc: Rpc<SolanaRpcApi>,
+    private readonly config: SvmIgpHookWriterConfig,
+    rpc: SvmRpc,
     salt: Uint8Array,
     private readonly svmSigner: SvmSigner,
   ) {
@@ -141,9 +142,9 @@ export class SvmIgpHookWriter
   ): Promise<
     [ArtifactDeployed<IgpHookConfig, SvmDeployedIgpHook>, SvmReceipt[]]
   > {
-    const config = artifact.config as SvmIgpHookConfig;
+    const config = artifact.config;
     const { programAddress: programId, receipts } = await resolveProgram(
-      config.program,
+      this.config.program,
       this.svmSigner,
       this.rpc,
     );
@@ -157,6 +158,7 @@ export class SvmIgpHookWriter
       );
       const initProgramReceipt = await this.svmSigner.send({
         instructions: [initProgramIx],
+        skipPreflight: true,
       });
       receipts.push(initProgramReceipt);
     }
@@ -177,6 +179,7 @@ export class SvmIgpHookWriter
 
       const initReceipt = await this.svmSigner.send({
         instructions: [initIgpIx],
+        skipPreflight: true,
       });
       receipts.push(initReceipt);
 
@@ -207,6 +210,7 @@ export class SvmIgpHookWriter
 
       const initOverheadReceipt = await this.svmSigner.send({
         instructions: [initOverheadIx],
+        skipPreflight: true,
       });
       receipts.push(initOverheadReceipt);
     }

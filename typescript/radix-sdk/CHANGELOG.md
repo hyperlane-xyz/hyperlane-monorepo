@@ -1,5 +1,23 @@
 # @hyperlane-xyz/radix-sdk
 
+## 28.1.0
+
+### Patch Changes
+
+- 5caac66: Added `crossCollateral` warp token type to the provider-sdk type system. All protocol SDK artifact managers were updated to handle the new type in their exhaustive switches.
+- Updated dependencies [5caac66]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
+## 28.0.0
+
+### Patch Changes
+
+- Updated dependencies [83767b9]
+- Updated dependencies [a6b7bf3]
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 27.1.0
 
 ### Minor Changes

@@ -1,11 +1,18 @@
 import { ethers } from 'ethers';
 
-import { Router } from '@hyperlane-xyz/core';
+import {
+  InterchainAccountRouter,
+  MinimalInterchainAccountRouter__factory,
+  Router,
+} from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
-import { IcaRouterConfig as InterchainAccountConfig } from '../../ica/types.js';
+import {
+  IcaRouterConfig as InterchainAccountConfig,
+  IcaRouterType,
+} from '../../ica/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer.js';
 import { ChainName } from '../../types.js';
@@ -42,27 +49,65 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       throw new Error('Configuration of ISM not supported in ICA deployer');
     }
 
-    assert(
-      config.commitmentIsm.urls.length > 0,
-      'Commitment ISM URLs are required for deployment of ICA Routers. Please provide at least one URL in the commitmentIsm.urls array.',
-    );
+    const routerType = config.routerType ?? IcaRouterType.REGULAR;
+
+    if (routerType === IcaRouterType.REGULAR) {
+      assert(
+        config.commitmentIsm,
+        'commitmentIsm is required for regular ICA router deployments',
+      );
+      assert(
+        config.commitmentIsm.urls.length > 0,
+        'Commitment ISM URLs are required for deployment of ICA Routers',
+      );
+    } else {
+      assert(
+        !config.commitmentIsm,
+        'commitmentIsm must not be set for minimal ICA router deployments',
+      );
+    }
 
     const owner = await this.multiProvider.getSignerAddress(chain);
-    const interchainAccountRouter = await this.deployContract(
-      chain,
-      'interchainAccountRouter',
-      [
-        config.mailbox,
-        ethers.constants.AddressZero,
-        owner,
-        50_000,
-        config.commitmentIsm.urls,
-      ],
-    );
+    let interchainAccountRouter: InterchainAccountRouter;
+
+    if (routerType === IcaRouterType.REGULAR) {
+      interchainAccountRouter = await this.deployContract(
+        chain,
+        'interchainAccountRouter',
+        [
+          config.mailbox,
+          ethers.constants.AddressZero,
+          owner,
+          50_000,
+          config.commitmentIsm!.urls,
+        ],
+      );
+    } else {
+      this.logger.info(`Deploying MinimalInterchainAccountRouter on ${chain}`);
+      // CAST: MinimalInterchainAccountRouter shares the same function selectors used
+      // by the SDK (callRemoteWithOverrides, getDeployedInterchainAccount, isms, etc.).
+      // The EVM dispatches by selector so the cast is safe at runtime, but TS types differ.
+      interchainAccountRouter = (await this.deployContractFromFactory(
+        chain,
+        new MinimalInterchainAccountRouter__factory(),
+        'minimalInterchainAccountRouter',
+        [config.mailbox, ethers.constants.AddressZero, owner],
+      )) as unknown as InterchainAccountRouter;
+      // deployContractFromFactory doesn't write to cache (unlike deployContract),
+      // so persist the address for crash-recovery.
+      // Key must match the contractName passed to deployContractFromFactory above
+      // so that readCache finds it on recovery.
+      // CAST: writeCache is typed to keyof Factories, but deployContractFromFactory
+      // operates outside the factory type system with a free-form contractName string.
+      // readCache already accepts arbitrary string keys — this just matches it.
+      this.writeCache(
+        chain,
+        'minimalInterchainAccountRouter' as keyof InterchainAccountFactories,
+        interchainAccountRouter.address,
+      );
+    }
 
     // Approve fee tokens for hooks if configured
-    // This is needed when using ERC-20 fee tokens with aggregation hooks
-    // containing an IGP as a child hook
     if (config.feeTokenApprovals?.length) {
       this.logger.info(
         `Approving ${config.feeTokenApprovals.length} fee token(s) for hooks on ${chain}...`,

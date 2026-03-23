@@ -27,6 +27,7 @@ import { fetchMintMetadata } from '../accounts/mint.js';
 import type { SvmSigner } from '../clients/signer.js';
 import { concatBytes, u32le, u64le, u8 } from '../codecs/binary.js';
 import {
+  DEFAULT_COMPUTE_UNITS,
   RENT_SYSVAR_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
@@ -294,7 +295,7 @@ export class SvmSyntheticTokenWriter
     receipts.push(
       await this.svmSigner.send({
         instructions: [initIx, initMetadataPtrIx, initMintIx],
-        computeUnits: 400_000,
+        computeUnits: DEFAULT_COMPUTE_UNITS,
         skipPreflight: true,
       }),
     );

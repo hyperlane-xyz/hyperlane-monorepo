@@ -1,9 +1,4 @@
-import {
-  address as parseAddress,
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress, type Address } from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
@@ -19,7 +14,8 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
-import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import type { SvmDeployedHook, SvmDeployedIgpHook, SvmRpc } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
 import {
@@ -36,7 +32,7 @@ export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
   constructor(
-    private readonly rpc: Rpc<SolanaRpcApi>,
+    private readonly rpc: SvmRpc,
     private readonly mailboxAddress?: Address,
     private readonly salt: Uint8Array = DEFAULT_IGP_SALT,
   ) {}
@@ -97,9 +93,24 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
         SvmDeployedHook | SvmDeployedIgpHook
       >;
     }> = {
-      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
+      merkleTreeHook: () => {
+        assert(
+          this.mailboxAddress,
+          'Mailbox address is required to create a merkle tree hook writer on SVM',
+        );
+        return new SvmMerkleTreeHookWriter(
+          { mailboxAddress: this.mailboxAddress },
+          this.rpc,
+          signer,
+        );
+      },
       interchainGasPaymaster: () =>
-        new SvmIgpHookWriter(this.rpc, this.salt, signer),
+        new SvmIgpHookWriter(
+          { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+          this.rpc,
+          this.salt,
+          signer,
+        ),
     };
     const factory = writers[type];
     if (!factory) {
