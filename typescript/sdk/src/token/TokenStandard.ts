@@ -395,6 +395,18 @@ export const tokenTypeToStandard = (
       );
       return sealevelTokenStandard;
     }
+    case ProtocolType.Starknet: {
+      const starknetTokenStandard =
+        STARKNET_TOKEN_TYPE_TO_STANDARD[
+          tokenType as StarknetSupportedTokenTypes
+        ];
+
+      assert(
+        starknetTokenStandard,
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+      return starknetTokenStandard;
+    }
     default: {
       throw new Error(
         `no token standard available for protocol type ${protocolType}`,

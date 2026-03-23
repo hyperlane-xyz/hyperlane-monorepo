@@ -37,7 +37,8 @@ describe('StarknetMailboxArtifactManager', () => {
       tx: StarknetAnnotatedTx,
     ): Promise<StarknetTxReceipt> {
       this.sentTxs.push(tx);
-      const contractAddress = this.sentTxs.length === 1 ? '0xdef' : '0xabc';
+      const contractAddress =
+        tx.kind === 'deploy' && tx.contractName === 'hook' ? '0xdef' : '0xabc';
       return { transactionHash: `0x${this.sentTxs.length}`, contractAddress };
     }
   }
