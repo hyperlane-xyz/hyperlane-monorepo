@@ -107,6 +107,16 @@ describe('EvmTokenFeeReader', () => {
       expect(convertedBps).to.equal(bps);
     });
 
+    it('should round-trip fractional bps values', async () => {
+      const fractionalValues = [0.5, 1.5, 2.5, 8.3333];
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      for (const bps of fractionalValues) {
+        const { maxFee, halfAmount } = reader.convertFromBps(bps);
+        const roundTripped = convertToBps(maxFee, halfAmount);
+        expect(roundTripped).to.equal(bps);
+      }
+    });
+
     it('should use constant divisor for consistent fee derivation', async () => {
       const bps = 8;
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
