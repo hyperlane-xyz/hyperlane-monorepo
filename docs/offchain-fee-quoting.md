@@ -240,7 +240,7 @@ Command-based router (UniversalRouter pattern) that atomically submits offchain-
 ```solidity
 uint256 constant SUBMIT_QUOTE = 0x00;               // Submit offchain quote to quoter
 uint256 constant PERMIT2_PERMIT = 0x01;              // Set Permit2 allowance via signature
-uint256 constant PERMIT2_TRANSFER_FROM = 0x02;       // Pull tokens via Permit2
+uint256 constant PERMIT2_TRANSFER_FROM = 0x02;       // Pull tokens via Permit2 (uint160 amount)
 uint256 constant TRANSFER_FROM = 0x03;               // Pull tokens via ERC20 transferFrom
 uint256 constant TRANSFER_REMOTE = 0x04;             // Warp route transfer + value forwarding
 uint256 constant TRANSFER_REMOTE_TO = 0x05;          // Cross-collateral transfer + value forwarding

@@ -634,6 +634,84 @@ contract OffchainQuotedLinearFeeTest is Test {
         vm.prank(signer);
         quotedFee.removeQuoteSigner(address(0xDEAD));
     }
+
+    // ============ Standing Quote Replacement ============
+
+    function test_standingQuote_replacementUsesNewParams() public {
+        uint48 now_ = uint48(block.timestamp);
+        uint256 firstMaxFee = 0.01 ether;
+        uint256 secondMaxFee = 0.05 ether;
+        uint256 secondHalfAmount = 2 ether;
+
+        // Submit first standing quote
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            firstMaxFee,
+            HALF_AMOUNT,
+            now_,
+            now_ + 3600
+        );
+
+        Quote[] memory result = quotedFee.quoteTransferRemote(
+            DEST,
+            RECIPIENT,
+            AMOUNT
+        );
+        assertEq(
+            result[0].amount,
+            _computeFee(firstMaxFee, HALF_AMOUNT, AMOUNT)
+        );
+
+        // Submit newer standing quote (higher issuedAt) with different params
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            secondMaxFee,
+            secondHalfAmount,
+            now_ + 1,
+            now_ + 7200
+        );
+
+        // New params are used
+        result = quotedFee.quoteTransferRemote(DEST, RECIPIENT, AMOUNT);
+        assertEq(
+            result[0].amount,
+            _computeFee(secondMaxFee, secondHalfAmount, AMOUNT)
+        );
+    }
+
+    // ============ Transient Wildcard Destination + Specific Recipient ============
+
+    function test_transientQuote_wildcardDest_specificRecipient() public {
+        uint32 wildcardDest = type(uint32).max;
+        _submitTransient(wildcardDest, RECIPIENT, AMOUNT, MAX_FEE, HALF_AMOUNT);
+
+        // Should match any destination with the specific recipient
+        Quote[] memory result = quotedFee.quoteTransferRemote(
+            DEST,
+            RECIPIENT,
+            AMOUNT
+        );
+        assertEq(result[0].amount, _computeFee(MAX_FEE, HALF_AMOUNT, AMOUNT));
+
+        // Different destination also matches
+        result = quotedFee.quoteTransferRemote(99, RECIPIENT, AMOUNT);
+        assertEq(result[0].amount, _computeFee(MAX_FEE, HALF_AMOUNT, AMOUNT));
+
+        // Different recipient does NOT match — falls to immutable
+        result = quotedFee.quoteTransferRemote(
+            DEST,
+            bytes32(uint256(0xDEAD)),
+            AMOUNT
+        );
+        assertEq(
+            result[0].amount,
+            _computeFee(IMMUTABLE_MAX_FEE, IMMUTABLE_HALF_AMOUNT, AMOUNT)
+        );
+    }
 }
 
 // ============ FeeQuoteContext / FeeQuoteData Codec Tests ============

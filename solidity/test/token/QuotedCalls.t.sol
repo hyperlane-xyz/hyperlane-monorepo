@@ -395,7 +395,7 @@ contract QuotedCallsTest is Test {
 
     function _cmdPermit2TransferFrom(
         address token,
-        uint256 amount
+        uint160 amount
     ) internal view returns (bytes1, bytes memory) {
         return (
             bytes1(uint8(quotedCalls.PERMIT2_TRANSFER_FROM())),
@@ -490,6 +490,37 @@ contract QuotedCallsTest is Test {
         );
     }
 
+    function _cmdCallRemoteCommitReveal(
+        address icaRouter,
+        uint32 destination,
+        bytes32 router,
+        bytes32 ism,
+        bytes memory hookMetadata,
+        address hook,
+        bytes32 salt,
+        bytes32 commitment,
+        uint256 value,
+        address token,
+        uint256 approval
+    ) internal view returns (bytes1, bytes memory) {
+        return (
+            bytes1(uint8(quotedCalls.CALL_REMOTE_COMMIT_REVEAL())),
+            abi.encode(
+                icaRouter,
+                destination,
+                router,
+                ism,
+                hookMetadata,
+                hook,
+                salt,
+                commitment,
+                value,
+                token,
+                approval
+            )
+        );
+    }
+
     function _cmdSweep(
         address token
     ) internal view returns (bytes1, bytes memory) {
@@ -577,7 +608,7 @@ contract QuotedCallsTest is Test {
         (cmds[1], ins[1]) = _cmdPermit2Permit(permitSingle, "");
         (cmds[2], ins[2]) = _cmdPermit2TransferFrom(
             address(primaryToken),
-            totalTokens
+            uint160(totalTokens)
         );
         (cmds[3], ins[3]) = _cmdTransferRemote(
             address(localToken),
@@ -975,6 +1006,259 @@ contract QuotedCallsTest is Test {
             abi.encodeWithSelector(QuotedCalls.InvalidCommandType.selector, 255)
         );
         quotedCalls.execute(commands, inputs);
+    }
+
+    // ============ Tests: CALL_REMOTE_COMMIT_REVEAL ============
+
+    function test_callRemoteCommitReveal_happyPath() public {
+        string[] memory icaUrls = new string[](1);
+        icaUrls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(igp),
+            address(this),
+            0,
+            icaUrls
+        );
+        icaRouter.enrollRemoteRouter(
+            DESTINATION,
+            address(0xdead).addressToBytes32()
+        );
+
+        localToken.setFeeHook(address(igp));
+        localToken.setHook(address(igp));
+
+        // commit-reveal dispatches two messages:
+        // commit uses COMMIT_TX_GAS_USAGE (0) + overhead, reveal uses 50k + overhead
+        uint256 commitFee = _computeOffchainIgpFee(0);
+        uint256 revealFee = _computeOffchainIgpFee(50_000);
+        uint256 totalNativeFee = commitFee + revealFee;
+        bytes32 commitment = keccak256("test commitment");
+        bytes32 userSalt = bytes32(uint256(42));
+
+        bytes memory hookMetadata = StandardHookMetadata.format(
+            revealFee,
+            uint256(50_000),
+            address(quotedCalls)
+        );
+
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(
+            _buildIgpQuote(ALICE, address(0), address(icaRouter))
+        );
+        (cmds[1], ins[1]) = _cmdCallRemoteCommitReveal(
+            address(icaRouter),
+            DESTINATION,
+            address(0xdead).addressToBytes32(),
+            bytes32(0),
+            hookMetadata,
+            address(igp),
+            userSalt,
+            commitment,
+            totalNativeFee,
+            address(0),
+            0
+        );
+        (cmds[2], ins[2]) = _cmdSweep(address(0));
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.deal(ALICE, totalNativeFee);
+        vm.startPrank(ALICE);
+        quotedCalls.execute{value: totalNativeFee}(commands, inputs);
+        vm.stopPrank();
+
+        assertEq(address(igp).balance, totalNativeFee);
+        assertEq(address(quotedCalls).balance, 0);
+    }
+
+    // ============ Tests: SWEEP with token = address(0) ============
+
+    function test_sweep_ethOnly() public {
+        uint256 ethAmount = 1 ether;
+
+        // Send some tokens AND ETH to quotedCalls
+        primaryToken.transfer(address(quotedCalls), 10e18);
+        vm.deal(address(quotedCalls), ethAmount);
+
+        bytes1[] memory cmds = new bytes1[](1);
+        bytes[] memory ins = new bytes[](1);
+        (cmds[0], ins[0]) = _cmdSweep(address(0));
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        uint256 aliceEthBefore = ALICE.balance;
+        uint256 aliceTokenBefore = primaryToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        quotedCalls.execute(commands, inputs);
+
+        // ETH swept to ALICE
+        assertEq(ALICE.balance, aliceEthBefore + ethAmount);
+        // Tokens NOT swept (token = address(0) skips ERC20)
+        assertEq(primaryToken.balanceOf(ALICE), aliceTokenBefore);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 10e18);
+    }
+
+    // ============ Tests: Persistent Approval Reuse ============
+
+    function test_persistentApproval_reusedAcrossCalls() public {
+        uint256 totalTokens = TRANSFER_AMT + MAX_FEE;
+
+        // First execute: sets approval from quotedCalls to localToken
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
+        (cmds[1], ins[1]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokens
+        );
+        (cmds[2], ins[2]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            totalTokens
+        );
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(quotedCalls), totalTokens * 2);
+
+        quotedCalls.execute(commands, inputs);
+
+        // Second execute reuses the persistent approval
+        (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
+        (cmds[1], ins[1]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokens
+        );
+        (cmds[2], ins[2]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            totalTokens
+        );
+        (commands, inputs) = _pack(cmds, ins);
+
+        quotedCalls.execute(commands, inputs);
+        vm.stopPrank();
+
+        assertEq(primaryToken.balanceOf(ALICE), 1000e18 - totalTokens * 2);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
+    }
+
+    // ============ Tests: Revert Midway is Atomic ============
+
+    function test_revertMidway_atomicRollback() public {
+        uint256 totalTokens = TRANSFER_AMT + MAX_FEE;
+
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        // cmd 0: pull tokens (succeeds)
+        (cmds[0], ins[0]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokens
+        );
+        // cmd 1: submit quote (succeeds)
+        (cmds[1], ins[1]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
+        // cmd 2: invalid command (reverts)
+        cmds[2] = bytes1(uint8(0xff));
+        ins[2] = "";
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        uint256 aliceBefore = primaryToken.balanceOf(ALICE);
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(quotedCalls), totalTokens);
+        vm.expectRevert(
+            abi.encodeWithSelector(QuotedCalls.InvalidCommandType.selector, 255)
+        );
+        quotedCalls.execute(commands, inputs);
+        vm.stopPrank();
+
+        // Atomic revert — ALICE balance unchanged
+        assertEq(primaryToken.balanceOf(ALICE), aliceBefore);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
+    }
+
+    // ============ Tests: Multiple SUBMIT_QUOTE Interleaving ============
+
+    function test_multipleQuotes_secondOverwritesFirst() public {
+        // Build two fee quotes with different params
+        uint256 firstMaxFee = 0.01 ether;
+        uint256 secondMaxFee = 0.005 ether;
+
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq1 = SignedQuote({
+            context: _feeQuoteContext(),
+            data: FeeQuoteData.encode(firstMaxFee, HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_,
+            salt: _scopedSalt(ALICE),
+            submitter: address(quotedCalls)
+        });
+        bytes memory quote1Input = abi.encode(
+            address(quotedFee),
+            sq1,
+            _signQuote(address(quotedFee), sq1),
+            CLIENT_SALT
+        );
+
+        SignedQuote memory sq2 = SignedQuote({
+            context: _feeQuoteContext(),
+            data: FeeQuoteData.encode(secondMaxFee, HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_,
+            salt: _scopedSalt(ALICE),
+            submitter: address(quotedCalls)
+        });
+        bytes memory quote2Input = abi.encode(
+            address(quotedFee),
+            sq2,
+            _signQuote(address(quotedFee), sq2),
+            CLIENT_SALT
+        );
+
+        uint256 totalTokens = TRANSFER_AMT + secondMaxFee;
+
+        bytes1[] memory cmds = new bytes1[](4);
+        bytes[] memory ins = new bytes[](4);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(quote1Input);
+        // Second quote overwrites first in transient storage
+        (cmds[1], ins[1]) = _cmdSubmitQuote(quote2Input);
+        (cmds[2], ins[2]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokens
+        );
+        (cmds[3], ins[3]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            totalTokens
+        );
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(quotedCalls), totalTokens);
+        quotedCalls.execute(commands, inputs);
+        vm.stopPrank();
+
+        // Fee charged at second quote's rate
+        assertEq(primaryToken.balanceOf(address(quotedFee)), secondMaxFee);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
     }
 
     receive() external payable {}

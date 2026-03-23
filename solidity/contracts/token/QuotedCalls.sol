@@ -126,7 +126,7 @@ contract QuotedCalls is PackageVersioned {
     uint256 public constant PERMIT2_PERMIT = 0x01;
 
     /// @notice Pull ERC20 tokens from msg.sender via Permit2.
-    /// inputs: abi.encode(address token, uint256 amount)
+    /// inputs: abi.encode(address token, uint160 amount)
     uint256 public constant PERMIT2_TRANSFER_FROM = 0x02;
 
     /// @notice Pull ERC20 tokens from msg.sender via standard transferFrom.
@@ -233,16 +233,11 @@ contract QuotedCalls is PackageVersioned {
             ) = abi.decode(input, (IAllowanceTransfer.PermitSingle, bytes));
             PERMIT2.permit(msg.sender, permitSingle, signature);
         } else if (command == PERMIT2_TRANSFER_FROM) {
-            (address token, uint256 amount) = abi.decode(
+            (address token, uint160 amount) = abi.decode(
                 input,
-                (address, uint256)
+                (address, uint160)
             );
-            PERMIT2.transferFrom(
-                msg.sender,
-                address(this),
-                uint160(amount),
-                token
-            );
+            PERMIT2.transferFrom(msg.sender, address(this), amount, token);
         } else if (command == TRANSFER_FROM) {
             (address token, uint256 amount) = abi.decode(
                 input,
