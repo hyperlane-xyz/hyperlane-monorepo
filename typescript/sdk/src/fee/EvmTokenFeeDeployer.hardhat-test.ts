@@ -10,6 +10,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
+import { BPS_PRECISION } from './utils.js';
 import {
   LinearFeeConfig,
   ProgressiveFeeConfig,
@@ -145,7 +146,9 @@ describe('EvmTokenFeeDeployer', () => {
     ](1, addressToBytes32(signer.address), amount);
 
     expect(quote.length).to.equal(1);
-    expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
+    expect(quote[0].amount).to.be.equal(
+      (BigInt(amount) * BigInt(BPS)) / BPS_PRECISION,
+    );
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero

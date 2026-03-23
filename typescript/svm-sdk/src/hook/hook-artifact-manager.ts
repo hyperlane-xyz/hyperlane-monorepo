@@ -5,10 +5,11 @@ import type {
   ArtifactReader,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedHookArtifact,
-  IRawHookArtifactManager,
-  RawHookArtifactConfigs,
+import {
+  type DeployedHookArtifact,
+  type IRawHookArtifactManager,
+  type RawHookArtifactConfigs,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -63,17 +64,19 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const readers: {
+    const readers: Partial<{
       [K in keyof RawHookArtifactConfigs]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
-    } = {
+    }> = {
       merkleTreeHook: () => new SvmMerkleTreeHookReader(this.rpc),
       interchainGasPaymaster: () => new SvmIgpHookReader(this.rpc, this.salt),
     };
     const factory = readers[type];
-    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    if (!factory) {
+      return throwUnsupportedHookType(type, 'Sealevel');
+    }
     return factory();
   }
 
@@ -84,12 +87,12 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const writers: {
+    const writers: Partial<{
       [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
-    } = {
+    }> = {
       merkleTreeHook: () => {
         assert(
           this.mailboxAddress,
@@ -110,7 +113,9 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
         ),
     };
     const factory = writers[type];
-    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    if (!factory) {
+      return throwUnsupportedHookType(type, 'Sealevel');
+    }
     return factory();
   }
 
