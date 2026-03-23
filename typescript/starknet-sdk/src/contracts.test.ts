@@ -41,6 +41,11 @@ describe('starknet-sdk contracts helpers', () => {
     expect(extractEnumVariant({ MERKLE_TREE: {} })).to.equal('MERKLE_TREE');
   });
 
+  it('preserves single-key enum variants with undefined payloads', () => {
+    expect(extractEnumVariant({ NOOP: undefined })).to.equal('NOOP');
+    expect(extractEnumVariant({ NOOP: null })).to.equal('NOOP');
+  });
+
   it('preserves zero-like enum values instead of treating them as empty', () => {
     expect(extractEnumVariant(0)).to.equal('0');
     expect(extractEnumVariant(0n)).to.equal('0');

@@ -250,7 +250,12 @@ export function extractEnumVariant(value: unknown): string {
   }
 
   if (isObjectRecord(value)) {
-    for (const [key, nested] of Object.entries(value)) {
+    const entries = Object.entries(value);
+    if (entries.length === 1) {
+      const [entry] = entries;
+      if (entry) return entry[0];
+    }
+    for (const [key, nested] of entries) {
       if (nested !== undefined && nested !== null) {
         return key;
       }
