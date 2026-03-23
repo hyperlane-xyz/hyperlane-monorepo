@@ -482,7 +482,7 @@ export function bytes32ToAddress(bytes32: HexString): Address {
 
 export function addressToBytesEvm(address: Address): Uint8Array {
   const addrBytes32 = addressToBytes32Evm(address);
-  return Buffer.from(strip0x(addrBytes32), 'hex');
+  return new Uint8Array(Buffer.from(strip0x(addrBytes32), 'hex'));
 }
 
 export function addressToBytesSol(address: Address): Uint8Array {
@@ -494,7 +494,7 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
 }
 
 export function addressToBytesCosmosNative(address: Address): Uint8Array {
-  return Buffer.from(strip0x(address), 'hex');
+  return new Uint8Array(Buffer.from(strip0x(address), 'hex'));
 }
 
 export function addressToBytesStarknet(address: Address): Uint8Array {
@@ -602,7 +602,9 @@ export function padBytesToLength(bytes: Uint8Array, length: number) {
   if (bytes.length > length) {
     throw new Error(`bytes must be ${length} bytes or less`);
   }
-  return Buffer.concat([Buffer.alloc(length - bytes.length), bytes]);
+  const padded = new Uint8Array(length);
+  padded.set(bytes, length - bytes.length);
+  return padded;
 }
 
 export function bytesToAddressEvm(bytes: Uint8Array): Address {
