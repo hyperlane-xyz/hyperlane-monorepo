@@ -24,11 +24,11 @@ backup_files() {
   done
 }
 
-# Restore all files from backups
+# Restore all files from backups (guard against missing .bak for excluded files)
 restore_files() {
-  mv "$OZ_CREATE2.bak" "$OZ_CREATE2"
+  if [ -f "$OZ_CREATE2.bak" ]; then mv "$OZ_CREATE2.bak" "$OZ_CREATE2"; fi
   for f in $ISCONTRACT_FILES; do
-    mv "$f.bak" "$f"
+    if [ -f "$f.bak" ]; then mv "$f.bak" "$f"; fi
   done
 }
 

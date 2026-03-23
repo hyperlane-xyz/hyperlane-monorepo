@@ -1078,6 +1078,16 @@ contract InterchainGasPaymasterTest is Test {
         assertEq(domains[0], testDestinationDomain);
     }
 
+    function testQuoteGasPaymentTokenRevertsIfNoTokenOracleSet() public {
+        uint32 _unknownDomain = 33333;
+        address _token = address(feeToken);
+
+        vm.expectRevert(
+            abi.encodePacked("IGP: no gas oracle for domain ", "33333")
+        );
+        igp.quoteGasPayment(_token, _unknownDomain, testGasLimit);
+    }
+
     function testSetTokenGasOracle_revertsForNonNativeWhenDomainNotConfigured()
         public
     {

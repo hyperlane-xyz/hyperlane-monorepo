@@ -14,7 +14,8 @@ enum FeeType {
     REGRESSIVE,
     PROGRESSIVE,
     ROUTING,
-    CROSS_COLLATERAL_ROUTING
+    CROSS_COLLATERAL_ROUTING,
+    OFFCHAIN_QUOTED_LINEAR
 }
 
 abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
