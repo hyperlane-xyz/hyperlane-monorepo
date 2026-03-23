@@ -59,6 +59,10 @@ if (!hasProtocol(TestProtocol)) {
   registerProtocol(TestProtocol, () => mockProtocolProvider);
 }
 
+if (!hasProtocol(ProtocolType.Starknet)) {
+  registerProtocol(ProtocolType.Starknet, () => mockProtocolProvider);
+}
+
 describe('CoreWriter', () => {
   const mockMailboxAddress = '0xMAILBOX';
   const mockIsmAddress = '0xISM';
@@ -517,6 +521,96 @@ describe('CoreWriter', () => {
       expect(initialConfig.defaultHook.artifactState).to.equal(
         ArtifactState.UNDERIVED,
       );
+    });
+
+    it('should bootstrap Starknet mailboxes with a noop hook placeholder', async () => {
+      chainMetadata = {
+        ...chainMetadata,
+        protocol: ProtocolType.Starknet,
+      };
+      coreWriter = new CoreWriter(
+        mailboxArtifactManager,
+        validatorAnnounceArtifactManager,
+        chainMetadata,
+        chainLookup,
+        signer,
+      );
+
+      const placeholderHookAddress = '0xNOOP';
+      const placeholderTx: AnnotatedTx = {
+        to: '0xhookfactory',
+        data: '0xnoop',
+      };
+
+      sinon
+        .stub(signer, 'getCreateNoopHookTransaction')
+        .resolves(placeholderTx);
+      sendAndConfirmTxStub.resolves({
+        ...mockReceipt,
+        contractAddress: placeholderHookAddress,
+      });
+
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: {
+            artifactState: ArtifactState.NEW,
+            config: mockDefaultHook.config,
+          },
+          requiredHook: {
+            artifactState: ArtifactState.NEW,
+            config: mockRequiredHook.config,
+          },
+        },
+      };
+
+      const mockIsmWriter = {
+        create: sinon.stub(),
+        update: sinon.stub(),
+        read: sinon.stub(),
+      };
+
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: mockIsmWriter,
+        writable: true,
+      });
+
+      const mockHookWriter = {
+        create: sinon
+          .stub()
+          .onFirstCall()
+          .callsFake(async () => [mockDefaultHook, [mockReceipt]])
+          .onSecondCall()
+          .callsFake(async () => [mockRequiredHook, [mockReceipt]]),
+        update: sinon.stub(),
+        read: sinon.stub(),
+      };
+
+      mockHookArtifactManager.createWriter = sinon
+        .stub()
+        .returns(mockHookWriter);
+
+      await coreWriter.create(artifact);
+
+      const mailboxWriter = createMailboxWriterStub.returnValues[0];
+      const initialConfig = mailboxWriter.create.firstCall.args[0].config;
+
+      expect(initialConfig.defaultHook.deployed.address).to.equal(
+        placeholderHookAddress,
+      );
+      expect(initialConfig.requiredHook.deployed.address).to.equal(
+        placeholderHookAddress,
+      );
+      sinon.assert.calledOnceWithExactly(
+        signer.getCreateNoopHookTransaction as sinon.SinonStub,
+        {
+          signer: mockSignerAddress,
+          mailboxAddress: '',
+        },
+      );
+      sinon.assert.calledOnceWithExactly(sendAndConfirmTxStub, placeholderTx);
     });
 
     it('should update mailbox with hooks and owner after deployment', async () => {

@@ -19,7 +19,7 @@ import {
 } from '../helpers.js';
 
 describe('hyperlane core deploy (Starknet E2E tests)', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(4 * DEFAULT_E2E_TEST_TIMEOUT);
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Starknet,

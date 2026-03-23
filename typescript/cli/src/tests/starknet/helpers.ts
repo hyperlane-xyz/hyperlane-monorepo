@@ -105,15 +105,20 @@ export function expectStarknetWarpConfig(
   coreAddressByChain: ChainMap<ChainAddresses>,
   chainName: string,
 ) {
+  const owner = warpDeployConfig[chainName].owner;
+  assert(owner, `Expected owner for chain ${chainName}`);
+  const mailbox = warpDeployConfig[chainName].mailbox;
+  assert(mailbox, `Expected mailbox for chain ${chainName}`);
+
   expect(derivedWarpDeployConfig[chainName].type).to.equal(
     warpDeployConfig[chainName].type,
   );
   expect(
     normalizeStarknetAddress(derivedWarpDeployConfig[chainName].owner),
-  ).to.equal(normalizeStarknetAddress(warpDeployConfig[chainName].owner!));
-  expect(
-    normalizeStarknetAddress(warpDeployConfig[chainName].mailbox!),
-  ).to.equal(normalizeStarknetAddress(coreAddressByChain[chainName].mailbox));
+  ).to.equal(normalizeStarknetAddress(owner));
+  expect(normalizeStarknetAddress(mailbox)).to.equal(
+    normalizeStarknetAddress(coreAddressByChain[chainName].mailbox),
+  );
   expect(Object.keys(derivedWarpDeployConfig[chainName].destinationGas ?? {}))
     .to.not.be.empty;
   expect(Object.keys(derivedWarpDeployConfig[chainName].remoteRouters ?? {})).to

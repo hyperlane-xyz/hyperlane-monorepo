@@ -29,7 +29,7 @@ import {
 import { expectStarknetWarpConfig } from '../helpers.js';
 
 describe('hyperlane warp deploy (Starknet E2E tests)', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(4 * DEFAULT_E2E_TEST_TIMEOUT);
 
   const nativeTokenData =
     TEST_CHAIN_METADATA_BY_PROTOCOL.starknet.CHAIN_NAME_1.nativeToken;

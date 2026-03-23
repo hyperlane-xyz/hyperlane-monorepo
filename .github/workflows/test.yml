@@ -418,6 +418,7 @@ jobs:
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
       has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
       has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
     runs-on: ubuntu-latest

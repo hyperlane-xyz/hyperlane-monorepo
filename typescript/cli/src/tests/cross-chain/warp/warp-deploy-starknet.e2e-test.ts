@@ -16,9 +16,9 @@ import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
+  CROSS_CHAIN_E2E_TEST_TIMEOUT,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
@@ -34,7 +34,7 @@ import { assertWarpRouteConfig } from '../../utils.js';
 import { expectStarknetWarpConfig } from '../../starknet/helpers.js';
 
 describe('hyperlane warp deploy e2e tests (Starknet x EVM)', async function () {
-  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(2 * CROSS_CHAIN_E2E_TEST_TIMEOUT);
 
   const starknetTokenData =
     TEST_CHAIN_METADATA_BY_PROTOCOL.starknet.CHAIN_NAME_1.nativeToken;
