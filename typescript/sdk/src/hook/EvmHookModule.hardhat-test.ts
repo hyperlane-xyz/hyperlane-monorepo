@@ -89,7 +89,7 @@ describe('EvmHookModule', async () => {
     );
 
     // mailbox and proxy admin for the core deploy
-    const { mailbox, proxyAdmin, validatorAnnounce } = (
+    const { mailbox, proxyAdmin, validatorAnnounce, quotedCalls } = (
       await testCoreDeployer.deployApp()
     ).getContracts(chain);
 
@@ -97,6 +97,7 @@ describe('EvmHookModule', async () => {
       mailbox: mailbox.address,
       proxyAdmin: proxyAdmin.address,
       validatorAnnounce: validatorAnnounce.address,
+      quotedCalls: quotedCalls.address,
     };
 
     // reusable for routing/fallback routing specific tests

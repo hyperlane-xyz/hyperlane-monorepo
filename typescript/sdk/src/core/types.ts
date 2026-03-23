@@ -24,6 +24,8 @@ export const CoreConfigSchema = OwnableSchema.extend({
   // did not have them and we want to maintain backward compatibility
   proxyAdmin: DeployedOwnableSchema.optional(),
   interchainAccountRouter: IcaRouterConfigSchema.optional(),
+  // Override canonical Permit2 address for QuotedCalls deployment
+  permit2: z.string().optional(),
 });
 
 export const DerivedCoreConfigSchema = CoreConfigSchema.merge(

@@ -218,7 +218,7 @@ export class EvmHookModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HookConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
-    coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'>;
+    coreAddresses: Omit<CoreAddresses, 'validatorAnnounce' | 'quotedCalls'>;
     multiProvider: MultiProvider;
     ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;

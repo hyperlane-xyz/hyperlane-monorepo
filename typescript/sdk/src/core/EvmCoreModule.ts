@@ -406,6 +406,11 @@ export class EvmCoreModule extends HyperlaneModule<
       await coreDeployer.deployValidatorAnnounce(chainName, mailbox.address)
     ).address;
 
+    // Deploy QuotedCalls
+    const quotedCalls = (
+      await coreDeployer.deployQuotedCalls(chainName, config.permit2)
+    ).address;
+
     // Deploy timelock controller if config.upgrade is set
     let timelockController;
     if (config.upgrade) {
@@ -455,6 +460,7 @@ export class EvmCoreModule extends HyperlaneModule<
       mailbox: mailbox.address,
       interchainAccountRouter,
       validatorAnnounce,
+      quotedCalls,
       timelockController,
       testRecipient,
       merkleTreeHook,
