@@ -274,6 +274,38 @@ describe('createAltVMSigners', () => {
     expect(capturedConfigs).to.have.length(0);
   });
 
+  it('throws for non-jsonRpc strategies instead of prompting for a private key', async () => {
+    const privateKeyPrompt = sinon.stub(altVmPrompts, 'password');
+
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
+      radix: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_SAFE,
+          chain: 'radix',
+          safeAddress: '0x123',
+        },
+      },
+    };
+
+    await createAltVMSigners(
+      getMetadataManager(() => getRadixMetadata('radix')),
+      ['radix'],
+      {},
+      strategy,
+      getProtocolRegistry(),
+    )
+      .then(() => expect.fail('expected createAltVMSigners to throw'))
+      .catch((error: unknown) => {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.equal(
+          `unsupported submitter type in strategy config for chain radix: ${TxSubmitterType.GNOSIS_SAFE}`,
+        );
+      });
+
+    expect(privateKeyPrompt.called).to.equal(false);
+    expect(capturedConfigs).to.have.length(0);
+  });
+
   it('prefers explicit per-chain strategy key over prompted fallback', async () => {
     const privateKeyPrompt = sinon
       .stub(altVmPrompts, 'password')

@@ -60,6 +60,10 @@ async function loadPrivateKey(
           `missing private key in strategy config for chain ${chain}`,
         );
       }
+    } else {
+      throw new Error(
+        `unsupported submitter type in strategy config for chain ${chain}: ${rawConfig.type}`,
+      );
     }
   }
 
