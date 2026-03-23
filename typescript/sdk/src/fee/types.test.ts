@@ -175,4 +175,16 @@ describe('ZBps schema validation', () => {
     const r3 = ZBps.safeParse(1.5);
     expect(r3.success).to.be.true;
   });
+
+  it('should reject bigint input (intentional breaking change — use plain number instead)', () => {
+    // ZBps intentionally dropped bigint support; callers must use number (e.g., 5 not 5n)
+    expect(ZBps.safeParse(5n).success).to.be.false;
+    expect(ZBps.safeParse(0n).success).to.be.false;
+  });
+
+  it('should reject negative numbers', () => {
+    expect(ZBps.safeParse(-5).success).to.be.false;
+    expect(ZBps.safeParse(-1.5).success).to.be.false;
+    expect(ZBps.safeParse(-0.0001).success).to.be.false;
+  });
 });
