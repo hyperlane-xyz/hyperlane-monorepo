@@ -877,6 +877,9 @@ importers:
       '@inquirer/type':
         specifier: ^1.0.0
         version: 1.5.5
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
@@ -1171,6 +1174,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
@@ -1790,6 +1796,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
@@ -2115,6 +2124,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
@@ -2493,6 +2505,9 @@ importers:
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
         version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@6.0.2))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10))
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
