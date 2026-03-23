@@ -542,7 +542,7 @@ describe('CoreWriter', () => {
         data: '0xnoop',
       };
 
-      sinon
+      const createNoopHookTxStub = sinon
         .stub(signer, 'getCreateNoopHookTransaction')
         .resolves(placeholderTx);
       sendAndConfirmTxStub.resolves({
@@ -603,13 +603,10 @@ describe('CoreWriter', () => {
       expect(initialConfig.requiredHook.deployed.address).to.equal(
         placeholderHookAddress,
       );
-      sinon.assert.calledOnceWithExactly(
-        signer.getCreateNoopHookTransaction as sinon.SinonStub,
-        {
-          signer: mockSignerAddress,
-          mailboxAddress: '',
-        },
-      );
+      sinon.assert.calledOnceWithExactly(createNoopHookTxStub, {
+        signer: mockSignerAddress,
+        mailboxAddress: '',
+      });
       sinon.assert.calledOnceWithExactly(sendAndConfirmTxStub, placeholderTx);
     });
 
