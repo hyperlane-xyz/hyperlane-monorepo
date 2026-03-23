@@ -603,6 +603,9 @@ importers:
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       '@types/unzipper':
         specifier: ^0
         version: 0.10.11
@@ -1037,6 +1040,9 @@ importers:
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       '@typescript-eslint/eslint-plugin':
         specifier: 'catalog:'
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2))(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)
@@ -1973,6 +1979,9 @@ importers:
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       '@typescript-eslint/eslint-plugin':
         specifier: 'catalog:'
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2))(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)
@@ -2672,6 +2681,9 @@ importers:
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       '@types/unzipper':
         specifier: ^0
         version: 0.10.11
