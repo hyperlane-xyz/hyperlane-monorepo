@@ -24,12 +24,10 @@ contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
         bytes calldata _metadata,
         bytes calldata _message
     ) internal override {
-        uint256 quote = _quoteDispatch(_metadata, _message);
-        IPostDispatchHook(_partition(_message)).postDispatch{value: quote}(
+        IPostDispatchHook(_partition(_message)).postDispatch{value: msg.value}(
             _metadata,
             _message
         );
-        return _refund(_metadata, _message, msg.value - quote);
     }
 
     function _quoteDispatch(
