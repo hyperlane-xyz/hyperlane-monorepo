@@ -245,151 +245,13 @@ contract QuotedCalls is PackageVersioned {
             );
             IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         } else if (command == TRANSFER_REMOTE) {
-            (
-                address warpRoute,
-                uint32 destination,
-                bytes32 recipient,
-                uint256 amount,
-                uint256 value,
-                address token,
-                uint256 approval
-            ) = abi.decode(
-                    input,
-                    (
-                        address,
-                        uint32,
-                        bytes32,
-                        uint256,
-                        uint256,
-                        address,
-                        uint256
-                    )
-                );
-            amount = _resolveAmount(token, amount);
-            value = _resolveAmount(address(0), value);
-            approval = _resolveAmount(token, approval);
-            _approve(token, warpRoute, approval);
-            ITokenBridge(warpRoute).transferRemote{value: value}(
-                destination,
-                recipient,
-                amount
-            );
+            _dispatchTransferRemote(input);
         } else if (command == TRANSFER_REMOTE_TO) {
-            (
-                address router,
-                uint32 destination,
-                bytes32 recipient,
-                uint256 amount,
-                bytes32 targetRouter,
-                uint256 value,
-                address token,
-                uint256 approval
-            ) = abi.decode(
-                    input,
-                    (
-                        address,
-                        uint32,
-                        bytes32,
-                        uint256,
-                        bytes32,
-                        uint256,
-                        address,
-                        uint256
-                    )
-                );
-            amount = _resolveAmount(token, amount);
-            value = _resolveAmount(address(0), value);
-            approval = _resolveAmount(token, approval);
-            _approve(token, router, approval);
-            ICrossCollateralRouter(router).transferRemoteTo{value: value}(
-                destination,
-                recipient,
-                amount,
-                targetRouter
-            );
+            _dispatchTransferRemoteTo(input);
         } else if (command == CALL_REMOTE_WITH_OVERRIDES) {
-            (
-                address icaRouter,
-                uint32 destination,
-                bytes32 router,
-                bytes32 ism,
-                CallLib.Call[] memory calls,
-                bytes memory hookMetadata,
-                bytes32 userSalt,
-                uint256 value,
-                address token,
-                uint256 approval
-            ) = abi.decode(
-                    input,
-                    (
-                        address,
-                        uint32,
-                        bytes32,
-                        bytes32,
-                        CallLib.Call[],
-                        bytes,
-                        bytes32,
-                        uint256,
-                        address,
-                        uint256
-                    )
-                );
-            value = _resolveAmount(address(0), value);
-            approval = _resolveAmount(token, approval);
-            _approve(token, icaRouter, approval);
-            IInterchainAccountRouter(icaRouter).callRemoteWithOverrides{
-                value: value
-            }(
-                destination,
-                router,
-                ism,
-                calls,
-                hookMetadata,
-                _scopeSalt(msg.sender, userSalt)
-            );
+            _dispatchCallRemoteWithOverrides(input);
         } else if (command == CALL_REMOTE_COMMIT_REVEAL) {
-            (
-                address icaRouter,
-                uint32 destination,
-                bytes32 router,
-                bytes32 ism,
-                bytes memory hookMetadata,
-                address hook,
-                bytes32 salt,
-                bytes32 commitment,
-                uint256 value,
-                address token,
-                uint256 approval
-            ) = abi.decode(
-                    input,
-                    (
-                        address,
-                        uint32,
-                        bytes32,
-                        bytes32,
-                        bytes,
-                        address,
-                        bytes32,
-                        bytes32,
-                        uint256,
-                        address,
-                        uint256
-                    )
-                );
-            value = _resolveAmount(address(0), value);
-            approval = _resolveAmount(token, approval);
-            _approve(token, icaRouter, approval);
-            IInterchainAccountRouter(icaRouter).callRemoteCommitReveal{
-                value: value
-            }(
-                destination,
-                router,
-                ism,
-                hookMetadata,
-                IPostDispatchHook(hook),
-                _scopeSalt(msg.sender, salt),
-                commitment
-            );
+            _dispatchCallRemoteCommitReveal(input);
         } else if (command == SWEEP) {
             address token = abi.decode(input, (address));
             if (token != address(0)) {
@@ -405,6 +267,152 @@ contract QuotedCalls is PackageVersioned {
         } else {
             revert InvalidCommandType(command);
         }
+    }
+
+    function _dispatchTransferRemote(bytes calldata input) internal {
+        (
+            address warpRoute,
+            uint32 destination,
+            bytes32 recipient,
+            uint256 amount,
+            uint256 value,
+            address token,
+            uint256 approval
+        ) = abi.decode(
+                input,
+                (address, uint32, bytes32, uint256, uint256, address, uint256)
+            );
+        amount = _resolveAmount(token, amount);
+        value = _resolveAmount(address(0), value);
+        approval = _resolveAmount(token, approval);
+        _approve(token, warpRoute, approval);
+        ITokenBridge(warpRoute).transferRemote{value: value}(
+            destination,
+            recipient,
+            amount
+        );
+    }
+
+    function _dispatchTransferRemoteTo(bytes calldata input) internal {
+        (
+            address router,
+            uint32 destination,
+            bytes32 recipient,
+            uint256 amount,
+            bytes32 targetRouter,
+            uint256 value,
+            address token,
+            uint256 approval
+        ) = abi.decode(
+                input,
+                (
+                    address,
+                    uint32,
+                    bytes32,
+                    uint256,
+                    bytes32,
+                    uint256,
+                    address,
+                    uint256
+                )
+            );
+        amount = _resolveAmount(token, amount);
+        value = _resolveAmount(address(0), value);
+        approval = _resolveAmount(token, approval);
+        _approve(token, router, approval);
+        ICrossCollateralRouter(router).transferRemoteTo{value: value}(
+            destination,
+            recipient,
+            amount,
+            targetRouter
+        );
+    }
+
+    function _dispatchCallRemoteWithOverrides(bytes calldata input) internal {
+        (
+            address icaRouter,
+            uint32 destination,
+            bytes32 router,
+            bytes32 ism,
+            CallLib.Call[] memory calls,
+            bytes memory hookMetadata,
+            bytes32 userSalt,
+            uint256 value,
+            address token,
+            uint256 approval
+        ) = abi.decode(
+                input,
+                (
+                    address,
+                    uint32,
+                    bytes32,
+                    bytes32,
+                    CallLib.Call[],
+                    bytes,
+                    bytes32,
+                    uint256,
+                    address,
+                    uint256
+                )
+            );
+        value = _resolveAmount(address(0), value);
+        approval = _resolveAmount(token, approval);
+        _approve(token, icaRouter, approval);
+        IInterchainAccountRouter(icaRouter).callRemoteWithOverrides{
+            value: value
+        }(
+            destination,
+            router,
+            ism,
+            calls,
+            hookMetadata,
+            _scopeSalt(msg.sender, userSalt)
+        );
+    }
+
+    function _dispatchCallRemoteCommitReveal(bytes calldata input) internal {
+        (
+            address icaRouter,
+            uint32 destination,
+            bytes32 router,
+            bytes32 ism,
+            bytes memory hookMetadata,
+            address hook,
+            bytes32 salt,
+            bytes32 commitment,
+            uint256 value,
+            address token,
+            uint256 approval
+        ) = abi.decode(
+                input,
+                (
+                    address,
+                    uint32,
+                    bytes32,
+                    bytes32,
+                    bytes,
+                    address,
+                    bytes32,
+                    bytes32,
+                    uint256,
+                    address,
+                    uint256
+                )
+            );
+        value = _resolveAmount(address(0), value);
+        approval = _resolveAmount(token, approval);
+        _approve(token, icaRouter, approval);
+        IInterchainAccountRouter(icaRouter).callRemoteCommitReveal{
+            value: value
+        }(
+            destination,
+            router,
+            ism,
+            hookMetadata,
+            IPostDispatchHook(hook),
+            _scopeSalt(msg.sender, salt),
+            commitment
+        );
     }
 
     receive() external payable {}
