@@ -104,6 +104,11 @@ export class SvmValidatorAnnounceWriter
         eqAddressSol(existing.mailbox, artifact.config.mailboxAddress),
         `Validator announce ${programAddress} already initialized with mailbox ${existing.mailbox}, expected ${artifact.config.mailboxAddress}`,
       );
+
+      assert(
+        existing.localDomain === this.config.domainId,
+        `VA ${programAddress} initialized for domain ${existing.localDomain}, expected ${this.config.domainId}`,
+      );
       return [deployed, receipts];
     }
 

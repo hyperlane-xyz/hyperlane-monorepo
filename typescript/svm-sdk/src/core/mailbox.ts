@@ -64,6 +64,7 @@ export class SvmMailboxReader implements ArtifactReader<
     // cannot recover the original hook config (e.g. IGP). A `core read` →
     // `core apply` round-trip with a non-merkleTreeHook config will redeploy
     // hooks that already exist.
+    // Original hook addresses can be retrieved from the registry addresses if needed.
     const mailboxHookRef = {
       artifactState: ArtifactState.UNDERIVED,
       deployed: { address: programId },
