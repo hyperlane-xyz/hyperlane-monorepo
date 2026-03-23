@@ -10,6 +10,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
+import { BPS_PRECISION } from './utils.js';
 import {
   LinearFeeConfig,
   ProgressiveFeeConfig,
@@ -146,7 +147,7 @@ describe('EvmTokenFeeDeployer', () => {
 
     expect(quote.length).to.equal(1);
     expect(quote[0].amount).to.be.equal(
-      (BigInt(amount) * BigInt(BPS)) / 10_000n,
+      (BigInt(amount) * BigInt(BPS)) / BPS_PRECISION,
     );
     expect(quote[0].token).to.equal(token.address);
 

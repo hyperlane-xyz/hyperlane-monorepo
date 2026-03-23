@@ -396,14 +396,14 @@ describe('EvmTokenFeeModule', () => {
         expandedConfig.type === TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      const linearConfig = expandedConfig as LinearFeeConfig;
-      expect(linearConfig.maxFee > 0n).to.be.true;
-      expect(linearConfig.halfAmount > 0n).to.be.true;
-      expect(linearConfig.bps).to.equal(8);
+
+      expect(expandedConfig.maxFee > 0n).to.be.true;
+      expect(expandedConfig.halfAmount > 0n).to.be.true;
+      expect(expandedConfig.bps).to.equal(8);
 
       const roundTripBps = convertToBps(
-        linearConfig.maxFee,
-        linearConfig.halfAmount,
+        expandedConfig.maxFee,
+        expandedConfig.halfAmount,
       );
       expect(roundTripBps).to.equal(8);
     });
@@ -476,11 +476,10 @@ describe('EvmTokenFeeModule', () => {
         expandedConfig.type === TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      const linearConfig = expandedConfig as LinearFeeConfig;
 
-      expect(linearConfig.maxFee).to.equal(explicitMaxFee);
-      expect(linearConfig.halfAmount).to.equal(explicitHalfAmount);
-      expect(linearConfig.bps).to.equal(expectedBps);
+      expect(expandedConfig.maxFee).to.equal(explicitMaxFee);
+      expect(expandedConfig.halfAmount).to.equal(explicitHalfAmount);
+      expect(expandedConfig.bps).to.equal(expectedBps);
     });
 
     it('should expand nested RoutingFee with explicit maxFee/halfAmount in child LinearFee', async () => {
@@ -577,10 +576,10 @@ describe('EvmTokenFeeModule', () => {
         expandedConfig.type === TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      const linearConfig = expandedConfig as LinearFeeConfig;
-      expect(linearConfig.maxFee).to.equal(expected.maxFee);
-      expect(linearConfig.halfAmount).to.equal(expected.halfAmount);
-      expect(linearConfig.bps).to.equal(1.5);
+
+      expect(expandedConfig.maxFee).to.equal(expected.maxFee);
+      expect(expandedConfig.halfAmount).to.equal(expected.halfAmount);
+      expect(expandedConfig.bps).to.equal(1.5);
     });
   });
 });
