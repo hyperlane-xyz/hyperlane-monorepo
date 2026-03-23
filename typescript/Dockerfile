@@ -50,6 +50,7 @@ COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
 COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
+COPY typescript/starknet-sdk/package.json ./typescript/starknet-sdk/
 COPY typescript/svm-sdk/package.json ./typescript/svm-sdk/
 COPY typescript/tron-sdk/package.json ./typescript/tron-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
@@ -102,6 +103,7 @@ COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
 COPY typescript/radix-sdk ./typescript/radix-sdk
 COPY typescript/aleo-sdk ./typescript/aleo-sdk
+COPY typescript/starknet-sdk ./typescript/starknet-sdk
 COPY typescript/svm-sdk ./typescript/svm-sdk
 COPY typescript/tron-sdk ./typescript/tron-sdk
 COPY typescript/utils ./typescript/utils

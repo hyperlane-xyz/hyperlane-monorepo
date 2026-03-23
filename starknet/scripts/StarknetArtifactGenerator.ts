@@ -47,8 +47,10 @@ export class StarknetArtifactGenerator {
    */
   async getArtifactPaths() {
     const sierraPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.SIERRA_JSON}`;
+    const casmPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.ASSEMBLY_JSON}`;
     const sierraFiles = await globby(sierraPattern);
-    return { sierraFiles };
+    const casmFiles = await globby(casmPattern);
+    return { sierraFiles, casmFiles };
   }
 
   /**
@@ -74,19 +76,18 @@ export class StarknetArtifactGenerator {
     artifact: any,
     contractClass: ContractClass,
   ) {
-    // For Sierra contracts, extract the ABI if the file contains contract_class in its name
     if (contractClass === ContractClass.SIERRA) {
-      const abiOnly: CompiledContract = {
-        sierra_program: [],
-        contract_class_version: artifact.contract_class_version,
-        entry_points_by_type: artifact.entry_points_by_type,
+      // Full Sierra data is required downstream for Starknet class-hash and deployment paths.
+      // ABI-only artifacts break ContractFactory usage in @hyperlane-xyz/starknet-sdk.
+      const compiledContract: CompiledContract = {
+        ...artifact,
         abi:
           typeof artifact.abi === 'string'
             ? JSON.parse(artifact.abi)
             : artifact.abi,
       };
 
-      return Templates.jsArtifact(name, abiOnly);
+      return Templates.jsArtifact(name, compiledContract);
     }
     // For other contract types, return the full artifact
     return Templates.jsArtifact(name, artifact);
@@ -236,10 +237,13 @@ export class StarknetArtifactGenerator {
   async generate(): Promise<ReadonlyProcessedFilesMap> {
     await this.createOutputDirectory();
 
-    const { sierraFiles } = await this.getArtifactPaths();
+    const { sierraFiles, casmFiles } = await this.getArtifactPaths();
+    const artifactFiles = [...sierraFiles, ...casmFiles].sort((a, b) =>
+      a.localeCompare(b),
+    );
 
     const processingResults = await Promise.all(
-      sierraFiles.map((file) => this.processArtifact(file)),
+      artifactFiles.map((file) => this.processArtifact(file)),
     );
 
     const processedFilesMap =

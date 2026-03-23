@@ -168,15 +168,16 @@ export type RawArtifact<C, D> = {
  * Helper type to transform nested objects containing Artifacts.
  * Handles objects where all properties are Artifacts (required or optional).
  */
-type NestedOnChain<T> = T extends { [L: string]: any }
-  ? {
-      [L in keyof T]: T[L] extends Artifact<infer CC, infer DD>
-        ? ArtifactOnChain<CC, DD>
-        : T[L] extends Artifact<infer CC, infer DD> | undefined
-          ? ArtifactOnChain<CC, DD> | undefined
-          : T[L];
-    }
-  : T;
+type NestedOnChain<T> =
+  T extends Record<string, unknown>
+    ? {
+        [L in keyof T]: T[L] extends Artifact<infer CC, infer DD>
+          ? ArtifactOnChain<CC, DD>
+          : T[L] extends Artifact<infer CC, infer DD> | undefined
+            ? ArtifactOnChain<CC, DD> | undefined
+            : T[L];
+      }
+    : T;
 
 /**
  * Utility type to convert a config type to its on-chain representation.
@@ -205,7 +206,7 @@ export type ConfigOnChain<C> = {
  */
 export interface IArtifactManager<
   TypeKey extends string,
-  ConfigMap extends Record<TypeKey, any>,
+  ConfigMap extends Record<TypeKey, unknown>,
   D,
 > {
   createReader<T extends TypeKey>(type: T): ArtifactReader<ConfigMap[T], D>;
@@ -232,4 +233,27 @@ export function toDeployedOrUndefined<C, D extends { address: string }>(
     `Expected ${name} to be DEPLOYED or UNDERIVED with zero address, got UNDERIVED with non-zero address ${artifact.deployed.address}`,
   );
   return undefined;
+}
+
+export function addressToUnderivedArtifact(
+  address: string | undefined,
+  formatter?: (value: string) => string,
+): ArtifactUnderived<{ address: string }> | undefined {
+  if (!address || isEmptyAddress(address)) return undefined;
+
+  return {
+    artifactState: ArtifactState.UNDERIVED,
+    deployed: {
+      address: formatter ? formatter(address) : address,
+    },
+  };
+}
+
+export function artifactOnChainToAddress<C>(
+  artifact: ArtifactOnChain<C, { address: string }> | undefined,
+  formatter?: (value: string) => string,
+): string | undefined {
+  const address = artifact?.deployed.address;
+  if (!address || isEmptyAddress(address)) return undefined;
+  return formatter ? formatter(address) : address;
 }
