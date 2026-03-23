@@ -1,12 +1,20 @@
 import { expect } from 'chai';
+import { CallData } from 'starknet';
 
+import {
+  ContractType,
+  getCompiledContract,
+} from '@hyperlane-xyz/starknet-core';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import {
+  StarknetContractName,
   callContract,
   extractEnumVariant,
   getFeeTokenAddress,
   normalizeStarknetAddressSafe,
+  populateInvokeTx,
+  toNumber,
 } from './contracts.js';
 
 describe('starknet-sdk contracts helpers', () => {
@@ -42,6 +50,7 @@ describe('starknet-sdk contracts helpers', () => {
   it('preserves contract context in callContract fallback path', async () => {
     const contract = {
       address: '0x1234',
+      abi: [{ type: 'function', name: 'balance_of' }],
       call(this: { address: string }, method: string, args: unknown[]) {
         return `${this.address}:${method}:${args.length}`;
       },
@@ -49,5 +58,31 @@ describe('starknet-sdk contracts helpers', () => {
 
     const result = await callContract(contract as never, 'balance_of', ['0x1']);
     expect(result).to.equal('0x1234:balance_of:1');
+  });
+
+  it('compiles calldata when populateTransaction helper is unavailable', async () => {
+    const { abi } = getCompiledContract(
+      StarknetContractName.HYP_ERC20,
+      ContractType.TOKEN,
+    );
+    const contract = {
+      address: '0x1234',
+      abi,
+    };
+
+    const tx = await populateInvokeTx(contract as never, 'owner');
+
+    expect(tx.kind).to.equal('invoke');
+    expect(tx.contractAddress).to.equal(
+      '0x0000000000000000000000000000000000000000000000000000000000001234',
+    );
+    expect(tx.entrypoint).to.equal('owner');
+    expect(tx.calldata).to.deep.equal(new CallData(abi).compile('owner', []));
+  });
+
+  it('throws when coercing bigint values above the safe integer range', () => {
+    expect(() => toNumber(BigInt(Number.MAX_SAFE_INTEGER) + 1n)).to.throw(
+      /safe integer/i,
+    );
   });
 });

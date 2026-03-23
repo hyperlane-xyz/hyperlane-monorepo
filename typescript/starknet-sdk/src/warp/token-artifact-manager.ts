@@ -13,6 +13,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   TokenType,
+  computeRemoteRoutersUpdates,
   type DeployedWarpAddress,
   type RawWarpArtifactConfig,
   type RawWarpArtifactConfigs,
@@ -27,6 +28,7 @@ import {
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { type StarknetAnnotatedTx, type StarknetTxReceipt } from '../types.js';
 
 export type StarknetWarpTokenOnChain = Awaited<
   ReturnType<StarknetProvider['getToken']>
@@ -126,7 +128,9 @@ export abstract class StarknetWarpTokenWriterBase<
     super(provider);
   }
 
-  protected abstract createToken(artifact: ArtifactNew<C>): Promise<string>;
+  protected abstract createToken(
+    artifact: ArtifactNew<C>,
+  ): Promise<StarknetTxReceipt>;
 
   protected validateCreateConfig(config: C): void {
     assert(!config.scale, 'scale is unsupported for Starknet warp tokens');
@@ -147,7 +151,13 @@ export abstract class StarknetWarpTokenWriterBase<
     this.assertNoOrphanDestinationGas(artifact.config);
 
     const receipts: TxReceipt[] = [];
-    const tokenAddress = await this.createToken(artifact);
+    const createReceipt = await this.createToken(artifact);
+    receipts.push(createReceipt);
+    assert(
+      createReceipt.contractAddress,
+      'failed to deploy Starknet warp token',
+    );
+    const tokenAddress = createReceipt.contractAddress;
     receipts.push(
       ...(await this.applyPostCreateConfig(tokenAddress, artifact.config, {
         owner: this.signer.getSignerAddress(),
@@ -158,7 +168,14 @@ export abstract class StarknetWarpTokenWriterBase<
       })),
     );
 
-    return [await this.read(tokenAddress), receipts];
+    return [
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: artifact.config,
+        deployed: { address: normalizeStarknetAddressSafe(tokenAddress) },
+      },
+      receipts,
+    ];
   }
 
   async update(
@@ -170,7 +187,7 @@ export abstract class StarknetWarpTokenWriterBase<
 
     const txs: AnnotatedTx[] = [];
     const tokenAddress = artifact.deployed.address;
-    let ownerTx: AnnotatedTx | undefined;
+    let ownerTx: StarknetAnnotatedTx | undefined;
 
     const currentOwner = current.config.owner;
     if (!eqAddressStarknet(currentOwner, artifact.config.owner)) {
@@ -232,51 +249,44 @@ export abstract class StarknetWarpTokenWriterBase<
       });
     }
 
-    const domains = new Set<number>([
-      ...Object.keys(current.config.remoteRouters).map(Number),
-      ...Object.keys(artifact.config.remoteRouters).map(Number),
-      ...Object.keys(current.config.destinationGas).map(Number),
-      ...Object.keys(artifact.config.destinationGas).map(Number),
-    ]);
+    const routerUpdates = computeRemoteRoutersUpdates(
+      {
+        remoteRouters: current.config.remoteRouters,
+        destinationGas: current.config.destinationGas,
+      },
+      {
+        remoteRouters: artifact.config.remoteRouters,
+        destinationGas: artifact.config.destinationGas,
+      },
+      eqAddressStarknet,
+    );
 
-    for (const domain of [...domains].sort((a, b) => a - b)) {
-      const currentRouter = current.config.remoteRouters[domain];
-      const expectedRouter = artifact.config.remoteRouters[domain];
-      const currentGas = normalizeGas(current.config.destinationGas[domain]);
-      const expectedGas = normalizeGas(artifact.config.destinationGas[domain]);
+    for (const domain of routerUpdates.toUnenroll.sort((a, b) => a - b)) {
+      txs.push({
+        annotation: `Unenrolling remote router for domain ${domain}`,
+        ...(await this.signer.getUnenrollRemoteRouterTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress,
+          receiverDomainId: domain,
+        })),
+      });
+    }
 
-      if (!expectedRouter) {
-        if (currentRouter) {
-          txs.push({
-            annotation: `Unenrolling remote router for domain ${domain}`,
-            ...(await this.signer.getUnenrollRemoteRouterTransaction({
-              signer: this.signer.getSignerAddress(),
-              tokenAddress,
-              receiverDomainId: domain,
-            })),
-          });
-        }
-        continue;
-      }
-
-      const routerChanged =
-        !currentRouter ||
-        !eqAddressStarknet(currentRouter.address, expectedRouter.address);
-      const gasChanged = !currentRouter || currentGas !== expectedGas;
-      if (routerChanged || gasChanged) {
-        txs.push({
-          annotation: `Enrolling remote router for domain ${domain}`,
-          ...(await this.signer.getEnrollRemoteRouterTransaction({
-            signer: this.signer.getSignerAddress(),
-            tokenAddress,
-            remoteRouter: {
-              receiverDomainId: domain,
-              receiverAddress: expectedRouter.address,
-              gas: expectedGas,
-            },
-          })),
-        });
-      }
+    for (const route of routerUpdates.toEnroll.sort(
+      (a, b) => a.domainId - b.domainId,
+    )) {
+      txs.push({
+        annotation: `Enrolling remote router for domain ${route.domainId}`,
+        ...(await this.signer.getEnrollRemoteRouterTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress,
+          remoteRouter: {
+            receiverDomainId: route.domainId,
+            receiverAddress: route.routerAddress,
+            gas: normalizeGas(route.gas),
+          },
+        })),
+      });
     }
 
     if (ownerTx) {
@@ -308,7 +318,7 @@ export abstract class StarknetWarpTokenWriterBase<
     >,
   ): Promise<TxReceipt[]> {
     const receipts: TxReceipt[] = [];
-    let ownerTx: AnnotatedTx | undefined;
+    let ownerTx: StarknetAnnotatedTx | undefined;
 
     const expectedIsm = artifactOnChainToAddress(
       expected.interchainSecurityModule,

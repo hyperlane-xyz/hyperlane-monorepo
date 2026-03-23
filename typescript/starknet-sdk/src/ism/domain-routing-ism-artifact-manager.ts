@@ -5,6 +5,7 @@ import {
   ArtifactState,
   type ArtifactWriter,
   isArtifactDeployed,
+  isArtifactNew,
   isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
@@ -15,7 +16,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressStarknet } from '@hyperlane-xyz/utils';
+import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -87,36 +88,58 @@ export class StarknetRoutingIsmWriter
   > {
     const routes = Object.entries(artifact.config.domains).map(
       ([domainId, domainIsm]) => {
-        if (isArtifactUnderived(domainIsm) || isArtifactDeployed(domainIsm)) {
-          return {
-            domainId: Number(domainId),
-            ismAddress: domainIsm.deployed.address,
-          };
-        }
-
-        throw new Error(
+        assert(
+          !isArtifactNew(domainIsm),
           `Routing ISM domain ${domainId} must be deployed before Starknet raw routing deployment`,
         );
+        assert(
+          isArtifactUnderived(domainIsm) || isArtifactDeployed(domainIsm),
+          `Routing ISM domain ${domainId} has invalid state`,
+        );
+        return {
+          domainId: Number(domainId),
+          ismAddress: domainIsm.deployed.address,
+        };
       },
     );
 
-    const created = await this.signer.createRoutingIsm({ routes });
+    const receipts: TxReceipt[] = [];
+    const createTx = await this.signer.getCreateRoutingIsmTransaction({
+      signer: this.signer.getSignerAddress(),
+      routes,
+    });
+    const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
+    receipts.push(createReceipt);
+    const ismAddress = createReceipt.contractAddress;
+    assert(ismAddress, 'failed to get Starknet routing ISM address');
+
+    for (const route of routes) {
+      const tx = await this.signer.getSetRoutingIsmRouteTransaction({
+        signer: this.signer.getSignerAddress(),
+        ismAddress,
+        route,
+      });
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
+    }
+
     if (
       !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
     ) {
-      await this.signer.setRoutingIsmOwner({
-        ismAddress: created.ismAddress,
+      const ownerTx = await this.signer.getSetRoutingIsmOwnerTransaction({
+        signer: this.signer.getSignerAddress(),
+        ismAddress,
         newOwner: artifact.config.owner,
       });
+      receipts.push(await this.signer.sendAndConfirmTransaction(ownerTx));
     }
 
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: artifact.config,
-        deployed: { address: created.ismAddress },
+        deployed: { address: ismAddress },
       },
-      [],
+      receipts,
     ];
   }
 

@@ -29,6 +29,7 @@ describe('StarknetHookArtifactManager', () => {
 
   class MockStarknetSigner extends StarknetSigner {
     capturedTx?: StarknetAnnotatedTx;
+    capturedTxs: StarknetAnnotatedTx[] = [];
 
     constructor() {
       super(
@@ -44,6 +45,7 @@ describe('StarknetHookArtifactManager', () => {
       tx: StarknetAnnotatedTx,
     ): Promise<StarknetTxReceipt> {
       this.capturedTx = tx;
+      this.capturedTxs.push(tx);
       return {
         transactionHash: '0x123',
         contractAddress: '0xabc',
@@ -111,6 +113,23 @@ describe('StarknetHookArtifactManager', () => {
     expect(signer.capturedTx.constructorArgs[1]).to.equal('10');
     expect(artifact.config.maxProtocolFee).to.equal('20');
     expect(artifact.config.protocolFee).to.equal('10');
+  });
+
+  it('returns merkleTree hook deployment receipts', async () => {
+    const manager = new StarknetHookArtifactManager(chainMetadata, {
+      mailbox: '0x111',
+    });
+    const signer = new MockStarknetSigner();
+    const writer = manager.createWriter('merkleTreeHook', signer);
+
+    const [, receipts] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: { type: 'merkleTreeHook' },
+    });
+
+    expect(receipts).to.have.length(1);
+    expect(signer.capturedTxs).to.have.length(1);
+    expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
   });
 
   it('reads custom Starknet hooks as unknownHook artifacts', async () => {

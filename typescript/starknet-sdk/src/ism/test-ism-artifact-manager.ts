@@ -14,6 +14,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -58,14 +59,19 @@ export class StarknetTestIsmWriter
       TxReceipt[],
     ]
   > {
-    const created = await this.signer.createNoopIsm({});
+    const tx = await this.signer.getCreateNoopIsmTransaction({
+      signer: this.signer.getSignerAddress(),
+    });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    const ismAddress = receipt.contractAddress;
+    assert(ismAddress, 'failed to deploy Starknet noop ISM');
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: artifact.config,
-        deployed: { address: created.ismAddress },
+        deployed: { address: ismAddress },
       },
-      [],
+      [receipt],
     ];
   }
 

@@ -12,6 +12,7 @@ import {
   TEST_STARKNET_CHAIN_METADATA,
 } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
+import { StarknetAnnotatedTx } from '../types.js';
 
 describe('2. starknet sdk mailbox e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -133,7 +134,7 @@ describe('2. starknet sdk mailbox e2e tests', function () {
 
     expect(txs.length).to.be.greaterThan(0);
     for (const tx of txs) {
-      await signer.sendAndConfirmTransaction(tx);
+      await signer.sendAndConfirmTransaction(tx as StarknetAnnotatedTx);
     }
 
     const updated = await artifactManager.readMailbox(created.deployed.address);

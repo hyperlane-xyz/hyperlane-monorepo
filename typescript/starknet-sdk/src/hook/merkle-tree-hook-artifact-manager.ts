@@ -14,6 +14,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
@@ -64,17 +65,21 @@ export class StarknetMerkleTreeHookWriter
       TxReceipt[],
     ]
   > {
-    const deployed = await this.signer.createMerkleTreeHook({
+    const tx = await this.signer.getCreateMerkleTreeHookTransaction({
+      signer: this.signer.getSignerAddress(),
       mailboxAddress: this.mailboxAddress,
     });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    const hookAddress = receipt.contractAddress;
+    assert(hookAddress, 'failed to deploy Starknet merkle tree hook');
 
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: artifact.config,
-        deployed: { address: deployed.hookAddress },
+        deployed: { address: hookAddress },
       },
-      [],
+      [receipt],
     ];
   }
 

@@ -5,6 +5,7 @@ import { eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
+import { TEST_STARKNET_CHAIN_METADATA } from '../testing/index.js';
 import { createSigner } from '../testing/utils.js';
 
 describe('5a. starknet sdk warp core e2e tests', function () {
@@ -66,6 +67,31 @@ describe('5a. starknet sdk warp core e2e tests', function () {
       true,
     );
     expect(token.decimals).to.equal(18);
+  });
+
+  it('creates and reads collateral token', async () => {
+    const mailboxAddress = await createMailbox();
+    const collateralDenom = TEST_STARKNET_CHAIN_METADATA.nativeToken?.denom;
+    if (!collateralDenom) {
+      throw new Error('Expected Starknet test collateral denom');
+    }
+
+    const created = await signer.createCollateralToken({
+      mailboxAddress,
+      collateralDenom,
+    });
+
+    const token = await signer.getToken({
+      tokenAddress: created.tokenAddress,
+    });
+    expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
+    expect(eqAddressStarknet(token.owner, signer.getSignerAddress())).to.equal(
+      true,
+    );
+    expect(eqAddressStarknet(token.mailboxAddress, mailboxAddress)).to.equal(
+      true,
+    );
+    expect(eqAddressStarknet(token.denom, collateralDenom)).to.equal(true);
   });
 
   it('sets token ism/hook/owner', async () => {

@@ -57,18 +57,13 @@ export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
 
   protected async createToken(
     artifact: ArtifactNew<RawWarpArtifactConfigs['collateral']>,
-  ): Promise<string> {
+  ) {
     const tx = await this.signer.getCreateCollateralTokenTransaction({
       signer: this.signer.getSignerAddress(),
       mailboxAddress: artifact.config.mailbox,
       collateralDenom: artifact.config.token,
     });
-    const receipt = await this.signer.sendAndConfirmTransaction(tx);
-    assert(
-      receipt.contractAddress,
-      'failed to deploy Starknet collateral warp token',
-    );
-    return receipt.contractAddress;
+    return this.signer.sendAndConfirmTransaction(tx);
   }
 
   protected override validateUpdateConfig(

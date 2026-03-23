@@ -68,23 +68,21 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     const readers: Partial<{
-      [K in IsmType]: ArtifactReader<
+      [K in IsmType]: () => ArtifactReader<
         RawIsmArtifactConfigs[K],
         DeployedIsmAddress
       >;
     }> = {
-      testIsm: new StarknetTestIsmReader(this.provider),
-      merkleRootMultisigIsm: new StarknetMerkleRootMultisigIsmReader(
-        this.provider,
-      ),
-      messageIdMultisigIsm: new StarknetMessageIdMultisigIsmReader(
-        this.provider,
-      ),
-      domainRoutingIsm: new StarknetRoutingIsmReader(this.provider),
+      testIsm: () => new StarknetTestIsmReader(this.provider),
+      merkleRootMultisigIsm: () =>
+        new StarknetMerkleRootMultisigIsmReader(this.provider),
+      messageIdMultisigIsm: () =>
+        new StarknetMessageIdMultisigIsmReader(this.provider),
+      domainRoutingIsm: () => new StarknetRoutingIsmReader(this.provider),
     };
-    const reader = readers[type];
-    assert(reader, `Unsupported Starknet ISM type: ${type}`);
-    return reader;
+    const readerFactory = readers[type];
+    assert(readerFactory, `Unsupported Starknet ISM type: ${type}`);
+    return readerFactory();
   }
 
   createWriter<T extends IsmType>(

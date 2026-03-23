@@ -10,7 +10,6 @@ import {
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   ContractType,
   getCompiledClassHash,
@@ -54,7 +53,7 @@ export class StarknetSigner
       metadata?: ChainMetadataForAltVM;
       accountAddress?: string;
     },
-  ): Promise<AltVM.ISigner<StarknetAnnotatedTx, TxReceipt>> {
+  ): Promise<StarknetSigner> {
     assert(extraParams?.metadata, 'metadata missing for Starknet signer');
     const metadata = extraParams.metadata;
     const accountAddress = extraParams.accountAddress;
@@ -105,26 +104,39 @@ export class StarknetSigner
     return transaction;
   }
 
-  private isDeployTx(transaction: AnnotatedTx): transaction is {
-    kind: 'deploy';
-    contractName: string;
-    constructorArgs: RawArgs;
-    contractType?: ContractType;
-  } {
-    return (
-      transaction['kind'] === 'deploy' &&
-      typeof transaction['contractName'] === 'string'
-    );
-  }
+  private assertSuccessfulReceipt(
+    transactionHash: string,
+    receipt: GetTransactionReceiptResponse,
+  ): void {
+    if (receipt.isSuccess()) return;
 
-  private isInvokeTx(
-    transaction: AnnotatedTx,
-  ): transaction is StarknetInvokeTx {
-    return (
-      transaction['kind'] === 'invoke' &&
-      typeof transaction['contractAddress'] === 'string' &&
-      typeof transaction['entrypoint'] === 'string' &&
-      Array.isArray(transaction['calldata'])
+    if (receipt.isReverted()) {
+      const revertReason =
+        receipt.value &&
+        typeof receipt.value === 'object' &&
+        typeof Reflect.get(receipt.value, 'revert_reason') === 'string'
+          ? Reflect.get(receipt.value, 'revert_reason')
+          : undefined;
+      const details =
+        typeof revertReason === 'string' && revertReason.length > 0
+          ? `: ${revertReason}`
+          : '';
+      assert(
+        false,
+        `Starknet transaction ${transactionHash} reverted${details}`,
+      );
+    }
+
+    if (receipt.isError()) {
+      assert(
+        false,
+        `Starknet transaction ${transactionHash} failed: ${receipt.value.message}`,
+      );
+    }
+
+    assert(
+      false,
+      `Starknet transaction ${transactionHash} failed with status ${receipt.statusReceipt}`,
     );
   }
 
@@ -191,6 +203,7 @@ export class StarknetSigner
 
     const address = normalizeStarknetAddressSafe(rawAddress);
     const receipt = await this.account.waitForTransaction(transactionHash);
+    this.assertSuccessfulReceipt(transactionHash, receipt);
 
     return {
       transactionHash,
@@ -200,9 +213,9 @@ export class StarknetSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: AnnotatedTx,
+    transaction: StarknetAnnotatedTx,
   ): Promise<StarknetTxReceipt> {
-    if (this.isDeployTx(transaction)) {
+    if (transaction.kind === 'deploy') {
       const deployed = await this.deployContract({
         contractName: transaction.contractName,
         constructorArgs: transaction.constructorArgs,
@@ -216,7 +229,6 @@ export class StarknetSigner
       };
     }
 
-    assert(this.isInvokeTx(transaction), 'Invalid Starknet invoke transaction');
     const calls: Call[] = transaction.calls ?? [
       {
         contractAddress: transaction.contractAddress,
@@ -228,6 +240,7 @@ export class StarknetSigner
     const response = await this.account.execute(calls);
     const transactionHash = response.transaction_hash;
     const receipt = await this.account.waitForTransaction(transactionHash);
+    this.assertSuccessfulReceipt(transactionHash, receipt);
 
     return { transactionHash, receipt };
   }
@@ -264,6 +277,7 @@ export class StarknetSigner
     const response = await this.account.execute(calls);
     const transactionHash = response.transaction_hash;
     const receipt = await this.account.waitForTransaction(transactionHash);
+    this.assertSuccessfulReceipt(transactionHash, receipt);
     return { transactionHash, receipt };
   }
 
@@ -273,7 +287,7 @@ export class StarknetSigner
     req: AltVM.ReqEstimateTransactionFee<StarknetAnnotatedTx>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     assert(
-      this.isInvokeTx(req.transaction),
+      req.transaction.kind === 'invoke',
       'Starknet transaction fee estimation only supports invoke transactions',
     );
 
@@ -406,8 +420,17 @@ export class StarknetSigner
     const ismAddress = receipt.contractAddress;
     assert(ismAddress, 'failed to get Starknet routing ISM address');
 
-    for (const route of req.routes) {
-      await this.setRoutingIsmRoute({ ismAddress, route });
+    if (req.routes.length > 0) {
+      const routeTxs = await Promise.all(
+        req.routes.map((route) =>
+          this.getSetRoutingIsmRouteTransaction({
+            signer: this.signerAddress,
+            ismAddress,
+            route,
+          }),
+        ),
+      );
+      await this.sendAndConfirmBatchTransactions(routeTxs);
     }
 
     return { ismAddress };

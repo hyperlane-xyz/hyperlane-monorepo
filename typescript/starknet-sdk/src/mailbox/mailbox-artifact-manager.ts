@@ -35,7 +35,9 @@ class StarknetMailboxReader implements ArtifactReader<
       DeployedMailboxAddress
     >
   > {
-    const mailbox = await this.provider.getMailbox({ mailboxAddress: address });
+    const mailbox = await this.provider.getMailbox({
+      mailboxAddress: address,
+    });
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -131,8 +133,17 @@ class StarknetMailboxWriter
       receipts.push(await this.signer.sendAndConfirmTransaction(tx));
     }
 
-    const deployed = await this.read(mailboxAddress);
-    return [deployed, receipts];
+    return [
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: artifact.config,
+        deployed: {
+          address: normalizeStarknetAddressSafe(mailboxAddress),
+          domainId: this.chainMetadata.domainId,
+        },
+      },
+      receipts,
+    ];
   }
 
   async update(

@@ -14,7 +14,12 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { assert, eqAddressStarknet, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  eqAddressStarknet,
+  isNullish,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
@@ -122,7 +127,12 @@ async function readProtocolFeeMaxFromStorage(
   ];
 
   if (uniqueValues.length === 1) {
-    return BigInt(uniqueValues[0]!);
+    const uniqueValue = uniqueValues[0];
+    assert(
+      !isNullish(uniqueValue),
+      'Expected Starknet protocolFee storage read to yield one value',
+    );
+    return BigInt(uniqueValue);
   }
 
   return undefined;
@@ -170,12 +180,13 @@ export class StarknetProtocolFeeHookReader implements ArtifactReader<
       maxProtocolFee: (maxProtocolFee ?? protocolFeeAmount).toString(),
       protocolFee: protocolFeeAmount.toString(),
     };
-    if (maxProtocolFee === undefined) {
+    if (isNullish(maxProtocolFee)) {
       // Starknet protocol_fee does not expose maxProtocolFee in its ABI.
       // If storage lookup is unavailable or ambiguous, mark the read config
       // as lossy so generic deploy logic can fail closed instead of silently
       // ignoring maxProtocolFee drift.
       Object.defineProperty(config, '__maxProtocolFeeUnknown', {
+        enumerable: true,
         value: true,
       });
     }

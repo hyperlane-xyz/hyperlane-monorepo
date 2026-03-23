@@ -84,24 +84,23 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const readers: Partial<{
-      [K in HookType]: ArtifactReader<
+      [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {
-      merkleTreeHook: new StarknetMerkleTreeHookReader(),
-      interchainGasPaymaster: createStarknetInterchainGasPaymasterHookReader(),
-      protocolFee: new StarknetProtocolFeeHookReader(
-        this.chainMetadata,
-        this.provider,
-      ),
-      unknownHook: new StarknetUnknownHookReader(),
+      merkleTreeHook: () => new StarknetMerkleTreeHookReader(),
+      interchainGasPaymaster: () =>
+        createStarknetInterchainGasPaymasterHookReader(),
+      protocolFee: () =>
+        new StarknetProtocolFeeHookReader(this.chainMetadata, this.provider),
+      unknownHook: () => new StarknetUnknownHookReader(),
     };
-    const reader = readers[type];
-    if (!reader) {
+    const readerFactory = readers[type];
+    if (!readerFactory) {
       return throwUnsupportedHookType(type, 'Starknet');
     }
-    return reader;
+    return readerFactory();
   }
 
   createWriter<T extends HookType>(
@@ -115,27 +114,27 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     );
 
     const writers: Partial<{
-      [K in HookType]: ArtifactWriter<
+      [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
     }> = {
-      merkleTreeHook: new StarknetMerkleTreeHookWriter(
-        starknetSigner,
-        this.mailboxAddress,
-      ),
-      interchainGasPaymaster: createStarknetInterchainGasPaymasterHookWriter(),
-      protocolFee: new StarknetProtocolFeeHookWriter(
-        this.chainMetadata,
-        this.provider,
-        starknetSigner,
-      ),
-      unknownHook: new StarknetUnknownHookWriter(),
+      merkleTreeHook: () =>
+        new StarknetMerkleTreeHookWriter(starknetSigner, this.mailboxAddress),
+      interchainGasPaymaster: () =>
+        createStarknetInterchainGasPaymasterHookWriter(),
+      protocolFee: () =>
+        new StarknetProtocolFeeHookWriter(
+          this.chainMetadata,
+          this.provider,
+          starknetSigner,
+        ),
+      unknownHook: () => new StarknetUnknownHookWriter(),
     };
-    const writer = writers[type];
-    if (!writer) {
+    const writerFactory = writers[type];
+    if (!writerFactory) {
       return throwUnsupportedHookType(type, 'Starknet');
     }
-    return writer;
+    return writerFactory();
   }
 }

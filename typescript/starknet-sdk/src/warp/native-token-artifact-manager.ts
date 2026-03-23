@@ -3,7 +3,6 @@ import {
   TokenType,
   type RawWarpArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert } from '@hyperlane-xyz/utils';
 
 import {
   type StarknetRemoteRoutersOnChain,
@@ -47,16 +46,11 @@ export class StarknetNativeTokenWriter extends StarknetWarpTokenWriterBase<
 
   protected async createToken(
     artifact: ArtifactNew<RawWarpArtifactConfigs['native']>,
-  ): Promise<string> {
+  ) {
     const tx = await this.signer.getCreateNativeTokenTransaction({
       signer: this.signer.getSignerAddress(),
       mailboxAddress: artifact.config.mailbox,
     });
-    const receipt = await this.signer.sendAndConfirmTransaction(tx);
-    assert(
-      receipt.contractAddress,
-      'failed to deploy Starknet native warp token',
-    );
-    return receipt.contractAddress;
+    return this.signer.sendAndConfirmTransaction(tx);
   }
 }

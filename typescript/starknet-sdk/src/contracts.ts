@@ -1,6 +1,7 @@
 import {
   AccountInterface,
   ArgsOrCalldata,
+  CallData,
   CairoCustomEnum,
   Contract,
   ProviderInterface,
@@ -30,6 +31,28 @@ type ObjectRecord = Record<string, unknown>;
 
 function isObjectRecord(value: unknown): value is ObjectRecord {
   return !!value && typeof value === 'object';
+}
+
+function getContractAbi(contract: Contract): unknown[] | undefined {
+  const abi = Reflect.get(contract, 'abi');
+  return Array.isArray(abi) ? abi : undefined;
+}
+
+function abiEntryHasMethod(entry: unknown, method: string): boolean {
+  if (!isObjectRecord(entry)) return false;
+  if (entry['name'] === method) return true;
+
+  const items = entry['items'];
+  return Array.isArray(items)
+    ? items.some((nestedEntry) => abiEntryHasMethod(nestedEntry, method))
+    : false;
+}
+
+function hasAbiMethod(contract: Contract, method: string): boolean {
+  const abi = getContractAbi(contract);
+  if (!abi) return true;
+
+  return abi.some((entry) => abiEntryHasMethod(entry, method));
 }
 
 function isUint256Like(value: unknown): value is Uint256 {
@@ -152,6 +175,11 @@ export async function callContract(
   method: string,
   args: RawArgsArray = [],
 ): Promise<unknown> {
+  assert(
+    hasAbiMethod(contract, method),
+    `Unable to call ${method} on contract ${contract.address}: method not found in ABI`,
+  );
+
   const fn = Reflect.get(contract, method);
   if (typeof fn === 'function') return Reflect.apply(fn, contract, args);
 
@@ -169,6 +197,11 @@ export async function populateInvokeTx(
   method: string,
   args: RawArgsArray = [],
 ): Promise<StarknetAnnotatedTx> {
+  assert(
+    hasAbiMethod(contract, method),
+    `Unable to populate ${method} on contract ${contract.address}: method not found in ABI`,
+  );
+
   const populateTransaction = Reflect.get(contract, 'populateTransaction');
   const populated =
     isObjectRecord(populateTransaction) &&
@@ -187,11 +220,12 @@ export async function populateInvokeTx(
     }
   }
 
+  const abi = getContractAbi(contract);
   return {
     kind: 'invoke',
     contractAddress: normalizeStarknetAddressSafe(contract.address),
     entrypoint: method,
-    calldata: args,
+    calldata: abi ? new CallData(abi).compile(method, args) : args,
   };
 }
 
@@ -227,9 +261,29 @@ export function extractEnumVariant(value: unknown): string {
 }
 
 export function toNumber(value: unknown): number {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'bigint') return Number(value);
-  if (typeof value === 'string') return Number(value);
+  if (typeof value === 'number') {
+    assert(
+      Number.isSafeInteger(value),
+      `Unable to coerce value to safe integer: ${value}`,
+    );
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    assert(
+      value <= BigInt(Number.MAX_SAFE_INTEGER) &&
+        value >= BigInt(Number.MIN_SAFE_INTEGER),
+      `Unable to coerce value to safe integer: ${value}`,
+    );
+    return Number(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    assert(
+      Number.isSafeInteger(parsed),
+      `Unable to coerce value to safe integer: ${value}`,
+    );
+    return parsed;
+  }
   if (isObjectRecord(value) && 'value' in value) {
     return toNumber(value['value']);
   }

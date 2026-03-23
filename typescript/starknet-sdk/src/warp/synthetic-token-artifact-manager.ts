@@ -86,7 +86,7 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
 
   protected async createToken(
     artifact: ArtifactNew<RawWarpArtifactConfigs['synthetic']>,
-  ): Promise<string> {
+  ) {
     const tx = await this.signer.getCreateSyntheticTokenTransaction({
       signer: this.signer.getSignerAddress(),
       mailboxAddress: artifact.config.mailbox,
@@ -94,11 +94,6 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
       denom: artifact.config.symbol,
       decimals: artifact.config.decimals,
     });
-    const receipt = await this.signer.sendAndConfirmTransaction(tx);
-    assert(
-      receipt.contractAddress,
-      'failed to deploy Starknet synthetic warp token',
-    );
-    return receipt.contractAddress;
+    return this.signer.sendAndConfirmTransaction(tx);
   }
 }

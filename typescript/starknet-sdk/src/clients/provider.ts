@@ -330,7 +330,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       balance = await callContract(token, 'balanceOf', [
         normalizeStarknetAddressSafe(req.address),
       ]);
-    } catch {
+    } catch (error) {
+      if (!isProbeMiss(error)) throw error;
       balance = await callContract(token, 'balance_of', [
         normalizeStarknetAddressSafe(req.address),
       ]);
@@ -407,7 +408,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       );
       const moduleType = await callContract(ism, 'module_type');
       return this.parseIsmVariant(extractEnumVariant(moduleType));
-    } catch {
+    } catch (error) {
+      if (!isProbeMiss(error)) throw error;
       return AltVM.IsmType.CUSTOM;
     }
   }
@@ -549,8 +551,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       name = metadata.name;
       symbol = metadata.symbol;
       decimals = metadata.decimals;
-    } catch {
-      // noop
+    } catch (error) {
+      if (!isProbeMiss(error)) throw error;
     }
 
     if (tokenType === AltVM.TokenType.collateral) {
@@ -568,8 +570,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         name = wrappedMeta.name;
         symbol = wrappedMeta.symbol;
         decimals = wrappedMeta.decimals;
-      } catch {
-        // noop
+      } catch (error) {
+        if (!isProbeMiss(error)) throw error;
       }
     } else if (tokenType === AltVM.TokenType.native) {
       const native = this.withContract(
@@ -582,7 +584,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       try {
         const nativeTokenAddress = await callContract(native, 'native_token');
         denom = normalizeStarknetAddressSafe(nativeTokenAddress);
-      } catch {
+      } catch (error) {
+        if (!isProbeMiss(error)) throw error;
         denom = this.metadata.nativeToken?.denom || this.feeTokenAddress;
       }
 

@@ -44,10 +44,22 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
       tokenAddress,
       destinationDomainId: 1234,
     });
+    const token = await signer.getToken({ tokenAddress });
     expect(typeof quote.amount).to.equal('bigint');
     expect(quote.denom).to.not.equal('');
 
-    const before = await signer.getMailbox({ mailboxAddress });
+    const [beforeMailbox, beforeSenderBalance, beforeEscrowBalance] =
+      await Promise.all([
+        signer.getMailbox({ mailboxAddress }),
+        signer.getBalance({
+          denom: token.denom,
+          address: signer.getSignerAddress(),
+        }),
+        signer.getBalance({
+          denom: token.denom,
+          address: tokenAddress,
+        }),
+      ]);
     await signer.remoteTransfer({
       tokenAddress,
       destinationDomainId: 1234,
@@ -59,7 +71,20 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
         amount: quote.amount.toString(),
       },
     });
-    const after = await signer.getMailbox({ mailboxAddress });
-    expect(after.nonce).to.equal(before.nonce + 1);
+    const [afterMailbox, afterSenderBalance, afterEscrowBalance] =
+      await Promise.all([
+        signer.getMailbox({ mailboxAddress }),
+        signer.getBalance({
+          denom: token.denom,
+          address: signer.getSignerAddress(),
+        }),
+        signer.getBalance({
+          denom: token.denom,
+          address: tokenAddress,
+        }),
+      ]);
+    expect(afterMailbox.nonce).to.equal(beforeMailbox.nonce + 1);
+    expect(afterSenderBalance < beforeSenderBalance).to.equal(true);
+    expect(afterEscrowBalance > beforeEscrowBalance).to.equal(true);
   });
 });

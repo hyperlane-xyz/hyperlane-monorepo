@@ -15,7 +15,7 @@ import {
   RawValidatorAnnounceArtifactConfigs,
   ValidatorAnnounceType,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { assert, isZeroishAddress, rootLogger } from '@hyperlane-xyz/utils';
 import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
@@ -23,9 +23,37 @@ import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 
 const STARKNET_STORAGE_ADDRESS_BOUND = (1n << 251n) - 256n;
+const logger = rootLogger.child({
+  module: 'starknet-validator-announce-artifact-manager',
+});
 const MAILBOX_STORAGE_KEYS = ['mailbox', '_mailbox'].map(
   (name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND,
 );
+
+function shouldFallbackStorageRead(error: unknown): boolean {
+  const code =
+    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+  if (code === -32601) return true;
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : String(
+            error && typeof error === 'object'
+              ? Reflect.get(error, 'message')
+              : error,
+          );
+  const normalizedMessage = message.toLowerCase();
+
+  return [
+    'method not found',
+    'not supported',
+    'unsupported',
+    'not implemented',
+  ].some((fragment) => normalizedMessage.includes(fragment));
+}
 
 async function readStorageAddress(
   provider: StarknetProvider,
@@ -39,7 +67,19 @@ async function readStorageAddress(
     return isZeroishAddress(value)
       ? undefined
       : normalizeStarknetAddressSafe(value);
-  } catch {
+  } catch (error) {
+    if (!shouldFallbackStorageRead(error)) {
+      throw error;
+    }
+
+    logger.warn(
+      {
+        contractAddress,
+        key: `0x${key.toString(16)}`,
+        error,
+      },
+      'Falling back to lossy Starknet validator announce mailbox read after unsupported storage lookup',
+    );
     return undefined;
   }
 }
@@ -123,19 +163,26 @@ class StarknetValidatorAnnounceWriter
       TxReceipt[],
     ]
   > {
-    const deployed = await this.signer.createValidatorAnnounce({
+    const tx = await this.signer.getCreateValidatorAnnounceTransaction({
+      signer: this.signer.getSignerAddress(),
       mailboxAddress: artifact.config.mailboxAddress,
     });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    const validatorAnnounceId = receipt.contractAddress;
+    assert(
+      validatorAnnounceId,
+      'failed to get Starknet validator announce address',
+    );
 
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: artifact.config,
         deployed: {
-          address: normalizeStarknetAddressSafe(deployed.validatorAnnounceId),
+          address: normalizeStarknetAddressSafe(validatorAnnounceId),
         },
       },
-      [],
+      [receipt],
     ];
   }
 

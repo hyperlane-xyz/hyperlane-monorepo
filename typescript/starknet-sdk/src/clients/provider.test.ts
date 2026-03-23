@@ -29,7 +29,12 @@ class StarknetProviderTestHarness extends StarknetProvider {
   hookTypeErrorMessage = 'hook_type failed';
   ismTypeValue: unknown = { MERKLE_ROOT_MULTISIG: {} };
   ismTypeThrows = false;
+  ismTypeErrorMessage = 'module_type failed';
   deliveredValue: unknown = 1;
+  balanceOfThrows = false;
+  balanceOfErrorMessage = 'balanceOf failed';
+  balanceOfValue: unknown = { balance: 7n };
+  balanceOfFallbackValue: unknown = { balance: 9n };
   contractSelections: StarknetContractName[] = [];
 
   constructor() {
@@ -65,10 +70,17 @@ class StarknetProviderTestHarness extends StarknetProvider {
       delivered: async () => this.deliveredValue,
       module_type: async () => {
         if (this.ismTypeThrows) {
-          throw new Error('module_type failed');
+          throw new Error(this.ismTypeErrorMessage);
         }
         return this.ismTypeValue;
       },
+      balanceOf: async () => {
+        if (this.balanceOfThrows) {
+          throw new Error(this.balanceOfErrorMessage);
+        }
+        return this.balanceOfValue;
+      },
+      balance_of: async () => this.balanceOfFallbackValue,
     });
     return contract;
   }
@@ -337,13 +349,54 @@ describe('StarknetProvider getIsmType', () => {
     expect(ismType).to.equal(AltVM.IsmType.CUSTOM);
   });
 
-  it('returns custom when module_type lookup fails', async () => {
+  it('returns custom when module_type probe misses', async () => {
     const provider = new StarknetProviderTestHarness();
     provider.ismTypeThrows = true;
+    provider.ismTypeErrorMessage = 'viewable method not found in abi';
 
     const ismType = await provider.getIsmType({ ismAddress: '0x1' });
 
     expect(ismType).to.equal(AltVM.IsmType.CUSTOM);
+  });
+
+  it('rethrows unexpected module_type lookup failures', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.ismTypeThrows = true;
+
+    let caughtError: unknown;
+    try {
+      await provider.getIsmType({ ismAddress: '0x1' });
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(String(caughtError)).to.include('module_type failed');
+  });
+});
+
+describe('StarknetProvider getBalance', () => {
+  it('falls back to balance_of when balanceOf probe misses', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.balanceOfThrows = true;
+    provider.balanceOfErrorMessage = 'entry point not found in abi';
+
+    const balance = await provider.getBalance({ address: '0x1' });
+
+    expect(balance).to.equal(9n);
+  });
+
+  it('rethrows unexpected balanceOf failures', async () => {
+    const provider = new StarknetProviderTestHarness();
+    provider.balanceOfThrows = true;
+
+    let caughtError: unknown;
+    try {
+      await provider.getBalance({ address: '0x1' });
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(String(caughtError)).to.include('balanceOf failed');
   });
 });
 

@@ -11,6 +11,7 @@ import {
   TEST_STARKNET_CHAIN_METADATA,
 } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
+import { StarknetAnnotatedTx } from '../types.js';
 
 function normalizeValidators(addresses: string[]): string[] {
   return addresses
@@ -144,7 +145,7 @@ describe('1. starknet sdk ISM e2e tests', function () {
 
     expect(updateTxs.length).to.be.greaterThan(0);
     for (const tx of updateTxs) {
-      await signer.sendAndConfirmTransaction(tx);
+      await signer.sendAndConfirmTransaction(tx as StarknetAnnotatedTx);
     }
 
     const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);

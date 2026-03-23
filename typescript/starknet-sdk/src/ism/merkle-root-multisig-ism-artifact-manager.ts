@@ -14,6 +14,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -73,17 +74,21 @@ export class StarknetMerkleRootMultisigIsmWriter
       TxReceipt[],
     ]
   > {
-    const created = await this.signer.createMerkleRootMultisigIsm({
+    const tx = await this.signer.getCreateMerkleRootMultisigIsmTransaction({
+      signer: this.signer.getSignerAddress(),
       validators: artifact.config.validators,
       threshold: artifact.config.threshold,
     });
+    const receipt = await this.signer.sendAndConfirmTransaction(tx);
+    const ismAddress = receipt.contractAddress;
+    assert(ismAddress, 'failed to deploy Starknet merkle root multisig ISM');
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: artifact.config,
-        deployed: { address: created.ismAddress },
+        deployed: { address: ismAddress },
       },
-      [],
+      [receipt],
     ];
   }
 

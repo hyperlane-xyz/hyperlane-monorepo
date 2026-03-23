@@ -3,11 +3,11 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, 'audit-*']
+    branches: [main, "audit-*"]
   # Triggers on pull requests
   pull_request:
     branches:
-      - '*'
+      - "*"
   merge_group:
   workflow_dispatch:
 
@@ -111,7 +111,7 @@ jobs:
       - name: Check lint-prettier status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'Lint Prettier'
+          job_name: "Lint Prettier"
           result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
@@ -166,7 +166,7 @@ jobs:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
           path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
-          path_pattern_only: 'true'
+          path_pattern_only: "true"
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
@@ -205,7 +205,7 @@ jobs:
           has_radix=$(echo "$CHANGED_FILES" | grep -qE '^typescript/radix-sdk/' && echo true || echo false)
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
-          has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/starknet-sdk/|starknet/)' && echo true || echo false)
+          has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
           has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/svm-sdk/)' && echo true || echo false)
 
@@ -317,7 +317,7 @@ jobs:
       - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'PNPM Test'
+          job_name: "PNPM Test"
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
@@ -399,7 +399,7 @@ jobs:
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'CLI Install Test'
+          job_name: "CLI Install Test"
           result: ${{ needs.cli-install-test-run.result }}
 
   # Reusable workflow callers
@@ -427,7 +427,7 @@ jobs:
       - name: Check CLI E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'CLI E2E'
+          job_name: "CLI E2E"
           result: ${{ needs.cli-e2e-tests.result }}
 
   sdk-e2e-tests:
@@ -451,7 +451,7 @@ jobs:
       - name: Check SDK E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'SDK E2E'
+          job_name: "SDK E2E"
           result: ${{ needs.sdk-e2e-tests.result }}
 
   rust-e2e-tests:

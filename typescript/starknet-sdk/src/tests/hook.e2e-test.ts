@@ -10,6 +10,7 @@ import {
   TEST_STARKNET_CHAIN_METADATA,
 } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
+import { StarknetAnnotatedTx } from '../types.js';
 
 describe('3. starknet sdk hook e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -96,7 +97,7 @@ describe('3. starknet sdk hook e2e tests', function () {
     expect(txs[txs.length - 1]?.annotation).to.contain('ownership');
 
     for (const tx of txs) {
-      await signer.sendAndConfirmTransaction(tx);
+      await signer.sendAndConfirmTransaction(tx as StarknetAnnotatedTx);
     }
 
     const updated = await reader.read(created.deployed.address);

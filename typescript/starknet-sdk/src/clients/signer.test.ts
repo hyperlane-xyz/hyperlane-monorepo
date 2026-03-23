@@ -259,3 +259,65 @@ describe('StarknetSigner createMailbox', () => {
     );
   });
 });
+
+describe('StarknetSigner createRoutingIsm', () => {
+  it('batches route initialization after deploy', async () => {
+    const signer = new StarknetSignerTestHarness();
+
+    await signer.createRoutingIsm({
+      routes: [
+        { domainId: 1111, ismAddress: '0xabc' },
+        { domainId: 2222, ismAddress: '0xdef' },
+      ],
+    });
+
+    expect(signer.capturedTx?.kind).to.equal('deploy');
+    expect(signer.capturedBatch).to.have.length(2);
+    expect(signer.capturedBatch?.every((tx) => tx.kind === 'invoke')).to.equal(
+      true,
+    );
+  });
+});
+
+describe('StarknetSigner sendAndConfirmTransaction', () => {
+  class ReceiptCheckingSigner extends StarknetSigner {
+    constructor() {
+      super(
+        new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+        TEST_METADATA,
+        ['http://localhost:9545'],
+        '0x123',
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      );
+    }
+  }
+
+  it('throws when Starknet returns a reverted receipt', async () => {
+    const signer = new ReceiptCheckingSigner();
+    Reflect.set(signer as object, 'account', {
+      execute: async () => ({ transaction_hash: '0xdead' }),
+      waitForTransaction: async () => ({
+        statusReceipt: 'reverted',
+        value: { revert_reason: 'boom' },
+        isSuccess: () => false,
+        isReverted: () => true,
+        isError: () => false,
+      }),
+    });
+
+    let error: unknown;
+    try {
+      await signer.sendAndConfirmTransaction({
+        kind: 'invoke',
+        contractAddress: '0xabc',
+        entrypoint: 'transfer',
+        calldata: [],
+      });
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(String(error)).to.include('reverted');
+    expect(String(error)).to.include('boom');
+  });
+});
