@@ -36,6 +36,7 @@
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",

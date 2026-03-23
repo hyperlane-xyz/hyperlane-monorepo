@@ -511,6 +511,9 @@ importers:
       '@typechain/ethers-v5':
         specifier: 11.1.2
         version: 11.1.2(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(typescript@6.0.2))(typescript@6.0.2)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       typechain:
         specifier: 'catalog:'
         version: 8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(typescript@6.0.2)
@@ -533,6 +536,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../typescript/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.9
       '@typescript-eslint/eslint-plugin':
         specifier: 'catalog:'
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2))(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)

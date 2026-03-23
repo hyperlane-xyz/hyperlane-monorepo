@@ -20,7 +20,6 @@ const SETUP_TIMEOUT_MS = 180_000;
 
 let validator: SolanaTestValidator | undefined;
 let programCleanup: (() => void) | undefined;
-type SealevelAddress = Parameters<typeof airdropSol>[1];
 
 before(async function () {
   this.timeout(SETUP_TIMEOUT_MS);
@@ -53,7 +52,7 @@ before(async function () {
     );
     await airdropSol(
       rpc,
-      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel as SealevelAddress,
+      HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.sealevel,
       50_000_000_000n,
     );
   } catch (error: unknown) {
