@@ -668,6 +668,60 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 1);
     });
 
+    it('should add quote signers to IGP', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // add quote signers
+      config.quoteSigners = [randomAddress(), randomAddress()];
+
+      // expect 2 txs to add quote signers
+      await expectTxsAndUpdate(hook, config, 2);
+    });
+
+    it('should remove quote signers from IGP', async () => {
+      const signerA = randomAddress();
+      const signerB = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.quoteSigners = [signerA, signerB];
+
+      // create a new hook with signers
+      const { hook } = await createHook(config);
+
+      // remove one signer
+      config.quoteSigners = [signerA];
+
+      // expect 1 tx to remove a signer
+      await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should deploy IGP with quote signers and read them back', async () => {
+      const signerA = randomAddress();
+      const signerB = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.quoteSigners = [signerA, signerB];
+
+      const { hook } = await createHook(config);
+      const readConfig = normalizeConfig(await hook.read());
+
+      expect(readConfig.quoteSigners).to.have.lengthOf(2);
+      expect(readConfig.quoteSigners).to.include(signerA.toLowerCase());
+      expect(readConfig.quoteSigners).to.include(signerB.toLowerCase());
+    });
+
+    it('should not update IGP if quote signers unchanged', async () => {
+      const signerAddr = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.quoteSigners = [signerAddr];
+
+      const { hook } = await createHook(config);
+
+      // same config, no updates
+      await expectTxsAndUpdate(hook, config, 0);
+    });
+
     it('should update protocol fee in protocol fee hook', async () => {
       const config: ProtocolFeeHookConfig = {
         owner: await multiProvider.getSignerAddress(chain),

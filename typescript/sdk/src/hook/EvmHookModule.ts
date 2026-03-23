@@ -36,6 +36,7 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  difference,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -446,7 +447,49 @@ export class EvmHookModule extends HyperlaneModule<
       })),
     );
 
+    // update quote signers
+    updateTxs.push(
+      ...this.updateIgpQuoteSigners({
+        currentSigners: currentConfig.quoteSigners ?? [],
+        targetSigners: targetConfig.quoteSigners ?? [],
+      }),
+    );
+
     return updateTxs;
+  }
+
+  protected updateIgpQuoteSigners({
+    currentSigners,
+    targetSigners,
+  }: {
+    currentSigners: string[];
+    targetSigners: string[];
+  }): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+    const igpInterface = InterchainGasPaymaster__factory.createInterface();
+
+    const currentSet = new Set(currentSigners.map((s) => s.toLowerCase()));
+    const targetSet = new Set(targetSigners.map((s) => s.toLowerCase()));
+
+    for (const signer of difference(targetSet, currentSet)) {
+      txs.push({
+        annotation: `Add IGP quote signer ${signer}`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedHook,
+        data: igpInterface.encodeFunctionData('addQuoteSigner', [signer]),
+      });
+    }
+
+    for (const signer of difference(currentSet, targetSet)) {
+      txs.push({
+        annotation: `Remove IGP quote signer ${signer}`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedHook,
+        data: igpInterface.encodeFunctionData('removeQuoteSigner', [signer]),
+      });
+    }
+
+    return txs;
   }
 
   protected async updateIgpRemoteGasParams({
@@ -1098,6 +1141,16 @@ export class EvmHookModule extends HyperlaneModule<
     // Set the gas params for each remote
     for (const tx of configureTxs) {
       await this.multiProvider.sendTransaction(this.chain, tx);
+    }
+
+    // Add quote signers if configured
+    if (config.quoteSigners?.length) {
+      for (const signer of config.quoteSigners) {
+        await this.multiProvider.handleTx(
+          this.chain,
+          igp.addQuoteSigner(signer, this.txOverrides),
+        );
+      }
     }
 
     // Transfer igp to the configured owner

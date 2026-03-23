@@ -16,6 +16,7 @@ import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
+  OffchainQuotedLinearFeeConfig,
   ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
@@ -544,6 +545,123 @@ describe('EvmTokenFeeModule', () => {
       const nestedFee = routingConfig.feeContracts?.[test4Chain];
       assert(nestedFee, 'Nested fee must exist');
       expect(nestedFee.token).to.equal(token.address);
+    });
+  });
+
+  describe('OffchainQuotedLinearFee', () => {
+    let offchainConfig: OffchainQuotedLinearFeeConfig;
+
+    before(() => {
+      offchainConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.OffchainQuotedLinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+        quoteSigners: [signer.address],
+      }) as OffchainQuotedLinearFeeConfig;
+    });
+
+    it('should create and read OffchainQuotedLinearFee', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: offchainConfig,
+      });
+      const onchainConfig = await module.read();
+      expect(normalizeConfig(onchainConfig)).to.deep.equal(
+        normalizeConfig(offchainConfig),
+      );
+    });
+
+    it('should not update if configs are the same', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: offchainConfig,
+      });
+      const txs = await module.update(offchainConfig);
+      expect(txs).to.have.lengthOf(0);
+    });
+
+    it('should redeploy if fee params change', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: offchainConfig,
+      });
+      const updatedConfig = { ...offchainConfig, bps: BPS + 1n };
+      await expectTxsAndUpdate(module, updatedConfig, 0);
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.OffchainQuotedLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedLinearFee}`,
+      );
+      expect(onchainConfig.bps).to.eql(updatedConfig.bps);
+    });
+
+    it('should redeploy when transitioning from LinearFee to OffchainQuotedLinearFee', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config, // LinearFee
+      });
+      // 0 txs because redeploy happens inline
+      await expectTxsAndUpdate(module, offchainConfig, 0);
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.OffchainQuotedLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedLinearFee}`,
+      );
+    });
+
+    it('should update signers without redeploying', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: offchainConfig,
+      });
+      const [, otherSigner] = await hre.ethers.getSigners();
+      const updatedConfig: OffchainQuotedLinearFeeConfig = {
+        ...offchainConfig,
+        quoteSigners: [signer.address, otherSigner.address],
+      };
+      // 1 tx to add the new signer
+      await expectTxsAndUpdate(module, updatedConfig, 1);
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.OffchainQuotedLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedLinearFee}`,
+      );
+      expect(onchainConfig.quoteSigners).to.have.lengthOf(2);
+      expect(onchainConfig.quoteSigners).to.include(otherSigner.address);
+    });
+
+    it('should remove signers without redeploying', async () => {
+      const [, otherSigner] = await hre.ethers.getSigners();
+      const twoSignerConfig: OffchainQuotedLinearFeeConfig = {
+        ...offchainConfig,
+        quoteSigners: [signer.address, otherSigner.address],
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: twoSignerConfig,
+      });
+      const updatedConfig: OffchainQuotedLinearFeeConfig = {
+        ...offchainConfig,
+        quoteSigners: [signer.address],
+      };
+      // 1 tx to remove the other signer
+      await expectTxsAndUpdate(module, updatedConfig, 1);
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.OffchainQuotedLinearFee,
+        `Must be ${TokenFeeType.OffchainQuotedLinearFee}`,
+      );
+      expect(onchainConfig.quoteSigners).to.have.lengthOf(1);
+      expect(onchainConfig.quoteSigners).to.include(signer.address);
     });
   });
 });

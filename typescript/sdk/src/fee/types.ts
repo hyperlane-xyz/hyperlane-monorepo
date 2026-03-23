@@ -15,6 +15,7 @@ export enum OnchainTokenFeeType {
   ProgressiveFee = 3,
   RoutingFee = 4,
   CrossCollateralRoutingFee = 5,
+  OffchainQuotedLinearFee = 6,
 }
 
 export enum TokenFeeType {
@@ -22,6 +23,7 @@ export enum TokenFeeType {
   ProgressiveFee = 'ProgressiveFee',
   RegressiveFee = 'RegressiveFee',
   RoutingFee = 'RoutingFee',
+  OffchainQuotedLinearFee = 'OffchainQuotedLinearFee',
 }
 
 export const ImmutableTokenFeeType = [
@@ -40,6 +42,8 @@ export const onChainTypeToTokenFeeTypeMap: Record<
   [OnchainTokenFeeType.ProgressiveFee]: TokenFeeType.ProgressiveFee,
   [OnchainTokenFeeType.RoutingFee]: TokenFeeType.RoutingFee,
   [OnchainTokenFeeType.CrossCollateralRoutingFee]: TokenFeeType.RoutingFee,
+  [OnchainTokenFeeType.OffchainQuotedLinearFee]:
+    TokenFeeType.OffchainQuotedLinearFee,
 };
 
 // ====== SHARED SCHEMAS ======
@@ -64,6 +68,12 @@ export type FeeParameters = z.infer<typeof FeeParametersSchema>;
 
 const StandardFeeConfigBaseSchema =
   BaseFeeConfigSchema.merge(FeeParametersSchema);
+
+// Shared schema for offchain quote signer configuration
+export const QuoteSignersSchema = z.object({
+  quoteSigners: z.array(ZHash).optional(),
+});
+export type QuoteSignersConfig = z.infer<typeof QuoteSignersSchema>;
 
 // ====== INDIVIDUAL FEE SCHEMAS ======
 
@@ -114,6 +124,58 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
     bps: v.bps ?? convertToBps(v.maxFee!, v.halfAmount!),
   }));
 export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
+
+export const OffchainQuotedLinearFeeConfigSchema =
+  StandardFeeConfigBaseSchema.merge(QuoteSignersSchema).extend({
+    type: z.literal(TokenFeeType.OffchainQuotedLinearFee),
+    bps: ZBigNumberish,
+  });
+export type OffchainQuotedLinearFeeConfig = z.infer<
+  typeof OffchainQuotedLinearFeeConfigSchema
+>;
+
+export const OffchainQuotedLinearFeeInputConfigSchema =
+  BaseFeeConfigInputSchema.merge(QuoteSignersSchema)
+    .extend({
+      type: z.literal(TokenFeeType.OffchainQuotedLinearFee),
+      bps: ZBigNumberish.optional(),
+      ...FeeParametersSchema.partial().shape,
+    })
+    .superRefine((v, ctx) => {
+      const hasBps = v.bps !== undefined;
+      const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
+
+      if (!hasBps && !hasFeeParams) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: 'Provide bps or both maxFee and halfAmount',
+        });
+      }
+
+      if (hasBps && BigInt(v.bps!) === 0n) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: 'bps must be > 0',
+        });
+      }
+
+      if (v.halfAmount === 0n) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['halfAmount'],
+          message: 'halfAmount must be > 0',
+        });
+      }
+    })
+    .transform((v) => ({
+      ...v,
+      bps: v.bps ?? convertToBps(v.maxFee!, v.halfAmount!),
+    }));
+export type OffchainQuotedLinearFeeInputConfig = z.infer<
+  typeof OffchainQuotedLinearFeeInputConfigSchema
+>;
 
 export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
@@ -178,6 +240,7 @@ export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 
 export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
   LinearFeeConfigSchema,
+  OffchainQuotedLinearFeeConfigSchema,
   ProgressiveFeeConfigSchema,
   RegressiveFeeConfigSchema,
   RoutingFeeConfigSchema,
@@ -186,6 +249,7 @@ export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
 export const TokenFeeConfigInputSchema = z.union([
   LinearFeeInputConfigSchema,
+  OffchainQuotedLinearFeeInputConfigSchema,
   ProgressiveFeeInputConfigSchema,
   RegressiveFeeInputConfigSchema,
   RoutingFeeInputConfigSchema,
