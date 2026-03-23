@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 4.1.0
+
+### Minor Changes
+
+- 5caac66: Added `crossCollateral` warp token type to the provider-sdk type system. All protocol SDK artifact managers were updated to handle the new type in their exhaustive switches.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@28.1.0
+
 ## 4.0.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.1.3
+
+### Patch Changes
+
+- 2e622e8: TronJsonRpcProvider was changed to extend `StaticJsonRpcProvider` with a `detectNetwork` fallback and default `estimateGas` override for Tron's unreliable RPC methods. Automatic `/jsonrpc` suffix appending was removed — callers now pass the correct URL directly. TronWallet now parses `custom_rpc_header` query params from RPC URLs and forwards them as headers to TronWeb HTTP API calls (needed for TronGrid API key auth). `alterTransaction` was switched to `txLocal: true` to avoid unnecessary network roundtrips.
+- Updated dependencies [5caac66]
+- Updated dependencies [6c715a7]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
 ## 22.1.2
 
 ### Patch Changes

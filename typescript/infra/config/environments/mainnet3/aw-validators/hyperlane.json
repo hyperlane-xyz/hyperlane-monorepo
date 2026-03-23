@@ -377,6 +377,9 @@
   "torus": {
     "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
   },
+  "tron": {
+    "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]
+  },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
   },
