@@ -60,7 +60,7 @@ export const getVictionETHWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // Configure native chains with routing fees (1.5 bps for transfers to other native chains)
+  // Configure native chains with routing fees (10 bps for transfers to other native chains)
   for (const currentChain of nativeChains) {
     const baseConfig = getNativeTokenConfigForChain(
       currentChain,
@@ -78,7 +78,7 @@ export const getVictionETHWarpConfig = async (
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(currentChain),
           feeDestinations,
-          1.5,
+          10,
         ),
         proxyAdmin: {
           owner:
