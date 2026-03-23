@@ -25,6 +25,7 @@ export enum TokenStandard {
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
   EvmM0PortalLite = 'EvmM0PortalLite',
+  EvmM0Portal = 'EvmM0Portal',
   EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
   EvmHypEverclearEth = 'EvmHypEverclearEth',
   EvmHypCrossCollateralRouter = 'EvmHypCrossCollateralRouter',
