@@ -224,26 +224,37 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
 
     // Decode context and data, write all fields to transient storage for same-tx resolution.
     function _storeTransient(SignedQuote calldata sq) internal override {
+        // activate transient flag (distinguishes 0 quotes from empty storage)
         TRANSIENT_QUOTED_SLOT.set();
-        (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
-        TRANSIENT_EXCHANGE_RATE_SLOT.store(rate);
-        TRANSIENT_GAS_PRICE_SLOT.store(gasPrice);
+
+        // store postDispatch context to match against in this tx
         (address feeToken_, uint32 dest, address sender) = IGPQuoteContext
             .decode(sq.context);
         TRANSIENT_FEE_TOKEN_SLOT.store(feeToken_);
         TRANSIENT_DESTINATION_SLOT.store(dest);
         TRANSIENT_SENDER_SLOT.store(sender);
+
+        // store gas oracle params for deriving fees on matching postDispatch in this tx
+        (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
+        TRANSIENT_EXCHANGE_RATE_SLOT.store(rate);
+        TRANSIENT_GAS_PRICE_SLOT.store(gasPrice);
     }
 
     // Decode context and data, write to persistent storage. Rejects stale quotes.
     function _storeStanding(SignedQuote calldata sq) internal override {
+        // match on postDispatch context (narrowed to message.destination and message.sender)
+        // feeToken comes from message sender hook metadata
         (address feeToken_, uint32 dest, address sender) = IGPQuoteContext
             .decode(sq.context);
         OffchainQuotedIGPStorage storage $ = _getOffchainQuotedIGPStorage();
         StoredGasQuote storage existing = $.offchainQuotes[feeToken_][dest][
             sender
         ];
+
+        // ensure signed quote is issued more recently than standing quote
         if (sq.issuedAt <= existing.issuedAt) revert StaleQuote();
+
+        // update gas oracle params for matching postDispatch
         (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
         $.offchainQuotes[feeToken_][dest][sender] = StoredGasQuote(
             rate,

@@ -227,21 +227,27 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
 
     // Decode context and data, write all fields to transient storage for same-tx resolution.
     function _storeTransient(SignedQuote calldata sq) internal override {
+        // activate transient flag (distinguishes 0 quotes from empty storage)
         TRANSIENT_QUOTED_SLOT.set();
-        (uint256 maxFee_, uint256 halfAmount_) = FeeQuoteData.decode(sq.data);
-        TRANSIENT_MAX_FEE_SLOT.store(maxFee_);
-        TRANSIENT_HALF_AMOUNT_SLOT.store(halfAmount_);
+
+        // store transferRemote context to match against in this tx
         (uint32 dest, bytes32 recipient, uint256 amount) = FeeQuoteContext
             .decode(sq.context);
         TRANSIENT_DESTINATION_SLOT.store(dest);
         TRANSIENT_RECIPIENT_SLOT.store(recipient);
         TRANSIENT_AMOUNT_SLOT.store(amount);
+
+        // store linear fee params for deriving fees on matching transferRemote in this tx
+        (uint256 maxFee_, uint256 halfAmount_) = FeeQuoteData.decode(sq.data);
+        TRANSIENT_MAX_FEE_SLOT.store(maxFee_);
+        TRANSIENT_HALF_AMOUNT_SLOT.store(halfAmount_);
     }
 
     function _resolveStored(
         StoredQuote storage sq,
         uint256 amount
     ) internal view returns (bool, uint256) {
+        // resolve and derive fee from linear params when standing quote is unexpired
         if (sq.expiry > 0 && uint48(block.timestamp) <= sq.expiry) {
             return (true, _computeLinearFee(sq.maxFee, sq.halfAmount, amount));
         }
@@ -250,9 +256,15 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
 
     // Decode context and data, write to persistent storage. Rejects stale quotes.
     function _storeStanding(SignedQuote calldata sq) internal override {
+        // match on transferRemote context
+        // amount omitted because quotes are linear fee params that scale fees with amount
         (uint32 dest, bytes32 recipient, ) = FeeQuoteContext.decode(sq.context);
         StoredQuote storage existing = quotes[dest][recipient];
+
+        // ensure signed quote is issued more recently than standing quote
         if (sq.issuedAt <= existing.issuedAt) revert StaleQuote();
+
+        // update linear fee params for matching transferRemote
         (uint256 maxFee_, uint256 halfAmount_) = FeeQuoteData.decode(sq.data);
         quotes[dest][recipient] = StoredQuote(
             maxFee_,
