@@ -243,6 +243,19 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     symbol: string;
     decimals: number;
   }> {
+    const nativeToken = this.metadata.nativeToken;
+    if (
+      nativeToken?.denom &&
+      normalizeStarknetAddressSafe(tokenAddress) ===
+        normalizeStarknetAddressSafe(nativeToken.denom)
+    ) {
+      return {
+        name: nativeToken.name ?? '',
+        symbol: nativeToken.symbol ?? '',
+        decimals: nativeToken.decimals ?? 18,
+      };
+    }
+
     const token = this.withContract(
       StarknetContractName.HYP_ERC20,
       tokenAddress,
@@ -1129,15 +1142,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     if (tokenType === AltVM.TokenType.native) {
       value = toBigInt(req.amount) + toBigInt(req.maxFee.amount);
     } else if (tokenType === AltVM.TokenType.collateral) {
-      const collateralToken =
-        tokenInfo ?? (await this.getToken({ tokenAddress: req.tokenAddress }));
-      const collateralDenom = normalizeStarknetAddressSafe(
-        collateralToken.denom,
-      );
-      const feeDenom = normalizeStarknetAddressSafe(req.maxFee.denom);
-      value =
-        toBigInt(req.amount) +
-        (collateralDenom === feeDenom ? toBigInt(req.maxFee.amount) : 0n);
+      value = toBigInt(req.maxFee.amount);
     } else {
       value = toBigInt(req.maxFee.amount);
     }

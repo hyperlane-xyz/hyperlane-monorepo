@@ -247,6 +247,39 @@ class StarknetCreateTokenTxHarness extends StarknetProvider {
   }
 }
 
+class StarknetNativeTokenMetadataHarness extends StarknetProvider {
+  contractSelections: StarknetContractName[] = [];
+
+  constructor() {
+    super(
+      new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+      {
+        ...TEST_METADATA,
+        nativeToken: {
+          name: 'Ether',
+          symbol: 'ETH',
+          decimals: 18,
+          denom: feeDenom,
+        },
+      },
+      ['http://localhost:9545'],
+    );
+  }
+
+  protected override withContract(name: StarknetContractName): Contract {
+    this.contractSelections.push(name);
+    throw new Error('unexpected contract read');
+  }
+
+  async readTokenMetadata(tokenAddress: string): Promise<{
+    name: string;
+    symbol: string;
+    decimals: number;
+  }> {
+    return this.getTokenMetadata(tokenAddress);
+  }
+}
+
 describe('StarknetProvider parseString', () => {
   const provider = new StarknetProviderTestHarness();
 
@@ -286,6 +319,21 @@ describe('StarknetProvider estimateTransactionFee', () => {
     }
 
     expect(String(caughtError)).to.include('unsupported');
+  });
+});
+
+describe('StarknetProvider getTokenMetadata', () => {
+  it('uses configured native token metadata for the chain native denom', async () => {
+    const provider = new StarknetNativeTokenMetadataHarness();
+
+    const metadata = await provider.readTokenMetadata(feeDenom);
+
+    expect(metadata).to.deep.equal({
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    });
+    expect(provider.contractSelections).to.deep.equal([]);
   });
 });
 
@@ -498,7 +546,7 @@ describe('StarknetProvider warp tx builders', () => {
     expect(tx.calldata?.[3]).to.equal(2n);
   });
 
-  it('includes transfer amount in collateral token remote transfer value', async () => {
+  it('uses only gas quote as remote transfer value for collateral tokens', async () => {
     const provider = new StarknetTxTestHarness();
     provider.tokenType = AltVM.TokenType.collateral;
     provider.tokenDenom =
@@ -518,10 +566,10 @@ describe('StarknetProvider warp tx builders', () => {
     });
 
     expect(tx.kind).to.equal('invoke');
-    expect(tx.calldata?.[3]).to.equal(1n);
+    expect(tx.calldata?.[3]).to.equal(2n);
   });
 
-  it('includes fee in collateral token remote transfer value when fee denom matches collateral denom', async () => {
+  it('keeps collateral remote transfer value as gas quote when fee denom matches collateral denom', async () => {
     const provider = new StarknetTxTestHarness();
     provider.tokenType = AltVM.TokenType.collateral;
     provider.tokenDenom = feeDenom;
@@ -540,7 +588,7 @@ describe('StarknetProvider warp tx builders', () => {
     });
 
     expect(tx.kind).to.equal('invoke');
-    expect(tx.calldata?.[3]).to.equal(3n);
+    expect(tx.calldata?.[3]).to.equal(2n);
   });
 
   it('uses mailbox default hook and ism when creating native tokens', async () => {
