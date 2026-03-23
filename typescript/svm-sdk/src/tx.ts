@@ -5,6 +5,7 @@ import {
   type ReadonlyUint8Array,
   type TransactionSigner,
   appendTransactionMessageInstructions,
+  blockhash,
   compileTransactionMessage,
   createTransactionMessage,
   getBase58Decoder,
@@ -105,8 +106,8 @@ export function transactionToInstructions(
 const base58Decoder = getBase58Decoder();
 const messageEncoder = getCompiledTransactionMessageEncoder();
 
-/** Default blockhash (32 zero bytes) matching Rust's Hash::default(). */
-const DEFAULT_BLOCKHASH = '11111111111111111111111111111111' as Blockhash;
+/** Default blockhash (32 zero bytes) that needs to be replaced at submission time */
+const DEFAULT_BLOCKHASH = blockhash('11111111111111111111111111111111');
 
 /**
  * Encodes a number as Solana's compact-u16 wire format.
