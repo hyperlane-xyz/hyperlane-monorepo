@@ -9,10 +9,11 @@ import {
 import {
   type DeployedHookAddress,
   type DeployedHookArtifact,
-  type HookConfigs,
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
+  altVmHookTypeToProviderHookType,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
@@ -74,9 +75,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const query = await this.getQuery();
     const altVMType = await getHookType(query, address);
-
     const reader = this.createReaderWithQuery(
-      altVMType as keyof HookConfigs,
+      altVmHookTypeToProviderHookType(altVMType),
       query,
     );
     return reader.read(address);
@@ -112,18 +112,22 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: {
+    const readers: Partial<{
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new CosmosIgpHookReader(query),
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedHookType(type, 'Cosmos');
+    }
+    return reader();
   }
 
   /**
@@ -170,12 +174,12 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const writers: {
+    const writers: Partial<{
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       [AltVM.HookType.MERKLE_TREE]: () => {
         assert(
           this.config.mailboxAddress,
@@ -196,6 +200,10 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
       },
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedHookType(type, 'Cosmos');
+    }
+    return writer();
   }
 }
