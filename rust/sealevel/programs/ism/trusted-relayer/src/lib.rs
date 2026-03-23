@@ -49,12 +49,14 @@ impl SizedData for TrustedRelayerData {
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
 pub enum Instruction {
     /// Initializes the program with an immutable trusted relayer.
-    /// Can only be called once.
+    /// Can only be called once. Requires the program to be immutable
+    /// (upgrade authority revoked).
     ///
     /// Accounts:
     /// 0. `[signer]` Payer.
     /// 1. `[writable]` Trusted relayer PDA.
     /// 2. `[executable]` System program.
+    /// 3. `[]` This program's programdata account.
     Initialize(Pubkey),
 }
 
@@ -73,6 +75,7 @@ pub enum Error {
     ProgramIdNotOwner,
     RelayerMismatch,
     RelayerNotSigner,
+    ProgramNotImmutable,
 }
 
 impl From<Error> for ProgramError {

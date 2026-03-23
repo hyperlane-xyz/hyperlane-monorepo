@@ -121,11 +121,13 @@ fn verify_account_metas(
 }
 
 /// Initializes the program with an immutable trusted relayer.
+/// Requires the program's upgrade authority to be revoked (immutable).
 ///
 /// Accounts:
 /// 0. `[signer]` Payer.
 /// 1. `[writable]` Trusted relayer PDA.
 /// 2. `[executable]` System program.
+/// 3. `[]` This program's programdata account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], relayer: Pubkey) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -153,6 +155,23 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], relayer: Pubkey) ->
     let system_program_info = next_account_info(accounts_iter)?;
     if system_program_info.key != &system_program::ID {
         return Err(Error::AccountOutOfOrder.into());
+    }
+
+    // Account 3: Programdata account — verify the program is immutable.
+    // BPFLoaderUpgradeab1e11111111111111111111111
+    let bpf_loader_upgradeable_id: Pubkey =
+        solana_program::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
+    let programdata_info = next_account_info(accounts_iter)?;
+    let (expected_programdata_key, _) =
+        Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable_id);
+    if *programdata_info.key != expected_programdata_key {
+        return Err(Error::AccountOutOfOrder.into());
+    }
+    // Byte 12 is the Option discriminant for upgrade_authority_address:
+    // 0 = None (immutable), 1 = Some(pubkey).
+    let programdata_data = programdata_info.data.borrow();
+    if programdata_data.len() < 13 || programdata_data[12] != 0 {
+        return Err(Error::ProgramNotImmutable.into());
     }
 
     // Create trusted relayer PDA.
