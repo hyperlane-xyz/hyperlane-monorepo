@@ -161,7 +161,14 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
                 validator_announce: validator_announce_program_id,
-                multisig_ism_message_id: ism_program_id,
+                multisig_ism_message_id: (core.ism_type == IsmType::MultisigMessageId)
+                    .then_some(ism_program_id),
+                trusted_relayer_ism: (core.ism_type == IsmType::TrustedRelayer)
+                    .then_some(ism_program_id),
+                aggregation_ism: (core.ism_type == IsmType::Aggregation).then_some(ism_program_id),
+                amount_routing_ism: (core.ism_type == IsmType::AmountRouting)
+                    .then_some(ism_program_id),
+                test_ism: (core.ism_type == IsmType::Test).then_some(ism_program_id),
                 igp_program_id,
                 overhead_igp_account,
                 igp_account,
@@ -192,22 +199,33 @@ pub(crate) fn deploy_test_ism(ctx: &mut Context, built_so_dir: &Path, key_dir: &
         &program_id,
     );
 
-    let instruction = solana_sdk::instruction::Instruction {
-        program_id,
-        accounts: vec![
-            solana_sdk::instruction::AccountMeta::new_readonly(
-                solana_system_interface::program::ID,
-                false,
-            ),
-            solana_sdk::instruction::AccountMeta::new(ctx.payer_pubkey, true),
-            solana_sdk::instruction::AccountMeta::new(storage_pda, false),
-        ],
-        data: borsh::to_vec(&TestIsmInstruction::Init).unwrap(),
-    };
+    let already_initialized = ctx
+        .client
+        .get_account_with_commitment(&storage_pda, ctx.commitment)
+        .unwrap()
+        .value
+        .is_some();
 
-    ctx.new_txn().add(instruction).send_with_payer();
+    if already_initialized {
+        println!("Test ISM already initialized at program ID {}", program_id);
+    } else {
+        let instruction = solana_sdk::instruction::Instruction {
+            program_id,
+            accounts: vec![
+                solana_sdk::instruction::AccountMeta::new_readonly(
+                    solana_system_interface::program::ID,
+                    false,
+                ),
+                solana_sdk::instruction::AccountMeta::new(ctx.payer_pubkey, true),
+                solana_sdk::instruction::AccountMeta::new(storage_pda, false),
+            ],
+            data: borsh::to_vec(&TestIsmInstruction::Init).unwrap(),
+        };
 
-    println!("Initialized Test ISM");
+        ctx.new_txn().add(instruction).send_with_payer();
+
+        println!("Initialized Test ISM");
+    }
 
     program_id
 }
@@ -379,8 +397,32 @@ pub struct CoreProgramIds {
     pub mailbox: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub validator_announce: Pubkey,
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub multisig_ism_message_id: Pubkey,
+    #[serde(with = "crate::serde::serde_option_pubkey", default)]
+    pub multisig_ism_message_id: Option<Pubkey>,
+    #[serde(
+        with = "crate::serde::serde_option_pubkey",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub trusted_relayer_ism: Option<Pubkey>,
+    #[serde(
+        with = "crate::serde::serde_option_pubkey",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub aggregation_ism: Option<Pubkey>,
+    #[serde(
+        with = "crate::serde::serde_option_pubkey",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub amount_routing_ism: Option<Pubkey>,
+    #[serde(
+        with = "crate::serde::serde_option_pubkey",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub test_ism: Option<Pubkey>,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_program_id: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]
