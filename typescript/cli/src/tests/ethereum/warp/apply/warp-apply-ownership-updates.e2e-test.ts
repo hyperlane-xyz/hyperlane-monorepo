@@ -187,7 +187,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     const tokenFeeConfig = {
       type: TokenFeeType.LinearFee as const,
       owner: feeOwner,
-      bps: 100n,
+      bps: 100,
     };
 
     const warpDeployConfig = fixture.getDeployConfig();
