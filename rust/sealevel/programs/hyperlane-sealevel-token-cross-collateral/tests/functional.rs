@@ -768,7 +768,7 @@ mod init_instruction {
         );
         let result = env.banks_client.process_transaction(transaction).await;
 
-        // Custom(1) = Error::ExtraneousAccount
+        // Custom(1) = TokenError::ExtraneousAccount
         assert_transaction_error(
             result,
             TransactionError::InstructionError(0, InstructionError::Custom(1)),
@@ -1993,10 +1993,10 @@ mod handle_instruction {
         )
         .await;
 
-        // Custom(2) = Error::UnauthorizedRouter
+        // Custom(1000) = CcError::UnauthorizedRouter
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(2)),
+            TransactionError::InstructionError(0, InstructionError::Custom(1000)),
         );
     }
 }
@@ -2067,10 +2067,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(3) = Error::InvalidDispatchAuthority
+        // Custom(1001) = CcError::InvalidDispatchAuthority
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(3)),
+            TransactionError::InstructionError(0, InstructionError::Custom(1001)),
         );
     }
 
@@ -2215,10 +2215,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(2) = Error::UnauthorizedRouter — B rejects A
+        // Custom(1000) = CcError::UnauthorizedRouter — B rejects A
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(2)),
+            TransactionError::InstructionError(0, InstructionError::Custom(1000)),
         );
     }
 
@@ -2492,10 +2492,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(2) = Error::UnauthorizedRouter
+        // Custom(1000) = CcError::UnauthorizedRouter
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(2)),
+            TransactionError::InstructionError(0, InstructionError::Custom(1000)),
         );
     }
 
@@ -2557,10 +2557,10 @@ mod handle_local_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(3) = Error::InvalidDispatchAuthority
+        // Custom(1001) = CcError::InvalidDispatchAuthority
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(3)),
+            TransactionError::InstructionError(0, InstructionError::Custom(1001)),
         );
     }
 
@@ -2887,10 +2887,10 @@ mod transfer_remote_to_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(2) = Error::UnauthorizedRouter
+        // Custom(1000) = CcError::UnauthorizedRouter
         assert_transaction_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::Custom(2)),
+            TransactionError::InstructionError(0, InstructionError::Custom(1000)),
         );
     }
 
@@ -3114,7 +3114,7 @@ mod transfer_remote_to_instruction {
         );
         let result = ctx.banks_client.process_transaction(transaction).await;
 
-        // Custom(1) = Error::ExtraneousAccount
+        // Custom(1) = TokenError::ExtraneousAccount
         assert_transaction_error(
             result,
             TransactionError::InstructionError(0, InstructionError::Custom(1)),

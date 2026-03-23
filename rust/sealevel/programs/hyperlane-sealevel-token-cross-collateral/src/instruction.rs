@@ -4,24 +4,17 @@ use account_utils::{DiscriminatorData, DiscriminatorEncode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_mailbox::{
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-};
+use hyperlane_sealevel_mailbox::mailbox_outbox_pda_seeds;
+use hyperlane_sealevel_token_collateral::instruction::init_instruction as collateral_init_instruction;
 use hyperlane_sealevel_token_lib::{hyperlane_token_pda_seeds, instruction::Init};
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
     pubkey::Pubkey,
-    rent::Rent,
-    sysvar::SysvarId,
 };
 use solana_system_interface::program as system_program;
 
 use crate::{cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds};
-
-use hyperlane_sealevel_token_collateral::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds,
-};
 
 /// Discriminator for cross-collateral instructions.
 pub const CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR: [u8; 8] = [2, 2, 2, 2, 2, 2, 2, 2];
@@ -110,23 +103,8 @@ pub fn init_instruction(
     spl_program: Pubkey,
     mint: Pubkey,
 ) -> Result<SolanaInstruction, ProgramError> {
-    let (token_key, _token_bump) =
-        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
-
-    let (dispatch_authority_key, _dispatch_authority_bump) = Pubkey::try_find_program_address(
-        mailbox_message_dispatch_authority_pda_seeds!(),
-        &program_id,
-    )
-    .ok_or(ProgramError::InvalidSeeds)?;
-
-    let (escrow_key, _escrow_bump) =
-        Pubkey::try_find_program_address(hyperlane_token_escrow_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
-
-    let (ata_payer_key, _ata_payer_bump) =
-        Pubkey::try_find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
+    let mailbox = init.mailbox;
+    let mut instruction = collateral_init_instruction(program_id, payer, init, spl_program, mint)?;
 
     let (cc_state_key, _cc_state_bump) =
         Pubkey::try_find_program_address(cross_collateral_pda_seeds!(), &program_id)
@@ -140,35 +118,18 @@ pub fn init_instruction(
         .ok_or(ProgramError::InvalidSeeds)?;
 
     let (mailbox_outbox_key, _mailbox_outbox_bump) =
-        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &init.mailbox)
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &mailbox)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = hyperlane_sealevel_token_lib::instruction::Instruction::Init(init);
-
-    let accounts = vec![
-        // Base accounts
-        AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new(token_key, false),
-        AccountMeta::new(dispatch_authority_key, false),
-        AccountMeta::new(payer, true),
-        // CollateralPlugin accounts
-        AccountMeta::new_readonly(spl_program, false),
-        AccountMeta::new_readonly(mint, false),
-        AccountMeta::new_readonly(Rent::id(), false),
-        AccountMeta::new(escrow_key, false),
-        AccountMeta::new(ata_payer_key, false),
-        // CC-specific accounts
+    // CC-specific accounts
+    instruction.accounts.append(&mut vec![
         AccountMeta::new(cc_state_key, false),
         AccountMeta::new(cc_dispatch_authority_key, false),
         // Mailbox outbox to read local_domain
         AccountMeta::new_readonly(mailbox_outbox_key, false),
-    ];
+    ]);
 
-    Ok(SolanaInstruction {
-        program_id,
-        data: ixn.encode()?,
-        accounts,
-    })
+    Ok(instruction)
 }
 
 /// Gets an instruction to set cross-collateral routers.

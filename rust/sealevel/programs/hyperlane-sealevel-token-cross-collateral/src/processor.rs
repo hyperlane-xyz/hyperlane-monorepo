@@ -47,12 +47,13 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
     cross_collateral_dispatch_authority_pda_seeds, cross_collateral_pda_seeds,
-    error::Error,
+    error::Error as CcError,
     instruction::{
         CrossCollateralInstruction, CrossCollateralRouterUpdate, HandleLocal, TransferRemoteTo,
     },
     plugin::CollateralPlugin,
 };
+use hyperlane_sealevel_token_lib::error::Error as TokenError;
 
 use hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds;
 
@@ -264,7 +265,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 
     // Extraneous account check
     if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
+        return Err(TokenError::ExtraneousAccount.into());
     }
 
     let rent = Rent::get()?;
@@ -385,7 +386,7 @@ fn set_cross_collateral_routers(
 
     // Extraneous account check
     if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
+        return Err(TokenError::ExtraneousAccount.into());
     }
 
     // Apply updates
@@ -492,7 +493,7 @@ fn transfer_remote_to(
         &xfer.target_router,
         &hyperlane_token.remote_routers,
     ) {
-        return Err(Error::UnauthorizedRouter.into());
+        return Err(CcError::UnauthorizedRouter.into());
     }
 
     // Branch: local (same-chain CPI) vs remote (mailbox dispatch).
@@ -642,7 +643,7 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
 
     // Extraneous account check
     if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
+        return Err(TokenError::ExtraneousAccount.into());
     }
 
     // Build token message body
@@ -740,11 +741,11 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
 /// 5.    `[executable]` target program
 ///       6..N plugin transfer_in accounts.
 ///       N+1..M target HandleLocal accounts (passthrough for CPI).
-fn transfer_remote_to_local<'account_info_slice, 'account_info>(
+fn transfer_remote_to_local(
     program_id: &Pubkey,
     hyperlane_token: &HyperlaneToken<CollateralPlugin>,
     cc_state: &CrossCollateralState,
-    accounts_iter: &mut std::slice::Iter<'account_info_slice, AccountInfo<'account_info>>,
+    accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
     xfer: TransferRemoteTo,
 ) -> ProgramResult {
     // Account 3: Sender wallet (signer)
@@ -759,7 +760,7 @@ fn transfer_remote_to_local<'account_info_slice, 'account_info>(
         cross_collateral_dispatch_authority_pda_seeds!(cc_state.dispatch_authority_bump);
     let expected_cc_da = Pubkey::create_program_address(cc_da_seeds, program_id)?;
     if cc_dispatch_authority.key != &expected_cc_da {
-        return Err(Error::InvalidDispatchAuthority.into());
+        return Err(CcError::InvalidDispatchAuthority.into());
     }
 
     // Account 5: Target program (executable, for CPI)
@@ -854,7 +855,7 @@ fn transfer_from_remote_cc(
 
     let mut message_reader = std::io::Cursor::new(xfer.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
+        .map_err(|_err| ProgramError::from(TokenError::MessageDecodeError))?;
 
     // Account 0: Mailbox process authority
     let process_authority_account = next_account_info(accounts_iter)?;
@@ -882,7 +883,7 @@ fn transfer_from_remote_cc(
 
     // Dual-router validation: check both CC enrolled routers and base remote routers
     if !cc_state.is_authorized_router(xfer.origin, &xfer.sender, &hyperlane_token.remote_routers) {
-        return Err(Error::UnauthorizedRouter.into());
+        return Err(CcError::UnauthorizedRouter.into());
     }
 
     // Account 4: Recipient wallet
@@ -908,7 +909,7 @@ fn transfer_from_remote_cc(
 
     // Extraneous account check (must follow transfer_out which consumes dynamic accounts)
     if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
+        return Err(TokenError::ExtraneousAccount.into());
     }
 
     msg!(
@@ -935,7 +936,7 @@ fn transfer_from_remote_account_metas_cc(
 
     let mut message_reader = std::io::Cursor::new(transfer.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
+        .map_err(|_err| ProgramError::from(TokenError::MessageDecodeError))?;
 
     // Account 0: Token account
     let token_account_info = next_account_info(accounts_iter)?;
@@ -991,7 +992,7 @@ fn handle_local(
 
     let mut message_reader = std::io::Cursor::new(&handle.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
+        .map_err(|_err| ProgramError::from(TokenError::MessageDecodeError))?;
 
     // Account 0: CC dispatch authority PDA signer (from the sending program)
     let sender_cc_dispatch_authority_signer = next_account_info(accounts_iter)?;
@@ -1002,7 +1003,7 @@ fn handle_local(
         &handle.sender_program_id,
     );
     if sender_cc_dispatch_authority_signer.key != &expected_dispatch_authority {
-        return Err(Error::InvalidDispatchAuthority.into());
+        return Err(CcError::InvalidDispatchAuthority.into());
     }
     if !sender_cc_dispatch_authority_signer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
@@ -1034,7 +1035,7 @@ fn handle_local(
 
     // Validate sender is an authorized router (CC enrolled or base remote routers)
     if !cc_state.is_authorized_router(cc_state.local_domain, &sender, &token.remote_routers) {
-        return Err(Error::UnauthorizedRouter.into());
+        return Err(CcError::UnauthorizedRouter.into());
     }
 
     // Account 4: Recipient wallet
@@ -1060,7 +1061,7 @@ fn handle_local(
 
     // Extraneous account check
     if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
+        return Err(TokenError::ExtraneousAccount.into());
     }
 
     msg!(
@@ -1088,7 +1089,7 @@ fn handle_local_account_metas(
 
     let mut message_reader = std::io::Cursor::new(&handle.message);
     let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
+        .map_err(|_err| ProgramError::from(TokenError::MessageDecodeError))?;
 
     // Account 0: Token account
     let token_account_info = next_account_info(accounts_iter)?;
