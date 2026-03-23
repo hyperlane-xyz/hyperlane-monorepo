@@ -62,6 +62,13 @@ export const ZBigNumberish = z
   .or(z.string().regex(/^[0-9]+$/))
   .transform(BigInt);
 
+/** Zod BPS (basis points) schema — accepts number or decimal string, transforms to number.
+ *  Supports fractional values (e.g., 1.5 bps). */
+export const ZBps = z
+  .union([z.number().nonnegative(), z.string().regex(/^\d+(\.\d+)?$/)])
+  .transform((val) => Number(val))
+  .refine((val) => Number.isFinite(val), 'bps must be a finite number');
+
 export const ZBytes32String = z
   .string()
   .regex(
