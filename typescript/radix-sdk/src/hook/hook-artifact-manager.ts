@@ -11,6 +11,7 @@ import {
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -57,17 +58,21 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: {
+    const readers: Partial<{
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       merkleTreeHook: () => new RadixMerkleTreeHookReader(this.gateway),
       interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedHookType(type, 'Radix');
+    }
+    return reader();
   }
 
   createWriter<T extends HookType>(
@@ -76,12 +81,12 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const baseSigner = signer.getBaseSigner();
 
-    const writers: {
+    const writers: Partial<{
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
-    } = {
+    }> = {
       merkleTreeHook: () =>
         new RadixMerkleTreeHookWriter(
           this.gateway,
@@ -98,6 +103,10 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
         ),
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedHookType(type, 'Radix');
+    }
+    return writer();
   }
 }

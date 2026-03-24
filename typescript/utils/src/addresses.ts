@@ -482,7 +482,7 @@ export function bytes32ToAddress(bytes32: HexString): Address {
 
 export function addressToBytesEvm(address: Address): Uint8Array {
   const addrBytes32 = addressToBytes32Evm(address);
-  return Buffer.from(strip0x(addrBytes32), 'hex');
+  return new Uint8Array(Buffer.from(strip0x(addrBytes32), 'hex'));
 }
 
 export function addressToBytesSol(address: Address): Uint8Array {
@@ -494,7 +494,7 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
 }
 
 export function addressToBytesCosmosNative(address: Address): Uint8Array {
-  return Buffer.from(strip0x(address), 'hex');
+  return new Uint8Array(Buffer.from(strip0x(address), 'hex'));
 }
 
 export function addressToBytesStarknet(address: Address): Uint8Array {
@@ -529,13 +529,6 @@ export function addressToBytesAleo(address: Address): Uint8Array {
 export function addressToBytesTron(address: Address): Uint8Array {
   const decoded = bs58.decode(address);
   const payload = decoded.slice(0, -4);
-  const checksum = decoded.slice(-4);
-  const hash1 = ethersUtils.arrayify(ethersUtils.sha256(payload));
-  const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));
-  assert(
-    Buffer.from(checksum).equals(new Uint8Array(hash2.slice(0, 4))),
-    'Invalid Tron address checksum',
-  );
   return new Uint8Array(payload.slice(1)); // strip 0x41 prefix
 }
 
@@ -602,7 +595,9 @@ export function padBytesToLength(bytes: Uint8Array, length: number) {
   if (bytes.length > length) {
     throw new Error(`bytes must be ${length} bytes or less`);
   }
-  return Buffer.concat([Buffer.alloc(length - bytes.length), bytes]);
+  const padded = new Uint8Array(length);
+  padded.set(bytes, length - bytes.length);
+  return padded;
 }
 
 export function bytesToAddressEvm(bytes: Uint8Array): Address {

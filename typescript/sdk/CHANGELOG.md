@@ -1,5 +1,58 @@
 # @hyperlane-xyz/sdk
 
+## 29.0.0
+
+### Major Changes
+
+- cc6d57b: The bps type was changed from bigint to number throughout the LinearFee fee system to support fractional basis points (e.g., 1.5 bps).
+
+  Breaking changes:
+  - `convertToBps()` return type changed from `bigint` to `number`
+  - `convertFromBps()` parameter type changed from `bigint` to `number`
+  - `LinearFeeConfig.bps` and `LinearFeeInputConfig.bps` types changed from `bigint` to `number`
+  - `ZBps` schema no longer accepts `bigint` input — callers using `bps: 5n` must change to `bps: 5`
+  - `TokenFeeConfigSchema` and `LinearFeeConfigSchema` bps field type changed from `bigint` to `number`
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [09d6760]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/tron-sdk@22.1.4
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/deploy-sdk@4.2.0
+  - @hyperlane-xyz/aleo-sdk@29.0.0
+  - @hyperlane-xyz/cosmos-sdk@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/radix-sdk@29.0.0
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/starknet-core@29.0.0
+
+## 28.1.0
+
+### Minor Changes
+
+- 6c715a7: Added support for MinimalInterchainAccountRouter deployment and detection.
+
+### Patch Changes
+
+- 2e622e8: `isEVMLike()` replaced direct `ProtocolType.Ethereum` comparisons in `HyperlaneCore`, `RouterApps`, and `HyperlaneAppChecker` so Tron chains are correctly included in router configs, address lookups, and deploy checks.
+- e93a4c8: Fixed Tron EthersV5 provider to use TronJsonRpcProvider (which appends `/jsonrpc` to the RPC URL) instead of HyperlaneSmartProvider, preventing 302 redirect failures on Tron nodes.
+- Updated dependencies [5caac66]
+- Updated dependencies [6c715a7]
+- Updated dependencies [2e622e8]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/radix-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@28.1.0
+  - @hyperlane-xyz/aleo-sdk@28.1.0
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.3
+  - @hyperlane-xyz/deploy-sdk@4.1.0
+  - @hyperlane-xyz/multicollateral@1.0.1
+  - @hyperlane-xyz/starknet-core@28.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
 ## 28.0.0
 
 ### Major Changes

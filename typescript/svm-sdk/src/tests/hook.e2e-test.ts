@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
@@ -7,18 +6,20 @@ import {
   type ArtifactDeployed,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import type {
+  MerkleTreeHookConfig,
+  IgpHookConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
+
 import {
-  type SvmIgpHookConfig,
   SvmIgpHookReader,
   SvmIgpHookWriter,
   deriveIgpSalt,
 } from '../hook/igp-hook.js';
 import {
-  type SvmMerkleTreeHookConfig,
   SvmMerkleTreeHookReader,
   SvmMerkleTreeHookWriter,
 } from '../hook/merkle-tree-hook.js';
@@ -49,15 +50,15 @@ describe('SVM Hook E2E Tests', function () {
 
   describe('Merkle Tree Hook', () => {
     it('should create and read Merkle Tree Hook (returns mailbox address)', async () => {
-      const writer = new SvmMerkleTreeHookWriter(rpc, signer);
+      const writer = new SvmMerkleTreeHookWriter(
+        { mailboxAddress: TEST_PROGRAM_IDS.mailbox },
+        rpc,
+        signer,
+      );
 
-      const config: SvmMerkleTreeHookConfig = {
-        type: HookType.MERKLE_TREE,
-        program: { programId: TEST_PROGRAM_IDS.mailbox },
-      };
       const [deployed, receipts] = await writer.create({
         artifactState: ArtifactState.NEW,
-        config,
+        config: { type: HookType.MERKLE_TREE },
       });
 
       expect(receipts).to.have.length(0);
@@ -74,7 +75,11 @@ describe('SVM Hook E2E Tests', function () {
     });
 
     it('should return empty transactions for update', async () => {
-      const writer = new SvmMerkleTreeHookWriter(rpc, signer);
+      const writer = new SvmMerkleTreeHookWriter(
+        { mailboxAddress: TEST_PROGRAM_IDS.mailbox },
+        rpc,
+        signer,
+      );
 
       const artifact: ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook> =
         {
@@ -94,11 +99,15 @@ describe('SVM Hook E2E Tests', function () {
   describe('IGP Hook', () => {
     it('should create and read IGP Hook with gas oracle configs', async function () {
       const salt = deriveIgpSalt('hyperlane-test');
-      const writer = new SvmIgpHookWriter(rpc, salt, signer);
+      const writer = new SvmIgpHookWriter(
+        { program: { programId: TEST_PROGRAM_IDS.igp } },
+        rpc,
+        salt,
+        signer,
+      );
 
-      const igpConfig: SvmIgpHookConfig = {
+      const igpConfig: IgpHookConfig = {
         type: HookType.INTERCHAIN_GAS_PAYMASTER,
-        program: { programId: TEST_PROGRAM_IDS.igp },
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
         oracleKey: signer.getSignerAddress(),
@@ -138,11 +147,15 @@ describe('SVM Hook E2E Tests', function () {
 
     it('should generate update transactions for config changes', async function () {
       const salt = deriveIgpSalt('hyperlane-update-test');
-      const writer = new SvmIgpHookWriter(rpc, salt, signer);
+      const writer = new SvmIgpHookWriter(
+        { program: { programId: TEST_PROGRAM_IDS.igp } },
+        rpc,
+        salt,
+        signer,
+      );
 
-      const updateConfig: SvmIgpHookConfig = {
+      const updateConfig: IgpHookConfig = {
         type: HookType.INTERCHAIN_GAS_PAYMASTER,
-        program: { programId: TEST_PROGRAM_IDS.igp },
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
         oracleKey: signer.getSignerAddress(),

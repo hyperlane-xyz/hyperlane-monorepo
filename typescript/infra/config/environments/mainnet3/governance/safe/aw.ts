@@ -69,4 +69,8 @@ export const awSafes: ChainMap<Address> = {
   // Mar 12, 2026 - Igra Chain Deployment
   // ----------------------------------------------------------
   // igra: '0x0c205894f0cA786AB1693f232F4e19a60Af5c72B',
+
+  // Mar 24, 2026
+  // ----------------------------------------------------------
+  plasma: '0xCcf5e9862D486e71aA47B87Cb3a7eEB1e1f2F624',
 };

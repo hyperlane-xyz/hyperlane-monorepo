@@ -28,6 +28,7 @@ import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { strategyCommand } from './src/commands/strategy.js';
 import { submitCommand } from './src/commands/submit.js';
+import { addressCommand } from './src/commands/utils.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
 import { xerc20Command } from './src/commands/xerc20.js';
@@ -35,6 +36,16 @@ import { contextMiddleware, signerMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
+
+function ignoreBrokenPipe(stream: NodeJS.WriteStream) {
+  stream.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE') return;
+    throw err;
+  });
+}
+
+ignoreBrokenPipe(process.stdout);
+ignoreBrokenPipe(process.stderr);
 
 console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
@@ -72,6 +83,7 @@ try {
     .command(statusCommand)
     .command(strategyCommand)
     .command(submitCommand)
+    .command(addressCommand)
     .command(validatorCommand)
     .command(warpCommand)
     .command(xerc20Command)

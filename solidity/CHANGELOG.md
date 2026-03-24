@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 11.1.0
+
+### Minor Changes
+
+- 6c715a7: Added MinimalInterchainAccountRouter for chains with tight deployment size limits.
+
 ## 11.0.3
 
 ### Patch Changes

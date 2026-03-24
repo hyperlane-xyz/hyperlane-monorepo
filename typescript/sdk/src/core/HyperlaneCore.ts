@@ -11,11 +11,11 @@ import {
 import {
   Address,
   AddressBytes32,
-  ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
   assert,
   bytes32ToAddress,
+  isEVMLike,
   isZeroishAddress,
   messageId,
   objFilter,
@@ -69,7 +69,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const evmContractsMap = objFilter(
       this.contractsMap,
       (chainName, _): _ is HyperlaneContracts<CoreFactories> =>
-        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
+        isEVMLike(this.multiProvider.getProtocol(chainName)),
     );
 
     // get config

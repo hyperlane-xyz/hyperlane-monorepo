@@ -23,6 +23,7 @@ import { fetchMintMetadata, getMintDecimals } from '../accounts/mint.js';
 import { decodeCollateralPlugin } from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
+  DEFAULT_COMPUTE_UNITS,
   RENT_SYSVAR_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
@@ -197,7 +198,7 @@ export class SvmCollateralTokenWriter
     receipts.push(
       await this.svmSigner.send({
         instructions: [initIx],
-        computeUnits: 400_000,
+        computeUnits: DEFAULT_COMPUTE_UNITS,
         skipPreflight: true,
       }),
     );

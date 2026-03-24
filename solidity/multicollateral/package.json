@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/multicollateral",
   "description": "CrossCollateralRouter solidity contracts and typechain artifacts for Hyperlane",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -41,6 +41,7 @@
     "@hyperlane-xyz/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@typechain/ethers-v5": "catalog:",
     "typechain": "catalog:",
     "typescript": "catalog:"

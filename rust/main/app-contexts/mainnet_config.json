@@ -40041,6 +40041,31 @@
       ]
     },
     {
+      "name": "BNB/eni",
+      "matchingList": [
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000baaca4e74fcaa430e903ecee46665e4e60ea2d38"
+          ],
+          "destinationDomain": 173,
+          "recipientAddress": [
+            "0x0000000000000000000000000c45404740af1afc0428bd4e66085cd7dc028167"
+          ]
+        },
+        {
+          "originDomain": 173,
+          "senderAddress": [
+            "0x0000000000000000000000000c45404740af1afc0428bd4e66085cd7dc028167"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000baaca4e74fcaa430e903ecee46665e4e60ea2d38"
+          ]
+        }
+      ]
+    },
+    {
       "name": "USDTSTAGE/mode",
       "matchingList": [
         {

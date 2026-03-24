@@ -323,7 +323,9 @@ export class RebalancerContextFactory {
 
     const explorerClient =
       typeof explorerUrlOrClient === 'string'
-        ? new ExplorerClient(explorerUrlOrClient)
+        ? new ExplorerClient(explorerUrlOrClient, (domain) =>
+            this.multiProvider.getProtocol(domain),
+          )
         : explorerUrlOrClient;
 
     // 3. Get MultiProtocolCore from registry (supports all VM types)
