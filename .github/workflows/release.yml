@@ -291,8 +291,18 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   notify-publish-failure:
-    if: always() && needs.publish-release.result == 'failure'
-    needs: [publish-release]
+    if: >-
+      always() && (
+        needs.publish-release.result == 'failure' ||
+        needs.check-latest-published.result == 'failure' ||
+        needs.cli-install-cross-platform-release-test.result == 'failure'
+      )
+    needs:
+      [
+        check-latest-published,
+        cli-install-cross-platform-release-test,
+        publish-release,
+      ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify Slack on publish failure
