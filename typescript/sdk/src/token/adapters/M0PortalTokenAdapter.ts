@@ -113,7 +113,6 @@ export class M0PortalTokenAdapter
 
   async quoteTransferRemoteGas({
     destination,
-    sender,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const destinationChainId = this.multiProvider.getChainId(
       this.multiProvider.getChainName(destination),
