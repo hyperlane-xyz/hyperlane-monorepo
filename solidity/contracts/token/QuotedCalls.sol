@@ -66,6 +66,12 @@ interface IInterchainAccountRouter {
         uint32 _destination,
         uint256 _gasLimit
     ) external view returns (uint256);
+
+    function quoteGasForCommitReveal(
+        address _feeToken,
+        uint32 _destination,
+        uint256 _gasLimit
+    ) external view returns (uint256);
 }
 
 /**
@@ -585,7 +591,7 @@ contract QuotedCalls is PackageVersioned {
 
     function _quoteCallRemoteCommitReveal(
         bytes calldata input
-    ) internal view returns (Quote[] memory) {
+    ) internal view returns (Quote[] memory quotes) {
         (
             address icaRouter,
             uint32 destination,
@@ -614,7 +620,17 @@ contract QuotedCalls is PackageVersioned {
                     uint256
                 )
             );
-        return _quoteIcaGasPayment(icaRouter, destination, hookMetadata, token);
+        // Commit-reveal pays for two dispatches (commit + reveal).
+        // quoteGasForCommitReveal returns the combined cost.
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: token,
+            amount: IInterchainAccountRouter(icaRouter).quoteGasForCommitReveal(
+                token,
+                destination,
+                StandardHookMetadata.gasLimit(hookMetadata)
+            )
+        });
     }
 
     receive() external payable {}
