@@ -100,9 +100,9 @@ export class CoreWriter extends CoreArtifactReader {
     );
   }
 
-  private async getInitialHookArtifact(
+  private getInitialHookArtifact(
     hookArtifact: Artifact<HookArtifactConfig, DeployedHookAddress>,
-  ): Promise<ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>> {
+  ): ArtifactOnChain<HookArtifactConfig, DeployedHookAddress> {
     if (!isArtifactNew(hookArtifact)) {
       return hookArtifact;
     }
@@ -161,8 +161,8 @@ export class CoreWriter extends CoreArtifactReader {
       config: {
         owner: this.signer.getSignerAddress(), // Signer owns initially; transferred in Step 4
         defaultIsm: onChainIsmArtifact,
-        defaultHook: await this.getInitialHookArtifact(config.defaultHook),
-        requiredHook: await this.getInitialHookArtifact(config.requiredHook),
+        defaultHook: this.getInitialHookArtifact(config.defaultHook),
+        requiredHook: this.getInitialHookArtifact(config.requiredHook),
       },
     };
 
