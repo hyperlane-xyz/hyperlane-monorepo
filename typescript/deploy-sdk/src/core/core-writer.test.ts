@@ -523,7 +523,7 @@ describe('CoreWriter', () => {
       );
     });
 
-    it('should bootstrap Starknet mailboxes with a noop hook placeholder', async () => {
+    it('should defer Starknet noop hook bootstrap to the mailbox writer', async () => {
       chainMetadata = {
         ...chainMetadata,
         protocol: ProtocolType.Starknet,
@@ -536,7 +536,6 @@ describe('CoreWriter', () => {
         signer,
       );
 
-      const placeholderHookAddress = '0xNOOP';
       const placeholderTx: AnnotatedTx = {
         to: '0xhookfactory',
         data: '0xnoop',
@@ -545,11 +544,6 @@ describe('CoreWriter', () => {
       const createNoopHookTxStub = sinon
         .stub(signer, 'getCreateNoopHookTransaction')
         .resolves(placeholderTx);
-      sendAndConfirmTxStub.resolves({
-        ...mockReceipt,
-        contractAddress: placeholderHookAddress,
-      });
-
       const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
@@ -598,16 +592,13 @@ describe('CoreWriter', () => {
       const initialConfig = mailboxWriter.create.firstCall.args[0].config;
 
       expect(initialConfig.defaultHook.deployed.address).to.equal(
-        placeholderHookAddress,
+        ZERO_ADDRESS_HEX_32,
       );
       expect(initialConfig.requiredHook.deployed.address).to.equal(
-        placeholderHookAddress,
+        ZERO_ADDRESS_HEX_32,
       );
-      sinon.assert.calledOnceWithExactly(createNoopHookTxStub, {
-        signer: mockSignerAddress,
-        mailboxAddress: '',
-      });
-      sinon.assert.calledOnceWithExactly(sendAndConfirmTxStub, placeholderTx);
+      sinon.assert.notCalled(createNoopHookTxStub);
+      sinon.assert.notCalled(sendAndConfirmTxStub);
     });
 
     it('should update mailbox with hooks and owner after deployment', async () => {

@@ -158,8 +158,8 @@ export class CoreWriter extends CoreArtifactReader {
 
     // Hooks require the mailbox address for deployment (circular dependency),
     // so we create mailbox first, deploy hooks in Step 3, then update mailbox in Step 4.
-    // Most protocols accept zero hooks for this bootstrap step; Starknet requires
-    // a temporary noop hook instead.
+    // Most protocols accept zero hooks for this bootstrap step; the Starknet
+    // mailbox writer materializes a temporary noop hook when it sees zero hooks.
     const placeholderHookRef: {
       artifact?: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>;
     } = {};
