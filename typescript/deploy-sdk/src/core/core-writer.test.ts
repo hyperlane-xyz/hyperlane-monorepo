@@ -523,6 +523,41 @@ describe('CoreWriter', () => {
       );
     });
 
+    it('should keep zero-address hook placeholders for non-Starknet even when hooks are already on-chain', async () => {
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+      };
+
+      const mockIsmWriter = {
+        create: sinon.stub(),
+        update: sinon.stub(),
+        read: sinon.stub(),
+      };
+
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: mockIsmWriter,
+        writable: true,
+      });
+
+      await coreWriter.create(artifact);
+
+      const mailboxWriter = createMailboxWriterStub.returnValues[0];
+      const initialConfig = mailboxWriter.create.firstCall.args[0].config;
+
+      expect(initialConfig.defaultHook.deployed.address).to.equal(
+        ZERO_ADDRESS_HEX_32,
+      );
+      expect(initialConfig.requiredHook.deployed.address).to.equal(
+        ZERO_ADDRESS_HEX_32,
+      );
+    });
+
     it('should defer Starknet noop hook bootstrap to the mailbox writer', async () => {
       chainMetadata = {
         ...chainMetadata,
@@ -599,6 +634,53 @@ describe('CoreWriter', () => {
       );
       sinon.assert.notCalled(createNoopHookTxStub);
       sinon.assert.notCalled(sendAndConfirmTxStub);
+    });
+
+    it('should pass through existing hook addresses during Starknet mailbox bootstrap', async () => {
+      chainMetadata = {
+        ...chainMetadata,
+        protocol: ProtocolType.Starknet,
+      };
+      coreWriter = new CoreWriter(
+        mailboxArtifactManager,
+        validatorAnnounceArtifactManager,
+        chainMetadata,
+        chainLookup,
+        signer,
+      );
+
+      const artifact: ArtifactNew<MailboxArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: {
+          owner: mockOwner,
+          defaultIsm: mockIsm,
+          defaultHook: mockDefaultHook,
+          requiredHook: mockRequiredHook,
+        },
+      };
+
+      const mockIsmWriter = {
+        create: sinon.stub(),
+        update: sinon.stub(),
+        read: sinon.stub(),
+      };
+
+      Object.defineProperty(coreWriter, 'ismWriter', {
+        value: mockIsmWriter,
+        writable: true,
+      });
+
+      await coreWriter.create(artifact);
+
+      const mailboxWriter = createMailboxWriterStub.returnValues[0];
+      const initialConfig = mailboxWriter.create.firstCall.args[0].config;
+
+      expect(initialConfig.defaultHook.deployed.address).to.equal(
+        mockDefaultHookAddress,
+      );
+      expect(initialConfig.requiredHook.deployed.address).to.equal(
+        mockRequiredHookAddress,
+      );
     });
 
     it('should update mailbox with hooks and owner after deployment', async () => {

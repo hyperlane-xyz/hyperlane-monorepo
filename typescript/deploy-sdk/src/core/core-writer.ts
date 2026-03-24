@@ -1,5 +1,6 @@
 import {
   ChainMetadataForAltVM,
+  ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -103,7 +104,10 @@ export class CoreWriter extends CoreArtifactReader {
   private getInitialHookArtifact(
     hookArtifact: Artifact<HookArtifactConfig, DeployedHookAddress>,
   ): ArtifactOnChain<HookArtifactConfig, DeployedHookAddress> {
-    if (!isArtifactNew(hookArtifact)) {
+    if (
+      this.chainMetadata.protocol === ProtocolType.Starknet &&
+      !isArtifactNew(hookArtifact)
+    ) {
       return hookArtifact;
     }
 
