@@ -16,10 +16,10 @@ import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  STARKNET_E2E_TEST_TIMEOUT,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
   WARP_READ_OUTPUT_PATH,
@@ -29,7 +29,7 @@ import {
 } from '../../constants.js';
 
 describe('hyperlane warp apply ISM updates (Starknet E2E tests)', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(STARKNET_E2E_TEST_TIMEOUT);
 
   const nativeTokenData =
     TEST_CHAIN_METADATA_BY_PROTOCOL.starknet.CHAIN_NAME_1.nativeToken;

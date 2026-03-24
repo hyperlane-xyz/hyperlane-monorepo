@@ -15,6 +15,7 @@ import { readYamlOrJson } from '../utils/files.js';
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 export const CROSS_CHAIN_E2E_TEST_TIMEOUT = 300_000; // Cross-VM tests need more time (3 VMs to deploy)
+export const STARKNET_E2E_TEST_TIMEOUT = 4 * DEFAULT_E2E_TEST_TIMEOUT;
 
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/test-registry`;

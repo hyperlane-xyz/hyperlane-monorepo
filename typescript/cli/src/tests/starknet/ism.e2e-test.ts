@@ -8,10 +8,10 @@ import { HyperlaneE2ECoreTestCommands } from '../commands/core.js';
 import { HyperlaneE2EIsmTestCommands } from '../commands/ism.js';
 import {
   CORE_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  STARKNET_E2E_TEST_TIMEOUT,
   TEMP_PATH,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
@@ -25,7 +25,7 @@ const CORE_CONFIG_PATH = CORE_CONFIG_PATH_BY_PROTOCOL[ProtocolType.Starknet];
 const VALIDATOR_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
 describe('hyperlane ism e2e tests (starknet)', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(STARKNET_E2E_TEST_TIMEOUT);
 
   let ismCommands: HyperlaneE2EIsmTestCommands;
 

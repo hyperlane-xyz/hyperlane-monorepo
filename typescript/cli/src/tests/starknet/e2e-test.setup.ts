@@ -4,14 +4,14 @@ import { type StartedTestContainer } from 'testcontainers';
 import { TEST_STARKNET_ACCOUNT_ADDRESS } from '@hyperlane-xyz/starknet-sdk/testing';
 
 import {
-  DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
+  STARKNET_E2E_TEST_TIMEOUT,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 import { runStarknetNode } from '../nodes.js';
 
-const SETUP_TIMEOUT_MS = 2 * DEFAULT_E2E_TEST_TIMEOUT;
+const SETUP_TIMEOUT_MS = STARKNET_E2E_TEST_TIMEOUT;
 
 let starknetNode1: StartedTestContainer | undefined;
 let starknetNode2: StartedTestContainer | undefined;

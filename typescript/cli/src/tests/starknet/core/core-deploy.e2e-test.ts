@@ -7,10 +7,10 @@ import {
   BURN_ADDRESS_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
   HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  STARKNET_E2E_TEST_TIMEOUT,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../constants.js';
 import {
@@ -19,7 +19,7 @@ import {
 } from '../helpers.js';
 
 describe('hyperlane core deploy (Starknet E2E tests)', async function () {
-  this.timeout(4 * DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(STARKNET_E2E_TEST_TIMEOUT);
   const isSmokeTier = process.env.CLI_E2E_TIER === 'smoke';
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(

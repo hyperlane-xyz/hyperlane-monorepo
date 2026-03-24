@@ -15,9 +15,9 @@ import {
   BURN_ADDRESS_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  STARKNET_E2E_TEST_TIMEOUT,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../constants.js';
 import {
@@ -26,7 +26,7 @@ import {
 } from '../helpers.js';
 
 describe('hyperlane core apply (Starknet E2E tests)', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(STARKNET_E2E_TEST_TIMEOUT);
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Starknet,
