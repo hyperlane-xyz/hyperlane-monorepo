@@ -37,14 +37,15 @@ describe('M0PortalTokenAdapter', () => {
   describe('quoteTransferRemoteGas', () => {
     it('returns native-gas quote from Portal.quote()', async () => {
       const quote = sandbox.stub().resolves(500n);
-      (adapter as any).portalContract = { quote };
+      // @ts-ignore Mock portal contract for unit test
+      adapter.portalContract = { quote };
 
       const result = await adapter.quoteTransferRemoteGas({
         destination: DESTINATION_DOMAIN,
       });
 
       expect(result.igpQuote.amount).to.equal(500n);
-      expect(result.igpQuote.addressOrDenom).to.equal('');
+      expect(result.igpQuote.addressOrDenom).to.equal(undefined);
       expect(result.tokenFeeQuote).to.equal(undefined);
 
       expect(quote.calledOnce).to.equal(true);
@@ -58,7 +59,8 @@ describe('M0PortalTokenAdapter', () => {
   describe('populateTransferRemoteTx', () => {
     it('calls sendToken with correct args and tx value', async () => {
       const sendToken = sandbox.stub().resolves({});
-      (adapter as any).portalContract = {
+      // @ts-ignore Mock portal contract for unit test
+      adapter.portalContract = {
         quote: sandbox.stub().resolves(200n),
         populateTransaction: { sendToken },
       };
@@ -89,7 +91,8 @@ describe('M0PortalTokenAdapter', () => {
     it('uses provided interchainGas amount of 0n without calling quote()', async () => {
       const quote = sandbox.stub().rejects(new Error('should not be called'));
       const sendToken = sandbox.stub().resolves({});
-      (adapter as any).portalContract = {
+      // @ts-ignore Mock portal contract for unit test
+      adapter.portalContract = {
         quote,
         populateTransaction: { sendToken },
       };
