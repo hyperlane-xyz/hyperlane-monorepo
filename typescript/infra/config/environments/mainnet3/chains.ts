@@ -45,6 +45,14 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       minPriorityFeePerGas: 11 * 10 ** 5,
     },
   },
+  eni: {
+    transactionOverrides: {
+      // ENI is Cosmos EVM (Ethermint) with a fixed 99 gwei base fee.
+      // Cap the priority fee to prevent the gas escalation logic from
+      // driving the effective gas price too high (median was 297 gwei without this).
+      maxPriorityFeePerGas: 15 * 10 ** 9, // 15 gwei tip
+    },
+  },
 };
 
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
@@ -90,14 +98,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     // A minimum fee of 100 gwei is imposed https://seitrace.com/proposal/83?chain=pacific-1
     transactionOverrides: {
       gasPrice: 101 * 10 ** 9, // 101 gwei
-    },
-  },
-  eni: {
-    // ENI is a Cosmos EVM chain (Ethermint) with a fixed 99 gwei base fee.
-    // EIP-1559 transactions are intermittently rejected with "gas wanted -1, gas fee is insufficient".
-    // Force legacy transactions with a gas price above the base fee, same pattern as Sei.
-    transactionOverrides: {
-      gasPrice: 110 * 10 ** 9, // 110 gwei, above 99 gwei base fee
     },
   },
   moonbeam: {
