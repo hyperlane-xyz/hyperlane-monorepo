@@ -20,6 +20,7 @@ import {
 
 describe('hyperlane core deploy (Starknet E2E tests)', async function () {
   this.timeout(4 * DEFAULT_E2E_TEST_TIMEOUT);
+  const isSmokeTier = process.env.CLI_E2E_TIER === 'smoke';
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Starknet,
@@ -35,7 +36,7 @@ describe('hyperlane core deploy (Starknet E2E tests)', async function () {
     defaultIsmOwner: Address;
   };
 
-  const testCases: { description: string; expected: ExpectedOwners }[] = [
+  const allTestCases: { description: string; expected: ExpectedOwners }[] = [
     {
       description:
         'should create a core deployment with the signer as the mailbox owner',
@@ -64,6 +65,7 @@ describe('hyperlane core deploy (Starknet E2E tests)', async function () {
       },
     },
   ];
+  const testCases = isSmokeTier ? allTestCases.slice(0, 1) : allTestCases;
 
   for (const { description, expected } of testCases) {
     it(description, async () => {

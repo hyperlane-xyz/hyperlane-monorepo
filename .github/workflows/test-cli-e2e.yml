@@ -291,6 +291,7 @@ jobs:
         run: pnpm -C typescript/cli test:starknet:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+          CLI_E2E_TIER: ${{ inputs.ci_tier }}
 
   cli-starknet-e2e-matrix:
     runs-on: depot-ubuntu-24.04
@@ -326,6 +327,7 @@ jobs:
         run: pnpm -C typescript/cli test:starknet:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+          CLI_E2E_TIER: ${{ inputs.ci_tier }}
 
   # ── Tron (small — always full) ──────────────────────
 
