@@ -181,6 +181,85 @@ export const SealevelTransferRemoteSchema = new Map<any, any>([
 ]);
 
 // ============================================================================
+// Cross-Collateral Instruction Schemas
+// ============================================================================
+
+export enum SealevelCCInstructionKind {
+  SetCrossCollateralRouters = 0,
+  TransferRemoteTo = 1,
+  HandleLocal = 2,
+  HandleLocalAccountMetas = 3,
+}
+
+export class SealevelCCTransferRemoteToInstruction {
+  destination_domain!: number;
+  recipient!: Uint8Array;
+  amount_or_id!: number;
+  target_router!: Uint8Array;
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelCCTransferRemoteToSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelCCTransferRemoteToInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelCCTransferRemoteToInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['destination_domain', 'u32'],
+        ['recipient', [32]],
+        ['amount_or_id', 'u256'],
+        ['target_router', [32]],
+      ],
+    },
+  ],
+]);
+
+export class SealevelCCHandleLocalInstruction {
+  sender_program_id!: Uint8Array;
+  amount_or_id!: number;
+  recipient!: Uint8Array;
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelCCHandleLocalSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelCCHandleLocalInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelCCHandleLocalInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['sender_program_id', [32]],
+        ['amount_or_id', 'u256'],
+        ['recipient', [32]],
+      ],
+    },
+  ],
+]);
+
+// ============================================================================
 // Governance Instruction Schemas
 // ============================================================================
 
