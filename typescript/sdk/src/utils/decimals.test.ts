@@ -556,4 +556,9 @@ describe(verifyScale.name, () => {
 
     expect(verifyScale(configMap)).to.be.false;
   });
+
+  it('should return true for an empty config', () => {
+    const configMap: Map<string, TokenMetadata> = new Map();
+    expect(verifyScale(configMap)).to.be.true;
+  });
 });

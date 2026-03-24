@@ -86,6 +86,8 @@ export function verifyScale(
     }),
   );
 
+  if (entries.length === 0) return true;
+
   if (areDecimalsUniform(Object.fromEntries(entries))) {
     const [, refConfig] = entries[0];
     return entries.every(([, config]) =>
