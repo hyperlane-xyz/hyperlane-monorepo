@@ -127,7 +127,7 @@ export class M0PortalTokenAdapter
 
     return {
       igpQuote: {
-        addressOrDenom: '',
+        addressOrDenom: undefined,
         amount: BigInt(gasQuote.toString()),
       },
     };
