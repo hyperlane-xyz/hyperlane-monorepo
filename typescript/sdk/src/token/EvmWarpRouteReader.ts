@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
@@ -22,15 +23,13 @@ import {
   Ownable__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
+  TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import {
-  CrossCollateralRouter__factory,
-  TokenBridgeOft__factory,
-} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   arrayToObject,
@@ -68,6 +67,7 @@ import {
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
+  DepositAddressTokenConfig,
   DerivedTokenRouterConfig,
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
@@ -101,11 +101,21 @@ const SCALE_VERSION = '6.0.0';
 export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
 // Version that renamed maxFeeBps() to maxFeePpm() on-chain
 export const CCTP_PPM_PRECISION_VERSION = '11.0.0';
+type DepositAddressDomainConfigs = [
+  BigNumber[],
+  string[],
+  string[],
+  BigNumber[],
+];
 
 export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmWarpRouteReader',
   });
+  private readonly depositAddressDomainConfigsCache = new Map<
+    Address,
+    DepositAddressDomainConfigs
+  >();
 
   // Using null instead of undefined to force
   // a compile error when adding a new token type
@@ -157,6 +167,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.collateralDepositAddress]:
+        this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
       [TokenType.collateralOft]:
         this.deriveHypCollateralOftTokenConfig.bind(this),
       [TokenType.crossCollateral]:
@@ -186,15 +198,19 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-
-    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
+    const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
     const isOft = type === TokenType.collateralOft;
-    const routerConfig = isOft
+    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
+    const routerConfig = usesSentinelRouterConfig
       ? {
+          mailbox: constants.AddressZero,
           owner: await Ownable__factory.connect(
             warpRouteAddress,
             this.provider,
           ).owner(),
+          hook: constants.AddressZero,
+          interchainSecurityModule: constants.AddressZero,
+          remoteRouters: {},
         }
       : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
@@ -202,31 +218,37 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    // OFT contracts don't have destination gas config
-    // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
-    // fetchDestinationGas also reads gas for MC-only enrolled domains.
-    let destinationGas: Record<string, string> | undefined;
-    if (isOft) {
-      destinationGas = undefined;
-    } else {
-      const mcEnrolledDomains: number[] = [];
-      if (
-        isCrossCollateralTokenConfig(tokenConfig) &&
-        tokenConfig.crossCollateralRouters
-      ) {
-        for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
-          mcEnrolledDomains.push(Number(domain));
+    const localDomain = this.multiProvider.getDomainId(this.chain);
+    const mcEnrolledDomains: number[] = [];
+    if (
+      isCrossCollateralTokenConfig(tokenConfig) &&
+      tokenConfig.crossCollateralRouters
+    ) {
+      for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
+        const parsedDomain = Number(domain);
+        if (parsedDomain !== localDomain) {
+          mcEnrolledDomains.push(parsedDomain);
         }
       }
+    }
+
+    let destinationGas: Record<string, string> | undefined;
+    if (usesSentinelRouterConfig) {
+      destinationGas = undefined;
+    } else {
       destinationGas = await this.fetchDestinationGas(
         warpRouteAddress,
         mcEnrolledDomains,
       );
     }
 
+    assert(
+      tokenConfig.contractVersion,
+      `Missing contractVersion for ${warpRouteAddress} on ${this.chain}`,
+    );
     const hasRebalancingInterface =
       compareVersions(
-        tokenConfig.contractVersion!,
+        tokenConfig.contractVersion,
         REBALANCING_CONTRACT_VERSION,
       ) >= 0;
 
@@ -282,8 +304,19 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
     }
 
-    // Fetch tokenFee for ALL token types that support it, not just movable collateral
-    const tokenFee = await this.fetchTokenFee(warpRouteAddress, domains);
+    // Use both router.domains() and CCR-enrolled domains for token fee derivation.
+    // This ensures RoutingFee/CrossCollateralRoutingFee sub-fees on CCR-only domains
+    // are considered during read/check.
+    const feeDestinations = [
+      ...new Set([...(domains ?? []), ...mcEnrolledDomains]),
+    ].filter((domain) => domain !== localDomain);
+    const tokenFee = await this.fetchTokenFee(
+      warpRouteAddress,
+      feeDestinations.length ? feeDestinations : undefined,
+      isCrossCollateralTokenConfig(tokenConfig)
+        ? tokenConfig.crossCollateralRouters
+        : undefined,
+    );
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
@@ -308,28 +341,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
+    crossCollateralRouters?: Record<string, string[]>,
   ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
       this.provider,
     );
 
-    const [packageVersion, tokenFee, token] = await Promise.all([
+    const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
-      TokenRouter.feeRecipient().catch((error) => {
-        this.logger.debug(
-          `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
-          error,
-        );
-        return constants.AddressZero;
-      }),
-      TokenRouter.token().catch((error) => {
-        this.logger.debug(
-          `Failed to read token() for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
-          error,
-        );
-        return constants.AddressZero;
-      }),
+      TokenRouter.feeRecipient().catch(() => constants.AddressZero),
     ]);
 
     const hasTokenFeeInterface =
@@ -359,11 +380,30 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         return undefined;
       }));
 
-    return this.evmTokenFeeReader.deriveTokenFeeConfig({
-      address: tokenFee,
-      routingDestinations,
-      token: isZeroishAddress(token) ? undefined : token,
-    });
+    try {
+      const normalizedCrossCollateralRouters = crossCollateralRouters
+        ? Object.fromEntries(
+            Object.entries(crossCollateralRouters).map(([domain, routers]) => [
+              Number(domain),
+              routers,
+            ]),
+          )
+        : undefined;
+      return await this.evmTokenFeeReader.deriveTokenFeeConfig({
+        address: tokenFee,
+        routingDestinations,
+        crossCollateralRouters: normalizedCrossCollateralRouters,
+      });
+    } catch (error) {
+      // Some legacy/custom fee recipients may not implement the reader-detected
+      // interface set. For checker/read reliability, do not fail the whole route
+      // derivation on fee parsing failures.
+      this.logger.warn(
+        `Failed to derive token fee config for token at address "${routerAddress}" on chain "${this.chain}"`,
+        error,
+      );
+      return undefined;
+    }
   }
 
   async getContractVerificationStatus(chain: ChainName, address: Address) {
@@ -380,14 +420,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.logger.debug('Skipping verification for local endpoints');
       return { [contractType]: ContractVerificationStatus.Skipped };
     }
+    const quietVerificationLogger = this.logger.child(
+      { module: 'contract-verifier' },
+      { level: 'silent' },
+    );
     contractVerificationStatus[contractType] =
-      await this.contractVerifier.getContractVerificationStatus(chain, address);
+      await this.contractVerifier.getContractVerificationStatus(
+        chain,
+        address,
+        quietVerificationLogger,
+      );
 
     if (contractType === VerifyContractTypes.Proxy) {
       contractVerificationStatus[VerifyContractTypes.Implementation] =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyImplementation(this.provider, address),
+          quietVerificationLogger,
         );
 
       // Derive ProxyAdmin status
@@ -395,6 +444,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyAdmin(this.provider, address),
+          quietVerificationLogger,
         );
     }
     return contractVerificationStatus;
@@ -491,6 +541,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
+      [TokenType.collateralDepositAddress]: {
+        factory: TokenBridgeDepositAddress__factory,
+        method: 'getDomainConfigs',
+      },
       [TokenType.collateralOft]: {
         factory: TokenBridgeOft__factory,
         method: 'oft',
@@ -520,7 +574,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       )) {
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
-          await warpRoute[method]();
+          const result = await warpRoute[method]();
+          if (tokenType === TokenType.collateralDepositAddress) {
+            this.depositAddressDomainConfigsCache.set(warpRouteAddress, result);
+          }
           if (tokenType === TokenType.collateral) {
             const wrappedToken = await warpRoute.wrappedToken();
             try {
@@ -907,6 +964,45 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
     }
+  }
+
+  private async deriveHypCollateralDepositAddressTokenConfig(
+    hypToken: Address,
+  ): Promise<DepositAddressTokenConfig> {
+    const tokenBridge = TokenBridgeDepositAddress__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [token, destinationConfigRaw] = await Promise.all([
+      tokenBridge.token(),
+      this.depositAddressDomainConfigsCache.get(hypToken) ??
+        tokenBridge.getDomainConfigs(),
+    ]);
+    this.depositAddressDomainConfigsCache.delete(hypToken);
+
+    const erc20Metadata = await this.fetchERC20Metadata(token);
+    const [domains, depositAddresses, recipients, feeBpsValues] =
+      destinationConfigRaw;
+
+    const destinationConfigs: DepositAddressTokenConfig['destinationConfigs'] =
+      {};
+    for (let i = 0; i < domains.length; i++) {
+      const domain = domains[i].toString();
+      const recipient = recipients[i].toLowerCase();
+      destinationConfigs[domain] ??= {};
+      destinationConfigs[domain][recipient] = {
+        depositAddress: depositAddresses[i],
+        feeBps: feeBpsValues[i].toString(),
+      };
+    }
+
+    return {
+      ...erc20Metadata,
+      type: TokenType.collateralDepositAddress,
+      token,
+      destinationConfigs,
+    };
   }
 
   private async deriveHypCollateralOftTokenConfig(
@@ -1422,9 +1518,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
      * have MC-enrolled routers (not in Router._routers), so their gas is also read.
      */
     const routerDomains = await warpRoute.domains();
+    const localDomain = this.multiProvider.getDomainId(this.chain);
     const allDomains = [
       ...new Set([...routerDomains.map(Number), ...additionalDomains]),
-    ];
+    ].filter((domain) => domain !== localDomain);
 
     return Object.fromEntries(
       await Promise.all(
