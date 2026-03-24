@@ -166,50 +166,55 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
     });
 
     describe('Cross collateral token', function () {
-      let ccUpdateProgramId: string;
+      step(
+        'should enroll CC routers via update and read them back',
+        async () => {
+          const current = await writer.read(deployedProgramId);
+          expect(
+            Object.keys(current.config.crossCollateralRouters),
+          ).to.have.length(0);
 
-      step('should deploy with CC routers and read them back', async () => {
-        const ccRouters: Record<number, Set<string>> = {
-          1: new Set([
-            '0x1111111111111111111111111111111111111111111111111111111111111111',
-          ]),
-          2: new Set([
-            '0x2222222222222222222222222222222222222222222222222222222222222222',
-            '0x3333333333333333333333333333333333333333333333333333333333333333',
-          ]),
-        };
+          const ccRouters: Record<number, Set<string>> = {
+            1: new Set([
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+            ]),
+            2: new Set([
+              '0x2222222222222222222222222222222222222222222222222222222222222222',
+              '0x3333333333333333333333333333333333333333333333333333333333333333',
+            ]),
+          };
 
-        const [deployed] = await writer.create({
-          config: {
-            type: TokenType.crossCollateral,
-            owner: signer.getSignerAddress(),
-            mailbox: mailboxAddress,
-            token: collateralMint,
-            remoteRouters: {},
-            destinationGas: {},
-            crossCollateralRouters: ccRouters,
-          },
-        });
+          const updateTxs = await writer.update({
+            ...current,
+            config: {
+              ...current.config,
+              crossCollateralRouters: ccRouters,
+            },
+          });
 
-        const onChain = await writer.read(deployed.deployed.address);
-        const domain1Routers = onChain.config.crossCollateralRouters[1];
-        expect(domain1Routers).to.not.be.undefined;
-        expect(domain1Routers?.size).to.equal(1);
-        expect(
-          domain1Routers?.has(
-            '0x1111111111111111111111111111111111111111111111111111111111111111',
-          ),
-        ).to.be.true;
+          expect(updateTxs.length).to.be.greaterThan(0);
+          for (const tx of updateTxs) {
+            await signer.send({ instructions: tx.instructions });
+          }
 
-        const domain2Routers = onChain.config.crossCollateralRouters[2];
-        expect(domain2Routers).to.not.be.undefined;
-        expect(domain2Routers?.size).to.equal(2);
+          const onChain = await writer.read(deployedProgramId);
+          const domain1Routers = onChain.config.crossCollateralRouters[1];
+          expect(domain1Routers).to.not.be.undefined;
+          expect(domain1Routers?.size).to.equal(1);
+          expect(
+            domain1Routers?.has(
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+            ),
+          ).to.be.true;
 
-        ccUpdateProgramId = deployed.deployed.address;
-      });
+          const domain2Routers = onChain.config.crossCollateralRouters[2];
+          expect(domain2Routers).to.not.be.undefined;
+          expect(domain2Routers?.size).to.equal(2);
+        },
+      );
 
       step('should enroll additional CC routers via update', async () => {
-        const current = await writer.read(ccUpdateProgramId);
+        const current = await writer.read(deployedProgramId);
         expect(
           Object.keys(current.config.crossCollateralRouters),
         ).to.have.length(2);
@@ -232,7 +237,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           await signer.send({ instructions: tx.instructions });
         }
 
-        const updated = await writer.read(ccUpdateProgramId);
+        const updated = await writer.read(deployedProgramId);
         expect(
           Object.keys(updated.config.crossCollateralRouters),
         ).to.have.length(3);
@@ -249,7 +254,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
       });
 
       step('should unenroll all CC routers via update', async () => {
-        const current = await writer.read(ccUpdateProgramId);
+        const current = await writer.read(deployedProgramId);
         expect(
           Object.keys(current.config.crossCollateralRouters),
         ).to.have.length(3);
@@ -267,7 +272,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           await signer.send({ instructions: tx.instructions });
         }
 
-        const updated = await writer.read(ccUpdateProgramId);
+        const updated = await writer.read(deployedProgramId);
         expect(
           Object.keys(updated.config.crossCollateralRouters),
         ).to.have.length(0);
