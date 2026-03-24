@@ -85,7 +85,7 @@ export const tokens = {
     USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   },
   tron: {
-    USDT: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+    USDT: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c',
   },
 };
 
