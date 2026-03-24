@@ -741,9 +741,6 @@ mod test {
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
             consider_null_transaction_receipt: false,
-            wallet_urls: None,
-            wallet_solidity_urls: None,
-            energy_multiplier: None,
         };
 
         let mailbox = EthereumMailbox::new(
