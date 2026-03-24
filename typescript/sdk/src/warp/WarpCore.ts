@@ -42,6 +42,7 @@ import {
 import {
   IHypXERC20Adapter,
   InterchainGasQuote,
+  isHypCrossCollateralAdapter,
 } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -180,22 +181,23 @@ export class WarpCore {
           destinationToken,
         });
         assert(
-          isEVMLike(originToken.protocol),
-          'CrossCollateralRouter fee quoting is currently supported only on EVM origins',
-        );
-        assert(
           resolvedDestinationToken.addressOrDenom,
           'Destination token missing addressOrDenom',
         );
         const crossCollateralAdapter = originToken.getHypAdapter(
           this.multiProvider,
           destinationName,
-        ) as EvmHypCrossCollateralAdapter; // CAST: getHypAdapter returns IHypTokenAdapter<unknown>; narrowed by isCrossCollateralTransfer + isEVMLike assert above
+        );
+        assert(
+          isHypCrossCollateralAdapter(crossCollateralAdapter),
+          'Adapter does not implement IHypCrossCollateralAdapter',
+        );
         quote = await crossCollateralAdapter.quoteTransferRemoteToGas({
           destination: destinationDomainId,
           recipient,
           amount,
           targetRouter: resolvedDestinationToken.addressOrDenom,
+          sender,
         });
       } else {
         const hypAdapter = originToken.getHypAdapter(
