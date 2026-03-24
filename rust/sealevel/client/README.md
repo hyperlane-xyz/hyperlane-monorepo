@@ -86,19 +86,6 @@ cargo run -- core deploy \
 
 # Trusted relayer ISM
 cargo run -- core deploy ... --ism-type trusted-relayer --relayer <PUBKEY>
-
-# Aggregation ISM (threshold-of-N over pre-deployed sub-ISMs)
-cargo run -- core deploy ... \
-  --ism-type aggregation \
-  --aggregation-threshold 2 \
-  --aggregation-modules <PK1>,<PK2>,<PK3>
-
-# Amount-routing ISM (routes by transfer amount)
-cargo run -- core deploy ... \
-  --ism-type amount-routing \
-  --amount-routing-threshold 1000000 \
-  --lower-ism <PUBKEY> \
-  --upper-ism <PUBKEY>
 ```
 
 The default ISM type is `multisig-message-id` (backward compatible).
@@ -132,23 +119,6 @@ cargo run -- ism deploy \
   --built-so-dir ../target/deploy \
   --key-dir /tmp/ism-keys \
   --relayer <RELAYER_PUBKEY>
-
-# Aggregation ISM
-cargo run -- ism deploy \
-  --ism-type aggregation \
-  --built-so-dir ../target/deploy \
-  --key-dir /tmp/ism-keys \
-  --aggregation-threshold 2 \
-  --aggregation-modules <PK1>,<PK2>,<PK3>
-
-# Amount-routing ISM
-cargo run -- ism deploy \
-  --ism-type amount-routing \
-  --built-so-dir ../target/deploy \
-  --key-dir /tmp/ism-keys \
-  --amount-routing-threshold 1000000 \
-  --lower-ism <LOWER_ISM_PUBKEY> \
-  --upper-ism <UPPER_ISM_PUBKEY>
 ```
 
 The `--key-dir` stores the program keypair so re-running redeploys to the same program ID.
@@ -173,12 +143,6 @@ cargo run -- ism read --ism-type test --address <PROGRAM_ID>
 
 # Trusted relayer ISM (shows relayer pubkey)
 cargo run -- ism read --ism-type trusted-relayer --address <PROGRAM_ID>
-
-# Aggregation ISM (shows threshold + modules)
-cargo run -- ism read --ism-type aggregation --address <PROGRAM_ID>
-
-# Amount-routing ISM (shows threshold, lower/upper ISM pubkeys)
-cargo run -- ism read --ism-type amount-routing --address <PROGRAM_ID>
 
 # Multisig ISM (optionally query per-domain validator sets)
 cargo run -- ism read --ism-type multisig-message-id --address <PROGRAM_ID>
@@ -214,8 +178,6 @@ The following commands manage individual ISM programs with full environment/regi
 
 - `multisig-ism-message-id` — deploy, init, set-validators-and-threshold, query, configure
 - `trusted-relayer-ism` — deploy, init, set-relayer, query, transfer-ownership
-- `aggregation-ism` — deploy, init, set-config, query, transfer-ownership
-- `amount-routing-ism` — deploy, init, set-config, query, transfer-ownership
 
 Run `cargo run -- <command> --help` for full options.
 
