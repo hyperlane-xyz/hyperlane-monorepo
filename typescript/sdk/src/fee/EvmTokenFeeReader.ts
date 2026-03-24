@@ -5,10 +5,11 @@ import {
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, concurrentMap } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
@@ -25,9 +26,16 @@ import {
 } from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
-
+type DerivedCcrfFeeContracts = Record<
+  ChainName,
+  {
+    default?: DerivedTokenFeeConfig;
+    routers?: Record<string, DerivedTokenFeeConfig>;
+  }
+>;
 export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
   feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
+  ccrfFeeContracts?: DerivedCcrfFeeContracts;
 };
 
 export type TokenFeeReaderParams = {
@@ -52,6 +60,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+      chain,
+    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     super(multiProvider, chain);
   }
@@ -179,9 +190,15 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations, crossCollateralRouters } = params;
-    if (!routingDestinations?.length) {
+    const effectiveRoutingDestinations = routingDestinations?.length
+      ? routingDestinations
+      : Object.keys(crossCollateralRouters ?? {}).map((domain) =>
+          Number(domain),
+        );
+
+    if (!effectiveRoutingDestinations.length) {
       throw new Error(
-        'CrossCollateralRoutingFee requires routingDestinations to derive fee config',
+        'CrossCollateralRoutingFee requires routingDestinations or crossCollateralRouters to derive fee config',
       );
     }
 
@@ -195,37 +212,40 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       routingFee.DEFAULT_ROUTER(),
     ]);
 
-    const ccrfFeeContracts: NonNullable<RoutingFeeConfig['ccrfFeeContracts']> =
-      {};
+    const ccrfFeeContracts: DerivedCcrfFeeContracts = {};
     let resolvedToken = params.token;
 
     const parseFeeConfig = async (subFeeAddress: Address) => {
       const parsed = await this.deriveTokenFeeConfig({
         address: subFeeAddress,
         token: resolvedToken,
-        routingDestinations,
+        routingDestinations: effectiveRoutingDestinations,
         crossCollateralRouters,
       });
       resolvedToken ??= parsed.token;
       return parsed;
     };
 
-    const destinationConfigs = await Promise.all(
-      routingDestinations.map(async (destination) => {
+    const destinationConfigs = await concurrentMap(
+      this.concurrency,
+      effectiveRoutingDestinations,
+      async (destination) => {
         const chainName = this.multiProvider.getChainName(destination);
         const configuredRouters = crossCollateralRouters?.[destination] ?? [];
         const defaultSubFeeAddress = await routingFee.feeContracts(
           destination,
           defaultRouter,
         );
-        const routerSubFees = await Promise.all(
-          configuredRouters.map(async (router) => ({
+        const routerSubFees = await concurrentMap(
+          this.concurrency,
+          configuredRouters,
+          async (router) => ({
             router,
             subFeeAddress: await routingFee.feeContracts(destination, router),
-          })),
+          }),
         );
         return { chainName, defaultSubFeeAddress, routerSubFees };
-      }),
+      },
     );
 
     for (const { defaultSubFeeAddress, routerSubFees } of destinationConfigs) {
@@ -241,8 +261,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       }
     }
 
-    await Promise.all(
-      destinationConfigs.map(async (destinationConfig) => {
+    await concurrentMap(
+      this.concurrency,
+      destinationConfigs,
+      async (destinationConfig) => {
         const { chainName, defaultSubFeeAddress, routerSubFees } =
           destinationConfig;
 
@@ -252,11 +274,13 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         }
 
         const routerFeeConfigs: Record<string, DerivedTokenFeeConfig> = {};
-        await Promise.all(
-          routerSubFees.map(async ({ router, subFeeAddress }) => {
+        await concurrentMap(
+          this.concurrency,
+          routerSubFees,
+          async ({ router, subFeeAddress }) => {
             if (subFeeAddress === constants.AddressZero) return;
             routerFeeConfigs[router] = await parseFeeConfig(subFeeAddress);
-          }),
+          },
         );
 
         if (defaultFeeConfig || Object.keys(routerFeeConfigs).length > 0) {
@@ -267,7 +291,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
               : {}),
           };
         }
-      }),
+      },
     );
 
     const token = resolvedToken;
@@ -284,6 +308,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       owner,
       maxFee: constants.MaxUint256.toBigInt(),
       halfAmount: constants.MaxUint256.toBigInt(),
+      feeContracts: {},
       ccrfFeeContracts:
         Object.keys(ccrfFeeContracts).length > 0 ? ccrfFeeContracts : undefined,
     };

@@ -272,15 +272,17 @@ describe('EvmTokenFeeReader', () => {
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
+      expect(
+        Object.keys((routingFee as any).feeContracts ?? {}),
+      ).to.have.length(0);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
           type: TokenFeeType.RoutingFee,
           owner: signer.address,
           token: token.address,
-          feeContracts: {
-            [TestChainName.test3]: linearFeeConfig,
-            [TestChainName.test4]: linearFeeConfig,
-          },
+          maxFee: constants.MaxUint256.toBigInt(),
+          halfAmount: constants.MaxUint256.toBigInt(),
+          feeContracts: {},
           ccrfFeeContracts: {
             [TestChainName.test3]: {
               default: linearFeeConfig,
@@ -347,14 +349,17 @@ describe('EvmTokenFeeReader', () => {
         },
       });
 
+      expect(
+        Object.keys((routingFee as any).feeContracts ?? {}),
+      ).to.have.length(0);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
           type: TokenFeeType.RoutingFee,
           owner: signer.address,
           token: token.address,
-          feeContracts: {
-            [TestChainName.test3]: linearFeeConfig,
-          },
+          maxFee: constants.MaxUint256.toBigInt(),
+          halfAmount: constants.MaxUint256.toBigInt(),
+          feeContracts: {},
           ccrfFeeContracts: {
             [TestChainName.test3]: {
               routers: {
