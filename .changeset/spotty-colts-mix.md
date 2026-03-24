@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": major
 ---
 
-feat: add M0PortalAdapter
+Added M0PortalAdapter for M0 Portal token transfers
