@@ -29,7 +29,6 @@ import {
 
 import { type CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
-import { withSmartProviderLogLevel } from '../utils/smart-provider-logging.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 export async function runWarpRouteRead({
@@ -121,33 +120,26 @@ async function deriveWarpRouteConfigs(
   }
 
   // Derive and return warp route config
-  return withSmartProviderLogLevel({
-    context,
-    chains: Object.keys(addresses),
-    level: 'silent',
-    suppressCombinedProviderWarnLogs: true,
-    fn: () =>
-      promiseObjAll(
-        objMap(addresses, async (chain, address) => {
-          const protocol = context.multiProvider.getProtocol(chain);
-          switch (protocol) {
-            case ProtocolType.Tron:
-            case ProtocolType.Ethereum: {
-              return new EvmWarpRouteReader(
-                multiProvider,
-                chain,
-              ).deriveWarpRouteConfig(address);
-            }
-            default: {
-              const chainLookup = altVmChainLookup(multiProvider);
-              const chainMetadata = chainLookup.getChainMetadata(chain);
-              const reader = createWarpTokenReader(chainMetadata, chainLookup);
-              return reader.deriveWarpConfig(address);
-            }
-          }
-        }),
-      ),
-  });
+  return promiseObjAll(
+    objMap(addresses, async (chain, address) => {
+      const protocol = context.multiProvider.getProtocol(chain);
+      switch (protocol) {
+        case ProtocolType.Tron:
+        case ProtocolType.Ethereum: {
+          return new EvmWarpRouteReader(
+            multiProvider,
+            chain,
+          ).deriveWarpRouteConfig(address);
+        }
+        default: {
+          const chainLookup = altVmChainLookup(multiProvider);
+          const chainMetadata = chainLookup.getChainMetadata(chain);
+          const reader = createWarpTokenReader(chainMetadata, chainLookup);
+          return reader.deriveWarpConfig(address);
+        }
+      }
+    }),
+  );
 }
 
 // Validate that all chains are EVM or AltVM compatible
