@@ -46,5 +46,5 @@ export enum TurnkeyRole {
   EvmRebalancer = 'evm-rebalancer',
   EvmIgpClaimer = 'evm-igp-claimer',
   EvmIgpOwner = 'evm-igp-owner',
-  EvmWarpFeesOwner = 'warp-fees-owner',
+  EvmWarpFeesOwner = 'evm-warp-fees-owner',
 }
