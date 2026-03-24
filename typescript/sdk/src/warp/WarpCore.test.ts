@@ -749,6 +749,7 @@ describe('WarpCore', () => {
 
     const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
       quoteTransferRemoteToGas,
+      populateTransferRemoteToTx: sinon.stub(),
     } as any);
 
     try {
@@ -790,6 +791,7 @@ describe('WarpCore', () => {
     });
     const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
       quoteTransferRemoteToGas,
+      populateTransferRemoteToTx: sinon.stub(),
     } as any);
     const localFeeAmountStub = sinon
       .stub(warpCore as any, 'getLocalTransferFeeAmount')
