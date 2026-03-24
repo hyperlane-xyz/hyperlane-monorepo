@@ -119,7 +119,7 @@ export class M0PortalLiteTokenAdapter
 
     return {
       igpQuote: {
-        addressOrDenom: '',
+        addressOrDenom: undefined,
         amount: BigInt(gasQuote.toString()),
       },
     };
