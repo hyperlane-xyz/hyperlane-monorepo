@@ -63,18 +63,23 @@ export async function runForkCommand({
     rpcUrls: ChainMetadata['rpcUrls'];
   }> = {};
   for (const chainName of filteredChainsToFork) {
-    const endpoint = await forkChain(
-      context.multiProvider,
-      chainName,
-      port,
-      kill,
-      parsedForkConfig[chainName],
-    );
-    chainMetadataOverrides[chainName] = {
-      blocks: { confirmations: 1 },
-      rpcUrls: [{ http: endpoint }],
-    };
-
+    try {
+      const endpoint = await forkChain(
+        context.multiProvider,
+        chainName,
+        port,
+        kill,
+        parsedForkConfig[chainName],
+      );
+      chainMetadataOverrides[chainName] = {
+        blocks: { confirmations: 1 },
+        rpcUrls: [{ http: endpoint }],
+      };
+    } catch (e: any) {
+      logRed(
+        `Failed to fork chain ${chainName}, skipping: ${e.shortMessage ?? e.message}`,
+      );
+    }
     port++;
   }
 
