@@ -70,9 +70,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations, crossCollateralRouters } = params;
+    const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
-    const onchainFeeType = await this.getOnchainFeeType(address);
+    const onchainFeeType = (await tokenFee.feeType()) as OnchainTokenFeeType;
     switch (onchainFeeType) {
       case OnchainTokenFeeType.LinearFee:
         derivedConfig = await this.deriveLinearFeeConfig(address);
@@ -298,26 +299,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       ccrfFeeContracts:
         Object.keys(ccrfFeeContracts).length > 0 ? ccrfFeeContracts : undefined,
     };
-  }
-
-  private async getOnchainFeeType(
-    address: Address,
-  ): Promise<OnchainTokenFeeType> {
-    const tokenFee = BaseFee__factory.connect(address, this.provider);
-    try {
-      return (await tokenFee.feeType()) as OnchainTokenFeeType;
-    } catch {
-      const routingFee = new Contract(
-        address,
-        ['function DEFAULT_ROUTER() view returns (bytes32)'],
-        this.provider,
-      );
-      const defaultRouter = await routingFee.DEFAULT_ROUTER().catch(() => null);
-      if (defaultRouter === DEFAULT_ROUTER_KEY) {
-        return OnchainTokenFeeType.CrossCollateralRoutingFee;
-      }
-      throw new Error(`Unsupported token fee contract at ${address}`);
-    }
   }
 
   convertFromBps(bps: bigint): FeeParameters {

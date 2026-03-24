@@ -515,15 +515,21 @@ function preprocessWarpRouteDeployConfig(value: unknown) {
 function populateFeeOwner(params: {
   tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
   feeConfig?: TokenFeeConfigInput;
+  inheritedOwner?: string;
 }) {
-  const { tokenConfig, feeConfig } = params;
+  const { tokenConfig, feeConfig, inheritedOwner } = params;
   if (!feeConfig) return tokenConfig;
 
-  feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
+  const resolvedOwner = feeConfig.owner ?? inheritedOwner ?? tokenConfig.owner;
+  feeConfig.owner = resolvedOwner;
 
   if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
     objMap(feeConfig.feeContracts, (_, innerConfig) => {
-      populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
+      populateFeeOwner({
+        tokenConfig,
+        feeConfig: innerConfig,
+        inheritedOwner: resolvedOwner,
+      });
     });
   }
   if (
@@ -535,11 +541,16 @@ function populateFeeOwner(params: {
         populateFeeOwner({
           tokenConfig,
           feeConfig: destinationConfig.default,
+          inheritedOwner: resolvedOwner,
         });
       }
       if (destinationConfig.routers) {
         objMap(destinationConfig.routers, (_, innerConfig) => {
-          populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
+          populateFeeOwner({
+            tokenConfig,
+            feeConfig: innerConfig,
+            inheritedOwner: resolvedOwner,
+          });
         });
       }
     });

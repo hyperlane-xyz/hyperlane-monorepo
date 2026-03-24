@@ -229,11 +229,4 @@ export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
 export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
   token: string;
   feeContracts?: Record<string, ResolvedTokenFeeConfigInput>;
-  ccrfFeeContracts?: Record<
-    string,
-    {
-      default?: ResolvedTokenFeeConfigInput;
-      routers?: Record<string, ResolvedTokenFeeConfigInput>;
-    }
-  >;
 };
