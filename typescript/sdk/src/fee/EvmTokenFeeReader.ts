@@ -148,15 +148,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations, token: inheritedToken } = params;
     const routingFee = RoutingFee__factory.connect(address, this.provider);
-    const [token, owner, maxFee, halfAmount] = await Promise.all([
+    const [token, owner] = await Promise.all([
       routingFee.token(),
       routingFee.owner(),
-      routingFee.maxFee(),
-      routingFee.halfAmount(),
     ]);
-
-    const maxFeeBn = BigInt(maxFee.toString());
-    const halfAmountBn = BigInt(halfAmount.toString());
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 
@@ -177,8 +172,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       );
     return {
       type: TokenFeeType.RoutingFee,
-      maxFee: maxFeeBn,
-      halfAmount: halfAmountBn,
       address,
       token,
       owner,
@@ -306,8 +299,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       address,
       token,
       owner,
-      maxFee: constants.MaxUint256.toBigInt(),
-      halfAmount: constants.MaxUint256.toBigInt(),
       feeContracts: {},
       ccrfFeeContracts:
         Object.keys(ccrfFeeContracts).length > 0 ? ccrfFeeContracts : undefined,

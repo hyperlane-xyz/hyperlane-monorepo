@@ -161,9 +161,7 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
     .record(
       ZChainName,
       z.object({
-        default: z
-          .lazy((): z.ZodSchema => TokenFeeConfigSchema)
-          .optional(), // DEFAULT_ROUTER sentinel
+        default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(), // DEFAULT_ROUTER sentinel
         routers: z
           .record(
             ZHash, // bytes32 router key
@@ -173,8 +171,6 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
       }),
     )
     .optional(), // Destination -> { default?, routers? }
-  maxFee: ZBigNumberish.optional(),
-  halfAmount: ZBigNumberish.optional(),
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 

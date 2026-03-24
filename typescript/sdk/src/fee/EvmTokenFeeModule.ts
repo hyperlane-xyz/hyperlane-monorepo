@@ -294,8 +294,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         type: TokenFeeType.RoutingFee,
         token,
         owner,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts,
         ccrfFeeContracts,
       };

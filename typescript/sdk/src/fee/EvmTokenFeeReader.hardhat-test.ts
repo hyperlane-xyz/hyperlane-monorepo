@@ -138,8 +138,6 @@ describe('EvmTokenFeeReader', () => {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts: {
           [TestChainName.test2]: {
             owner: signer.address,
@@ -280,8 +278,6 @@ describe('EvmTokenFeeReader', () => {
           type: TokenFeeType.RoutingFee,
           owner: signer.address,
           token: token.address,
-          maxFee: constants.MaxUint256.toBigInt(),
-          halfAmount: constants.MaxUint256.toBigInt(),
           feeContracts: {},
           ccrfFeeContracts: {
             [TestChainName.test3]: {
@@ -357,8 +353,6 @@ describe('EvmTokenFeeReader', () => {
           type: TokenFeeType.RoutingFee,
           owner: signer.address,
           token: token.address,
-          maxFee: constants.MaxUint256.toBigInt(),
-          halfAmount: constants.MaxUint256.toBigInt(),
           feeContracts: {},
           ccrfFeeContracts: {
             [TestChainName.test3]: {
