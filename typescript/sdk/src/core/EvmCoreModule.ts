@@ -115,6 +115,31 @@ export class EvmCoreModule extends HyperlaneModule<
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     CoreConfigSchema.parse(expectedConfig);
+
+    // Deploy QuotedCalls if not yet present
+    if (!this.args.addresses.quotedCalls) {
+      const ismFactory = new HyperlaneIsmFactory(
+        attachContractsMap(
+          { [this.chainName]: this.args.addresses },
+          proxyFactoryFactories,
+        ),
+        this.multiProvider,
+      );
+      const coreDeployer = new HyperlaneCoreDeployer(
+        this.multiProvider,
+        ismFactory,
+      );
+      const quotedCalls = await coreDeployer.deployQuotedCalls(
+        this.chainName,
+        expectedConfig.permit2,
+      );
+      this.args.addresses.quotedCalls = quotedCalls.address;
+      this.logger.info(
+        { address: quotedCalls.address },
+        'Deployed QuotedCalls',
+      );
+    }
+
     const actualConfig = await this.read();
 
     const transactions: AnnotatedEV5Transaction[] = [
