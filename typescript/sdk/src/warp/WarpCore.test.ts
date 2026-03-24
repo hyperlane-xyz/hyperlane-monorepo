@@ -999,8 +999,8 @@ describe('WarpCore', () => {
 
   // Encode a mock quoteExecute return value (Quote[][])
   function encodeMockQuoteResult(
-    results: Array<Array<{ token: string; amount: bigint }>>,
-  ): string {
+    results: Array<Array<{ token: `0x${string}`; amount: bigint }>>,
+  ): `0x${string}` {
     return encodeAbiParameters(
       [
         {
@@ -1016,16 +1016,14 @@ describe('WarpCore', () => {
   }
 
   it('Gets quoted transfer fee via quoteExecute', async () => {
+    const syntheticAddr = evmHypSynthetic.addressOrDenom as `0x${string}`;
     const mockQuoteResult = encodeMockQuoteResult([
       [], // SUBMIT_QUOTE
       [
         // TRANSFER_REMOTE
         { token: zeroAddress, amount: 500n },
-        {
-          token: evmHypSynthetic.addressOrDenom,
-          amount: TRANSFER_AMOUNT + 100n,
-        },
-        { token: evmHypSynthetic.addressOrDenom, amount: 50n },
+        { token: syntheticAddr, amount: TRANSFER_AMOUNT + 100n },
+        { token: syntheticAddr, amount: 50n },
       ],
     ]);
 
@@ -1060,15 +1058,13 @@ describe('WarpCore', () => {
   });
 
   it('Gets quoted transfer remote txs with approval', async () => {
+    const syntheticAddr = evmHypSynthetic.addressOrDenom as `0x${string}`;
     const mockQuoteResult = encodeMockQuoteResult([
       [], // SUBMIT_QUOTE
       [
         // TRANSFER_REMOTE
         { token: zeroAddress, amount: 500n },
-        {
-          token: evmHypSynthetic.addressOrDenom,
-          amount: TRANSFER_AMOUNT + 100n,
-        },
+        { token: syntheticAddr, amount: TRANSFER_AMOUNT + 100n },
       ],
     ]);
 
