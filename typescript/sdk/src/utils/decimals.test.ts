@@ -437,4 +437,123 @@ describe(verifyScale.name, () => {
 
     expect(verifyScale(configMap)).to.be.true;
   });
+
+  it('should return true with scale-down using WarpRouteDeployConfigMailboxRequired', () => {
+    // BSC (18dec) scales down by 1/1e12 to match ETH (6dec) — via deploy config input type
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      bsc: {
+        type: TokenType.collateral,
+        token: randomAddress(),
+        owner: randomAddress(),
+        decimals: ETH_DECIMALS,
+        scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        mailbox: randomAddress(),
+      },
+      eth: {
+        type: TokenType.collateral,
+        token: randomAddress(),
+        owner: randomAddress(),
+        decimals: USDC_DECIMALS,
+        mailbox: randomAddress(),
+      },
+    };
+
+    expect(verifyScale(config)).to.be.true;
+  });
+
+  it('should return true when two chains both use scale-down to the same effective amount', () => {
+    // chain1 (18dec) with 1/1e12 → effective 10^6
+    // chain2 (12dec) with 1/1e6 → effective 10^6
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: 12,
+          scale: { numerator: 1, denominator: 1_000_000 },
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true for non-reduced equivalent fractions (uniform decimals)', () => {
+    // Both 18dec: one with 2/2e12 (non-reduced), one with 1/1e12 (reduced) — equivalent
+    // Cross-multiply check: 2 * 1e12 === 1 * 2e12 → 2e12 === 2e12 ✓
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 2, denominator: 2_000_000_000_000 },
+        },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true for a single-chain config', () => {
+    // Single chain — no pairs to compare, trivially consistent
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return false when three chains have the third inconsistent', () => {
+    // chain1 (18dec, no scale), chain2 (6dec, scale 1e12 ✓), chain3 (6dec, scale 100 ✗)
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 1_000_000_000_000,
+        },
+      ],
+      [
+        'chain3',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 100,
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.false;
+  });
 });
