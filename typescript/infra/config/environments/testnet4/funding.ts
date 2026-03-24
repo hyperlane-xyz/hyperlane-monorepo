@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';

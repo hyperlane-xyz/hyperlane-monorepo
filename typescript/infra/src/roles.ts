@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 export enum Role {
   Validator = 'validator',
   Relayer = 'relayer',

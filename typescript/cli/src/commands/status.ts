@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type CommandModuleWithContext } from '../context/types.js';
 import { checkMessageStatus } from '../status/message.js';
 

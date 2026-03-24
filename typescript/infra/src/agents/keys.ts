@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ethers } from 'ethers';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 

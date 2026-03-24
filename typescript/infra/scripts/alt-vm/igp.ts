@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { BigNumber } from 'bignumber.js';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import prompts from 'prompts';

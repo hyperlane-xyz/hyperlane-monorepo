@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type MinimumRequiredGasByAction } from '@hyperlane-xyz/provider-sdk';
 
 export const ETHEREUM_MINIMUM_GAS: MinimumRequiredGasByAction = {

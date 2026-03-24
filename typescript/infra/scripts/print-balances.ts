@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import { Contexts } from '../config/contexts.js';

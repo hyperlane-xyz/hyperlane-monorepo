@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chalk, { type ChalkInstance } from 'chalk';
 import { type pino } from 'pino';
 

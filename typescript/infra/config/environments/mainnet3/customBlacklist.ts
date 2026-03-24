@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 export const blacklistedMessageIds = [
   // ezETH
   '0xb9cfeb4a22b65903ca7cb514fd752feba0622a0495878d508d19a91734d89cc4',

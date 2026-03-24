@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { getRegistry } from '../config/registry.js';
 
 async function main() {

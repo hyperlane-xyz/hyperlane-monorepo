@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 import path from 'path';

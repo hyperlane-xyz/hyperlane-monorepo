@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { assert } from '@hyperlane-xyz/utils';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';

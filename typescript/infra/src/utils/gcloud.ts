@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import fs from 'fs';
 

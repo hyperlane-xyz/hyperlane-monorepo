@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type ChainMap } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
 

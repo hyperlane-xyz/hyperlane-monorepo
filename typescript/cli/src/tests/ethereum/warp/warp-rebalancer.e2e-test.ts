@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';

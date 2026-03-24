@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { S3Receipt, S3Validator } from '@hyperlane-xyz/sdk';
 import {
   Checkpoint,

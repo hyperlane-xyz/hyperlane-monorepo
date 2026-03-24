@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import input from '@inquirer/input';
 import { Separator, checkbox, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';

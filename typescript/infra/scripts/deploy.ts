@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';

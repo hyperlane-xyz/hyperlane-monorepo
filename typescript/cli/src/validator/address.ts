@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { GetPublicKeyCommand, KMSClient } from '@aws-sdk/client-kms';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { input } from '@inquirer/prompts';

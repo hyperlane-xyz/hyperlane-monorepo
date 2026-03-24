@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { CoreConfig } from '@hyperlane-xyz/sdk';
 import { objFilter, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Argv } from 'yargs';
 
 export function withRegistryUris<T>(args: Argv<T>) {

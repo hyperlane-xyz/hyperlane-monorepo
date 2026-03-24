@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { stringify as yamlStringify } from 'yaml';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // from https://developers.circle.com/stablecoins/evm-smart-contracts
 
 export const tokenMessengerV1Addresses = {

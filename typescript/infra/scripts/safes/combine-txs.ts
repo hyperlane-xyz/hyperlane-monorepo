@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // Import necessary modules
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 // eslint-disable-next-line

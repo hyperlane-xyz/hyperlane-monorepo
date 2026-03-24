@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ESLint } from 'eslint';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 

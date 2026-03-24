@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { providers } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';

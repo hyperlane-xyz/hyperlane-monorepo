@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { KeyFunderConfig } from '../../../src/config/funding.js';

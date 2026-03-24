@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { expect } from 'chai';
 
 import { environments } from '../config/environments/index.js';

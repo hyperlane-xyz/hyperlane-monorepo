@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { TEST_ALEO_PRIVATE_KEY } from '@hyperlane-xyz/aleo-sdk/testing';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {

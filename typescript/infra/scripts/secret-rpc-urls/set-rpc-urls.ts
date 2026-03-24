@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { setRpcUrlsInteractive } from '../../src/utils/rpcUrls.js';
 import {
   assertCorrectKubeContext,

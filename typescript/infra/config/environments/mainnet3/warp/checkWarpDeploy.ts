@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { CheckWarpDeployConfig } from '../../../../src/config/funding.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../../docker.js';
 import { environment } from '../chains.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { confirm, input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { readFileSync } from 'fs';

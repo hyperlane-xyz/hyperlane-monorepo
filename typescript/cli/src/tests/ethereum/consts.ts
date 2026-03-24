@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import path from 'path';
 import { fileURLToPath } from 'url';
 

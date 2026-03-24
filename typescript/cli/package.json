@@ -10,7 +10,7 @@
     "Typescript"
   ],
   "homepage": "https://www.hyperlane.xyz",
-  "license": "Apache-2.0",
+  "license": "BUSL-1.1",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "bin": {
     "hyperlane": "./bundle/index.js"

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { HelmCommand } from '../../src/utils/helm.js';
 
 import { AgentCli } from './utils.js';

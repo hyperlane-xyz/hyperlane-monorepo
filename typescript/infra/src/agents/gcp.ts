@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';

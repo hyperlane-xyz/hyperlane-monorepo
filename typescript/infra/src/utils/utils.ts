@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // @ts-ignore
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';

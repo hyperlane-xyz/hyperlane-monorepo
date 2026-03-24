@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Provider } from '@ethersproject/providers';
 import { Wallet } from 'ethers';
 import fs from 'fs';

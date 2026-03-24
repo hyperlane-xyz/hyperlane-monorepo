@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import latestVersion from 'latest-version';
 
 import { log } from '../logger.js';

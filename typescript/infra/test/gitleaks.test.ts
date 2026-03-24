@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Keypair } from '@solana/web3.js';
 import { expect } from 'chai';
 import { execSync } from 'child_process';

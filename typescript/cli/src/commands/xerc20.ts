@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { BigNumber, ethers } from 'ethers';
 import { join } from 'path';
 import YAML from 'yaml';

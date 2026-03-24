@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type CommandModule, type Options } from 'yargs';
 
 import { type ChainName } from '@hyperlane-xyz/sdk';

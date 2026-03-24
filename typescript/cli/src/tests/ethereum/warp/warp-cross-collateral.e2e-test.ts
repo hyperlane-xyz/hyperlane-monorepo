@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { expect } from 'chai';
 import { parseUnits } from 'ethers/lib/utils.js';
 

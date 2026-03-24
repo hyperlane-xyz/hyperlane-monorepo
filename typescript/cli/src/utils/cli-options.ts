@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // Functions used to manipulate CLI specific options
 
 /**

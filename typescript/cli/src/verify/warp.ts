@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type ContractFactory } from 'ethers';
 
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';

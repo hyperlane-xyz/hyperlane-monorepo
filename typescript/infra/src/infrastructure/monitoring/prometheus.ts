@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ChildProcess, spawn } from 'child_process';
 
 import { rootLogger } from '@hyperlane-xyz/utils';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { password } from '@inquirer/prompts';
 import { type BigNumberish, Wallet, utils } from 'ethers';
 

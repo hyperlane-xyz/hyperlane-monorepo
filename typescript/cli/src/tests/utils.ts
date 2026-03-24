@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import * as chai from 'chai';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';

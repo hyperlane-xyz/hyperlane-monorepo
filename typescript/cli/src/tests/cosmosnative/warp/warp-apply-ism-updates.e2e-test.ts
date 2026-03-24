@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';

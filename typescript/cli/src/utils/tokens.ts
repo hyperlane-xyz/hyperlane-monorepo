@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import select from '@inquirer/select';
 
 import { type IRegistry } from '@hyperlane-xyz/registry';

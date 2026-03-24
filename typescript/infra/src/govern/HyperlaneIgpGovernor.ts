@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { BigNumber, ethers } from 'ethers';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';

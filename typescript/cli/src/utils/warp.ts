@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import search from '@inquirer/search';
 
 import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';

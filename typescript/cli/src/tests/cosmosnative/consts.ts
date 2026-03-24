@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 
 export const E2E_TEST_CONFIGS_PATH = './test-configs';

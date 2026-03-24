@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { IsmType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';

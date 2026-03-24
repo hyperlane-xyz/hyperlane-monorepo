@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';

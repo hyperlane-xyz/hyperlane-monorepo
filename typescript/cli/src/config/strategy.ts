@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { confirm, input, password, select } from '@inquirer/prompts';
 import { Wallet } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';

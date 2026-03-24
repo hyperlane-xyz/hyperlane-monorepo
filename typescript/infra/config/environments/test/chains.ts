@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import {
   testChainMetadata as defaultTestChainMetadata,
   testChains as defaultTestChains,

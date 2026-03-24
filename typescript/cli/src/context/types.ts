@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';

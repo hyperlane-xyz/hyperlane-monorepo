@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // Commands that send tx and require a key to sign.
 // It's useful to have this listed here so the context
 

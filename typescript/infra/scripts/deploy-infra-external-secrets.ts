@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { runExternalSecretsHelmCommand } from '../src/infrastructure/external-secrets/external-secrets.js';
 import { HelmCommand } from '../src/utils/helm.js';
 

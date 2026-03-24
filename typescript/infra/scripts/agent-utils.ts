@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { checkbox, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import path, { join } from 'path';
