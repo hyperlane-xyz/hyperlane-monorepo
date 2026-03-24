@@ -1,12 +1,10 @@
 import type { Logger } from 'pino';
 
-import { addressToByteHexString, ProtocolType } from '@hyperlane-xyz/utils';
-
-// isEVMLike is not yet exported from the installed dist of @hyperlane-xyz/utils;
-// inline the equivalent check until utils dist is rebuilt.
-function isEVMLike(protocol: ProtocolType): boolean {
-  return protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron;
-}
+import {
+  addressToByteHexString,
+  isEVMLike,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 export type InflightRebalanceQueryParams = {
   bridges: string[];
