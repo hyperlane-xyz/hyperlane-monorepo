@@ -561,4 +561,14 @@ describe(verifyScale.name, () => {
     const configMap: Map<string, TokenMetadata> = new Map();
     expect(verifyScale(configMap)).to.be.true;
   });
+
+  it('should treat decimals: 0 as defined (not falsy)', () => {
+    // Exercises the nullish check fix (config.decimals != null).
+    // decimals: 0 is falsy but defined — should not throw.
+    const configMap: Map<string, TokenMetadata> = new Map([
+      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 0 }],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
 });
