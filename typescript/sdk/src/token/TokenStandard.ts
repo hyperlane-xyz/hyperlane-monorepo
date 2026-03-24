@@ -228,6 +228,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.StarknetHypNative,
   TokenStandard.EvmHypCrossCollateralRouter,
   TokenStandard.TronHypCrossCollateralRouter,
+  TokenStandard.SealevelHypCrossCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -278,6 +279,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
+  TokenStandard.SealevelHypCrossCollateral,
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
@@ -452,6 +454,7 @@ export const SEALEVEL_SUPPORTED_TOKEN_TYPES = [
   TokenType.collateral,
   TokenType.synthetic,
   TokenType.native,
+  TokenType.crossCollateral,
 ] as const;
 
 type SealevelSupportedTokenTypes =
@@ -464,6 +467,7 @@ export const SEALEVEL_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateral]: TokenStandard.SealevelHypCollateral,
   [TokenType.synthetic]: TokenStandard.SealevelHypSynthetic,
   [TokenType.native]: TokenStandard.SealevelHypNative,
+  [TokenType.crossCollateral]: TokenStandard.SealevelHypCrossCollateral,
 };
 
 // Starknet supported token types
