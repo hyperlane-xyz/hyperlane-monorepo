@@ -106,8 +106,6 @@ describe('EvmTokenFeeModule', () => {
       },
       owner: signer.address,
       token: token.address,
-      maxFee: constants.MaxUint256.toBigInt(),
-      halfAmount: constants.MaxUint256.toBigInt(),
       type: TokenFeeType.RoutingFee,
     };
     const module = await EvmTokenFeeModule.create({
