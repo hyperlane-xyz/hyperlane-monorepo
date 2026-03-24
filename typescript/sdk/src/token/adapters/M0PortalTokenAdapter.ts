@@ -143,7 +143,7 @@ export class M0PortalTokenAdapter
 
     // Get gas quote if not provided
     const gasQuote =
-      params.interchainGas?.igpQuote?.amount ||
+      params.interchainGas?.igpQuote?.amount ??
       (
         await this.quoteTransferRemoteGas({
           destination: params.destination,
