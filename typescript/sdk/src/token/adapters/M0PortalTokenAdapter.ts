@@ -158,7 +158,7 @@ export class M0PortalTokenAdapter
       destinationChainId,
       addressToBytes32(this.addresses.token), // destination token (same address on both chains for mUSD)
       addressToBytes32(params.recipient),
-      addressToBytes32(params.fromAccountOwner || ethersConstants.AddressZero), // refundAddress,
+      addressToBytes32(params.fromAccountOwner ?? ethersConstants.AddressZero), // refundAddress,
       HYPERLANE_BRIDGE_ADAPTER,
       EMPTY_BRIDGE_ADAPTER_ARGS,
       {
