@@ -7,6 +7,7 @@ import {
   ArtifactState,
   ConfigOnChain,
   IArtifactManager,
+  addressToUnderivedArtifact,
   isArtifactDeployed,
   isArtifactNew,
 } from './artifact.js';
@@ -294,11 +295,8 @@ export function warpConfigToArtifact(
   let ismArtifact: Artifact<IsmArtifactConfig, DeployedIsmAddress> | undefined;
   if (config.interchainSecurityModule) {
     if (typeof config.interchainSecurityModule === 'string') {
-      // Address reference - create UNDERIVED artifact
-      ismArtifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: config.interchainSecurityModule },
-      };
+      // Normalize zero-address references to "unset" before artifact conversion.
+      ismArtifact = addressToUnderivedArtifact(config.interchainSecurityModule);
     } else {
       // ISM config - convert using ismConfigToArtifact
       ismArtifact = ismConfigToArtifact(
@@ -314,11 +312,8 @@ export function warpConfigToArtifact(
     | undefined;
   if (config.hook) {
     if (typeof config.hook === 'string') {
-      // Address reference - create UNDERIVED artifact
-      hookArtifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: config.hook },
-      };
+      // Normalize zero-address references to "unset" before artifact conversion.
+      hookArtifact = addressToUnderivedArtifact(config.hook);
     } else {
       // Hook config - convert using hookConfigToArtifact
       hookArtifact = hookConfigToArtifact(config.hook, chainLookup);

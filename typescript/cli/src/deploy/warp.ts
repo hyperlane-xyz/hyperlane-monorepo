@@ -8,7 +8,11 @@ import {
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  ArtifactState,
+  addressToUnderivedArtifact,
+  isArtifactDeployed,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import { warpConfigToArtifact } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type AddWarpRouteConfigOptions,
@@ -796,10 +800,30 @@ async function updateExistingWarpRoute(
               signer,
             );
             const artifact = warpConfigToArtifact(validatedConfig, chainLookup);
+            const currentArtifact = await writer.read(deployedTokenRoute);
+            const currentIsm = currentArtifact.config.interchainSecurityModule;
+            const currentHook = currentArtifact.config.hook;
+
+            assert(
+              !currentIsm || isArtifactDeployed(currentIsm),
+              'Expected AltVM warp reader to expand current ISM before apply',
+            );
+            assert(
+              !currentHook || isArtifactDeployed(currentHook),
+              'Expected AltVM warp reader to expand current hook before apply',
+            );
 
             const artifactToUpdate = {
               artifactState: ArtifactState.DEPLOYED,
-              config: artifact.config,
+              config: {
+                ...artifact.config,
+                interchainSecurityModule:
+                  artifact.config.interchainSecurityModule ??
+                  addressToUnderivedArtifact(currentIsm?.deployed.address),
+                hook:
+                  artifact.config.hook ??
+                  addressToUnderivedArtifact(currentHook?.deployed.address),
+              },
               deployed: { address: deployedTokenRoute },
             };
 
