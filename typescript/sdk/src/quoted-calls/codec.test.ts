@@ -9,6 +9,7 @@ import {
 import {
   CONTRACT_BALANCE,
   type Quote,
+  computeScopedSalt,
   decodeQuoteExecuteResult,
   encodeExecuteCalldata,
   encodePermit2PermitInput,
@@ -352,6 +353,33 @@ describe('QuotedCalls codec', () => {
   describe('CONTRACT_BALANCE', () => {
     it('equals 2^255', () => {
       expect(CONTRACT_BALANCE).to.equal(2n ** 255n);
+    });
+  });
+
+  describe('computeScopedSalt', () => {
+    it('matches QuotedCalls._scopeSalt: keccak256(abi.encodePacked(address, bytes32))', () => {
+      const caller = QUOTER;
+      const salt = computeScopedSalt(caller, CLIENT_SALT);
+      // encodePacked(address, bytes32) = 20 + 32 = 52 bytes
+      const { encodePacked, keccak256 } = require('viem');
+      const expected = keccak256(
+        encodePacked(['address', 'bytes32'], [caller, CLIENT_SALT]),
+      );
+      expect(salt).to.equal(expected);
+    });
+
+    it('produces different salts for different callers', () => {
+      const salt1 = computeScopedSalt(QUOTER, CLIENT_SALT);
+      const salt2 = computeScopedSalt(TOKEN, CLIENT_SALT);
+      expect(salt1).to.not.equal(salt2);
+    });
+
+    it('produces different salts for different clientSalts', () => {
+      const otherSalt =
+        '0x7777777777777777777777777777777777777777777777777777777777777777' as const;
+      const salt1 = computeScopedSalt(QUOTER, CLIENT_SALT);
+      const salt2 = computeScopedSalt(QUOTER, otherSalt);
+      expect(salt1).to.not.equal(salt2);
     });
   });
 });

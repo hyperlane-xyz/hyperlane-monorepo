@@ -13,6 +13,7 @@ export {
 export {
   CONTRACT_BALANCE,
   type Quote as QuotedCallsQuote,
+  computeScopedSalt,
   decodeQuoteExecuteResult,
   encodeExecuteCalldata,
   encodePermit2PermitInput,

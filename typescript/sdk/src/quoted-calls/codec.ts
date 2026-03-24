@@ -5,6 +5,8 @@ import {
   decodeAbiParameters,
   encodeAbiParameters,
   encodeFunctionData,
+  encodePacked,
+  keccak256,
   toHex,
   zeroAddress,
 } from 'viem';
@@ -55,6 +57,13 @@ const permitSingleTuple = {
     { name: 'sigDeadline', type: 'uint256' as const },
   ],
 };
+
+// ============ Salt scoping ============
+
+/** Matches QuotedCalls._scopeSalt: keccak256(abi.encodePacked(caller, salt)) */
+export function computeScopedSalt(caller: Address, clientSalt: Hex): Hex {
+  return keccak256(encodePacked(['address', 'bytes32'], [caller, clientSalt]));
+}
 
 // ============ Per-command input encoders ============
 
