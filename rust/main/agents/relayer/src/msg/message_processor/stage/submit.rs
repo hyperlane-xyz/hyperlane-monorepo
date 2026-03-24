@@ -22,6 +22,7 @@ use super::super::{confirm_op, MessageProcessorMetrics};
 ///
 /// # Arguments
 /// * `entrypoint` - The lander entrypoint for checking payload status
+/// * `prepare_queue` - Queue for operations requiring immediate re-preparation
 /// * `submit_queue` - Queue for operations in submission pipeline
 /// * `confirm_queue` - Queue for operations awaiting confirmation
 /// * `metrics` - Message processor metrics for tracking
