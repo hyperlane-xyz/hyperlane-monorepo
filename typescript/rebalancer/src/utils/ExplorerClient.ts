@@ -1,5 +1,11 @@
 import type { Logger } from 'pino';
 
+import {
+  addressToByteHexString,
+  isEVMLike,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
+
 export type InflightRebalanceQueryParams = {
   bridges: string[];
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
@@ -47,9 +53,20 @@ export interface IExplorerClient {
 }
 
 export class ExplorerClient implements IExplorerClient {
-  constructor(private readonly baseUrl: string) {}
+  constructor(
+    private readonly baseUrl: string,
+    private readonly getProtocol?: (domainId: number) => ProtocolType,
+  ) {}
 
-  private toBytea(addr: string): string {
+  private toBytea(addr: string, domain?: number): string {
+    const protocol =
+      domain !== undefined && this.getProtocol
+        ? this.getProtocol(domain)
+        : undefined;
+    if (protocol && !isEVMLike(protocol)) {
+      const hex = addressToByteHexString(addr, protocol);
+      return hex.replace(/^0x/i, '\\x').toLowerCase();
+    }
     return addr.replace(/^0x/i, '\\x').toLowerCase();
   }
 
@@ -84,13 +101,15 @@ export class ExplorerClient implements IExplorerClient {
     const { bridges, routersByDomain, txSender, limit = 5 } = params;
 
     // Derive routers and domains from routersByDomain
-    const routers = Object.values(routersByDomain);
+    const routerEntries = Object.entries(routersByDomain);
     const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
       senders: bridges.map((a) => this.toBytea(a)),
       recipients: bridges.map((a) => this.toBytea(a)),
-      originTxRecipients: routers.map((a) => this.toBytea(a)),
+      originTxRecipients: routerEntries.map(([domain, addr]) =>
+        this.toBytea(addr, Number(domain)),
+      ),
       originDomains: domains,
       destDomains: domains,
       txSenders: [this.toBytea(txSender)],
@@ -170,9 +189,17 @@ export class ExplorerClient implements IExplorerClient {
     const validatedRows = rows.filter((msg: any) => {
       const expectedRouter = routersByDomain[msg.origin_domain_id];
       if (!expectedRouter) return false;
+      const protocol = this.getProtocol?.(msg.origin_domain_id);
       const normalizedMsgRouter = msg.origin_tx_recipient?.startsWith('\\x')
         ? '0x' + msg.origin_tx_recipient.slice(2)
         : msg.origin_tx_recipient;
+      if (protocol && !isEVMLike(protocol)) {
+        const expectedHex = addressToByteHexString(
+          expectedRouter,
+          protocol,
+        ).toLowerCase();
+        return normalizedMsgRouter?.toLowerCase() === expectedHex;
+      }
       return (
         normalizedMsgRouter?.toLowerCase() === expectedRouter.toLowerCase()
       );
@@ -197,12 +224,16 @@ export class ExplorerClient implements IExplorerClient {
     const { routersByDomain, excludeTxSenders, limit = 100 } = params;
 
     // Derive routers and domains from routersByDomain
-    const routers = Object.values(routersByDomain);
+    const routerEntries = Object.entries(routersByDomain);
     const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
-      senders: routers.map((a) => this.toBytea(a)),
-      recipients: routers.map((a) => this.toBytea(a)),
+      senders: routerEntries.map(([domain, addr]) =>
+        this.toBytea(addr, Number(domain)),
+      ),
+      recipients: routerEntries.map(([domain, addr]) =>
+        this.toBytea(addr, Number(domain)),
+      ),
       originDomains: domains,
       destDomains: domains,
       excludeTxSenders: excludeTxSenders.map((a) => this.toBytea(a)),
@@ -297,7 +328,7 @@ export class ExplorerClient implements IExplorerClient {
     } = params;
 
     // Derive routers and domains from routersByDomain
-    const routers = Object.values(routersByDomain);
+    const routerEntries = Object.entries(routersByDomain);
     const domains = Object.keys(routersByDomain).map(Number);
 
     // Build list of tx senders to include (rebalancer + optional inventory signer)
@@ -311,7 +342,9 @@ export class ExplorerClient implements IExplorerClient {
     const variables = {
       senders: bridges.map((a) => this.toBytea(a)),
       recipients: bridges.map((a) => this.toBytea(a)),
-      originTxRecipients: routers.map((a) => this.toBytea(a)),
+      originTxRecipients: routerEntries.map(([domain, addr]) =>
+        this.toBytea(addr, Number(domain)),
+      ),
       originDomains: domains,
       destDomains: domains,
       txSenders,
