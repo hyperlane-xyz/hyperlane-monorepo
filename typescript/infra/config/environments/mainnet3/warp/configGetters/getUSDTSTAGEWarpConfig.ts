@@ -38,6 +38,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      scale: 1000000000000, // scale UP: 6-decimal chains multiply by 10^12 to reach 18-decimal canonical
     },
     plasma: {
       ...routerConfig.plasma,
@@ -48,6 +49,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      scale: 1000000000000,
     },
     arbitrum: {
       ...routerConfig.arbitrum,
@@ -58,6 +60,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      scale: 1000000000000,
     },
     solanamainnet: {
       type: TokenType.collateral,
@@ -67,6 +70,7 @@ export async function getUSDTSTAGEWarpConfig(
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       owner: SOLANA_OWNER,
       decimals: 6,
+      scale: 1000000000000,
     },
     mode: {
       ...routerConfig.mode,
@@ -76,6 +80,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      scale: 1000000000000,
     },
     bsc: {
       ...routerConfig.bsc,
@@ -86,10 +91,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 18,
-      scale: {
-        numerator: 1,
-        denominator: 1000000000000, // 10^12: down-scale 18 decimals to 6-decimal message encoding
-      },
+      // No scale on BSC: it is the canonical 18-decimal base. Other chains scale UP by 10^12.
     },
     tron: {
       ...routerConfig.tron,
@@ -100,6 +102,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      scale: 1000000000000,
     },
   };
   return config as Record<RouteChains, HypTokenRouterConfig>;
