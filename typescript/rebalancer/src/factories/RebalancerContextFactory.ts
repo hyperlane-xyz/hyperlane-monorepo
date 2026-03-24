@@ -323,7 +323,9 @@ export class RebalancerContextFactory {
 
     const explorerClient =
       typeof explorerUrlOrClient === 'string'
-        ? new ExplorerClient(explorerUrlOrClient)
+        ? new ExplorerClient(explorerUrlOrClient, (domain) =>
+            this.multiProvider.getProtocol(domain),
+          )
         : explorerUrlOrClient;
 
     // 3. Get MultiProtocolCore from registry (supports all VM types)
@@ -617,8 +619,12 @@ export class RebalancerContextFactory {
           if (lifiConfig?.integrator) {
             registry[ExternalBridgeType.LiFi] = new LiFiBridge(
               {
-                integrator: lifiConfig.integrator,
-                defaultSlippage: lifiConfig.defaultSlippage,
+                bridgeOptions: {
+                  integrator: lifiConfig.integrator,
+                  apiKey: lifiConfig.apiKey,
+                  defaultSlippage: lifiConfig.defaultSlippage,
+                  routeOrder: lifiConfig.routeOrder,
+                },
                 chainMetadata: this.multiProvider.metadata,
               },
               this.logger,

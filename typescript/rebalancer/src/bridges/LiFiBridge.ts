@@ -27,7 +27,9 @@ import type {
   BridgeTransferStatus,
   ExternalBridgeConfig,
   IExternalBridge,
+  LiFiQuoteOverrides,
 } from '../interfaces/IExternalBridge.js';
+import { ExternalBridgeType, type RouteOrder } from '../config/types.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
 /**
@@ -110,7 +112,7 @@ function toBase58SolanaKey(rawKey: string): string {
  *
  * @see https://docs.li.fi/integrate-li.fi-sdk
  */
-export class LiFiBridge implements IExternalBridge {
+export class LiFiBridge implements IExternalBridge<LiFiQuoteOverrides> {
   private static readonly NATIVE_TOKEN_ADDRESS =
     '0x0000000000000000000000000000000000000000';
 
@@ -127,10 +129,13 @@ export class LiFiBridge implements IExternalBridge {
   readonly logger: Logger;
   private initialized = false;
   private _executeLock: Promise<void> = Promise.resolve();
-  private readonly config: ExternalBridgeConfig;
+  private readonly config: ExternalBridgeConfig<ExternalBridgeType.LiFi>;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
 
-  constructor(config: ExternalBridgeConfig, logger: Logger) {
+  constructor(
+    config: ExternalBridgeConfig<ExternalBridgeType.LiFi>,
+    logger: Logger,
+  ) {
     this.config = config;
     this.logger = logger;
     // Build chainId -> metadata map for O(1) lookups
@@ -163,13 +168,13 @@ export class LiFiBridge implements IExternalBridge {
     if (this.initialized) return;
 
     createConfig({
-      integrator: this.config.integrator,
-      apiKey: this.config.apiKey,
+      integrator: this.config.bridgeOptions.integrator,
+      apiKey: this.config.bridgeOptions.apiKey,
     });
 
     this.initialized = true;
     this.logger.info(
-      { integrator: this.config.integrator },
+      { integrator: this.config.bridgeOptions.integrator },
       'LiFi SDK initialized',
     );
   }
@@ -269,7 +274,10 @@ export class LiFiBridge implements IExternalBridge {
    *
    * Returns route data ready for execution.
    */
-  async quote(params: BridgeQuoteParams): Promise<BridgeQuote<LiFiStep>> {
+  async quote(
+    params: BridgeQuoteParams,
+    overrides?: LiFiQuoteOverrides,
+  ): Promise<BridgeQuote<LiFiStep>> {
     this.initialize();
 
     // Validate that exactly one of fromAmount or toAmount is provided
@@ -291,11 +299,16 @@ export class LiFiBridge implements IExternalBridge {
       'toAmount must be positive',
     );
 
+    const order =
+      overrides?.routeOrder ??
+      this.config.bridgeOptions.routeOrder ??
+      'RECOMMENDED';
+
     // Dispatch to appropriate quote method
     if (params.toAmount !== undefined) {
-      return this.quoteByReceivingAmount(params);
+      return this.quoteByReceivingAmount(params, order);
     } else {
-      return this.quoteBySpendingAmount(params);
+      return this.quoteBySpendingAmount(params, order);
     }
   }
 
@@ -305,6 +318,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteBySpendingAmount(
     params: BridgeQuoteParams,
+    order: RouteOrder,
   ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
@@ -319,9 +333,10 @@ export class LiFiBridge implements IExternalBridge {
       fromAmount: params.fromAmount!.toString(),
       fromAddress: params.fromAddress,
       toAddress: params.toAddress ?? params.fromAddress,
-      slippage: params.slippage ?? this.config.defaultSlippage ?? 0.005,
+      slippage:
+        params.slippage ?? this.config.bridgeOptions.defaultSlippage ?? 0.005,
       // Prefer faster routes for rebalancing
-      order: 'RECOMMENDED',
+      order,
     });
 
     const { gasCosts, feeCosts } = this.extractCosts(quote);
@@ -364,6 +379,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteByReceivingAmount(
     params: BridgeQuoteParams,
+    order: RouteOrder,
   ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
 
@@ -378,15 +394,19 @@ export class LiFiBridge implements IExternalBridge {
       toAmount: params.toAmount!.toString(),
       fromAddress: params.fromAddress,
       toAddress: params.toAddress ?? params.fromAddress,
-      slippage: (params.slippage ?? this.config.defaultSlippage ?? 0.005)
+      slippage: (
+        params.slippage ??
+        this.config.bridgeOptions.defaultSlippage ??
+        0.005
+      )
         .toFixed(4)
         .replace(/\.?0+$/, ''),
-      order: 'CHEAPEST',
-      integrator: this.config.integrator,
+      order,
+      integrator: this.config.bridgeOptions.integrator,
     });
 
-    if (this.config.apiKey) {
-      queryParams.set('apiKey', this.config.apiKey);
+    if (this.config.bridgeOptions.apiKey) {
+      queryParams.set('apiKey', this.config.bridgeOptions.apiKey);
     }
 
     const url = `${LIFI_API_BASE}/quote/toAmount?${queryParams.toString()}`;

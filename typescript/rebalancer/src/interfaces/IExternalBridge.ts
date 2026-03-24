@@ -3,16 +3,36 @@ import type { Logger } from 'pino';
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import { ExternalBridgeType } from '../config/types.js';
+import type { RouteOrder } from '../config/types.js';
+
+export interface LiFiBridgeOptions {
+  integrator: string;
+  apiKey?: string;
+  defaultSlippage?: number;
+  routeOrder?: RouteOrder;
+}
+
+export interface LiFiQuoteOverrides {
+  routeOrder?: RouteOrder;
+}
+
+export type ExternalBridgeOptionsMap = {
+  [ExternalBridgeType.LiFi]: LiFiBridgeOptions;
+};
+
+export type ExternalBridgeQuoteOverridesMap = {
+  [ExternalBridgeType.LiFi]: LiFiQuoteOverrides;
+};
 
 /**
  * Configuration for an external bridge.
  */
-export interface ExternalBridgeConfig {
-  integrator: string; // Required: dApp/company name for bridge integration
-  apiKey?: string; // Optional: API key for higher rate limits
-  defaultSlippage?: number; // Default slippage tolerance (e.g., 0.005 = 0.5%)
-  chainMetadata?: ChainMap<ChainMetadata>; // Optional: chain metadata for resolving RPC URLs by chainId
+export interface ExternalBridgeConfig<
+  T extends ExternalBridgeType = ExternalBridgeType,
+> {
+  chainMetadata?: ChainMap<ChainMetadata>;
+  bridgeOptions: ExternalBridgeOptionsMap[T];
 }
 
 /**
@@ -77,13 +97,16 @@ export type BridgeTransferStatus =
  * 2. execute() - Execute the bridge transfer
  * 3. getStatus() - Poll for transfer completion
  */
-export interface IExternalBridge {
+export interface IExternalBridge<TQuoteOverrides = unknown> {
   readonly externalBridgeId: string;
   readonly logger: Logger;
 
   getNativeTokenAddress?(): string;
 
-  quote(params: BridgeQuoteParams): Promise<BridgeQuote>;
+  quote(
+    params: BridgeQuoteParams,
+    overrides?: TQuoteOverrides,
+  ): Promise<BridgeQuote>;
 
   /**
    * Execute a bridge transfer using a previously obtained quote.
@@ -111,7 +134,6 @@ export interface IExternalBridge {
 /**
  * Registry mapping external bridge types to their implementations.
  */
-export type ExternalBridgeRegistry = Record<
-  ExternalBridgeType,
-  IExternalBridge
->;
+export type ExternalBridgeRegistry = {
+  [ExternalBridgeType.LiFi]: IExternalBridge<LiFiQuoteOverrides>;
+};

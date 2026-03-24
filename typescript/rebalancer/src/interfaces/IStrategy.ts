@@ -2,6 +2,10 @@ import { type ChainMap, type ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
+import type {
+  ExternalBridgeQuoteOverridesMap,
+  LiFiQuoteOverrides,
+} from '../interfaces/IExternalBridge.js';
 import { ExecutionMethod } from '../tracking/types.js';
 
 export type RawBalances = ChainMap<bigint>;
@@ -37,10 +41,20 @@ export interface InventoryRoute extends Route {
   externalBridge: ExternalBridgeType;
 }
 
+export interface LiFiInventoryRoute extends InventoryRoute {
+  externalBridge: typeof ExternalBridgeType.LiFi;
+  quoteOverrides?: LiFiQuoteOverrides;
+}
+
+export type AnyBridgeQuoteOverrides =
+  ExternalBridgeQuoteOverridesMap[ExternalBridgeType];
+
+export type TypedInventoryRoute = LiFiInventoryRoute;
+
 /**
  * Discriminated union of route types by executionType
  */
-export type StrategyRoute = MovableCollateralRoute | InventoryRoute;
+export type StrategyRoute = MovableCollateralRoute | TypedInventoryRoute;
 
 /**
  * Type guard to check if a route is a MovableCollateralRoute
@@ -56,7 +70,7 @@ export function isMovableCollateralRoute(
  */
 export function isInventoryRoute(
   route: StrategyRoute,
-): route is InventoryRoute {
+): route is TypedInventoryRoute {
   return route.executionType === 'inventory';
 }
 
