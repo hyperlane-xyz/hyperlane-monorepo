@@ -382,7 +382,7 @@ export class SealevelHypCrossCollateralAdapter
   }
 
   async populateTransferRemoteToTx({
-    weiAmountOrId,
+    amount,
     destination,
     recipient,
     fromAccountOwner,
@@ -406,7 +406,7 @@ export class SealevelHypCrossCollateralAdapter
         sender,
         targetProgram,
         senderProgram: this.warpProgramPubKey,
-        amount: BigInt(weiAmountOrId),
+        amount: BigInt(amount),
         recipient: recipientBytes,
       });
     } else {
@@ -426,7 +426,7 @@ export class SealevelHypCrossCollateralAdapter
         keys,
         destination,
         recipientBytes,
-        amount: BigInt(weiAmountOrId),
+        amount: BigInt(amount),
         targetRouterBytes,
         sender,
         randomWallet,
@@ -437,7 +437,7 @@ export class SealevelHypCrossCollateralAdapter
       keys,
       destination,
       recipientBytes,
-      amount: BigInt(weiAmountOrId),
+      amount: BigInt(amount),
       targetRouterBytes,
       sender,
     });

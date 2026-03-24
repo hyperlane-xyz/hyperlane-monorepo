@@ -21,8 +21,15 @@ export interface TransferRemoteParams extends TransferParams {
   extraSigners?: Keypair[];
 }
 
-export interface TransferRemoteToParams extends TransferRemoteParams {
+export interface TransferRemoteToParams {
+  destination: Domain;
+  recipient: Address;
+  amount: Numberish;
   targetRouter: Address;
+  interchainGas?: InterchainGasQuote;
+  // Required for Sealevel
+  fromAccountOwner?: Address;
+  extraSigners?: Keypair[];
 }
 
 export interface QuoteTransferRemoteParams {
