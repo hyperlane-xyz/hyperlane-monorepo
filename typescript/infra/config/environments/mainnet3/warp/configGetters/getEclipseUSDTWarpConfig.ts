@@ -28,11 +28,13 @@ import {
   // getUSDCRebalancingBridgesConfigFor,
 } from './utils.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
+import { awIcas } from '../../governance/ica/aw.js';
 
 const contractVersion = '11.0.3';
 
 const usdtTokenAddresses: Record<string, string> = {
   ethereum: tokens.ethereum.USDT,
+  bsc: tokens.bsc.USDT,
   // TODO: Add more chains as they are enrolled
   // arbitrum: tokens.arbitrum.USDT,
   // base: tokens.base.USDT,
@@ -41,15 +43,48 @@ const usdtTokenAddresses: Record<string, string> = {
   solanamainnet: tokens.solanamainnet.USDT,
 };
 
-const awProxyAdminAddresses: ChainMap<string> = {
+const chainDecimals: Record<string, number> = {
+  ethereum: 6,
+  bsc: 18,
+  solanamainnet: 6,
+  eclipsemainnet: 6,
+};
+
+// Convention: use the minimum decimals as the message encoding baseline.
+// The contract does not enforce this — each router independently applies its own scale.
+// We derive scales here so that all routers agree on the same message amount encoding.
+const MESSAGE_DECIMALS = Math.min(...Object.values(chainDecimals));
+
+/**
+ * Returns the scale config for a chain based on its local decimals vs message decimals.
+ * - Chains at MESSAGE_DECIMALS: no scale (1/1, omitted)
+ * - Chains above (e.g. BSC 18-dec): scale down with {numerator: 1, denominator: 10^diff}
+ */
+function scaleDownConfig(localDecimals: number) {
+  const diff = localDecimals - MESSAGE_DECIMALS;
+  assert(
+    diff >= 0,
+    `Local decimals ${localDecimals} < message decimals ${MESSAGE_DECIMALS}`,
+  );
+  if (diff === 0) return {};
+  return { scale: { numerator: 1, denominator: Math.pow(10, diff) } };
+}
+
+const awProxyAdminAddresses: ChainMap<string | undefined> = {
   ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
+  arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
+  bsc: undefined,
+  plasma: undefined,
 };
 
 const awProxyAdminOwners: ChainMap<string | undefined> = {
   ethereum: awSafes.ethereum,
+  arbitrum: awSafes.arbitrum,
+  bsc: awSafes.bsc,
+  plasma: awSafes.plasma,
 } as const;
 
-export const evmDeploymentChains = ['ethereum'];
+export const evmDeploymentChains = ['ethereum', 'bsc'];
 
 export const nonEvmDeploymentChains = ['eclipsemainnet', 'solanamainnet'];
 
@@ -59,12 +94,6 @@ const deploymentChains = [
 ] as const;
 
 export type DeploymentChain = (typeof deploymentChains)[number];
-
-// TODO: Uncomment when adding rebalancing support
-// EVM chains with CCTP rebalancing support
-// export const rebalanceableCollateralChains = [
-//   'ethereum',
-// ] as const satisfies DeploymentChain[];
 
 // TODO: Uncomment when adding fee support
 // On-chain LinearFee parameters for already-deployed chains.
@@ -80,6 +109,9 @@ export type DeploymentChain = (typeof deploymentChains)[number];
 
 const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
+  bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd', // ICA
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA,
+  plasma: awIcas.plasma,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
 };
@@ -96,7 +128,7 @@ export interface EclipseUSDTWarpConfigOptions {
     solanamainnet: string;
   };
   tokenMetadata?: { symbol: string; name: string };
-  proxyAdmins: ChainMap<{ address: string; owner: string }>;
+  proxyAdmins: ChainMap<{ address?: string; owner: string }>;
 }
 
 export const buildEclipseUSDTWarpConfig = async (
@@ -105,54 +137,16 @@ export const buildEclipseUSDTWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ownersByChain, programIds, tokenMetadata, proxyAdmins } = options;
 
-  // TODO: Uncomment when adding rebalancing support
-  // const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
-  //   rebalanceableCollateralChains,
-  //   [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
-  // );
-
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
-
-  // Configure EVM collateral chains
-  // TODO: Uncomment when adding rebalancing support
-  // const rebalanceableSet = new Set<string>(rebalanceableCollateralChains);
 
   for (const chain of evmDeploymentChains) {
     const proxyAdmin = proxyAdmins[chain];
     assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
 
-    // TODO: Replace this block with rebalancing logic when ready:
-    // if (rebalanceableSet.has(chain)) {
-    //   const baseConfig = getRebalancingUSDCConfigForChain(
-    //     chain as (typeof rebalanceableCollateralChains)[number],
-    //     routerConfig,
-    //     ownersByChain,
-    //     rebalancingConfigByChain,
-    //   );
-    //   const destinations = rebalanceableCollateralChains.filter(
-    //     (c) => c !== chain,
-    //   );
-    //   const originFeeParams = deployedChainFeeParams[chain];
-    //   const feeParams = originFeeParams
-    //     ? Object.fromEntries(destinations.map((d) => [d, originFeeParams]))
-    //     : undefined;
-    //   chainConfig = {
-    //     ...baseConfig,
-    //     ...tokenMetadata,
-    //     proxyAdmin,
-    //     tokenFee: getFixedRoutingFeeConfig(
-    //       getWarpFeeOwner(chain),
-    //       destinations,
-    //       5n,
-    //       feeParams,
-    //     ),
-    //   };
-    // } else {
-    //   ... (current collateral config below)
-    // }
-
     const usdtToken = usdtTokenAddresses[chain];
     assert(usdtToken, `USDT address not defined for ${chain}`);
+    const decimals = chainDecimals[chain];
+    assert(decimals != null, `Decimals not defined for ${chain}`);
 
     configs.push([
       chain,
@@ -164,6 +158,8 @@ export const buildEclipseUSDTWarpConfig = async (
         proxyAdmin,
         mailbox: routerConfig[chain].mailbox,
         contractVersion,
+        decimals,
+        ...scaleDownConfig(decimals),
       },
     ]);
   }
@@ -177,6 +173,7 @@ export const buildEclipseUSDTWarpConfig = async (
       foreignDeployment: programIds.eclipsemainnet,
       owner: ownersByChain.eclipsemainnet,
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      decimals: chainDecimals.eclipsemainnet,
     },
   ]);
 
@@ -190,13 +187,14 @@ export const buildEclipseUSDTWarpConfig = async (
       foreignDeployment: programIds.solanamainnet,
       owner: ownersByChain.solanamainnet,
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      decimals: chainDecimals.solanamainnet,
     },
   ]);
 
   return Object.fromEntries(configs);
 };
 
-const awProxyAdmins: ChainMap<{ address: string; owner: string }> =
+const awProxyAdmins: ChainMap<{ address?: string; owner: string }> =
   Object.fromEntries(
     Object.entries(awProxyAdminAddresses).map(([chain, address]) => [
       chain,
@@ -221,8 +219,7 @@ export const getEclipseUSDTGnosisSafeBuilderStrategyConfig =
   getGnosisSafeBuilderStrategyConfigGenerator(
     objFilter(
       productionOwnersByChain,
-      (chain, _v): _v is string =>
-        chain !== 'solanamainnet' && chain !== 'eclipsemainnet',
+      (chain, _v): _v is string => !nonEvmDeploymentChains.includes(chain),
     ),
   );
 
