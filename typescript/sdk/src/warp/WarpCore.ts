@@ -867,6 +867,10 @@ export class WarpCore {
     const totalTokenQuoted = tokenTotals.get(tokenKey);
     if (totalTokenQuoted != null) {
       const feeOnly = totalTokenQuoted - originTokenAmount.amount;
+      assert(
+        feeOnly >= 0n,
+        `Token fee quote underflow: quoted ${totalTokenQuoted} < amount ${originTokenAmount.amount}`,
+      );
       if (feeOnly > 0n) {
         tokenFeeQuote = new TokenAmount(feeOnly, originToken);
       }
@@ -939,11 +943,26 @@ export class WarpCore {
         this.multiProvider,
         this.multiProvider.getChainName(destination),
       );
-      const isApproveRequired = await hypAdapter.isApproveRequired(
-        sender,
-        quotedCalls.address,
-        totalTokenNeeded,
-      );
+      const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+        hypAdapter.isApproveRequired(
+          sender,
+          quotedCalls.address,
+          totalTokenNeeded,
+        ),
+        hypAdapter.isRevokeApprovalRequired(sender, quotedCalls.address),
+      ]);
+      // USDT-like tokens require revoking to 0 before re-approving
+      if (isApproveRequired && isRevokeApprovalRequired) {
+        const revokeTxReq = await hypAdapter.populateApproveTx({
+          weiAmountOrId: 0,
+          recipient: quotedCalls.address,
+        });
+        transactions.push({
+          category: WarpTxCategory.Revoke,
+          type: providerType,
+          transaction: revokeTxReq,
+        } as WarpTypedTransaction); // CAST: providerType is determined at runtime from token.standard
+      }
       if (isApproveRequired) {
         const approveTxReq = await hypAdapter.populateApproveTx({
           weiAmountOrId: totalTokenNeeded,

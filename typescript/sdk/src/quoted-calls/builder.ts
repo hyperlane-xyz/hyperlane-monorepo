@@ -1,6 +1,8 @@
 import type { Address, Hex } from 'viem';
 import { zeroAddress } from 'viem';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   type Quote,
   encodeExecuteCalldata,
@@ -139,7 +141,11 @@ export function buildExecuteCalldata(
   // The transfer command is the last command in feeQuotes
   // (index = number of quotes, since quoteExecute had [SUBMIT_QUOTE×N, TRANSFER])
   const transferCommandIndex = params.quotes.length;
-  const transferQuotes = params.feeQuotes[transferCommandIndex] ?? [];
+  assert(
+    params.feeQuotes.length > transferCommandIndex,
+    `feeQuotes has ${params.feeQuotes.length} entries but transfer command is at index ${transferCommandIndex}`,
+  );
+  const transferQuotes = params.feeQuotes[transferCommandIndex];
 
   // Extract per-command native value and token approval from the transfer quotes
   let transferNativeValue = 0n;
@@ -171,9 +177,10 @@ export function buildExecuteCalldata(
   // 2. Token pull (skip for native routes)
   if (!isNativeRoute && totalTokenNeeded > 0n) {
     if (params.tokenPullMode === TokenPullMode.Permit2) {
-      if (!params.permit2Data) {
-        throw new Error('permit2Data required when tokenPullMode is Permit2');
-      }
+      assert(
+        params.permit2Data != null,
+        'permit2Data required when tokenPullMode is Permit2',
+      );
       commands.push(QuotedCallsCommand.PERMIT2_PERMIT);
       inputs.push(encodePermit2PermitInput(params.permit2Data));
 
