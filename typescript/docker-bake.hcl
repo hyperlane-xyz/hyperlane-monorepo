@@ -45,6 +45,7 @@ target "ncc-services" {
       { name = "ccip-server", dir = "ccip-server", package = "@hyperlane-xyz/ccip-server", image = "hyperlane-offchain-lookup-server", port = "3000" },
       { name = "keyfunder", dir = "keyfunder", package = "@hyperlane-xyz/keyfunder", image = "hyperlane-key-funder", port="" },
       { name = "relayer", dir = "relayer", package = "@hyperlane-xyz/relayer", image = "hyperlane-ts-relayer", port="" },
+      { name = "fee-quoting", dir = "fee-quoting", package = "@hyperlane-xyz/fee-quoting", image = "hyperlane-fee-quoting", port = "8080" },
     ]
   }
 

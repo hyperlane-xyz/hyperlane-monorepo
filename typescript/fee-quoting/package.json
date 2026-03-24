@@ -14,6 +14,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/scripts/run-server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "dev": "tsx watch scripts/run-server.ts",
     "start": "tsx scripts/run-server.ts",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
@@ -42,6 +43,7 @@
     "@types/node": "catalog:",
     "@types/supertest": "^6",
     "@types/yargs": "catalog:",
+    "@vercel/ncc": "catalog:",
     "c8": "catalog:",
     "chai": "catalog:",
     "mocha": "catalog:",

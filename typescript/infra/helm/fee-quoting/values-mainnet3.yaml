@@ -1,0 +1,12 @@
+hyperlane:
+  runEnv: mainnet3
+
+env:
+  - name: PORT
+    value: '8080'
+  - name: QUOTE_MODE
+    value: 'transient'
+  - name: WARP_ROUTE_IDS
+    value: 'USDC/eclipsemainnet'
+  - name: REGISTRY_URI
+    value: 'https://github.com/hyperlane-xyz/hyperlane-registry'
