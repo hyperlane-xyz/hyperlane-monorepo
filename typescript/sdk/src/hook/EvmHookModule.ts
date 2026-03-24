@@ -1,12 +1,15 @@
 import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
 
+import { compareVersions } from 'compare-versions';
+
 import {
   AmountRoutingHook,
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
   CCIPHook,
   CCIPHook__factory,
+  CONTRACTS_PACKAGE_VERSION,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -17,8 +20,10 @@ import {
   OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
+  PackageVersioned__factory,
   PausableHook,
   PausableHook__factory,
+  ProxyAdmin__factory,
   ProtocolFee,
   ProtocolFee__factory,
   StaticAggregationHook,
@@ -52,6 +57,7 @@ import {
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -391,7 +397,44 @@ export class EvmHookModule extends HyperlaneModule<
     targetConfig: IgpHookConfig;
   }): Promise<AnnotatedEV5Transaction[]> {
     const updateTxs: AnnotatedEV5Transaction[] = [];
+    const igpAddress = this.args.addresses.deployedHook;
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
+    const provider = this.multiProvider.getProvider(this.domainId);
+
+    // Upgrade IGP proxy implementation if outdated
+    if (await isProxy(provider, igpAddress)) {
+      const currentVersion = await PackageVersioned__factory.connect(
+        igpAddress,
+        provider,
+      )
+        .PACKAGE_VERSION()
+        .catch(() => undefined);
+
+      if (
+        !currentVersion ||
+        compareVersions(CONTRACTS_PACKAGE_VERSION, currentVersion) > 0
+      ) {
+        this.logger.info(
+          `Upgrading IGP implementation from ${currentVersion ?? 'unknown'} to ${CONTRACTS_PACKAGE_VERSION}`,
+        );
+        const newImpl = await this.deployer.deployContractFromFactory(
+          this.chain,
+          new InterchainGasPaymaster__factory(),
+          HookType.INTERCHAIN_GAS_PAYMASTER,
+          [],
+        );
+        const igpProxyAdmin = await proxyAdmin(provider, igpAddress);
+        updateTxs.push({
+          annotation: `Upgrade IGP proxy implementation to ${CONTRACTS_PACKAGE_VERSION}`,
+          chainId: this.chainId,
+          to: igpProxyAdmin,
+          data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+            'upgrade',
+            [igpAddress, newImpl.address],
+          ),
+        });
+      }
+    }
 
     // Update beneficiary if changed
     if (!eqAddress(currentConfig.beneficiary, targetConfig.beneficiary)) {
