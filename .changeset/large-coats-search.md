@@ -4,4 +4,4 @@
 "@hyperlane-xyz/utils": patch
 ---
 
-Fix Tron GasEstimation & TxBuilding for the WalletIntegration.
+Fixed Tron gas estimation and transaction building for wallet integration.

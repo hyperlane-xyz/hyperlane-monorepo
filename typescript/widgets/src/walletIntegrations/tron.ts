@@ -142,7 +142,7 @@ export function useTronTransactionFns(
         let tronWebUrl = (provider.provider as TronJsonRpcProvider).host;
         // Remove /jsonrpc suffix if present, as TronTransactionBuilder expects the base URL
         tronWebUrl = tronWebUrl.replace('/jsonrpc', '');
-        const txBuilder = new TronTransactionBuilder(tronWebUrl, address!);
+        const txBuilder = new TronTransactionBuilder(tronWebUrl, address);
         const tronTx = await txBuilder.buildTransaction(ethersTx);
 
         const signedTransaction = await signTransaction(tronTx);
