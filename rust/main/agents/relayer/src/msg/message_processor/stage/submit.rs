@@ -75,7 +75,7 @@ pub(crate) async fn filter_operations_for_submit(
             }
             PostSubmitFailure => {
                 let id = op.id();
-                warn!("Failed to submit message, routing to prepare queue: message_id={id:?}");
+                warn!(message_id = ?id, "Failed to submit message, routing to prepare queue");
                 metrics.inc_failed(op.app_context());
                 prepare_queue
                     .push(op, Some(Retry(ReprepareReason::ErrorSubmitting)))
