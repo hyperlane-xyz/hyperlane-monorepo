@@ -4,6 +4,8 @@ export {
   EvmTokenFeeReader,
 } from './fee/EvmTokenFeeReader.js';
 
+export * from './quoted-calls/index.js';
+
 export {
   isAddressActive,
   isContractAddress,

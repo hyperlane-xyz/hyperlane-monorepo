@@ -22,6 +22,14 @@ import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
 import { ChainName } from '../types.js';
 
+import { encodeAbiParameters, zeroAddress } from 'viem';
+
+import type {
+  QuotedCallsParams,
+  SubmitQuoteCommand,
+} from '../quoted-calls/types.js';
+import { TokenPullMode } from '../quoted-calls/types.js';
+
 import { WarpCore } from './WarpCore.js';
 import { WarpTxCategory } from './types.js';
 
@@ -967,6 +975,184 @@ describe('WarpCore', () => {
     await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
 
     coreStub.restore();
+    adapterStubs.forEach((s) => s.restore());
+  });
+
+  // ============ QuotedCalls tests ============
+
+  const MOCK_QUOTED_CALLS_ADDRESS =
+    '0x0000000000000000000000000000000000AC0101' as `0x${string}`;
+  const MOCK_CLIENT_SALT =
+    '0x5555555555555555555555555555555555555555555555555555555555555555' as `0x${string}`;
+  const MOCK_SUBMIT_QUOTE: SubmitQuoteCommand = {
+    quoter: '0x000000000000000000000000000000000000aa01',
+    quote: {
+      context: '0xdeadbeef',
+      data: '0xcafebabe',
+      issuedAt: 1000,
+      expiry: 1000,
+      salt: MOCK_CLIENT_SALT,
+      submitter: MOCK_QUOTED_CALLS_ADDRESS,
+    },
+    signature: '0xaabb',
+  };
+
+  // Encode a mock quoteExecute return value (Quote[][])
+  function encodeMockQuoteResult(
+    results: Array<Array<{ token: string; amount: bigint }>>,
+  ): string {
+    return encodeAbiParameters(
+      [
+        {
+          type: 'tuple[][]',
+          components: [
+            { name: 'token', type: 'address' },
+            { name: 'amount', type: 'uint256' },
+          ],
+        },
+      ],
+      [results],
+    );
+  }
+
+  it('Gets quoted transfer fee via quoteExecute', async () => {
+    const mockQuoteResult = encodeMockQuoteResult([
+      [], // SUBMIT_QUOTE
+      [
+        // TRANSFER_REMOTE
+        { token: zeroAddress, amount: 500n },
+        {
+          token: evmHypSynthetic.addressOrDenom,
+          amount: TRANSFER_AMOUNT + 100n,
+        },
+        { token: evmHypSynthetic.addressOrDenom, amount: 50n },
+      ],
+    ]);
+
+    const providerStub = sinon
+      .stub(multiProvider, 'getEthersV5Provider')
+      .returns({
+        call: () => Promise.resolve(mockQuoteResult),
+      } as any);
+
+    try {
+      const quotedCalls: QuotedCallsParams = {
+        address: MOCK_QUOTED_CALLS_ADDRESS,
+        quotes: [MOCK_SUBMIT_QUOTE],
+        clientSalt: MOCK_CLIENT_SALT,
+        tokenPullMode: TokenPullMode.TransferFrom,
+      };
+
+      const result = await warpCore.getQuotedTransferFee({
+        originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        quotedCalls,
+      });
+
+      expect(result.igpQuote.amount).to.equal(500n);
+      expect(result.tokenFeeQuote?.amount).to.equal(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
+      expect(result.feeQuotes).to.have.length(2);
+    } finally {
+      providerStub.restore();
+    }
+  });
+
+  it('Gets quoted transfer remote txs with approval', async () => {
+    const mockQuoteResult = encodeMockQuoteResult([
+      [], // SUBMIT_QUOTE
+      [
+        // TRANSFER_REMOTE
+        { token: zeroAddress, amount: 500n },
+        {
+          token: evmHypSynthetic.addressOrDenom,
+          amount: TRANSFER_AMOUNT + 100n,
+        },
+      ],
+    ]);
+
+    const providerStub = sinon
+      .stub(multiProvider, 'getEthersV5Provider')
+      .returns({
+        call: () => Promise.resolve(mockQuoteResult),
+      } as any);
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        isApproveRequired: () => Promise.resolve(true),
+        populateApproveTx: () =>
+          Promise.resolve({ to: MOCK_QUOTED_CALLS_ADDRESS, data: '0x' }),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    try {
+      const quotedCalls: QuotedCallsParams = {
+        address: MOCK_QUOTED_CALLS_ADDRESS,
+        quotes: [MOCK_SUBMIT_QUOTE],
+        clientSalt: MOCK_CLIENT_SALT,
+        tokenPullMode: TokenPullMode.TransferFrom,
+      };
+
+      const result = await warpCore.getTransferRemoteTxs({
+        originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        quotedCalls,
+      });
+
+      // Should have [Approval, Transfer]
+      expect(result.length).to.equal(2);
+      expect(result[0].category).to.equal(WarpTxCategory.Approval);
+      expect(result[1].category).to.equal(WarpTxCategory.Transfer);
+      expect(result[1].type).to.equal(ProviderType.EthersV5);
+    } finally {
+      providerStub.restore();
+      adapterStubs.forEach((s) => s.restore());
+    }
+  });
+
+  it('Skips quoteExecute when feeQuotes are pre-provided', async () => {
+    const precomputedFeeQuotes = [
+      [] as Array<{ token: `0x${string}`; amount: bigint }>,
+      [
+        { token: zeroAddress as `0x${string}`, amount: 500n },
+        {
+          token: evmHypSynthetic.addressOrDenom as `0x${string}`,
+          amount: TRANSFER_AMOUNT + 100n,
+        },
+      ],
+    ];
+
+    // No provider stub — if quoteExecute were called, it would fail
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        isApproveRequired: () => Promise.resolve(false),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const quotedCalls: QuotedCallsParams = {
+      address: MOCK_QUOTED_CALLS_ADDRESS,
+      quotes: [MOCK_SUBMIT_QUOTE],
+      clientSalt: MOCK_CLIENT_SALT,
+      tokenPullMode: TokenPullMode.TransferFrom,
+      feeQuotes: precomputedFeeQuotes,
+    };
+
+    const result = await warpCore.getTransferRemoteTxs({
+      originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
+      destination: test2.name,
+      sender: MOCK_ADDRESS,
+      recipient: MOCK_ADDRESS,
+      quotedCalls,
+    });
+
+    // No approval needed, just Transfer
+    expect(result.length).to.equal(1);
+    expect(result[0].category).to.equal(WarpTxCategory.Transfer);
+
     adapterStubs.forEach((s) => s.restore());
   });
 });

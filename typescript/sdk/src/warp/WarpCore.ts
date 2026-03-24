@@ -5,6 +5,7 @@ import {
   HexString,
   Numberish,
   ProtocolType,
+  addressToBytes32,
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
@@ -43,6 +44,17 @@ import {
   IHypXERC20Adapter,
   InterchainGasQuote,
 } from '../token/adapters/ITokenAdapter.js';
+import {
+  buildExecuteCalldata,
+  buildQuoteCalldata,
+} from '../quoted-calls/builder.js';
+import type { Quote } from '../quoted-calls/codec.js';
+import {
+  decodeQuoteExecuteResult,
+  extractQuoteTotals,
+} from '../quoted-calls/codec.js';
+import type { QuotedCallsParams } from '../quoted-calls/types.js';
+import { TokenPullMode } from '../quoted-calls/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -416,6 +428,7 @@ export class WarpCore {
     interchainFee,
     tokenFeeQuote,
     destinationToken,
+    quotedCalls,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
@@ -424,7 +437,22 @@ export class WarpCore {
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
     destinationToken?: IToken;
+    /** When provided, builds an atomic QuotedCalls.execute() tx instead of separate approve+transfer */
+    quotedCalls?: QuotedCallsParams;
   }): Promise<Array<WarpTypedTransaction>> {
+    // QuotedCalls atomic path — single execute() tx with quotes + token pull + transfer + sweep
+    if (quotedCalls) {
+      return this.getQuotedCallsTransferTxs({
+        originTokenAmount,
+        destination,
+        sender,
+        recipient,
+        quotedCalls,
+        destinationToken,
+        feeQuotes: quotedCalls.feeQuotes,
+      });
+    }
+
     // Check if this is a CrossCollateralRouter transfer
     if (
       destinationToken &&
@@ -704,6 +732,239 @@ export class WarpCore {
       category: WarpTxCategory.Transfer,
       type: providerType,
       transaction: txReq,
+    } as WarpTypedTransaction);
+
+    return transactions;
+  }
+
+  /**
+   * Resolve common params for QuotedCalls operations.
+   */
+  protected resolveQuotedCallsParams({
+    originTokenAmount,
+    destination,
+    recipient,
+    quotedCalls,
+    destinationToken,
+  }: {
+    originTokenAmount: TokenAmount;
+    destination: ChainNameOrId;
+    recipient: Address;
+    quotedCalls: QuotedCallsParams;
+    destinationToken?: IToken;
+  }) {
+    const { token, amount } = originTokenAmount;
+    assert(
+      isEVMLike(token.protocol),
+      'QuotedCalls is only supported on EVM origins',
+    );
+
+    const destinationDomainId = this.multiProvider.getDomainId(destination);
+    // For collateral routes, the ERC20 token is collateralAddressOrDenom.
+    // For synthetic/native routes, use addressOrDenom (the router itself).
+    // Only treat as native (zeroAddress) if collateral is explicitly address(0).
+    const collateral = token.collateralAddressOrDenom;
+    const tokenAddress = (
+      collateral && !isZeroishAddress(collateral)
+        ? collateral
+        : token.isNft() || token.isNative()
+          ? '0x0000000000000000000000000000000000000000'
+          : token.addressOrDenom
+    ) as `0x${string}`;
+
+    let targetRouter: `0x${string}` | undefined;
+    if (
+      destinationToken &&
+      this.isCrossCollateralTransfer(token, destinationToken)
+    ) {
+      const resolved = this.resolveDestinationToken({
+        originToken: token,
+        destination,
+        destinationToken,
+      });
+      assert(
+        resolved.addressOrDenom,
+        'Destination token missing addressOrDenom for cross-collateral',
+      );
+      targetRouter = addressToBytes32(resolved.addressOrDenom) as `0x${string}`;
+    }
+
+    return {
+      quotedCallsAddress: quotedCalls.address,
+      warpRoute: token.addressOrDenom as `0x${string}`,
+      destination: destinationDomainId,
+      recipient: addressToBytes32(recipient) as `0x${string}`,
+      amount,
+      token: tokenAddress,
+      quotes: quotedCalls.quotes,
+      clientSalt: quotedCalls.clientSalt,
+      targetRouter,
+    };
+  }
+
+  /**
+   * Quote fees for a QuotedCalls transfer via quoteExecute eth_call.
+   * Returns structured fee data (like getInterchainTransferFee) plus
+   * the raw Quote[][] needed to build the execute tx.
+   */
+  async getQuotedTransferFee({
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    quotedCalls,
+    destinationToken,
+  }: {
+    originTokenAmount: TokenAmount;
+    destination: ChainNameOrId;
+    sender: Address;
+    recipient: Address;
+    quotedCalls: QuotedCallsParams;
+    destinationToken?: IToken;
+  }): Promise<{
+    igpQuote: TokenAmount;
+    tokenFeeQuote?: TokenAmount;
+    /** Raw per-command quotes — pass to getTransferRemoteTxs */
+    feeQuotes: Quote[][];
+  }> {
+    const { token: originToken } = originTokenAmount;
+    const originName = originToken.chainName;
+
+    const transferParams = this.resolveQuotedCallsParams({
+      originTokenAmount,
+      destination,
+      recipient,
+      quotedCalls,
+      destinationToken,
+    });
+
+    const quoteTx = buildQuoteCalldata(transferParams);
+    const provider = this.multiProvider.getEthersV5Provider(originName);
+    const quoteResult = await provider.call({
+      to: quoteTx.to,
+      data: quoteTx.data,
+      from: sender,
+    });
+    const feeQuotes = decodeQuoteExecuteResult(quoteResult as `0x${string}`);
+    const { nativeValue, tokenTotals } = extractQuoteTotals(feeQuotes);
+
+    // Build structured fee amounts matching getInterchainTransferFee return shape
+    const nativeToken = Token.FromChainMetadataNativeToken(
+      this.multiProvider.getChainMetadata(originName),
+    );
+    const igpQuote = new TokenAmount(nativeValue, nativeToken);
+
+    // Token fees = total ERC20 quoted minus the transfer amount
+    let tokenFeeQuote: TokenAmount | undefined;
+    const tokenAddress = transferParams.token as `0x${string}`;
+    const totalTokenQuoted = tokenTotals.get(tokenAddress);
+    if (totalTokenQuoted != null) {
+      const feeOnly = totalTokenQuoted - originTokenAmount.amount;
+      if (feeOnly > 0n) {
+        tokenFeeQuote = new TokenAmount(feeOnly, originToken);
+      }
+    }
+
+    return { igpQuote, tokenFeeQuote, feeQuotes };
+  }
+
+  /**
+   * Build transactions for a QuotedCalls atomic transfer.
+   * Returns [approval (if needed), execute] transactions.
+   *
+   * @param feeQuotes Raw Quote[][] from getQuotedTransferFee.
+   *   If not provided, calls quoteExecute internally.
+   */
+  protected async getQuotedCallsTransferTxs({
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    quotedCalls,
+    destinationToken,
+    feeQuotes,
+  }: {
+    originTokenAmount: TokenAmount;
+    destination: ChainNameOrId;
+    sender: Address;
+    recipient: Address;
+    quotedCalls: QuotedCallsParams;
+    destinationToken?: IToken;
+    feeQuotes?: Quote[][];
+  }): Promise<Array<WarpTypedTransaction>> {
+    const { token } = originTokenAmount;
+    const transactions: Array<WarpTypedTransaction> = [];
+
+    const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
+
+    const transferParams = this.resolveQuotedCallsParams({
+      originTokenAmount,
+      destination,
+      recipient,
+      quotedCalls,
+      destinationToken,
+    });
+
+    // Get fee quotes if not provided
+    if (!feeQuotes) {
+      const fees = await this.getQuotedTransferFee({
+        originTokenAmount,
+        destination,
+        sender,
+        recipient,
+        quotedCalls,
+        destinationToken,
+      });
+      feeQuotes = fees.feeQuotes;
+    }
+
+    const { tokenTotals } = extractQuoteTotals(feeQuotes);
+    const totalTokenNeeded =
+      tokenTotals.get(transferParams.token as `0x${string}`) ?? 0n;
+
+    // Check approval for QuotedCalls (TransferFrom mode)
+    if (
+      quotedCalls.tokenPullMode === TokenPullMode.TransferFrom &&
+      totalTokenNeeded > 0n
+    ) {
+      const hypAdapter = token.getHypAdapter(
+        this.multiProvider,
+        this.multiProvider.getChainName(destination),
+      );
+      const isApproveRequired = await hypAdapter.isApproveRequired(
+        sender,
+        quotedCalls.address,
+        totalTokenNeeded,
+      );
+      if (isApproveRequired) {
+        const approveTxReq = await hypAdapter.populateApproveTx({
+          weiAmountOrId: totalTokenNeeded,
+          recipient: quotedCalls.address,
+        });
+        transactions.push({
+          category: WarpTxCategory.Approval,
+          type: providerType,
+          transaction: approveTxReq,
+        } as WarpTypedTransaction);
+      }
+    }
+
+    // Build execute tx with exact fee amounts
+    const executeTx = buildExecuteCalldata({
+      ...transferParams,
+      feeQuotes,
+      tokenPullMode: quotedCalls.tokenPullMode,
+      permit2Data: quotedCalls.permit2Data,
+    });
+
+    transactions.push({
+      category: WarpTxCategory.Transfer,
+      type: providerType,
+      transaction: {
+        to: executeTx.to,
+        data: executeTx.data,
+        value: executeTx.value.toString(),
+      },
     } as WarpTypedTransaction);
 
     return transactions;
