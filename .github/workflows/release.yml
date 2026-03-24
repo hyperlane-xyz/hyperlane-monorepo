@@ -291,45 +291,27 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   notify-publish-failure:
-    if: always()
-    needs:
-      [
-        check-latest-published,
-        cli-install-cross-platform-release-test,
-        publish-release,
-        publish-beta,
-      ]
+    if: always() && needs.publish-release.result == 'failure'
+    needs: [publish-release]
     runs-on: ubuntu-latest
     steps:
       - name: Notify Slack on publish failure
-        if: >-
-          needs.publish-release.result == 'failure' ||
-          needs.publish-beta.result == 'failure' ||
-          needs.check-latest-published.result == 'failure' ||
-          needs.cli-install-cross-platform-release-test.result == 'failure'
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
         run: |
-          FAILED_JOBS=""
-          [[ "${{ needs.check-latest-published.result }}" == "failure" ]] && FAILED_JOBS+=$'\n• check-latest-published'
-          [[ "${{ needs.cli-install-cross-platform-release-test.result }}" == "failure" ]] && FAILED_JOBS+=$'\n• cli-install-cross-platform-release-test'
-          [[ "${{ needs.publish-release.result }}" == "failure" ]] && FAILED_JOBS+=$'\n• publish-release'
-          [[ "${{ needs.publish-beta.result }}" == "failure" ]] && FAILED_JOBS+=$'\n• publish-beta'
-
           jq -n \
             --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --arg run_number "${{ github.run_number }}" \
             --arg branch "${{ github.ref_name }}" \
             --arg sha "${GITHUB_SHA::7}" \
             --arg commit_url "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}" \
-            --arg failed_jobs "$FAILED_JOBS" \
             '{
               text: ":warning: NPM Package Publish Failed",
               blocks: [{
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: (":warning: *NPM Package Publish Failed*\n\n*Run:* <" + $run_url + "|Release #" + $run_number + ">\n*Branch:* `" + $branch + "`\n*Commit:* <" + $commit_url + "|`" + $sha + "`>\n\n*Failed jobs:*" + $failed_jobs)
+                  text: (":warning: *NPM Package Publish Failed*\n\n*Run:* <" + $run_url + "|Release #" + $run_number + ">\n*Branch:* `" + $branch + "`\n*Commit:* <" + $commit_url + "|`" + $sha + "`>")
                 }
               }]
             }' | curl -sf -X POST "$SLACK_WEBHOOK" \
