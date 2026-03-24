@@ -51,7 +51,6 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       // Cap the priority fee to prevent the gas escalation logic from
       // driving the effective gas price too high (median was 297 gwei without this).
       maxPriorityFeePerGas: 15 * 10 ** 9, // 15 gwei tip
-      maxFeePerGas: 120 * 10 ** 9, // 120 gwei cap (base fee is fixed at 99 gwei)
     },
   },
 };
