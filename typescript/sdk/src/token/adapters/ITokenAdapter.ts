@@ -21,6 +21,10 @@ export interface TransferRemoteParams extends TransferParams {
   extraSigners?: Keypair[];
 }
 
+export interface TransferRemoteToParams extends TransferRemoteParams {
+  targetRouter: Address;
+}
+
 export interface QuoteTransferRemoteParams {
   destination: Domain;
   sender?: Address;
@@ -140,6 +144,17 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
 
 export interface IXERC20Adapter<Tx> extends ITokenAdapter<Tx> {
   getLimits(bridge: Address): Promise<xERC20Limits>;
+}
+
+export interface IHypCrossCollateralAdapter<Tx> extends IHypTokenAdapter<Tx> {
+  quoteTransferRemoteToGas(params: {
+    destination: Domain;
+    recipient: Address;
+    amount: Numberish;
+    targetRouter: Address;
+    sender?: Address;
+  }): Promise<InterchainGasQuote>;
+  populateTransferRemoteToTx(params: TransferRemoteToParams): Promise<Tx>;
 }
 
 export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
