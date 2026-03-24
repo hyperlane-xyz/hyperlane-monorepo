@@ -1,4 +1,5 @@
-import { type Address, type Hex, zeroAddress } from 'viem';
+import type { Address, Hex } from 'viem';
+import { zeroAddress } from 'viem';
 
 import {
   type Quote,
@@ -144,7 +145,7 @@ export function buildExecuteCalldata(
   let transferNativeValue = 0n;
   let transferTokenApproval = 0n;
   for (const q of transferQuotes) {
-    if (q.token === zeroAddress) {
+    if (q.token.toLowerCase() === zeroAddress) {
       transferNativeValue += q.amount;
     } else {
       transferTokenApproval += q.amount;
@@ -152,12 +153,14 @@ export function buildExecuteCalldata(
   }
 
   // Total ERC20 to pull = sum of all token fees across all commands
+  // sumQuotesByToken normalizes keys to lowercase
   const { nativeValue: totalNativeValue, tokenTotals } = extractQuoteTotals(
     params.feeQuotes,
   );
+  const tokenKey = params.token.toLowerCase() as Address;
   const totalTokenNeeded = isNativeRoute
     ? 0n
-    : (tokenTotals.get(params.token) ?? 0n);
+    : (tokenTotals.get(tokenKey) ?? 0n);
 
   // 1. Submit quotes
   for (const cmd of params.quotes) {
@@ -218,9 +221,11 @@ export function buildExecuteCalldata(
   commands.push(QuotedCallsCommand.SWEEP);
   inputs.push(encodeSweepInput(params.token));
 
-  // msg.value = total native fees across all commands + transfer amount if native route
-  const nativeTransferAmount = isNativeRoute ? params.amount : 0n;
-  const value = totalNativeValue + nativeTransferAmount;
+  // msg.value = total native value from quotes.
+  // For native routes, quoteTransferRemote already includes the transfer amount
+  // in the native quotes (Quote({token: address(0), amount: _amount + feeAmount})),
+  // so we don't add params.amount again.
+  const value = totalNativeValue;
 
   return {
     to: params.quotedCallsAddress,

@@ -293,12 +293,13 @@ export function decodeQuoteExecuteResult(data: Hex): Quote[][] {
   );
 }
 
-/** Sum Quote[][] into totals per token address */
+/** Sum Quote[][] into totals per token address (normalized to lowercase) */
 export function sumQuotesByToken(results: Quote[][]): Map<Address, bigint> {
   const totals = new Map<Address, bigint>();
   for (const perCommand of results) {
     for (const q of perCommand) {
-      totals.set(q.token, (totals.get(q.token) ?? 0n) + q.amount);
+      const key = q.token.toLowerCase() as Address;
+      totals.set(key, (totals.get(key) ?? 0n) + q.amount);
     }
   }
   return totals;

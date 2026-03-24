@@ -848,16 +848,23 @@ export class WarpCore {
     const feeQuotes = decodeQuoteExecuteResult(quoteResult as `0x${string}`);
     const { nativeValue, tokenTotals } = extractQuoteTotals(feeQuotes);
 
-    // Build structured fee amounts matching getInterchainTransferFee return shape
+    // Build structured fee amounts matching getInterchainTransferFee return shape.
+    // For native routes, quoteTransferRemote includes the transfer amount in
+    // the native quotes, so we subtract it to get the fee-only portion.
+    const isNativeRoute = isZeroishAddress(transferParams.token);
     const nativeToken = Token.FromChainMetadataNativeToken(
       this.multiProvider.getChainMetadata(originName),
     );
-    const igpQuote = new TokenAmount(nativeValue, nativeToken);
+    const igpFeeOnly = isNativeRoute
+      ? nativeValue - originTokenAmount.amount
+      : nativeValue;
+    const igpQuote = new TokenAmount(igpFeeOnly, nativeToken);
 
     // Token fees = total ERC20 quoted minus the transfer amount
+    // sumQuotesByToken normalizes keys to lowercase
     let tokenFeeQuote: TokenAmount | undefined;
-    const tokenAddress = transferParams.token as `0x${string}`;
-    const totalTokenQuoted = tokenTotals.get(tokenAddress);
+    const tokenKey = transferParams.token.toLowerCase() as `0x${string}`;
+    const totalTokenQuoted = tokenTotals.get(tokenKey);
     if (totalTokenQuoted != null) {
       const feeOnly = totalTokenQuoted - originTokenAmount.amount;
       if (feeOnly > 0n) {
@@ -920,7 +927,8 @@ export class WarpCore {
 
     const { tokenTotals } = extractQuoteTotals(feeQuotes);
     const totalTokenNeeded =
-      tokenTotals.get(transferParams.token as `0x${string}`) ?? 0n;
+      tokenTotals.get(transferParams.token.toLowerCase() as `0x${string}`) ??
+      0n;
 
     // Check approval for QuotedCalls (TransferFrom mode)
     if (
@@ -945,7 +953,7 @@ export class WarpCore {
           category: WarpTxCategory.Approval,
           type: providerType,
           transaction: approveTxReq,
-        } as WarpTypedTransaction);
+        } as WarpTypedTransaction); // CAST: providerType is determined at runtime from token.standard
       }
     }
 
@@ -965,7 +973,7 @@ export class WarpCore {
         data: executeTx.data,
         value: executeTx.value.toString(),
       },
-    } as WarpTypedTransaction);
+    } as WarpTypedTransaction); // CAST: providerType is determined at runtime from token.standard
 
     return transactions;
   }

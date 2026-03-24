@@ -178,8 +178,8 @@ describe('buildExecuteCalldata', () => {
       tokenPullMode: TokenPullMode.TransferFrom,
     });
 
-    // msg.value = native fees (5100) + transfer amount (5000)
-    expect(result.value).to.equal(10100n);
+    // msg.value = native total from quotes (5100 already includes transfer amount)
+    expect(result.value).to.equal(5100n);
 
     const { commands } = decodeCommands(result.data);
     // No TRANSFER_FROM for native route

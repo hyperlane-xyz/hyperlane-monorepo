@@ -457,6 +457,7 @@ contract QuotedCalls is PackageVersioned {
     ) internal returns (Quote[] memory) {
         if (command == SUBMIT_QUOTE) {
             _submitQuote(input);
+            return new Quote[](0);
         } else if (command == TRANSFER_REMOTE) {
             return _quoteTransferRemote(input);
         } else if (command == TRANSFER_REMOTE_TO) {
@@ -467,6 +468,12 @@ contract QuotedCalls is PackageVersioned {
             return _quoteCallRemoteCommitReveal(input);
         }
         // PERMIT2_PERMIT, PERMIT2_TRANSFER_FROM, TRANSFER_FROM, SWEEP: skip
+        if (
+            command != PERMIT2_PERMIT &&
+            command != PERMIT2_TRANSFER_FROM &&
+            command != TRANSFER_FROM &&
+            command != SWEEP
+        ) revert InvalidCommandType(command);
         return new Quote[](0);
     }
 
