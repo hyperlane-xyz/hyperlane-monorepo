@@ -1,10 +1,14 @@
 import {
   AccountMeta,
+  Message,
   PublicKey,
   SystemProgram,
   Transaction,
+  TransactionInstruction,
+  VersionedTransaction,
 } from '@solana/web3.js';
-import { Address } from '@hyperlane-xyz/utils';
+import { serialize } from 'borsh';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
 import {
@@ -16,6 +20,18 @@ import { ChainName } from '../../types.js';
 
 import type { IHypCrossCollateralAdapter } from './ITokenAdapter.js';
 import { SealevelHypCollateralAdapter } from './SealevelTokenAdapter.js';
+import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
+import {
+  SealevelCCHandleLocalInstruction,
+  SealevelCCHandleLocalSchema,
+  SealevelCCInstructionKind,
+} from './serialization.js';
+
+// CC program discriminator (8 bytes of 2s)
+const CC_DISCRIMINATOR = Buffer.from([2, 2, 2, 2, 2, 2, 2, 2]);
+
+// Each SerializableAccountMeta is: pubkey (32) + is_signer (1) + is_writable (1) = 34 bytes
+const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
 
 export class SealevelHypCrossCollateralAdapter
   extends SealevelHypCollateralAdapter
@@ -190,6 +206,87 @@ export class SealevelHypCrossCollateralAdapter
     ];
 
     return keys;
+  }
+
+  // Simulates the HandleLocalAccountMetas instruction to discover the
+  // accounts needed by the target program's HandleLocal CPI call.
+  // Same simulation pattern as SealevelIgpAdapter.quoteGasPayment.
+  async simulateHandleLocalAccountMetas({
+    targetProgram,
+    senderProgram,
+    amount,
+    recipient,
+    payer,
+  }: {
+    targetProgram: PublicKey;
+    senderProgram: PublicKey;
+    amount: bigint;
+    recipient: Uint8Array;
+    payer: PublicKey;
+  }): Promise<Array<AccountMeta>> {
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelCCInstructionKind.HandleLocalAccountMetas,
+      data: new SealevelCCHandleLocalInstruction({
+        sender_program_id: senderProgram.toBytes(),
+        amount_or_id: amount,
+        recipient,
+      }),
+    });
+    const serializedData = serialize(SealevelCCHandleLocalSchema, value);
+
+    const instruction = new TransactionInstruction({
+      keys: [
+        // The token PDA account.
+        {
+          pubkey: this.deriveHypTokenAccount(),
+          isSigner: false,
+          isWritable: false,
+        },
+        // The CC state PDA account.
+        {
+          pubkey: this.deriveCrossCollateralStatePda(),
+          isSigner: false,
+          isWritable: false,
+        },
+        // The target program (executable).
+        { pubkey: targetProgram, isSigner: false, isWritable: false },
+      ],
+      programId: this.warpProgramPubKey,
+      data: Buffer.concat([CC_DISCRIMINATOR, Buffer.from(serializedData)]),
+    });
+
+    const message = Message.compile({
+      recentBlockhash: PublicKey.default.toBase58(),
+      instructions: [instruction],
+      payerKey: payer,
+    });
+
+    const tx = new VersionedTransaction(message);
+    const connection = this.getProvider();
+    const simulationResponse = await connection.simulateTransaction(tx, {
+      replaceRecentBlockhash: true,
+      sigVerify: false,
+    });
+
+    const base64Data = simulationResponse.value.returnData?.data?.[0];
+    assert(
+      base64Data,
+      'No return data from HandleLocalAccountMetas simulation',
+    );
+
+    const data = Buffer.from(base64Data, 'base64');
+    // First 4 bytes are the Vec length (little-endian u32)
+    const count = data.readUInt32LE(0);
+    const accountMetas: Array<AccountMeta> = [];
+    for (let i = 0; i < count; i++) {
+      const offset = 4 + i * SERIALIZABLE_ACCOUNT_META_SIZE;
+      const pubkey = new PublicKey(data.subarray(offset, offset + 32));
+      const isSigner = data[offset + 32] !== 0;
+      const isWritable = data[offset + 33] !== 0;
+      accountMetas.push({ pubkey, isSigner, isWritable });
+    }
+
+    return accountMetas;
   }
 
   async populateTransferRemoteToTx(
