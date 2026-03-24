@@ -55,7 +55,13 @@ mod gas_limit_estimator;
 mod gas_price;
 mod tx_status_checker;
 
-const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
+const NONCE_TOO_LOW_ERRORS: [&str; 4] = [
+    "nonce too low",
+    // Ethermint/CometBFT chains (e.g. ENI) return non-standard errors for nonce conflicts.
+    "gas wanted -1, gas fee is insufficient",
+    "tx already exists in tx pool cache",
+    "Tx already exist in the fetch queue",
+];
 const DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS: Duration = Duration::from_secs(1);
 
 pub struct EthereumAdapter {
@@ -674,7 +680,8 @@ impl AdaptsChain for EthereumAdapter {
             Ok(hash) => hash,
             Err(e) => {
                 warn!(?e, "submitting transaction error");
-                return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
+                let err_str = e.to_string();
+                return if NONCE_TOO_LOW_ERRORS.iter().any(|&s| err_str.contains(s)) {
                     Err(TxAlreadyExists)
                 } else {
                     Err(e.into())
