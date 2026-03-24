@@ -622,10 +622,13 @@ export async function enrollCrossChainRouters(
 
           const deployedArtifact = {
             artifactState: ArtifactState.DEPLOYED,
-            config: preserveCurrentWarpConfigIfUnset(
-              artifact.config,
-              (await writer.read(deployedContracts[currentChain])).config,
-            ),
+            config:
+              chainMetadata.protocol === ProtocolType.Starknet
+                ? preserveCurrentWarpConfigIfUnset(
+                    artifact.config,
+                    (await writer.read(deployedContracts[currentChain])).config,
+                  )
+                : artifact.config,
             deployed: { address: deployedContracts[currentChain] },
           };
 

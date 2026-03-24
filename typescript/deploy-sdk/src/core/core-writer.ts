@@ -102,10 +102,6 @@ export class CoreWriter extends CoreArtifactReader {
 
   private async getInitialHookArtifact(
     hookArtifact: Artifact<HookArtifactConfig, DeployedHookAddress>,
-    _receipts: TxReceipt[],
-    _placeholderRef: {
-      artifact?: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>;
-    },
   ): Promise<ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>> {
     if (!isArtifactNew(hookArtifact)) {
       return hookArtifact;
@@ -160,24 +156,13 @@ export class CoreWriter extends CoreArtifactReader {
     // so we create mailbox first, deploy hooks in Step 3, then update mailbox in Step 4.
     // Most protocols accept zero hooks for this bootstrap step; the Starknet
     // mailbox writer materializes a temporary noop hook when it sees zero hooks.
-    const placeholderHookRef: {
-      artifact?: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>;
-    } = {};
     const initialMailboxArtifact: ArtifactNew<MailboxOnChain> = {
       artifactState: ArtifactState.NEW,
       config: {
         owner: this.signer.getSignerAddress(), // Signer owns initially; transferred in Step 4
         defaultIsm: onChainIsmArtifact,
-        defaultHook: await this.getInitialHookArtifact(
-          config.defaultHook,
-          allReceipts,
-          placeholderHookRef,
-        ),
-        requiredHook: await this.getInitialHookArtifact(
-          config.requiredHook,
-          allReceipts,
-          placeholderHookRef,
-        ),
+        defaultHook: await this.getInitialHookArtifact(config.defaultHook),
+        requiredHook: await this.getInitialHookArtifact(config.requiredHook),
       },
     };
 
