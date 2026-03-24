@@ -25,7 +25,7 @@ const owners = {
   polygon: '0x3211A1Fea94cd4000Bd82D7C9E9334E51938De1b',
 } as const;
 
-const WARP_FEE_BPS = 8n;
+const WARP_FEE_BPS = 8;
 
 const usdcTokenAddresses = {
   arbitrum: tokens.arbitrum.USDC,

@@ -36,6 +36,7 @@ import {
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
 } from './warp-tx.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
 /** Native SOL decimal precision. */
 const SOL_DECIMALS = 9;
@@ -152,7 +153,7 @@ export class SvmNativeTokenWriter
     receipts.push(
       await this.svmSigner.send({
         instructions: [initIx],
-        computeUnits: 400_000,
+        computeUnits: DEFAULT_COMPUTE_UNITS,
         skipPreflight: true,
       }),
     );

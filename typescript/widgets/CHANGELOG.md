@@ -1,5 +1,34 @@
 # @hyperlane-xyz/widgets
 
+## 29.0.1
+
+### Patch Changes
+
+- Updated dependencies [96508ed]
+  - @hyperlane-xyz/sdk@29.0.1
+  - @hyperlane-xyz/aleo-sdk@29.0.1
+  - @hyperlane-xyz/cosmos-sdk@29.0.1
+  - @hyperlane-xyz/radix-sdk@29.0.1
+  - @hyperlane-xyz/utils@29.0.1
+  - @hyperlane-xyz/provider-sdk@4.2.1
+  - @hyperlane-xyz/tron-sdk@22.1.5
+
+## 29.0.0
+
+### Patch Changes
+
+- 3c6b1ad: Fixed Tron gas estimation and transaction building for wallet integration.
+- Updated dependencies [cc6d57b]
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/sdk@29.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.4
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/aleo-sdk@29.0.0
+  - @hyperlane-xyz/cosmos-sdk@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/radix-sdk@29.0.0
+
 ## 28.1.0
 
 ### Patch Changes

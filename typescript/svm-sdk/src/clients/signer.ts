@@ -18,10 +18,19 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
-import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
-import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
+import {
+  buildTransactionMessage,
+  serializeUnsignedTransaction,
+} from '../tx.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmReceipt,
+  SvmRpc,
+  SvmTransaction,
+} from '../types.js';
 
 import { SvmProvider } from './provider.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
 type SignatureStatusResponse = Awaited<
   ReturnType<GetSignatureStatusesApi['getSignatureStatuses']>
@@ -116,15 +125,23 @@ export class SvmSigner
   }
 
   async transactionToPrintableJson(
-    transaction: SvmTransaction,
+    transaction: AnnotatedSvmTransaction,
   ): Promise<object> {
+    const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
+      transaction.instructions,
+      this.signer.address,
+    );
+
     return {
+      annotation: transaction.annotation,
       instructions: transaction.instructions.map((ix) => ({
         programAddress: ix.programAddress,
         accounts: ix.accounts,
         data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
       })),
       computeUnits: transaction.computeUnits,
+      transaction_base58: transactionBase58,
+      message_base58: messageBase58,
     };
   }
 

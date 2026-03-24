@@ -17,11 +17,7 @@ import {
   SvmMessageIdMultisigIsmWriter,
   type SvmMultisigIsmConfig,
 } from '../ism/multisig-ism.js';
-import {
-  SvmTestIsmReader,
-  SvmTestIsmWriter,
-  type SvmTestIsmConfig,
-} from '../ism/test-ism.js';
+import { SvmTestIsmReader, SvmTestIsmWriter } from '../ism/test-ism.js';
 import type { SvmDeployedIsm } from '../types.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -49,17 +45,17 @@ describe('SVM ISM E2E Tests', function () {
 
   describe('Test ISM', () => {
     it('should initialize and read Test ISM', async function () {
-      const writer = new SvmTestIsmWriter(rpc, signer);
+      const writer = new SvmTestIsmWriter(
+        { program: { programId: TEST_PROGRAM_IDS.testIsm } },
+        rpc,
+        signer,
+      );
 
       let deployed, receipts;
       try {
-        const config: SvmTestIsmConfig = {
-          type: IsmType.TEST_ISM,
-          program: { programId: TEST_PROGRAM_IDS.testIsm },
-        };
         [deployed, receipts] = await writer.create({
           artifactState: ArtifactState.NEW,
-          config,
+          config: { type: IsmType.TEST_ISM },
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -88,7 +84,11 @@ describe('SVM ISM E2E Tests', function () {
     });
 
     it('should return empty transactions for update', async () => {
-      const writer = new SvmTestIsmWriter(rpc, signer);
+      const writer = new SvmTestIsmWriter(
+        { program: { programId: TEST_PROGRAM_IDS.testIsm } },
+        rpc,
+        signer,
+      );
 
       const artifact: ArtifactDeployed<TestIsmConfig, SvmDeployedIsm> = {
         artifactState: ArtifactState.DEPLOYED,

@@ -1,9 +1,4 @@
-import {
-  address as parseAddress,
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress, type Address } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -27,6 +22,7 @@ import type {
   SvmDeployedIsm,
   SvmProgramTarget,
   SvmReceipt,
+  SvmRpc,
   SvmTransaction,
 } from '../types.js';
 
@@ -47,7 +43,7 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
   MultisigIsmConfig,
   SvmDeployedIsm
 > {
-  constructor(protected readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     address: string,
@@ -98,7 +94,7 @@ export class SvmMessageIdMultisigIsmWriter
   implements ArtifactWriter<MultisigIsmConfig, SvmDeployedIsm>
 {
   constructor(
-    rpc: Rpc<SolanaRpcApi>,
+    rpc: SvmRpc,
     private readonly svmSigner: SvmSigner,
   ) {
     super(rpc);

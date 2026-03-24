@@ -354,9 +354,6 @@ mod tests {
                     ..Default::default()
                 },
                 consider_null_transaction_receipt: false,
-                wallet_urls: None,
-                wallet_solidity_urls: None,
-                energy_multiplier: None,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),

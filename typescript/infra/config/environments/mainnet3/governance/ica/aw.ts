@@ -129,6 +129,10 @@ export const awIcas: ChainMap<Address> = {
 
   // Mar 16, 2026
   // ----------------------------------------------------------
-  // igra: '0xfA14458b1907BDa6E48bA619aF715c4532c3486c',
-  // tron: '0xB960616C7E2ee0F2a296A4b2B9D0b3308E23A69D',
+  igra: '0xfA14458b1907BDa6E48bA619aF715c4532c3486c',
+  tron: '0xB960616C7E2ee0F2a296A4b2B9D0b3308E23A69D',
+
+  // Mar 24, 2026
+  // ----------------------------------------------------------
+  plasma: '0x5f132a9a16F8e4AE1E2ec2F2bcEdf074d1496c3f',
 } as const;

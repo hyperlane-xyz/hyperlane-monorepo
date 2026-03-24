@@ -149,7 +149,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       let maxFee: bigint;
       let halfAmount: bigint;
-      let bps: bigint;
+      let bps: number;
 
       const reader = new EvmTokenFeeReader(
         params.multiProvider,
