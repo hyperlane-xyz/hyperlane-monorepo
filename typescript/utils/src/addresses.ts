@@ -529,13 +529,6 @@ export function addressToBytesAleo(address: Address): Uint8Array {
 export function addressToBytesTron(address: Address): Uint8Array {
   const decoded = bs58.decode(address);
   const payload = decoded.slice(0, -4);
-  const checksum = decoded.slice(-4);
-  const hash1 = ethersUtils.arrayify(ethersUtils.sha256(payload));
-  const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));
-  assert(
-    Buffer.from(checksum).equals(new Uint8Array(hash2.slice(0, 4))),
-    'Invalid Tron address checksum',
-  );
   return new Uint8Array(payload.slice(1)); // strip 0x41 prefix
 }
 
