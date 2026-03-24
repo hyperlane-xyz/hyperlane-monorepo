@@ -33,6 +33,7 @@ export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
 export type TokenFeeReaderParams = {
   address: Address;
   routingDestinations?: number[]; // Optional: when provided, derives feeContracts
+  token?: Address; // Optional passthrough for compatibility with existing module callers
   // Optional CCR-enrolled router map by destination domain (bytes32 router addresses)
   crossCollateralRouters?: Record<number, string[]>;
 };
@@ -190,39 +191,65 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     ]);
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
+    const ccrfFeeContracts: NonNullable<RoutingFeeConfig['ccrfFeeContracts']> =
+      {};
     await Promise.all(
       routingDestinations.map(async (destination) => {
-        const routers =
-          crossCollateralRouters?.[destination]?.length &&
-          crossCollateralRouters[destination]
-            ? crossCollateralRouters[destination]
-            : [defaultRouter];
-
-        let subFeeAddress = constants.AddressZero;
-        for (const router of routers) {
-          subFeeAddress = await routingFee.feeContracts(destination, router);
-          if (subFeeAddress !== constants.AddressZero) break;
-        }
-
-        // Fallback for backwards compatibility where fee contracts were set
-        // against DEFAULT_ROUTER even when CCR-enrolled routers exist.
-        if (
-          subFeeAddress === constants.AddressZero &&
-          !routers.includes(defaultRouter)
-        ) {
-          subFeeAddress = await routingFee.feeContracts(
-            destination,
-            defaultRouter,
-          );
-        }
-
-        if (subFeeAddress === constants.AddressZero) return;
         const chainName = this.multiProvider.getChainName(destination);
-        feeContracts[chainName] = await this.deriveTokenFeeConfig({
-          address: subFeeAddress,
-          routingDestinations,
-          crossCollateralRouters,
-        });
+        const configuredRouters = crossCollateralRouters?.[destination] ?? [];
+
+        let defaultFeeConfig: DerivedTokenFeeConfig | undefined;
+        const routerFeeConfigs: Record<string, DerivedTokenFeeConfig> = {};
+
+        // Derive destination default fee contract (DEFAULT_ROUTER sentinel).
+        const defaultSubFeeAddress = await routingFee.feeContracts(
+          destination,
+          defaultRouter,
+        );
+        if (defaultSubFeeAddress !== constants.AddressZero) {
+          defaultFeeConfig = await this.deriveTokenFeeConfig({
+            address: defaultSubFeeAddress,
+            routingDestinations,
+            crossCollateralRouters,
+          });
+          // Keep legacy destination-level mapping for backwards compatibility.
+          feeContracts[chainName] = defaultFeeConfig;
+        }
+
+        // Derive router-specific fee contracts for CCR enrolled routers.
+        await Promise.all(
+          configuredRouters.map(async (router) => {
+            const subFeeAddress = await routingFee.feeContracts(
+              destination,
+              router,
+            );
+            if (subFeeAddress === constants.AddressZero) return;
+            routerFeeConfigs[router] = await this.deriveTokenFeeConfig({
+              address: subFeeAddress,
+              routingDestinations,
+              crossCollateralRouters,
+            });
+          }),
+        );
+
+        // If only router-specific fees exist, pick a deterministic representative
+        // for destination-level compatibility.
+        if (!feeContracts[chainName] && Object.keys(routerFeeConfigs).length) {
+          const [firstRouter] = Object.keys(routerFeeConfigs).sort();
+          feeContracts[chainName] = routerFeeConfigs[firstRouter];
+        }
+
+        if (
+          defaultFeeConfig ||
+          Object.keys(routerFeeConfigs).length > 0
+        ) {
+          ccrfFeeContracts[chainName] = {
+            ...(defaultFeeConfig ? { default: defaultFeeConfig } : {}),
+            ...(Object.keys(routerFeeConfigs).length
+              ? { routers: routerFeeConfigs }
+              : {}),
+          };
+        }
       }),
     );
 
@@ -247,6 +274,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       token,
       owner,
       feeContracts,
+      ccrfFeeContracts:
+        Object.keys(ccrfFeeContracts).length > 0 ? ccrfFeeContracts : undefined,
     };
   }
 

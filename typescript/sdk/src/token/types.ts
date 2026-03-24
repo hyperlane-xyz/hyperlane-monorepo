@@ -473,6 +473,24 @@ function populateFeeOwner(params: {
       populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
     });
   }
+  if (
+    feeConfig.type === TokenFeeType.RoutingFee &&
+    feeConfig.ccrfFeeContracts
+  ) {
+    objMap(feeConfig.ccrfFeeContracts, (_, destinationConfig) => {
+      if (destinationConfig.default) {
+        populateFeeOwner({
+          tokenConfig,
+          feeConfig: destinationConfig.default,
+        });
+      }
+      if (destinationConfig.routers) {
+        objMap(destinationConfig.routers, (_, innerConfig) => {
+          populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
+        });
+      }
+    });
+  }
   return tokenConfig;
 }
 

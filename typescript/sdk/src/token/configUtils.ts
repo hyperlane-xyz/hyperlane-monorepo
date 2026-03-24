@@ -46,6 +46,7 @@ import {
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
@@ -213,22 +214,19 @@ export async function expandWarpDeployConfig(params: {
       // CrossCollateralRouter may require destination gas for CCR-only domains
       // that are not present in Router._routers.
       if (isCrossCollateralTokenConfig(chainConfig)) {
-        const localDomain = multiProvider.getDomainId(chain).toString();
         for (const domain of Object.keys(
           chainConfig.crossCollateralRouters ?? {},
         )) {
-          if (domain !== localDomain) {
-            gasDomainsToKeep.add(domain);
-            // Ensure CCR-only destinations get destinationGas defaults so
-            // warp check/apply can enforce gas config on enrolled CCR domains.
-            if (!chainConfig.destinationGas?.[domain]) {
-              chainConfig.destinationGas = {
-                ...(chainConfig.destinationGas ?? {}),
-                [domain]:
-                  chainConfig.gas?.toString() ||
-                  gasOverhead(chainConfig.type).toString(),
-              };
-            }
+          gasDomainsToKeep.add(domain);
+          // Ensure CCR-only destinations get destinationGas defaults so
+          // warp check/apply can enforce gas config on enrolled CCR domains.
+          if (!chainConfig.destinationGas?.[domain]) {
+            chainConfig.destinationGas = {
+              ...(chainConfig.destinationGas ?? {}),
+              [domain]:
+                chainConfig.gas?.toString() ||
+                gasOverhead(chainConfig.type).toString(),
+            };
           }
         }
       }
@@ -365,7 +363,10 @@ export function resolveTokenFeeAddress(
 
   if (isNativeTokenConfig(tokenConfig)) {
     feeToken = constants.AddressZero;
-  } else if (isMovableCollateralTokenConfig(tokenConfig)) {
+  } else if (
+    isCollateralTokenConfig(tokenConfig) ||
+    isCrossCollateralTokenConfig(tokenConfig)
+  ) {
     feeToken = tokenConfig.token;
   } else if (
     isSyntheticTokenConfig(tokenConfig) ||
@@ -390,6 +391,38 @@ export function resolveTokenFeeAddress(
           resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
         ]),
       ),
+      ccrfFeeContracts: feeConfig.ccrfFeeContracts
+        ? Object.fromEntries(
+            Object.entries(feeConfig.ccrfFeeContracts).map(
+              ([chain, destinationConfig]) => [
+                chain,
+                {
+                  default: destinationConfig.default
+                    ? resolveTokenFeeAddress(
+                        destinationConfig.default,
+                        routerAddress,
+                        tokenConfig,
+                      )
+                    : undefined,
+                  routers: destinationConfig.routers
+                    ? Object.fromEntries(
+                        Object.entries(destinationConfig.routers).map(
+                          ([router, subFee]) => [
+                            router,
+                            resolveTokenFeeAddress(
+                              subFee,
+                              routerAddress,
+                              tokenConfig,
+                            ),
+                          ],
+                        ),
+                      )
+                    : undefined,
+                },
+              ],
+            ),
+          )
+        : undefined,
     } satisfies ResolvedTokenFeeConfigInput;
   }
 
@@ -495,21 +528,53 @@ function normalizeTokenFeeForCheck(
         ]),
       );
 
-    const normalizedRoutingFee = {
-      ...feeConfig,
-      feeContracts: normalizedFeeContracts,
-    } as Record<string, unknown>;
-    delete normalizedRoutingFee.maxFee;
-    delete normalizedRoutingFee.halfAmount;
-    return normalizedRoutingFee as TokenFeeConfigInput;
+    const normalizedCcrfFeeContracts =
+      feeConfig.ccrfFeeContracts &&
+      Object.fromEntries(
+        Object.entries(feeConfig.ccrfFeeContracts).map(
+          ([chain, destinationConfig]) => [
+            chain,
+            {
+              default: destinationConfig.default
+                ? normalizeTokenFeeForCheck(destinationConfig.default)
+                : undefined,
+              routers: destinationConfig.routers
+                ? Object.fromEntries(
+                    Object.entries(destinationConfig.routers).map(
+                      ([router, nestedFee]) => [
+                        router,
+                        normalizeTokenFeeForCheck(nestedFee),
+                      ],
+                    ),
+                  )
+                : undefined,
+            },
+          ],
+        ),
+      );
+
+    return {
+      type: TokenFeeType.RoutingFee,
+      owner: feeConfig.owner,
+      ...('token' in feeConfig && feeConfig.token
+        ? { token: feeConfig.token }
+        : {}),
+      ...(normalizedFeeContracts ? { feeContracts: normalizedFeeContracts } : {}),
+      ...(normalizedCcrfFeeContracts
+        ? { ccrfFeeContracts: normalizedCcrfFeeContracts }
+        : {}),
+    };
   }
 
   if (feeConfig.type === TokenFeeType.LinearFee) {
-    const normalizedLinearFee = { ...feeConfig } as Record<string, unknown>;
-    // maxFee/halfAmount are derived on-chain representation for bps-based LinearFee.
-    delete normalizedLinearFee.maxFee;
-    delete normalizedLinearFee.halfAmount;
-    return normalizedLinearFee as TokenFeeConfigInput;
+    return {
+      type: TokenFeeType.LinearFee,
+      owner: feeConfig.owner,
+      bps: feeConfig.bps,
+      ...('token' in feeConfig && feeConfig.token
+        ? { token: feeConfig.token }
+        : {}),
+    };
   }
 
   return feeConfig;
