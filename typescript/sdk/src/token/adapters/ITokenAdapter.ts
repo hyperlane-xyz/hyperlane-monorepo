@@ -157,6 +157,17 @@ export interface IHypCrossCollateralAdapter<Tx> extends IHypTokenAdapter<Tx> {
   populateTransferRemoteToTx(params: TransferRemoteToParams): Promise<Tx>;
 }
 
+export function isHypCrossCollateralAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is IHypCrossCollateralAdapter<unknown> {
+  return (
+    'populateTransferRemoteToTx' in adapter &&
+    typeof adapter.populateTransferRemoteToTx === 'function' &&
+    'quoteTransferRemoteToGas' in adapter &&
+    typeof adapter.quoteTransferRemoteToGas === 'function'
+  );
+}
+
 export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
   getMintLimit(): Promise<bigint>;
 }
