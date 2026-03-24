@@ -21,7 +21,7 @@ use hyperlane_core::ModuleType;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
-const ISM_TYPE: ModuleType = ModuleType::Unused;
+const ISM_TYPE: ModuleType = ModuleType::Null;
 
 /// Custom errors for the program.
 pub enum TestIsmError {

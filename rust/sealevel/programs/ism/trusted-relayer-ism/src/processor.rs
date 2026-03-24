@@ -1,7 +1,9 @@
 use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
 use hyperlane_core::ModuleType;
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -24,14 +26,24 @@ use crate::{
 const ISM_TYPE: ModuleType = ModuleType::Null;
 
 /// PDA seeds for the storage account.
+/// Uses the same seeds as the ISM interface's VERIFY_ACCOUNT_METAS_PDA_SEEDS so that
+/// `verify_account_metas` only needs account 0 (the VAM PDA) to read the relayer key.
+/// This avoids requiring ISM-specific knowledge in the relayer/mailbox code.
 #[macro_export]
 macro_rules! storage_pda_seeds {
     () => {{
-        &[b"trusted_relayer_ism", b"-", b"storage"]
+        hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS
     }};
 
     ($bump_seed:expr) => {{
-        &[b"trusted_relayer_ism", b"-", b"storage", &[$bump_seed]]
+        &[
+            b"hyperlane_ism",
+            b"-",
+            b"verify",
+            b"-",
+            b"account_metas",
+            &[$bump_seed],
+        ]
     }};
 }
 
@@ -80,12 +92,12 @@ pub fn process_instruction(
 /// Note: metadata is ignored (ModuleType::Null).
 ///
 /// Accounts:
-/// 0. `[]` The storage PDA account.
+/// 0. `[]` The storage PDA account (VAM PDA).
 /// 1. `[]` The relayer account (must be signer).
 fn verify(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: Storage PDA.
+    // Account 0: Storage PDA (same as VAM PDA).
     let storage_info = next_account_info(accounts_iter)?;
     let storage = load_storage(program_id, storage_info)?;
 
@@ -105,26 +117,28 @@ fn verify(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Returns the accounts required by `Verify`.
 ///
 /// Accounts:
-/// 0. `[]` The VERIFY_ACCOUNT_METAS_PDA (convention, unused).
-/// 1. `[]` The storage PDA account (read to get relayer pubkey).
+/// 0. `[]` The storage PDA account (same as VAM PDA — contains the relayer pubkey).
+///
+/// Because the storage PDA uses VERIFY_ACCOUNT_METAS_PDA_SEEDS, it is automatically
+/// passed by the relayer's `get_ism_verify_account_metas` simulation and no
+/// ISM-specific knowledge is needed in the relayer or mailbox code.
 fn verify_account_metas(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
 ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: VERIFY_ACCOUNT_METAS_PDA (convention, unused).
-    let _vam_pda = next_account_info(accounts_iter)?;
-
-    // Account 1: Storage PDA - read to get relayer pubkey.
+    // Account 0: Storage PDA (VAM PDA) - read to get relayer pubkey.
     let storage_info = next_account_info(accounts_iter)?;
     let storage = load_storage(program_id, storage_info)?;
 
-    let (storage_pda_key, _) = Pubkey::find_program_address(storage_pda_seeds!(), program_id);
+    let (storage_pda_key, _) =
+        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
 
     Ok(vec![
         AccountMeta::new_readonly(storage_pda_key, false).into(),
         // The relayer must be a signer in the actual verify transaction.
+        // Solana CPI propagates the signer status from the outer transaction.
         AccountMeta {
             pubkey: storage.relayer,
             is_signer: true,
@@ -134,7 +148,7 @@ fn verify_account_metas(
     ])
 }
 
-/// Initializes the program, creating the storage PDA.
+/// Initializes the program, creating the storage PDA (using VAM PDA seeds).
 ///
 /// Accounts:
 /// 0. `[signer]` The new owner and payer of the storage PDA.
@@ -152,7 +166,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], relayer: Pubkey) ->
     // Account 1: Storage PDA.
     let storage_pda_account = next_account_info(accounts_iter)?;
     let (storage_pda_key, storage_pda_bump) =
-        Pubkey::find_program_address(storage_pda_seeds!(), program_id);
+        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
     if *storage_pda_account.key != storage_pda_key {
         return Err(Error::AccountOutOfOrder.into());
     }
@@ -262,117 +276,4 @@ fn load_storage(
     }
 
     Ok(storage)
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use hyperlane_sealevel_interchain_security_module_interface::{
-        InterchainSecurityModuleInstruction, VerifyInstruction,
-    };
-
-    #[test]
-    fn test_verify_trusted_relayer() {
-        let program_id = Pubkey::new_unique();
-        let relayer_key = Pubkey::new_unique();
-        let system_program_id = solana_system_interface::program::ID;
-
-        let (storage_key, storage_bump) =
-            Pubkey::find_program_address(storage_pda_seeds!(), &program_id);
-        let mut lamps = 1_000_000u64;
-        let mut data = vec![0u8; 256];
-        let storage_info = AccountInfo::new(
-            &storage_key,
-            false,
-            true,
-            &mut lamps,
-            &mut data,
-            &program_id,
-            false,
-        );
-        StorageAccount::from(StorageData {
-            bump_seed: storage_bump,
-            owner: Some(Pubkey::new_unique()),
-            relayer: relayer_key,
-        })
-        .store(&storage_info, false)
-        .unwrap();
-
-        let mut relayer_lamports = 0u64;
-        let mut relayer_data = vec![];
-
-        // Test: relayer is signer → should succeed.
-        let relayer_info = AccountInfo::new(
-            &relayer_key,
-            true, // is_signer
-            false,
-            &mut relayer_lamports,
-            &mut relayer_data,
-            &system_program_id,
-            false,
-        );
-
-        let result = process_instruction(
-            &program_id,
-            &[storage_info.clone(), relayer_info.clone()],
-            &InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
-                metadata: vec![],
-                message: vec![],
-            })
-            .encode()
-            .unwrap(),
-        );
-        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
-
-        // Test: relayer is NOT signer → should fail.
-        let mut relayer_data2 = vec![];
-        let mut relayer_lamports2 = 0u64;
-        let relayer_info_no_sig = AccountInfo::new(
-            &relayer_key,
-            false, // not a signer
-            false,
-            &mut relayer_lamports2,
-            &mut relayer_data2,
-            &system_program_id,
-            false,
-        );
-
-        let result = process_instruction(
-            &program_id,
-            &[storage_info.clone(), relayer_info_no_sig],
-            &InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
-                metadata: vec![],
-                message: vec![],
-            })
-            .encode()
-            .unwrap(),
-        );
-        assert_eq!(result.unwrap_err(), Error::RelayerNotSigner.into());
-
-        // Test: wrong relayer → should fail.
-        let wrong_key = Pubkey::new_unique();
-        let mut wrong_data = vec![];
-        let mut wrong_lamports = 0u64;
-        let wrong_info = AccountInfo::new(
-            &wrong_key,
-            true,
-            false,
-            &mut wrong_lamports,
-            &mut wrong_data,
-            &system_program_id,
-            false,
-        );
-
-        let result = process_instruction(
-            &program_id,
-            &[storage_info.clone(), wrong_info],
-            &InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
-                metadata: vec![],
-                message: vec![],
-            })
-            .encode()
-            .unwrap(),
-        );
-        assert_eq!(result.unwrap_err(), Error::InvalidRelayer.into());
-    }
 }

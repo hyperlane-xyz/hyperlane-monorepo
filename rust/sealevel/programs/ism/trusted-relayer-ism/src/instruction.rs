@@ -112,24 +112,20 @@ pub fn transfer_ownership_instruction(
 /// The relayer account must be a signer in the transaction.
 ///
 /// Accounts required for `VerifyAccountMetas`:
-/// 0. `[]` The storage PDA account.
+/// 0. `[]` The storage PDA (same as VAM PDA — contains relayer pubkey).
 pub fn verify_account_metas_instruction(
     program_id: Pubkey,
     metadata: Vec<u8>,
     message: Vec<u8>,
 ) -> Result<SolanaInstruction, ProgramError> {
     use hyperlane_sealevel_interchain_security_module_interface::{
-        InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+        InterchainSecurityModuleInstruction, VerifyInstruction,
     };
 
+    // storage_pda_seeds!() == VERIFY_ACCOUNT_METAS_PDA_SEEDS, so the VAM PDA IS the storage PDA.
     let (storage_pda_key, _) = Pubkey::find_program_address(storage_pda_seeds!(), &program_id);
-    let (vam_pda_key, _) =
-        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &program_id);
 
-    let accounts = vec![
-        AccountMeta::new_readonly(vam_pda_key, false),
-        AccountMeta::new_readonly(storage_pda_key, false),
-    ];
+    let accounts = vec![AccountMeta::new_readonly(storage_pda_key, false)];
 
     Ok(SolanaInstruction {
         program_id,

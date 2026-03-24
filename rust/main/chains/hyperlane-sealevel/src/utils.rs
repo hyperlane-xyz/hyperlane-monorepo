@@ -35,7 +35,11 @@ pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
 /// Sanitizes untrusted dynamic account metas.
 /// Requires that:
 /// - All provided account metas are non-signers (these are made non-signers even if they're requested)
-/// - The payer account is not present in the provided account metas (this is a failure condition)
+/// - The payer account is not present as a writable account in the provided account metas
+///   (this is a failure condition — a writable payer in a CPI can be used to drain funds)
+///
+/// Note: the payer may appear as a readonly account (e.g. trusted-relayer ISM returns the relayer
+/// pubkey readonly so the mailbox CPI propagates its signer status to the ISM verify call).
 pub fn sanitize_dynamic_accounts(
     mut account_metas: Vec<AccountMeta>,
     payer: &Pubkey,
@@ -47,14 +51,25 @@ pub fn sanitize_dynamic_accounts(
         }
     });
 
-    // On SVM, if an instruction specifies the same account twice, if one of them is a signer
-    // then the SVM ends up treating the other as a signer as well, even if the other AccountMeta
-    // didn't ask for it!
-    // This means that if one of the dynamic account metas includes the payer, the
-    // CPI made into the program will end up providing the payer account as a signer.
-    if account_metas.iter().any(|meta| meta.pubkey == *payer) {
+    // Security: on SVM, if a transaction lists the same account twice and one entry has
+    // is_signer=true, the runtime treats ALL entries for that account as signers — even
+    // those where is_signer=false.  Because the payer already signs the outer process
+    // transaction, any account meta whose pubkey matches the payer will inherit signer
+    // status in every CPI the mailbox makes.
+    //
+    // A *writable* payer in an ISM verify CPI is the threat: the ISM program could
+    // transfer lamports out of the payer, effectively stealing funds.  We reject that.
+    //
+    // A *readonly* payer is safe: read-only signer status cannot move lamports.  We
+    // allow it because the trusted-relayer ISM legitimately returns the relayer pubkey
+    // (which may equal the payer) as a readonly account so the mailbox CPI propagates
+    // the required signer proof into the verify call.
+    if account_metas
+        .iter()
+        .any(|meta| meta.pubkey == *payer && meta.is_writable)
+    {
         return Err(ChainCommunicationError::from_other_str(
-            "Dynamic account metas contain payer account",
+            "Dynamic account metas contain payer account as writable",
         ));
     }
 
@@ -91,7 +106,7 @@ mod test {
     }
 
     #[test]
-    fn test_sanitize_dynamic_accounts_requires_non_payer() {
+    fn test_sanitize_dynamic_accounts_rejects_writable_payer() {
         use solana_sdk::instruction::AccountMeta;
 
         let payer = Pubkey::new_unique();
@@ -103,5 +118,27 @@ mod test {
         ];
 
         assert!(sanitize_dynamic_accounts(account_metas, &payer).is_err());
+    }
+
+    #[test]
+    fn test_sanitize_dynamic_accounts_allows_readonly_payer() {
+        use solana_sdk::instruction::AccountMeta;
+
+        let payer = Pubkey::new_unique();
+
+        let account_metas = vec![
+            AccountMeta::new_readonly([0u8; 32].into(), false),
+            // payer as readonly — trusted-relayer ISM returns relayer (==payer) as readonly signer
+            AccountMeta::new_readonly(payer, true),
+        ];
+
+        let result = sanitize_dynamic_accounts(account_metas, &payer).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                AccountMeta::new_readonly([0u8; 32].into(), false),
+                AccountMeta::new_readonly(payer, false),
+            ]
+        );
     }
 }
