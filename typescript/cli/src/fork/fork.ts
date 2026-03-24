@@ -22,6 +22,7 @@ import {
   type Address,
   ProtocolType,
   assert,
+  isEVMLike,
   deepEquals,
   retryAsync,
 } from '@hyperlane-xyz/utils';
@@ -48,9 +49,8 @@ export async function runForkCommand({
   basePort?: number;
 }): Promise<void> {
   const { registry } = context;
-  const filteredChainsToFork = Array.from(chainsToFork).filter(
-    (chain) =>
-      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  const filteredChainsToFork = Array.from(chainsToFork).filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
   );
 
   let port = basePort;

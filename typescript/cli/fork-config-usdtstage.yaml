@@ -1,0 +1,50 @@
+# Fork config for USDTSTAGE/mode warp route fork testing
+# Pre-funds the Anvil default test account (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)
+# with USDT on the chains we want to test transfers FROM.
+#
+# Whale addresses used:
+#   ethereum: 0x28C6c06298d514Db089934071355E5743bf21d60 (Binance 14, ~966M USDT)
+#   bsc:      0x8894E0a0c962CB723c1976a4421c95949bE2D4E3 (Binance BSC hot wallet, ~305M USDT)
+#   tron:     0xa2726afbecbd8e936000ed684cef5e2f5cf43008 (TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE, ~607k USDT)
+
+ethereum:
+  transactions:
+    - type: rawTransaction
+      transactions:
+        - annotation: "Fund test account with 1000 USDT on Ethereum"
+          from: "0x28C6c06298d514Db089934071355E5743bf21d60"
+          to: "0xdac17f958d2ee523a2206206994597c13d831ec7"
+          data:
+            type: signature
+            signature: "function transfer(address to, uint256 amount) returns (bool)"
+            args:
+              - "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+              - "1000000000"
+
+bsc:
+  transactions:
+    - type: rawTransaction
+      transactions:
+        - annotation: "Fund test account with 1000 USDT on BSC (18 decimals)"
+          from: "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          to: "0x55d398326f99059fF775485246999027B3197955"
+          data:
+            type: signature
+            signature: "function transfer(address to, uint256 amount) returns (bool)"
+            args:
+              - "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+              - "1000000000000000000000"
+
+tron:
+  transactions:
+    - type: rawTransaction
+      transactions:
+        - annotation: "Fund test account with 1000 USDT on Tron"
+          from: "0xa2726afbecbd8e936000ed684cef5e2f5cf43008"
+          to: "0xa614f803b6fd780986a42c78ec9c7f77e6ded13c"
+          data:
+            type: signature
+            signature: "function transfer(address to, uint256 amount) returns (bool)"
+            args:
+              - "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+              - "1000000000"
