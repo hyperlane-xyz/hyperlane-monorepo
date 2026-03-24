@@ -92,6 +92,14 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 101 * 10 ** 9, // 101 gwei
     },
   },
+  eni: {
+    // ENI is a Cosmos EVM chain (Ethermint) with a fixed 99 gwei base fee.
+    // EIP-1559 transactions are intermittently rejected with "gas wanted -1, gas fee is insufficient".
+    // Force legacy transactions with a gas price above the base fee, same pattern as Sei.
+    transactionOverrides: {
+      gasPrice: 110 * 10 ** 9, // 110 gwei, above 99 gwei base fee
+    },
+  },
   moonbeam: {
     transactionOverrides: {
       maxFeePerGas: 350 * 10 ** 9, // 350 gwei
