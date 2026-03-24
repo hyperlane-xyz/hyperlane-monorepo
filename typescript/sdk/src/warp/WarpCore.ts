@@ -862,8 +862,12 @@ export class WarpCore {
 
     // Token fees = total ERC20 quoted minus the transfer amount
     // sumQuotesByToken normalizes keys to lowercase
-    let tokenFeeQuote: TokenAmount | undefined;
     const tokenKey = transferParams.token.toLowerCase() as `0x${string}`;
+    assert(
+      tokenTotals.size <= 1,
+      `Unexpected multi-token fee quotes: ${[...tokenTotals.keys()].join(', ')}`,
+    );
+    let tokenFeeQuote: TokenAmount | undefined;
     const totalTokenQuoted = tokenTotals.get(tokenKey);
     if (totalTokenQuoted != null) {
       const feeOnly = totalTokenQuoted - originTokenAmount.amount;
