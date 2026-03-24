@@ -86,7 +86,12 @@ export function verifyScale(
     }),
   );
 
-  if (areDecimalsUniform(Object.fromEntries(entries))) return true;
+  if (areDecimalsUniform(Object.fromEntries(entries))) {
+    const [, refConfig] = entries[0];
+    return entries.every(([, config]) =>
+      scalesEqual(refConfig.scale, config.scale),
+    );
+  }
 
   // Pick the first chain as reference. For every other chain, verify pairwise:
   //   ref.scale.num * 10^ref.dec * chain.scale.den

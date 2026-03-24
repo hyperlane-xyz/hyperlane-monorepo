@@ -140,6 +140,26 @@ describe(verifyScale.name, () => {
     expect(verifyScale(configMap)).to.be.true;
   });
 
+  it('should return false when decimals are uniform but scales are mismatched', () => {
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: 1000,
+        },
+      ],
+      [
+        'chain2',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.false;
+  });
+
   it('should return true with plain number scale (backwards compat)', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
       [
