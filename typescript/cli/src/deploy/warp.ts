@@ -9,10 +9,7 @@ import {
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import {
-  preserveCurrentWarpConfigIfUnset,
-  warpConfigToArtifact,
-} from '@hyperlane-xyz/provider-sdk/warp';
+import { warpConfigToArtifact } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type AddWarpRouteConfigOptions,
   type ChainAddresses,
@@ -801,13 +798,7 @@ async function updateExistingWarpRoute(
             const artifact = warpConfigToArtifact(validatedConfig, chainLookup);
             const artifactToUpdate = {
               artifactState: ArtifactState.DEPLOYED,
-              config:
-                protocolType === ProtocolType.Starknet
-                  ? preserveCurrentWarpConfigIfUnset(
-                      artifact.config,
-                      (await writer.read(deployedTokenRoute)).config,
-                    )
-                  : artifact.config,
+              config: artifact.config,
               deployed: { address: deployedTokenRoute },
             };
 

@@ -9,15 +9,17 @@ import {
   IsmType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  normalizeAddressStarknet,
+} from '@hyperlane-xyz/utils';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 
 import { TEST_CHAIN_NAMES_BY_PROTOCOL } from '../constants.js';
 
-export function normalizeStarknetAddress(address: Address | string): string {
-  return `0x${BigInt(address).toString(16)}`;
-}
+export const normalizeStarknetAddress = normalizeAddressStarknet;
 
 export function expectStarknetCoreConfig(
   coreConfig: DerivedCoreConfig,

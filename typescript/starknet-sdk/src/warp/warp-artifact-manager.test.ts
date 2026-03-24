@@ -86,4 +86,45 @@ describe('StarknetWarpArtifactManager', () => {
       normalizeStarknetAddressSafe('0xabc'),
     );
   });
+
+  it('preserves current hook and ism when Starknet updates omit them', async () => {
+    const manager = new StarknetWarpArtifactManager(chainMetadata);
+    const signer = new MockStarknetSigner();
+    const provider = Reflect.get(manager, 'provider') as {
+      getToken: () => Promise<{
+        address: string;
+        tokenType: string;
+        owner: string;
+        mailboxAddress: string;
+        ismAddress: string;
+        hookAddress: string;
+      }>;
+      getRemoteRouters: () => Promise<{ remoteRouters: [] }>;
+    };
+
+    provider.getToken = async () => ({
+      address: '0xabc',
+      tokenType: TokenType.native,
+      owner: signer.getSignerAddress(),
+      mailboxAddress: '0x111',
+      ismAddress: '0x444',
+      hookAddress: '0x555',
+    });
+    provider.getRemoteRouters = async () => ({ remoteRouters: [] });
+
+    const writer = manager.createWriter('native', signer);
+    const txs = await writer.update({
+      artifactState: ArtifactState.DEPLOYED,
+      deployed: { address: '0xabc' },
+      config: {
+        type: TokenType.native,
+        owner: signer.getSignerAddress(),
+        mailbox: '0x111',
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
+
+    expect(txs).to.be.empty;
+  });
 });

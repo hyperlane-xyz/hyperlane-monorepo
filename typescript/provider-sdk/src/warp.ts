@@ -8,7 +8,6 @@ import {
   ConfigOnChain,
   IArtifactManager,
   addressToUnderivedArtifact,
-  artifactOnChainToAddress,
   isArtifactDeployed,
   isArtifactNew,
 } from './artifact.js';
@@ -271,40 +270,6 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
    * Protocols that don't implement setTokenHook should return false.
    */
   supportsHookUpdates(): boolean;
-}
-
-// Warp Config Utilities
-
-export function preserveCurrentWarpConfigIfUnset(
-  config: WarpArtifactConfig,
-  currentConfig: WarpArtifactConfig,
-): WarpArtifactConfig {
-  const currentIsm = getCurrentArtifactAddress(
-    currentConfig.interchainSecurityModule,
-    'ISM',
-  );
-  const currentHook = getCurrentArtifactAddress(currentConfig.hook, 'hook');
-
-  return {
-    ...config,
-    interchainSecurityModule:
-      config.interchainSecurityModule ?? addressToUnderivedArtifact(currentIsm),
-    hook: config.hook ?? addressToUnderivedArtifact(currentHook),
-  };
-}
-
-function getCurrentArtifactAddress<C>(
-  artifact: Artifact<C, { address: string }> | undefined,
-  name: string,
-): string | undefined {
-  if (!artifact) return undefined;
-
-  assert(
-    !isArtifactNew(artifact),
-    `Expected current ${name} artifact to be on-chain`,
-  );
-
-  return artifactOnChainToAddress(artifact);
 }
 
 /**

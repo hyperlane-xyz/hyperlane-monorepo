@@ -23,7 +23,6 @@ import {
   SyntheticWarpConfig,
   TokenType as ProviderTokenType,
   WarpConfig as ProviderWarpConfig,
-  preserveCurrentWarpConfigIfUnset,
   warpConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -622,13 +621,7 @@ export async function enrollCrossChainRouters(
 
           const deployedArtifact = {
             artifactState: ArtifactState.DEPLOYED,
-            config:
-              chainMetadata.protocol === ProtocolType.Starknet
-                ? preserveCurrentWarpConfigIfUnset(
-                    artifact.config,
-                    (await writer.read(deployedContracts[currentChain])).config,
-                  )
-                : artifact.config,
+            config: artifact.config,
             deployed: { address: deployedContracts[currentChain] },
           };
 
