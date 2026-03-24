@@ -121,6 +121,9 @@ async function forkChain(
     const endpoint = `${LOCAL_HOST}:${forkPort}`;
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
     const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
+    anvilProcess.catch(() => {
+      /* handled by retryAsync below */
+    });
 
     const provider = new JsonRpcProvider(endpoint);
     await retryAsync(() => provider.getNetwork(), 10, 500);
