@@ -459,10 +459,11 @@ async fn test_submit_treats_ethermint_nonce_errors_as_tx_already_exists() {
             })
         });
 
-        let send_error = send_error.to_string();
+        let send_error_str = send_error.to_string();
+        let send_error_display = send_error_str.clone();
         provider
             .expect_send()
-            .returning(move |_, _| Err(ChainCommunicationError::CustomError(send_error.clone())));
+            .returning(move |_, _| Err(ChainCommunicationError::CustomError(send_error_str.clone())));
 
         let signer = Address::random();
         let block_time = Duration::from_millis(100);
@@ -483,7 +484,7 @@ async fn test_submit_treats_ethermint_nonce_errors_as_tx_already_exists() {
 
         assert!(
             matches!(result, Err(LanderError::TxAlreadyExists)),
-            "Expected TxAlreadyExists for send error: {send_error:?}, got: {result:?}"
+            "Expected TxAlreadyExists for send error: {send_error_display:?}, got: {result:?}"
         );
     }
 }
