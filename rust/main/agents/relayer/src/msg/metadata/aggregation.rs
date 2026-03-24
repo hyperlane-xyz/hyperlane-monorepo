@@ -36,13 +36,20 @@ struct SubModuleMetadata {
 struct IsmAndMetadata {
     ism: Box<dyn InterchainSecurityModule>,
     meta: SubModuleMetadata,
+    module_type: ModuleType,
 }
 
 impl IsmAndMetadata {
-    fn new(ism: Box<dyn InterchainSecurityModule>, index: usize, metadata: Metadata) -> Self {
+    fn new(
+        ism: Box<dyn InterchainSecurityModule>,
+        index: usize,
+        metadata: Metadata,
+        module_type: ModuleType,
+    ) -> Self {
         Self {
             ism,
             meta: SubModuleMetadata::new(index, metadata),
+            module_type,
         }
     }
 }
@@ -100,11 +107,16 @@ impl AggregationIsmMetadataBuilder {
         threshold: usize,
         err_isms: Vec<(H256, Option<ModuleType>)>,
     ) -> Result<Vec<SubModuleMetadata>, MetadataBuildError> {
-        let gas_cost_results: Vec<_> = join_all(
-            sub_modules
-                .iter()
-                .map(|module| module.ism.dry_run_verify(message, &(module.meta.metadata))),
-        )
+        // Null-type ISMs (e.g. TrustedRelayerIsm) produce empty metadata and their on-chain
+        // verify() checks state that only exists after delivery (e.g. mailbox.processor()), so
+        // dry_run_verify always returns Ok(None) for them. Assign gas cost 0 directly so they
+        // are always included and preferred over heavier sub-ISMs.
+        let gas_cost_results: Vec<_> = join_all(sub_modules.iter().map(|module| async {
+            if module.module_type == ModuleType::Null {
+                return Ok(Some(U256::zero()));
+            }
+            module.ism.dry_run_verify(message, &module.meta.metadata).await
+        }))
         .await;
         // Filter out the ISMs with a gas cost estimate
         let metas_and_gas: Vec<_> = sub_modules
@@ -356,6 +368,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                     sub_module_and_meta.ism,
                     index,
                     sub_module_and_meta.metadata,
+                    sub_module_and_meta.module_type,
                 )),
                 Err(_) => Either::Right((*ism_address, None)),
             });
@@ -371,6 +384,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 #[cfg(test)]
 mod test {
     use ethers::utils::hex::FromHex;
+    use hyperlane_core::{KnownHyperlaneDomain, HyperlaneDomain, H256};
+
+    use crate::test_utils::mock_ism::MockInterchainSecurityModule;
 
     use super::*;
 
@@ -479,5 +495,55 @@ mod test {
                 SubModuleMetadata::new(2, Metadata::new(vec![]))
             ]
         )
+    }
+
+    /// Verifies that a Null-type ISM (e.g. TrustedRelayerIsm) nested inside an AggregationIsm
+    /// is always selected when the threshold can be met by it alone:
+    ///
+    /// - dry_run_verify is NOT called for the Null ISM (it would always return Ok(None) pre-delivery).
+    ///   The mock has no queued response and would panic if called.
+    /// - The Null ISM is assigned gas cost 0, making it cheaper than any other sub-ISM.
+    #[tokio::test]
+    async fn test_cheapest_valid_metas_null_ism_always_selected() {
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let message = HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: 1,
+            sender: H256::zero(),
+            destination: 2,
+            recipient: H256::zero(),
+            body: vec![],
+        };
+
+        // Null ISM: no dry_run_verify response queued — panics if called.
+        let null_ism = MockInterchainSecurityModule::new(H256::zero(), domain.clone(), ModuleType::Null);
+
+        // Non-Null ISM: returns a high gas estimate.
+        let other_ism = MockInterchainSecurityModule::new(H256::repeat_byte(1), domain.clone(), ModuleType::MessageIdMultisig);
+        other_ism
+            .responses
+            .dry_run_verify
+            .lock()
+            .unwrap()
+            .push_back(Ok(Some(U256::from(1_000_000u64))));
+
+        let sub_modules = vec![
+            IsmAndMetadata::new(Box::new(null_ism), 0, Metadata::new(vec![]), ModuleType::Null),
+            IsmAndMetadata::new(Box::new(other_ism), 1, Metadata::new(vec![0xab]), ModuleType::MessageIdMultisig),
+        ];
+
+        let result = AggregationIsmMetadataBuilder::cheapest_valid_metas(
+            sub_modules,
+            &message,
+            1, // threshold = 1: only the cheapest is selected
+            vec![],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
+        // Null ISM (index 0) must be selected — gas cost 0 < 1_000_000.
+        assert_eq!(result[0].index, 0);
     }
 }
