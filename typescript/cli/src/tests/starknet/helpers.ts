@@ -105,21 +105,25 @@ export function expectStarknetWarpConfig(
   coreAddressByChain: ChainMap<ChainAddresses>,
   chainName: string,
 ) {
-  const owner = warpDeployConfig[chainName].owner;
-  assert(owner, `Expected owner for chain ${chainName}`);
-  const mailbox = derivedWarpDeployConfig[chainName].mailbox;
+  const deployConfig = warpDeployConfig[chainName];
+  assert(deployConfig, `Expected warp deploy config for chain ${chainName}`);
+  const derivedConfig = derivedWarpDeployConfig[chainName];
+  assert(derivedConfig, `Expected derived warp config for chain ${chainName}`);
+  const coreAddresses = coreAddressByChain[chainName];
+  assert(coreAddresses, `Expected core addresses for chain ${chainName}`);
 
-  expect(derivedWarpDeployConfig[chainName].type).to.equal(
-    warpDeployConfig[chainName].type,
+  const owner = deployConfig.owner;
+  assert(owner, `Expected owner for chain ${chainName}`);
+  const mailbox = derivedConfig.mailbox;
+  assert(mailbox, `Expected derived mailbox for chain ${chainName}`);
+
+  expect(derivedConfig.type).to.equal(deployConfig.type);
+  expect(normalizeStarknetAddress(derivedConfig.owner)).to.equal(
+    normalizeStarknetAddress(owner),
   );
-  expect(
-    normalizeStarknetAddress(derivedWarpDeployConfig[chainName].owner),
-  ).to.equal(normalizeStarknetAddress(owner));
   expect(normalizeStarknetAddress(mailbox)).to.equal(
-    normalizeStarknetAddress(coreAddressByChain[chainName].mailbox),
+    normalizeStarknetAddress(coreAddresses.mailbox),
   );
-  expect(Object.keys(derivedWarpDeployConfig[chainName].destinationGas ?? {}))
-    .to.not.be.empty;
-  expect(Object.keys(derivedWarpDeployConfig[chainName].remoteRouters ?? {})).to
-    .not.be.empty;
+  expect(Object.keys(derivedConfig.destinationGas ?? {})).to.not.be.empty;
+  expect(Object.keys(derivedConfig.remoteRouters ?? {})).to.not.be.empty;
 }
