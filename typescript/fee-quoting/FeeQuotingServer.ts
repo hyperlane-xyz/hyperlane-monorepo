@@ -157,13 +157,16 @@ export class FeeQuotingServer {
         const { chainName } = token;
 
         const addresses = chainAddresses[chainName];
-        assert(addresses, `No core addresses for chain: ${chainName}`);
+        if (!addresses) {
+          this.logger.warn({ chainName }, 'No core addresses, skipping');
+          continue;
+        }
 
         const quotedCallsAddress = addresses.quotedCalls;
-        assert(
-          quotedCallsAddress,
-          `No quotedCalls address for chain: ${chainName}`,
-        );
+        if (!quotedCallsAddress) {
+          this.logger.warn({ chainName }, 'No quotedCalls address, skipping');
+          continue;
+        }
 
         const warpRouteAddress = token.addressOrDenom;
         assert(warpRouteAddress, `No address for token on chain: ${chainName}`);
