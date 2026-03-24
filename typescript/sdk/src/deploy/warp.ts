@@ -7,11 +7,7 @@ import {
   validateIsmConfig,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import {
-  ArtifactState,
-  addressToUnderivedArtifact,
-  isArtifactDeployed,
-} from '@hyperlane-xyz/provider-sdk/artifact';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
@@ -27,6 +23,7 @@ import {
   SyntheticWarpConfig,
   TokenType as ProviderTokenType,
   WarpConfig as ProviderWarpConfig,
+  preserveCurrentWarpConfigIfUnset,
   warpConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -622,32 +619,13 @@ export async function enrollCrossChainRouters(
             validateWarpConfigForAltVM(expectedConfig, currentChain),
             chainLookup,
           );
-          const currentArtifact = await writer.read(
-            deployedContracts[currentChain],
-          );
-          const currentIsm = currentArtifact.config.interchainSecurityModule;
-          const currentHook = currentArtifact.config.hook;
-
-          assert(
-            !currentIsm || isArtifactDeployed(currentIsm),
-            'Expected AltVM warp reader to expand current ISM before enrollment',
-          );
-          assert(
-            !currentHook || isArtifactDeployed(currentHook),
-            'Expected AltVM warp reader to expand current hook before enrollment',
-          );
 
           const deployedArtifact = {
             artifactState: ArtifactState.DEPLOYED,
-            config: {
-              ...artifact.config,
-              interchainSecurityModule:
-                artifact.config.interchainSecurityModule ??
-                addressToUnderivedArtifact(currentIsm?.deployed.address),
-              hook:
-                artifact.config.hook ??
-                addressToUnderivedArtifact(currentHook?.deployed.address),
-            },
+            config: preserveCurrentWarpConfigIfUnset(
+              artifact.config,
+              (await writer.read(deployedContracts[currentChain])).config,
+            ),
             deployed: { address: deployedContracts[currentChain] },
           };
 

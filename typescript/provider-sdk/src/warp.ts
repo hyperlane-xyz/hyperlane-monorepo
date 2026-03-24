@@ -274,6 +274,32 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
 
 // Warp Config Utilities
 
+export function preserveCurrentWarpConfigIfUnset(
+  config: WarpArtifactConfig,
+  currentConfig: WarpArtifactConfig,
+): WarpArtifactConfig {
+  const currentIsm = currentConfig.interchainSecurityModule;
+  const currentHook = currentConfig.hook;
+
+  assert(
+    !currentIsm || isArtifactDeployed(currentIsm),
+    'Expected AltVM warp reader to expand current ISM',
+  );
+  assert(
+    !currentHook || isArtifactDeployed(currentHook),
+    'Expected AltVM warp reader to expand current hook',
+  );
+
+  return {
+    ...config,
+    interchainSecurityModule:
+      config.interchainSecurityModule ??
+      addressToUnderivedArtifact(currentIsm?.deployed.address),
+    hook:
+      config.hook ?? addressToUnderivedArtifact(currentHook?.deployed.address),
+  };
+}
+
 /**
  * Converts WarpConfig (Config API) to WarpArtifactConfig (Artifact API).
  *

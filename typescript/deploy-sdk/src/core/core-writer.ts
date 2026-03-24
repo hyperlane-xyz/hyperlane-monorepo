@@ -34,18 +34,12 @@ import {
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk/protocol';
 import {
   DeployedValidatorAnnounceArtifact,
   IRawValidatorAnnounceArtifactManager,
   RawValidatorAnnounceConfig,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import {
-  Logger,
-  ZERO_ADDRESS_HEX_32,
-  assert,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Logger, ZERO_ADDRESS_HEX_32, rootLogger } from '@hyperlane-xyz/utils';
 
 import { createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
@@ -108,8 +102,8 @@ export class CoreWriter extends CoreArtifactReader {
 
   private async getInitialHookArtifact(
     hookArtifact: Artifact<HookArtifactConfig, DeployedHookAddress>,
-    receipts: TxReceipt[],
-    placeholderRef: {
+    _receipts: TxReceipt[],
+    _placeholderRef: {
       artifact?: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>;
     },
   ): Promise<ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>> {
@@ -117,31 +111,10 @@ export class CoreWriter extends CoreArtifactReader {
       return hookArtifact;
     }
 
-    if (this.chainMetadata.protocol !== ProtocolType.Starknet) {
-      return {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: ZERO_ADDRESS_HEX_32 },
-      };
-    }
-
-    if (!placeholderRef.artifact) {
-      const tx = await this.signer.getCreateNoopHookTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress: '',
-      });
-      const receipt = await this.signer.sendAndConfirmTransaction(tx);
-      receipts.push(receipt);
-      assert(
-        receipt.contractAddress,
-        'failed to deploy Starknet placeholder hook',
-      );
-      placeholderRef.artifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: receipt.contractAddress },
-      };
-    }
-
-    return placeholderRef.artifact;
+    return {
+      artifactState: ArtifactState.UNDERIVED,
+      deployed: { address: ZERO_ADDRESS_HEX_32 },
+    };
   }
 
   async create(artifact: ArtifactNew<MailboxArtifactConfig>): Promise<
