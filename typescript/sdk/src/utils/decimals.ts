@@ -82,7 +82,7 @@ export function verifyScale(
         config.decimals != null,
         `Decimals must be defined for token config on chain ${chain}`,
       );
-      return { decimals: config.decimals!, scale: config.scale };
+      return { decimals: config.decimals, scale: config.scale };
     }),
   );
 
