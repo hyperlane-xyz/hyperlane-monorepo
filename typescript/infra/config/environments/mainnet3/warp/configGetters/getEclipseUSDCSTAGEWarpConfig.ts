@@ -1,6 +1,10 @@
 import { ChainMap, HypTokenRouterConfig } from '@hyperlane-xyz/sdk';
 
+import { AgentGCPKey } from '../../../../../src/agents/gcp.js';
+import { DeployEnvironment } from '../../../../../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { Role } from '../../../../../src/roles.js';
+import { Contexts } from '../../../../contexts.js';
 import { DEPLOYER } from '../../owners.js';
 
 import {
@@ -93,11 +97,19 @@ const stagingOwnersByChain: Record<DeploymentChain, string> = {
 export const getEclipseUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const quoteSignerKey = new AgentGCPKey(
+    'mainnet3' as DeployEnvironment,
+    Contexts.Hyperlane,
+    Role.QuoteSigner,
+  );
+  await quoteSignerKey.fetch();
+
   return buildEclipseUSDCWarpConfig(routerConfig, {
     ownersByChain: stagingOwnersByChain,
     programIds: STAGING_PROGRAM_IDS,
     tokenMetadata: STAGING_TOKEN_METADATA,
     proxyAdmins: stagingProxyAdmins,
+    quoteSigners: [quoteSignerKey.address],
   });
 };
 
