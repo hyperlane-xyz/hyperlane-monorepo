@@ -157,6 +157,22 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
       z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
     )
     .optional(), // Destination -> Fee
+  ccrfFeeContracts: z
+    .record(
+      ZChainName,
+      z.object({
+        default: z
+          .lazy((): z.ZodSchema => TokenFeeConfigSchema)
+          .optional(), // DEFAULT_ROUTER sentinel
+        routers: z
+          .record(
+            ZHash, // bytes32 router key
+            z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
+          )
+          .optional(),
+      }),
+    )
+    .optional(), // Destination -> { default?, routers? }
   maxFee: ZBigNumberish.optional(),
   halfAmount: ZBigNumberish.optional(),
 });
@@ -169,6 +185,22 @@ export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
     .record(
       ZChainName,
       z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
+    )
+    .optional(),
+  ccrfFeeContracts: z
+    .record(
+      ZChainName,
+      z.object({
+        default: z
+          .lazy((): z.ZodSchema => TokenFeeConfigInputSchema)
+          .optional(),
+        routers: z
+          .record(
+            ZHash, // bytes32 router key
+            z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
+          )
+          .optional(),
+      }),
     )
     .optional(),
 });
