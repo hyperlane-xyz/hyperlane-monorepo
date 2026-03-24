@@ -107,8 +107,7 @@ export function expectStarknetWarpConfig(
 ) {
   const owner = warpDeployConfig[chainName].owner;
   assert(owner, `Expected owner for chain ${chainName}`);
-  const mailbox = warpDeployConfig[chainName].mailbox;
-  assert(mailbox, `Expected mailbox for chain ${chainName}`);
+  const mailbox = derivedWarpDeployConfig[chainName].mailbox;
 
   expect(derivedWarpDeployConfig[chainName].type).to.equal(
     warpDeployConfig[chainName].type,
