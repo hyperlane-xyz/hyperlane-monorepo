@@ -12,7 +12,10 @@ import {
   buildEclipseUSDCWarpConfig,
   evmDeploymentChains,
 } from './getEclipseUSDCWarpConfig.js';
-import { getFileSubmitterStrategyConfig } from './utils.js';
+import {
+  getFileSubmitterStrategyConfig,
+  getImpersonatedAccountStrategyConfig,
+} from './utils.js';
 
 const SOLANA_OWNER = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
 
@@ -118,3 +121,6 @@ export const getUSDCSTAGEEclipseFileSubmitterStrategyConfig = () =>
     evmDeploymentChains,
     '/tmp/eclipse-usdcstage-combined.json',
   );
+
+export const getUSDCSTAGEEclipseImpersonatedStrategyConfig = () =>
+  getImpersonatedAccountStrategyConfig(evmDeploymentChains, DEPLOYER);

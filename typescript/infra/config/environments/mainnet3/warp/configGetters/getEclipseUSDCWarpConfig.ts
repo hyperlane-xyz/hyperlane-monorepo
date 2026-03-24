@@ -1,3 +1,4 @@
+import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainSubmissionStrategy,
@@ -267,6 +268,7 @@ export const buildEclipseUSDCWarpConfig = async (
       };
     }
 
+    chainConfig.contractVersion = CONTRACTS_PACKAGE_VERSION;
     configs.push([chain, chainConfig]);
   }
 

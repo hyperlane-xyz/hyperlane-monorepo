@@ -60,6 +60,7 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
+  getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import {
   getEclipseUSDCStrategyConfig,
@@ -243,6 +244,15 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
   [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
+};
+
+/** Sandbox strategy map — uses impersonated accounts for anvil fork testing */
+export const sandboxStrategyConfigGetterMap: Record<
+  string,
+  StrategyConfigGetter
+> = {
+  [WarpRouteIds.EclipseUSDCSTAGE]:
+    getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 };
 
 /**

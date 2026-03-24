@@ -256,3 +256,19 @@ export function getFileSubmitterStrategyConfig(
     ]),
   ) as unknown as ChainSubmissionStrategy;
 }
+
+/**
+ * Creates an impersonated account strategy for anvil forks.
+ * 'impersonatedAccount' is CLI-specific (not in SDK types), so we use type assertion.
+ */
+export function getImpersonatedAccountStrategyConfig(
+  chains: readonly string[],
+  userAddress: Address,
+): ChainSubmissionStrategy {
+  return Object.fromEntries(
+    chains.map((chain) => [
+      chain,
+      { submitter: { type: 'impersonatedAccount', userAddress, chain } },
+    ]),
+  ) as unknown as ChainSubmissionStrategy;
+}
