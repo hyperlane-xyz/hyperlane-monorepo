@@ -86,7 +86,7 @@ export function verifyScale(
     }),
   );
 
-  if (entries.length === 0) return true;
+  if (entries.length <= 1) return true;
 
   if (areDecimalsUniform(Object.fromEntries(entries))) {
     const [, refConfig] = entries[0];

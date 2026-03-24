@@ -348,6 +348,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // Even when raw decimals are uniform, scales can still differ
     // (e.g. {dec:18, scale:1000} vs {dec:18, scale:1}), so always
     // run verifyScale to catch the mismatch.
+    if (uniqueChainDecimals.size === 0) return;
 
     // Build a TokenMetadata map from all chains; at this point decimals are defined on all chains
     const metadataMap = new Map<string, TokenMetadata>(
