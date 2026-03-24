@@ -169,7 +169,18 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [destinationChain, feeConfig] of Object.entries(
         config.feeContracts,
       )) {
-        const deployedFeeContract = await this.deployFee(chain, feeConfig);
+        // Sub-fee configs inherit the routing fee's token if not explicitly set
+        const resolvedFeeConfig = {
+          ...feeConfig,
+          token: feeConfig.token ?? config.token,
+        };
+        const deployedFeeContract =
+          resolvedFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
+            ? ((await this.deployOffchainQuotedLinearFee(
+                chain,
+                resolvedFeeConfig,
+              )) as unknown as BaseFee)
+            : await this.deployFee(chain, resolvedFeeConfig);
 
         await this.multiProvider.handleTx(
           chain,
