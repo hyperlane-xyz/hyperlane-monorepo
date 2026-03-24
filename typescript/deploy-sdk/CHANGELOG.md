@@ -1,5 +1,18 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 4.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@29.0.1
+- @hyperlane-xyz/cosmos-sdk@29.0.1
+- @hyperlane-xyz/radix-sdk@29.0.1
+- @hyperlane-xyz/sealevel-sdk@29.0.1
+- @hyperlane-xyz/utils@29.0.1
+- @hyperlane-xyz/starknet-sdk@27.2.1
+- @hyperlane-xyz/provider-sdk@4.2.1
+- @hyperlane-xyz/tron-sdk@22.1.5
+
 ## 4.2.0
 
 ### Minor Changes
