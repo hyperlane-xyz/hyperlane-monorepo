@@ -286,6 +286,88 @@ export class SealevelHypCrossCollateralAdapter
     return accountMetas;
   }
 
+  // Should match rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral/src/processor.rs transfer_remote_to_local
+  //
+  // 0.   [executable]         The system program.
+  // 1.   []                   The token PDA account.
+  // 2.   []                   The cross-collateral state PDA account.
+  // 3.   [signer]             The token sender and payer.
+  // 4.   []                   The cross-collateral dispatch authority PDA.
+  // 5.   [executable]         The target program.
+  // 6.   [executable]         The SPL token program for the mint.
+  // 7.   [writeable]          The mint.
+  // 8.   [writeable]          The token sender's associated token account.
+  // 9.   [writeable]          The escrow PDA account.
+  // 10+. (variable)           Target HandleLocal accounts (from simulation).
+  async getTransferRemoteToLocalKeyList({
+    sender,
+    targetProgram,
+    senderProgram,
+    amount,
+    recipient,
+  }: {
+    sender: PublicKey;
+    targetProgram: PublicKey;
+    senderProgram: PublicKey;
+    amount: bigint;
+    recipient: Uint8Array;
+  }): Promise<Array<AccountMeta>> {
+    const handleLocalAccountMetas = await this.simulateHandleLocalAccountMetas({
+      targetProgram,
+      senderProgram,
+      amount,
+      recipient,
+      payer: sender,
+    });
+
+    const keys: Array<AccountMeta> = [
+      // 0.   [executable] The system program.
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      // 1.   [] The token PDA account.
+      {
+        pubkey: this.deriveHypTokenAccount(),
+        isSigner: false,
+        isWritable: false,
+      },
+      // 2.   [] The cross-collateral state PDA account.
+      {
+        pubkey: this.deriveCrossCollateralStatePda(),
+        isSigner: false,
+        isWritable: false,
+      },
+      // 3.   [signer] The token sender and payer.
+      { pubkey: sender, isSigner: true, isWritable: true },
+      // 4.   [] The cross-collateral dispatch authority PDA.
+      {
+        pubkey: this.deriveCrossCollateralDispatchAuthorityPda(),
+        isSigner: false,
+        isWritable: false,
+      },
+      // 5.   [executable] The target program.
+      { pubkey: targetProgram, isSigner: false, isWritable: false },
+      // 6.   [executable] The SPL token program for the mint.
+      {
+        pubkey: await this.getTokenProgramId(),
+        isSigner: false,
+        isWritable: false,
+      },
+      // 7.   [writeable] The mint.
+      { pubkey: this.tokenMintPubKey, isSigner: false, isWritable: true },
+      // 8.   [writeable] The token sender's associated token account.
+      {
+        pubkey: await this.deriveAssociatedTokenAccount(sender),
+        isSigner: false,
+        isWritable: true,
+      },
+      // 9.   [writeable] The escrow PDA account.
+      { pubkey: this.deriveEscrowAccount(), isSigner: false, isWritable: true },
+      // 10+. Target HandleLocal accounts (from simulation).
+      ...handleLocalAccountMetas,
+    ];
+
+    return keys;
+  }
+
   async populateTransferRemoteToTx(
     _params: Parameters<
       IHypCrossCollateralAdapter<Transaction>['populateTransferRemoteToTx']
