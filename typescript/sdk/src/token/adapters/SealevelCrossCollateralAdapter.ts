@@ -1,5 +1,7 @@
 import {
   AccountMeta,
+  ComputeBudgetProgram,
+  Keypair,
   Message,
   PublicKey,
   SystemProgram,
@@ -8,7 +10,12 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes,
+  assert,
+  padBytesToLength,
+} from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
 import {
@@ -18,17 +25,23 @@ import {
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 
-import type { IHypCrossCollateralAdapter } from './ITokenAdapter.js';
+import type {
+  IHypCrossCollateralAdapter,
+  TransferRemoteToParams,
+} from './ITokenAdapter.js';
 import { SealevelHypCollateralAdapter } from './SealevelTokenAdapter.js';
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 import {
   SealevelCCHandleLocalInstruction,
   SealevelCCHandleLocalSchema,
   SealevelCCInstructionKind,
+  SealevelCCTransferRemoteToInstruction,
+  SealevelCCTransferRemoteToSchema,
 } from './serialization.js';
 
 // CC program discriminator (8 bytes of 2s)
 const CC_DISCRIMINATOR = Buffer.from([2, 2, 2, 2, 2, 2, 2, 2]);
+const TRANSFER_REMOTE_TO_COMPUTE_LIMIT = 1_000_000;
 
 // Each SerializableAccountMeta is: pubkey (32) + is_signer (1) + is_writable (1) = 34 bytes
 const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
@@ -368,11 +381,127 @@ export class SealevelHypCrossCollateralAdapter
     return keys;
   }
 
-  async populateTransferRemoteToTx(
-    _params: Parameters<
-      IHypCrossCollateralAdapter<Transaction>['populateTransferRemoteToTx']
-    >[0],
-  ): Promise<Transaction> {
-    throw new Error('Not yet implemented');
+  async populateTransferRemoteToTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    fromAccountOwner,
+    targetRouter,
+    extraSigners,
+  }: TransferRemoteToParams): Promise<Transaction> {
+    assert(fromAccountOwner, 'fromAccountOwner required for Sealevel');
+
+    const sender = new PublicKey(fromAccountOwner);
+    const recipientBytes = padBytesToLength(addressToBytes(recipient), 32);
+    const targetRouterBytes = padBytesToLength(
+      addressToBytes(targetRouter),
+      32,
+    );
+    const targetProgram = new PublicKey(targetRouter);
+    const localDomain = this.multiProvider.getDomainId(this.chainName);
+
+    let keys: Array<AccountMeta>;
+    if (destination === localDomain) {
+      keys = await this.getTransferRemoteToLocalKeyList({
+        sender,
+        targetProgram,
+        senderProgram: this.warpProgramPubKey,
+        amount: BigInt(weiAmountOrId),
+        recipient: recipientBytes,
+      });
+    } else {
+      const randomWallet = extraSigners?.length
+        ? extraSigners[0]
+        : Keypair.generate();
+      const mailbox = new PublicKey(this.addresses.mailbox);
+
+      keys = await this.getTransferRemoteToRemoteKeyList({
+        sender,
+        mailbox,
+        randomWallet: randomWallet.publicKey,
+        igp: await this.getIgpKeys(),
+      });
+
+      return this.createTransferRemoteToTx({
+        keys,
+        destination,
+        recipientBytes,
+        amount: BigInt(weiAmountOrId),
+        targetRouterBytes,
+        sender,
+        randomWallet,
+      });
+    }
+
+    return this.createTransferRemoteToTx({
+      keys,
+      destination,
+      recipientBytes,
+      amount: BigInt(weiAmountOrId),
+      targetRouterBytes,
+      sender,
+    });
+  }
+
+  private async createTransferRemoteToTx({
+    keys,
+    destination,
+    recipientBytes,
+    amount,
+    targetRouterBytes,
+    sender,
+    randomWallet,
+  }: {
+    keys: Array<AccountMeta>;
+    destination: number;
+    recipientBytes: Uint8Array;
+    amount: bigint;
+    targetRouterBytes: Uint8Array;
+    sender: PublicKey;
+    randomWallet?: Keypair;
+  }): Promise<Transaction> {
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelCCInstructionKind.TransferRemoteTo,
+      data: new SealevelCCTransferRemoteToInstruction({
+        destination_domain: destination,
+        recipient: recipientBytes,
+        amount_or_id: amount,
+        target_router: targetRouterBytes,
+      }),
+    });
+    const serializedData = serialize(SealevelCCTransferRemoteToSchema, value);
+
+    const transferInstruction = new TransactionInstruction({
+      keys,
+      programId: this.warpProgramPubKey,
+      data: Buffer.concat([CC_DISCRIMINATOR, Buffer.from(serializedData)]),
+    });
+
+    const setComputeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit(
+      { units: TRANSFER_REMOTE_TO_COMPUTE_LIMIT },
+    );
+    const setPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: (await this.getMedianPriorityFee()) || 0,
+    });
+
+    const recentBlockhash = (
+      await this.getProvider().getLatestBlockhash('finalized')
+    ).blockhash;
+
+    // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
+    const tx = new Transaction({
+      feePayer: sender,
+      blockhash: recentBlockhash,
+      recentBlockhash,
+    })
+      .add(setComputeLimitInstruction)
+      .add(setPriorityFeeInstruction)
+      .add(transferInstruction);
+
+    if (randomWallet) {
+      tx.partialSign(randomWallet);
+    }
+
+    return tx;
   }
 }
