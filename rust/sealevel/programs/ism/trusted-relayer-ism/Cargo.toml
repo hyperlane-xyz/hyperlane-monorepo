@@ -23,5 +23,10 @@ hyperlane-core = { path = "../../../../main/hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
 
+[dev-dependencies]
+hyperlane-test-utils = { path = "../../../libraries/test-utils" }
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
 [lib]
 crate-type = ["cdylib", "lib"]
