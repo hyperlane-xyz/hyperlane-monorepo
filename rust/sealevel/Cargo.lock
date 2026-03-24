@@ -3409,43 +3409,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperlane-sealevel-aggregation-ism"
-version = "0.1.0"
-dependencies = [
- "access-control",
- "account-utils",
- "borsh 1.6.0",
- "getrandom 0.2.17",
- "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "num-derive",
- "num-traits",
- "serializable-account-meta",
- "solana-program 3.0.0",
- "solana-system-interface 2.0.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "hyperlane-sealevel-amount-routing-ism"
-version = "0.1.0"
-dependencies = [
- "access-control",
- "account-utils",
- "borsh 1.6.0",
- "getrandom 0.2.17",
- "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-warp-route",
- "num-derive",
- "num-traits",
- "serializable-account-meta",
- "solana-program 3.0.0",
- "solana-system-interface 2.0.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
