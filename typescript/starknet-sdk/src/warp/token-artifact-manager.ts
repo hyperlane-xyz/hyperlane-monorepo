@@ -23,6 +23,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   assert,
   eqAddressStarknet,
+  isEmptyAddress,
 } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
@@ -303,21 +304,33 @@ export abstract class StarknetWarpTokenWriterBase<
   }
 
   private preserveUnsetHookAndIsm(current: C, expected: C): C {
+    const expectedIsm = artifactOnChainToAddress(
+      expected.interchainSecurityModule,
+      normalizeStarknetAddressSafe,
+    );
+    const expectedHook = artifactOnChainToAddress(
+      expected.hook,
+      normalizeStarknetAddressSafe,
+    );
+
     return {
       ...expected,
-      interchainSecurityModule:
-        expected.interchainSecurityModule ??
-        addressToUnderivedArtifact(
-          artifactOnChainToAddress(
-            current.interchainSecurityModule,
-            normalizeStarknetAddressSafe,
-          ),
-        ),
-      hook:
-        expected.hook ??
-        addressToUnderivedArtifact(
-          artifactOnChainToAddress(current.hook, normalizeStarknetAddressSafe),
-        ),
+      interchainSecurityModule: isEmptyAddress(expectedIsm)
+        ? addressToUnderivedArtifact(
+            artifactOnChainToAddress(
+              current.interchainSecurityModule,
+              normalizeStarknetAddressSafe,
+            ),
+          )
+        : expected.interchainSecurityModule,
+      hook: isEmptyAddress(expectedHook)
+        ? addressToUnderivedArtifact(
+            artifactOnChainToAddress(
+              current.hook,
+              normalizeStarknetAddressSafe,
+            ),
+          )
+        : expected.hook,
     };
   }
 
