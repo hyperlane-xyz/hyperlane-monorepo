@@ -302,16 +302,13 @@ jobs:
           jq -n \
             --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --arg run_number "${{ github.run_number }}" \
-            --arg branch "${{ github.ref_name }}" \
-            --arg sha "${GITHUB_SHA::7}" \
-            --arg commit_url "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}" \
             '{
-              text: ":warning: NPM Package Publish Failed",
+              text: ":red-siren: NPM package publish failed — see workflow run for details",
               blocks: [{
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: (":warning: *NPM Package Publish Failed*\n\n*Run:* <" + $run_url + "|Release #" + $run_number + ">\n*Branch:* `" + $branch + "`\n*Commit:* <" + $commit_url + "|`" + $sha + "`>")
+                  text: (":red-siren: *NPM package publish failed*\n<" + $run_url + "|View workflow run #" + $run_number + ">")
                 }
               }]
             }' | curl -sf -X POST "$SLACK_WEBHOOK" \
