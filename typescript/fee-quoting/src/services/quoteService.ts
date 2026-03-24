@@ -20,7 +20,6 @@ import {
   EIP712_DOMAIN,
   SIGNED_QUOTE_TYPES,
   ZERO_ADDRESS,
-  ZERO_BYTES32,
 } from '../constants.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import {
@@ -334,7 +333,7 @@ type ResolveResult =
 function checkSignerAuthorized(
   signers: string[] | undefined,
   signer: Address,
-): ResolveResult['skipped' & string] | undefined {
+): 'not_configured' | 'not_upgraded' | 'not_authorized' | undefined {
   if (!signers) return 'not_upgraded';
   if (signers.length === 0) return 'not_upgraded';
   if (!signers.some((s) => eqAddress(s, signer))) return 'not_authorized';

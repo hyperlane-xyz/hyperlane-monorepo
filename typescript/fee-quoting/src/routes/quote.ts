@@ -1,10 +1,23 @@
-import { Request, Response, Router } from 'express';
+import { type NextFunction, Request, Response, Router } from 'express';
 import type { Address, Hex } from 'viem';
 import { z } from 'zod';
 
 import { QuotedCallsCommand } from '../types.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import type { QuoteService } from '../services/quoteService.js';
+
+type AsyncHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => Promise<void>;
+
+/** Wrap async route handler so rejections are forwarded to Express error middleware */
+function asyncHandler(fn: AsyncHandler) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res, next).catch(next);
+  };
+}
 
 const addressSchema = z.string().startsWith('0x').length(42);
 const bytes32Schema = z.string().startsWith('0x').length(66);
@@ -68,18 +81,21 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
     };
   }
 
-  router.get('/transferRemote', warpHandler(QuotedCallsCommand.TransferRemote));
+  router.get(
+    '/transferRemote',
+    asyncHandler(warpHandler(QuotedCallsCommand.TransferRemote)),
+  );
   router.get(
     '/transferRemoteTo',
-    warpHandler(QuotedCallsCommand.TransferRemoteTo),
+    asyncHandler(warpHandler(QuotedCallsCommand.TransferRemoteTo)),
   );
   router.get(
     '/callRemoteWithOverrides',
-    icaHandler(QuotedCallsCommand.CallRemoteWithOverrides),
+    asyncHandler(icaHandler(QuotedCallsCommand.CallRemoteWithOverrides)),
   );
   router.get(
     '/callRemoteCommitReveal',
-    icaHandler(QuotedCallsCommand.CallRemoteCommitReveal),
+    asyncHandler(icaHandler(QuotedCallsCommand.CallRemoteCommitReveal)),
   );
 
   return router;

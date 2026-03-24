@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { pino } from 'pino';
-import { type Address, type Hex, encodePacked, verifyTypedData } from 'viem';
+import { type Address, type Hex, verifyTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { HookType } from '@hyperlane-xyz/sdk';
@@ -10,7 +10,6 @@ import {
   EIP712_DOMAIN,
   SIGNED_QUOTE_TYPES,
   ZERO_ADDRESS,
-  ZERO_BYTES32,
 } from '../../src/constants.js';
 import {
   QuoteService,
