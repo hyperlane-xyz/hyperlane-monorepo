@@ -53,6 +53,22 @@ export function scalesEqual(
   return na.numerator * nb.denominator === nb.numerator * na.denominator;
 }
 
+/**
+ * Verifies that scale configs across chains are mutually consistent.
+ *
+ * A warp route may use either convention:
+ *   - Scale-up: 6-decimal chains carry scale > 1, max-decimal chain carries no scale
+ *   - Scale-down: max-decimal chain carries scale < 1 ({num:1, den:N}), others carry no scale
+ *
+ * Both are valid as long as the effective message amount is identical for every chain:
+ *   scale_A / scale_B == 10^(dec_B - dec_A)  for any pair (A, B)
+ *
+ * Equivalently (avoiding floating point): for a fixed reference chain R,
+ *   scale_A.num * 10^dec_A * scale_R.den  ==  scale_R.num * 10^dec_R * scale_A.den
+ *
+ * This accepts precision loss from scale-down (e.g., BSC 18-decimal USDT
+ * scaled to 6-decimal message encoding loses 12 digits of sub-unit precision).
+ */
 export function verifyScale(
   configMap: Map<string, TokenMetadata> | WarpRouteDeployConfigMailboxRequired,
 ): boolean {
@@ -60,31 +76,35 @@ export function verifyScale(
     configMap instanceof Map
       ? Object.fromEntries(configMap.entries())
       : configMap;
-  const decimalsByChain = objMap(chainDecimalConfigPairs, (chain, config) => {
-    assert(
-      config.decimals,
-      `Decimals must be defined for token config on chain ${chain}`,
-    );
+  const entries = Object.entries(
+    objMap(chainDecimalConfigPairs, (chain, config) => {
+      assert(
+        config.decimals,
+        `Decimals must be defined for token config on chain ${chain}`,
+      );
+      return { decimals: config.decimals!, scale: config.scale };
+    }),
+  );
 
-    return { decimals: config.decimals, scale: config.scale };
-  });
+  if (areDecimalsUniform(Object.fromEntries(entries))) return true;
 
-  if (!areDecimalsUniform(decimalsByChain)) {
-    const maxDecimals = Math.max(
-      ...Object.values(decimalsByChain).map((config) => config.decimals!),
-    );
+  // Pick the first chain as reference. For every other chain, verify pairwise:
+  //   ref.scale.num * 10^ref.dec * chain.scale.den
+  //     == chain.scale.num * 10^chain.dec * ref.scale.den
+  const [, refConfig] = entries[0];
+  const refNorm = normalizeScale(refConfig.scale);
+  const refEffective = refNorm.numerator * 10n ** BigInt(refConfig.decimals);
 
-    for (const [_, config] of Object.entries(decimalsByChain)) {
-      if (config.decimals) {
-        const calculatedScale: NormalizedScale = {
-          numerator: 10n ** BigInt(maxDecimals - config.decimals),
-          denominator: 1n,
-        };
+  for (let i = 1; i < entries.length; i++) {
+    const [, config] = entries[i];
+    const norm = normalizeScale(config.scale);
+    const effective = norm.numerator * 10n ** BigInt(config.decimals);
 
-        if (!scalesEqual(calculatedScale, config.scale)) {
-          return false;
-        }
-      }
+    // Cross-multiply to compare ratios without division:
+    //   refEffective / refNorm.denominator == effective / norm.denominator
+    //   => refEffective * norm.denominator == effective * refNorm.denominator
+    if (refEffective * norm.denominator !== effective * refNorm.denominator) {
+      return false;
     }
   }
   return true;

@@ -318,4 +318,103 @@ describe(verifyScale.name, () => {
       'Decimals must be defined for token config on chain chain2',
     );
   });
+
+  // --- Scale-down (BSC-style) tests ---
+  // Convention: max-decimal chain carries {numerator:1, denominator:N}, others carry no scale.
+  // This keeps message encoding at the lower decimal precision.
+
+  it('should return true with scale-down on the high-decimal chain', () => {
+    // BSC (18 dec) scales down by 1/1e12, ETH (6 dec) carries no scale.
+    // Effective message amount: BSC = 1/1e12 * 10^18 = 10^6, ETH = 1 * 10^6 = 10^6 ✓
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'bsc',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+      [
+        'eth',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return false when scale-down ratio is incorrect', () => {
+    // BSC uses wrong denominator (100 instead of 1e12)
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'bsc',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 100 },
+        },
+      ],
+      [
+        'eth',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.false;
+  });
+
+  it('should return true with mixed scale-up and scale-down reaching the same effective amount', () => {
+    // chain1 (18 dec) scales down by 1/1e6, chain2 (6 dec) scales up by 1e6.
+    // Both reach 10^12 effective message encoding.
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000 },
+        },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 1_000_000,
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true with scale-down across three chains', () => {
+    // BSC (18), ETH (6), and a third 6-decimal chain — all consistent with BSC scale-down
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'bsc',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+      [
+        'eth',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+      [
+        'arbitrum',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
 });
