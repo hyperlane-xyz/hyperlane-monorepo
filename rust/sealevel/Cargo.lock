@@ -3457,8 +3457,6 @@ dependencies = [
  "ethers",
  "hex",
  "hyperlane-core",
- "hyperlane-sealevel-aggregation-ism",
- "hyperlane-sealevel-amount-routing-ism",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",

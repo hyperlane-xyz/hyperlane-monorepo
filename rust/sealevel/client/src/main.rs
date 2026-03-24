@@ -65,9 +65,7 @@ use hyperlane_sealevel_validator_announce::{
 use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
-mod aggregation_ism;
 mod alt;
-mod amount_routing_ism;
 mod artifacts;
 mod cmd_utils;
 mod context;
@@ -83,8 +81,6 @@ mod squads;
 mod trusted_relayer_ism;
 mod warp_route;
 
-use crate::aggregation_ism::process_aggregation_ism_cmd;
-use crate::amount_routing_ism::process_amount_routing_ism_cmd;
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
 use crate::ism::process_ism_cmd;
@@ -132,8 +128,6 @@ enum HyperlaneSealevelCmd {
     Ism(IsmCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     TrustedRelayerIsm(TrustedRelayerIsmCmd),
-    AggregationIsm(AggregationIsmCmd),
-    AmountRoutingIsm(AmountRoutingIsmCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
     Squads(SquadsCmd),
@@ -226,8 +220,6 @@ enum CoreSubCmd {
 pub(crate) enum IsmType {
     MultisigMessageId,
     TrustedRelayer,
-    Aggregation,
-    AmountRouting,
     /// Unconditionally accepts all messages. NOT FOR PRODUCTION USE.
     Test,
 }
@@ -262,21 +254,6 @@ pub(crate) struct IsmDeploy {
     /// Relayer pubkey. Required for --ism-type trusted-relayer.
     #[arg(long)]
     pub relayer: Option<Pubkey>,
-    /// Threshold. Required for --ism-type aggregation.
-    #[arg(long)]
-    pub aggregation_threshold: Option<u8>,
-    /// Comma-separated ISM module pubkeys. Required for --ism-type aggregation.
-    #[arg(long, num_args = 1.., value_delimiter = ',')]
-    pub aggregation_modules: Option<Vec<Pubkey>>,
-    /// Amount threshold (in base token units). Required for --ism-type amount-routing.
-    #[arg(long)]
-    pub amount_routing_threshold: Option<u64>,
-    /// ISM pubkey for amounts below threshold. Required for --ism-type amount-routing.
-    #[arg(long)]
-    pub lower_ism: Option<Pubkey>,
-    /// ISM pubkey for amounts at or above threshold. Required for --ism-type amount-routing.
-    #[arg(long)]
-    pub upper_ism: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -315,21 +292,6 @@ struct CoreDeploy {
     /// Relayer pubkey. Required for --ism-type trusted-relayer.
     #[arg(long)]
     relayer: Option<Pubkey>,
-    /// Threshold. Required for --ism-type aggregation.
-    #[arg(long)]
-    aggregation_threshold: Option<u8>,
-    /// Comma-separated ISM module pubkeys. Required for --ism-type aggregation.
-    #[arg(long, num_args = 1.., value_delimiter = ',')]
-    aggregation_modules: Option<Vec<Pubkey>>,
-    /// Amount threshold (in base token units). Required for --ism-type amount-routing.
-    #[arg(long)]
-    amount_routing_threshold: Option<u64>,
-    /// ISM pubkey for amounts below threshold. Required for --ism-type amount-routing.
-    #[arg(long)]
-    lower_ism: Option<Pubkey>,
-    /// ISM pubkey for amounts at or above threshold. Required for --ism-type amount-routing.
-    #[arg(long)]
-    upper_ism: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -883,130 +845,6 @@ struct TrustedRelayerIsmQuery {
 }
 
 #[derive(Args)]
-pub(crate) struct AggregationIsmCmd {
-    #[command(subcommand)]
-    cmd: AggregationIsmSubCmd,
-}
-
-#[derive(Subcommand)]
-pub(crate) enum AggregationIsmSubCmd {
-    Deploy(AggregationIsmDeploy),
-    Init(AggregationIsmInit),
-    SetConfig(AggregationIsmSetConfig),
-    Query(AggregationIsmQuery),
-    TransferOwnership(TransferOwnership),
-}
-
-#[derive(Args)]
-struct AggregationIsmDeploy {
-    #[command(flatten)]
-    env_args: EnvironmentArgs,
-    #[arg(long)]
-    built_so_dir: PathBuf,
-    #[arg(long)]
-    chain: String,
-    #[arg(long)]
-    context: String,
-    #[arg(long)]
-    registry: PathBuf,
-    #[arg(long)]
-    threshold: u8,
-    #[arg(long, value_delimiter = ',')]
-    modules: Vec<Pubkey>,
-}
-
-#[derive(Args)]
-struct AggregationIsmInit {
-    #[arg(long)]
-    program_id: Pubkey,
-    #[arg(long)]
-    threshold: u8,
-    #[arg(long, value_delimiter = ',')]
-    modules: Vec<Pubkey>,
-}
-
-#[derive(Args)]
-struct AggregationIsmSetConfig {
-    #[arg(long)]
-    program_id: Pubkey,
-    #[arg(long)]
-    threshold: u8,
-    #[arg(long, value_delimiter = ',')]
-    modules: Vec<Pubkey>,
-}
-
-#[derive(Args)]
-struct AggregationIsmQuery {
-    #[arg(long)]
-    program_id: Pubkey,
-}
-
-#[derive(Args)]
-pub(crate) struct AmountRoutingIsmCmd {
-    #[command(subcommand)]
-    cmd: AmountRoutingIsmSubCmd,
-}
-
-#[derive(Subcommand)]
-pub(crate) enum AmountRoutingIsmSubCmd {
-    Deploy(AmountRoutingIsmDeploy),
-    Init(AmountRoutingIsmInit),
-    SetConfig(AmountRoutingIsmSetConfig),
-    Query(AmountRoutingIsmQuery),
-    TransferOwnership(TransferOwnership),
-}
-
-#[derive(Args)]
-struct AmountRoutingIsmDeploy {
-    #[command(flatten)]
-    env_args: EnvironmentArgs,
-    #[arg(long)]
-    built_so_dir: PathBuf,
-    #[arg(long)]
-    chain: String,
-    #[arg(long)]
-    context: String,
-    #[arg(long)]
-    registry: PathBuf,
-    #[arg(long)]
-    threshold: u64,
-    #[arg(long)]
-    lower_ism: Pubkey,
-    #[arg(long)]
-    upper_ism: Pubkey,
-}
-
-#[derive(Args)]
-struct AmountRoutingIsmInit {
-    #[arg(long)]
-    program_id: Pubkey,
-    #[arg(long)]
-    threshold: u64,
-    #[arg(long)]
-    lower_ism: Pubkey,
-    #[arg(long)]
-    upper_ism: Pubkey,
-}
-
-#[derive(Args)]
-struct AmountRoutingIsmSetConfig {
-    #[arg(long)]
-    program_id: Pubkey,
-    #[arg(long)]
-    threshold: u64,
-    #[arg(long)]
-    lower_ism: Pubkey,
-    #[arg(long)]
-    upper_ism: Pubkey,
-}
-
-#[derive(Args)]
-struct AmountRoutingIsmQuery {
-    #[arg(long)]
-    program_id: Pubkey,
-}
-
-#[derive(Args)]
 pub(crate) struct HelloWorldCmd {
     #[command(subcommand)]
     cmd: HelloWorldSubCmd,
@@ -1114,8 +952,6 @@ fn main() {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
         HyperlaneSealevelCmd::TrustedRelayerIsm(cmd) => process_trusted_relayer_ism_cmd(ctx, cmd),
-        HyperlaneSealevelCmd::AggregationIsm(cmd) => process_aggregation_ism_cmd(ctx, cmd),
-        HyperlaneSealevelCmd::AmountRoutingIsm(cmd) => process_amount_routing_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),

@@ -10,8 +10,6 @@ use std::{fs::File, path::Path};
 use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
 use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
-    aggregation_ism::deploy_aggregation_ism,
-    amount_routing_ism::deploy_amount_routing_ism,
     artifacts::{read_json, write_json},
     cmd_utils::{create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
@@ -19,8 +17,6 @@ use crate::{
     Context, CoreCmd, CoreDeploy, CoreSubCmd, IsmType,
 };
 use hyperlane_core::H256;
-use hyperlane_sealevel_aggregation_ism::instruction::InitConfig as AggregationInitConfig;
-use hyperlane_sealevel_amount_routing_ism::instruction::ConfigData as AmountRoutingConfigData;
 use hyperlane_sealevel_test_ism::program::TestIsmInstruction;
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
@@ -108,44 +104,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                         relayer,
                     )
                 }
-                IsmType::Aggregation => {
-                    let threshold = core
-                        .aggregation_threshold
-                        .expect("--aggregation-threshold is required for --ism-type aggregation");
-                    let modules = core
-                        .aggregation_modules
-                        .clone()
-                        .expect("--aggregation-modules is required for --ism-type aggregation");
-                    deploy_aggregation_ism(
-                        &mut ctx,
-                        &core.built_so_dir,
-                        &key_dir,
-                        core.local_domain,
-                        AggregationInitConfig { threshold, modules },
-                    )
-                }
-                IsmType::AmountRouting => {
-                    let threshold = core.amount_routing_threshold.expect(
-                        "--amount-routing-threshold is required for --ism-type amount-routing",
-                    );
-                    let lower_ism = core
-                        .lower_ism
-                        .expect("--lower-ism is required for --ism-type amount-routing");
-                    let upper_ism = core
-                        .upper_ism
-                        .expect("--upper-ism is required for --ism-type amount-routing");
-                    deploy_amount_routing_ism(
-                        &mut ctx,
-                        &core.built_so_dir,
-                        &key_dir,
-                        core.local_domain,
-                        AmountRoutingConfigData {
-                            threshold,
-                            lower_ism,
-                            upper_ism,
-                        },
-                    )
-                }
                 IsmType::Test => deploy_test_ism(&mut ctx, &core.built_so_dir, &key_dir),
             };
 
@@ -164,9 +122,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 multisig_ism_message_id: (core.ism_type == IsmType::MultisigMessageId)
                     .then_some(ism_program_id),
                 trusted_relayer_ism: (core.ism_type == IsmType::TrustedRelayer)
-                    .then_some(ism_program_id),
-                aggregation_ism: (core.ism_type == IsmType::Aggregation).then_some(ism_program_id),
-                amount_routing_ism: (core.ism_type == IsmType::AmountRouting)
                     .then_some(ism_program_id),
                 test_ism: (core.ism_type == IsmType::Test).then_some(ism_program_id),
                 igp_program_id,
@@ -405,18 +360,6 @@ pub struct CoreProgramIds {
         default
     )]
     pub trusted_relayer_ism: Option<Pubkey>,
-    #[serde(
-        with = "crate::serde::serde_option_pubkey",
-        skip_serializing_if = "Option::is_none",
-        default
-    )]
-    pub aggregation_ism: Option<Pubkey>,
-    #[serde(
-        with = "crate::serde::serde_option_pubkey",
-        skip_serializing_if = "Option::is_none",
-        default
-    )]
-    pub amount_routing_ism: Option<Pubkey>,
     #[serde(
         with = "crate::serde::serde_option_pubkey",
         skip_serializing_if = "Option::is_none",
