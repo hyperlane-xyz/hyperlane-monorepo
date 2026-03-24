@@ -218,17 +218,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
-    const localDomain = this.multiProvider.getDomainId(this.chain);
-    const mcEnrolledDomains: number[] = [];
+    const ccrEnrolledDomains: number[] = [];
     if (
       isCrossCollateralTokenConfig(tokenConfig) &&
       tokenConfig.crossCollateralRouters
     ) {
       for (const domain of Object.keys(tokenConfig.crossCollateralRouters)) {
-        const parsedDomain = Number(domain);
-        if (parsedDomain !== localDomain) {
-          mcEnrolledDomains.push(parsedDomain);
-        }
+        ccrEnrolledDomains.push(Number(domain));
       }
     }
 
@@ -238,7 +234,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } else {
       destinationGas = await this.fetchDestinationGas(
         warpRouteAddress,
-        mcEnrolledDomains,
+        ccrEnrolledDomains,
       );
     }
 
@@ -308,8 +304,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // This ensures RoutingFee/CrossCollateralRoutingFee sub-fees on CCR-only domains
     // are considered during read/check.
     const feeDestinations = [
-      ...new Set([...(domains ?? []), ...mcEnrolledDomains]),
-    ].filter((domain) => domain !== localDomain);
+      ...new Set([...(domains ?? []), ...ccrEnrolledDomains]),
+    ];
     const tokenFee = await this.fetchTokenFee(
       warpRouteAddress,
       feeDestinations.length ? feeDestinations : undefined,
@@ -327,6 +323,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
+    // CAST: token/router config variants are discriminated by token type at runtime.
     return {
       ...routerConfig,
       ...tokenConfig,
@@ -350,7 +347,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
-      TokenRouter.feeRecipient().catch(() => constants.AddressZero),
+      TokenRouter.feeRecipient().catch((error) => {
+        this.logger.debug(
+          `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
+          error,
+        );
+        return constants.AddressZero;
+      }),
     ]);
 
     const hasTokenFeeInterface =
@@ -380,30 +383,19 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         return undefined;
       }));
 
-    try {
-      const normalizedCrossCollateralRouters = crossCollateralRouters
-        ? Object.fromEntries(
-            Object.entries(crossCollateralRouters).map(([domain, routers]) => [
-              Number(domain),
-              routers,
-            ]),
-          )
-        : undefined;
-      return await this.evmTokenFeeReader.deriveTokenFeeConfig({
-        address: tokenFee,
-        routingDestinations,
-        crossCollateralRouters: normalizedCrossCollateralRouters,
-      });
-    } catch (error) {
-      // Some legacy/custom fee recipients may not implement the reader-detected
-      // interface set. For checker/read reliability, do not fail the whole route
-      // derivation on fee parsing failures.
-      this.logger.warn(
-        `Failed to derive token fee config for token at address "${routerAddress}" on chain "${this.chain}"`,
-        error,
-      );
-      return undefined;
-    }
+    const normalizedCrossCollateralRouters = crossCollateralRouters
+      ? Object.fromEntries(
+          Object.entries(crossCollateralRouters).map(([domain, routers]) => [
+            Number(domain),
+            routers,
+          ]),
+        )
+      : undefined;
+    return this.evmTokenFeeReader.deriveTokenFeeConfig({
+      address: tokenFee,
+      routingDestinations,
+      crossCollateralRouters: normalizedCrossCollateralRouters,
+    });
   }
 
   async getContractVerificationStatus(chain: ChainName, address: Address) {
@@ -1515,13 +1507,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
      * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
      * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
      * For CrossCollateralRouter contracts, additionalDomains includes domains that only
-     * have MC-enrolled routers (not in Router._routers), so their gas is also read.
+     * have CCR-enrolled routers (not in Router._routers), so their gas is also read.
      */
     const routerDomains = await warpRoute.domains();
-    const localDomain = this.multiProvider.getDomainId(this.chain);
     const allDomains = [
       ...new Set([...routerDomains.map(Number), ...additionalDomains]),
-    ].filter((domain) => domain !== localDomain);
+    ];
 
     return Object.fromEntries(
       await Promise.all(

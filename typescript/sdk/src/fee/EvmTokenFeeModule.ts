@@ -77,6 +77,30 @@ function resolveTokenForFeeConfig(
           resolveTokenForFeeConfig(subFee, token),
         ]),
       ),
+      ccrfFeeContracts: config.ccrfFeeContracts
+        ? Object.fromEntries(
+            Object.entries(config.ccrfFeeContracts).map(
+              ([chain, destinationConfig]) => [
+                chain,
+                {
+                  default: destinationConfig.default
+                    ? resolveTokenForFeeConfig(destinationConfig.default, token)
+                    : undefined,
+                  routers: destinationConfig.routers
+                    ? Object.fromEntries(
+                        Object.entries(destinationConfig.routers).map(
+                          ([routerKey, subFee]) => [
+                            routerKey,
+                            resolveTokenForFeeConfig(subFee, token),
+                          ],
+                        ),
+                      )
+                    : undefined,
+                },
+              ],
+            ),
+          )
+        : undefined,
     };
   }
   return { ...config, token };
@@ -211,6 +235,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       const { token, owner } = config;
       const inputFeeContracts =
         'feeContracts' in config ? config.feeContracts : undefined;
+      const inputCcrfFeeContracts =
+        'ccrfFeeContracts' in config ? config.ccrfFeeContracts : undefined;
 
       const feeContracts = inputFeeContracts
         ? await promiseObjAll(
@@ -231,6 +257,41 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           )
         : undefined;
 
+      const ccrfFeeContracts = inputCcrfFeeContracts
+        ? await promiseObjAll(
+            objMap(inputCcrfFeeContracts, async (_, destinationConfig) => {
+              const defaultFee = destinationConfig.default
+                ? await EvmTokenFeeModule.expandConfig({
+                    config: {
+                      ...destinationConfig.default,
+                      token: destinationConfig.default.token ?? token,
+                    },
+                    multiProvider,
+                    chainName,
+                  })
+                : undefined;
+              const routers = destinationConfig.routers
+                ? await promiseObjAll(
+                    objMap(destinationConfig.routers, async (_, innerConfig) =>
+                      EvmTokenFeeModule.expandConfig({
+                        config: {
+                          ...innerConfig,
+                          token: innerConfig.token ?? token,
+                        },
+                        multiProvider,
+                        chainName,
+                      }),
+                    ),
+                  )
+                : undefined;
+              return {
+                ...(defaultFee ? { default: defaultFee } : {}),
+                ...(routers ? { routers } : {}),
+              };
+            }),
+          )
+        : undefined;
+
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
         token,
@@ -238,6 +299,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         maxFee: constants.MaxUint256.toBigInt(),
         halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts,
+        ccrfFeeContracts,
       };
     } else {
       // Progressive/Regressive fees
@@ -314,10 +376,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (
       !params?.routingDestinations &&
       targetConfig.type === TokenFeeType.RoutingFee &&
-      !isNullish(targetConfig.feeContracts)
+      (!isNullish(targetConfig.feeContracts) ||
+        !isNullish(targetConfig.ccrfFeeContracts))
     ) {
-      const routingDestinations = Object.keys(targetConfig.feeContracts).map(
-        (chainName) => this.multiProvider.getDomainId(chainName),
+      const destinations = new Set<string>([
+        ...Object.keys(targetConfig.feeContracts ?? {}),
+        ...Object.keys(targetConfig.ccrfFeeContracts ?? {}),
+      ]);
+      const routingDestinations = [...destinations].map((chainName) =>
+        this.multiProvider.getDomainId(chainName),
       );
       effectiveParams = { ...params, routingDestinations };
     }
@@ -426,11 +493,45 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const ccrfRouters: string[] = [];
     const ccrfFeeContracts: string[] = [];
 
-    if (!targetConfig.feeContracts) return [];
+    if (!targetConfig.feeContracts && !targetConfig.ccrfFeeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
+    const destinationFeeConfigs = new Map<
+      string,
+      { chainName: string; routerKey: string; config: DerivedTokenFeeConfig }
+    >();
+
     for (const [chainName, config] of Object.entries(
-      targetConfig.feeContracts,
+      targetConfig.feeContracts ?? {},
     )) {
+      destinationFeeConfigs.set(`${chainName}:${DEFAULT_ROUTER_KEY}`, {
+        chainName,
+        routerKey: DEFAULT_ROUTER_KEY,
+        config,
+      });
+    }
+
+    for (const [chainName, destinationConfig] of Object.entries(
+      targetConfig.ccrfFeeContracts ?? {},
+    )) {
+      if (destinationConfig.default) {
+        destinationFeeConfigs.set(`${chainName}:${DEFAULT_ROUTER_KEY}`, {
+          chainName,
+          routerKey: DEFAULT_ROUTER_KEY,
+          config: destinationConfig.default as DerivedTokenFeeConfig,
+        });
+      }
+      for (const [routerKey, routerConfig] of Object.entries(
+        destinationConfig.routers ?? {},
+      )) {
+        destinationFeeConfigs.set(`${chainName}:${routerKey}`, {
+          chainName,
+          routerKey,
+          config: routerConfig as DerivedTokenFeeConfig,
+        });
+      }
+    }
+
+    for (const { chainName, routerKey, config } of destinationFeeConfigs.values()) {
       const address = config.address;
 
       let subFeeModule: EvmTokenFeeModule;
@@ -449,13 +550,13 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         });
         deployedSubFee = subFeeModule.serialize().deployedFee;
 
-        const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
+        const annotation = `New sub fee contract deployed. Setting contract for ${chainName} (${routerKey}) to ${deployedSubFee}`;
         this.logger.debug(annotation);
         if (isCrossCollateralRoutingFee) {
           ccrfDestinations.push(this.multiProvider.getDomainId(chainName));
-          ccrfRouters.push(DEFAULT_ROUTER_KEY);
+          ccrfRouters.push(routerKey);
           ccrfFeeContracts.push(deployedSubFee);
-        } else {
+        } else if (routerKey === DEFAULT_ROUTER_KEY) {
           updateTransactions.push({
             annotation: annotation,
             chainId: this.chainId,
@@ -488,13 +589,13 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         updateTransactions.push(...subFeeUpdateTransactions);
 
         if (!eqAddress(deployedSubFee, address)) {
-          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
+          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} (${routerKey}) to ${deployedSubFee}`;
           this.logger.debug(annotation);
           if (isCrossCollateralRoutingFee) {
             ccrfDestinations.push(this.multiProvider.getDomainId(chainName));
-            ccrfRouters.push(DEFAULT_ROUTER_KEY);
+            ccrfRouters.push(routerKey);
             ccrfFeeContracts.push(deployedSubFee);
-          } else {
+          } else if (routerKey === DEFAULT_ROUTER_KEY) {
             updateTransactions.push({
               annotation: annotation,
               chainId: this.chainId,

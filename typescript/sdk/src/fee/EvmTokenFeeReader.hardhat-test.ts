@@ -250,11 +250,14 @@ describe('EvmTokenFeeReader', () => {
       await crossCollateralRoutingFee.deployed();
 
       const destination = multiProvider.getDomainId(TestChainName.test3);
+      const destination2 = multiProvider.getDomainId(TestChainName.test4);
       const defaultRouter = await crossCollateralRoutingFee.DEFAULT_ROUTER();
       await crossCollateralRoutingFee.setCrossCollateralRouterFeeContracts(
-        [destination],
-        [defaultRouter],
+        [destination, destination2],
+        [defaultRouter, defaultRouter],
         [
+          deployedContracts[TestChainName.test2][TokenFeeType.LinearFee]
+            .address,
           deployedContracts[TestChainName.test2][TokenFeeType.LinearFee]
             .address,
         ],
@@ -263,7 +266,7 @@ describe('EvmTokenFeeReader', () => {
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const routingFee = await reader.deriveTokenFeeConfig({
         address: crossCollateralRoutingFee.address,
-        routingDestinations: [destination],
+        routingDestinations: [destination, destination2],
       });
 
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
@@ -276,6 +279,15 @@ describe('EvmTokenFeeReader', () => {
           token: token.address,
           feeContracts: {
             [TestChainName.test3]: linearFeeConfig,
+            [TestChainName.test4]: linearFeeConfig,
+          },
+          ccrfFeeContracts: {
+            [TestChainName.test3]: {
+              default: linearFeeConfig,
+            },
+            [TestChainName.test4]: {
+              default: linearFeeConfig,
+            },
           },
         }),
       );
@@ -342,6 +354,13 @@ describe('EvmTokenFeeReader', () => {
           token: token.address,
           feeContracts: {
             [TestChainName.test3]: linearFeeConfig,
+          },
+          ccrfFeeContracts: {
+            [TestChainName.test3]: {
+              routers: {
+                [routerBytes32]: linearFeeConfig,
+              },
+            },
           },
         }),
       );
