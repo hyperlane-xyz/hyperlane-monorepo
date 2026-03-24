@@ -65,8 +65,8 @@ function resolveTokenForFeeConfig(
 ): ResolvedTokenFeeConfigInput {
   if (
     config.type === TokenFeeType.RoutingFee &&
-    'feeContracts' in config &&
-    config.feeContracts
+    (('feeContracts' in config && !!config.feeContracts) ||
+      !!config.ccrfFeeContracts)
   ) {
     return {
       ...config,
@@ -473,11 +473,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       );
     } catch (feeTypeError) {
       try {
-        await CrossCollateralRoutingFee__factory.connect(
+        const defaultRouter = await CrossCollateralRoutingFee__factory.connect(
           address,
           provider,
         ).DEFAULT_ROUTER();
-        return true;
+        return defaultRouter.toLowerCase() === DEFAULT_ROUTER_KEY.toLowerCase();
       } catch {
         throw feeTypeError;
       }
@@ -497,7 +497,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const currentRoutingAddress = this.args.addresses.deployedFee;
     const destinationFeeConfigs = new Map<
       string,
-      { chainName: string; routerKey: string; config: DerivedTokenFeeConfig }
+      {
+        chainName: string;
+        routerKey: string;
+        config: ResolvedTokenFeeConfigInput & { address?: Address };
+      }
     >();
 
     for (const [chainName, config] of Object.entries(
@@ -514,24 +518,36 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       targetConfig.ccrfFeeContracts ?? {},
     )) {
       if (destinationConfig.default) {
+        const defaultConfig = resolveTokenForFeeConfig(
+          destinationConfig.default,
+          targetConfig.token,
+        );
         destinationFeeConfigs.set(`${chainName}:${DEFAULT_ROUTER_KEY}`, {
           chainName,
           routerKey: DEFAULT_ROUTER_KEY,
-          config: destinationConfig.default as DerivedTokenFeeConfig,
+          config: defaultConfig,
         });
       }
       for (const [routerKey, routerConfig] of Object.entries(
         destinationConfig.routers ?? {},
       )) {
+        const configWithToken = resolveTokenForFeeConfig(
+          routerConfig,
+          targetConfig.token,
+        );
         destinationFeeConfigs.set(`${chainName}:${routerKey}`, {
           chainName,
           routerKey,
-          config: routerConfig as DerivedTokenFeeConfig,
+          config: configWithToken,
         });
       }
     }
 
-    for (const { chainName, routerKey, config } of destinationFeeConfigs.values()) {
+    for (const {
+      chainName,
+      routerKey,
+      config,
+    } of destinationFeeConfigs.values()) {
       const address = config.address;
 
       let subFeeModule: EvmTokenFeeModule;

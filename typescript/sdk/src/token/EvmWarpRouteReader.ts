@@ -198,19 +198,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
+    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
     const isOft = type === TokenType.collateralOft;
-    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
-    const routerConfig = usesSentinelRouterConfig
+    const routerConfig = isOft
       ? {
-          mailbox: constants.AddressZero,
           owner: await Ownable__factory.connect(
             warpRouteAddress,
             this.provider,
           ).owner(),
-          hook: constants.AddressZero,
-          interchainSecurityModule: constants.AddressZero,
-          remoteRouters: {},
         }
       : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
@@ -227,9 +222,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         ccrEnrolledDomains.push(Number(domain));
       }
     }
-
+    // OFT contracts don't have destination gas config
+    // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
+    // fetchDestinationGas also reads gas for MC-only enrolled domains.
     let destinationGas: Record<string, string> | undefined;
-    if (usesSentinelRouterConfig) {
+    if (isOft) {
       destinationGas = undefined;
     } else {
       destinationGas = await this.fetchDestinationGas(
@@ -1510,9 +1507,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
      * have CCR-enrolled routers (not in Router._routers), so their gas is also read.
      */
     const routerDomains = await warpRoute.domains();
+    const selfDomain = this.multiProvider.getDomainId(this.chain);
     const allDomains = [
       ...new Set([...routerDomains.map(Number), ...additionalDomains]),
-    ];
+    ].filter((domain) => domain !== selfDomain);
 
     return Object.fromEntries(
       await Promise.all(
