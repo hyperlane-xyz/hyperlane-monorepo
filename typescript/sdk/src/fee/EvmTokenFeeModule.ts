@@ -1,7 +1,6 @@
-import { constants } from 'ethers';
+import { constants, utils } from 'ethers';
 
-import { BaseFee__factory, RoutingFee__factory } from '@hyperlane-xyz/core';
-import { CrossCollateralRoutingFee__factory } from '@hyperlane-xyz/multicollateral';
+import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -38,7 +37,6 @@ import {
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
-  OnchainTokenFeeType,
   ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -72,7 +70,7 @@ function resolveTokenForFeeConfig(
       ...config,
       token,
       feeContracts: Object.fromEntries(
-        Object.entries(config.feeContracts).map(([chain, subFee]) => [
+        Object.entries(config.feeContracts ?? {}).map(([chain, subFee]) => [
           chain,
           resolveTokenForFeeConfig(subFee, token),
         ]),
@@ -386,7 +384,21 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       const routingDestinations = [...destinations].map((chainName) =>
         this.multiProvider.getDomainId(chainName),
       );
-      effectiveParams = { ...params, routingDestinations };
+      const crossCollateralRouters =
+        targetConfig.ccrfFeeContracts &&
+        Object.fromEntries(
+          Object.entries(targetConfig.ccrfFeeContracts).map(
+            ([chainName, destinationConfig]) => [
+              this.multiProvider.getDomainId(chainName),
+              Object.keys(destinationConfig.routers ?? {}),
+            ],
+          ),
+        );
+      effectiveParams = {
+        ...params,
+        routingDestinations,
+        ...(crossCollateralRouters ? { crossCollateralRouters } : {}),
+      };
     }
 
     const actualConfig = await this.read(effectiveParams);
@@ -440,6 +452,14 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
+    const usesCrossCollateralRoutingFee =
+      normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
+      (!isNullish(normalizedTargetConfig.ccrfFeeContracts) ||
+        (actualConfig.type === TokenFeeType.RoutingFee &&
+          !isNullish(
+            (actualConfig as DerivedRoutingFeeConfig).ccrfFeeContracts,
+          )));
+
     // if the type is a mutable (for now, only routing fee), then update
     updateTransactions = [
       ...(await this.updateRoutingFee(
@@ -449,7 +469,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           10,
           true,
         ) as DerivedRoutingFeeConfig,
-        await this.isCrossCollateralRoutingFee(this.args.addresses.deployedFee),
+        usesCrossCollateralRoutingFee,
       )),
       ...this.createOwnershipUpdateTxs(
         normalizedActualConfig,
@@ -458,30 +478,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     ];
 
     return updateTransactions;
-  }
-
-  private async isCrossCollateralRoutingFee(
-    address: Address,
-  ): Promise<boolean> {
-    const provider = this.multiProvider.getProvider(this.chainName);
-    const baseFee = BaseFee__factory.connect(address, provider);
-
-    try {
-      return (
-        (await baseFee.feeType()) ===
-        OnchainTokenFeeType.CrossCollateralRoutingFee
-      );
-    } catch (feeTypeError) {
-      try {
-        const defaultRouter = await CrossCollateralRoutingFee__factory.connect(
-          address,
-          provider,
-        ).DEFAULT_ROUTER();
-        return defaultRouter.toLowerCase() === DEFAULT_ROUTER_KEY.toLowerCase();
-      } catch {
-        throw feeTypeError;
-      }
-    }
   }
 
   private async updateRoutingFee(
@@ -495,51 +491,70 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     if (!targetConfig.feeContracts && !targetConfig.ccrfFeeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
+    const ccrfInterface = new utils.Interface([
+      'function setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])',
+    ]);
     const destinationFeeConfigs = new Map<
       string,
       {
         chainName: string;
         routerKey: string;
-        config: ResolvedTokenFeeConfigInput & { address?: Address };
+        config: DerivedTokenFeeConfig;
       }
     >();
+    const setDestinationConfig = (
+      chainName: string,
+      routerKey: string,
+      config: DerivedTokenFeeConfig,
+      source: 'feeContracts' | 'ccrfFeeContracts',
+    ) => {
+      const entryKey = `${chainName}:${routerKey}`;
+      const existing = destinationFeeConfigs.get(entryKey);
+      if (!existing) {
+        destinationFeeConfigs.set(entryKey, { chainName, routerKey, config });
+        return;
+      }
+
+      if (
+        !deepEquals(normalizeConfig(existing.config), normalizeConfig(config))
+      ) {
+        throw new Error(
+          `Conflicting routing fee sub-config for ${entryKey} between ${source} and existing entry`,
+        );
+      }
+    };
 
     for (const [chainName, config] of Object.entries(
       targetConfig.feeContracts ?? {},
     )) {
-      destinationFeeConfigs.set(`${chainName}:${DEFAULT_ROUTER_KEY}`, {
+      setDestinationConfig(
         chainName,
-        routerKey: DEFAULT_ROUTER_KEY,
+        DEFAULT_ROUTER_KEY,
         config,
-      });
+        'feeContracts',
+      );
     }
 
     for (const [chainName, destinationConfig] of Object.entries(
       targetConfig.ccrfFeeContracts ?? {},
     )) {
       if (destinationConfig.default) {
-        const defaultConfig = resolveTokenForFeeConfig(
-          destinationConfig.default,
-          targetConfig.token,
-        );
-        destinationFeeConfigs.set(`${chainName}:${DEFAULT_ROUTER_KEY}`, {
+        setDestinationConfig(
           chainName,
-          routerKey: DEFAULT_ROUTER_KEY,
-          config: defaultConfig,
-        });
+          DEFAULT_ROUTER_KEY,
+          destinationConfig.default,
+          'ccrfFeeContracts',
+        );
       }
       for (const [routerKey, routerConfig] of Object.entries(
         destinationConfig.routers ?? {},
       )) {
-        const configWithToken = resolveTokenForFeeConfig(
-          routerConfig,
-          targetConfig.token,
-        );
-        destinationFeeConfigs.set(`${chainName}:${routerKey}`, {
+        setDestinationConfig(
           chainName,
           routerKey,
-          config: configWithToken,
-        });
+          routerConfig,
+          'ccrfFeeContracts',
+        );
       }
     }
 
@@ -582,6 +597,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });
+        } else {
+          throw new Error(
+            `Router-specific fee contract update (${routerKey}) requires CrossCollateralRoutingFee`,
+          );
         }
       } else {
         // Update existing sub-fee contract
@@ -621,6 +640,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
                 [this.multiProvider.getDomainId(chainName), deployedSubFee],
               ),
             });
+          } else {
+            throw new Error(
+              `Router-specific fee contract update (${routerKey}) requires CrossCollateralRoutingFee`,
+            );
           }
         }
       }
@@ -631,7 +654,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         annotation: `Updating CrossCollateralRoutingFee contracts for ${ccrfDestinations.length} destination(s)`,
         chainId: this.chainId,
         to: currentRoutingAddress,
-        data: CrossCollateralRoutingFee__factory.createInterface().encodeFunctionData(
+        data: ccrfInterface.encodeFunctionData(
           'setCrossCollateralRouterFeeContracts',
           [ccrfDestinations, ccrfRouters, ccrfFeeContracts],
         ),
