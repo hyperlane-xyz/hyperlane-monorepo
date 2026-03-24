@@ -125,7 +125,7 @@ async function forkChain(
       /* handled by retryAsync below */
     });
 
-    const provider = new JsonRpcProvider(endpoint);
+    const provider = new JsonRpcProvider({ url: endpoint, timeout: 3000 });
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(
