@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 29.0.1
+
+### Patch Changes
+
+- 96508ed: Added support for scale-down convention in verifyScale, accepting both scale-up and scale-down routes for cross-decimal configurations. Fixed verifyScale to reject mismatched scales when decimals are uniform across chains. Added positivity constraint to bigint scale schema fields. Improved decimals assertion to use nullish check instead of truthiness.
+  - @hyperlane-xyz/aleo-sdk@29.0.1
+  - @hyperlane-xyz/starknet-core@29.0.1
+  - @hyperlane-xyz/cosmos-sdk@29.0.1
+  - @hyperlane-xyz/radix-sdk@29.0.1
+  - @hyperlane-xyz/utils@29.0.1
+  - @hyperlane-xyz/deploy-sdk@4.2.1
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.1
+  - @hyperlane-xyz/tron-sdk@22.1.5
+
 ## 29.0.0
 
 ### Major Changes
