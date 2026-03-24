@@ -1248,14 +1248,9 @@ export class EvmWarpModule extends HyperlaneModule<
       },
       this.contractVerifier,
     );
-    const effectiveTokenReaderParams = {
-      ...tokenReaderParams,
-      token: tokenReaderParams?.token ?? currentTokenFee.token,
-    };
-
     const updateTransactions = await tokenFeeModule.update(
       resolvedTokenFee,
-      effectiveTokenReaderParams,
+      tokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
 

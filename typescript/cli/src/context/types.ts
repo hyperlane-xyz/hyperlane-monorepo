@@ -58,10 +58,6 @@ export interface CommandContext extends Omit<
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
   signerAddress?: string;
-  // Optional cache used by warp commands to avoid duplicate registry fetches.
-  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
-  warpCoreConfig?: WarpCoreConfig;
-  resolvedWarpRouteId?: string;
 }
 
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {

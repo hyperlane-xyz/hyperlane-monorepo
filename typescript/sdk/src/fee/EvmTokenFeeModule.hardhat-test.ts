@@ -357,7 +357,6 @@ describe('EvmTokenFeeModule', () => {
           },
           {
             routingDestinations: [routingDestination],
-            token: token.address,
           },
         );
 
@@ -365,7 +364,6 @@ describe('EvmTokenFeeModule', () => {
         expect(readStub.calledOnce).to.be.true;
         expect(readStub.firstCall.args[0]).to.deep.equal({
           routingDestinations: [routingDestination],
-          token: token.address,
         });
       } finally {
         readStub.restore();
@@ -405,7 +403,6 @@ describe('EvmTokenFeeModule', () => {
         },
         {
           routingDestinations: [routingDestination],
-          token: token.address,
         },
       );
 
@@ -458,7 +455,6 @@ describe('EvmTokenFeeModule', () => {
         },
         {
           routingDestinations: [routingDestination],
-          token: token.address,
         },
       );
 
@@ -467,7 +463,6 @@ describe('EvmTokenFeeModule', () => {
 
       const onchainConfig = await module.read({
         routingDestinations: [routingDestination],
-        token: token.address,
       });
       assert(
         onchainConfig.type === TokenFeeType.RoutingFee,
@@ -539,7 +534,6 @@ describe('EvmTokenFeeModule', () => {
           },
           {
             routingDestinations: [routingDestination],
-            token: token.address,
           },
         );
 

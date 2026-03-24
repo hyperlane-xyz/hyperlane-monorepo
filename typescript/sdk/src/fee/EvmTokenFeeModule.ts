@@ -1,6 +1,6 @@
-import { constants, utils } from 'ethers';
+import { Contract, constants, utils } from 'ethers';
 
-import { RoutingFee__factory } from '@hyperlane-xyz/core';
+import { BaseFee__factory, RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -42,6 +42,7 @@ import {
   TokenFeeConfigInput,
   TokenFeeConfigInputSchema,
   TokenFeeConfigSchema,
+  OnchainTokenFeeType,
   TokenFeeType,
 } from './types.js';
 import { convertToBps } from './utils.js';
@@ -49,13 +50,6 @@ import { convertToBps } from './utils.js';
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
-
-function getConfiguredToken(config: TokenFeeConfigInput): Address | undefined {
-  if ('token' in config && typeof config.token === 'string') {
-    return config.token;
-  }
-  return undefined;
-}
 
 function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
@@ -330,12 +324,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
     const routingDestinations = params?.routingDestinations;
-    const token = params?.token ?? getConfiguredToken(this.args.config);
 
     return this.reader.deriveTokenFeeConfig({
       address,
       routingDestinations,
-      token,
+      crossCollateralRouters: params?.crossCollateralRouters,
     });
   }
 
@@ -366,9 +359,26 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     let updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    // Derive routingDestinations from target config if not provided
-    // This ensures we read all sub-fee configs that need to be compared/updated
-    let effectiveParams = params;
+    // Derive routing destinations from target config if not provided.
+    // Also always include CCR router keys when available.
+    const crossCollateralRouters =
+      targetConfig.type === TokenFeeType.RoutingFee &&
+      targetConfig.ccrfFeeContracts
+        ? Object.fromEntries(
+            Object.entries(targetConfig.ccrfFeeContracts).map(
+              ([chainName, destinationConfig]) => [
+                this.multiProvider.getDomainId(chainName),
+                Object.keys(destinationConfig.routers ?? {}),
+              ],
+            ),
+          )
+        : undefined;
+
+    let effectiveParams: Partial<TokenFeeReaderParams> = {
+      ...params,
+      ...(crossCollateralRouters ? { crossCollateralRouters } : {}),
+    };
+
     if (
       !params?.routingDestinations &&
       targetConfig.type === TokenFeeType.RoutingFee &&
@@ -382,20 +392,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       const routingDestinations = [...destinations].map((chainName) =>
         this.multiProvider.getDomainId(chainName),
       );
-      const crossCollateralRouters =
-        targetConfig.ccrfFeeContracts &&
-        Object.fromEntries(
-          Object.entries(targetConfig.ccrfFeeContracts).map(
-            ([chainName, destinationConfig]) => [
-              this.multiProvider.getDomainId(chainName),
-              Object.keys(destinationConfig.routers ?? {}),
-            ],
-          ),
-        );
       effectiveParams = {
-        ...params,
+        ...effectiveParams,
         routingDestinations,
-        ...(crossCollateralRouters ? { crossCollateralRouters } : {}),
       };
     }
 
@@ -450,13 +449,29 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
-    const usesCrossCollateralRoutingFee =
-      normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
-      (!isNullish(normalizedTargetConfig.ccrfFeeContracts) ||
-        (actualConfig.type === TokenFeeType.RoutingFee &&
-          !isNullish(
-            (actualConfig as DerivedRoutingFeeConfig).ccrfFeeContracts,
-          )));
+    let usesCrossCollateralRoutingFee = false;
+    if (normalizedTargetConfig.type === TokenFeeType.RoutingFee) {
+      const targetUsesCrossCollateralRoutingFee = !isNullish(
+        normalizedTargetConfig.ccrfFeeContracts,
+      );
+      const intendsRoutingConfigMutation =
+        !isNullish(normalizedTargetConfig.feeContracts) ||
+        !isNullish(normalizedTargetConfig.ccrfFeeContracts);
+      const onchainUsesCrossCollateralRoutingFee =
+        await this.isCrossCollateralRoutingFeeOnchain(
+          this.args.addresses.deployedFee,
+        );
+      if (
+        intendsRoutingConfigMutation &&
+        targetUsesCrossCollateralRoutingFee !==
+          onchainUsesCrossCollateralRoutingFee
+      ) {
+        throw new Error(
+          `Routing fee variant mismatch at ${this.args.addresses.deployedFee}: target expects ${targetUsesCrossCollateralRoutingFee ? 'CrossCollateralRoutingFee' : 'RoutingFee'}, on-chain is ${onchainUsesCrossCollateralRoutingFee ? 'CrossCollateralRoutingFee' : 'RoutingFee'}. Redeploy the fee contract to change variants.`,
+        );
+      }
+      usesCrossCollateralRoutingFee = onchainUsesCrossCollateralRoutingFee;
+    }
 
     // if the type is a mutable (for now, only routing fee), then update
     updateTransactions = [
@@ -615,7 +630,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         );
         const subFeeUpdateTransactions = await subFeeModule.update(config, {
           address,
-          token: config.token,
         });
         deployedSubFee = subFeeModule.serialize().deployedFee;
 
@@ -673,5 +687,24 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       expectedConfig,
       `${expectedConfig.type} Warp Route`,
     );
+  }
+
+  private async isCrossCollateralRoutingFeeOnchain(
+    address: Address,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chainName);
+    const tokenFee = BaseFee__factory.connect(address, provider);
+    try {
+      const feeType = await tokenFee.feeType();
+      return feeType === OnchainTokenFeeType.CrossCollateralRoutingFee;
+    } catch {
+      const maybeCcrf = new Contract(
+        address,
+        ['function DEFAULT_ROUTER() view returns (bytes32)'],
+        provider,
+      );
+      const defaultRouter = await maybeCcrf.DEFAULT_ROUTER().catch(() => null);
+      return defaultRouter === DEFAULT_ROUTER_KEY;
+    }
   }
 }
