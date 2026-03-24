@@ -541,7 +541,8 @@ export class Token implements IToken {
   isCrossCollateralToken(): boolean {
     return (
       this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
+      this.standard === TokenStandard.TronHypCrossCollateralRouter ||
+      this.standard === TokenStandard.SealevelHypCrossCollateral
     );
   }
 
