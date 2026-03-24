@@ -55,6 +55,7 @@ import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
 } from '../utils/warp.js';
+import { withSmartProviderLogLevel } from '../utils/smart-provider-logging.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -153,15 +154,23 @@ export const apply: CommandModuleWithWarpApplyContext<
     if (strategyUrl)
       ExtendedChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
 
-    await runWarpRouteApply({
+    const applyChains = Object.keys(context.warpDeployConfig ?? {});
+    await withSmartProviderLogLevel({
       context,
-      // Already fetched in the resolveWarpApplyChains
-      warpDeployConfig: context.warpDeployConfig,
-      warpCoreConfig: context.warpCoreConfig,
-      strategyUrl,
-      receiptsDir,
-      selfRelay: relay,
-      warpRouteId,
+      chains: applyChains,
+      level: 'silent',
+      suppressCombinedProviderWarnLogs: true,
+      fn: async () =>
+        runWarpRouteApply({
+          context,
+          // Already fetched in the resolveWarpApplyChains
+          warpDeployConfig: context.warpDeployConfig,
+          warpCoreConfig: context.warpCoreConfig,
+          strategyUrl,
+          receiptsDir,
+          selfRelay: relay,
+          warpRouteId,
+        }),
     });
     process.exit(0);
   },
@@ -558,17 +567,27 @@ export const check: CommandModuleWithContext<
       ),
     );
 
-    // Get on-chain config
-    const onChainWarpConfig = await getWarpRouteConfigsByCore({
+    const checkedChains = warpCoreConfig.tokens.map((t) => t.chainName);
+    const { expandedOnChainWarpConfig } = await withSmartProviderLogLevel({
       context,
-      warpCoreConfig,
-    });
+      chains: checkedChains,
+      level: 'silent',
+      suppressCombinedProviderWarnLogs: true,
+      fn: async () => {
+        const onChainWarpConfig = await getWarpRouteConfigsByCore({
+          context,
+          warpCoreConfig,
+        });
 
-    // get virtual on-chain config
-    const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
-      multiProvider: context.multiProvider,
-      onChainWarpConfig,
-      deployedRoutersAddresses,
+        // get virtual on-chain config
+        const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
+          multiProvider: context.multiProvider,
+          onChainWarpConfig,
+          deployedRoutersAddresses,
+        });
+
+        return { onChainWarpConfig, expandedOnChainWarpConfig };
+      },
     });
 
     let expandedWarpDeployConfig = await expandWarpDeployConfig({

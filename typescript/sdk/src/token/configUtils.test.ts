@@ -196,6 +196,74 @@ describe('configUtils', () => {
         expect(transformedObj).to.eql(expected);
       });
     }
+
+    it('normalizes LinearFee maxFee/halfAmount so equivalent bps configs compare equal', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+          maxFee: 999n,
+          halfAmount: 123n,
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+        },
+      });
+    });
+
+    it('normalizes RoutingFee maxFee/halfAmount recursively for feeContracts', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          maxFee: 1n,
+          halfAmount: 2n,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 300n,
+              maxFee: 3n,
+              halfAmount: 4n,
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 300n,
+            },
+          },
+        },
+      });
+    });
   });
 
   describe(resolveTokenFeeAddress.name, () => {

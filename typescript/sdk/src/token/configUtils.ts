@@ -43,11 +43,10 @@ import {
   HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
-  isCrossCollateralTokenConfig,
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
-  isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -209,9 +208,34 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.remoteRouters = formattedRemoteRouters;
 
+      const gasDomainsToKeep = new Set(Object.keys(formattedRemoteRouters));
+
+      // CrossCollateralRouter may require destination gas for CCR-only domains
+      // that are not present in Router._routers.
+      if (isCrossCollateralTokenConfig(chainConfig)) {
+        const localDomain = multiProvider.getDomainId(chain).toString();
+        for (const domain of Object.keys(
+          chainConfig.crossCollateralRouters ?? {},
+        )) {
+          if (domain !== localDomain) {
+            gasDomainsToKeep.add(domain);
+            // Ensure CCR-only destinations get destinationGas defaults so
+            // warp check/apply can enforce gas config on enrolled CCR domains.
+            if (!chainConfig.destinationGas?.[domain]) {
+              chainConfig.destinationGas = {
+                ...(chainConfig.destinationGas ?? {}),
+                [domain]:
+                  chainConfig.gas?.toString() ||
+                  gasOverhead(chainConfig.type).toString(),
+              };
+            }
+          }
+        }
+      }
+
       const remoteGasDomainsToKeep = intersection(
         new Set(Object.keys(chainConfig.destinationGas ?? {})),
-        new Set(Object.keys(formattedRemoteRouters)),
+        gasDomainsToKeep,
       );
 
       // If the deploy config specified a custom config for remote routers
@@ -341,10 +365,7 @@ export function resolveTokenFeeAddress(
 
   if (isNativeTokenConfig(tokenConfig)) {
     feeToken = constants.AddressZero;
-  } else if (
-    isCollateralTokenConfig(tokenConfig) ||
-    isCrossCollateralTokenConfig(tokenConfig)
-  ) {
+  } else if (isMovableCollateralTokenConfig(tokenConfig)) {
     feeToken = tokenConfig.token;
   } else if (
     isSyntheticTokenConfig(tokenConfig) ||
@@ -459,6 +480,41 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
+function normalizeTokenFeeForCheck(
+  feeConfig: TokenFeeConfigInput | undefined,
+): TokenFeeConfigInput | undefined {
+  if (!feeConfig) return feeConfig;
+
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
+    const normalizedFeeContracts =
+      feeConfig.feeContracts &&
+      Object.fromEntries(
+        Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
+          chain,
+          normalizeTokenFeeForCheck(nestedFee),
+        ]),
+      );
+
+    const normalizedRoutingFee = {
+      ...feeConfig,
+      feeContracts: normalizedFeeContracts,
+    } as Record<string, unknown>;
+    delete normalizedRoutingFee.maxFee;
+    delete normalizedRoutingFee.halfAmount;
+    return normalizedRoutingFee as TokenFeeConfigInput;
+  }
+
+  if (feeConfig.type === TokenFeeType.LinearFee) {
+    const normalizedLinearFee = { ...feeConfig } as Record<string, unknown>;
+    // maxFee/halfAmount are derived on-chain representation for bps-based LinearFee.
+    delete normalizedLinearFee.maxFee;
+    delete normalizedLinearFee.halfAmount;
+    return normalizedLinearFee as TokenFeeConfigInput;
+  }
+
+  return feeConfig;
+}
+
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -485,6 +541,12 @@ export function transformConfigToCheck(
     )
       ? clonedTokenConfig.allowedRebalancingBridges
       : undefined;
+  }
+
+  if (clonedTokenConfig.tokenFee) {
+    clonedTokenConfig.tokenFee = normalizeTokenFeeForCheck(
+      clonedTokenConfig.tokenFee,
+    );
   }
 
   return sortArraysInObject(
