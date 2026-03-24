@@ -208,9 +208,12 @@ export class SealevelHypCrossCollateralAdapter
     return keys;
   }
 
-  // Simulates the HandleLocalAccountMetas instruction to discover the
-  // accounts needed by the target program's HandleLocal CPI call.
+  // Simulates the HandleLocalAccountMetas instruction on the target program
+  // to discover accounts needed for the HandleLocal CPI call.
   // Same simulation pattern as SealevelIgpAdapter.quoteGasPayment.
+  //
+  // Should match handle_local_account_metas in processor.rs:
+  // Account 0: [] The target program's token PDA account.
   async simulateHandleLocalAccountMetas({
     targetProgram,
     senderProgram,
@@ -234,24 +237,18 @@ export class SealevelHypCrossCollateralAdapter
     });
     const serializedData = serialize(SealevelCCHandleLocalSchema, value);
 
+    // Derive the target program's token PDA (same seed pattern, different program)
+    const targetTokenPda = this.derivePda(
+      ['hyperlane_token', '-', 'token'],
+      targetProgram,
+    );
+
     const instruction = new TransactionInstruction({
       keys: [
-        // The token PDA account.
-        {
-          pubkey: this.deriveHypTokenAccount(),
-          isSigner: false,
-          isWritable: false,
-        },
-        // The CC state PDA account.
-        {
-          pubkey: this.deriveCrossCollateralStatePda(),
-          isSigner: false,
-          isWritable: false,
-        },
-        // The target program (executable).
-        { pubkey: targetProgram, isSigner: false, isWritable: false },
+        // Account 0: The target program's token PDA account.
+        { pubkey: targetTokenPda, isSigner: false, isWritable: false },
       ],
-      programId: this.warpProgramPubKey,
+      programId: targetProgram,
       data: Buffer.concat([CC_DISCRIMINATOR, Buffer.from(serializedData)]),
     });
 
