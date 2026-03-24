@@ -58,24 +58,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
-    let onchainFeeType: OnchainTokenFeeType;
-    try {
-      onchainFeeType = await tokenFee.feeType();
-    } catch (_error) {
-      // Backward compatibility: older fee contracts may not implement feeType().
-      try {
-        return await this.deriveCrossCollateralRoutingFeeConfig({
-          address,
-          routingDestinations,
-          crossCollateralRouters,
-        });
-      } catch (_nestedError) {
-        return await this.deriveRoutingFeeConfig({
-          address,
-          routingDestinations,
-        });
-      }
-    }
+    const onchainFeeType: OnchainTokenFeeType = await tokenFee.feeType();
     switch (onchainFeeType) {
       case OnchainTokenFeeType.LinearFee:
         derivedConfig = await this.deriveLinearFeeConfig(address);
