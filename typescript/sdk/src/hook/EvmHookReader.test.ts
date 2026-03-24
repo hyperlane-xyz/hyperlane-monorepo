@@ -65,8 +65,8 @@ describe('EvmHookReader', () => {
       .stub(MerkleTreeHook__factory, 'connect')
       .returns(mockContract as unknown as MerkleTreeHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.MERKLE_TREE);
 
     const expectedConfig: WithAddress<MerkleTreeHookConfig> = {
       address: mockAddress,
@@ -99,8 +99,8 @@ describe('EvmHookReader', () => {
       .stub(ProtocolFee__factory, 'connect')
       .returns(mockContract as unknown as ProtocolFee);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.PROTOCOL_FEE);
 
     const expectedConfig: WithAddress<ProtocolFeeHookConfig> = {
       owner: mockOwner,
@@ -135,8 +135,8 @@ describe('EvmHookReader', () => {
       .stub(PausableHook__factory, 'connect')
       .returns(mockContract as unknown as PausableHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.PAUSABLE);
 
     const expectedConfig: WithAddress<PausableHookConfig> = {
       owner: mockOwner,
@@ -167,8 +167,8 @@ describe('EvmHookReader', () => {
       .stub(DefaultHook__factory, 'connect')
       .returns(mockContract as unknown as DefaultHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.MAILBOX_DEFAULT_HOOK);
 
     const expectedConfig: WithAddress<MailboxDefaultHookConfig> = {
       address: mockAddress,
@@ -201,8 +201,8 @@ describe('EvmHookReader', () => {
       .stub(OPStackHook__factory, 'connect')
       .returns(mockContract as unknown as OPStackHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.ID_AUTH_ISM);
 
     const expectedConfig: WithAddress<OpStackHookConfig> = {
       owner: mockOwner,

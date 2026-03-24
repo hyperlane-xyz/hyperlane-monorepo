@@ -12,7 +12,11 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
-import { RpcConfigWithConnectionInfo } from './types.js';
+import {
+  RpcConfigWithConnectionInfo,
+  SMART_PROVIDER_REQUEST_CONFIG,
+  SmartProviderRequestConfig,
+} from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
@@ -52,7 +56,18 @@ export class HyperlaneJsonRpcProvider
       return this.performGetLogs(params);
     }
 
-    const result = await super.perform(method, params);
+    const requestConfig: SmartProviderRequestConfig | undefined =
+      params?.[SMART_PROVIDER_REQUEST_CONFIG];
+    const providerParams =
+      requestConfig === undefined || params == null
+        ? params
+        : Object.fromEntries(
+            Object.entries(params).filter(
+              ([key]) => key !== SMART_PROVIDER_REQUEST_CONFIG,
+            ),
+          );
+
+    const result = await super.perform(method, providerParams);
     if (
       result === '0x' &&
       [
@@ -60,8 +75,11 @@ export class HyperlaneJsonRpcProvider
         ProviderMethod.GetBalance,
         ProviderMethod.GetBlock,
         ProviderMethod.GetBlockNumber,
-      ].includes(method as ProviderMethod)
+      ].includes(method as ProviderMethod) &&
+      !requestConfig?.allowEmptyCallResult
     ) {
+      // Normal reads treat bare 0x as a malformed provider response. Probe
+      // reads opt in to empty results because selector misses are expected.
       this.logger.debug(
         `Received 0x result from ${method} for reqId ${reqId}.`,
       );

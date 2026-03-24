@@ -73,8 +73,8 @@ describe('EvmIsmReader', () => {
       .stub(IMultisigIsm__factory, 'connect')
       .returns(mockContract as unknown as IMultisigIsm);
     sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
+      .stub(evmIsmReader as any, 'probeContractCall')
+      .resolves(ModuleType.MESSAGE_ID_MULTISIG);
 
     const expectedConfig: WithAddress<MultisigIsmConfig> = {
       address: mockAddress,
@@ -112,6 +112,9 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
+    sandbox
+      .stub(evmIsmReader as any, 'probeContractCall')
+      .resolves(ModuleType.NULL);
 
     const expectedConfig: WithAddress<PausableIsmConfig> = {
       address: mockAddress,
@@ -154,6 +157,9 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
+    sandbox
+      .stub(evmIsmReader as any, 'probeContractCall')
+      .resolves(ModuleType.NULL);
 
     const expectedConfig: WithAddress<TestIsmConfig> = {
       address: mockAddress,
@@ -194,8 +200,8 @@ describe('EvmIsmReader', () => {
       .stub(TrustedRelayerIsm__factory, 'connect')
       .returns(mockContract as unknown as TrustedRelayerIsm);
     sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
+      .stub(evmIsmReader as any, 'probeContractCall')
+      .resolves(ModuleType.ROUTING);
     sandbox.stub(Ownable__factory, 'connect').returns(mockContract as any);
     sandbox
       .stub(DefaultFallbackRoutingIsm__factory, 'connect')
