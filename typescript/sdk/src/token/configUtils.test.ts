@@ -328,6 +328,56 @@ describe('configUtils', () => {
         },
       });
     });
+
+    it('prefers ccrfFeeContracts over feeContracts when both are provided', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 100n,
+            },
+          },
+          ccrfFeeContracts: {
+            ethereum: {
+              default: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          ccrfFeeContracts: {
+            ethereum: {
+              default: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+            },
+          },
+        },
+      });
+    });
   });
 
   describe(resolveTokenFeeAddress.name, () => {

@@ -27,6 +27,10 @@ contract MockCrossCollateralRoutingFee {
         return FeeType.CROSS_COLLATERAL_ROUTING;
     }
 
+    function transferOwnership(address newOwner) external {
+        owner = newOwner;
+    }
+
     function setCrossCollateralRouterFeeContracts(
         uint32[] calldata _destinations,
         bytes32[] calldata _routers,

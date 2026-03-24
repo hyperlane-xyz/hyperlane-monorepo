@@ -124,8 +124,7 @@ async function getWarpConfigsFromContextOrRegistry({
     context,
     warpRouteId: requestedWarpRouteId,
   });
-  const resolvedWarpRouteId =
-    fetchedConfigs.resolvedWarpRouteId ?? requestedWarpRouteId;
+  const resolvedWarpRouteId = requestedWarpRouteId;
   const { warpCoreConfig, warpDeployConfig } = fetchedConfigs;
   context.warpCoreConfig = warpCoreConfig;
   context.warpDeployConfig = warpDeployConfig;
@@ -410,16 +409,11 @@ const send: CommandModuleWithWriteContext<
     destinationToken,
     preResolvedWarpCoreConfig,
   }) => {
-    const filterChains = [origin, destination, ...(chainsArg || [])]
-      .filter((v): v is string => Boolean(v))
-      .filter((v, i, a) => a.indexOf(v) === i);
-
     const warpCoreConfig =
       preResolvedWarpCoreConfig ??
       (await getWarpCoreConfigOrExit({
         warpRouteId,
         context,
-        chains: filterChains.length > 0 ? filterChains : undefined,
       }));
     let chains = chainsArg?.length ? chainsArg : [];
 
@@ -576,10 +570,11 @@ export const check: CommandModuleWithContext<
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
     // Remove any non EVM chain configs to avoid the checker crashing
-    warpCoreConfig.tokens = warpCoreConfig.tokens.filter((config) =>
-      isEVMLike(
-        context.multiProvider.getChainMetadata(config.chainName).protocol,
-      ),
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
+      (config: WarpCoreConfig['tokens'][number]) =>
+        isEVMLike(
+          context.multiProvider.getChainMetadata(config.chainName).protocol,
+        ),
     );
 
     // Get on-chain config

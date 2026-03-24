@@ -245,6 +245,7 @@ export async function expandWarpDeployConfig(params: {
       chainConfig.remoteRouters = formattedRemoteRouters;
 
       const gasDomainsToKeep = new Set(Object.keys(formattedRemoteRouters));
+      const selfDomain = multiProvider.getDomainId(chain).toString();
 
       // CrossCollateralRouter may require destination gas for CCR-only domains
       // that are not present in Router._routers.
@@ -252,12 +253,13 @@ export async function expandWarpDeployConfig(params: {
         for (const domain of Object.keys(
           chainConfig.crossCollateralRouters ?? {},
         )) {
+          if (domain === selfDomain) continue;
           gasDomainsToKeep.add(domain);
           // Ensure CCR-only destinations get destinationGas defaults so
           // warp check/apply can enforce gas config on enrolled CCR domains.
           if (!chainConfig.destinationGas?.[domain]) {
             chainConfig.destinationGas = {
-              ...(chainConfig.destinationGas ?? {}),
+              ...chainConfig.destinationGas,
               [domain]:
                 chainConfig.gas?.toString() ||
                 gasOverhead(chainConfig.type).toString(),
@@ -421,7 +423,7 @@ export function resolveTokenFeeAddress(
       ...feeConfig,
       token: feeToken,
       feeContracts: Object.fromEntries(
-        Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
+        Object.entries(feeConfig.feeContracts ?? {}).map(([chain, subFee]) => [
           chain,
           resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
         ]),
@@ -588,16 +590,21 @@ function normalizeTokenFeeForCheck(
         ),
       );
 
+    const hasCcrfFeeContracts =
+      !!normalizedCcrfFeeContracts && !isObjEmpty(normalizedCcrfFeeContracts);
+    const hasFeeContracts =
+      !!normalizedFeeContracts && !isObjEmpty(normalizedFeeContracts);
+
     return {
       type: TokenFeeType.RoutingFee,
       owner: feeConfig.owner,
       ...('token' in feeConfig && feeConfig.token
         ? { token: feeConfig.token }
         : {}),
-      ...(normalizedFeeContracts
+      ...(!hasCcrfFeeContracts && hasFeeContracts
         ? { feeContracts: normalizedFeeContracts }
         : {}),
-      ...(normalizedCcrfFeeContracts
+      ...(hasCcrfFeeContracts
         ? { ccrfFeeContracts: normalizedCcrfFeeContracts }
         : {}),
     };

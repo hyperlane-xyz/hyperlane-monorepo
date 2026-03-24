@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -9,7 +8,6 @@ import {
   ERC20Test,
   ERC20Test__factory,
 } from '@hyperlane-xyz/core';
-import { CrossCollateralRoutingFee__factory } from '@hyperlane-xyz/multicollateral';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -54,6 +52,16 @@ describe('EvmTokenFeeModule', () => {
       bps: BPS,
     };
   });
+
+  async function deployCrossCollateralRoutingFee(owner: string): Promise<any> {
+    const factory = await hre.ethers.getContractFactory(
+      'MockCrossCollateralRoutingFee',
+      signer,
+    );
+    const ccrf = await factory.deploy(owner);
+    await ccrf.deployed();
+    return ccrf;
+  }
 
   async function expectTxsAndUpdate(
     feeModule: EvmTokenFeeModule,
@@ -364,11 +372,19 @@ describe('EvmTokenFeeModule', () => {
       }
     });
 
-    it('should reuse stored token when updating CCRF without reader params', async () => {
-      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
-        signer.address,
+    it('should update CCRF owner when reader params are provided', async () => {
+      const initialSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config,
+      });
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination],
+        [await ccrf.DEFAULT_ROUTER()],
+        [initialSubFeeModule.serialize().deployedFee],
       );
-      await ccrf.deployed();
 
       const routingConfig: RoutingFeeConfig = {
         type: TokenFeeType.RoutingFee,
@@ -382,10 +398,16 @@ describe('EvmTokenFeeModule', () => {
       });
 
       const newOwner = randomAddress();
-      const txs = await module.update({
-        type: TokenFeeType.RoutingFee,
-        owner: newOwner,
-      });
+      const txs = await module.update(
+        {
+          type: TokenFeeType.RoutingFee,
+          owner: newOwner,
+        },
+        {
+          routingDestinations: [routingDestination],
+          token: token.address,
+        },
+      );
 
       expect(txs).to.have.lengthOf(1);
       await multiProvider.sendTransaction(test4Chain, txs[0]);
@@ -400,10 +422,7 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config,
       });
-      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
-        signer.address,
-      );
-      await ccrf.deployed();
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
 
       const routingDestination = multiProvider.getDomainId(test4Chain);
       await ccrf.setCrossCollateralRouterFeeContracts(
@@ -427,11 +446,13 @@ describe('EvmTokenFeeModule', () => {
         {
           type: TokenFeeType.RoutingFee,
           owner: signer.address,
-          feeContracts: {
+          ccrfFeeContracts: {
             [test4Chain]: {
-              type: TokenFeeType.LinearFee,
-              owner: signer.address,
-              bps: BPS + 1n,
+              default: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                bps: BPS + 1n,
+              },
             },
           },
         },
@@ -453,11 +474,13 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.RoutingFee}`,
       );
       assert(
-        onchainConfig.feeContracts?.[test4Chain]?.type ===
+        onchainConfig.ccrfFeeContracts?.[test4Chain]?.default?.type ===
           TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      expect(onchainConfig.feeContracts?.[test4Chain]?.bps).to.equal(BPS + 1n);
+      expect(
+        onchainConfig.ccrfFeeContracts?.[test4Chain]?.default?.bps,
+      ).to.equal(BPS + 1n);
     });
 
     it('should detect CCRF via explicit fee type during updates', async () => {
@@ -466,10 +489,7 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config,
       });
-      const ccrf = await new CrossCollateralRoutingFee__factory(signer).deploy(
-        signer.address,
-      );
-      await ccrf.deployed();
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
 
       const routingDestination = multiProvider.getDomainId(test4Chain);
       await ccrf.setCrossCollateralRouterFeeContracts(
@@ -507,11 +527,13 @@ describe('EvmTokenFeeModule', () => {
           {
             type: TokenFeeType.RoutingFee,
             owner: signer.address,
-            feeContracts: {
+            ccrfFeeContracts: {
               [test4Chain]: {
-                type: TokenFeeType.LinearFee,
-                owner: signer.address,
-                bps: BPS + 1n,
+                default: {
+                  type: TokenFeeType.LinearFee,
+                  owner: signer.address,
+                  bps: BPS + 1n,
+                },
               },
             },
           },
