@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Wallet, utils } from 'ethers';
 
 import { Contexts } from '../../config/contexts.js';

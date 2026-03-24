@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Logger } from 'pino';
 
 import { DeployEnvironment } from '../config/environment.js';

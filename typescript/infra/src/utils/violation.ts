@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chalk from 'chalk';
 import { addedDiff, deletedDiff, updatedDiff } from 'deep-object-diff';
 import stringify from 'json-stable-stringify';

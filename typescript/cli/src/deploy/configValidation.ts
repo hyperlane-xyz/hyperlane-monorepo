@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Configuration validation utilities for converting SDK types to provider-sdk types.
  *

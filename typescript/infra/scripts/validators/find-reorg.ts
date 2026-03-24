@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { MerkleTreeHook, MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import { getValidatorFromStorageLocation } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';

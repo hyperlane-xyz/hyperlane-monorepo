@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type BigNumber, type Signer } from 'ethers';
 import { type Logger } from 'pino';
 

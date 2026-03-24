@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { expect } from 'chai';
 
 import { type CoreConfig, type HookConfig, HookType } from '@hyperlane-xyz/sdk';

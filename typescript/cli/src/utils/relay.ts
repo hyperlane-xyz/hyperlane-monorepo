@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type TransactionReceipt } from '@ethersproject/providers';
 
 import { type IRegistry } from '@hyperlane-xyz/registry';

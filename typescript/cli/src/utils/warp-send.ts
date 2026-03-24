@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type ChainName, type MultiProvider } from '@hyperlane-xyz/sdk';
 import { isEVMLike } from '@hyperlane-xyz/utils';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { agents as mainnet3Agents } from './mainnet3/agent.js';
 import { agents as testAgents } from './test/agent.js';
 import { agents as testnet4Agents } from './testnet4/agent.js';

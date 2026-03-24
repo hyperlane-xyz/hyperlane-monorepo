@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { input } from '@inquirer/prompts';
 import { ethers, type providers } from 'ethers';
 

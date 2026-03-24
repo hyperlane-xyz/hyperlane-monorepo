@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type Signer, Wallet } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 

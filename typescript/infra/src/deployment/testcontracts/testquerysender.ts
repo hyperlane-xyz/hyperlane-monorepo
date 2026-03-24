@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,

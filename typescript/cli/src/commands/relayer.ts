@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { HyperlaneRelayer, RelayerCacheSchema } from '@hyperlane-xyz/relayer';
 import { type ChainMap, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';

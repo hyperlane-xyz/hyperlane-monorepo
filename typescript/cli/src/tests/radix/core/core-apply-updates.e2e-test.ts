@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { IsmType, RoutingIsmConfig } from '@hyperlane-xyz/sdk';
 
 import { multisigIsm } from './multisigIsm.js';

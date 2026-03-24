@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 

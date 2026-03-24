@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { getAgentConfigsBasedOnArgs } from '../agent-utils.js';
 

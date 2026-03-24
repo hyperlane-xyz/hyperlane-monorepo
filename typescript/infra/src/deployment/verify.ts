@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { BuildArtifact, ChainMap } from '@hyperlane-xyz/sdk';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 

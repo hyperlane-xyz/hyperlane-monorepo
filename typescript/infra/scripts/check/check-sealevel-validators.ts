@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chalk from 'chalk';
 // eslint-disable-next-line
 import fs from 'fs';

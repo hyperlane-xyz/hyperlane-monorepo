@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chalk from 'chalk';
 import { exec } from 'child_process';
 import { promisify } from 'util';

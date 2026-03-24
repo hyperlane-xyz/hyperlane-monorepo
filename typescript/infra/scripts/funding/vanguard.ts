@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chalk from 'chalk';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import yargs from 'yargs';

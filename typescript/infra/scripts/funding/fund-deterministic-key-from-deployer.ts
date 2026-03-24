@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { BigNumber } from 'ethers';
 import { format } from 'util';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { confirm, input, select } from '@inquirer/prompts';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { ethers } from 'ethers';

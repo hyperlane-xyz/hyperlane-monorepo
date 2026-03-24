@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { JsonRpcProvider, type Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';

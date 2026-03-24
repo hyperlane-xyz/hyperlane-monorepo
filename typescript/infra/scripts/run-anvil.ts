@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { spawn } from 'child_process';
 
 import { getArgs, withChainRequired } from './agent-utils.js';

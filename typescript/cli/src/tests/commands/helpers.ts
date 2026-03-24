@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type ProcessOutput, type ProcessPromise } from 'zx';
 
 import { inCIMode, sleep } from '@hyperlane-xyz/utils';

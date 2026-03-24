@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import yargs from 'yargs';
 
 import { InterchainAccount } from '@hyperlane-xyz/sdk';

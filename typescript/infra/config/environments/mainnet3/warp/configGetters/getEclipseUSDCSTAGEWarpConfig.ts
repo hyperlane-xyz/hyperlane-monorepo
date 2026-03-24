@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ChainMap, HypTokenRouterConfig } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';

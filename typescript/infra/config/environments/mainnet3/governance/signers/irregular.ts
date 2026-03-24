@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Address } from '@hyperlane-xyz/utils';
 
 export const irregularSigners: Address[] = [

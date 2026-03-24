@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import assert from 'assert';
 
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';

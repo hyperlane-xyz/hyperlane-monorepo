@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import chalk from 'chalk';
 import { ethers } from 'ethers';
 import { readFileSync } from 'fs';

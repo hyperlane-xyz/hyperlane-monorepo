@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Separator, confirm } from '@inquirer/prompts';
 import search from '@inquirer/search';
 import select from '@inquirer/select';

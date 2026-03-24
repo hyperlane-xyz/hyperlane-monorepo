@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Contexts } from '../../config/contexts.js';
 import { CheckWarpDeployHelmManager } from '../../src/check-warp-deploy/helm.js';
 import { HelmCommand } from '../../src/utils/helm.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Argv } from 'yargs';
 
 import rawGasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };

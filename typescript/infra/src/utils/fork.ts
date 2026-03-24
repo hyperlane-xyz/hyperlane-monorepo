@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';

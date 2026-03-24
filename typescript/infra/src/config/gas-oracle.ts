@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { BigNumber } from 'ethers';
 import { z } from 'zod';

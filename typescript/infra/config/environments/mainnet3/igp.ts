@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 

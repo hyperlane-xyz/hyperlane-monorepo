@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import Safe from '@safe-global/protocol-kit';
 import yargs from 'yargs';
 

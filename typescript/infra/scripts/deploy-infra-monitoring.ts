@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { runPrometheusHelmCommand } from '../src/infrastructure/monitoring/prometheus.js';
 import { HelmCommand } from '../src/utils/helm.js';
 

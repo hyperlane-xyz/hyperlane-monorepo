@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { ExtendedChainSubmissionStrategy } from '../submitters/types.js';

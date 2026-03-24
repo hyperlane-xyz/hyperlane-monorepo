@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 /**
  * Squads transaction parser for Hyperlane operations
  * Parses VaultTransaction instructions to verify governance operations

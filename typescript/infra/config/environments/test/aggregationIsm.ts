@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { AggregationIsmConfig, IsmType } from '@hyperlane-xyz/sdk';
 
 import { merkleRootMultisig, messageIdMultisig } from './multisigIsm.js';

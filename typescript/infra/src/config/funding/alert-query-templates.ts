@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // alert queries currently need to support special cases i.e cross VM (sealevel and cosmos chains) and ata payer (sealevel). These special cases are hard coded for now. We aim to add cross VM support to the key and will be able to remove special casing in the future
 export const LOW_URGENCY_KEY_FUNDER_HEADER = `# Note: use last_over_time(hyperlane_wallet_balance{}[1d]) to be resilient to gaps in the 'hyperlane_wallet_balance'
 # that occur due to key funder only running every hour or so.

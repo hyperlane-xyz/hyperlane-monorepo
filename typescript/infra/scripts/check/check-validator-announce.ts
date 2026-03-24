@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ChainMap, defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import { eqAddress } from '@hyperlane-xyz/utils';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../config/registry.js';

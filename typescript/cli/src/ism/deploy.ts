@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { createIsmWriter } from '@hyperlane-xyz/deploy-sdk';
 import {

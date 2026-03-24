@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // Found by running:
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';

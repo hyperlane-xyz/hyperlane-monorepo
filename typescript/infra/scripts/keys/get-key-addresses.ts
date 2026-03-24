@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import prompts from 'prompts';
 
 import { ProtocolType } from '../../../utils/dist/types.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';

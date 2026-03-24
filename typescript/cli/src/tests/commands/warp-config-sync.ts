@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { assert } from '@hyperlane-xyz/utils';
 
 import { isFile, readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';

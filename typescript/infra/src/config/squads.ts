@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { PublicKey } from '@solana/web3.js';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';

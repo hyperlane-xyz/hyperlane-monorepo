@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { getCloudAgentKey } from '../../src/agents/key-utils.js';
 import { getArgs, withAgentRole, withContext } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { OwnableConfig, RouterConfig } from '@hyperlane-xyz/sdk';
 
 // Common collateral tokens to be used by warp route deployments.

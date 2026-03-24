@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Result } from '@ethersproject/abi';
 import {
   MetaTransactionData,

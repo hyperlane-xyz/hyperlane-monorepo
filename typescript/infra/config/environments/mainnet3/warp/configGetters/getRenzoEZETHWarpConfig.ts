@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { parseEther } from 'ethers/lib/utils.js';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';

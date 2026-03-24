@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import { HyperlaneCore, S3Validator } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';

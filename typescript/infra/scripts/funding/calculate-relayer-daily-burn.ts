@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { input, select } from '@inquirer/prompts';
 import postgres from 'postgres';
 import yargs from 'yargs';

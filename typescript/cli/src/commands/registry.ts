@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { type CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { Wallet, ethers } from 'ethers';
 import { $, type ProcessOutput, type ProcessPromise } from 'zx';
 

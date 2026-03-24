@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import { ChainName, defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 
 export const REBALANCER_HELM_RELEASE_PREFIX = 'hyperlane-rebalancer';

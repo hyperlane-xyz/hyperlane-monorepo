@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const testnet4SupportedChainNames = [
   'aleotestnet',

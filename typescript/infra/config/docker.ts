@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 const GHCR_REGISTRY = 'ghcr.io/hyperlane-xyz';
 
 export const DockerImageNames = {

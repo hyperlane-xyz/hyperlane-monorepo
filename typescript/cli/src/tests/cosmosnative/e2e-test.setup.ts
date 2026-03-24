@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BUSL-1.1
 import fs from 'fs';
 
 import { REGISTRY_PATH } from './consts.js';
