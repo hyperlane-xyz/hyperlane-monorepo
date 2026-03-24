@@ -79,7 +79,7 @@ export function verifyScale(
   const entries = Object.entries(
     objMap(chainDecimalConfigPairs, (chain, config) => {
       assert(
-        config.decimals,
+        config.decimals != null,
         `Decimals must be defined for token config on chain ${chain}`,
       );
       return { decimals: config.decimals!, scale: config.scale };
