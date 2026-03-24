@@ -19,6 +19,7 @@ import {
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   CollateralWarpConfig,
+  CrossCollateralWarpConfig,
   NativeWarpConfig,
   SyntheticWarpConfig,
   TokenType as ProviderTokenType,
@@ -74,6 +75,7 @@ const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
   TokenType.synthetic,
   TokenType.collateral,
   TokenType.native,
+  TokenType.crossCollateral,
 ]);
 
 export function validateWarpConfigForAltVM(
@@ -121,34 +123,56 @@ export function validateWarpConfigForAltVM(
     scale,
   };
 
-  if (config.type === TokenType.collateral) {
-    if (!config.token) {
-      throw new Error(
-        `Collateral token config for chain '${chain}' must specify 'token' address`,
-      );
+  switch (config.type) {
+    case TokenType.collateral: {
+      if (!config.token) {
+        throw new Error(
+          `Collateral token config for chain '${chain}' must specify 'token' address`,
+        );
+      }
+      const result: CollateralWarpConfig = {
+        ...baseConfig,
+        type: ProviderTokenType.collateral,
+        token: config.token,
+      };
+      return result;
     }
-    const result: CollateralWarpConfig = {
-      ...baseConfig,
-      type: ProviderTokenType.collateral,
-      token: config.token,
-    };
-    return result;
-  } else if (config.type === TokenType.synthetic) {
-    const result: SyntheticWarpConfig = {
-      ...baseConfig,
-      type: ProviderTokenType.synthetic,
-      name: config.name,
-      symbol: config.symbol,
-      decimals: config.decimals,
-      metadataUri: config.metadataUri,
-    };
-    return result;
-  } else {
-    const result: NativeWarpConfig = {
-      ...baseConfig,
-      type: ProviderTokenType.native,
-    };
-    return result;
+    case TokenType.synthetic: {
+      const result: SyntheticWarpConfig = {
+        ...baseConfig,
+        type: ProviderTokenType.synthetic,
+        name: config.name,
+        symbol: config.symbol,
+        decimals: config.decimals,
+        metadataUri: config.metadataUri,
+      };
+      return result;
+    }
+    case TokenType.crossCollateral: {
+      if (!config.token) {
+        throw new Error(
+          `Cross-collateral token config for chain '${chain}' must specify 'token' address`,
+        );
+      }
+      const result: CrossCollateralWarpConfig = {
+        ...baseConfig,
+        type: ProviderTokenType.crossCollateral,
+        token: config.token,
+        crossCollateralRouters: config.crossCollateralRouters,
+      };
+      return result;
+    }
+    case TokenType.native: {
+      const result: NativeWarpConfig = {
+        ...baseConfig,
+        type: ProviderTokenType.native,
+      };
+      return result;
+    }
+    default:
+      throw new Error(
+        `Unhandled token type '${config.type}' for Alt-VM chain '${chain}'.`,
+      );
   }
 }
 
