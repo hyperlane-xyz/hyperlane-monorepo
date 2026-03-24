@@ -441,9 +441,9 @@ describe('EvmTokenFeeModule', () => {
 
       const txs = await module.update(
         {
-          type: TokenFeeType.RoutingFee,
+          type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
-          ccrfFeeContracts: {
+          feeContracts: {
             [test4Chain]: {
               default: {
                 type: TokenFeeType.LinearFee,
@@ -465,17 +465,17 @@ describe('EvmTokenFeeModule', () => {
         routingDestinations: [routingDestination],
       });
       assert(
-        onchainConfig.type === TokenFeeType.RoutingFee,
-        `Must be ${TokenFeeType.RoutingFee}`,
+        onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
+        `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
       assert(
-        onchainConfig.ccrfFeeContracts?.[test4Chain]?.default?.type ===
+        onchainConfig.feeContracts?.[test4Chain]?.default?.type ===
           TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      expect(
-        onchainConfig.ccrfFeeContracts?.[test4Chain]?.default?.bps,
-      ).to.equal(BPS + 1n);
+      expect(onchainConfig.feeContracts?.[test4Chain]?.default?.bps).to.equal(
+        BPS + 1n,
+      );
     });
 
     it('should detect CCRF via explicit fee type during updates', async () => {
@@ -520,9 +520,9 @@ describe('EvmTokenFeeModule', () => {
       try {
         const txs = await module.update(
           {
-            type: TokenFeeType.RoutingFee,
+            type: TokenFeeType.CrossCollateralRoutingFee,
             owner: signer.address,
-            ccrfFeeContracts: {
+            feeContracts: {
               [test4Chain]: {
                 default: {
                   type: TokenFeeType.LinearFee,

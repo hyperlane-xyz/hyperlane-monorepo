@@ -414,52 +414,60 @@ export function resolveTokenFeeAddress(
     throw new Error(`Unsupported token type for fee resolution`);
   }
 
+  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+    return {
+      ...feeConfig,
+      token: feeToken,
+      feeContracts: Object.fromEntries(
+        Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
   if (
-    feeConfig.type === TokenFeeType.RoutingFee &&
-    (('feeContracts' in feeConfig && !!feeConfig.feeContracts) ||
-      !!feeConfig.ccrfFeeContracts)
+    feeConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+    feeConfig.feeContracts
   ) {
     return {
       ...feeConfig,
       token: feeToken,
       feeContracts: Object.fromEntries(
-        Object.entries(feeConfig.feeContracts ?? {}).map(([chain, subFee]) => [
-          chain,
-          resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
-        ]),
+        Object.entries(feeConfig.feeContracts).map(
+          ([chain, destinationConfig]) => [
+            chain,
+            {
+              ...(destinationConfig.default
+                ? {
+                    default: resolveTokenFeeAddress(
+                      destinationConfig.default,
+                      routerAddress,
+                      tokenConfig,
+                    ),
+                  }
+                : {}),
+              ...(destinationConfig.routers
+                ? {
+                    routers: Object.fromEntries(
+                      Object.entries(destinationConfig.routers).map(
+                        ([router, subFee]) => [
+                          router,
+                          resolveTokenFeeAddress(
+                            subFee,
+                            routerAddress,
+                            tokenConfig,
+                          ),
+                        ],
+                      ),
+                    ),
+                  }
+                : {}),
+            },
+          ],
+        ),
       ),
-      ccrfFeeContracts: feeConfig.ccrfFeeContracts
-        ? Object.fromEntries(
-            Object.entries(feeConfig.ccrfFeeContracts).map(
-              ([chain, destinationConfig]) => [
-                chain,
-                {
-                  default: destinationConfig.default
-                    ? resolveTokenFeeAddress(
-                        destinationConfig.default,
-                        routerAddress,
-                        tokenConfig,
-                      )
-                    : undefined,
-                  routers: destinationConfig.routers
-                    ? Object.fromEntries(
-                        Object.entries(destinationConfig.routers).map(
-                          ([router, subFee]) => [
-                            router,
-                            resolveTokenFeeAddress(
-                              subFee,
-                              routerAddress,
-                              tokenConfig,
-                            ),
-                          ],
-                        ),
-                      )
-                    : undefined,
-                },
-              ],
-            ),
-          )
-        : undefined,
     } satisfies ResolvedTokenFeeConfigInput;
   }
 
@@ -565,10 +573,24 @@ function normalizeTokenFeeForCheck(
         ]),
       );
 
-    const normalizedCcrfFeeContracts =
-      feeConfig.ccrfFeeContracts &&
+    const hasFeeContracts =
+      !!normalizedFeeContracts && !isObjEmpty(normalizedFeeContracts);
+
+    return {
+      type: TokenFeeType.RoutingFee,
+      owner: feeConfig.owner,
+      ...('token' in feeConfig && feeConfig.token
+        ? { token: feeConfig.token }
+        : {}),
+      ...(hasFeeContracts ? { feeContracts: normalizedFeeContracts } : {}),
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    const normalizedFeeContracts =
+      feeConfig.feeContracts &&
       Object.fromEntries(
-        Object.entries(feeConfig.ccrfFeeContracts).map(
+        Object.entries(feeConfig.feeContracts).map(
           ([chain, destinationConfig]) => [
             chain,
             {
@@ -589,24 +611,15 @@ function normalizeTokenFeeForCheck(
           ],
         ),
       );
-
-    const hasCcrfFeeContracts =
-      !!normalizedCcrfFeeContracts && !isObjEmpty(normalizedCcrfFeeContracts);
     const hasFeeContracts =
       !!normalizedFeeContracts && !isObjEmpty(normalizedFeeContracts);
-
     return {
-      type: TokenFeeType.RoutingFee,
+      type: TokenFeeType.CrossCollateralRoutingFee,
       owner: feeConfig.owner,
       ...('token' in feeConfig && feeConfig.token
         ? { token: feeConfig.token }
         : {}),
-      ...(!hasCcrfFeeContracts && hasFeeContracts
-        ? { feeContracts: normalizedFeeContracts }
-        : {}),
-      ...(hasCcrfFeeContracts
-        ? { ccrfFeeContracts: normalizedCcrfFeeContracts }
-        : {}),
+      ...(hasFeeContracts ? { feeContracts: normalizedFeeContracts } : {}),
     };
   }
 

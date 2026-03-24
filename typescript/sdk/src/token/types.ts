@@ -533,10 +533,10 @@ function populateFeeOwner(params: {
     });
   }
   if (
-    feeConfig.type === TokenFeeType.RoutingFee &&
-    feeConfig.ccrfFeeContracts
+    feeConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+    feeConfig.feeContracts
   ) {
-    objMap(feeConfig.ccrfFeeContracts, (_, destinationConfig) => {
+    objMap(feeConfig.feeContracts, (_, destinationConfig) => {
       if (destinationConfig.default) {
         populateFeeOwner({
           tokenConfig,

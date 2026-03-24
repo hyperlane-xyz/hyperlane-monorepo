@@ -2,7 +2,11 @@ import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
-import { ResolvedRoutingFeeConfigInput, TokenFeeType } from '../fee/types.js';
+import {
+  ResolvedCrossCollateralRoutingFeeConfigInput,
+  ResolvedRoutingFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
@@ -272,10 +276,10 @@ describe('configUtils', () => {
         type: TokenType.collateral,
         token: ADDRESS,
         tokenFee: {
-          type: TokenFeeType.RoutingFee,
+          type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
           token: ADDRESS,
-          ccrfFeeContracts: {
+          feeContracts: {
             ethereum: {
               default: {
                 type: TokenFeeType.LinearFee,
@@ -304,10 +308,10 @@ describe('configUtils', () => {
         type: TokenType.collateral,
         token: ADDRESS,
         tokenFee: {
-          type: TokenFeeType.RoutingFee,
+          type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
           token: ADDRESS,
-          ccrfFeeContracts: {
+          feeContracts: {
             ethereum: {
               default: {
                 type: TokenFeeType.LinearFee,
@@ -329,7 +333,7 @@ describe('configUtils', () => {
       });
     });
 
-    it('prefers ccrfFeeContracts over feeContracts when both are provided', () => {
+    it('normalizes RoutingFee feeContracts when both destination and nested fee contracts are provided', () => {
       const transformedObj = transformConfigToCheck({
         type: TokenType.collateral,
         token: ADDRESS,
@@ -345,16 +349,6 @@ describe('configUtils', () => {
               bps: 100n,
             },
           },
-          ccrfFeeContracts: {
-            ethereum: {
-              default: {
-                type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
-                token: ADDRESS,
-                bps: 200n,
-              },
-            },
-          },
         },
       } as any);
 
@@ -365,14 +359,12 @@ describe('configUtils', () => {
           type: TokenFeeType.RoutingFee,
           owner: ADDRESS,
           token: ADDRESS,
-          ccrfFeeContracts: {
+          feeContracts: {
             ethereum: {
-              default: {
-                type: TokenFeeType.LinearFee,
-                owner: ADDRESS,
-                token: ADDRESS,
-                bps: 200n,
-              },
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 100n,
             },
           },
         },
@@ -499,13 +491,13 @@ describe('configUtils', () => {
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
     });
 
-    it('should resolve token for nested ccrfFeeContracts', () => {
+    it('should resolve token for nested cross collateral feeContracts', () => {
       const ROUTER_KEY =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const input = {
-        type: TokenFeeType.RoutingFee as const,
+        type: TokenFeeType.CrossCollateralRoutingFee as const,
         owner: OWNER_ADDRESS,
-        ccrfFeeContracts: {
+        feeContracts: {
           ethereum: {
             default: {
               type: TokenFeeType.LinearFee as const,
@@ -527,14 +519,14 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      ) as ResolvedRoutingFeeConfigInput;
+      ) as ResolvedCrossCollateralRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.ccrfFeeContracts?.ethereum?.default?.token).to.equal(
+      expect(result.feeContracts?.ethereum?.default?.token).to.equal(
         ROUTER_ADDRESS,
       );
       expect(
-        result.ccrfFeeContracts?.ethereum?.routers?.[ROUTER_KEY]?.token,
+        result.feeContracts?.ethereum?.routers?.[ROUTER_KEY]?.token,
       ).to.equal(ROUTER_ADDRESS);
     });
   });

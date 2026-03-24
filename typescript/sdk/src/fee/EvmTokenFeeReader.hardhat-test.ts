@@ -267,19 +267,18 @@ describe('EvmTokenFeeReader', () => {
         routingDestinations: [destination, destination2],
       });
 
-      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
+      expect(routingFee.type).to.equal(TokenFeeType.CrossCollateralRoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
       expect(
         Object.keys((routingFee as any).feeContracts ?? {}),
-      ).to.have.length(0);
+      ).to.have.length(2);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
-          type: TokenFeeType.RoutingFee,
+          type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
           token: token.address,
-          feeContracts: {},
-          ccrfFeeContracts: {
+          feeContracts: {
             [TestChainName.test3]: {
               default: linearFeeConfig,
             },
@@ -347,14 +346,13 @@ describe('EvmTokenFeeReader', () => {
 
       expect(
         Object.keys((routingFee as any).feeContracts ?? {}),
-      ).to.have.length(0);
+      ).to.have.length(1);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
-          type: TokenFeeType.RoutingFee,
+          type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
           token: token.address,
-          feeContracts: {},
-          ccrfFeeContracts: {
+          feeContracts: {
             [TestChainName.test3]: {
               routers: {
                 [routerBytes32]: linearFeeConfig,

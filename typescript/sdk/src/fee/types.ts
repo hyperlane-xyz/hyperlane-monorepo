@@ -22,6 +22,7 @@ export enum TokenFeeType {
   ProgressiveFee = 'ProgressiveFee',
   RegressiveFee = 'RegressiveFee',
   RoutingFee = 'RoutingFee',
+  CrossCollateralRoutingFee = 'CrossCollateralRoutingFee',
 }
 
 export const ImmutableTokenFeeType = [
@@ -39,7 +40,8 @@ export const onChainTypeToTokenFeeTypeMap: Record<
   [OnchainTokenFeeType.RegressiveFee]: TokenFeeType.RegressiveFee,
   [OnchainTokenFeeType.ProgressiveFee]: TokenFeeType.ProgressiveFee,
   [OnchainTokenFeeType.RoutingFee]: TokenFeeType.RoutingFee,
-  [OnchainTokenFeeType.CrossCollateralRoutingFee]: TokenFeeType.RoutingFee,
+  [OnchainTokenFeeType.CrossCollateralRoutingFee]:
+    TokenFeeType.CrossCollateralRoutingFee,
 };
 
 // ====== SHARED SCHEMAS ======
@@ -157,22 +159,31 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
       z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
     )
     .optional(), // Destination -> Fee
-  ccrfFeeContracts: z
-    .record(
-      ZChainName,
-      z.object({
-        default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(), // DEFAULT_ROUTER sentinel
-        routers: z
-          .record(
-            ZHash, // bytes32 router key
-            z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
-          )
-          .optional(),
-      }),
-    )
-    .optional(), // Destination -> { default?, routers? }
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
+
+export const CrossCollateralRoutingFeeConfigSchema = BaseFeeConfigSchema.extend(
+  {
+    type: z.literal(TokenFeeType.CrossCollateralRoutingFee),
+    feeContracts: z
+      .record(
+        ZChainName,
+        z.object({
+          default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(), // DEFAULT_ROUTER sentinel
+          routers: z
+            .record(
+              ZHash, // bytes32 router key
+              z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
+            )
+            .optional(),
+        }),
+      )
+      .optional(), // Destination -> { default?, routers? }
+  },
+);
+export type CrossCollateralRoutingFeeConfig = z.infer<
+  typeof CrossCollateralRoutingFeeConfigSchema
+>;
 
 // Routing Fee Input - maxFee/halfAmount NOT configurable (contract hardcodes to max uint256)
 export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
@@ -183,24 +194,32 @@ export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
       z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
     )
     .optional(),
-  ccrfFeeContracts: z
-    .record(
-      ZChainName,
-      z.object({
-        default: z
-          .lazy((): z.ZodSchema => TokenFeeConfigInputSchema)
-          .optional(),
-        routers: z
-          .record(
-            ZHash, // bytes32 router key
-            z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
-          )
-          .optional(),
-      }),
-    )
-    .optional(),
 });
 export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
+
+export const CrossCollateralRoutingFeeInputConfigSchema =
+  BaseFeeConfigInputSchema.extend({
+    type: z.literal(TokenFeeType.CrossCollateralRoutingFee),
+    feeContracts: z
+      .record(
+        ZChainName,
+        z.object({
+          default: z
+            .lazy((): z.ZodSchema => TokenFeeConfigInputSchema)
+            .optional(),
+          routers: z
+            .record(
+              ZHash, // bytes32 router key
+              z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
+            )
+            .optional(),
+        }),
+      )
+      .optional(),
+  });
+export type CrossCollateralRoutingFeeInputConfig = z.infer<
+  typeof CrossCollateralRoutingFeeInputConfigSchema
+>;
 
 // ====== UNION SCHEMAS ======
 
@@ -209,6 +228,7 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
   ProgressiveFeeConfigSchema,
   RegressiveFeeConfigSchema,
   RoutingFeeConfigSchema,
+  CrossCollateralRoutingFeeConfigSchema,
 ]);
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
@@ -217,6 +237,7 @@ export const TokenFeeConfigInputSchema = z.union([
   ProgressiveFeeInputConfigSchema,
   RegressiveFeeInputConfigSchema,
   RoutingFeeInputConfigSchema,
+  CrossCollateralRoutingFeeInputConfigSchema,
 ]);
 export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
 
@@ -230,3 +251,15 @@ export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
   token: string;
   feeContracts?: Record<string, ResolvedTokenFeeConfigInput>;
 };
+
+export type ResolvedCrossCollateralRoutingFeeConfigInput =
+  CrossCollateralRoutingFeeInputConfig & {
+    token: string;
+    feeContracts?: Record<
+      string,
+      {
+        default?: ResolvedTokenFeeConfigInput;
+        routers?: Record<string, ResolvedTokenFeeConfigInput>;
+      }
+    >;
+  };

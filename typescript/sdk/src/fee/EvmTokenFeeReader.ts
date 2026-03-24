@@ -13,6 +13,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
+  CrossCollateralRoutingFeeConfig,
   FeeParameters,
   OnchainTokenFeeType,
   RoutingFeeConfig,
@@ -26,7 +27,7 @@ import {
 } from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
-type DerivedCcrfFeeContracts = Record<
+type DerivedCrossCollateralFeeContracts = Record<
   ChainName,
   {
     default?: DerivedTokenFeeConfig;
@@ -35,8 +36,11 @@ type DerivedCcrfFeeContracts = Record<
 >;
 export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
   feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
-  ccrfFeeContracts?: DerivedCcrfFeeContracts;
 };
+export type DerivedCrossCollateralRoutingFeeConfig =
+  WithAddress<CrossCollateralRoutingFeeConfig> & {
+    feeContracts: DerivedCrossCollateralFeeContracts;
+  };
 
 export type TokenFeeReaderParams = {
   address: Address;
@@ -202,7 +206,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       routingFee.DEFAULT_ROUTER(),
     ]);
 
-    const ccrfFeeContracts: DerivedCcrfFeeContracts = {};
+    const feeContracts: DerivedCrossCollateralFeeContracts = {};
     let resolvedToken: Address | undefined;
 
     const parseFeeConfig = async (subFeeAddress: Address) => {
@@ -273,7 +277,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         );
 
         if (defaultFeeConfig || Object.keys(routerFeeConfigs).length > 0) {
-          ccrfFeeContracts[chainName] = {
+          feeContracts[chainName] = {
             ...(defaultFeeConfig ? { default: defaultFeeConfig } : {}),
             ...(Object.keys(routerFeeConfigs).length
               ? { routers: routerFeeConfigs }
@@ -291,13 +295,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     }
 
     return {
-      type: TokenFeeType.RoutingFee,
+      type: TokenFeeType.CrossCollateralRoutingFee,
       address,
       token,
       owner,
-      feeContracts: {},
-      ccrfFeeContracts:
-        Object.keys(ccrfFeeContracts).length > 0 ? ccrfFeeContracts : undefined,
+      feeContracts,
     };
   }
 
