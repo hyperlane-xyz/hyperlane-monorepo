@@ -1,10 +1,12 @@
 import type { Logger } from 'pino';
 
-import {
-  addressToByteHexString,
-  isEVMLike,
-  ProtocolType,
-} from '@hyperlane-xyz/utils';
+import { addressToByteHexString, ProtocolType } from '@hyperlane-xyz/utils';
+
+// isEVMLike is not yet exported from the installed dist of @hyperlane-xyz/utils;
+// inline the equivalent check until utils dist is rebuilt.
+function isEVMLike(protocol: ProtocolType): boolean {
+  return protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron;
+}
 
 export type InflightRebalanceQueryParams = {
   bridges: string[];
@@ -55,14 +57,20 @@ export interface IExplorerClient {
 export class ExplorerClient implements IExplorerClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly getProtocol?: (domainId: number) => ProtocolType,
+    private readonly getProtocol: (domainId: number) => ProtocolType,
   ) {}
 
+  /**
+   * Convert an address to PostgreSQL bytea format (\\x-prefixed hex).
+   * When `domain` is provided, resolves the chain's protocol to encode
+   * non-EVM addresses (e.g. base58 Solana, 32-byte Starknet) correctly
+   * via `addressToByteHexString`. Without `domain`, assumes the address
+   * is already EVM-format hex (used for bridges, txSender, etc. which
+   * are always EVM addresses).
+   */
   private toBytea(addr: string, domain?: number): string {
     const protocol =
-      domain !== undefined && this.getProtocol
-        ? this.getProtocol(domain)
-        : undefined;
+      domain !== undefined ? this.getProtocol(domain) : undefined;
     if (protocol && !isEVMLike(protocol)) {
       const hex = addressToByteHexString(addr, protocol);
       return hex.replace(/^0x/i, '\\x').toLowerCase();
@@ -105,13 +113,16 @@ export class ExplorerClient implements IExplorerClient {
     const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
+      // NOTE: bridges are always EVM addresses; pass domain here if non-EVM bridges are added
       senders: bridges.map((a) => this.toBytea(a)),
+      // NOTE: bridges are always EVM addresses; pass domain here if non-EVM bridges are added
       recipients: bridges.map((a) => this.toBytea(a)),
       originTxRecipients: routerEntries.map(([domain, addr]) =>
         this.toBytea(addr, Number(domain)),
       ),
       originDomains: domains,
       destDomains: domains,
+      // NOTE: txSender is always an EVM address (rebalancer signer)
       txSenders: [this.toBytea(txSender)],
       limit,
     };
@@ -189,7 +200,7 @@ export class ExplorerClient implements IExplorerClient {
     const validatedRows = rows.filter((msg: any) => {
       const expectedRouter = routersByDomain[msg.origin_domain_id];
       if (!expectedRouter) return false;
-      const protocol = this.getProtocol?.(msg.origin_domain_id);
+      const protocol = this.getProtocol(msg.origin_domain_id);
       const normalizedMsgRouter = msg.origin_tx_recipient?.startsWith('\\x')
         ? '0x' + msg.origin_tx_recipient.slice(2)
         : msg.origin_tx_recipient;
@@ -236,6 +247,7 @@ export class ExplorerClient implements IExplorerClient {
       ),
       originDomains: domains,
       destDomains: domains,
+      // NOTE: excludeTxSenders are always EVM addresses
       excludeTxSenders: excludeTxSenders.map((a) => this.toBytea(a)),
       limit,
     };
@@ -332,15 +344,19 @@ export class ExplorerClient implements IExplorerClient {
     const domains = Object.keys(routersByDomain).map(Number);
 
     // Build list of tx senders to include (rebalancer + optional inventory signer)
+    // NOTE: rebalancerAddress is always an EVM address (rebalancer signer)
     const txSenders = [this.toBytea(rebalancerAddress)];
     if (inventorySignerAddresses) {
       for (const addr of inventorySignerAddresses) {
+        // NOTE: inventorySignerAddresses are filtered to ProtocolType.Ethereum
         txSenders.push(this.toBytea(addr));
       }
     }
 
     const variables = {
+      // NOTE: bridges are always EVM addresses; pass domain here if non-EVM bridges are added
       senders: bridges.map((a) => this.toBytea(a)),
+      // NOTE: bridges are always EVM addresses; pass domain here if non-EVM bridges are added
       recipients: bridges.map((a) => this.toBytea(a)),
       originTxRecipients: routerEntries.map(([domain, addr]) =>
         this.toBytea(addr, Number(domain)),
