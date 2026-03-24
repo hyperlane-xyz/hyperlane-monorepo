@@ -163,15 +163,8 @@ export class StarknetDeployer {
     );
 
     if (receipt.isSuccess()) {
-      for (const event of receipt.value.events) {
-        if (
-          event.keys.length >= 2 &&
-          event.keys[0] ===
-            '0x1dcde06aabdbca2f80aa51392b345d7549d7757aa855f7e37f5d335ac8243b1'
-        ) {
-          address = event.data[2];
-        }
-      }
+      // Newly created contract is the first event emitted in the deploy transaction
+      address = receipt.value.events[0].from_address;
     }
 
     // Ensure the address is 66 characters long (including the '0x' prefix)
