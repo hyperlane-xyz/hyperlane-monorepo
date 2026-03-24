@@ -115,7 +115,10 @@ impl AggregationIsmMetadataBuilder {
             if module.module_type == ModuleType::Null {
                 return Ok(Some(U256::zero()));
             }
-            module.ism.dry_run_verify(message, &module.meta.metadata).await
+            module
+                .ism
+                .dry_run_verify(message, &module.meta.metadata)
+                .await
         }))
         .await;
         // Filter out the ISMs with a gas cost estimate
@@ -384,7 +387,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 #[cfg(test)]
 mod test {
     use ethers::utils::hex::FromHex;
-    use hyperlane_core::{KnownHyperlaneDomain, HyperlaneDomain, H256};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
 
     use crate::test_utils::mock_ism::MockInterchainSecurityModule;
 
@@ -517,10 +520,15 @@ mod test {
         };
 
         // Null ISM: no dry_run_verify response queued — panics if called.
-        let null_ism = MockInterchainSecurityModule::new(H256::zero(), domain.clone(), ModuleType::Null);
+        let null_ism =
+            MockInterchainSecurityModule::new(H256::zero(), domain.clone(), ModuleType::Null);
 
         // Non-Null ISM: returns a high gas estimate.
-        let other_ism = MockInterchainSecurityModule::new(H256::repeat_byte(1), domain.clone(), ModuleType::MessageIdMultisig);
+        let other_ism = MockInterchainSecurityModule::new(
+            H256::repeat_byte(1),
+            domain.clone(),
+            ModuleType::MessageIdMultisig,
+        );
         other_ism
             .responses
             .dry_run_verify
@@ -529,8 +537,18 @@ mod test {
             .push_back(Ok(Some(U256::from(1_000_000u64))));
 
         let sub_modules = vec![
-            IsmAndMetadata::new(Box::new(null_ism), 0, Metadata::new(vec![]), ModuleType::Null),
-            IsmAndMetadata::new(Box::new(other_ism), 1, Metadata::new(vec![0xab]), ModuleType::MessageIdMultisig),
+            IsmAndMetadata::new(
+                Box::new(null_ism),
+                0,
+                Metadata::new(vec![]),
+                ModuleType::Null,
+            ),
+            IsmAndMetadata::new(
+                Box::new(other_ism),
+                1,
+                Metadata::new(vec![0xab]),
+                ModuleType::MessageIdMultisig,
+            ),
         ];
 
         let result = AggregationIsmMetadataBuilder::cheapest_valid_metas(
