@@ -76,6 +76,7 @@ import {
   RadixNativeTokenAdapter,
   RadixTokenAdapter,
 } from './adapters/RadixTokenAdapter.js';
+import { SealevelHypCrossCollateralAdapter } from './adapters/SealevelCrossCollateralAdapter.js';
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
@@ -341,6 +342,18 @@ export class Token implements IToken {
       );
 
       return new SealevelHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
+    } else if (standard === TokenStandard.SealevelHypCrossCollateral) {
+      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom required for Sealevel hyp cross-collateral tokens`,
+      );
+
+      return new SealevelHypCrossCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,
