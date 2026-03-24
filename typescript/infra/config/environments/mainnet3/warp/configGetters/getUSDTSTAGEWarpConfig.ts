@@ -1,3 +1,4 @@
+import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { ethers } from 'ethers';
 
@@ -38,6 +39,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
     },
     plasma: {
       ...routerConfig.plasma,
@@ -48,6 +50,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
     },
     arbitrum: {
       ...routerConfig.arbitrum,
@@ -58,6 +61,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
     },
     solanamainnet: {
       type: TokenType.collateral,
@@ -76,6 +80,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
     },
     bsc: {
       ...routerConfig.bsc,
@@ -90,6 +95,7 @@ export async function getUSDTSTAGEWarpConfig(
         numerator: 1,
         denominator: 1000000000000, // scale DOWN: 18-decimal BSC to 6-decimal message encoding
       },
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
     },
     tron: {
       ...routerConfig.tron,
@@ -100,6 +106,7 @@ export async function getUSDTSTAGEWarpConfig(
       name: 'Tether USD STAGE',
       symbol: 'USDTSTAGE',
       decimals: 6,
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
     },
   };
   return config as Record<RouteChains, HypTokenRouterConfig>;
