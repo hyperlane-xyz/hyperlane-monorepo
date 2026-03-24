@@ -129,39 +129,11 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
-    let wallet_urls =
-        parse_base_and_override_urls(chain, "walletUrls", "customWalletUrls", "http", err, true);
-    let wallet_solidity_urls = parse_base_and_override_urls(
-        chain,
-        "walletSolidityUrls",
-        "customWalletSolidityUrls",
-        "http",
-        err,
-        true,
-    );
-
-    let energy_multiplier = chain
-        .chain(err)
-        .get_opt_key("feeMultiplier")
-        .parse_f64()
-        .end();
-
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
-        wallet_urls: if wallet_urls.is_empty() {
-            None
-        } else {
-            Some(wallet_urls)
-        },
-        wallet_solidity_urls: if wallet_solidity_urls.is_empty() {
-            None
-        } else {
-            Some(wallet_solidity_urls)
-        },
-        energy_multiplier,
     }))
 }
 
