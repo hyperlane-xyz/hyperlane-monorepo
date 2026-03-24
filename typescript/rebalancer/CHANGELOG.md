@@ -1,5 +1,19 @@
 # @hyperlane-xyz/rebalancer
 
+## 27.1.3
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [cc6d57b]
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/sdk@29.0.0
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/metrics@0.2.5
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/core@11.1.0
+
 ## 27.1.2
 
 ### Patch Changes

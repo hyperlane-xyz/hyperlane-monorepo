@@ -1,5 +1,12 @@
 # @hyperlane-xyz/utils
 
+## 29.0.0
+
+### Patch Changes
+
+- 3c6b1ad: Fixed Tron gas estimation and transaction building for wallet integration.
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+
 ## 28.1.0
 
 ## 28.0.0
