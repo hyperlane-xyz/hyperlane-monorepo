@@ -106,6 +106,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmWarpRouteReader',
   });
+  protected readonly packageVersionCache = new Map<string, string>();
+  protected readonly packageVersionInflight = new Map<
+    string,
+    Promise<string>
+  >();
 
   // Using null instead of undefined to force
   // a compile error when adding a new token type
@@ -185,23 +190,27 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-
-    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
     const isOft = type === TokenType.collateralOft;
-    const routerConfig = isOft
-      ? {
-          owner: await Ownable__factory.connect(
-            warpRouteAddress,
-            this.provider,
-          ).owner(),
-        }
-      : await this.readRouterConfig(warpRouteAddress);
+    const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
+    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly.
+    // Start the router-side reads now so they overlap with token config derivation.
+    const routerConfigPromise = isOft
+      ? Ownable__factory.connect(warpRouteAddress, this.provider)
+          .owner()
+          .then((owner) => ({ owner }))
+      : this.readRouterConfig(warpRouteAddress);
+    const proxyAdminPromise = (async () =>
+      (await isProxy(this.provider, warpRouteAddress))
+        ? this.fetchProxyAdminConfig(warpRouteAddress)
+        : undefined)();
+    const [tokenConfig, routerConfig, proxyAdmin] = await Promise.all([
+      tokenConfigPromise,
+      routerConfigPromise,
+      proxyAdminPromise,
+    ]);
+
     // if the token has not been deployed as a proxy do not derive the config
     // inevm warp routes are an example
-    const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
-      ? await this.fetchProxyAdminConfig(warpRouteAddress)
-      : undefined;
     // OFT contracts don't have destination gas config
     // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
     // fetchDestinationGas also reads gas for MC-only enrolled domains.
@@ -1303,24 +1312,42 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   async fetchPackageVersion(address: Address) {
-    const contractWithVersion = PackageVersioned__factory.connect(
-      address,
-      this.provider,
-    );
+    const cacheKey = address.toLowerCase();
+    const cachedVersion = this.packageVersionCache.get(cacheKey);
+    if (cachedVersion) return cachedVersion;
 
-    try {
-      return await contractWithVersion.PACKAGE_VERSION();
-    } catch (err: any) {
-      if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
-        // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
-        // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
-        // The real version of a contract without this function is below 5.4.0
-        return '5.3.9';
-      } else {
-        this.logger.error(`Error when fetching package version ${err}`);
-        return '0.0.0';
+    const inFlight = this.packageVersionInflight.get(cacheKey);
+    if (inFlight) return inFlight;
+
+    const versionPromise = (async () => {
+      const contractWithVersion = PackageVersioned__factory.connect(
+        address,
+        this.provider,
+      );
+
+      try {
+        const version = await contractWithVersion.PACKAGE_VERSION();
+        this.packageVersionCache.set(cacheKey, version);
+        return version;
+      } catch (err: any) {
+        if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
+          // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
+          // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
+          // The real version of a contract without this function is below 5.4.0
+          const legacyVersion = '5.3.9';
+          this.packageVersionCache.set(cacheKey, legacyVersion);
+          return legacyVersion;
+        } else {
+          this.logger.error(`Error when fetching package version ${err}`);
+          return '0.0.0';
+        }
+      } finally {
+        this.packageVersionInflight.delete(cacheKey);
       }
-    }
+    })();
+
+    this.packageVersionInflight.set(cacheKey, versionPromise);
+    return versionPromise;
   }
 
   async fetchProxyAdminConfig(

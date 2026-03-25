@@ -1008,6 +1008,33 @@ describe('EvmWarpRouteReader', async () => {
     fetchScaleStub.restore();
   });
 
+  it('caches package version lookups during a single warp route derivation', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+      },
+    };
+
+    const warpRoute = await deployer.deploy(config);
+    const packageVersion = sinon.stub().resolves('12.0.0');
+    const fetchPackageVersionStub = sinon
+      .stub(PackageVersioned__factory, 'connect')
+      .returns({
+        PACKAGE_VERSION: packageVersion,
+      } as any);
+
+    await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(packageVersion.callCount).to.equal(1);
+
+    fetchPackageVersionStub.restore();
+  });
+
   it('derives multicollateral config with scale from the router', async () => {
     const routerAddress = '0x1000000000000000000000000000000000000001';
     const wrappedTokenAddress = '0x2000000000000000000000000000000000000002';
