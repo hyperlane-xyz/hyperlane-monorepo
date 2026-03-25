@@ -1,18 +1,12 @@
 import { constants } from 'ethers';
 
-import {
-  OffchainQuotedLinearFee__factory,
-  RoutingFee__factory,
-} from '@hyperlane-xyz/core';
+import { OffchainQuotedLinearFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
   deepEquals,
   difference,
-  eqAddress,
-  isNullish,
   objMap,
-  objMerge,
   objOmit,
   promiseObjAll,
   rootLogger,
@@ -32,14 +26,12 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
-  DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
   TokenFeeReaderParams,
 } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
-  ImmutableTokenFeeType,
   ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -57,11 +49,7 @@ function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
   token: Address,
 ): ResolvedTokenFeeConfigInput {
-  if (
-    config.type === TokenFeeType.RoutingFee &&
-    'feeContracts' in config &&
-    config.feeContracts
-  ) {
+  if (config.type === TokenFeeType.RoutingFee) {
     return {
       ...config,
       token,
@@ -70,6 +58,41 @@ function resolveTokenForFeeConfig(
           chain,
           resolveTokenForFeeConfig(subFee, token),
         ]),
+      ),
+    };
+  }
+  if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
+    return {
+      ...config,
+      token,
+      feeContracts: Object.fromEntries(
+        Object.entries(config.feeContracts).map(
+          ([chain, destinationConfig]) => [
+            chain,
+            {
+              ...(destinationConfig.default
+                ? {
+                    default: resolveTokenForFeeConfig(
+                      destinationConfig.default,
+                      token,
+                    ),
+                  }
+                : {}),
+              ...(destinationConfig.routers
+                ? {
+                    routers: Object.fromEntries(
+                      Object.entries(destinationConfig.routers).map(
+                        ([routerKey, subFee]) => [
+                          routerKey,
+                          resolveTokenForFeeConfig(subFee, token),
+                        ],
+                      ),
+                    ),
+                  }
+                : {}),
+            },
+          ],
+        ),
       ),
     };
   }
@@ -218,34 +241,64 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }
     } else if (config.type === TokenFeeType.RoutingFee) {
       const { token, owner } = config;
-      const inputFeeContracts =
-        'feeContracts' in config ? config.feeContracts : undefined;
-
-      const feeContracts = inputFeeContracts
-        ? await promiseObjAll(
-            objMap(
-              inputFeeContracts as Record<string, ResolvedTokenFeeConfigInput>,
-              async (_, innerConfig) => {
-                const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
-                  ...innerConfig,
-                  token: innerConfig.token ?? token,
-                };
-                return EvmTokenFeeModule.expandConfig({
-                  config: resolvedInnerConfig,
-                  multiProvider,
-                  chainName,
-                });
-              },
+      const feeContracts = await promiseObjAll(
+        objMap(config.feeContracts, async (_, innerConfig) => {
+          return EvmTokenFeeModule.expandConfig({
+            config: resolveTokenForFeeConfig(
+              innerConfig,
+              ('token' in innerConfig ? innerConfig.token : undefined) ?? token,
             ),
-          )
-        : undefined;
-
+            multiProvider,
+            chainName,
+          });
+        }),
+      );
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
         token,
         owner,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
+        feeContracts,
+      };
+    } else if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
+      const { token, owner } = config;
+
+      const feeContracts = await promiseObjAll(
+        objMap(config.feeContracts, async (_, destinationConfig) => {
+          const defaultFee = destinationConfig.default
+            ? await EvmTokenFeeModule.expandConfig({
+                config: {
+                  ...destinationConfig.default,
+                  token: destinationConfig.default.token ?? token,
+                },
+                multiProvider,
+                chainName,
+              })
+            : undefined;
+          const routers = destinationConfig.routers
+            ? await promiseObjAll(
+                objMap(destinationConfig.routers, async (_, innerConfig) =>
+                  EvmTokenFeeModule.expandConfig({
+                    config: {
+                      ...innerConfig,
+                      token: innerConfig.token ?? token,
+                    },
+                    multiProvider,
+                    chainName,
+                  }),
+                ),
+              )
+            : undefined;
+          return {
+            ...(defaultFee ? { default: defaultFee } : {}),
+            ...(routers ? { routers } : {}),
+          };
+        }),
+      );
+
+      intermediaryConfig = {
+        type: TokenFeeType.CrossCollateralRoutingFee,
+        token,
+        owner,
         feeContracts,
       };
     } else {
@@ -283,21 +336,97 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const routingDestinations = params?.routingDestinations;
 
     return this.reader.deriveTokenFeeConfig({
-      address: address,
+      address,
       routingDestinations,
+      crossCollateralRouters: params?.crossCollateralRouters,
     });
+  }
+
+  private deriveReadParams(
+    targetConfig: TokenFeeConfigInput,
+    params?: Partial<TokenFeeReaderParams>,
+  ): Partial<TokenFeeReaderParams> {
+    const effectiveParams: Partial<TokenFeeReaderParams> = { ...params };
+
+    if (
+      (targetConfig.type === TokenFeeType.RoutingFee ||
+        targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) &&
+      !effectiveParams.routingDestinations
+    ) {
+      // Read defaults for every destination the target config cares about so
+      // comparisons don't accidentally drop fee contracts on ordinary route
+      // destinations that have no CCR router override.
+      effectiveParams.routingDestinations = Object.keys(
+        targetConfig.feeContracts,
+      ).map((chainName) => this.multiProvider.getDomainId(chainName));
+    }
+
+    if (targetConfig.type !== TokenFeeType.CrossCollateralRoutingFee) {
+      return effectiveParams;
+    }
+
+    const targetCrossCollateralRouters = Object.fromEntries(
+      Object.entries(targetConfig.feeContracts).map(
+        ([chainName, destinationConfig]) => [
+          this.multiProvider.getDomainId(chainName),
+          Object.keys(destinationConfig.routers ?? {}),
+        ],
+      ),
+    );
+    if (!effectiveParams.crossCollateralRouters) {
+      effectiveParams.crossCollateralRouters = targetCrossCollateralRouters;
+      return effectiveParams;
+    }
+
+    // Preserve caller-supplied router hints while unioning in target-config
+    // routers so CCRF reads can see both stale on-chain routers and the new
+    // target router set during diffing.
+    const mergedCrossCollateralRouters = new Map<number, Set<string>>();
+    for (const [destination, routers] of Object.entries(
+      effectiveParams.crossCollateralRouters,
+    )) {
+      mergedCrossCollateralRouters.set(Number(destination), new Set(routers));
+    }
+    for (const [destination, routers] of Object.entries(
+      targetCrossCollateralRouters,
+    )) {
+      const destinationKey = Number(destination);
+      const existingRouters =
+        mergedCrossCollateralRouters.get(destinationKey) ?? new Set<string>();
+      for (const router of routers) existingRouters.add(router);
+      mergedCrossCollateralRouters.set(destinationKey, existingRouters);
+    }
+
+    effectiveParams.crossCollateralRouters = Object.fromEntries(
+      [...mergedCrossCollateralRouters.entries()].map(
+        ([destination, routers]) => [destination, [...routers]],
+      ),
+    );
+    return effectiveParams;
+  }
+
+  private shouldRedeploy(
+    actualConfig: TokenFeeConfig,
+    targetConfig: TokenFeeConfig,
+  ): boolean {
+    return (
+      actualConfig.type !== targetConfig.type ||
+      !deepEquals(
+        objOmit(actualConfig, { owner: true }),
+        objOmit(targetConfig, { owner: true }),
+      )
+    );
   }
 
   /**
    * Updates the fee configuration to match the target config.
    *
    * IMPORTANT: This method may deploy new contracts as a side effect when:
-   * - An immutable fee type (e.g., LinearFee) needs parameter changes (triggers redeploy)
-   * - A new routing destination is added that doesn't have an existing sub-fee contract
+   * - Any non-owner diff is detected (triggers redeploy)
    *
    * These deployments are executed immediately and are NOT included in the returned
    * transaction array. The returned transactions only include configuration changes
-   * (e.g., setFeeContract, ownership transfers) that callers need to execute.
+   * (ownership transfers) that callers need to execute.
    *
    * This behavior is consistent with other Hyperlane SDK modules (EvmIsmModule, EvmHookModule).
    *
@@ -313,23 +442,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     TokenFeeConfigInputSchema.parse(targetConfig);
 
-    let updateTransactions: AnnotatedEV5Transaction[] = [];
-
-    // Derive routingDestinations from target config if not provided
-    // This ensures we read all sub-fee configs that need to be compared/updated
-    let effectiveParams = params;
-    if (
-      !params?.routingDestinations &&
-      targetConfig.type === TokenFeeType.RoutingFee &&
-      !isNullish(targetConfig.feeContracts)
-    ) {
-      const routingDestinations = Object.keys(targetConfig.feeContracts).map(
-        (chainName) => this.multiProvider.getDomainId(chainName),
-      );
-      effectiveParams = { ...params, routingDestinations };
-    }
-
-    const actualConfig = await this.read(effectiveParams);
+    const actualConfig = await this.read(
+      this.deriveReadParams(targetConfig, params),
+    );
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
@@ -346,53 +461,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }),
     );
 
-    //If configs are the same, return empty array
     if (deepEquals(normalizedActualConfig, normalizedTargetConfig)) {
       this.logger.debug(
         `Same config for ${normalizedTargetConfig.type}, no update needed`,
       );
-      return [];
-    }
-
-    // Type changed — must redeploy (except routing fee which handles sub-fee updates)
-    if (normalizedActualConfig.type !== normalizedTargetConfig.type) {
-      this.logger.info(
-        `Fee type changed from ${normalizedActualConfig.type} to ${normalizedTargetConfig.type}, redeploying`,
-      );
-      const contracts = await this.deploy({
-        config: normalizedTargetConfig,
-        multiProvider: this.multiProvider,
-        chainName: this.chainName,
-        contractVerifier: this.contractVerifier,
-      });
-      this.args.addresses.deployedFee =
-        contracts[this.chainName][normalizedTargetConfig.type].address;
-      return [];
-    }
-
-    // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
-    const nonOwnerDiffers = !deepEquals(
-      objOmit(normalizedActualConfig, { owner: true }),
-      objOmit(normalizedTargetConfig, { owner: true }),
-    );
-    if (
-      ImmutableTokenFeeType.includes(
-        normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
-      ) &&
-      nonOwnerDiffers
-    ) {
-      this.logger.info(
-        `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
-      );
-      const contracts = await this.deploy({
-        config: normalizedTargetConfig,
-        multiProvider: this.multiProvider,
-        chainName: this.chainName,
-        contractVerifier: this.contractVerifier,
-      });
-      this.args.addresses.deployedFee =
-        contracts[this.chainName][normalizedTargetConfig.type].address;
-
       return [];
     }
 
@@ -428,7 +500,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }
 
       // Only signers/owner differ — generate update txs
-      updateTransactions = [
+      return [
         ...this.createQuoteSignerUpdateTxs(
           normalizedActualConfig.quoteSigners,
           normalizedTargetConfig.quoteSigners,
@@ -438,102 +510,27 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           normalizedTargetConfig,
         ),
       ];
-      return updateTransactions;
     }
 
-    // if the type is a mutable (for now, only routing fee), then update
-    updateTransactions = [
-      ...(await this.updateRoutingFee(
-        objMerge(
-          actualConfig,
-          normalizedTargetConfig,
-          10,
-          true,
-        ) as DerivedRoutingFeeConfig,
-      )),
-      ...this.createOwnershipUpdateTxs(
-        normalizedActualConfig,
-        normalizedTargetConfig,
-      ),
-    ];
+    if (this.shouldRedeploy(normalizedActualConfig, normalizedTargetConfig)) {
+      this.logger.info(
+        `Redeploying ${normalizedTargetConfig.type} due to non-owner config diff`,
+      );
+      const contracts = await this.deploy({
+        config: normalizedTargetConfig,
+        multiProvider: this.multiProvider,
+        chainName: this.chainName,
+        contractVerifier: this.contractVerifier,
+      });
+      this.args.addresses.deployedFee =
+        contracts[this.chainName][normalizedTargetConfig.type].address;
 
-    return updateTransactions;
-  }
-
-  private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-
-    if (!targetConfig.feeContracts) return [];
-    const currentRoutingAddress = this.args.addresses.deployedFee;
-    for (const [chainName, config] of Object.entries(
-      targetConfig.feeContracts,
-    )) {
-      const address = config.address;
-
-      let subFeeModule: EvmTokenFeeModule;
-      let deployedSubFee: string;
-
-      if (!address) {
-        // Sub-fee contract doesn't exist yet, deploy a new one
-        this.logger.info(
-          `No existing sub-fee contract for ${chainName}, deploying new one`,
-        );
-        subFeeModule = await EvmTokenFeeModule.create({
-          multiProvider: this.multiProvider,
-          chain: this.chainName,
-          config,
-          contractVerifier: this.contractVerifier,
-        });
-        deployedSubFee = subFeeModule.serialize().deployedFee;
-
-        const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
-        this.logger.debug(annotation);
-        updateTransactions.push({
-          annotation: annotation,
-          chainId: this.chainId,
-          to: currentRoutingAddress,
-          data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
-            [this.multiProvider.getDomainId(chainName), deployedSubFee],
-          ),
-        });
-      } else {
-        // Update existing sub-fee contract
-        subFeeModule = new EvmTokenFeeModule(
-          this.multiProvider,
-          {
-            addresses: {
-              deployedFee: address,
-            },
-            chain: this.chainName,
-            config,
-          },
-          this.contractVerifier,
-        );
-        const subFeeUpdateTransactions = await subFeeModule.update(config, {
-          address,
-        });
-        deployedSubFee = subFeeModule.serialize().deployedFee;
-
-        updateTransactions.push(...subFeeUpdateTransactions);
-
-        if (!eqAddress(deployedSubFee, address)) {
-          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
-          this.logger.debug(annotation);
-          updateTransactions.push({
-            annotation: annotation,
-            chainId: this.chainId,
-            to: currentRoutingAddress,
-            data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
-              [this.multiProvider.getDomainId(chainName), deployedSubFee],
-            ),
-          });
-        }
-      }
+      return [];
     }
-
-    return updateTransactions;
+    return this.createOwnershipUpdateTxs(
+      normalizedActualConfig,
+      normalizedTargetConfig,
+    );
   }
 
   private createQuoteSignerUpdateTxs(

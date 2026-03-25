@@ -18,6 +18,7 @@ import {
   LinearFeeConfig,
   ProgressiveFeeConfig,
   RegressiveFeeConfig,
+  CrossCollateralRoutingFeeConfigSchema,
   RoutingFeeConfigSchema,
   TokenFeeConfigSchema,
   TokenFeeType,
@@ -112,6 +113,7 @@ describe('EvmTokenFeeDeployer', () => {
       type: TokenFeeType.RoutingFee,
       owner: signer.address,
       token: token.address,
+      feeContracts: {},
     });
 
     const deployedContracts = await deployer.deploy({
@@ -188,7 +190,7 @@ describe('EvmTokenFeeDeployer', () => {
 
     // Read the actual address of the deployed routing fee contract
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
-      multiProvider.getChainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test2),
     );
 
     expect(actualLinearFeeAddress).to.equal(
@@ -227,7 +229,7 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await routingFeeContract.owner()).to.equal(config.owner);
 
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
-      multiProvider.getChainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test2),
     );
     expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
     expect(await linearFeeContract.owner()).to.equal(otherSigner.address);
@@ -240,6 +242,7 @@ describe('EvmTokenFeeDeployer', () => {
       type: TokenFeeType.RoutingFee,
       owner: otherSigner.address,
       token: token.address,
+      feeContracts: {},
     });
 
     const deployedContracts = await deployer.deploy({
@@ -292,5 +295,58 @@ describe('EvmTokenFeeDeployer', () => {
     expect(signers).to.have.lengthOf(2);
     expect(signers).to.include(signer.address);
     expect(signers).to.include(otherSigner.address);
+  });
+
+  it('should deploy CrossCollateralRoutingFee with default and router-specific fee contracts', async () => {
+    const routerKey = hre.ethers.utils.hexZeroPad(signer.address, 32);
+    const config = CrossCollateralRoutingFeeConfigSchema.parse({
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: signer.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test2]: {
+          default: {
+            type: TokenFeeType.LinearFee,
+            token: token.address,
+            owner: signer.address,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
+            bps: BPS,
+          },
+          routers: {
+            [routerKey]: {
+              type: TokenFeeType.ProgressiveFee,
+              token: token.address,
+              owner: signer.address,
+              maxFee: MAX_FEE,
+              halfAmount: HALF_AMOUNT,
+            },
+          },
+        },
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][
+        TokenFeeType.CrossCollateralRoutingFee
+      ];
+    const defaultRouter = await routingFeeContract.DEFAULT_ROUTER();
+    const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+
+    expect(
+      await routingFeeContract.feeContracts(destinationDomain, defaultRouter),
+    ).to.equal(
+      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
+    );
+    expect(
+      await routingFeeContract.feeContracts(destinationDomain, routerKey),
+    ).to.equal(
+      deployedContracts[TestChainName.test2][TokenFeeType.ProgressiveFee]
+        .address,
+    );
   });
 });
