@@ -1030,7 +1030,12 @@ const fastPath: RootAgentConfig = {
     },
     gasPaymentEnforcement,
     reorgPeriodOverrides: { ethereum: 1 },
-    whitelist: warpRouteMatchingList('ctUSD/citrea'),
+    whitelist: chainMapMatchingList(
+      objMap(
+        getWarpAddresses('ctUSD/citrea'),
+        (_, addresses) => Object.values(addresses)[0],
+      ),
+    ),
     resources: relayerResources,
   },
 };
