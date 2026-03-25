@@ -526,6 +526,8 @@ fn transfer_remote_to(
 /// 8.    `[signer]` unique message account
 /// 9.    `[writable]` dispatched message PDA
 ///       10..N IGP accounts (optional), then plugin transfer_in accounts.
+/// SAFETY: This function must only be called from `transfer_remote_to`, which
+/// validates that the destination is an authorized remote router. Do not call directly.
 #[allow(clippy::too_many_lines)]
 fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
     program_id: &Pubkey,
@@ -741,6 +743,8 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
 /// 5.    `[executable]` target program
 ///       6..N plugin transfer_in accounts.
 ///       N+1..M target HandleLocal accounts (passthrough for CPI).
+/// SAFETY: This function must only be called from `transfer_remote_to`, which
+/// validates that the destination is an authorized remote router. Do not call directly.
 fn transfer_remote_to_local(
     program_id: &Pubkey,
     hyperlane_token: &HyperlaneToken<CollateralPlugin>,
