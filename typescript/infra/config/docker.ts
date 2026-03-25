@@ -52,7 +52,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: 'c558a9f-20260304-105251',
   warpMonitor: 'c558a9f-20260304-105251',
   rebalancer: 'c558a9f-20260304-105251',
-  feeQuoting: '18c3cdf-20260325-155853',
+  feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {

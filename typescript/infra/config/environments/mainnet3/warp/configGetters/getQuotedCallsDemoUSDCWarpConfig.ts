@@ -28,9 +28,9 @@ const deploymentChains = [
   'ink',
   'unichain',
   'avalanche',
-  'hyperevm',
+  // 'hyperevm', // TODO: deploy timed out, retry later
   'linea',
-  'monad',
+  // 'monad', // TODO: gas price overrides needed
 ] as const;
 
 type DeploymentChain = (typeof deploymentChains)[number];
