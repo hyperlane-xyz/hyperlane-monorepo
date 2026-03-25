@@ -103,6 +103,30 @@ describe('HyperlaneReader', () => {
     expect(result).to.be.undefined;
   });
 
+  it('returns undefined on Tron-style deterministic probe misses from regular providers', async () => {
+    const provider = new ProbeReaderProvider({
+      callError: Object.assign(
+        new Error('missing revert data in call exception'),
+        {
+          code: EthersError.CALL_EXCEPTION,
+          data: '0x',
+          error: {
+            error: {
+              code: -32000,
+              data: '{}',
+            },
+          },
+        },
+      ),
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testProbeContractCall();
+
+    expect(result).to.be.undefined;
+  });
+
   it('returns undefined on ProbeMissError from smart providers', async () => {
     multiProvider.setProvider(
       TestChainName.test1,
