@@ -16,7 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Keypair } from '@solana/web3.js';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import {
   TransactionFeeEstimate,

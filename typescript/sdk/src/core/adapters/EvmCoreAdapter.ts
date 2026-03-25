@@ -3,7 +3,7 @@ import { Address, HexString } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,

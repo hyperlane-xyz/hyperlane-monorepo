@@ -11,7 +11,7 @@ import {
 import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';

@@ -12,7 +12,7 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 
 import { EvmTokenAdapter } from './EvmTokenAdapter.js';

@@ -52,7 +52,7 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
 import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
 import { TokenMetadata } from '../types.js';

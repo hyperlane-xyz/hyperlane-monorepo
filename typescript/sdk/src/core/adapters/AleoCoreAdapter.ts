@@ -1,7 +1,7 @@
 import { Address, HexString, assert, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseAleoAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,

@@ -28,7 +28,7 @@ import {
   ExecuteMsg as WarpCw20Execute,
   QueryMsg as WarpCw20Query,
 } from '../../cw-types/WarpCw20.types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 

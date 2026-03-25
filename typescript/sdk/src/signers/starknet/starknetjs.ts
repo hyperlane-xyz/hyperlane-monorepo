@@ -3,7 +3,7 @@ import { Account as StarknetAccount } from 'starknet';
 
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { StarknetJsTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
