@@ -4,7 +4,7 @@ import {
 } from '@radixdlt/radix-dapp-toolkit';
 import { useCallback, useMemo } from 'react';
 
-import { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
+import type { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk/runtime';
 import {
   ChainName,
   IToken,

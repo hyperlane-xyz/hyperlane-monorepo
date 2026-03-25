@@ -6,10 +6,10 @@ import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
-import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
-import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
-import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
+import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk/runtime';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk/runtime';
+import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk/runtime';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
