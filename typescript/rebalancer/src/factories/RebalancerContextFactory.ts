@@ -11,6 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProviderConfig } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import {
   Address,
   assert,
@@ -83,7 +84,7 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
-    private readonly multiProtocolProvider: MultiProtocolProvider,
+    private readonly multiProtocolProvider: MultiProtocolProviderConfig,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
     private readonly inventorySignerKeysByProtocol?: Partial<
@@ -101,7 +102,7 @@ export class RebalancerContextFactory {
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
-    multiProtocolProvider: MultiProtocolProvider | undefined,
+    multiProtocolProvider: MultiProtocolProviderConfig | undefined,
     registry: IRegistry,
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,

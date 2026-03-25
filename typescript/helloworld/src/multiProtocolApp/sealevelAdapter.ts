@@ -10,7 +10,6 @@ import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
   ChainName,
-  MultiProtocolProvider,
   ProviderType,
   SEALEVEL_SPL_NOOP_ADDRESS,
   SealevelAccountDataWrapper,
@@ -22,6 +21,7 @@ import {
   SolanaWeb3Transaction,
   getSealevelAccountDataSchema,
 } from '@hyperlane-xyz/sdk';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { IHelloWorldAdapter } from './types.js';

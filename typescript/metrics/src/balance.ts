@@ -7,12 +7,12 @@ import {
   type EvmHypXERC20LockboxAdapter,
   EvmTokenAdapter,
   type IHypXERC20Adapter,
-  type MultiProtocolProvider,
   type SealevelHypTokenAdapter,
   Token,
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {

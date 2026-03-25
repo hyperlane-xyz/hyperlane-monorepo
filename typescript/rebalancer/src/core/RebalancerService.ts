@@ -1,11 +1,8 @@
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
-import {
-  type MultiProtocolProvider,
-  type MultiProvider,
-  Token,
-} from '@hyperlane-xyz/sdk';
+import { type MultiProvider, Token } from '@hyperlane-xyz/sdk';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import { ProtocolType, assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
