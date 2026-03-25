@@ -212,6 +212,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
 
     const parseFeeConfig = async (subFeeAddress: Address) => {
       const cacheKey = subFeeAddress.toLowerCase();
+      // Multiple destinations and router overrides can point at the same child
+      // fee contract. Cache the recursive read so we only derive that shared
+      // sub-fee once per address.
       if (!feeConfigCache.has(cacheKey)) {
         feeConfigCache.set(
           cacheKey,

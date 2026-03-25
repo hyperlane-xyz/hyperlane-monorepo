@@ -336,6 +336,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) &&
       !effectiveParams.routingDestinations
     ) {
+      // Read defaults for every destination the target config cares about so
+      // comparisons don't accidentally drop fee contracts on ordinary route
+      // destinations that have no CCR router override.
       effectiveParams.routingDestinations = Object.keys(
         targetConfig.feeContracts,
       ).map((chainName) => this.multiProvider.getDomainId(chainName));
@@ -358,6 +361,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return effectiveParams;
     }
 
+    // Preserve caller-supplied router hints while unioning in target-config
+    // routers so CCRF reads can see both stale on-chain routers and the new
+    // target router set during diffing.
     const mergedCrossCollateralRouters = new Map<number, Set<string>>();
     for (const [destination, routers] of Object.entries(
       effectiveParams.crossCollateralRouters,
