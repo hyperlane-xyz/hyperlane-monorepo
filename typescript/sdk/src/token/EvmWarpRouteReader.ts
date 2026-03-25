@@ -205,6 +205,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const isOft = type === TokenType.collateralOft;
     const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
     const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
+    const tokenRouterDomainsPromise = usesSentinelRouterConfig
+      ? undefined
+      : TokenRouter__factory.connect(warpRouteAddress, this.provider)
+          .domains()
+          .catch((error) => {
+            this.logger.debug(
+              `Failed to derive token router domains for routing fee config on "${this.chain}"`,
+              error,
+            );
+            return undefined;
+          });
     const routerConfigPromise = usesSentinelRouterConfig
       ? Ownable__factory.connect(warpRouteAddress, this.provider)
           .owner()
@@ -290,7 +301,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        domains = await movableToken.domains();
+        domains = tokenRouterDomainsPromise
+          ? await tokenRouterDomainsPromise
+          : await movableToken.domains();
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
             arrayToObject(domains.map((domain) => domain.toString())),
@@ -323,6 +336,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const tokenFee = await this.fetchTokenFee(
       warpRouteAddress,
       feeDestinations.length ? feeDestinations : undefined,
+      tokenRouterDomainsPromise,
       isCrossCollateralTokenConfig(tokenConfig)
         ? tokenConfig.crossCollateralRouters
         : undefined,
@@ -351,6 +365,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
+    destinationsPromise?: Promise<number[] | undefined>,
     crossCollateralRouters?: Record<string, string[]>,
   ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
@@ -388,13 +403,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await TokenRouter.domains().catch((error) => {
-        this.logger.debug(
-          `Failed to derive token router domains for routing fee config on "${this.chain}"`,
-          error,
-        );
-        return undefined;
-      }));
+      (destinationsPromise
+        ? await destinationsPromise
+        : await TokenRouter.domains().catch((error) => {
+            this.logger.debug(
+              `Failed to derive token router domains for routing fee config on "${this.chain}"`,
+              error,
+            );
+            return undefined;
+          }));
 
     const normalizedCrossCollateralRouters = crossCollateralRouters
       ? Object.fromEntries(

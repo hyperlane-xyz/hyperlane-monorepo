@@ -77,16 +77,17 @@ export async function supportsMulticall(
   const supportPromise = provider
     .getCode(address)
     .then((code) => code !== '0x');
-  supportPromise.catch((error) => {
+  const safeSupportPromise = supportPromise.catch((error) => {
     providerCache.delete(address);
     rootLogger.debug(
       { error, batchContractAddress: address },
       'Failed to detect multicall support',
     );
+    return false;
   });
-  providerCache.set(address, supportPromise);
+  providerCache.set(address, safeSupportPromise);
   multicallSupportCache.set(provider, providerCache);
-  return supportPromise.catch(() => false);
+  return safeSupportPromise;
 }
 
 export async function readContractsWithMulticall<T>(
