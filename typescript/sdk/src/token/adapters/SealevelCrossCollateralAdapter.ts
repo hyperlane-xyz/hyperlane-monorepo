@@ -1,3 +1,4 @@
+import { addressToBytes, assert, padBytesToLength } from '@hyperlane-xyz/utils';
 import {
   AccountMeta,
   ComputeBudgetProgram,
@@ -10,27 +11,22 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
-import {
-  Address,
-  addressToBytes,
-  assert,
-  padBytesToLength,
-} from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
 import {
   IgpPaymentKeys,
   SealevelOverheadIgpAdapter,
 } from '../../gas/adapters/SealevelIgpAdapter.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
 
+import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 import type {
   IHypCrossCollateralAdapter,
   TransferRemoteToParams,
 } from './ITokenAdapter.js';
-import { SealevelHypCollateralAdapter } from './SealevelTokenAdapter.js';
-import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
+import {
+  SealevelHypCollateralAdapter,
+  TRANSFER_REMOTE_COMPUTE_LIMIT,
+} from './SealevelTokenAdapter.js';
 import {
   SealevelCCHandleLocalInstruction,
   SealevelCCHandleLocalSchema,
@@ -42,7 +38,6 @@ import {
 
 // CC program discriminator (8 bytes of 2s)
 const CC_DISCRIMINATOR = Buffer.from([2, 2, 2, 2, 2, 2, 2, 2]);
-const TRANSFER_REMOTE_TO_COMPUTE_LIMIT = 1_000_000;
 
 // Each SerializableAccountMeta is: pubkey (32) + is_signer (1) + is_writable (1) = 34 bytes
 const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
@@ -51,14 +46,6 @@ export class SealevelHypCrossCollateralAdapter
   extends SealevelHypCollateralAdapter
   implements IHypCrossCollateralAdapter<Transaction>
 {
-  constructor(
-    chainName: ChainName,
-    multiProvider: MultiProtocolProvider,
-    addresses: { token: Address; warpRouter: Address; mailbox: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-  }
-
   deriveCrossCollateralStatePda(): PublicKey {
     return this.derivePda(
       ['hyperlane_token', '-', 'cross_collateral'],
@@ -73,7 +60,6 @@ export class SealevelHypCrossCollateralAdapter
     );
   }
 
-  // Stub methods — will be implemented in subsequent commits
   async quoteTransferRemoteToGas(
     params: Parameters<
       IHypCrossCollateralAdapter<Transaction>['quoteTransferRemoteToGas']
@@ -235,7 +221,7 @@ export class SealevelHypCrossCollateralAdapter
   // Same simulation pattern as SealevelIgpAdapter.quoteGasPayment.
   //
   // Should match handle_local_account_metas in processor.rs:
-  // Account 0: [] The target program's token PDA account.
+  // Account 0: [] The target program's account metas PDA.
   async simulateHandleLocalAccountMetas({
     targetProgram,
     senderProgram,
@@ -260,7 +246,7 @@ export class SealevelHypCrossCollateralAdapter
     });
     const serializedData = serialize(SealevelCCHandleLocalSchema, value);
 
-    // Derive the target program's token PDA (same seed pattern, different program)
+    // Derive the target program's account metas PDA
     const targetTokenPda = this.derivePda(
       ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
       targetProgram,
@@ -268,7 +254,7 @@ export class SealevelHypCrossCollateralAdapter
 
     const instruction = new TransactionInstruction({
       keys: [
-        // Account 0: The target program's token PDA account.
+        // Account 0: The target program's account metas PDA.
         { pubkey: targetTokenPda, isSigner: false, isWritable: false },
       ],
       programId: targetProgram,
@@ -347,6 +333,12 @@ export class SealevelHypCrossCollateralAdapter
       recipient,
       payer: sender,
     });
+    assert(
+      handleLocalAccountMetas[0]?.pubkey.equals(
+        this.deriveCrossCollateralDispatchAuthorityPda(),
+      ),
+      'Expected first HandleLocal account to be the CC dispatch authority PDA',
+    );
 
     const keys: Array<AccountMeta> = [
       // 0.   [executable] The system program.
@@ -419,23 +411,30 @@ export class SealevelHypCrossCollateralAdapter
     );
     const localDomain = this.multiProvider.getDomainId(this.chainName);
 
-    let keys: Array<AccountMeta>;
     if (destination === localDomain) {
       const targetProgram = new PublicKey(targetRouter);
-      keys = await this.getTransferRemoteToLocalKeyList({
+      const keys = await this.getTransferRemoteToLocalKeyList({
         sender,
         targetProgram,
         senderProgram: this.warpProgramPubKey,
         amount: BigInt(amount),
         recipient: recipientBytes,
       });
+
+      return this.createTransferRemoteToTx({
+        keys,
+        destination,
+        recipientBytes,
+        amount: BigInt(amount),
+        targetRouterBytes,
+        sender,
+      });
     } else {
       const randomWallet = extraSigners?.length
         ? extraSigners[0]
         : Keypair.generate();
       const mailbox = new PublicKey(this.addresses.mailbox);
-
-      keys = await this.getTransferRemoteToRemoteKeyList({
+      const keys = await this.getTransferRemoteToRemoteKeyList({
         sender,
         mailbox,
         randomWallet: randomWallet.publicKey,
@@ -452,15 +451,6 @@ export class SealevelHypCrossCollateralAdapter
         randomWallet,
       });
     }
-
-    return this.createTransferRemoteToTx({
-      keys,
-      destination,
-      recipientBytes,
-      amount: BigInt(amount),
-      targetRouterBytes,
-      sender,
-    });
   }
 
   private async createTransferRemoteToTx({
@@ -498,7 +488,7 @@ export class SealevelHypCrossCollateralAdapter
     });
 
     const setComputeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit(
-      { units: TRANSFER_REMOTE_TO_COMPUTE_LIMIT },
+      { units: TRANSFER_REMOTE_COMPUTE_LIMIT },
     );
     const setPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
       microLamports: (await this.getMedianPriorityFee()) || 0,
@@ -508,7 +498,7 @@ export class SealevelHypCrossCollateralAdapter
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
-    // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
+    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
     const tx = new Transaction({
       feePayer: sender,
       blockhash: recentBlockhash,

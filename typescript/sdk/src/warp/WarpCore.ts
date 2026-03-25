@@ -695,6 +695,10 @@ export class WarpCore {
     // Same-chain: calls handle() directly on target router (atomic, no relay needed).
     const destinationDomainId = this.multiProvider.getDomainId(destination);
 
+    const extraSignerKeypairs =
+      providerType === ProviderType.SolanaWeb3
+        ? [Keypair.generate()]
+        : undefined;
     const txReq = await adapter.populateTransferRemoteToTx({
       destination: destinationDomainId,
       recipient,
@@ -702,11 +706,13 @@ export class WarpCore {
       targetRouter: resolvedDestinationToken.addressOrDenom,
       interchainGas: transferQuote,
       fromAccountOwner: sender,
+      extraSigners: extraSignerKeypairs,
     });
     transactions.push({
       category: WarpTxCategory.Transfer,
       type: providerType,
       transaction: txReq,
+      ...(extraSignerKeypairs && { extraSigners: extraSignerKeypairs }),
     } as WarpTypedTransaction);
 
     return transactions;
