@@ -804,6 +804,13 @@ const relayerResources = {
   },
 };
 
+const fastPathRelayerResources = {
+  requests: {
+    cpu: '8000m',
+    memory: '16G',
+  },
+};
+
 const validatorResources = {
   requests: {
     cpu: '500m',
@@ -1035,7 +1042,7 @@ const fastPath: RootAgentConfig = {
     cache: {
       enabled: true,
     },
-    resources: relayerResources,
+    resources: fastPathRelayerResources,
   },
 };
 
