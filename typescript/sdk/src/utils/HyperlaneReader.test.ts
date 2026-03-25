@@ -34,6 +34,7 @@ class ReaderHarness extends HyperlaneReader {
 class ProbeReaderProvider extends providers.BaseProvider {
   constructor(
     private readonly options: {
+      callResult?: string;
       callError?: Error;
       estimateGasError?: Error;
     } = {},
@@ -49,7 +50,7 @@ class ProbeReaderProvider extends providers.BaseProvider {
       throw this.options.callError;
     }
 
-    return '0x';
+    return this.options.callResult ?? '0x';
   }
 
   async estimateGas(
@@ -118,6 +119,22 @@ describe('HyperlaneReader', () => {
           },
         },
       ),
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testProbeContractCall();
+
+    expect(result).to.be.undefined;
+  });
+
+  it('returns undefined when decoding probe results surfaces revert data as CALL_EXCEPTION', async () => {
+    const provider = new ProbeReaderProvider({
+      callResult:
+        '0x08c379a000000000000000000000000000000000000000000000000000000000' +
+        '0000002000000000000000000000000000000000000000000000000000000000' +
+        '0000002146696174546f6b656e3a2063616c6c6572206973206e6f742061206d' +
+        '696e746572000000000000000000000000000000000000000000000000000000',
     });
     multiProvider.setProvider(TestChainName.test1, provider);
     const reader = new ReaderHarness(multiProvider, TestChainName.test1);
