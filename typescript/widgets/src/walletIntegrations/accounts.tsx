@@ -2,7 +2,11 @@ import { useMemo } from 'react';
 
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
-import { type Address, type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type KnownProtocolType,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { useAleoAccount } from './aleo.js';
 import { getAccountAddressForChain } from './accountUtils.js';

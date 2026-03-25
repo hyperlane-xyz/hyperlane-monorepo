@@ -13,9 +13,7 @@ import { XCircleIcon } from '../icons/XCircle.js';
 import { widgetLogger } from '../logger.js';
 import { tryClipboardSet } from '../utils/clipboard.js';
 import { WalletLogo } from '../walletIntegrations/WalletLogo.js';
-import {
-  getAddressFromAccountAndChain,
-} from '../walletIntegrations/accountUtils.js';
+import { getAddressFromAccountAndChain } from '../walletIntegrations/accountUtils.js';
 import { useAccounts } from '../walletIntegrations/accounts.js';
 import { useDisconnectFns } from '../walletIntegrations/disconnectFns.js';
 import { useWalletDetails } from '../walletIntegrations/walletDetails.js';
