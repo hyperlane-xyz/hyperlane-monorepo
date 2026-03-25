@@ -191,7 +191,7 @@ jobs:
           git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
           git config user.email "${BOT_USER_ID}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
-          BRANCH_NAME="release-agents-v${NEW_VERSION}"
+          BRANCH_NAME="release-agents"
 
           # Create branch from current HEAD (which is main)
           git checkout -B "$BRANCH_NAME"

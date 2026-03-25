@@ -25,6 +25,7 @@ export enum TokenStandard {
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
   EvmM0PortalLite = 'EvmM0PortalLite',
+  EvmM0Portal = 'EvmM0Portal',
   EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
   EvmHypEverclearEth = 'EvmHypEverclearEth',
   EvmHypCrossCollateralRouter = 'EvmHypCrossCollateralRouter',
@@ -115,6 +116,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
   EvmM0PortalLite: ProtocolType.Ethereum,
+  EvmM0Portal: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearCollateral]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearEth]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypCrossCollateralRouter]: ProtocolType.Ethereum,
@@ -275,6 +277,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.EvmM0PortalLite,
+  TokenStandard.EvmM0Portal,
   TokenStandard.EvmHypCrossCollateralRouter,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
@@ -398,6 +401,18 @@ export const tokenTypeToStandard = (
         `token type ${tokenType} not available on protocol ${protocolType}`,
       );
       return sealevelTokenStandard;
+    }
+    case ProtocolType.Starknet: {
+      const starknetTokenStandard =
+        STARKNET_TOKEN_TYPE_TO_STANDARD[
+          tokenType as StarknetSupportedTokenTypes
+        ];
+
+      assert(
+        starknetTokenStandard,
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+      return starknetTokenStandard;
     }
     default: {
       throw new Error(

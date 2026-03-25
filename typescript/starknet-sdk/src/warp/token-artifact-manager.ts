@@ -23,6 +23,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   assert,
   eqAddressStarknet,
+  isEmptyAddress,
 } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
@@ -184,21 +185,25 @@ export abstract class StarknetWarpTokenWriterBase<
     artifact: ArtifactDeployed<C, DeployedWarpAddress>,
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
-    this.validateUpdateConfig(current.config, artifact.config);
-    this.assertNoOrphanDestinationGas(artifact.config);
+    const expectedConfig = this.preserveUnsetHookAndIsm(
+      current.config,
+      artifact.config,
+    );
+    this.validateUpdateConfig(current.config, expectedConfig);
+    this.assertNoOrphanDestinationGas(expectedConfig);
 
     const txs: AnnotatedTx[] = [];
     const tokenAddress = artifact.deployed.address;
     let ownerTx: StarknetAnnotatedTx | undefined;
 
     const currentOwner = current.config.owner;
-    if (!eqAddressStarknet(currentOwner, artifact.config.owner)) {
+    if (!eqAddressStarknet(currentOwner, expectedConfig.owner)) {
       ownerTx = {
         annotation: 'Setting warp token owner',
         ...(await this.signer.getSetTokenOwnerTransaction({
           signer: this.signer.getSignerAddress(),
           tokenAddress,
-          newOwner: artifact.config.owner,
+          newOwner: expectedConfig.owner,
         })),
       };
     }
@@ -208,7 +213,7 @@ export abstract class StarknetWarpTokenWriterBase<
       normalizeStarknetAddressSafe,
     );
     const expectedIsm = artifactOnChainToAddress(
-      artifact.config.interchainSecurityModule,
+      expectedConfig.interchainSecurityModule,
       normalizeStarknetAddressSafe,
     );
     if (
@@ -232,7 +237,7 @@ export abstract class StarknetWarpTokenWriterBase<
       normalizeStarknetAddressSafe,
     );
     const expectedHook = artifactOnChainToAddress(
-      artifact.config.hook,
+      expectedConfig.hook,
       normalizeStarknetAddressSafe,
     );
     if (
@@ -257,8 +262,8 @@ export abstract class StarknetWarpTokenWriterBase<
         destinationGas: current.config.destinationGas,
       },
       {
-        remoteRouters: artifact.config.remoteRouters,
-        destinationGas: artifact.config.destinationGas,
+        remoteRouters: expectedConfig.remoteRouters,
+        destinationGas: expectedConfig.destinationGas,
       },
       eqAddressStarknet,
     );
@@ -296,6 +301,37 @@ export abstract class StarknetWarpTokenWriterBase<
     }
 
     return txs;
+  }
+
+  private preserveUnsetHookAndIsm(current: C, expected: C): C {
+    const expectedIsm = artifactOnChainToAddress(
+      expected.interchainSecurityModule,
+      normalizeStarknetAddressSafe,
+    );
+    const expectedHook = artifactOnChainToAddress(
+      expected.hook,
+      normalizeStarknetAddressSafe,
+    );
+
+    return {
+      ...expected,
+      interchainSecurityModule: isEmptyAddress(expectedIsm)
+        ? addressToUnderivedArtifact(
+            artifactOnChainToAddress(
+              current.interchainSecurityModule,
+              normalizeStarknetAddressSafe,
+            ),
+          )
+        : expected.interchainSecurityModule,
+      hook: isEmptyAddress(expectedHook)
+        ? addressToUnderivedArtifact(
+            artifactOnChainToAddress(
+              current.hook,
+              normalizeStarknetAddressSafe,
+            ),
+          )
+        : expected.hook,
+    };
   }
 
   private assertNoOrphanDestinationGas(config: C): void {

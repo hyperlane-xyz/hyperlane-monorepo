@@ -536,6 +536,22 @@ const DOMAINS: &[RawDomain] = &[
         chain_id: 9913375,
         is_test_net: true,
         is_deprecated: false,
+    },
+    RawDomain {
+        name: "trontest1",
+        token: "TRX",
+        domain: 1212538670,
+        chain_id: 1212538670,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "trontest2",
+        token: "TRX",
+        domain: 1212538671,
+        chain_id: 1212538671,
+        is_test_net: true,
+        is_deprecated: false,
     }, // ---------- End: E2E tests chains ----------------
 ];
 

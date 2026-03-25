@@ -70,6 +70,7 @@ import type {
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import { M0PortalLiteTokenAdapter } from './adapters/M0PortalLiteTokenAdapter.js';
+import { M0PortalTokenAdapter } from './adapters/M0PortalTokenAdapter.js';
 import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
@@ -450,6 +451,17 @@ export class Token implements IToken {
         'collateralAddressOrDenom (mToken address) required for M0PortalLite',
       );
       return new M0PortalLiteTokenAdapter(
+        multiProvider,
+        chainName,
+        addressOrDenom, // portal address
+        collateralAddressOrDenom, // mToken address
+      );
+    } else if (standard === TokenStandard.EvmM0Portal) {
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom (mToken address) required for M0Portal',
+      );
+      return new M0PortalTokenAdapter(
         multiProvider,
         chainName,
         addressOrDenom, // portal address
