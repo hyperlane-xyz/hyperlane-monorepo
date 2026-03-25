@@ -62,7 +62,6 @@ export const keyFunderConfig: KeyFunderConfig<
       Role.InventoryRebalancer,
     ],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
-    [Contexts.FastPath]: [Role.Relayer],
   },
   chainsToSkip: [],
   // desired balance config, must be set for each chain
