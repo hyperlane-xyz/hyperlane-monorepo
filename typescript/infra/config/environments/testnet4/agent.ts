@@ -460,6 +460,11 @@ const fastPath: RootAgentConfig = {
     },
     gasPaymentEnforcement,
     reorgPeriodOverrides: { sepolia: 1 },
+    blacklist: relayBlacklist,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
 };

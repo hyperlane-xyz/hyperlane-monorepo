@@ -1036,6 +1036,10 @@ const fastPath: RootAgentConfig = {
         (_, addresses) => Object.values(addresses)[0],
       ),
     ),
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
 };
