@@ -157,7 +157,7 @@ mod test {
     use std::sync::Arc;
 
     use ethers::providers::{MockProvider, Provider};
-    use ethers_core::types::U256 as EthersU256;
+    use ethers_core::{abi, types::Bytes};
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule,
         KnownHyperlaneDomain, Metadata, ModuleType, H256, U256,
@@ -193,10 +193,11 @@ mod test {
         let (ism, mock_provider) = get_test_ism(domain);
 
         // MockProvider responses are LIFO — only module_type() is called; verify() is not.
-        // ModuleType::Null == 6
-        mock_provider
-            .push(EthersU256::from(ModuleType::Null as u8))
-            .unwrap();
+        // ABI-encode uint8(6) = ModuleType::Null as a 32-byte padded value.
+        let encoded = Bytes::from(abi::encode(&[abi::Token::Uint(
+            (ModuleType::Null as u8).into(),
+        )]));
+        mock_provider.push::<Bytes, _>(encoded).unwrap();
 
         let result = ism
             .dry_run_verify(&HyperlaneMessage::default(), &Metadata::new(vec![]))
