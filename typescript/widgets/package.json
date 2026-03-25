@@ -18,8 +18,43 @@
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./styles.css": "./dist/styles.css"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./chains/*": {
+      "types": "./dist/chains/*.d.ts",
+      "default": "./dist/chains/*.js"
+    },
+    "./components/*": {
+      "types": "./dist/components/*.d.ts",
+      "default": "./dist/components/*.js"
+    },
+    "./icons/*": {
+      "types": "./dist/icons/*.d.ts",
+      "default": "./dist/icons/*.js"
+    },
+    "./layout/*": {
+      "types": "./dist/layout/*.d.ts",
+      "default": "./dist/layout/*.js"
+    },
+    "./logos/*": {
+      "types": "./dist/logos/*.d.ts",
+      "default": "./dist/logos/*.js"
+    },
+    "./messages/*": {
+      "types": "./dist/messages/*.d.ts",
+      "default": "./dist/messages/*.js"
+    },
+    "./utils/*": {
+      "types": "./dist/utils/*.d.ts",
+      "default": "./dist/utils/*.js"
+    },
+    "./walletIntegrations/*": {
+      "types": "./dist/walletIntegrations/*.d.ts",
+      "default": "./dist/walletIntegrations/*.js"
+    }
   },
   "scripts": {
     "build": "pnpm build:ts && pnpm build:css",
@@ -59,7 +94,6 @@
     "@tronweb3/tronwallet-abstract-adapter": "catalog:",
     "@tronweb3/tronwallet-adapter-react-hooks": "catalog:",
     "@tronweb3/tronwallet-adapter-tronlink": "catalog:",
-    "@tronweb3/tronwallet-adapters": "catalog:",
     "@wagmi/core": "^2.12.26",
     "clsx": "^2.1.1",
     "ethers": "catalog:",

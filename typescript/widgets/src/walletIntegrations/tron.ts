@@ -1,5 +1,5 @@
 import { useWallet } from '@tronweb3/tronwallet-adapter-react-hooks';
-import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapters';
+import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapter-tronlink';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -16,7 +16,7 @@ import {
   TronJsonRpcProvider,
   TronTransactionBuilder,
   TronTransactionResponse,
-} from '@hyperlane-xyz/tron-sdk';
+} from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
   AccountInfo,

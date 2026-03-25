@@ -3,7 +3,7 @@ import type { DeliverTxResponse } from '@cosmjs/cosmwasm-stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
-import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk/runtime';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
