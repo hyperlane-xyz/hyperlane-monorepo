@@ -127,6 +127,7 @@ import {
   getoXAUTGnosisSafeSubmitterStrategyConfig,
   getoXAUTTokenProductionWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getoXAUTTokenWarpConfig.js';
+import { getQuotedCallsDemoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getQuotedCallsDemoUSDCWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
@@ -216,6 +217,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
+  [WarpRouteIds.QuotedCallsDemoUSDC]: getQuotedCallsDemoUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
