@@ -24,9 +24,12 @@ class ReaderHarness extends HyperlaneReader {
     );
   }
 
-  async testProbeEstimateGas(): Promise<BigNumber | undefined> {
+  async testProbeEstimateGas(
+    overrides: providers.TransactionRequest = {},
+  ): Promise<BigNumber | undefined> {
     return this.probeContractEstimateGas({
       to: TEST_ADDRESS,
+      ...overrides,
     });
   }
 }
@@ -221,5 +224,24 @@ describe('HyperlaneReader', () => {
 
     expect(provider.lastCallTransaction?.type).to.equal(0);
     expect(provider.lastEstimateGasTransaction?.type).to.equal(0);
+  });
+
+  it('strips gas pricing fields before probe gas estimation', async () => {
+    const provider = new ProbeReaderProvider();
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    await reader.testProbeEstimateGas({
+      gasLimit: BigNumber.from(100000),
+      gasPrice: BigNumber.from(1),
+      maxPriorityFeePerGas: BigNumber.from(2),
+      maxFeePerGas: BigNumber.from(3),
+    });
+
+    expect(provider.lastEstimateGasTransaction?.gasLimit).to.be.undefined;
+    expect(provider.lastEstimateGasTransaction?.gasPrice).to.be.undefined;
+    expect(provider.lastEstimateGasTransaction?.maxPriorityFeePerGas).to.be
+      .undefined;
+    expect(provider.lastEstimateGasTransaction?.maxFeePerGas).to.be.undefined;
   });
 });

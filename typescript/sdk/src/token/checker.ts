@@ -16,11 +16,11 @@ import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
-import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
 import { DEFAULT_SCALE, verifyScale } from '../utils/decimals.js';
+import { performProbeEstimateGas } from '../utils/HyperlaneReader.js';
 
 import { HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -151,28 +151,19 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // Check if configured token type matches actual token type
     if (isNativeTokenConfig(expectedConfig)) {
       try {
-        const provider = this.multiProvider.getProvider(chain);
-
-        if (provider instanceof HyperlaneSmartProvider) {
-          const transaction = await this.multiProvider.prepareTx(
+        await performProbeEstimateGas(
+          this.multiProvider,
+          chain,
+          this.multiProvider.getProvider(chain),
+          await this.multiProvider.prepareTx(
             chain,
             {
               to: hypToken.address,
               value: BigNumber.from(1),
             },
             NON_ZERO_SENDER_ADDRESS,
-          );
-          await provider.probeEstimateGas(transaction);
-        } else {
-          await this.multiProvider.estimateGas(
-            chain,
-            {
-              to: hypToken.address,
-              value: BigNumber.from(1),
-            },
-            NON_ZERO_SENDER_ADDRESS,
-          );
-        }
+          ),
+        );
       } catch {
         const violation: TokenMismatchViolation = {
           type: 'deployed token not payable',
