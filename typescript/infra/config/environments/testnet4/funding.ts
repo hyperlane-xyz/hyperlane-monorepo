@@ -35,7 +35,6 @@ export const keyFunderConfig: KeyFunderConfig<
     bsctestnet: '5',
     celestiatestnet: '0',
     celosepolia: '0.5',
-    citreatestnet: '0.1',
     cotitestnet: '1',
     // no funding for solana
     eclipsetestnet: '0',
