@@ -461,26 +461,24 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
+    const performWithFallback = () =>
+      policy.kind === SmartProviderRequestKind.Read
+        ? this.performWithFallback(method, params, supportedProviders, reqId)
+        : this.performWithFallbackForPolicy(
+            method,
+            params,
+            supportedProviders,
+            reqId,
+            policy,
+          );
+
     // SendTransaction must not be retried - it could cause duplicate submissions
     if (method === ProviderMethod.SendTransaction) {
-      return this.performWithFallbackForPolicy(
-        method,
-        params,
-        supportedProviders,
-        reqId,
-        policy,
-      );
+      return performWithFallback();
     }
 
     return retryAsync(
-      () =>
-        this.performWithFallbackForPolicy(
-          method,
-          params,
-          supportedProviders,
-          reqId,
-          policy,
-        ),
+      performWithFallback,
       policy.attempts,
       policy.baseRetryDelayMs,
     );
