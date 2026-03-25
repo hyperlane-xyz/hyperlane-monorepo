@@ -222,8 +222,8 @@ export async function getContext({
     !!skipConfirmation,
   );
 
-  const multiProvider = await getMultiProvider(registry);
-  const multiProtocolProvider = await getMultiProtocolProvider(registry);
+  const { multiProvider, multiProtocolProvider } =
+    await getProvidersFromRegistry(registry);
 
   // This mapping gets populated as part of signerMiddleware
   const altVmProviders: ChainMap<AltVM.IProvider> = {};
@@ -303,16 +303,19 @@ async function getSignerKeyMap(
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
+export async function getProvidersFromRegistry(
+  registry: IRegistry,
+  signer?: ethers.Signer,
+) {
   const chainMetadata = await registry.getMetadata();
   const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
-  return multiProvider;
-}
 
-async function getMultiProtocolProvider(registry: IRegistry) {
-  const chainMetadata = await registry.getMetadata();
-  return new MultiProtocolProvider(chainMetadata);
+  return {
+    chainMetadata,
+    multiProvider,
+    multiProtocolProvider: new MultiProtocolProvider(chainMetadata),
+  };
 }
 
 /**
