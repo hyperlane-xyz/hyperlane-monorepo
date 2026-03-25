@@ -12,7 +12,7 @@ import {
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
   signTransactionMessageWithSigners,
-  Commitment,
+  type Commitment,
 } from '@solana/kit';
 import {
   isSolanaError,
