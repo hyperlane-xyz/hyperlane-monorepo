@@ -306,21 +306,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Notify Slack on publish failure
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
-        run: |
-          jq -n \
-            --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --arg run_number "${{ github.run_number }}" \
-            '{
-              text: ":red-siren: NPM package publish failed — see workflow run for details",
-              blocks: [{
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: (":red-siren: *NPM package publish failed*\n<" + $run_url + "|View workflow run #" + $run_number + ">")
-                }
-              }]
-            }' | curl -sf -X POST "$SLACK_WEBHOOK" \
-              -H 'Content-Type: application/json' \
-              -d @-
+        uses: slackapi/slack-github-action@v3
+        with:
+          webhook: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":red-siren: NPM package publish failed — see workflow run for details"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ":red-siren: *NPM package publish failed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run #${{ github.run_number }}>"
