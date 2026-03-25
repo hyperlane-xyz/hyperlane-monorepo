@@ -1571,7 +1571,7 @@ describe('EvmWarpRouteReader', async () => {
       });
     });
 
-    it('should fail when modern version contract claims v10.0.0+ but is missing token() method', async () => {
+    it('should fail when modern version contract claims v10.0.0+ but probe misses token()', async () => {
       const config: WarpRouteDeployConfigMailboxRequired = {
         [chain]: {
           type: TokenType.native,
@@ -1583,35 +1583,61 @@ describe('EvmWarpRouteReader', async () => {
       const warpRoute = await deployer.deploy(config);
       const warpAddress = warpRoute[chain].native.address;
 
-      // Stub package version to claim it's modern (10.0.0+)
-      const mockPackageVersioned = {
-        PACKAGE_VERSION: sinon.stub().resolves(TOKEN_FEE_CONTRACT_VERSION),
-      };
       const fetchPackageVersionStub = sinon
-        .stub(PackageVersioned__factory, 'connect')
-        .returns(mockPackageVersioned as any);
+        .stub(evmERC20WarpRouteReader, 'fetchPackageVersion')
+        .resolves(TOKEN_FEE_CONTRACT_VERSION);
+      const probeContractCallStub = sinon
+        .stub(evmERC20WarpRouteReader as any, 'probeContractCall')
+        .resolves(undefined);
 
-      // Stub token() to throw error (simulating missing method)
-      const mockTokenRouter = {
-        token: sinon.stub().rejects(new Error('token() method not found')),
-      };
-      const tokenRouterStub = sinon
-        .stub(TokenRouter__factory, 'connect')
-        .returns(mockTokenRouter as any);
-
-      let thrownError: Error | undefined;
       try {
         await evmERC20WarpRouteReader.deriveTokenType(warpAddress);
+        expect.fail('Expected deriveTokenType to throw');
       } catch (error) {
-        thrownError = error as Error;
+        expect(String(error)).to.include(
+          `Error deriving token type for token at address "${warpAddress}"`,
+        );
+      } finally {
+        fetchPackageVersionStub.restore();
+        probeContractCallStub.restore();
       }
-      expect(thrownError?.message).to.include(
-        `Error deriving token type for token at address "${warpAddress}"`,
-      );
+    });
 
-      // Cleanup
-      fetchPackageVersionStub.restore();
-      tokenRouterStub.restore();
+    it('should surface transport failures during legacy native probing', async () => {
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          type: TokenType.native,
+          hook: await mailbox.defaultHook(),
+          ...baseConfig,
+        },
+      };
+
+      const warpRoute = await deployer.deploy(config);
+      const warpAddress = warpRoute[chain].native.address;
+
+      const transportError = Object.assign(new Error('connection refused'), {
+        code: 'SERVER_ERROR',
+      });
+      const fetchPackageVersionStub = sinon
+        .stub(evmERC20WarpRouteReader, 'fetchPackageVersion')
+        .resolves('9.0.0');
+      const probeContractCallStub = sinon
+        .stub(evmERC20WarpRouteReader as any, 'probeContractCall')
+        .resolves(undefined);
+      const probeContractEstimateGasStub = sinon
+        .stub(evmERC20WarpRouteReader as any, 'probeContractEstimateGas')
+        .rejects(transportError);
+
+      try {
+        await evmERC20WarpRouteReader.deriveTokenType(warpAddress);
+        expect.fail('Expected deriveTokenType to throw');
+      } catch (error) {
+        expect(String(error)).to.include('connection refused');
+      } finally {
+        fetchPackageVersionStub.restore();
+        probeContractCallStub.restore();
+        probeContractEstimateGasStub.restore();
+      }
     });
   });
 });

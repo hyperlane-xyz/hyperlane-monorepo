@@ -25,6 +25,7 @@
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "lint": "oxlint -c ../../oxlint.json",
+    "bench:smart-provider-probes": "tsx ./scripts/benchmark-smart-provider-probes.ts",
     "prepublishOnly": "pnpm build",
     "format": "oxfmt --write ./src",
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
