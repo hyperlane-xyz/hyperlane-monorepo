@@ -205,11 +205,7 @@ pub async fn build_message_metadata(
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;
 
-    Ok(IsmWithMetadataAndType {
-        ism,
-        metadata,
-        module_type,
-    })
+    Ok(IsmWithMetadataAndType { ism, metadata })
 }
 
 #[cfg(test)]
