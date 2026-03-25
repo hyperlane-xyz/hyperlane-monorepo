@@ -48,6 +48,7 @@ import { StarknetTokenAdapter } from './adapters/StarknetTokenAdapter.js';
 import { createAleoHypAdapter } from './adapters/aleoHyp.js';
 import { createCosmosHypAdapter } from './adapters/cosmosHyp.js';
 import { createEvmHypAdapter } from './adapters/evmHyp.js';
+import { hasOnlyHyperlaneConnections } from './adapters/hypTokenAdapterUtils.js';
 import { createRadixHypAdapter } from './adapters/radixHyp.js';
 import { createSealevelHypAdapter } from './adapters/sealevelHyp.js';
 import { createStarknetHypAdapter } from './adapters/starknetHyp.js';
@@ -172,9 +173,13 @@ export class Token extends TokenMetadata implements IToken {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
       this;
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
+    const isConnectedNativeToken =
+      (standard === TokenStandard.EvmNative ||
+        standard === TokenStandard.TronNative) &&
+      hasOnlyHyperlaneConnections(this);
 
     assert(
-      this.isMultiChainToken(),
+      this.isMultiChainToken() || isConnectedNativeToken,
       `Token standard ${standard} not applicable to hyp adapter`,
     );
     assert(!this.isNft(), 'NFT adapters not yet supported');
