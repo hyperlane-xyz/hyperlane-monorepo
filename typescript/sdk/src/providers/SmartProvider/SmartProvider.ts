@@ -124,7 +124,19 @@ type ProviderErrorClassification =
   | 'unknown';
 
 function getJsonRpcErrorCode(error: any): number | undefined {
-  return error?.error?.error?.code ?? error?.error?.code;
+  const explicitCode = error?.error?.error?.code ?? error?.error?.code;
+  if (typeof explicitCode === 'number' && explicitCode !== -32603) {
+    return explicitCode;
+  }
+
+  const nestedCodeMatch = getJsonRpcErrorMessage(error)?.match(
+    /ServerError\((-?\d+)\)/,
+  );
+  if (nestedCodeMatch) {
+    return Number(nestedCodeMatch[1]);
+  }
+
+  return typeof explicitCode === 'number' ? explicitCode : undefined;
 }
 
 function getJsonRpcErrorData(error: any): unknown {
