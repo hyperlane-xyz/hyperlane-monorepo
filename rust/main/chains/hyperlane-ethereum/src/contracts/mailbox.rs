@@ -23,13 +23,17 @@ use hyperlane_core::{
     rpc_clients::call_and_retry_indefinitely, BatchItem, BatchResult, ChainCommunicationError,
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
+    Mailbox, ModuleType, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
+use num_traits::cast::FromPrimitive;
 
 use crate::error::HyperlaneEthereumError;
 use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
+use crate::interfaces::i_aggregation_ism::IAggregationIsm as EthereumAggregationIsmInternal;
+use crate::interfaces::i_interchain_security_module::IInterchainSecurityModule as EthereumIsmInternal;
 use crate::interfaces::i_mailbox::{IMailbox as EthereumMailboxInternal, IMAILBOX_ABI};
+use crate::interfaces::i_routing_ism::IRoutingIsm as EthereumRoutingIsmInternal;
 use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{
     call_with_reorg_period, estimate_eip1559_fees, fill_tx_gas_params, report_tx, Eip1559Fee,
@@ -41,6 +45,55 @@ use crate::{
 
 use super::multicall::{self, build_multicall, BatchCache};
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
+
+/// Recursively resolves whether the ISM for a given message ultimately routes to
+/// a Null-type ISM (e.g. TrustedRelayerIsm), following RoutingIsm chains.
+/// Null-type ISMs check post-delivery state (mailbox.processor()), so
+/// eth_estimateGas always reverts pre-delivery — gas estimation must be skipped.
+fn ism_resolves_to_null_for_message<M: Middleware + 'static>(
+    provider: Arc<M>,
+    ism_address: ethers_core::types::H160,
+    raw_message: Vec<u8>,
+    depth: u8,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ChainResult<bool>> + Send + 'static>> {
+    Box::pin(async move {
+        if depth > 10 {
+            return Ok(false);
+        }
+        let ism = EthereumIsmInternal::new(ism_address, provider.clone());
+        let module_type_raw = ism.module_type().call().await?;
+        match ModuleType::from_u8(module_type_raw) {
+            Some(ModuleType::Null) => Ok(true),
+            Some(ModuleType::Routing) => {
+                let routing = EthereumRoutingIsmInternal::new(ism_address, provider.clone());
+                let sub_ism = routing.route(raw_message.clone().into()).call().await?;
+                ism_resolves_to_null_for_message(provider, sub_ism, raw_message, depth + 1).await
+            }
+            Some(ModuleType::Aggregation) => {
+                let aggregation =
+                    EthereumAggregationIsmInternal::new(ism_address, provider.clone());
+                let (sub_isms, _threshold) = aggregation
+                    .modules_and_threshold(raw_message.clone().into())
+                    .call()
+                    .await?;
+                for sub_ism in sub_isms {
+                    if ism_resolves_to_null_for_message(
+                        provider.clone(),
+                        sub_ism,
+                        raw_message.clone(),
+                        depth + 1,
+                    )
+                    .await?
+                    {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    })
+}
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -631,6 +684,32 @@ where
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
+        // Null-type ISMs (e.g. TrustedRelayerIsm) check post-delivery state
+        // (mailbox.processor()), so eth_estimateGas always reverts pre-delivery.
+        // Resolve the ISM chain (following RoutingIsm) to detect this case and
+        // skip estimation, returning a hardcoded gas limit instead.
+        let ism_address = self
+            .contract
+            .recipient_ism(message.recipient.into())
+            .call()
+            .await?;
+        let raw_message = RawHyperlaneMessage::from(message).to_vec();
+        if ism_resolves_to_null_for_message(self.provider.clone(), ism_address, raw_message, 0)
+            .await?
+        {
+            let gas_price: U256 = self
+                .provider
+                .get_gas_price()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into();
+            return Ok(TxCostEstimate {
+                gas_limit: U256::from(300_000u32),
+                gas_price: gas_price.try_into()?,
+                l2_gas_limit: None,
+            });
+        }
+
         // this function is used to get an accurate gas estimate for the transaction
         // rather than a gas amount that will guarantee inclusion, so we use `false`
         // for the `with_gas_estimate_buffer` arg in `process_contract_call`
