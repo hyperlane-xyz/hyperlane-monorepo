@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Keypair } from '@solana/web3.js';
 
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import {
@@ -25,7 +26,6 @@ import {
 import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
-import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
@@ -43,7 +43,7 @@ import {
   IHypXERC20Adapter,
   InterchainGasQuote,
 } from '../token/adapters/ITokenAdapter.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import {
   FeeConstantConfig,
@@ -53,6 +53,7 @@ import {
   WarpTxCategory,
   WarpTypedTransaction,
 } from './types.js';
+import { WarpRouteGraph, buildWarpRouteTokens } from './WarpRouteGraph.js';
 
 export interface WarpCoreOptions {
   logger?: Logger;
@@ -61,9 +62,7 @@ export interface WarpCoreOptions {
   routeBlacklist?: RouteBlacklist;
 }
 
-export class WarpCore {
-  public readonly multiProvider: MultiProtocolProvider<{ mailbox?: Address }>;
-  public readonly tokens: Token[];
+export class WarpCore extends WarpRouteGraph<Token> {
   public readonly localFeeConstants: FeeConstantConfig;
   public readonly interchainFeeConstants: FeeConstantConfig;
   public readonly routeBlacklist: RouteBlacklist;
@@ -74,8 +73,7 @@ export class WarpCore {
     tokens: Token[],
     options?: WarpCoreOptions,
   ) {
-    this.multiProvider = multiProvider;
-    this.tokens = tokens;
+    super(multiProvider, tokens);
     this.localFeeConstants = options?.localFeeConstants || [];
     this.interchainFeeConstants = options?.interchainFeeConstants || [];
     this.routeBlacklist = options?.routeBlacklist || [];
@@ -95,44 +93,21 @@ export class WarpCore {
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     config: unknown,
   ): WarpCore {
-    // Validate and parse config data
     const parsedConfig = WarpCoreConfigSchema.parse(config);
-    // Instantiate all tokens
-    const tokens = parsedConfig.tokens.map(
-      (t) =>
+    const tokens = buildWarpRouteTokens(
+      parsedConfig,
+      (token) =>
         new Token({
-          ...t,
-          addressOrDenom: t.addressOrDenom || '',
+          ...token,
+          addressOrDenom: token.addressOrDenom || '',
           connections: undefined,
         }),
     );
-    // Connect tokens together
-    parsedConfig.tokens.forEach((config, i) => {
-      for (const connection of config.connections || []) {
-        const token1 = tokens[i];
-        const { chainName, addressOrDenom } = parseTokenConnectionId(
-          connection.token,
-        );
-        // If token1 has a warpRouteId, token2 must share it — disambiguates
-        // tokens at the same address (e.g. M0 Portal: mUSD, wM, USDSC)
-        const token2 = tokens.find(
-          (t) =>
-            t.chainName === chainName &&
-            t.addressOrDenom === addressOrDenom &&
-            (!token1.warpRouteId || t.warpRouteId === token1.warpRouteId),
-        );
-        assert(
-          token2,
-          `Connected token not found: ${chainName} ${addressOrDenom}`,
-        );
-        token1.addConnection({
-          ...connection,
-          token: token2,
-        });
-      }
-    });
-    // Create new Warp
     return new WarpCore(multiProvider, tokens, parsedConfig.options);
+  }
+
+  protected override createNativeToken(chainMetadata: ChainMetadata): Token {
+    return Token.FromChainMetadataNativeToken(chainMetadata);
   }
 
   /**
@@ -147,12 +122,15 @@ export class WarpCore {
     recipient,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender?: Address;
     recipient: Address;
     destinationToken?: IToken;
-  }): Promise<{ igpQuote: TokenAmount; tokenFeeQuote?: TokenAmount }> {
+  }): Promise<{
+    igpQuote: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
+  }> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { amount, token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -228,7 +206,7 @@ export class WarpCore {
       igpToken = searchResult;
     }
 
-    let feeTokenAmount: TokenAmount | undefined;
+    let feeTokenAmount: TokenAmount<IToken> | undefined;
     if (feeAmount) {
       // empty address or zero address is native route
       if (!feeTokenAddress || isZeroishAddress(feeTokenAddress)) {
@@ -267,8 +245,8 @@ export class WarpCore {
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
-    interchainFee?: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     destinationToken?: IToken;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
@@ -373,10 +351,10 @@ export class WarpCore {
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
-    interchainFee?: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     destinationToken?: IToken;
-  }): Promise<TokenAmount> {
+  }): Promise<TokenAmount<IToken>> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
     );
@@ -417,12 +395,12 @@ export class WarpCore {
     tokenFeeQuote,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
-    interchainFee?: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     destinationToken?: IToken;
   }): Promise<Array<WarpTypedTransaction>> {
     // Check if this is a CrossCollateralRouter transfer
@@ -611,7 +589,7 @@ export class WarpCore {
     recipient,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
@@ -720,7 +698,7 @@ export class WarpCore {
     senderPubKey,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
@@ -780,7 +758,7 @@ export class WarpCore {
     sender,
     senderPubKey,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     destinationToken: IToken;
     recipient: Address;
@@ -833,14 +811,14 @@ export class WarpCore {
     feeEstimate,
     destinationToken,
   }: {
-    balance: TokenAmount;
+    balance: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
     feeEstimate?: WarpCoreFeeEstimate;
     destinationToken?: IToken;
-  }): Promise<TokenAmount> {
+  }): Promise<TokenAmount<IToken>> {
     const originToken = balance.token;
 
     if (!feeEstimate) {
@@ -904,7 +882,7 @@ export class WarpCore {
     destination,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     destinationToken?: IToken;
   }): Promise<boolean> {
@@ -976,7 +954,7 @@ export class WarpCore {
     originTokenAmount,
     owner,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     owner: Address;
   }): Promise<boolean> {
     const { token, amount } = originTokenAmount;
@@ -1005,7 +983,7 @@ export class WarpCore {
     senderPubKey,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
@@ -1138,7 +1116,7 @@ export class WarpCore {
    * Ensure token amount is valid
    */
   protected async validateAmount(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     recipient: Address,
     destinationToken?: IToken,
@@ -1189,7 +1167,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
   protected async validateTokenBalances(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     sender: Address,
     recipient: Address,
@@ -1275,7 +1253,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
   protected async validateDestinationCollateral(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     destinationToken?: IToken,
   ): Promise<Record<string, string> | null> {
@@ -1295,7 +1273,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for minting
    */
   protected async validateDestinationRateLimit(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     destinationToken?: IToken,
   ): Promise<Record<string, string> | null> {
@@ -1369,7 +1347,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
   protected async validateOriginCollateral(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
   ): Promise<Record<string, string> | null> {
     const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
 
@@ -1386,104 +1364,5 @@ export class WarpCore {
     }
 
     return null;
-  }
-
-  protected resolveDestinationToken({
-    originToken,
-    destination,
-    destinationToken,
-  }: {
-    originToken: IToken;
-    destination: ChainNameOrId;
-    destinationToken?: IToken;
-  }): IToken {
-    const destinationName = this.multiProvider.getChainName(destination);
-    const destinationCandidates = originToken
-      .getConnections()
-      .filter((connection) => connection.token.chainName === destinationName)
-      .map((connection) => connection.token);
-
-    assert(
-      destinationCandidates.length > 0,
-      `No connection found for ${destinationName}`,
-    );
-
-    if (destinationToken) {
-      assert(
-        destinationToken.chainName === destinationName,
-        `Destination token chain mismatch for ${destinationName}`,
-      );
-      const matchedToken = destinationCandidates.find(
-        (candidate) =>
-          candidate.equals(destinationToken) ||
-          candidate.addressOrDenom.toLowerCase() ===
-            destinationToken.addressOrDenom.toLowerCase(),
-      );
-      assert(
-        matchedToken,
-        `Destination token ${destinationToken.addressOrDenom} is not connected from ${originToken.chainName} to ${destinationName}`,
-      );
-      return matchedToken;
-    }
-
-    assert(
-      destinationCandidates.length === 1,
-      `Ambiguous route to ${destinationName}; specify destination token`,
-    );
-    return destinationCandidates[0];
-  }
-
-  /**
-   * Search through token list to find token with matching chain and address
-   */
-  findToken(
-    chainName: ChainName,
-    addressOrDenom?: Address | string,
-  ): Token | null {
-    if (!addressOrDenom) return null;
-
-    const results = this.tokens.filter(
-      (token) =>
-        token.chainName === chainName &&
-        token.addressOrDenom.toLowerCase() === addressOrDenom.toLowerCase(),
-    );
-
-    if (results.length === 1) return results[0];
-
-    if (results.length > 1)
-      throw new Error(`Ambiguous token search results for ${addressOrDenom}`);
-
-    // If the token is not found, check to see if it matches the denom of chain's native token
-    // This is a convenience so WarpConfigs don't need to include definitions for native tokens
-    const chainMetadata = this.multiProvider.getChainMetadata(chainName);
-    if (chainMetadata.nativeToken?.denom === addressOrDenom) {
-      return Token.FromChainMetadataNativeToken(chainMetadata);
-    }
-
-    return null;
-  }
-
-  /**
-   * Get the list of chains referenced by the tokens in this WarpCore
-   */
-  getTokenChains(): ChainName[] {
-    return [...new Set(this.tokens.map((t) => t.chainName)).values()];
-  }
-
-  /**
-   * Get the subset of tokens whose chain matches the given chainName
-   */
-  getTokensForChain(chainName: ChainName): Token[] {
-    return this.tokens.filter((t) => t.chainName === chainName);
-  }
-
-  /**
-   * Get the subset of tokens whose chain matches the given chainName
-   * and which are connected to a token on the given destination chain
-   */
-  getTokensForRoute(origin: ChainName, destination: ChainName): Token[] {
-    return this.tokens.filter(
-      (t) => t.chainName === origin && t.getConnectionForChain(destination),
-    );
   }
 }

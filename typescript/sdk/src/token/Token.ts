@@ -1,17 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
   Address,
-  KnownProtocolType,
   Numberish,
   ProtocolType,
   assert,
-  eqAddress,
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../types.js';
 import { isStarknetFeeToken } from '../utils/starknet.js';
@@ -19,17 +15,8 @@ import { isStarknetFeeToken } from '../utils/starknet.js';
 import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
-import {
-  PROTOCOL_TO_HYP_NATIVE_STANDARD,
-  PROTOCOL_TO_NATIVE_STANDARD,
-  TOKEN_COLLATERALIZED_STANDARDS,
-  TOKEN_HYP_STANDARDS,
-  TOKEN_MULTI_CHAIN_STANDARDS,
-  TOKEN_NFT_STANDARDS,
-  TOKEN_STANDARD_TO_PROTOCOL,
-  TokenStandard,
-  XERC20_STANDARDS,
-} from './TokenStandard.js';
+import { TokenStandard } from './TokenStandard.js';
+import { TokenMetadata } from './TokenMetadata.js';
 import {
   AleoHypCollateralAdapter,
   AleoHypNativeAdapter,
@@ -91,51 +78,35 @@ import {
   StarknetHypSyntheticAdapter,
   StarknetTokenAdapter,
 } from './adapters/StarknetTokenAdapter.js';
-import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs
 export interface Token extends TokenArgs {}
 
-export class Token implements IToken {
-  public readonly protocol: ProtocolType;
-
-  constructor(args: TokenArgs) {
-    Object.assign(this, args);
-    this.protocol = TOKEN_STANDARD_TO_PROTOCOL[this.standard];
+export class Token extends TokenMetadata implements IToken {
+  override amount(amount: Numberish): TokenAmount<this> {
+    return new TokenAmount(amount, this);
   }
 
-  /**
-   * Creates a Token for the native currency on the given chain.
-   * Will use the default native token for the given protocol if
-   * nothing specific is set in the ChainMetadata.
-   */
-  static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    const {
-      protocol,
-      name: chainName,
-      logoURI,
-      gasCurrencyCoinGeckoId,
-    } = chainMetadata;
-    assert(
-      protocol !== ProtocolType.Unknown,
-      'Cannot create native token for unknown protocol',
-    );
-    const knownProtocol = protocol as KnownProtocolType;
-    const nativeToken =
-      chainMetadata.nativeToken ||
-      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[knownProtocol];
+  override getConnections(): TokenConnection<IToken>[] {
+    return (this.connections || []) as TokenConnection<IToken>[];
+  }
 
-    return new Token({
-      chainName,
-      standard: PROTOCOL_TO_NATIVE_STANDARD[knownProtocol],
-      addressOrDenom: nativeToken.denom ?? '',
-      decimals: nativeToken.decimals,
-      symbol: nativeToken.symbol,
-      name: nativeToken.name,
-      logoURI,
-      coinGeckoId: gasCurrencyCoinGeckoId,
-    });
+  override getConnectionForChain(
+    chain: ChainName,
+  ): TokenConnection<IToken> | undefined {
+    return this.getConnections().filter((t) => t.token.chainName === chain)[0];
+  }
+
+  override addConnection(connection: TokenConnection<IToken>): Token {
+    this.connections = [...(this.connections || []), connection];
+    return this;
+  }
+
+  override removeConnection(token: IToken): Token {
+    const index = this.connections?.findIndex((t) => t.token.equals(token));
+    if (index && index >= 0) this.connections?.splice(index, 1);
+    return this;
   }
 
   /**
@@ -506,134 +477,10 @@ export class Token implements IToken {
   async getBalance(
     multiProvider: MultiProtocolProvider,
     address: Address,
-  ): Promise<TokenAmount> {
+  ): Promise<TokenAmount<IToken>> {
     const adapter = this.getAdapter(multiProvider);
     const balance = await adapter.getBalance(address);
     return new TokenAmount(balance, this);
-  }
-
-  amount(amount: Numberish): TokenAmount {
-    return new TokenAmount(amount, this);
-  }
-
-  isNft(): boolean {
-    return TOKEN_NFT_STANDARDS.includes(this.standard);
-  }
-
-  isNative(): boolean {
-    return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
-  }
-
-  isHypNative(): boolean {
-    return Object.values(PROTOCOL_TO_HYP_NATIVE_STANDARD).includes(
-      this.standard,
-    );
-  }
-
-  isCollateralized(): boolean {
-    return TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard);
-  }
-
-  isHypToken(): boolean {
-    return TOKEN_HYP_STANDARDS.includes(this.standard);
-  }
-
-  isXerc20(): boolean {
-    return XERC20_STANDARDS.includes(this.standard);
-  }
-
-  isIbcToken(): boolean {
-    return this.standard === TokenStandard.CosmosIbc;
-  }
-
-  isMultiChainToken(): boolean {
-    return TOKEN_MULTI_CHAIN_STANDARDS.includes(this.standard);
-  }
-
-  isCrossCollateralToken(): boolean {
-    return (
-      this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
-    );
-  }
-
-  getConnections(): TokenConnection[] {
-    return this.connections || [];
-  }
-
-  getConnectionForChain(chain: ChainName): TokenConnection | undefined {
-    // A token cannot have > 1 connected token for the same chain
-    return this.getConnections().filter((t) => t.token.chainName === chain)[0];
-  }
-
-  addConnection(connection: TokenConnection): Token {
-    this.connections = [...(this.connections || []), connection];
-    return this;
-  }
-
-  removeConnection(token: IToken): Token {
-    const index = this.connections?.findIndex((t) => t.token.equals(token));
-    if (index && index >= 0) this.connections?.splice(index, 1);
-    return this;
-  }
-
-  /**
-   * Returns true if tokens refer to the same asset
-   */
-  equals(token?: IToken): boolean {
-    if (!token) return false;
-    return (
-      this.protocol === token.protocol &&
-      this.chainName === token.chainName &&
-      this.standard === token.standard &&
-      this.decimals === token.decimals &&
-      this.addressOrDenom.toLowerCase() ===
-        token.addressOrDenom.toLowerCase() &&
-      this.collateralAddressOrDenom?.toLowerCase() ===
-        token.collateralAddressOrDenom?.toLowerCase()
-    );
-  }
-
-  /**
-   * Two tokens may not be equal but may still represent the same underlying asset
-   * The cases for this include:
-   *   1) A HypCollateral contract token and its wrapped token (eg. EvmHypCollateral and ERC20)
-   *   2) A HypNative contract and its native currency (eg. EvmHypNative and Ether)
-   *   3) An IBC token and its native equivalent
-   * This is useful during fee estimation to determine if a TokenAmount for the transfer and the fee
-   * are actually fungible (represent the same asset).
-   * @returns true if the tokens represent the same underlying asset
-   */
-  isFungibleWith(token?: IToken): boolean {
-    if (!token || token.chainName !== this.chainName) return false;
-
-    if (this.equals(token)) return true;
-
-    if (this.isCollateralized()) {
-      if (
-        this.collateralAddressOrDenom &&
-        eqAddress(this.collateralAddressOrDenom, token.addressOrDenom)
-      ) {
-        return true;
-      }
-
-      if (
-        !this.collateralAddressOrDenom &&
-        (token.isNative() || token.isHypNative())
-      ) {
-        return true;
-      }
-    }
-
-    if (
-      this.standard === TokenStandard.CosmosIbc &&
-      token.standard === TokenStandard.CosmosNative &&
-      this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
-    ) {
-      return true;
-    }
-
-    return false;
   }
 }
 
