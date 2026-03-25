@@ -90,21 +90,28 @@ export async function deriveTokenMetadata(
         isEverclearCollateralTokenConfig(config)
       ) {
         const provider = multiProvider.getProvider(chain);
+        const batchContractAddress =
+          multiProvider.getChainMetadata(chain).batchContractAddress;
 
         if (config.isNft) {
           const erc721Interface = ERC721Enumerable__factory.createInterface();
-          const [name, symbol] = (await readContractsWithMulticall(provider, [
-            {
-              target: config.token,
-              contractInterface: erc721Interface,
-              method: 'name',
-            },
-            {
-              target: config.token,
-              contractInterface: erc721Interface,
-              method: 'symbol',
-            },
-          ])) as [string, string];
+          const [name, symbol] = (await readContractsWithMulticall(
+            provider,
+            [
+              {
+                target: config.token,
+                contractInterface: erc721Interface,
+                method: 'name',
+              },
+              {
+                target: config.token,
+                contractInterface: erc721Interface,
+                method: 'symbol',
+              },
+            ],
+            'latest',
+            batchContractAddress,
+          )) as [string, string];
           return [
             chain,
             TokenMetadataSchema.parse({
@@ -153,6 +160,8 @@ export async function deriveTokenMetadata(
               method: 'decimals',
             },
           ],
+          'latest',
+          batchContractAddress,
         )) as [string, string, number];
 
         return [

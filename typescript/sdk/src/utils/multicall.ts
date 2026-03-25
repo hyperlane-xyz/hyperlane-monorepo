@@ -11,7 +11,7 @@ export const MULTICALL3_INTERFACE = new utils.Interface([
 
 const multicallSupportCache = new WeakMap<
   providers.Provider,
-  Promise<boolean>
+  Map<string, Promise<boolean>>
 >();
 
 export interface ReadContractCall<T> {
@@ -31,6 +31,10 @@ export function normalizeDecodedResult<T>(
   }
 
   return (decoded.length === 1 ? decoded[0] : decoded) as T;
+}
+
+function getBatchContractAddress(batchContractAddress?: string): string {
+  return batchContractAddress ?? MULTICALL3_ADDRESS;
 }
 
 async function callContractsIndividually<T>(
@@ -60,17 +64,22 @@ async function callContractsIndividually<T>(
 
 export async function supportsMulticall(
   provider: providers.Provider,
+  batchContractAddress?: string,
 ): Promise<boolean> {
-  const cached = multicallSupportCache.get(provider);
+  const address = getBatchContractAddress(batchContractAddress);
+  const cached = multicallSupportCache.get(provider)?.get(address);
   if (cached) {
     return cached;
   }
 
+  const providerCache =
+    multicallSupportCache.get(provider) ?? new Map<string, Promise<boolean>>();
   const supportPromise = provider
-    .getCode(MULTICALL3_ADDRESS)
+    .getCode(address)
     .then((code) => code !== '0x')
     .catch(() => false);
-  multicallSupportCache.set(provider, supportPromise);
+  providerCache.set(address, supportPromise);
+  multicallSupportCache.set(provider, providerCache);
   return supportPromise;
 }
 
@@ -78,12 +87,14 @@ export async function readContractsWithMulticall<T>(
   provider: providers.Provider,
   calls: ReadContractCall<T>[],
   blockTag: providers.BlockTag = 'latest',
+  batchContractAddress?: string,
 ): Promise<T[]> {
   if (!calls.length) {
     return [];
   }
 
-  if (!(await supportsMulticall(provider))) {
+  const address = getBatchContractAddress(batchContractAddress);
+  if (!(await supportsMulticall(provider, address))) {
     return callContractsIndividually(provider, calls, blockTag);
   }
 
@@ -102,7 +113,7 @@ export async function readContractsWithMulticall<T>(
 
     const response = await provider.call(
       {
-        to: MULTICALL3_ADDRESS,
+        to: address,
         data: callData,
       },
       blockTag,

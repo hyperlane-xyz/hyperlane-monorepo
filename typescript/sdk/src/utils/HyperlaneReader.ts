@@ -94,6 +94,10 @@ export class HyperlaneReader {
     this.provider = this.multiProvider.getProvider(chain);
   }
 
+  private getBatchContractAddress(): string | undefined {
+    return this.multiProvider.getChainMetadata(this.chain).batchContractAddress;
+  }
+
   /**
    * Conditionally sets the log level for a smart provider.
    *
@@ -217,7 +221,12 @@ export class HyperlaneReader {
     calls: ReadContractCall<T>[],
     blockTag: providers.BlockTag = 'latest',
   ): Promise<T[]> {
-    return readContractsWithMulticall(this.provider, calls, blockTag);
+    return readContractsWithMulticall(
+      this.provider,
+      calls,
+      blockTag,
+      this.getBatchContractAddress(),
+    );
   }
 
   protected async tryProbeContractBatch<T>(
@@ -228,36 +237,46 @@ export class HyperlaneReader {
       return [];
     }
 
-    if (!(await supportsMulticall(this.provider))) {
+    const batchContractAddress = this.getBatchContractAddress();
+    if (!(await supportsMulticall(this.provider, batchContractAddress))) {
       return undefined;
     }
 
-    const response = await this.probeCall(
-      {
-        to: MULTICALL3_ADDRESS,
-        data: MULTICALL3_INTERFACE.encodeFunctionData('aggregate3', [
-          calls.map((call) => ({
-            target: call.target,
-            allowFailure: true,
-            callData: call.contractInterface.encodeFunctionData(
-              call.method,
-              call.args ?? [],
-            ),
-          })),
-        ]),
-      },
-      blockTag,
-    );
-    const [results] = MULTICALL3_INTERFACE.decodeFunctionResult(
-      'aggregate3',
-      response,
-    );
+    let results: Array<{ success: boolean; returnData: string }>;
+    try {
+      const response = await this.probeCall(
+        {
+          to: batchContractAddress ?? MULTICALL3_ADDRESS,
+          data: MULTICALL3_INTERFACE.encodeFunctionData('aggregate3', [
+            calls.map((call) => ({
+              target: call.target,
+              allowFailure: true,
+              callData: call.contractInterface.encodeFunctionData(
+                call.method,
+                call.args ?? [],
+              ),
+            })),
+          ]),
+        },
+        blockTag,
+      );
+
+      if (response === '0x') {
+        return undefined;
+      }
+
+      [results] = MULTICALL3_INTERFACE.decodeFunctionResult(
+        'aggregate3',
+        response,
+      );
+    } catch {
+      // Batched probe reads are an optimization only. If the wrapper call itself
+      // is unavailable or returns unusable data, fall back to individual probes.
+      return undefined;
+    }
 
     return calls.map((call, index) => {
-      const result = results[index] as {
-        success: boolean;
-        returnData: string;
-      };
+      const result = results[index];
       if (!result.success || result.returnData === '0x') {
         return undefined;
       }
