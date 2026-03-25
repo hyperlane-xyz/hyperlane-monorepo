@@ -70,6 +70,9 @@ mod starknet;
 #[cfg(feature = "radix")]
 mod radix;
 
+#[cfg(feature = "tron")]
+mod tron;
+
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
     fs::create_dir_all(dir).unwrap();
