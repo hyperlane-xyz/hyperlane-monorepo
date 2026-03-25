@@ -15,7 +15,11 @@ import {
   RawMailboxArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  eqAddressStarknet,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -87,6 +91,34 @@ class StarknetMailboxWriter
     return normalizeStarknetAddressSafe(nested.deployed.address);
   }
 
+  private async getInitialHookAddress(
+    address: string,
+    receipts: TxReceipt[],
+    placeholderRef: { address?: string },
+  ): Promise<string> {
+    if (!isZeroishAddress(address)) {
+      return normalizeStarknetAddressSafe(address);
+    }
+
+    if (!placeholderRef.address) {
+      const tx = await this.signer.getCreateNoopHookTransaction({
+        signer: this.signer.getSignerAddress(),
+        mailboxAddress: '',
+      });
+      const receipt = await this.signer.sendAndConfirmTransaction(tx);
+      receipts.push(receipt);
+      assert(
+        receipt.contractAddress,
+        'failed to deploy placeholder Starknet noop hook',
+      );
+      placeholderRef.address = normalizeStarknetAddressSafe(
+        receipt.contractAddress,
+      );
+    }
+
+    return placeholderRef.address;
+  }
+
   async create(
     artifact: ArtifactNew<RawMailboxArtifactConfigs['mailbox']>,
   ): Promise<
@@ -99,14 +131,19 @@ class StarknetMailboxWriter
     ]
   > {
     const defaultIsmAddress = this.getNestedAddress(artifact.config.defaultIsm);
-    const defaultHookAddress = this.getNestedAddress(
-      artifact.config.defaultHook,
-    );
-    const requiredHookAddress = this.getNestedAddress(
-      artifact.config.requiredHook,
-    );
 
     const receipts: TxReceipt[] = [];
+    const placeholderHookRef: { address?: string } = {};
+    const defaultHookAddress = await this.getInitialHookAddress(
+      this.getNestedAddress(artifact.config.defaultHook),
+      receipts,
+      placeholderHookRef,
+    );
+    const requiredHookAddress = await this.getInitialHookAddress(
+      this.getNestedAddress(artifact.config.requiredHook),
+      receipts,
+      placeholderHookRef,
+    );
 
     const createTx = await this.signer.getCreateMailboxTransaction({
       signer: this.signer.getSignerAddress(),

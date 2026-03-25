@@ -258,7 +258,7 @@ export function filterWarpConfigsToMatchingChains(
 
     const filteredWarpDeployConfig = objFilter(
       warpDeployConfig,
-      (chain, config): config is (typeof warpDeployConfig)[string] =>
+      (chain, _config): _config is (typeof warpDeployConfig)[string] =>
         matchingChains.has(chain),
     );
     const filteredWarpCoreConfig = {

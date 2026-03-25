@@ -850,6 +850,9 @@ importers:
       '@hyperlane-xyz/sealevel-sdk':
         specifier: workspace:*
         version: link:../svm-sdk
+      '@hyperlane-xyz/starknet-sdk':
+        specifier: workspace:*
+        version: link:../starknet-sdk
       '@hyperlane-xyz/tron-sdk':
         specifier: workspace:*
         version: link:../tron-sdk
