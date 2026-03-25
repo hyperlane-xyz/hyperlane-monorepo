@@ -8,12 +8,18 @@ import type { Address, Hex } from 'viem';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  EvmHookReader,
   EvmWarpRouteReader,
+  HyperlaneCore,
   MultiProvider,
   getChainIdNumber,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { assert, createServiceLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  createServiceLogger,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };
 import type { ServerConfig } from './src/config.js';
@@ -150,6 +156,7 @@ export class FeeQuotingServer {
     );
 
     const multiProvider = new MultiProvider(chainMetadataMap);
+    const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
     const chainContexts = new Map<string, ChainQuoteContext>();
 
     for (const warpConfig of warpConfigs) {
@@ -175,6 +182,19 @@ export class FeeQuotingServer {
         const reader = new EvmWarpRouteReader(multiProvider, chainName);
         const derivedConfig =
           await reader.deriveWarpRouteConfig(warpRouteAddress);
+
+        // Resolve hook with Mailbox default fallback when router hook is unset
+        if (
+          typeof derivedConfig.hook === 'string' &&
+          isZeroishAddress(derivedConfig.hook)
+        ) {
+          const hookAddress = await core.getHook(
+            chainName,
+            warpRouteAddress as Address,
+          );
+          const hookReader = new EvmHookReader(multiProvider, chainName);
+          derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
+        }
 
         this.logger.info(
           {
