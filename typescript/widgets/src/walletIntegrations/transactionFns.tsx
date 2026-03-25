@@ -12,6 +12,8 @@ import { useStarknetTransactionFns } from './starknet.js';
 import { type ChainTransactionFns } from './types.js';
 import { useTronTransactionFns } from './tron.js';
 
+// Full-matrix convenience hook. It eagerly wires every supported wallet
+// integration; selective consumers should import protocol-specific hooks.
 export function useTransactionFns(
   multiProvider: MultiProviderAdapter,
 ): Record<KnownProtocolType, ChainTransactionFns> {

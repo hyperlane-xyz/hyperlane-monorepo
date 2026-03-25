@@ -18,6 +18,8 @@ import { useStarknetAccount } from './starknetWallet.js';
 import { type AccountInfo } from './types.js';
 import { useTronAccount } from './tronWallet.js';
 
+// Full-matrix convenience hook. It eagerly wires every supported wallet
+// integration; selective consumers should import protocol-specific hooks.
 export function useAccounts(
   multiProvider: MinimalProviderRegistry,
   blacklistedAddresses: Address[] = [],
