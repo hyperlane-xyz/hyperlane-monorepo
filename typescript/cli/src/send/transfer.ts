@@ -1,5 +1,12 @@
-import { stringify as yamlStringify } from 'yaml';
+import crypto from 'node:crypto';
 
+import { stringify as yamlStringify } from 'yaml';
+import { type Address, type Hex } from 'viem';
+
+import {
+  FeeQuotingClient,
+  QuotedCallsCommand as FeeQuotingCommand,
+} from '@hyperlane-xyz/fee-quoting';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type ChainName,
@@ -7,12 +14,16 @@ import {
   HyperlaneCore,
   MultiProtocolProvider,
   ProviderType,
+  type QuotedCallsParams,
   type Token,
   TokenAmount,
+  TokenPullMode,
   WarpCore,
   type WarpCoreConfig,
+  computeScopedSalt,
 } from '@hyperlane-xyz/sdk';
 import {
+  addressToBytes32,
   isEVMLike,
   assert,
   parseWarpRouteMessage,
@@ -43,6 +54,8 @@ export async function sendTestTransfer({
   skipValidation,
   sourceToken,
   destinationToken,
+  feeQuotingUrl,
+  feeQuotingApiKey,
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
@@ -55,6 +68,8 @@ export async function sendTestTransfer({
   skipValidation?: boolean;
   sourceToken?: string;
   destinationToken?: string;
+  feeQuotingUrl?: string;
+  feeQuotingApiKey?: string;
 }) {
   const { multiProvider } = context;
 
@@ -97,6 +112,8 @@ export async function sendTestTransfer({
           skipValidation,
           sourceToken,
           destinationToken,
+          feeQuotingUrl,
+          feeQuotingApiKey,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -117,6 +134,8 @@ async function executeDelivery({
   skipValidation,
   sourceToken: sourceTokenAddr,
   destinationToken: destTokenAddr,
+  feeQuotingUrl,
+  feeQuotingApiKey,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -129,6 +148,8 @@ async function executeDelivery({
   skipValidation?: boolean;
   sourceToken?: string;
   destinationToken?: string;
+  feeQuotingUrl?: string;
+  feeQuotingApiKey?: string;
 }) {
   const { multiProvider, registry } = context;
 
@@ -190,6 +211,55 @@ async function executeDelivery({
     }
   }
 
+  // Build QuotedCalls params if fee-quoting is configured
+  let quotedCalls: QuotedCallsParams | undefined;
+  if (feeQuotingUrl && feeQuotingApiKey) {
+    const chainAddressesForOrigin = chainAddresses[origin];
+    const quotedCallsAddress = chainAddressesForOrigin?.quotedCalls as
+      | Address
+      | undefined;
+    assert(
+      quotedCallsAddress,
+      `No quotedCalls address found for chain ${origin}`,
+    );
+
+    const clientSalt = `0x${crypto.randomBytes(32).toString('hex')}` as Hex;
+    const salt = computeScopedSalt(signerAddress as Address, clientSalt);
+    const destinationDomainId = multiProvider.getDomainId(destination);
+
+    const feeQuotingClient = new FeeQuotingClient({
+      baseUrl: feeQuotingUrl,
+      apiKey: feeQuotingApiKey,
+    });
+
+    logBlue('Fetching offchain fee quotes...');
+    const { quotes } = await feeQuotingClient.getQuote({
+      origin,
+      command: FeeQuotingCommand.TransferRemote,
+      router: token.addressOrDenom as Address,
+      destination: destinationDomainId,
+      salt,
+      recipient: addressToBytes32(recipient!) as Hex,
+    });
+
+    quotedCalls = {
+      address: quotedCallsAddress,
+      quotes,
+      clientSalt,
+      tokenPullMode: TokenPullMode.TransferFrom,
+    };
+
+    logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
+    const { feeQuotes } = await warpCore.getQuotedTransferFee({
+      originTokenAmount: new TokenAmount(amount, token),
+      destination,
+      sender: signerAddress,
+      recipient: recipient!,
+      quotedCalls,
+    });
+    quotedCalls.feeQuotes = feeQuotes;
+  }
+
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
@@ -197,6 +267,7 @@ async function executeDelivery({
     sender: signerAddress,
     recipient,
     destinationToken: destToken ?? undefined,
+    quotedCalls,
   });
 
   const txReceipts = [];
