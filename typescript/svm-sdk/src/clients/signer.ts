@@ -12,10 +12,16 @@ import {
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
   signTransactionMessageWithSigners,
+  Commitment,
 } from '@solana/kit';
+import {
+  isSolanaError,
+  SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+  SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND,
+} from '@solana/errors';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, rootLogger, strip0x } from '@hyperlane-xyz/utils';
+import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
 import {
@@ -75,6 +81,35 @@ function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
     );
   }
   return keyBytes;
+}
+
+const RPC_COMMITMENT_LEVEL: Commitment = 'confirmed';
+
+/**
+ * Detects blockhash-not-found errors from sendTransaction.
+ * The RPC wraps it as a preflight failure (-32002) with the
+ * BlockhashNotFound error as its cause.
+ */
+function isBlockhashNotFoundError(error: unknown): boolean {
+  if (
+    isSolanaError(error, SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND)
+  ) {
+    return true;
+  }
+
+  if (
+    isSolanaError(
+      error,
+      SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+    )
+  ) {
+    return isSolanaError(
+      error.cause,
+      SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND,
+    );
+  }
+
+  return false;
 }
 
 export class SvmSigner
@@ -147,13 +182,12 @@ export class SvmSigner
 
   /**
    * Builds, signs, and sends a transaction with a confirmed blockhash.
-   * Retries on blockhash-not-found errors from the RPC.
-   * Returns the raw transaction bytes for rebroadcasting and the
-   * lastValidBlockHeight for block-height-based expiry detection.
+   * Retries on blockhash-not-found errors with backoff to handle
+   * load-balanced RPC node desync.
    */
   private async signAndSend(
     tx: SvmTransaction,
-    maxAttempts = 3,
+    maxAttempts = 5,
   ): Promise<{
     signature: Signature;
     rawTx: Base64EncodedWireTransaction;
@@ -161,7 +195,7 @@ export class SvmSigner
   }> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const { value: latestBlockhash } = await this.rpc
-        .getLatestBlockhash({ commitment: 'confirmed' })
+        .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
         .send();
 
       let txMessage = buildTransactionMessage({
@@ -188,6 +222,11 @@ export class SvmSigner
           .sendTransaction(rawTx, {
             encoding: 'base64',
             skipPreflight: tx.skipPreflight ?? false,
+            // Set to 0 to avoid conflicts between the rpc/provider
+            // retrying and the signer as it tracks and retries
+            // pending txs manually
+            maxRetries: 0n,
+            preflightCommitment: RPC_COMMITMENT_LEVEL,
           })
           .send();
 
@@ -197,11 +236,12 @@ export class SvmSigner
           lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         };
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes('Blockhash not found') && attempt < maxAttempts - 1) {
-          this.logger.warn(
-            `Blockhash not found on send attempt ${attempt + 1}, retrying with fresh blockhash`,
+        if (isBlockhashNotFoundError(error) && attempt < maxAttempts - 1) {
+          const delay = 500 * (attempt + 1);
+          this.logger.debug(
+            `Blockhash not found on attempt ${attempt + 1}, retrying in ${delay}ms`,
           );
+          await sleep(delay);
           continue;
         }
         throw error;
@@ -226,7 +266,7 @@ export class SvmSigner
     }
 
     if (
-      result.confirmationStatus === 'confirmed' ||
+      result.confirmationStatus === RPC_COMMITMENT_LEVEL ||
       result.confirmationStatus === 'finalized'
     ) {
       return { confirmed: true, slot: result.slot };
@@ -235,93 +275,124 @@ export class SvmSigner
     return { confirmed: false };
   }
 
+  /**
+   * Sends a transaction and polls for confirmation. On blockhash expiry,
+   * checks transaction history before resubmitting to prevent double-execution.
+   */
   async send(tx: SvmTransaction): Promise<SvmReceipt> {
-    let { signature, rawTx, lastValidBlockHeight } = await this.signAndSend(tx);
+    const maxBlockhashAttempts = 3;
+    const pollIntervalMs = 2000;
 
-    let confirmed = false;
-    let slot: bigint = 0n;
-    const maxPolls = 60;
-    let delay = 500;
-    for (let i = 0; i < maxPolls && !confirmed; i++) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      delay = Math.min(delay * 1.5, 4000);
+    for (
+      let blockhashAttempt = 0;
+      blockhashAttempt < maxBlockhashAttempts;
+      blockhashAttempt++
+    ) {
+      const { signature, rawTx, lastValidBlockHeight } =
+        await this.signAndSend(tx);
+
+      // Poll while blockhash is valid
+      const result = await this.pollForConfirmation(
+        signature,
+        rawTx,
+        lastValidBlockHeight,
+        pollIntervalMs,
+      );
+      if (result) {
+        return result;
+      }
+
+      // Blockhash expired — check history before resubmitting
       try {
-        // Check signature status
-        const status = await this.rpc.getSignatureStatuses([signature]).send();
-        const check = this.checkSignatureResult(signature, status.value[0]);
-
-        if (check?.confirmed) {
-          confirmed = true;
-          slot = check.slot;
-          break;
-        }
-
-        if (check) {
-          // Transaction seen (e.g. 'processed') — keep polling, do NOT resubmit
-          continue;
-        }
-
-        // Transaction not found — check if blockhash expired via block height
-        const currentBlockHeight = await this.rpc
-          .getBlockHeight({ commitment: 'confirmed' })
-          .send();
-
-        if (currentBlockHeight <= lastValidBlockHeight) {
-          // Blockhash still valid — rebroadcast same signed transaction
-          this.logger.debug('Rebroadcasting transaction');
-          await this.rpc
-            .sendTransaction(rawTx, {
-              encoding: 'base64',
-              skipPreflight: tx.skipPreflight ?? false,
-            })
-            .send();
-          continue;
-        }
-
-        // Blockhash expired — deep check with transaction history search
         const historyStatus = await this.rpc
           .getSignatureStatuses([signature], {
             searchTransactionHistory: true,
           })
           .send();
-        const historyCheck = this.checkSignatureResult(
+
+        const check = this.checkSignatureResult(
           signature,
           historyStatus.value[0],
         );
-
-        if (historyCheck?.confirmed) {
-          confirmed = true;
-          slot = historyCheck.slot;
-          break;
+        if (check?.confirmed) {
+          return { signature, slot: check.slot };
         }
-
-        if (historyCheck) {
-          // Found in history but still progressing — keep polling
-          continue;
-        }
-
-        // Blockhash expired and signature never seen — safe to resubmit
-        this.logger.warn(
-          'Blockhash expired and transaction not found, resubmitting',
-        );
-        ({ signature, rawTx, lastValidBlockHeight } =
-          await this.signAndSend(tx));
-        delay = 500;
       } catch (error) {
-        if (error instanceof SvmTransactionError) {
-          throw error;
-        }
-        this.logger.warn(`Polling attempt ${i + 1} failed`, { error });
+        this.logger.debug('History check failed, will resubmit', { error });
+      }
+
+      if (blockhashAttempt < maxBlockhashAttempts - 1) {
+        this.logger.debug(
+          `Blockhash expired and tx not found, resubmitting (attempt ${blockhashAttempt + 2}/${maxBlockhashAttempts})`,
+        );
       }
     }
 
-    if (!confirmed) {
-      throw new Error(
-        `Transaction not confirmed within polling timeout: ${signature}`,
-      );
+    throw new Error('Transaction not confirmed after all blockhash attempts');
+  }
+
+  /**
+   * Polls getSignatureStatuses while the blockhash is still valid.
+   * Rebroadcasts the same signed tx periodically (fire-and-forget).
+   * Returns the receipt if confirmed, or null if the blockhash expired.
+   */
+  private async pollForConfirmation(
+    signature: Signature,
+    rawTx: Base64EncodedWireTransaction,
+    lastValidBlockHeight: bigint,
+    pollIntervalMs: number,
+  ): Promise<SvmReceipt | null> {
+    const deadline = Date.now() + 60_000;
+    let delay = Math.max(Math.floor(pollIntervalMs / 4), 250);
+    while (Date.now() < deadline) {
+      await sleep(delay);
+      delay = Math.min(Math.floor(delay * 1.5), pollIntervalMs);
+
+      // Check confirmation status
+      try {
+        const status = await this.rpc.getSignatureStatuses([signature]).send();
+        const check = this.checkSignatureResult(signature, status.value[0]);
+
+        if (check?.confirmed) {
+          return { signature, slot: check.slot };
+        }
+
+        // Transaction seen (e.g. 'processed') — keep polling, don't rebroadcast
+        if (check) continue;
+      } catch (error) {
+        if (error instanceof SvmTransactionError) throw error;
+        this.logger.debug('Status poll failed', { error });
+      }
+
+      // Check if blockhash expired
+      try {
+        const currentBlockHeight = await this.rpc
+          .getBlockHeight({ commitment: RPC_COMMITMENT_LEVEL })
+          .send();
+        if (currentBlockHeight > lastValidBlockHeight) {
+          return null; // Blockhash expired — caller handles history check
+        }
+      } catch (error) {
+        this.logger.debug('Block height check failed', { error });
+      }
+
+      // Rebroadcast same signed tx (fire-and-forget, always skip preflight)
+      try {
+        await this.rpc
+          .sendTransaction(rawTx, {
+            encoding: 'base64',
+            skipPreflight: true,
+            maxRetries: 0n,
+          })
+          .send();
+      } catch {
+        // Rebroadcast is best-effort — ignore all errors
+      }
     }
 
-    return { signature, slot };
+    // Deadline exceeded — treat as blockhash expiry
+    this.logger.debug('Poll deadline exceeded, treating as blockhash expiry');
+    return null;
   }
 
   async sendAndConfirmTransaction(

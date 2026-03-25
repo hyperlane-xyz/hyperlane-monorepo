@@ -2665,6 +2665,9 @@ importers:
       '@solana-program/system':
         specifier: ^0.12.0
         version: 0.12.0(@solana/kit@6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10))
+      '@solana/errors':
+        specifier: ^6.1.0
+        version: 6.1.0(typescript@6.0.2)
       '@solana/kit':
         specifier: ^6.1.0
         version: 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)

@@ -45,6 +45,7 @@
     "@noble/hashes": "^1.7.1",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
+    "@solana/errors": "^6.1.0",
     "@solana/kit": "^6.1.0"
   },
   "devDependencies": {
