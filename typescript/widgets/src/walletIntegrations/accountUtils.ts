@@ -1,5 +1,5 @@
 import { cosmoshub } from '@hyperlane-xyz/registry';
-import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import {
   type Address,

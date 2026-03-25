@@ -11,11 +11,11 @@ import {
 import { MultiProvider } from './MultiProvider.js';
 import { ProviderType, TypedProvider } from './ProviderType.js';
 import {
-  ProviderBuilderFn,
   ProviderBuilderMap,
-  defaultProviderBuilderMap,
   defaultTronEthersProviderBuilder,
 } from './providerBuilders.js';
+import { defaultProviderBuilderMap } from './defaultProviderBuilderMaps.js';
+import type { ProviderBuilderFn } from './providerBuilders.js';
 
 export interface MultiProtocolProviderOptions extends ConfiguredMultiProtocolProviderOptions {}
 
