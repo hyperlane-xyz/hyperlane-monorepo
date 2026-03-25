@@ -682,7 +682,7 @@ where
                 .map_err(ChainCommunicationError::from_other)?
                 .into();
             return Ok(TxCostEstimate {
-                gas_limit: U256::from(300_000u32),
+                gas_limit: U256::from(500_000u32),
                 gas_price: gas_price.try_into()?,
                 l2_gas_limit: None,
             });
