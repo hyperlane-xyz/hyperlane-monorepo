@@ -286,7 +286,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       },
     );
 
-    const firstChildToken = (await Promise.all([...feeConfigCache.values()]))[0]
+    const firstChildToken = (await Promise.all(feeConfigCache.values()))[0]
       ?.token;
     const token = firstChildToken ?? constants.AddressZero;
 
