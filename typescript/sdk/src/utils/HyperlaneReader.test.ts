@@ -514,6 +514,29 @@ describe('HyperlaneReader', () => {
     ]);
   });
 
+  it('shares safe multicall support promises across concurrent callers', async () => {
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+      getCodeFailures: 1,
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const [firstResult, secondResult] = await Promise.all([
+      reader.testReadContractBatch(),
+      reader.testReadContractBatch(),
+    ]);
+
+    expect(firstResult).to.deep.equal([TEST_ADDRESS, TEST_ADDRESS_2]);
+    expect(secondResult).to.deep.equal([TEST_ADDRESS, TEST_ADDRESS_2]);
+    expect(provider.callTransactions.map((tx) => tx.to)).to.deep.equal([
+      TEST_ADDRESS,
+      TEST_ADDRESS_2,
+      TEST_ADDRESS,
+      TEST_ADDRESS_2,
+    ]);
+  });
+
   it('includes chain context when batched reads return failed subcalls', async () => {
     const provider = new BatchReaderProvider({
       supportsMulticall: true,
