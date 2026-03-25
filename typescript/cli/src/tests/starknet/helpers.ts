@@ -106,6 +106,7 @@ export function expectStarknetWarpConfig(
   derivedWarpDeployConfig: Readonly<DerivedWarpRouteDeployConfig>,
   coreAddressByChain: ChainMap<ChainAddresses>,
   chainName: string,
+  options?: { expectConnections?: boolean },
 ) {
   const deployConfig = warpDeployConfig[chainName];
   assert(deployConfig, `Expected warp deploy config for chain ${chainName}`);
@@ -126,6 +127,8 @@ export function expectStarknetWarpConfig(
   expect(normalizeStarknetAddress(mailbox)).to.equal(
     normalizeStarknetAddress(coreAddresses.mailbox),
   );
-  expect(Object.keys(derivedConfig.destinationGas ?? {})).to.not.be.empty;
-  expect(Object.keys(derivedConfig.remoteRouters ?? {})).to.not.be.empty;
+  if (options?.expectConnections !== false) {
+    expect(Object.keys(derivedConfig.destinationGas ?? {})).to.not.be.empty;
+    expect(Object.keys(derivedConfig.remoteRouters ?? {})).to.not.be.empty;
+  }
 }

@@ -88,6 +88,9 @@ describe('hyperlane warp apply route extension (Starknet E2E tests)', async func
         type: TokenType.native,
         mailbox: chain1CoreAddress.mailbox,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.starknet,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
       },
     };
 

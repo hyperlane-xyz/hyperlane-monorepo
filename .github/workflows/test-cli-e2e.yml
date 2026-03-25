@@ -301,13 +301,24 @@ jobs:
       fail-fast: false
       matrix:
         test:
-          - core-apply
+          - core-apply-mailbox-owner
+          - core-apply-default-hook-protocol-fee
+          - core-apply-default-ism-redeploy
+          - core-apply-routing-ism-owner
           - core-deploy
           - core-read
           - ism
-          - warp-apply-hook-updates
-          - warp-apply-ism-updates
-          - warp-apply-ownership-updates
+          - warp-apply-hook-add-merkle
+          - warp-apply-hook-replace-with-protocol-fee
+          - warp-apply-hook-update-protocol-fee-config
+          - warp-apply-hook-same-config
+          - warp-apply-ism-add-test-ism
+          - warp-apply-ism-replace-with-message-id-multisig
+          - warp-apply-ism-same-config
+          - warp-apply-ownership-preserve
+          - warp-apply-ownership-starknet1
+          - warp-apply-ownership-starknet2
+          - warp-apply-ownership-all
           - warp-apply-route-extension
           - warp-deploy
           - warp-read

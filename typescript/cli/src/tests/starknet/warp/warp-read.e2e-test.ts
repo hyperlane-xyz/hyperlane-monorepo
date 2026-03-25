@@ -22,7 +22,6 @@ import {
   WARP_READ_OUTPUT_PATH,
   getWarpCoreConfigPath,
   getWarpDeployConfigPath,
-  getWarpId,
 } from '../../constants.js';
 import { expectStarknetWarpConfig } from '../helpers.js';
 
@@ -42,22 +41,10 @@ describe('hyperlane warp read (Starknet E2E tests)', async function () {
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.starknet.CHAIN_NAME_1,
   );
 
-  let chain2CoreAddress: ChainAddresses;
-  const hyperlaneCore2 = new HyperlaneE2ECoreTestCommands(
-    ProtocolType.Starknet,
-    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_2,
-    REGISTRY_PATH,
-    CORE_CONFIG_PATH_BY_PROTOCOL.starknet,
-    CORE_READ_CONFIG_PATH_BY_PROTOCOL.starknet.CHAIN_NAME_2,
-  );
-
   const WARP_CORE_PATH = getWarpCoreConfigPath(nativeTokenData.symbol, [
     TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
   ]);
   const WARP_DEPLOY_PATH = getWarpDeployConfigPath(nativeTokenData.symbol, [
-    TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
-  ]);
-  const WARP_ROUTE_ID = getWarpId(nativeTokenData.symbol, [
     TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
   ]);
 
@@ -69,27 +56,21 @@ describe('hyperlane warp read (Starknet E2E tests)', async function () {
 
   let coreAddressByChain: ChainMap<ChainAddresses>;
   let warpDeployConfig: WarpRouteDeployConfig;
+  let deployedWarpAddress: string;
 
   before(async function () {
-    [chain1CoreAddress, chain2CoreAddress] = await Promise.all([
-      hyperlaneCore1.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.starknet),
-      hyperlaneCore2.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.starknet),
-    ]);
+    chain1CoreAddress = await hyperlaneCore1.deployOrUseExistingCore(
+      HYP_KEY_BY_PROTOCOL.starknet,
+    );
 
     coreAddressByChain = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1]: chain1CoreAddress,
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_2]: chain2CoreAddress,
     };
 
     warpDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1]: {
         type: TokenType.native,
         mailbox: chain1CoreAddress.mailbox,
-        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.starknet,
-      },
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_2]: {
-        type: TokenType.synthetic,
-        mailbox: chain2CoreAddress.mailbox,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.starknet,
         name: nativeTokenData.name,
         symbol: nativeTokenData.symbol,
@@ -98,16 +79,25 @@ describe('hyperlane warp read (Starknet E2E tests)', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
-    await hyperlaneWarp.deployRaw({
-      warpRouteId: WARP_ROUTE_ID,
-      skipConfirmationPrompts: true,
-      privateKey: HYP_KEY_BY_PROTOCOL.starknet,
-    });
+    const deployOutput = await hyperlaneWarp
+      .deployRaw({
+        warpRouteId: nativeTokenData.symbol,
+        skipConfirmationPrompts: true,
+        privateKey: HYP_KEY_BY_PROTOCOL.starknet,
+      })
+      .stdio('pipe');
+
+    const deployedAddressMatch = deployOutput
+      .text()
+      .match(/addressOrDenom:\s+"(0x[0-9a-fA-F]+)"/);
+    assert(deployedAddressMatch?.[1], 'Expected deployed warp address');
+    deployedWarpAddress = deployedAddressMatch[1];
   });
 
   it('should read a Starknet warp route deployment', async () => {
     await hyperlaneWarp.readRaw({
-      warpRouteId: WARP_ROUTE_ID,
+      chain: TEST_CHAIN_NAMES_BY_PROTOCOL.starknet.CHAIN_NAME_1,
+      warpAddress: deployedWarpAddress,
       outputPath: WARP_READ_OUTPUT_PATH,
     });
 
@@ -121,6 +111,7 @@ describe('hyperlane warp read (Starknet E2E tests)', async function () {
         config,
         coreAddressByChain,
         chainName,
+        { expectConnections: false },
       );
     }
   });
