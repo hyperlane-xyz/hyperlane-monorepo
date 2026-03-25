@@ -7,4 +7,4 @@ env:
   - name: QUOTE_MODE
     value: 'transient'
   - name: WARP_ROUTE_IDS
-    value: 'USDC/eclipsemainnet'
+    value: 'USDC/quoted-calls-demo'
