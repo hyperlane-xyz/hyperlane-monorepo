@@ -137,7 +137,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: pnpm-build
-        if: matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true'
+        if: (matrix.e2e-type == 'evm' || matrix.e2e-type == 'tron') && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Install system dependencies

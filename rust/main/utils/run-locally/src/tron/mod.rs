@@ -245,8 +245,16 @@ fn run_locally() {
 
     // Build typescript
     let pnpm_monorepo = Program::new("pnpm").working_dir(&monorepo_root);
-    pnpm_monorepo.clone().cmd("install").run().join();
-    pnpm_monorepo.clone().cmd("build").run().join();
+    let config = crate::config::Config::load(); // Load the config for invariants
+
+    if !config.is_ci_env {
+        // test.yaml workflow installs dependencies
+        pnpm_monorepo.clone().cmd("install").run().join();
+        // don't need to clean in the CI
+        pnpm_monorepo.clone().cmd("clean").run().join();
+        // test.yaml workflow builds the monorepo
+        pnpm_monorepo.clone().cmd("build").run().join();
+    }
 
     // Start TRE docker container
     log!("Starting TRE docker container...");
@@ -421,7 +429,6 @@ fn run_locally() {
     // Wait for termination invariants
     const TIMEOUT_SECS: u64 = 60 * 10;
     let mut failure_occurred = false;
-    let config = crate::config::Config::load(); // Load the config for invariants
 
     let test_passed = wait_for_condition(
         &config,
