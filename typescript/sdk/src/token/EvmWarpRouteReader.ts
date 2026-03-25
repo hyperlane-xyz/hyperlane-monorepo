@@ -264,6 +264,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    let domains: number[] | undefined;
 
     // Only movable collateral tokens (collateral/native) have rebalancing config
     if (
@@ -289,7 +290,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        const domains = await movableToken.domains();
+        domains = await movableToken.domains();
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
             arrayToObject(domains.map((domain) => domain.toString())),
@@ -664,6 +665,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return TokenType.XERC20;
     }
 
+    // This probe needs `{ from: warpRouteAddress }`, which the batched probe
+    // wrapper cannot express today.
     const fiatMintProbe = await this.probeContractCall(
       wrappedToken,
       IFiatToken__factory.createInterface(),
@@ -945,35 +948,32 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       const usesPpmName =
         contractVersion !== undefined &&
         compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+      const minFinalityThresholdCall = {
+        target: hypToken,
+        contractInterface: tokenBridgeV2Interface,
+        method: 'minFinalityThreshold',
+      };
 
-      const calls = [
-        {
-          target: hypToken,
-          contractInterface: tokenBridgeV2Interface,
-          method: 'minFinalityThreshold',
-        },
-      ] as const;
-
-      const [minFinalityThreshold] = (await this.readContractBatch(
-        calls as any,
-      )) as [number];
-
-      const maxFeePpm = usesPpmName
-        ? (
-            await this.readContractBatch<BigNumber>([
-              {
-                target: hypToken,
-                contractInterface: tokenBridgeV2Interface,
-                method: 'maxFeePpm',
-              },
-            ])
-          )[0]
-        : await TokenBridgeCctpV2__factory.connect(hypToken, this.provider)
-            .provider.call({
-              to: hypToken,
-              data: '0xbf769a3f',
-            })
-            .then((result) => BigNumber.from(result));
+      const [minFinalityThreshold, maxFeePpm] = usesPpmName
+        ? ((await this.readContractBatch<unknown>([
+            minFinalityThresholdCall,
+            {
+              target: hypToken,
+              contractInterface: tokenBridgeV2Interface,
+              method: 'maxFeePpm',
+            },
+          ])) as [number, BigNumber])
+        : await Promise.all([
+            this.readContractBatch<number>([minFinalityThresholdCall]).then(
+              ([result]) => result,
+            ),
+            TokenBridgeCctpV2__factory.connect(hypToken, this.provider)
+              .provider.call({
+                to: hypToken,
+                data: '0xbf769a3f',
+              })
+              .then((result) => BigNumber.from(result)),
+          ]);
 
       return {
         ...collateralConfig,

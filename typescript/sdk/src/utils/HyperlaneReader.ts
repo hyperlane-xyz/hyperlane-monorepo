@@ -1,5 +1,6 @@
 import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { LevelWithSilentOrString } from 'pino';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
@@ -86,6 +87,7 @@ export async function performProbeEstimateGas(
 
 export class HyperlaneReader {
   provider: providers.Provider;
+  protected readonly logger = rootLogger.child({ module: 'HyperlaneReader' });
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -226,6 +228,7 @@ export class HyperlaneReader {
       calls,
       blockTag,
       this.getBatchContractAddress(),
+      this.multiProvider.getChainName(this.chain),
     );
   }
 
@@ -269,9 +272,13 @@ export class HyperlaneReader {
         'aggregate3',
         response,
       );
-    } catch {
+    } catch (error) {
       // Batched probe reads are an optimization only. If the wrapper call itself
       // is unavailable or returns unusable data, fall back to individual probes.
+      this.logger.debug(
+        { error, chain: this.chain, batchContractAddress },
+        'Failed to batch probe calls; falling back to individual probes',
+      );
       return undefined;
     }
 
@@ -291,7 +298,7 @@ export class HyperlaneReader {
         );
       } catch (error) {
         if (
-          (error as any)?.code === EthersError.INVALID_ARGUMENT ||
+          getNestedErrorWithCode(error, EthersError.INVALID_ARGUMENT) ||
           this.isProbeMissError(error)
         ) {
           return undefined;

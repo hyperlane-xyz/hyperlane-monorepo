@@ -111,6 +111,7 @@ export async function deriveTokenMetadata(
             ],
             'latest',
             batchContractAddress,
+            chain,
           )) as [string, string];
           return [
             chain,
@@ -162,6 +163,7 @@ export async function deriveTokenMetadata(
           ],
           'latest',
           batchContractAddress,
+          chain,
         )) as [string, string, number];
 
         return [
