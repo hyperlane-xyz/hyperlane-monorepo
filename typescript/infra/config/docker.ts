@@ -52,8 +52,8 @@ export const mainnetDockerTags: MainnetDockerTags = {
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '910e8e8-20260318-204227',
-  relayerRC: '910e8e8-20260318-204227',
+  relayer: 'a474160-20260325-081702',
+  relayerRC: 'a474160-20260325-081702',
   validator: '910e8e8-20260318-204227',
   validatorRC: '910e8e8-20260318-204227',
   scraper: '910e8e8-20260318-204227',
