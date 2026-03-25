@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import {
   KnownProtocolType,
   Numberish,
@@ -26,9 +25,20 @@ import {
 } from './TokenStandard.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
-export interface TokenMetadata extends TokenArgs {}
-
 export class TokenMetadata implements ITokenMetadata {
+  declare chainName: TokenArgs['chainName'];
+  declare standard: TokenArgs['standard'];
+  declare decimals: TokenArgs['decimals'];
+  declare symbol: TokenArgs['symbol'];
+  declare name: TokenArgs['name'];
+  declare addressOrDenom: TokenArgs['addressOrDenom'];
+  declare collateralAddressOrDenom: TokenArgs['collateralAddressOrDenom'];
+  declare igpTokenAddressOrDenom: TokenArgs['igpTokenAddressOrDenom'];
+  declare logoURI: TokenArgs['logoURI'];
+  declare connections: TokenArgs['connections'];
+  declare coinGeckoId: TokenArgs['coinGeckoId'];
+  declare scale: TokenArgs['scale'];
+  declare warpRouteId: TokenArgs['warpRouteId'];
   public readonly protocol: ProtocolType;
 
   constructor(args: TokenArgs) {
