@@ -622,6 +622,18 @@ function normalizeTokenFeeForCheck(
     };
   }
 
+  if (feeConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    return {
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      owner: feeConfig.owner,
+      bps: feeConfig.bps,
+      quoteSigners: feeConfig.quoteSigners,
+      ...('token' in feeConfig && feeConfig.token
+        ? { token: feeConfig.token }
+        : {}),
+    };
+  }
+
   return feeConfig;
 }
 
