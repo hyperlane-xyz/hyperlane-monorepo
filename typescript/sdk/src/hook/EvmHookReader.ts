@@ -613,7 +613,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
-      tokenOracleConfig,
+      ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
       ...(quoteSignersResult.igpVersion
         ? { igpVersion: quoteSignersResult.igpVersion }
         : {}),
