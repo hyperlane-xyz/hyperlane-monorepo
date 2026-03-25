@@ -30,7 +30,6 @@ use num_traits::cast::FromPrimitive;
 
 use crate::error::HyperlaneEthereumError;
 use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
-use crate::interfaces::i_aggregation_ism::IAggregationIsm as EthereumAggregationIsmInternal;
 use crate::interfaces::i_interchain_security_module::IInterchainSecurityModule as EthereumIsmInternal;
 use crate::interfaces::i_mailbox::{IMailbox as EthereumMailboxInternal, IMAILBOX_ABI};
 use crate::interfaces::i_routing_ism::IRoutingIsm as EthereumRoutingIsmInternal;
@@ -68,27 +67,6 @@ fn ism_resolves_to_null_for_message<M: Middleware + 'static>(
                 let routing = EthereumRoutingIsmInternal::new(ism_address, provider.clone());
                 let sub_ism = routing.route(raw_message.clone().into()).call().await?;
                 ism_resolves_to_null_for_message(provider, sub_ism, raw_message, depth + 1).await
-            }
-            Some(ModuleType::Aggregation) => {
-                let aggregation =
-                    EthereumAggregationIsmInternal::new(ism_address, provider.clone());
-                let (sub_isms, _threshold) = aggregation
-                    .modules_and_threshold(raw_message.clone().into())
-                    .call()
-                    .await?;
-                for sub_ism in sub_isms {
-                    if ism_resolves_to_null_for_message(
-                        provider.clone(),
-                        sub_ism,
-                        raw_message.clone(),
-                        depth + 1,
-                    )
-                    .await?
-                    {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
             }
             _ => Ok(false),
         }
