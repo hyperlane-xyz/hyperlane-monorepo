@@ -192,6 +192,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const type = await this.deriveTokenType(warpRouteAddress);
     const isOft = type === TokenType.collateralOft;
     const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
+    // MovableCollateralRouter inherits TokenRouter.domains(), so starting token
+    // fee derivation before movableToken.domains() resolves still reads the same
+    // routing destinations when fetchTokenFee needs them.
     const tokenFeePromise = this.fetchTokenFee(warpRouteAddress);
     // OFT contracts don't have Router/MailboxClient interfaces — read owner directly.
     // Start the router-side reads now so they overlap with token config derivation.
@@ -600,6 +603,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return TokenType.XERC20;
     }
 
+    // This probe needs `{ from: warpRouteAddress }`, which the batched probe
+    // wrapper cannot express today.
     const fiatMintProbe = await this.probeContractCall(
       wrappedToken,
       IFiatToken__factory.createInterface(),
@@ -881,35 +886,32 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       const usesPpmName =
         contractVersion !== undefined &&
         compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+      const minFinalityThresholdCall = {
+        target: hypToken,
+        contractInterface: tokenBridgeV2Interface,
+        method: 'minFinalityThreshold',
+      };
 
-      const calls = [
-        {
-          target: hypToken,
-          contractInterface: tokenBridgeV2Interface,
-          method: 'minFinalityThreshold',
-        },
-      ] as const;
-
-      const [minFinalityThreshold] = (await this.readContractBatch(
-        calls as any,
-      )) as [number];
-
-      const maxFeePpm = usesPpmName
-        ? (
-            await this.readContractBatch<BigNumber>([
-              {
-                target: hypToken,
-                contractInterface: tokenBridgeV2Interface,
-                method: 'maxFeePpm',
-              },
-            ])
-          )[0]
-        : await TokenBridgeCctpV2__factory.connect(hypToken, this.provider)
-            .provider.call({
-              to: hypToken,
-              data: '0xbf769a3f',
-            })
-            .then((result) => BigNumber.from(result));
+      const [minFinalityThreshold, maxFeePpm] = usesPpmName
+        ? ((await this.readContractBatch<unknown>([
+            minFinalityThresholdCall,
+            {
+              target: hypToken,
+              contractInterface: tokenBridgeV2Interface,
+              method: 'maxFeePpm',
+            },
+          ])) as [number, BigNumber])
+        : await Promise.all([
+            this.readContractBatch<number>([minFinalityThresholdCall]).then(
+              ([result]) => result,
+            ),
+            TokenBridgeCctpV2__factory.connect(hypToken, this.provider)
+              .provider.call({
+                to: hypToken,
+                data: '0xbf769a3f',
+              })
+              .then((result) => BigNumber.from(result)),
+          ]);
 
       return {
         ...collateralConfig,

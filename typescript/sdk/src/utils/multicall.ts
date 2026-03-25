@@ -1,6 +1,6 @@
 import { providers, utils } from 'ethers';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 export const MULTICALL3_ADDRESS =
   '0xcA11bde05977b3631167028862bE2a173976CA11' as Address;
@@ -76,11 +76,17 @@ export async function supportsMulticall(
     multicallSupportCache.get(provider) ?? new Map<string, Promise<boolean>>();
   const supportPromise = provider
     .getCode(address)
-    .then((code) => code !== '0x')
-    .catch(() => false);
+    .then((code) => code !== '0x');
+  supportPromise.catch((error) => {
+    providerCache.delete(address);
+    rootLogger.debug(
+      { error, batchContractAddress: address },
+      'Failed to detect multicall support',
+    );
+  });
   providerCache.set(address, supportPromise);
   multicallSupportCache.set(provider, providerCache);
-  return supportPromise;
+  return supportPromise.catch(() => false);
 }
 
 export async function readContractsWithMulticall<T>(
@@ -88,6 +94,7 @@ export async function readContractsWithMulticall<T>(
   calls: ReadContractCall<T>[],
   blockTag: providers.BlockTag = 'latest',
   batchContractAddress?: string,
+  chainName?: string,
 ): Promise<T[]> {
   if (!calls.length) {
     return [];
@@ -122,7 +129,11 @@ export async function readContractsWithMulticall<T>(
       'aggregate3',
       response,
     );
-  } catch {
+  } catch (error) {
+    rootLogger.debug(
+      { error, batchContractAddress: address, chainName },
+      'Multicall wrapper call failed; falling back to individual calls',
+    );
     return callContractsIndividually(provider, calls, blockTag);
   }
 
@@ -133,7 +144,9 @@ export async function readContractsWithMulticall<T>(
     };
     if (!result.success) {
       throw new Error(
-        `Multicall read failed for ${call.method} on ${call.target}`,
+        `Multicall read failed for ${call.method} on ${call.target}${
+          chainName ? ` (chain: ${chainName})` : ''
+        }`,
       );
     }
 

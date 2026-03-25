@@ -146,6 +146,7 @@ class ProbeMissSmartProvider extends HyperlaneSmartProvider {
 
 class BatchReaderProvider extends providers.BaseProvider {
   public readonly callTransactions: providers.TransactionRequest[] = [];
+  private remainingGetCodeFailures = 0;
 
   constructor(
     private readonly options: {
@@ -154,9 +155,11 @@ class BatchReaderProvider extends providers.BaseProvider {
       multicallSecondFailure?: boolean;
       multicallResult?: string;
       batchContractAddress?: string;
+      getCodeFailures?: number;
     } = {},
   ) {
     super({ name: 'test', chainId: 1 });
+    this.remainingGetCodeFailures = options.getCodeFailures ?? 0;
   }
 
   private get batchContractAddress(): string {
@@ -164,6 +167,11 @@ class BatchReaderProvider extends providers.BaseProvider {
   }
 
   async getCode(address: string): Promise<string> {
+    if (this.remainingGetCodeFailures > 0) {
+      this.remainingGetCodeFailures -= 1;
+      throw new Error('temporary getCode failure');
+    }
+
     return address.toLowerCase() === this.batchContractAddress.toLowerCase() &&
       this.options.supportsMulticall
       ? '0x1234'
@@ -486,6 +494,42 @@ describe('HyperlaneReader', () => {
       TEST_ADDRESS,
       TEST_ADDRESS_2,
     ]);
+  });
+
+  it('retries multicall support detection after transient getCode failures', async () => {
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+      getCodeFailures: 1,
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    await reader.testReadContractBatch();
+    await reader.testReadContractBatch();
+
+    expect(provider.callTransactions.map((tx) => tx.to)).to.deep.equal([
+      TEST_ADDRESS,
+      TEST_ADDRESS_2,
+      MULTICALL3_ADDRESS,
+    ]);
+  });
+
+  it('includes chain context when batched reads return failed subcalls', async () => {
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+      multicallSecondFailure: true,
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    try {
+      await reader.testReadContractBatch();
+      expect.fail('Expected batched read to fail');
+    } catch (error) {
+      expect(String(error)).to.include(
+        'Multicall read failed for owner on 0x0000000000000000000000000000000000000002 (chain: test1)',
+      );
+    }
   });
 
   it('uses multicall for batched probe calls when available', async () => {
