@@ -1013,8 +1013,36 @@ const neutron: RootAgentConfig = {
   },
 };
 
+const ctUsdCitreaRouters: ChainMap<Address> = {
+  citrea: '0xeBEB7F52892dF3066885F4D31137a76327f6348b',
+  ethereum: '0x6372e1C8a08940C7e95AF2891B9201aC48De6519',
+};
+
+const fastPath: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.FastPath,
+  contextChainNames: {
+    validator: [],
+    relayer: ['arbitrum', 'base', 'citrea', 'ethereum'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayer,
+    },
+    gasPaymentEnforcement,
+    reorgPeriodOverrides: { ethereum: 1 },
+    whitelist: routerMatchingList(ctUsdCitreaRouters),
+    resources: relayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.FastPath]: fastPath,
 };

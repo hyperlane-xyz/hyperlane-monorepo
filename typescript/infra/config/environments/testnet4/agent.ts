@@ -47,6 +47,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsctestnet: true,
     celestiatestnet: true,
     celosepolia: true,
+    citreatestnet: false,
     cotitestnet: true,
     eclipsetestnet: false,
     fuji: true,
@@ -73,6 +74,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsctestnet: true,
     celestiatestnet: true,
     celosepolia: true,
+    citreatestnet: false,
     cotitestnet: true,
     eclipsetestnet: false,
     fuji: true,
@@ -99,6 +101,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsctestnet: true,
     celestiatestnet: true,
     celosepolia: true,
+    citreatestnet: false,
     cotitestnet: true,
     eclipsetestnet: false,
     fuji: true,
@@ -435,8 +438,35 @@ const neutron: RootAgentConfig = {
   },
 };
 
+const fastPath: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.FastPath,
+  contextChainNames: {
+    [Role.Validator]: [],
+    [Role.Relayer]: [
+      'arbitrumsepolia',
+      'basesepolia',
+      'citreatestnet',
+      'sepolia',
+    ],
+    [Role.Scraper]: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayer,
+    },
+    gasPaymentEnforcement,
+    reorgPeriodOverrides: { sepolia: 1 },
+    resources: relayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.FastPath]: fastPath,
 };
