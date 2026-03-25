@@ -331,6 +331,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         : undefined,
     );
 
+    // Read feeHook (IGP address for ERC20 gas payments)
+    const feeHook = await this.fetchFeeHook(warpRouteAddress);
+
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (
@@ -353,6 +356,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       proxyAdmin,
       destinationGas,
       tokenFee,
+      feeHook,
       ...(predicateWrapper && { predicateWrapper }),
     };
     return derivedConfig;
@@ -429,6 +433,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         );
         if (found) return found;
       }
+    }
+    return undefined;
+  }
+
+  public async fetchFeeHook(
+    routerAddress: Address,
+  ): Promise<Address | undefined> {
+    try {
+      const router = TokenRouter__factory.connect(routerAddress, this.provider);
+      const feeHookAddress = await router.feeHook();
+      if (!isZeroishAddress(feeHookAddress)) {
+        return feeHookAddress;
+      }
+    } catch {
+      this.logger.debug(
+        `Token at "${routerAddress}" on chain "${this.chain}" does not support feeHook`,
+      );
     }
     return undefined;
   }

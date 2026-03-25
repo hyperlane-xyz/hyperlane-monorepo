@@ -13,6 +13,7 @@ import {
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
+  IgpTokenGasOraclesViolation,
   IgpViolationType,
 } from './types.js';
 
@@ -26,6 +27,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     await this.checkBytecodes(chain);
     await this.checkOverheadInterchainGasPaymaster(chain);
     await this.checkInterchainGasPaymaster(chain);
+    await this.checkTokenGasOracles(chain);
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
@@ -169,6 +171,52 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         expected: expectedBeneficiary,
       };
       this.addViolation(violation);
+    }
+  }
+
+  async checkTokenGasOracles(local: ChainName): Promise<void> {
+    const config = this.configMap[local];
+    if (!config.tokenOracleConfig) return;
+
+    const coreContracts = this.app.getContracts(local);
+    const igp = coreContracts.interchainGasPaymaster;
+
+    for (const [feeToken, remoteConfigs] of Object.entries(
+      config.tokenOracleConfig,
+    )) {
+      const violation: IgpTokenGasOraclesViolation = {
+        type: 'InterchainGasPaymaster',
+        subType: IgpViolationType.TokenGasOracles,
+        contract: igp,
+        chain: local,
+        actual: {},
+        expected: {},
+        feeToken,
+      };
+
+      for (const remote of Object.keys(remoteConfigs)) {
+        const remoteId = this.multiProvider.tryGetDomainId(remote);
+        if (remoteId === null) {
+          this.app.logger.warn(
+            `Skipping token oracle check ${local} -> ${remote} for fee token ${feeToken}`,
+          );
+          continue;
+        }
+
+        const actualOracle = await igp.tokenGasOracles(feeToken, remoteId);
+        // Expected oracle is non-zero (should be configured)
+        if (
+          eqAddress(actualOracle, '0x0000000000000000000000000000000000000000')
+        ) {
+          const remoteChain = remote as ChainName;
+          violation.actual[remoteChain] = actualOracle;
+          violation.expected[remoteChain] = 'configured';
+        }
+      }
+
+      if (Object.keys(violation.actual).length > 0) {
+        this.addViolation(violation);
+      }
     }
   }
 }
