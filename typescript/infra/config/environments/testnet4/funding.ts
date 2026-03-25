@@ -24,6 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
+    [Contexts.FastPath]: [Role.Relayer],
   },
   chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
