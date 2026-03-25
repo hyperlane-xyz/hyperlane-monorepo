@@ -198,13 +198,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const tokenFeePromise = this.fetchTokenFee(
       warpRouteAddress,
       undefined,
-      tokenRouterDomainsPromise?.catch((error) => {
-        this.logger.debug(
-          `Failed to derive token router domains for routing fee config on "${this.chain}"`,
-          error,
-        );
-        return undefined;
-      }),
+      tokenRouterDomainsPromise,
     );
     // OFT contracts don't have Router/MailboxClient interfaces — read owner directly.
     // Start the router-side reads now so they overlap with token config derivation.
@@ -283,9 +277,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        const domains = tokenRouterDomainsPromise
-          ? await tokenRouterDomainsPromise
-          : await movableToken.domains();
+        const domains = await this.fetchTokenRouterDomains(
+          movableToken,
+          tokenRouterDomainsPromise,
+        );
+        assert(
+          domains,
+          `Failed to derive token router domains for allowed rebalancer bridges on "${this.chain}"`,
+        );
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
             arrayToObject(domains.map((domain) => domain.toString())),
@@ -329,6 +328,33 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     } as DerivedTokenRouterConfig;
   }
 
+  private async fetchTokenRouterDomains(
+    tokenRouter: { domains: () => Promise<number[]> },
+    domainsPromise?: Promise<number[]>,
+  ): Promise<number[] | undefined> {
+    if (domainsPromise) {
+      try {
+        const domains = await domainsPromise;
+        if (domains) return domains;
+      } catch (error) {
+        this.logger.debug(
+          `Failed to derive token router domains from shared read on "${this.chain}"`,
+          error,
+        );
+      }
+    }
+
+    try {
+      return await tokenRouter.domains();
+    } catch (error) {
+      this.logger.debug(
+        `Failed to derive token router domains on "${this.chain}"`,
+        error,
+      );
+      return undefined;
+    }
+  }
+
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
@@ -363,15 +389,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (destinationsPromise
-        ? await destinationsPromise
-        : await TokenRouter.domains().catch((error) => {
-            this.logger.debug(
-              `Failed to derive token router domains for routing fee config on "${this.chain}"`,
-              error,
-            );
-            return undefined;
-          }));
+      (await this.fetchTokenRouterDomains(
+        TokenRouter,
+        destinationsPromise as Promise<number[]> | undefined,
+      ));
 
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
