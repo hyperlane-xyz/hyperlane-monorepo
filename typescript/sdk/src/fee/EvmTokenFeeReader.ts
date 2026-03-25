@@ -78,21 +78,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
-    let onchainFeeType: number;
-    try {
-      onchainFeeType = Number(await tokenFee.feeType());
-    } catch (error) {
-      const maybeCcrf = new Contract(
-        address,
-        ['function DEFAULT_ROUTER() view returns (bytes32)'],
-        this.provider,
-      );
-      const defaultRouter = await maybeCcrf.DEFAULT_ROUTER().catch(() => null);
-      if (defaultRouter !== DEFAULT_ROUTER_KEY) {
-        throw error;
-      }
-      onchainFeeType = OnchainTokenFeeType.CrossCollateralRoutingFee;
-    }
+    const onchainFeeType = (await tokenFee.feeType()) as OnchainTokenFeeType;
     switch (onchainFeeType) {
       case OnchainTokenFeeType.LinearFee:
         derivedConfig = await this.deriveLinearFeeConfig(address);
