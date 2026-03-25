@@ -112,6 +112,14 @@ function formatMs(value: number): string {
   return `${value.toFixed(1)}ms`;
 }
 
+function formatSpeedup(readAvgMs: number, probeAvgMs: number): string {
+  if (probeAvgMs < 0.05) {
+    return `>${(readAvgMs / 0.05).toFixed(2)}x`;
+  }
+
+  return `${(readAvgMs / probeAvgMs).toFixed(2)}x`;
+}
+
 async function runScenario(
   scenario: Scenario,
   providerCount: number,
@@ -129,7 +137,6 @@ async function runScenario(
     benchmark(() => probeProvider.runProbeCall()),
   ]);
 
-  const speedup = readResult.avgMs / probeResult.avgMs;
   console.log(`\nScenario: ${scenario}`);
   console.log(
     `  read  avg=${formatMs(readResult.avgMs)} min=${formatMs(readResult.minMs)} max=${formatMs(readResult.maxMs)}`,
@@ -137,7 +144,9 @@ async function runScenario(
   console.log(
     `  probe avg=${formatMs(probeResult.avgMs)} min=${formatMs(probeResult.minMs)} max=${formatMs(probeResult.maxMs)}`,
   );
-  console.log(`  speedup=${speedup.toFixed(2)}x`);
+  console.log(
+    `  speedup=${formatSpeedup(readResult.avgMs, probeResult.avgMs)}`,
+  );
 }
 
 async function main(): Promise<void> {

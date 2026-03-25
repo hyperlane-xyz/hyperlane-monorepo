@@ -55,8 +55,9 @@ export interface SmartProviderOptions extends ProviderRetryOptions {
   debug?: boolean;
 }
 
-export const SMART_PROVIDER_REQUEST_CONFIG =
-  '__hyperlaneSmartProviderRequestConfig';
+export const SMART_PROVIDER_REQUEST_CONFIG = Symbol(
+  'hyperlaneSmartProviderRequestConfig',
+);
 
 export enum SmartProviderRequestKind {
   Read = 'read',

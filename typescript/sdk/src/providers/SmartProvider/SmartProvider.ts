@@ -162,6 +162,10 @@ function isEmptyObjectLikeJsonRpcData(data: unknown): boolean {
   );
 }
 
+function isEmptyReturnDecodeFailure(error: any): boolean {
+  return error?.data === '0x' && !error?.error;
+}
+
 export function isDeterministicCallException(error: any): boolean {
   const hasRevertData = !!error?.data && error.data !== '0x';
   if (hasRevertData) {
@@ -191,7 +195,7 @@ export function isDeterministicCallException(error: any): boolean {
     return true;
   }
 
-  return !error?.error;
+  return isEmptyReturnDecodeFailure(error);
 }
 
 function classifyProviderError(
@@ -489,15 +493,13 @@ export class HyperlaneSmartProvider
     const reqId = this.requestCount;
 
     const performWithFallback = () =>
-      policy.kind === SmartProviderRequestKind.Read
-        ? this.performWithFallback(method, params, supportedProviders, reqId)
-        : this.performWithFallbackForPolicy(
-            method,
-            params,
-            supportedProviders,
-            reqId,
-            policy,
-          );
+      this.performWithFallback(
+        method,
+        params,
+        supportedProviders,
+        reqId,
+        policy,
+      );
 
     // SendTransaction must not be retried - it could cause duplicate submissions
     if (method === ProviderMethod.SendTransaction) {
@@ -555,13 +557,14 @@ export class HyperlaneSmartProvider
     params: { [name: string]: any },
     providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
     reqId: number,
+    policy = this.getReadRequestPolicy(),
   ): Promise<any> {
     return this.performWithFallbackForPolicy(
       method,
       params,
       providers,
       reqId,
-      this.getReadRequestPolicy(),
+      policy,
     );
   }
 
@@ -835,25 +838,19 @@ export class HyperlaneSmartProvider
       };
     }
 
-    const probeMissError = errors.find(
-      (e) => classifyProviderError(e, requestKind) === 'probe_miss',
-    );
+    const classifiedErrors = new Map<ProviderErrorClassification, any>();
+    for (const error of errors) {
+      const classification = classifyProviderError(error, requestKind);
+      if (!classifiedErrors.has(classification)) {
+        classifiedErrors.set(classification, error);
+      }
+    }
 
-    const rpcBlockchainError = errors.find(
-      (e) => classifyProviderError(e, requestKind) === 'permanent',
-    );
-
-    const rpcServerError = errors.find(
-      (e) => classifyProviderError(e, requestKind) === 'server',
-    );
-
-    const rpcTransientError = errors.find(
-      (e) => classifyProviderError(e, requestKind) === 'transient',
-    );
-
-    const timedOutError = errors.find(
-      (e) => e.status === ProviderStatus.Timeout,
-    );
+    const probeMissError = classifiedErrors.get('probe_miss');
+    const rpcBlockchainError = classifiedErrors.get('permanent');
+    const rpcServerError = classifiedErrors.get('server');
+    const rpcTransientError = classifiedErrors.get('transient');
+    const timedOutError = classifiedErrors.get('timeout');
 
     if (probeMissError) {
       return class extends ProbeMissError {

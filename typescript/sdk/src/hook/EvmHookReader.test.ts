@@ -200,7 +200,16 @@ describe('EvmHookReader', () => {
       .returns(mockContract as unknown as OPStackHook);
     sandbox
       .stub(evmHookReader as any, 'probeContractCall')
-      .resolves(OnchainHookType.ID_AUTH_ISM);
+      .callsFake(async (...args: unknown[]) => {
+        const method = args[2] as string;
+        if (method === 'hookType') {
+          return OnchainHookType.ID_AUTH_ISM;
+        }
+        if (method === 'l1Messenger') {
+          return l1Messenger;
+        }
+        return undefined;
+      });
 
     const expectedConfig: WithAddress<OpStackHookConfig> = {
       owner: mockOwner,
@@ -217,6 +226,42 @@ describe('EvmHookReader', () => {
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveOpStackConfig(mockAddress);
     expect(config).to.deep.equal(hookConfig);
+  });
+
+  it('should derive CCIP hook through probe helpers', async () => {
+    const ccipHookAddress = randomAddress();
+    const destinationDomain = test1.domainId;
+    const ism = randomAddress();
+
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
+      destinationDomain: sandbox.stub().resolves(destinationDomain),
+      ism: sandbox.stub().resolves(ism),
+    };
+
+    sandbox
+      .stub(CCIPHook__factory, 'connect')
+      .returns(mockContract as unknown as CCIPHook);
+    sandbox
+      .stub(evmHookReader as any, 'probeContractCall')
+      .callsFake(async (...args: unknown[]) => {
+        const method = args[2] as string;
+        if (method === 'hookType') {
+          return OnchainHookType.ID_AUTH_ISM;
+        }
+        if (method === 'ccipDestination') {
+          return randomAddress();
+        }
+        return undefined;
+      });
+
+    const config = await evmHookReader.deriveHookConfig(ccipHookAddress);
+
+    expect(config).to.deep.equal({
+      address: ccipHookAddress,
+      type: HookType.CCIP,
+      destinationChain: TestChainName.test1,
+    });
   });
 
   it('should derive CCIPHook configuration correctly', async () => {

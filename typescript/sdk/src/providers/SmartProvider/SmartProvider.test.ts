@@ -166,7 +166,7 @@ class FallbackOverrideSmartProvider extends HyperlaneSmartProvider {
 
   protected override async performWithFallback(): Promise<any> {
     this.performWithFallbackCallCount += 1;
-    return 'read-override';
+    return 'fallback-override';
   }
 
   protected override async performWithFallbackForPolicy(): Promise<any> {
@@ -524,6 +524,23 @@ describe('SmartProvider', () => {
       // Without nested error, this IS a BlockchainError (decode failure is permanent)
       expect(e).to.be.instanceOf(BlockchainError);
       expect(e.isRecoverable).to.equal(false);
+    });
+
+    it('does not treat CALL_EXCEPTION without revert data or nested error as permanent', () => {
+      const error = new ProviderError(
+        'call revert exception',
+        EthersError.CALL_EXCEPTION,
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.message).to.equal('Test fallback message');
     });
 
     it('treats CALL_EXCEPTION with nested RPC error (not code 3) as recoverable', () => {
@@ -910,19 +927,19 @@ describe('SmartProvider', () => {
 
       const result = await smartProvider.performReadForTest();
 
-      expect(result).to.equal('read-override');
+      expect(result).to.equal('fallback-override');
       expect(smartProvider.performWithFallbackCallCount).to.equal(1);
       expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(0);
     });
 
-    it('probe requests still use performWithFallbackForPolicy directly', async () => {
+    it('probe requests use performWithFallback overrides too', async () => {
       const smartProvider = new FallbackOverrideSmartProvider();
 
       const result = await smartProvider.performProbeForTest();
 
-      expect(result).to.equal('policy-override');
-      expect(smartProvider.performWithFallbackCallCount).to.equal(0);
-      expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(1);
+      expect(result).to.equal('fallback-override');
+      expect(smartProvider.performWithFallbackCallCount).to.equal(1);
+      expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(0);
     });
 
     it('sendTransaction waits for provider instead of racing against timeout', async () => {
