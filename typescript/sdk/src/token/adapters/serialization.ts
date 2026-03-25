@@ -194,7 +194,7 @@ export enum SealevelCCInstructionKind {
 export class SealevelCCTransferRemoteToInstruction {
   destination_domain!: number;
   recipient!: Uint8Array;
-  amount_or_id!: number;
+  amount_or_id!: bigint;
   target_router!: Uint8Array;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
@@ -256,6 +256,25 @@ export const SealevelCCHandleLocalSchema = new Map<any, any>([
     },
   ],
 ]);
+
+/**
+ * Encodes a TokenMessage matching the Rust `hyperlane_warp_route::TokenMessage`.
+ * Layout: recipient (32 bytes) + amount (32 bytes, big-endian U256) + metadata (variable).
+ */
+export function encodeTokenMessage(
+  recipient: Uint8Array,
+  amount: bigint,
+  metadata: Uint8Array = new Uint8Array(0),
+): Buffer {
+  const buf = Buffer.alloc(64 + metadata.length);
+  buf.set(recipient, 0);
+  const amountHex = amount.toString(16).padStart(64, '0');
+  buf.set(Buffer.from(amountHex, 'hex'), 32);
+  if (metadata.length > 0) {
+    buf.set(metadata, 64);
+  }
+  return buf;
+}
 
 // ============================================================================
 // Governance Instruction Schemas

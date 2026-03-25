@@ -37,6 +37,7 @@ import {
   SealevelCCInstructionKind,
   SealevelCCTransferRemoteToInstruction,
   SealevelCCTransferRemoteToSchema,
+  encodeTokenMessage,
 } from './serialization.js';
 
 // CC program discriminator (8 bytes of 2s)
@@ -83,10 +84,13 @@ export class SealevelHypCrossCollateralAdapter
       return { igpQuote: { amount: 0n } };
     }
 
-    return this.quoteTransferRemoteGas({
+    const quote = await this.quoteTransferRemoteGas({
       destination: params.destination,
       sender: params.sender,
     });
+    return {
+      igpQuote: { amount: BigInt(quote.igpQuote.amount) },
+    };
   }
 
   // Should match rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral/src/processor.rs transfer_remote_to_remote
@@ -245,12 +249,7 @@ export class SealevelHypCrossCollateralAdapter
     recipient: Uint8Array;
     payer: PublicKey;
   }): Promise<Array<AccountMeta>> {
-    // Build TokenMessage bytes: recipient (32) + amount (32, big-endian) + metadata (empty)
-    const tokenMessage = Buffer.alloc(64);
-    tokenMessage.set(recipient, 0);
-    // Write amount as 32-byte big-endian
-    const amountHex = amount.toString(16).padStart(64, '0');
-    tokenMessage.set(Buffer.from(amountHex, 'hex'), 32);
+    const tokenMessage = encodeTokenMessage(recipient, amount);
 
     const value = new SealevelInstructionWrapper({
       instruction: SealevelCCInstructionKind.HandleLocalAccountMetas,
@@ -297,7 +296,7 @@ export class SealevelHypCrossCollateralAdapter
     const base64Data = returnData?.data?.[0];
     assert(
       base64Data,
-      `No return data from HandleLocalAccountMetas simulation\nLogs: ${logs?.join('\n')}`,
+      `HandleLocalAccountMetas simulation returned no data. The target program may not implement HandleLocalAccountMetas.\nLogs: ${logs?.join('\n')}`,
     );
 
     const data = Buffer.from(base64Data, 'base64');
@@ -399,6 +398,9 @@ export class SealevelHypCrossCollateralAdapter
     return keys;
   }
 
+  // For remote transfers, `recipient` is a destination-chain address (e.g., Ethereum hex).
+  // For local (same-chain) transfers, `recipient` must be a valid Solana pubkey
+  // that can receive the target token (used to derive the recipient's ATA).
   async populateTransferRemoteToTx({
     amount,
     destination,
