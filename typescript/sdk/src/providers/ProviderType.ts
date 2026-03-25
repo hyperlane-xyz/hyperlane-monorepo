@@ -16,7 +16,7 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
-import {
+import type {
   Contract as StarknetContract,
   Invocation as StarknetInvocation,
   Provider as StarknetProvider,
@@ -28,28 +28,25 @@ import type {
   Transaction as VTransaction,
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
-import {
+import type {
   Contract as ZKSyncBaseContract,
   Provider as ZKSyncBaseProvider,
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
-import {
+import type {
   AleoProvider as AleoSDKProvider,
   AleoReceipt as AleoSDKReceipt,
   AleoTransaction as AleoSDKTransaction,
-} from '@hyperlane-xyz/aleo-sdk';
-import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
-import {
+} from '@hyperlane-xyz/aleo-sdk/runtime';
+import type { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk/runtime';
+import type {
   RadixProvider as RadixSDKProvider,
   RadixSDKReceipt,
   RadixSDKTransaction,
-} from '@hyperlane-xyz/radix-sdk';
-import {
-  Annotated,
-  KnownProtocolType,
-  ProtocolType,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/radix-sdk/runtime';
+import type { Annotated, KnownProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
