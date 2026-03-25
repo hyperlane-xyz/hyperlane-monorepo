@@ -48,16 +48,30 @@ export class EvmRouterReader extends HyperlaneReader {
   async fetchMailboxClientConfig(
     routerAddress: Address,
   ): Promise<DerivedMailboxClientConfig> {
-    const mailboxClient = MailboxClient__factory.connect(
-      routerAddress,
-      this.provider,
-    );
-    const [mailbox, owner, hookAddress, ismAddress] = await Promise.all([
-      mailboxClient.mailbox(),
-      mailboxClient.owner(),
-      mailboxClient.hook(),
-      mailboxClient.interchainSecurityModule(),
-    ]);
+    const mailboxClientInterface = MailboxClient__factory.createInterface();
+    const [mailbox, owner, hookAddress, ismAddress] =
+      (await this.readContractBatch<Address>([
+        {
+          target: routerAddress,
+          contractInterface: mailboxClientInterface,
+          method: 'mailbox',
+        },
+        {
+          target: routerAddress,
+          contractInterface: mailboxClientInterface,
+          method: 'owner',
+        },
+        {
+          target: routerAddress,
+          contractInterface: mailboxClientInterface,
+          method: 'hook',
+        },
+        {
+          target: routerAddress,
+          contractInterface: mailboxClientInterface,
+          method: 'interchainSecurityModule',
+        },
+      ])) as [Address, Address, Address, Address];
 
     const derivedIsm = eqAddress(ismAddress, constants.AddressZero)
       ? constants.AddressZero
@@ -77,13 +91,21 @@ export class EvmRouterReader extends HyperlaneReader {
   async fetchRemoteRouters(routerAddress: Address): Promise<RemoteRouters> {
     const router = Router__factory.connect(routerAddress, this.provider);
     const domains = await router.domains();
+    const routerInterface = Router__factory.createInterface();
+    const routerAddresses = await this.readContractBatch<Address>(
+      domains.map((domain) => ({
+        target: routerAddress,
+        contractInterface: routerInterface,
+        method: 'routers',
+        args: [domain],
+      })),
+    );
 
     const routers = Object.fromEntries(
-      await Promise.all(
-        domains.map(async (domain) => {
-          return [domain, { address: await router.routers(domain) }];
-        }),
-      ),
+      domains.map((domain, index) => [
+        domain,
+        { address: routerAddresses[index] },
+      ]),
     );
     return RemoteRoutersSchema.parse(routers);
   }

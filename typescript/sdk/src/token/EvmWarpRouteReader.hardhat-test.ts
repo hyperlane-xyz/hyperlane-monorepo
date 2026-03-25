@@ -1129,25 +1129,17 @@ describe('EvmWarpRouteReader', async () => {
       denominator: 1_000_000_000_000n,
     };
 
-    const mcConnectStub = sinon
-      .stub(CrossCollateralRouter__factory, 'connect')
-      .returns({
-        wrappedToken: sinon.stub().resolves(wrappedTokenAddress),
-        localDomain: sinon.stub().resolves(localDomain),
-        getCrossCollateralDomains: sinon
-          .stub()
-          .resolves([localDomain, remoteDomain]),
-        getCrossCollateralRouters: sinon
-          .stub()
-          .callsFake(async (domain: number) =>
-            domain === localDomain ? [localRouter] : [remoteRouter],
-          ),
-      } as any);
-    const tokenRouterConnectStub = sinon
-      .stub(TokenRouter__factory, 'connect')
-      .returns({
-        domains: sinon.stub().resolves([remoteDomain]),
-      } as any);
+    const batchStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'readContractBatch')
+      .onFirstCall()
+      .resolves([
+        wrappedTokenAddress,
+        [remoteDomain],
+        [localDomain, remoteDomain],
+        localDomain,
+      ])
+      .onSecondCall()
+      .resolves([[remoteRouter], [localRouter]]);
     const metadataStub = sinon
       .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
       .resolves({
@@ -1176,8 +1168,7 @@ describe('EvmWarpRouteReader', async () => {
         [remoteDomain.toString()]: [remoteRouter],
       });
     } finally {
-      mcConnectStub.restore();
-      tokenRouterConnectStub.restore();
+      batchStub.restore();
       metadataStub.restore();
       scaleStub.restore();
     }
@@ -1192,12 +1183,10 @@ describe('EvmWarpRouteReader', async () => {
       .stub(TokenRouter__factory, 'connect')
       .returns({
         domains: sinon.stub().resolves([defaultDomain]),
-        destinationGas: sinon.stub().callsFake(async (domain: number) => {
-          if (domain === defaultDomain) return { toString: () => '100000' };
-          if (domain === mcOnlyDomain) return { toString: () => '200000' };
-          return { toString: () => '0' };
-        }),
       } as any);
+    const batchStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'readContractBatch')
+      .resolves([{ toString: () => '100000' }, { toString: () => '200000' }]);
 
     try {
       const gas = await evmERC20WarpRouteReader.fetchDestinationGas(
@@ -1208,6 +1197,7 @@ describe('EvmWarpRouteReader', async () => {
       expect(gas[defaultDomain]).to.equal('100000');
       expect(gas[mcOnlyDomain]).to.equal('200000');
     } finally {
+      batchStub.restore();
       tokenRouterStub.restore();
     }
   });
