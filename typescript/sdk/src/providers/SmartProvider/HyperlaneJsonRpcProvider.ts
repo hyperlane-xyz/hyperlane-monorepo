@@ -56,16 +56,18 @@ export class HyperlaneJsonRpcProvider
       return this.performGetLogs(params);
     }
 
-    const requestConfig: SmartProviderRequestConfig | undefined =
-      params?.[SMART_PROVIDER_REQUEST_CONFIG];
-    const providerParams =
-      requestConfig === undefined || params == null
-        ? params
-        : Object.fromEntries(
-            Object.entries(params).filter(
-              ([key]) => key !== SMART_PROVIDER_REQUEST_CONFIG,
-            ),
-          );
+    let requestConfig: SmartProviderRequestConfig | undefined;
+    let providerParams = params;
+    if (params != null && typeof params === 'object') {
+      const {
+        [SMART_PROVIDER_REQUEST_CONFIG]: smartProviderRequestConfig,
+        ...rest
+      } = params as Record<PropertyKey, unknown>;
+      requestConfig = smartProviderRequestConfig as
+        | SmartProviderRequestConfig
+        | undefined;
+      providerParams = rest;
+    }
 
     const result = await super.perform(method, providerParams);
     if (

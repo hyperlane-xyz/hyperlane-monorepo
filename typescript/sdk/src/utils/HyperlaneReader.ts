@@ -9,6 +9,42 @@ import {
 } from '../providers/SmartProvider/SmartProvider.js';
 import { ChainNameOrId } from '../types.js';
 
+type NestedError = {
+  cause?: unknown;
+  error?: unknown;
+};
+
+function getNestedErrorWithCode(
+  error: unknown,
+  code: string,
+): { code: string } | undefined {
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const candidate = queue.shift();
+    if (candidate == null || typeof candidate !== 'object') {
+      continue;
+    }
+    if (visited.has(candidate)) {
+      continue;
+    }
+    visited.add(candidate);
+
+    if (
+      'code' in candidate &&
+      (candidate as { code?: unknown }).code === code
+    ) {
+      return candidate as { code: string };
+    }
+
+    const nested = candidate as NestedError;
+    queue.push(nested.cause, nested.error);
+  }
+
+  return undefined;
+}
+
 export class HyperlaneReader {
   provider: providers.Provider;
 
@@ -34,21 +70,29 @@ export class HyperlaneReader {
     transaction: providers.TransactionRequest,
     blockTag: providers.BlockTag = 'latest',
   ): Promise<string> {
+    const txReq = {
+      ...transaction,
+      ...this.multiProvider.getTransactionOverrides(this.chain),
+    };
     if (this.provider instanceof HyperlaneSmartProvider) {
-      return this.provider.probeCall(transaction, blockTag);
+      return this.provider.probeCall(txReq, blockTag);
     }
 
-    return this.provider.call(transaction, blockTag);
+    return this.provider.call(txReq, blockTag);
   }
 
   protected async probeEstimateGas(
     transaction: providers.TransactionRequest,
   ): Promise<BigNumber> {
+    const txReq = {
+      ...transaction,
+      ...this.multiProvider.getTransactionOverrides(this.chain),
+    };
     if (this.provider instanceof HyperlaneSmartProvider) {
-      return this.provider.probeEstimateGas(transaction);
+      return this.provider.probeEstimateGas(txReq);
     }
 
-    return this.provider.estimateGas(transaction);
+    return this.provider.estimateGas(txReq);
   }
 
   protected async probeContractCall<T>(
@@ -87,7 +131,7 @@ export class HyperlaneReader {
       return (decoded.length === 1 ? decoded[0] : decoded) as T;
     } catch (error) {
       if (
-        (error as any)?.code === EthersError.INVALID_ARGUMENT ||
+        getNestedErrorWithCode(error, EthersError.INVALID_ARGUMENT) ||
         this.isProbeMissError(error)
       ) {
         return undefined;
@@ -116,25 +160,17 @@ export class HyperlaneReader {
       return true;
     }
 
-    const code =
-      (error as any)?.code ??
-      (error as any)?.cause?.code ??
-      (error as any)?.error?.cause?.code;
-
-    if (code === EthersError.UNPREDICTABLE_GAS_LIMIT) {
+    if (getNestedErrorWithCode(error, EthersError.UNPREDICTABLE_GAS_LIMIT)) {
       return true;
     }
 
-    if (code !== EthersError.CALL_EXCEPTION) {
+    const callException = getNestedErrorWithCode(
+      error,
+      EthersError.CALL_EXCEPTION,
+    );
+    if (!callException) {
       return false;
     }
-
-    const callException =
-      (error as any)?.code === EthersError.CALL_EXCEPTION
-        ? error
-        : (error as any)?.cause?.code === EthersError.CALL_EXCEPTION
-          ? (error as any).cause
-          : (error as any)?.error?.cause;
 
     return isDeterministicCallException(callException);
   }

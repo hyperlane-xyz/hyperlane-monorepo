@@ -626,11 +626,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return tokenAddress !== undefined && isZeroishAddress(tokenAddress);
     }
 
-    const gasEstimate = await this.probeContractEstimateGas({
-      from: NON_ZERO_SENDER_ADDRESS,
-      to: warpRouteAddress,
-      value: BigNumber.from(0),
-    });
+    const gasEstimate = await this.probeContractEstimateGas(
+      await this.multiProvider.prepareTx(
+        this.chain,
+        {
+          to: warpRouteAddress,
+          value: BigNumber.from(0),
+        },
+        NON_ZERO_SENDER_ADDRESS,
+      ),
+    );
 
     return gasEstimate !== undefined;
   }

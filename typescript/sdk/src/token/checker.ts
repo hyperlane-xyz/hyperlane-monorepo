@@ -152,18 +152,24 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     if (isNativeTokenConfig(expectedConfig)) {
       try {
         const provider = this.multiProvider.getProvider(chain);
-        const transaction = {
-          from: NON_ZERO_SENDER_ADDRESS,
-          to: hypToken.address,
-          value: BigNumber.from(1),
-        };
 
         if (provider instanceof HyperlaneSmartProvider) {
+          const transaction = await this.multiProvider.prepareTx(
+            chain,
+            {
+              to: hypToken.address,
+              value: BigNumber.from(1),
+            },
+            NON_ZERO_SENDER_ADDRESS,
+          );
           await provider.probeEstimateGas(transaction);
         } else {
           await this.multiProvider.estimateGas(
             chain,
-            transaction,
+            {
+              to: hypToken.address,
+              value: BigNumber.from(1),
+            },
             NON_ZERO_SENDER_ADDRESS,
           );
         }

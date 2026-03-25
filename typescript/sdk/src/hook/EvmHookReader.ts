@@ -266,28 +266,27 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   }
 
   async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
-    // First check if it's a CCIP hook
-    try {
-      const ccipHook = CCIPHook__factory.connect(address, this.provider);
-      // This method only exists on CCIPHook
-      await ccipHook.ccipDestination();
+    const ccipDestination = await this.probeContractCall(
+      address,
+      CCIPHook__factory.createInterface(),
+      'ccipDestination',
+    );
+    if (ccipDestination !== undefined) {
       return this.deriveCcipConfig(address);
-    } catch {
-      // Not a CCIP hook, try OPStack
-      try {
-        const opStackHook = OPStackHook__factory.connect(
-          address,
-          this.provider,
-        );
-        // This method only exists on OPStackHook
-        await opStackHook.l1Messenger();
-        return this.deriveOpStackConfig(address);
-      } catch {
-        throw new Error(
-          `Could not determine hook type - neither CCIP nor OPStack methods found`,
-        );
-      }
     }
+
+    const l1Messenger = await this.probeContractCall(
+      address,
+      OPStackHook__factory.createInterface(),
+      'l1Messenger',
+    );
+    if (l1Messenger !== undefined) {
+      return this.deriveOpStackConfig(address);
+    }
+
+    throw new Error(
+      `Could not determine hook type - neither CCIP nor OPStack methods found`,
+    );
   }
 
   async deriveCcipConfig(

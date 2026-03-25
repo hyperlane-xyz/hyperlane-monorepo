@@ -32,6 +32,9 @@ class ReaderHarness extends HyperlaneReader {
 }
 
 class ProbeReaderProvider extends providers.BaseProvider {
+  public lastCallTransaction?: providers.TransactionRequest;
+  public lastEstimateGasTransaction?: providers.TransactionRequest;
+
   constructor(
     private readonly options: {
       callResult?: string;
@@ -43,9 +46,10 @@ class ProbeReaderProvider extends providers.BaseProvider {
   }
 
   async call(
-    _transaction: providers.TransactionRequest,
+    transaction: providers.TransactionRequest,
     _blockTag?: providers.BlockTag,
   ): Promise<string> {
+    this.lastCallTransaction = transaction;
     if (this.options.callError) {
       throw this.options.callError;
     }
@@ -54,8 +58,9 @@ class ProbeReaderProvider extends providers.BaseProvider {
   }
 
   async estimateGas(
-    _transaction: providers.TransactionRequest,
+    transaction: providers.TransactionRequest,
   ): Promise<BigNumber> {
+    this.lastEstimateGasTransaction = transaction;
     if (this.options.estimateGasError) {
       throw this.options.estimateGasError;
     }
@@ -192,5 +197,29 @@ describe('HyperlaneReader', () => {
     const result = await reader.testProbeEstimateGas();
 
     expect(result).to.be.undefined;
+  });
+
+  it('applies chain transaction overrides to probe calls and estimates', async () => {
+    multiProvider = new MultiProvider({
+      ...multiProvider.metadata,
+      [TestChainName.test1]: {
+        ...multiProvider.metadata[TestChainName.test1],
+        transactionOverrides: { type: 0 },
+      },
+    });
+    const provider = new ProbeReaderProvider({
+      callResult:
+        '0x0000000000000000000000000000000000000000000000000000000000000001',
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    await Promise.all([
+      reader.testProbeContractCall(),
+      reader.testProbeEstimateGas(),
+    ]);
+
+    expect(provider.lastCallTransaction?.type).to.equal(0);
+    expect(provider.lastEstimateGasTransaction?.type).to.equal(0);
   });
 });
