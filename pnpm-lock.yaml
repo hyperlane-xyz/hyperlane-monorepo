@@ -2684,12 +2684,18 @@ importers:
       '@types/chai':
         specifier: ^4.3.14
         version: 4.3.20
+      '@types/chai-as-promised':
+        specifier: 'catalog:'
+        version: 8.0.2
       '@types/mocha':
         specifier: ^10.0.6
         version: 10.0.10
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
+      '@types/sinon':
+        specifier: 'catalog:'
+        version: 17.0.4
       '@typescript-eslint/eslint-plugin':
         specifier: 'catalog:'
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2))(eslint@9.39.2(jiti@2.6.1))(typescript@6.0.2)
@@ -2699,6 +2705,9 @@ importers:
       chai:
         specifier: ^4.4.1
         version: 4.5.0
+      chai-as-promised:
+        specifier: 'catalog:'
+        version: 8.0.2(chai@4.5.0)
       eslint:
         specifier: 'catalog:'
         version: 9.39.2(jiti@2.6.1)
@@ -2717,6 +2726,9 @@ importers:
       oxfmt:
         specifier: 'catalog:'
         version: 0.40.0
+      sinon:
+        specifier: 'catalog:'
+        version: 13.0.2
       testcontainers:
         specifier: 'catalog:'
         version: 11.12.0

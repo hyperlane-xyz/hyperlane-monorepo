@@ -247,7 +247,8 @@ export class SvmSigner
         throw error;
       }
     }
-    throw new Error('signAndSend: all attempts exhausted');
+    // Unreachable: the loop always either returns or throws
+    throw new Error('signAndSend: unreachable');
   }
 
   /**
@@ -318,6 +319,7 @@ export class SvmSigner
           return { signature, slot: check.slot };
         }
       } catch (error) {
+        if (error instanceof SvmTransactionError) throw error;
         this.logger.debug('History check failed, will resubmit', { error });
       }
 
