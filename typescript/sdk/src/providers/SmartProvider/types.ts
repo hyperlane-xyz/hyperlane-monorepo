@@ -54,3 +54,16 @@ export interface SmartProviderOptions extends ProviderRetryOptions {
   fallbackStaggerMs?: number;
   debug?: boolean;
 }
+
+export const SMART_PROVIDER_REQUEST_CONFIG =
+  '__hyperlaneSmartProviderRequestConfig';
+
+export enum SmartProviderRequestKind {
+  Read = 'read',
+  Probe = 'probe',
+}
+
+export interface SmartProviderRequestConfig {
+  kind: SmartProviderRequestKind;
+  allowEmptyCallResult?: boolean;
+}

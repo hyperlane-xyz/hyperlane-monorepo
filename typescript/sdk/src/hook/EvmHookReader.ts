@@ -132,13 +132,20 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     let derivedHookConfig: DerivedHookConfig;
 
     try {
-      const hook = IPostDispatchHook__factory.connect(address, this.provider);
       this.logger.debug('Deriving HookConfig:', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
       this.setSmartProviderLogLevel('silent');
-      onchainHookType = await hook.hookType();
+      onchainHookType = await this.probeContractCall<OnchainHookType>(
+        address,
+        IPostDispatchHook__factory.createInterface(),
+        'hookType',
+      );
+      assert(
+        onchainHookType !== undefined,
+        'The provided hook contract might be outdated and not support hookType()',
+      );
 
       switch (onchainHookType) {
         case OnchainHookType.ROUTING:
@@ -181,18 +188,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           );
       }
     } catch (e: any) {
-      let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
-        );
-        this.logger.info(`${customMessage}:\n\t${e}`);
-      } else {
-        this.logger.debug(`${customMessage}:\n\t${e}`);
-      }
+      const customMessage = `Failed to derive ${onchainHookType} hook (${address})`;
+      this.logger.debug(`${customMessage}:\n\t${e}`);
       throw new Error(`${customMessage}:\n\t${e}`);
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
