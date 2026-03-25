@@ -162,7 +162,7 @@ jobs:
 
       - name: agent tests (Tron)
         if: ${{ matrix.e2e-type == 'tron' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features tron-- tron::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features tron -- tron::test --nocapture
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
