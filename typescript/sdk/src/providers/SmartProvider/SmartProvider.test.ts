@@ -142,6 +142,39 @@ class RetrySpySmartProvider extends HyperlaneSmartProvider {
   }
 }
 
+class FallbackOverrideSmartProvider extends HyperlaneSmartProvider {
+  public performWithFallbackCallCount = 0;
+  public performWithFallbackForPolicyCallCount = 0;
+
+  constructor() {
+    super({ chainId: 1, name: 'test' }, [{ http: 'http://provider' }], [], {
+      maxRetries: 1,
+      baseRetryDelayMs: 1,
+      fallbackStaggerMs: 1,
+    });
+  }
+
+  public async performReadForTest(): Promise<any> {
+    return this.perform(ProviderMethod.GetBlockNumber, {});
+  }
+
+  public async performProbeForTest(): Promise<string> {
+    return this.probeCall({
+      to: '0x0000000000000000000000000000000000000001',
+    });
+  }
+
+  protected override async performWithFallback(): Promise<any> {
+    this.performWithFallbackCallCount += 1;
+    return 'read-override';
+  }
+
+  protected override async performWithFallbackForPolicy(): Promise<any> {
+    this.performWithFallbackForPolicyCallCount += 1;
+    return 'policy-override';
+  }
+}
+
 class ProviderError extends Error {
   public readonly reason: string;
   public readonly code: string;
@@ -839,6 +872,26 @@ describe('SmartProvider', () => {
       }
 
       expect(threw, 'probeCall should have thrown').to.be.true;
+      expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(1);
+    });
+
+    it('perform still uses performWithFallback overrides for read requests', async () => {
+      const smartProvider = new FallbackOverrideSmartProvider();
+
+      const result = await smartProvider.performReadForTest();
+
+      expect(result).to.equal('read-override');
+      expect(smartProvider.performWithFallbackCallCount).to.equal(1);
+      expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(0);
+    });
+
+    it('probe requests still use performWithFallbackForPolicy directly', async () => {
+      const smartProvider = new FallbackOverrideSmartProvider();
+
+      const result = await smartProvider.performProbeForTest();
+
+      expect(result).to.equal('policy-override');
+      expect(smartProvider.performWithFallbackCallCount).to.equal(0);
       expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(1);
     });
 
