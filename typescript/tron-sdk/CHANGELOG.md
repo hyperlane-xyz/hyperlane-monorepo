@@ -1,5 +1,33 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.1.6
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/core@11.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+
+## 22.1.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.0.1
+- @hyperlane-xyz/core@11.1.0
+- @hyperlane-xyz/provider-sdk@4.2.1
+
+## 22.1.4
+
+### Patch Changes
+
+- 3c6b1ad: Fixed Tron gas estimation and transaction building for wallet integration.
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/core@11.1.0
+
 ## 22.1.3
 
 ### Patch Changes

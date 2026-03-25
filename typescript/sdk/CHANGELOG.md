@@ -1,5 +1,68 @@
 # @hyperlane-xyz/sdk
 
+## 29.1.0
+
+### Minor Changes
+
+- a8192d7: Added TronScan ExplorerFamily
+- a891402: Added M0PortalAdapter for M0 Portal token transfers
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@29.1.0
+- @hyperlane-xyz/starknet-core@29.1.0
+- @hyperlane-xyz/cosmos-sdk@29.1.0
+- @hyperlane-xyz/radix-sdk@29.1.0
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/deploy-sdk@4.2.2
+- @hyperlane-xyz/core@11.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+- @hyperlane-xyz/tron-sdk@22.1.6
+
+## 29.0.1
+
+### Patch Changes
+
+- 96508ed: Added support for scale-down convention in verifyScale, accepting both scale-up and scale-down routes for cross-decimal configurations. Fixed verifyScale to reject mismatched scales when decimals are uniform across chains. Added positivity constraint to bigint scale schema fields. Improved decimals assertion to use nullish check instead of truthiness.
+  - @hyperlane-xyz/aleo-sdk@29.0.1
+  - @hyperlane-xyz/starknet-core@29.0.1
+  - @hyperlane-xyz/cosmos-sdk@29.0.1
+  - @hyperlane-xyz/radix-sdk@29.0.1
+  - @hyperlane-xyz/utils@29.0.1
+  - @hyperlane-xyz/deploy-sdk@4.2.1
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.1
+  - @hyperlane-xyz/tron-sdk@22.1.5
+
+## 29.0.0
+
+### Major Changes
+
+- cc6d57b: The bps type was changed from bigint to number throughout the LinearFee fee system to support fractional basis points (e.g., 1.5 bps).
+
+  Breaking changes:
+  - `convertToBps()` return type changed from `bigint` to `number`
+  - `convertFromBps()` parameter type changed from `bigint` to `number`
+  - `LinearFeeConfig.bps` and `LinearFeeInputConfig.bps` types changed from `bigint` to `number`
+  - `ZBps` schema no longer accepts `bigint` input — callers using `bps: 5n` must change to `bps: 5`
+  - `TokenFeeConfigSchema` and `LinearFeeConfigSchema` bps field type changed from `bigint` to `number`
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [09d6760]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/tron-sdk@22.1.4
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/deploy-sdk@4.2.0
+  - @hyperlane-xyz/aleo-sdk@29.0.0
+  - @hyperlane-xyz/cosmos-sdk@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/radix-sdk@29.0.0
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/starknet-core@29.0.0
+
 ## 28.1.0
 
 ### Minor Changes

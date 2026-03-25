@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "28.1.0",
+  "version": "29.1.0",
   "description": "A command-line utility for common Hyperlane operations",
   "keywords": [
     "CLI",
@@ -75,6 +75,7 @@
     "@inquirer/search": "^3.0.1",
     "@inquirer/select": "catalog:",
     "@inquirer/type": "^1.0.0",
+    "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/lodash-es": "catalog:",
     "@types/mocha": "catalog:",

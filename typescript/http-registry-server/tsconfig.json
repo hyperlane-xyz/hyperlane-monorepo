@@ -4,7 +4,8 @@
     "outDir": "./dist/",
     "rootDir": "./",
     "module": "nodenext",
-    "moduleResolution": "nodenext"
+    "moduleResolution": "nodenext",
+    "types": ["node", "mocha"]
   },
   "exclude": ["./node_modules/", "./dist/"],
   "include": ["./*.ts", "./scripts/**/*.ts", "./src/**/*.ts", "./test/**/*.ts"]

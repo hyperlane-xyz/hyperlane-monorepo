@@ -9474,7 +9474,10 @@
       "index": {
         "from": 18265273
       },
-      "batchContractAddress": "0x1d9c7400e3392e1854cfebd7c409eb22824d9023"
+      "batchContractAddress": "0x1d9c7400e3392e1854cfebd7c409eb22824d9023",
+      "transactionOverrides": {
+        "maxPriorityFeePerGas": 15000000000
+      }
     },
     "krown": {
       "blocks": {
