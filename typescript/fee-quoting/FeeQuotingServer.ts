@@ -156,7 +156,15 @@ export class FeeQuotingServer {
     );
 
     const multiProvider = new MultiProvider(chainMetadataMap);
-    const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+    const filteredAddresses = Object.fromEntries(
+      Object.entries(chainAddresses).filter(
+        ([chain]) => chain in chainMetadataMap,
+      ),
+    );
+    const core = HyperlaneCore.fromAddressesMap(
+      filteredAddresses,
+      multiProvider,
+    );
     const chainContexts = new Map<string, ChainQuoteContext>();
 
     for (const warpConfig of warpConfigs) {
