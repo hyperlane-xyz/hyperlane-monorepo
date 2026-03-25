@@ -2,10 +2,8 @@ import type { Logger } from 'pino';
 
 import { providers } from 'ethers';
 
-import {
-  EthJsonRpcBlockParameterTag,
-  MultiProtocolProvider,
-} from '@hyperlane-xyz/sdk';
+import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
