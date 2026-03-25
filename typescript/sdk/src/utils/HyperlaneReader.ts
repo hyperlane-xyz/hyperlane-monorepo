@@ -8,6 +8,7 @@ import {
   isDeterministicCallException,
 } from '../providers/SmartProvider/SmartProvider.js';
 import { ChainNameOrId } from '../types.js';
+import { ReadContractCall, readContractsWithMulticall } from './multicall.js';
 
 type NestedError = {
   cause?: unknown;
@@ -203,5 +204,12 @@ export class HyperlaneReader {
     }
 
     return isDeterministicCallException(callException);
+  }
+
+  protected async readContractBatch<T>(
+    calls: ReadContractCall<T>[],
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<T[]> {
+    return readContractsWithMulticall(this.provider, calls, blockTag);
   }
 }

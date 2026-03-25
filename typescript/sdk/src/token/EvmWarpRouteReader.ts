@@ -797,16 +797,25 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctpBase__factory.connect(
-      hypToken,
-      this.provider,
-    );
-
-    const [messageTransmitter, tokenMessenger, urls] = await Promise.all([
-      tokenBridge.messageTransmitter(),
-      tokenBridge.tokenMessenger(),
-      tokenBridge.urls(),
-    ]);
+    const tokenBridgeInterface = TokenBridgeCctpBase__factory.createInterface();
+    const [messageTransmitter, tokenMessenger, urls] =
+      (await this.readContractBatch([
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'messageTransmitter',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'tokenMessenger',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'urls',
+        },
+      ])) as [Address, Address, string[]];
 
     const onchainCctpVersion = await IMessageTransmitter__factory.connect(
       messageTransmitter,
@@ -823,29 +832,42 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         urls,
       };
     } else if (onchainCctpVersion === 1) {
-      const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
-        hypToken,
-        this.provider,
-      );
-
-      // Version-gate: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
+      const tokenBridgeV2Interface =
+        TokenBridgeCctpV2__factory.createInterface();
       const contractVersion = await this.fetchPackageVersion(hypToken);
       const usesPpmName =
         contractVersion !== undefined &&
         compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
 
-      const [minFinalityThreshold, maxFeePpm] = await Promise.all([
-        tokenBridgeV2.minFinalityThreshold(),
-        usesPpmName
-          ? tokenBridgeV2.maxFeePpm()
-          : tokenBridgeV2.provider
-              .call({
-                to: hypToken,
-                // maxFeeBps() selector
-                data: '0xbf769a3f',
-              })
-              .then((result) => BigNumber.from(result)),
-      ]);
+      const calls = [
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeV2Interface,
+          method: 'minFinalityThreshold',
+        },
+      ] as const;
+
+      const [minFinalityThreshold] = (await this.readContractBatch(
+        calls as any,
+      )) as [number];
+
+      const maxFeePpm = usesPpmName
+        ? (
+            await this.readContractBatch<BigNumber>([
+              {
+                target: hypToken,
+                contractInterface: tokenBridgeV2Interface,
+                method: 'maxFeePpm',
+              },
+            ])
+          )[0]
+        : await TokenBridgeCctpV2__factory.connect(hypToken, this.provider)
+            .provider.call({
+              to: hypToken,
+              data: '0xbf769a3f',
+            })
+            .then((result) => BigNumber.from(result));
+
       return {
         ...collateralConfig,
         type: TokenType.collateralCctp,
@@ -864,17 +886,35 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   private async deriveHypCollateralOftTokenConfig(
     hypToken: Address,
   ): Promise<OftTokenConfig> {
-    const tokenBridge = TokenBridgeOft__factory.connect(
-      hypToken,
-      this.provider,
-    );
-
-    const [oft, token, extraOptions, domainMappingsRaw] = await Promise.all([
-      tokenBridge.oft(),
-      tokenBridge.token(),
-      tokenBridge.extraOptions(),
-      tokenBridge.getDomainMappings(),
-    ]);
+    const tokenBridgeInterface = TokenBridgeOft__factory.createInterface();
+    const [oft, token, extraOptions, domainMappingsRaw] =
+      (await this.readContractBatch([
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'oft',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'token',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'extraOptions',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'getDomainMappings',
+        },
+      ])) as [
+        string,
+        Address,
+        string,
+        [Array<{ toString(): string }>, number[]],
+      ];
 
     const erc20Metadata = await this.fetchERC20Metadata(token);
 
@@ -1186,26 +1226,40 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   private async deriveCrossCollateralTokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
-      hypTokenAddress,
-      this.provider,
-    );
-    const tokenRouter = TokenRouter__factory.connect(
-      hypTokenAddress,
-      this.provider,
-    );
-
+    const crossCollateralRouterInterface =
+      CrossCollateralRouter__factory.createInterface();
+    const tokenRouterInterface = TokenRouter__factory.createInterface();
     const [
-      collateralTokenAddress,
-      remoteDomains,
-      crossCollateralDomains,
-      localDomain,
+      [
+        collateralTokenAddress,
+        remoteDomains,
+        crossCollateralDomains,
+        localDomain,
+      ],
       scale,
     ] = await Promise.all([
-      crossCollateralRouter.wrappedToken(),
-      tokenRouter.domains(),
-      crossCollateralRouter.getCrossCollateralDomains(),
-      crossCollateralRouter.localDomain(),
+      this.readContractBatch([
+        {
+          target: hypTokenAddress,
+          contractInterface: crossCollateralRouterInterface,
+          method: 'wrappedToken',
+        },
+        {
+          target: hypTokenAddress,
+          contractInterface: tokenRouterInterface,
+          method: 'domains',
+        },
+        {
+          target: hypTokenAddress,
+          contractInterface: crossCollateralRouterInterface,
+          method: 'getCrossCollateralDomains',
+        },
+        {
+          target: hypTokenAddress,
+          contractInterface: crossCollateralRouterInterface,
+          method: 'localDomain',
+        },
+      ]) as Promise<[Address, any[], any[], number]>,
       this.fetchScale(hypTokenAddress),
     ]);
 
@@ -1221,16 +1275,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         localDomain,
       ]),
     ];
-    const crossCollateralRouters: Record<string, string[]> = {};
-
-    await Promise.all(
-      allDomains.map(async (domain) => {
-        const routers =
-          await crossCollateralRouter.getCrossCollateralRouters(domain);
-        if (routers.length > 0) {
-          crossCollateralRouters[domain.toString()] = [...routers];
-        }
-      }),
+    const routersByDomain = await this.readContractBatch<string[]>(
+      allDomains.map((domain) => ({
+        target: hypTokenAddress,
+        contractInterface: crossCollateralRouterInterface,
+        method: 'getCrossCollateralRouters',
+        args: [domain],
+      })),
+    );
+    const crossCollateralRouters = Object.fromEntries(
+      allDomains
+        .map((domain, index) => [domain.toString(), routersByDomain[index]])
+        .filter(([, routers]) => routers.length > 0),
     );
 
     return {
@@ -1246,12 +1302,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
-    const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
-    const [name, symbol, decimals] = await Promise.all([
-      erc20.name(),
-      erc20.symbol(),
-      erc20.decimals(),
-    ]);
+    const erc20Interface = HypERC20__factory.createInterface();
+    const [name, symbol, decimals] = (await this.readContractBatch([
+      {
+        target: tokenAddress,
+        contractInterface: erc20Interface,
+        method: 'name',
+      },
+      {
+        target: tokenAddress,
+        contractInterface: erc20Interface,
+        method: 'symbol',
+      },
+      {
+        target: tokenAddress,
+        contractInterface: erc20Interface,
+        method: 'decimals',
+      },
+    ])) as [string, string, number];
 
     return { name, symbol, decimals, isNft: false };
   }
@@ -1277,18 +1345,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return;
     }
 
-    const tokenRouter = TokenRouter__factory.connect(
-      tokenRouterAddress,
-      this.provider,
-    );
-
     let result: NormalizedScale;
     if (hasScaleFractionInterface) {
-      // Read new format (scaleNumerator and scaleDenominator)
-      const [numerator, denominator] = await Promise.all([
-        tokenRouter.scaleNumerator(),
-        tokenRouter.scaleDenominator(),
-      ]);
+      const tokenRouterInterface = TokenRouter__factory.createInterface();
+      const [numerator, denominator] = (await this.readContractBatch<BigNumber>(
+        [
+          {
+            target: tokenRouterAddress,
+            contractInterface: tokenRouterInterface,
+            method: 'scaleNumerator',
+          },
+          {
+            target: tokenRouterAddress,
+            contractInterface: tokenRouterInterface,
+            method: 'scaleDenominator',
+          },
+        ],
+      )) as [BigNumber, BigNumber];
 
       result = {
         numerator: numerator.toBigInt(),
@@ -1397,13 +1470,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const allDomains = [
       ...new Set([...routerDomains.map(Number), ...additionalDomains]),
     ];
+    const routerInterface = TokenRouter__factory.createInterface();
+    const gasValues = await this.readContractBatch<BigNumber>(
+      allDomains.map((domain) => ({
+        target: warpRouteAddress,
+        contractInterface: routerInterface,
+        method: 'destinationGas',
+        args: [domain],
+      })),
+    );
 
     return Object.fromEntries(
-      await Promise.all(
-        allDomains.map(async (domain) => {
-          return [domain, (await warpRoute.destinationGas(domain)).toString()];
-        }),
-      ),
+      allDomains.map((domain, index) => [domain, gasValues[index].toString()]),
     );
   }
 }
