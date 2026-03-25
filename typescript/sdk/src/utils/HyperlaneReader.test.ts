@@ -13,6 +13,8 @@ import { HyperlaneReader } from './HyperlaneReader.js';
 const TEST_ADDRESS = '0x0000000000000000000000000000000000000001';
 const TEST_ADDRESS_2 = '0x0000000000000000000000000000000000000002';
 const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
+const CUSTOM_BATCH_CONTRACT_ADDRESS =
+  '0x00000000000000000000000000000000000000bA';
 const TEST_INTERFACE = new utils.Interface([
   'function probe() view returns (address)',
   'function owner() view returns (address)',
@@ -128,13 +130,19 @@ class BatchReaderProvider extends providers.BaseProvider {
       supportsMulticall?: boolean;
       multicallError?: Error;
       multicallSecondFailure?: boolean;
+      multicallResult?: string;
+      batchContractAddress?: string;
     } = {},
   ) {
     super({ name: 'test', chainId: 1 });
   }
 
+  private get batchContractAddress(): string {
+    return this.options.batchContractAddress ?? MULTICALL3_ADDRESS;
+  }
+
   async getCode(address: string): Promise<string> {
-    return address.toLowerCase() === MULTICALL3_ADDRESS.toLowerCase() &&
+    return address.toLowerCase() === this.batchContractAddress.toLowerCase() &&
       this.options.supportsMulticall
       ? '0x1234'
       : '0x';
@@ -148,10 +156,14 @@ class BatchReaderProvider extends providers.BaseProvider {
 
     if (
       transaction.to &&
-      transaction.to.toLowerCase() === MULTICALL3_ADDRESS.toLowerCase()
+      transaction.to.toLowerCase() === this.batchContractAddress.toLowerCase()
     ) {
       if (this.options.multicallError) {
         throw this.options.multicallError;
+      }
+
+      if (this.options.multicallResult !== undefined) {
+        return this.options.multicallResult;
       }
 
       return MULTICALL3_INTERFACE.encodeFunctionResult('aggregate3', [
@@ -420,5 +432,42 @@ describe('HyperlaneReader', () => {
     expect(result).to.deep.equal([TEST_ADDRESS, undefined]);
     expect(provider.callTransactions).to.have.length(1);
     expect(provider.callTransactions[0].to).to.equal(MULTICALL3_ADDRESS);
+  });
+
+  it('returns undefined when batched probe wrappers return 0x', async () => {
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+      multicallResult: '0x',
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testTryProbeContractBatch();
+
+    expect(result).to.be.undefined;
+    expect(provider.callTransactions).to.have.length(1);
+    expect(provider.callTransactions[0].to).to.equal(MULTICALL3_ADDRESS);
+  });
+
+  it('uses batchContractAddress from chain metadata for batched probe calls', async () => {
+    multiProvider = multiProvider.extendChainMetadata({
+      [TestChainName.test1]: {
+        batchContractAddress: CUSTOM_BATCH_CONTRACT_ADDRESS,
+      },
+    });
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+      batchContractAddress: CUSTOM_BATCH_CONTRACT_ADDRESS,
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testTryProbeContractBatch();
+
+    expect(result).to.deep.equal([TEST_ADDRESS, TEST_ADDRESS_2]);
+    expect(provider.callTransactions).to.have.length(1);
+    expect(provider.callTransactions[0].to).to.equal(
+      CUSTOM_BATCH_CONTRACT_ADDRESS,
+    );
   });
 });
