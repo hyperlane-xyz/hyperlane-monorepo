@@ -439,6 +439,10 @@ export {
 } from './middleware/query/InterchainQueryDeployer.js';
 export { isBlockExplorerHealthy } from './providers/explorerHealthTest.js';
 export {
+  ConfiguredMultiProtocolProvider,
+  ConfiguredMultiProtocolProviderOptions,
+} from './providers/ConfiguredMultiProtocolProvider.js';
+export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,
 } from './providers/MultiProtocolProvider.js';
