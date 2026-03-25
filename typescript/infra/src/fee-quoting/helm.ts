@@ -6,6 +6,7 @@ import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';
+import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 export class FeeQuotingHelmManager extends HelmManager {
   readonly helmChartPath: string = path.join(
@@ -33,12 +34,20 @@ export class FeeQuotingHelmManager extends HelmManager {
       ? `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`
       : DEFAULT_GITHUB_REGISTRY;
 
+    const envValuesPath = path.join(
+      this.helmChartPath,
+      `values-${this.environment}.yaml`,
+    );
+    const envValues = readYaml<Record<string, any>>(envValuesPath);
+
     return {
+      ...envValues,
       image: {
         repository: DockerImageRepos.FEE_QUOTING,
         tag: mainnetDockerTags.feeQuoting,
       },
       hyperlane: {
+        ...envValues.hyperlane,
         runEnv: this.environment,
         registryUri,
       },
