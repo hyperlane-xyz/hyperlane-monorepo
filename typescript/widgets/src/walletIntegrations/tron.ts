@@ -3,13 +3,13 @@ import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapter-tronlink';
 import { useCallback, useMemo } from 'react';
 
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {

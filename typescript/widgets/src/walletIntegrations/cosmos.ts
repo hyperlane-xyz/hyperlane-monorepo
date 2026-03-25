@@ -5,16 +5,16 @@ import { useCallback, useMemo } from 'react';
 
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk/runtime';
 import { cosmoshub } from '@hyperlane-xyz/registry';
+import { chainMetadataToCosmosChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
+import type { ChainMetadata } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
 import {
-  ChainMetadata,
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
+  type TypedTransactionReceipt,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-  chainMetadataToCosmosChain,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';

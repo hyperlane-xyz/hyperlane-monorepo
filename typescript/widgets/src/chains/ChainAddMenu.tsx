@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
   ChainMetadata,
   ChainMetadataSchema,
-  MultiProtocolProvider,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
+import { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { ChainMap } from '@hyperlane-xyz/sdk/types';
 import {
   Result,
   failure,

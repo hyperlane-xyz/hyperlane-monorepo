@@ -6,13 +6,13 @@ import { useCallback, useMemo } from 'react';
 
 import type { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk/runtime';
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { useAccount } from './radix/AccountContext.js';

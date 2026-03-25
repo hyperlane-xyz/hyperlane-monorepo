@@ -10,17 +10,17 @@ import { useCallback, useMemo } from 'react';
 import { Chain as ViemChain } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
+import { chainMetadataToViemChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
 import {
-  ChainName,
-  EvmHypXERC20LockboxAdapter,
-  IToken,
-  LOCKBOX_STANDARDS,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-  chainMetadataToViemChain,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import { EvmHypXERC20LockboxAdapter } from '@hyperlane-xyz/sdk/token/adapters/EvmTokenAdapter';
+import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';

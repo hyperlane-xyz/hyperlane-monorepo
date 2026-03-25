@@ -5,13 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AleoTransaction } from '@hyperlane-xyz/aleo-sdk/runtime';
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import { useAleoPopup } from './aleo/AleoProviders.js';
