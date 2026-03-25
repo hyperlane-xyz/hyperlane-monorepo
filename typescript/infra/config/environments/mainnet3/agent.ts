@@ -1035,6 +1035,7 @@ const fastPath: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
     },
+    blacklist,
     gasPaymentEnforcement,
     reorgPeriodOverrides: { ethereum: 1 },
     whitelist: warpRouteMatchingList(WarpRouteIds.CitreaUSD),
