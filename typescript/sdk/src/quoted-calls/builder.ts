@@ -19,6 +19,9 @@ import {
 import type { Permit2Data, SubmitQuoteCommand } from './types.js';
 import { QuotedCallsCommand, TokenPullMode } from './types.js';
 
+/** type(uint256).max — standing approval so subsequent calls skip the SSTORE */
+const MAX_UINT256 = 2n ** 256n - 1n;
+
 /** Common params for both quoting and executing */
 export interface QuotedTransferParams {
   /** QuotedCalls contract address */
@@ -147,14 +150,14 @@ export function buildExecuteCalldata(
   );
   const transferQuotes = params.feeQuotes[transferCommandIndex];
 
-  // Extract per-command native value and token approval from the transfer quotes
+  // Extract per-command native value from the transfer quotes
   let transferNativeValue = 0n;
-  let transferTokenApproval = 0n;
+  let transferTokenFee = 0n;
   for (const q of transferQuotes) {
     if (q.token.toLowerCase() === zeroAddress) {
       transferNativeValue += q.amount;
     } else {
-      transferTokenApproval += q.amount;
+      transferTokenFee += q.amount;
     }
   }
 
@@ -194,7 +197,8 @@ export function buildExecuteCalldata(
     }
   }
 
-  // 3. Transfer remote — use exact amounts from per-command quotes
+  // 3. Transfer remote — use max approval for standing allowance (skips SSTORE after first call)
+  const approval = isNativeRoute ? 0n : MAX_UINT256;
   if (params.targetRouter) {
     commands.push(QuotedCallsCommand.TRANSFER_REMOTE_TO);
     inputs.push(
@@ -206,7 +210,7 @@ export function buildExecuteCalldata(
         targetRouter: params.targetRouter,
         value: transferNativeValue,
         token: params.token,
-        approval: transferTokenApproval,
+        approval,
       }),
     );
   } else {
@@ -219,14 +223,22 @@ export function buildExecuteCalldata(
         amount: params.amount,
         value: transferNativeValue,
         token: params.token,
-        approval: transferTokenApproval,
+        approval,
       }),
     );
   }
 
-  // 4. Sweep leftover tokens + ETH
-  commands.push(QuotedCallsCommand.SWEEP);
-  inputs.push(encodeSweepInput(params.token));
+  // 4. Sweep leftover tokens + ETH back to caller.
+  // Skip when using TransferFrom (exact pull) and no token fees — nothing to sweep.
+  const hasTokenFees = transferTokenFee > 0n;
+  const needsSweep =
+    isNativeRoute ||
+    params.tokenPullMode === TokenPullMode.Permit2 ||
+    hasTokenFees;
+  if (needsSweep) {
+    commands.push(QuotedCallsCommand.SWEEP);
+    inputs.push(encodeSweepInput(params.token));
+  }
 
   // msg.value = total native value from quotes.
   // For native routes, quoteTransferRemote already includes the transfer amount

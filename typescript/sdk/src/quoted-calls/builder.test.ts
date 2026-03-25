@@ -190,6 +190,29 @@ describe('buildExecuteCalldata', () => {
     ]);
   });
 
+  it('skips SWEEP for TransferFrom with zero token fees', () => {
+    const zeroTokenFeeQuotes: Quote[][] = [
+      [], // SUBMIT_QUOTE → empty
+      [
+        // TRANSFER_REMOTE → native fee only, no token fee
+        { token: zeroAddress, amount: 100n },
+      ],
+    ];
+    const result = buildExecuteCalldata({
+      ...BASE_PARAMS,
+      feeQuotes: zeroTokenFeeQuotes,
+      tokenPullMode: TokenPullMode.TransferFrom,
+    });
+
+    const { commands } = decodeCommands(result.data);
+    // No TRANSFER_FROM (totalTokenNeeded=0) and no SWEEP (TransferFrom + zero token fees)
+    expect(commands).to.deep.equal([
+      QuotedCallsCommand.SUBMIT_QUOTE,
+      QuotedCallsCommand.TRANSFER_REMOTE,
+    ]);
+    expect(result.value).to.equal(100n);
+  });
+
   it('throws when Permit2 mode without permit2Data', () => {
     expect(() =>
       buildExecuteCalldata({
