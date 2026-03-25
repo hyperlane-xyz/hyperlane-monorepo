@@ -2,10 +2,10 @@ import { providers, utils } from 'ethers';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-const MULTICALL3_ADDRESS =
+export const MULTICALL3_ADDRESS =
   '0xcA11bde05977b3631167028862bE2a173976CA11' as Address;
 
-const MULTICALL3_INTERFACE = new utils.Interface([
+export const MULTICALL3_INTERFACE = new utils.Interface([
   'function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[] returnData)',
 ]);
 
@@ -22,7 +22,7 @@ export interface ReadContractCall<T> {
   decode?: (decoded: utils.Result) => T;
 }
 
-function normalizeDecodedResult<T>(
+export function normalizeDecodedResult<T>(
   decoded: utils.Result,
   decode?: (decoded: utils.Result) => T,
 ): T {
@@ -58,7 +58,7 @@ async function callContractsIndividually<T>(
   );
 }
 
-async function supportsMulticall(
+export async function supportsMulticall(
   provider: providers.Provider,
 ): Promise<boolean> {
   const cached = multicallSupportCache.get(provider);

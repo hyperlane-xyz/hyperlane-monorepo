@@ -1037,6 +1037,40 @@ describe('SmartProvider', () => {
       }
     });
 
+    it('probe requests treat nested ServerError(3) bodies as probe misses', async () => {
+      const probeMiss = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          jsonRpcErrorCode: -32603,
+          jsonRpcBody: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            error: {
+              code: -32603,
+              message:
+                'ErrorObject { code: ServerError(3), message: "execution reverted", data: None }',
+            },
+          }),
+        },
+      );
+      const provider1 = MockProvider.error(probeMiss);
+      const provider2 = MockProvider.success('success2');
+      const smartProvider = new TestableSmartProvider([provider1, provider2]);
+
+      try {
+        await smartProvider.simpleProbePerform(ProviderMethod.Call, 1);
+        expect.fail('Should have thrown a probe miss');
+      } catch (e: any) {
+        expect(e).to.be.instanceOf(ProbeMissError);
+        expect(e.message).to.equal('missing revert data in call exception');
+        expect(e.cause).to.equal(probeMiss);
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.false;
+      }
+    });
+
     it('probe requests still accept an earlier slow success after a later probe miss', async () => {
       const slowSuccess = MockProvider.success('success1', 120);
       const probeMiss = MockProvider.error(

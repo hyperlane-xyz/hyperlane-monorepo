@@ -50,6 +50,23 @@ class ReaderHarness extends HyperlaneReader {
       },
     ]) as Promise<[string, string]>;
   }
+
+  async testTryProbeContractBatch(): Promise<
+    [string | undefined, string | undefined] | undefined
+  > {
+    return this.tryProbeContractBatch<string>([
+      {
+        target: TEST_ADDRESS,
+        contractInterface: TEST_INTERFACE,
+        method: 'probe',
+      },
+      {
+        target: TEST_ADDRESS_2,
+        contractInterface: TEST_INTERFACE,
+        method: 'owner',
+      },
+    ]) as Promise<[string | undefined, string | undefined] | undefined>;
+  }
 }
 
 class ProbeReaderProvider extends providers.BaseProvider {
@@ -110,6 +127,7 @@ class BatchReaderProvider extends providers.BaseProvider {
     private readonly options: {
       supportsMulticall?: boolean;
       multicallError?: Error;
+      multicallSecondFailure?: boolean;
     } = {},
   ) {
     super({ name: 'test', chainId: 1 });
@@ -144,12 +162,17 @@ class BatchReaderProvider extends providers.BaseProvider {
               TEST_ADDRESS,
             ]),
           },
-          {
-            success: true,
-            returnData: TEST_INTERFACE.encodeFunctionResult('owner', [
-              TEST_ADDRESS_2,
-            ]),
-          },
+          this.options.multicallSecondFailure
+            ? {
+                success: false,
+                returnData: '0x',
+              }
+            : {
+                success: true,
+                returnData: TEST_INTERFACE.encodeFunctionResult('owner', [
+                  TEST_ADDRESS_2,
+                ]),
+              },
         ],
       ]);
     }
@@ -208,6 +231,36 @@ describe('HyperlaneReader', () => {
               code: -32000,
               data: '{}',
             },
+          },
+        },
+      ),
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testProbeContractCall();
+
+    expect(result).to.be.undefined;
+  });
+
+  it('returns undefined when the RPC body nests ServerError(3) for regular providers', async () => {
+    const provider = new ProbeReaderProvider({
+      callError: Object.assign(
+        new Error('missing revert data in call exception'),
+        {
+          code: EthersError.CALL_EXCEPTION,
+          data: '0x',
+          error: {
+            code: EthersError.SERVER_ERROR,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              error: {
+                code: -32603,
+                message:
+                  'ErrorObject { code: ServerError(3), message: "execution reverted", data: None }',
+              },
+            }),
           },
         },
       ),
@@ -329,5 +382,43 @@ describe('HyperlaneReader', () => {
       TEST_ADDRESS,
       TEST_ADDRESS_2,
     ]);
+  });
+
+  it('uses multicall for batched probe calls when available', async () => {
+    const provider = new BatchReaderProvider({ supportsMulticall: true });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testTryProbeContractBatch();
+
+    expect(result).to.deep.equal([TEST_ADDRESS, TEST_ADDRESS_2]);
+    expect(provider.callTransactions).to.have.length(1);
+    expect(provider.callTransactions[0].to).to.equal(MULTICALL3_ADDRESS);
+  });
+
+  it('returns undefined when multicall probe batching is unavailable', async () => {
+    const provider = new BatchReaderProvider({ supportsMulticall: false });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testTryProbeContractBatch();
+
+    expect(result).to.be.undefined;
+    expect(provider.callTransactions).to.have.length(0);
+  });
+
+  it('treats failed multicall probe subcalls as undefined', async () => {
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+      multicallSecondFailure: true,
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+
+    const result = await reader.testTryProbeContractBatch();
+
+    expect(result).to.deep.equal([TEST_ADDRESS, undefined]);
+    expect(provider.callTransactions).to.have.length(1);
+    expect(provider.callTransactions[0].to).to.equal(MULTICALL3_ADDRESS);
   });
 });
