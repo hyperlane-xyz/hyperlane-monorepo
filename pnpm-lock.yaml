@@ -1246,6 +1246,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/cors':
         specifier: ^2
         version: 2.8.19

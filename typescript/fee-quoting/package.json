@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
     "@types/mocha": "catalog:",

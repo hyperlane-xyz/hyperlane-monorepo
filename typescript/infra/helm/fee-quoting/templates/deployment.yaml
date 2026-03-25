@@ -39,6 +39,8 @@ spec:
             - secretRef:
                 name: {{ .Chart.Name }}-secrets
           env:
+            - name: REGISTRY_URI
+              value: {{ .Values.hyperlane.registryUri | quote }}
 {{- with .Values.env }}
 {{ toYaml . | indent 12 }}
 {{- end }}

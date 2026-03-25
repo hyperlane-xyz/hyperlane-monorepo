@@ -8,5 +8,3 @@ env:
     value: 'transient'
   - name: WARP_ROUTE_IDS
     value: 'USDC/eclipsemainnet'
-  - name: REGISTRY_URI
-    value: 'https://github.com/hyperlane-xyz/hyperlane-registry'
