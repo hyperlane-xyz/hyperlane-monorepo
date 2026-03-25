@@ -146,21 +146,33 @@ class ProviderError extends Error {
   public readonly reason: string;
   public readonly code: string;
   public readonly data?: string;
-  public readonly error?: { error?: { code?: number } };
+  public readonly error?: { error?: { code?: number; data?: unknown } };
 
   constructor(
     message: string,
     code: string,
     data?: string,
-    options?: { jsonRpcErrorCode?: number; hasNestedError?: boolean },
+    options?: {
+      jsonRpcErrorCode?: number;
+      jsonRpcErrorData?: unknown;
+      hasNestedError?: boolean;
+    },
   ) {
     super(message);
     this.reason = message;
     this.code = code;
     this.data = data;
     // Simulate ethers nested error structure for JSON-RPC errors
-    if (options?.jsonRpcErrorCode !== undefined) {
-      this.error = { error: { code: options.jsonRpcErrorCode } };
+    if (
+      options?.jsonRpcErrorCode !== undefined ||
+      options?.jsonRpcErrorData !== undefined
+    ) {
+      this.error = {
+        error: {
+          code: options?.jsonRpcErrorCode,
+          data: options?.jsonRpcErrorData,
+        },
+      };
     } else if (options?.hasNestedError) {
       // Has nested error but no JSON-RPC code (e.g., RPC connection issue)
       this.error = { error: {} };
@@ -517,6 +529,29 @@ describe('SmartProvider', () => {
       expect(e.message).to.equal('execution reverted');
       expect(e.cause).to.equal(error);
     });
+
+    it('treats CALL_EXCEPTION with Tron-style empty-object revert data as permanent (BlockchainError)', () => {
+      const error = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          jsonRpcErrorCode: -32000,
+          jsonRpcErrorData: '{}',
+        },
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(BlockchainError);
+      expect(e.isRecoverable).to.equal(false);
+      expect(e.message).to.equal('missing revert data in call exception');
+      expect(e.cause).to.equal(error);
+    });
   });
 
   describe('performWithFallback', () => {
@@ -747,6 +782,34 @@ describe('SmartProvider', () => {
       }
     });
 
+    it('CALL_EXCEPTION with Tron-style empty-object revert data stops trying additional providers', async () => {
+      const tronStyleCallException = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          jsonRpcErrorCode: -32000,
+          jsonRpcErrorData: '{}',
+        },
+      );
+
+      const provider1 = MockProvider.error(tronStyleCallException);
+      const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
+
+      try {
+        await provider.simplePerform('getBlockNumber', 1);
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e).to.be.instanceOf(BlockchainError);
+        expect(e.isRecoverable).to.equal(false);
+        expect(e.message).to.equal('missing revert data in call exception');
+        expect(e.cause).to.equal(tronStyleCallException);
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.false;
+      }
+    });
+
     it('sendTransaction bypasses retryAsync to prevent duplicate submissions', async () => {
       const smartProvider = new RetrySpySmartProvider();
 
@@ -833,6 +896,32 @@ describe('SmartProvider', () => {
       } catch (e: any) {
         expect(e).to.be.instanceOf(ProbeMissError);
         expect(e.message).to.equal('execution reverted');
+        expect(e.cause).to.equal(probeMiss);
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.false;
+      }
+    });
+
+    it('probe requests treat Tron-style empty-object CALL_EXCEPTION as probe misses', async () => {
+      const probeMiss = new ProviderError(
+        'missing revert data in call exception',
+        EthersError.CALL_EXCEPTION,
+        '0x',
+        {
+          jsonRpcErrorCode: -32000,
+          jsonRpcErrorData: '{}',
+        },
+      );
+      const provider1 = MockProvider.error(probeMiss);
+      const provider2 = MockProvider.success('success2');
+      const smartProvider = new TestableSmartProvider([provider1, provider2]);
+
+      try {
+        await smartProvider.simpleProbePerform(ProviderMethod.Call, 1);
+        expect.fail('Should have thrown a probe miss');
+      } catch (e: any) {
+        expect(e).to.be.instanceOf(ProbeMissError);
+        expect(e.message).to.equal('missing revert data in call exception');
         expect(e.cause).to.equal(probeMiss);
         expect(provider1.called).to.be.true;
         expect(provider2.called).to.be.false;
