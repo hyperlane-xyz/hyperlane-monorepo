@@ -25,6 +25,14 @@ export function createSealevelHypAdapter(
     return undefined;
   }
 
+  if (
+    standard !== TokenStandard.SealevelHypNative &&
+    standard !== TokenStandard.SealevelHypCollateral &&
+    standard !== TokenStandard.SealevelHypSynthetic
+  ) {
+    return undefined;
+  }
+
   const mailbox = multiProvider.getChainMetadata(chainName).mailbox;
 
   switch (standard) {
