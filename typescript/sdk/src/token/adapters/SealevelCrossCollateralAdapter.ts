@@ -74,13 +74,18 @@ export class SealevelHypCrossCollateralAdapter
 
   // Stub methods — will be implemented in subsequent commits
   async quoteTransferRemoteToGas(
-    _params: Parameters<
+    params: Parameters<
       IHypCrossCollateralAdapter<Transaction>['quoteTransferRemoteToGas']
     >[0],
   ) {
+    const localDomain = this.multiProvider.getDomainId(this.chainName);
+    if (params.destination === localDomain) {
+      return { igpQuote: { amount: 0n } };
+    }
+
     return this.quoteTransferRemoteGas({
-      destination: _params.destination,
-      sender: _params.sender,
+      destination: params.destination,
+      sender: params.sender,
     });
   }
 
@@ -240,19 +245,25 @@ export class SealevelHypCrossCollateralAdapter
     recipient: Uint8Array;
     payer: PublicKey;
   }): Promise<Array<AccountMeta>> {
+    // Build TokenMessage bytes: recipient (32) + amount (32, big-endian) + metadata (empty)
+    const tokenMessage = Buffer.alloc(64);
+    tokenMessage.set(recipient, 0);
+    // Write amount as 32-byte big-endian
+    const amountHex = amount.toString(16).padStart(64, '0');
+    tokenMessage.set(Buffer.from(amountHex, 'hex'), 32);
+
     const value = new SealevelInstructionWrapper({
       instruction: SealevelCCInstructionKind.HandleLocalAccountMetas,
       data: new SealevelCCHandleLocalInstruction({
         sender_program_id: senderProgram.toBytes(),
-        amount_or_id: amount,
-        recipient,
+        message: tokenMessage,
       }),
     });
     const serializedData = serialize(SealevelCCHandleLocalSchema, value);
 
     // Derive the target program's token PDA (same seed pattern, different program)
     const targetTokenPda = this.derivePda(
-      ['hyperlane_token', '-', 'token'],
+      ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
       targetProgram,
     );
 
@@ -278,10 +289,15 @@ export class SealevelHypCrossCollateralAdapter
       sigVerify: false,
     });
 
-    const base64Data = simulationResponse.value.returnData?.data?.[0];
+    const { returnData, err, logs } = simulationResponse.value;
+    assert(
+      !err,
+      `HandleLocalAccountMetas simulation failed: ${JSON.stringify(err)}\nLogs: ${logs?.join('\n')}`,
+    );
+    const base64Data = returnData?.data?.[0];
     assert(
       base64Data,
-      'No return data from HandleLocalAccountMetas simulation',
+      `No return data from HandleLocalAccountMetas simulation\nLogs: ${logs?.join('\n')}`,
     );
 
     const data = Buffer.from(base64Data, 'base64');
@@ -375,7 +391,9 @@ export class SealevelHypCrossCollateralAdapter
       // 9.   [writeable] The escrow PDA account.
       { pubkey: this.deriveEscrowAccount(), isSigner: false, isWritable: true },
       // 10+. Target HandleLocal accounts (from simulation).
-      ...handleLocalAccountMetas,
+      // Skip index 0 (cc_dispatch_authority) — transfer_remote_to_local
+      // prepends it to the CPI, so remaining_accounts starts at index 1.
+      ...handleLocalAccountMetas.slice(1),
     ];
 
     return keys;
@@ -397,11 +415,11 @@ export class SealevelHypCrossCollateralAdapter
       addressToBytes(targetRouter),
       32,
     );
-    const targetProgram = new PublicKey(targetRouter);
     const localDomain = this.multiProvider.getDomainId(this.chainName);
 
     let keys: Array<AccountMeta>;
     if (destination === localDomain) {
+      const targetProgram = new PublicKey(targetRouter);
       keys = await this.getTransferRemoteToLocalKeyList({
         sender,
         targetProgram,
