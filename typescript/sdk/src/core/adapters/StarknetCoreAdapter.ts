@@ -9,7 +9,7 @@ import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, HexString, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import {
   ProviderType,
   StarknetJsTransactionReceipt,

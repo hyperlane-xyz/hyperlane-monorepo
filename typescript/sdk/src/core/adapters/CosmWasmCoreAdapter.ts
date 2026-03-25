@@ -15,7 +15,7 @@ import {
   QueryMsg,
   RequiredHookResponse,
 } from '../../cw-types/Mailbox.types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,

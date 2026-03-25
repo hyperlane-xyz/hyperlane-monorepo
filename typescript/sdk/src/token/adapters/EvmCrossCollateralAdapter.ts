@@ -14,7 +14,7 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 
 import { InterchainGasQuote } from './ITokenAdapter.js';

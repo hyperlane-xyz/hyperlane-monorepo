@@ -39,7 +39,7 @@ import {
   SealevelOverheadIgpAdapter,
 } from '../../gas/adapters/SealevelIgpAdapter.js';
 import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,

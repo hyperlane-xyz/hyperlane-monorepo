@@ -14,7 +14,7 @@ import {
   QueryMsg as MultisigQuery,
 } from '../../cw-types/IsmMultisig.types.js';
 import { MultisigConfig, MultisigIsmConfig } from '../../ism/types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 type MultisigResponse = EnrolledValidatorsResponse;

@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import { TypedTransactionReceipt } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 

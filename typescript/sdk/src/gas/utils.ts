@@ -12,7 +12,7 @@ import {
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
 

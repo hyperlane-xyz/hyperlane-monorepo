@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import {
   AleoProvider,
   CosmJsNativeProvider,

@@ -3,7 +3,7 @@ import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 
 import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';

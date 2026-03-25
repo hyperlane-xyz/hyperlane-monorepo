@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Address, Numberish, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ZChainName, ZUint } from '../metadata/customZodTypes.js';
-import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import type { ChainName } from '../types.js';
 
 import type { TokenAmount } from './TokenAmount.js';

@@ -14,7 +14,7 @@ import {
   RouteResponseForAddr,
   RoutesResponseForAddr,
 } from '../../cw-types/Igp.types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 // TODO: import more

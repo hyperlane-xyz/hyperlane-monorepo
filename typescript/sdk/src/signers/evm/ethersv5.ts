@@ -5,7 +5,7 @@ import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import {
   MultiProvider,
   SendTransactionOptions,

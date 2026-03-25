@@ -14,7 +14,7 @@ import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
