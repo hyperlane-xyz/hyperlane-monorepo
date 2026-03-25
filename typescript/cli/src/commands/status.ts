@@ -1,9 +1,9 @@
-import { type CommandModuleWithContext } from '../context/types.js';
+import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { checkMessageStatus } from '../status/message.js';
 
 import { type MessageOptionsArgTypes, messageOptions } from './send.js';
 
-export const statusCommand: CommandModuleWithContext<
+export const statusCommand: CommandModuleWithWriteContext<
   MessageOptionsArgTypes & { id?: string } & { dispatchTx?: string }
 > = {
   command: 'status',
