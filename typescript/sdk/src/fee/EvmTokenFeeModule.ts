@@ -6,7 +6,6 @@ import {
   ProtocolType,
   deepEquals,
   eqAddress,
-  isNullish,
   objMap,
   objMerge,
   objOmit,
@@ -56,7 +55,7 @@ function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
   token: Address,
 ): ResolvedTokenFeeConfigInput {
-  if (config.type === TokenFeeType.RoutingFee && config.feeContracts) {
+  if (config.type === TokenFeeType.RoutingFee) {
     return {
       ...config,
       token,
@@ -68,10 +67,7 @@ function resolveTokenForFeeConfig(
       ),
     };
   }
-  if (
-    config.type === TokenFeeType.CrossCollateralRoutingFee &&
-    config.feeContracts
-  ) {
+  if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
     return {
       ...config,
       token,
@@ -236,27 +232,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       };
     } else if (config.type === TokenFeeType.RoutingFee) {
       const { token, owner } = config;
-      const feeContracts = config.feeContracts
-        ? await promiseObjAll(
-            objMap(
-              config.feeContracts as Record<
-                string,
-                ResolvedTokenFeeConfigInput
-              >,
-              async (_, innerConfig) => {
-                const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
-                  ...innerConfig,
-                  token: innerConfig.token ?? token,
-                };
-                return EvmTokenFeeModule.expandConfig({
-                  config: resolvedInnerConfig,
-                  multiProvider,
-                  chainName,
-                });
-              },
-            ),
-          )
-        : undefined;
+      const feeContracts = await promiseObjAll(
+        objMap(
+          config.feeContracts as Record<string, ResolvedTokenFeeConfigInput>,
+          async (_, innerConfig) => {
+            const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
+              ...innerConfig,
+              token: innerConfig.token ?? token,
+            };
+            return EvmTokenFeeModule.expandConfig({
+              config: resolvedInnerConfig,
+              multiProvider,
+              chainName,
+            });
+          },
+        ),
+      );
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
         token,
@@ -266,40 +257,38 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     } else if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
       const { token, owner } = config;
 
-      const feeContracts = config.feeContracts
-        ? await promiseObjAll(
-            objMap(config.feeContracts, async (_, destinationConfig) => {
-              const defaultFee = destinationConfig.default
-                ? await EvmTokenFeeModule.expandConfig({
+      const feeContracts = await promiseObjAll(
+        objMap(config.feeContracts, async (_, destinationConfig) => {
+          const defaultFee = destinationConfig.default
+            ? await EvmTokenFeeModule.expandConfig({
+                config: {
+                  ...destinationConfig.default,
+                  token: destinationConfig.default.token ?? token,
+                },
+                multiProvider,
+                chainName,
+              })
+            : undefined;
+          const routers = destinationConfig.routers
+            ? await promiseObjAll(
+                objMap(destinationConfig.routers, async (_, innerConfig) =>
+                  EvmTokenFeeModule.expandConfig({
                     config: {
-                      ...destinationConfig.default,
-                      token: destinationConfig.default.token ?? token,
+                      ...innerConfig,
+                      token: innerConfig.token ?? token,
                     },
                     multiProvider,
                     chainName,
-                  })
-                : undefined;
-              const routers = destinationConfig.routers
-                ? await promiseObjAll(
-                    objMap(destinationConfig.routers, async (_, innerConfig) =>
-                      EvmTokenFeeModule.expandConfig({
-                        config: {
-                          ...innerConfig,
-                          token: innerConfig.token ?? token,
-                        },
-                        multiProvider,
-                        chainName,
-                      }),
-                    ),
-                  )
-                : undefined;
-              return {
-                ...(defaultFee ? { default: defaultFee } : {}),
-                ...(routers ? { routers } : {}),
-              };
-            }),
-          )
-        : undefined;
+                  }),
+                ),
+              )
+            : undefined;
+          return {
+            ...(defaultFee ? { default: defaultFee } : {}),
+            ...(routers ? { routers } : {}),
+          };
+        }),
+      );
 
       intermediaryConfig = {
         type: TokenFeeType.CrossCollateralRoutingFee,
@@ -378,8 +367,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // Derive routing destinations from target config if not provided.
     // Also always include CCR router keys when available.
     const crossCollateralRouters =
-      targetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
-      targetConfig.feeContracts
+      targetConfig.type === TokenFeeType.CrossCollateralRoutingFee
         ? Object.fromEntries(
             Object.entries(targetConfig.feeContracts).map(
               ([chainName, destinationConfig]) => [
@@ -396,14 +384,27 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     };
 
     if (
+      targetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+      Object.keys(targetConfig.feeContracts).length === 0 &&
+      params?.routingDestinations?.length
+    ) {
+      effectiveParams = {
+        ...effectiveParams,
+        crossCollateralRouters: Object.fromEntries(
+          params.routingDestinations.map((destination) => [destination, []]),
+        ),
+      };
+    }
+
+    if (
       !params?.routingDestinations &&
       ((targetConfig.type === TokenFeeType.RoutingFee &&
-        !isNullish(targetConfig.feeContracts)) ||
+        Object.keys(targetConfig.feeContracts).length > 0) ||
         (targetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
-          !isNullish(targetConfig.feeContracts)))
+          Object.keys(targetConfig.feeContracts).length > 0))
     ) {
       const destinations = new Set<string>(
-        Object.keys(targetConfig.feeContracts ?? {}),
+        Object.keys(targetConfig.feeContracts),
       );
       const routingDestinations = [...destinations].map((chainName) =>
         this.multiProvider.getDomainId(chainName),
@@ -466,15 +467,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     let usesCrossCollateralRoutingFee = false;
+    let intendsRoutingConfigMutation = false;
     if (
       normalizedTargetConfig.type === TokenFeeType.RoutingFee ||
       normalizedTargetConfig.type === TokenFeeType.CrossCollateralRoutingFee
     ) {
       const targetUsesCrossCollateralRoutingFee =
         normalizedTargetConfig.type === TokenFeeType.CrossCollateralRoutingFee;
-      const intendsRoutingConfigMutation = !isNullish(
-        normalizedTargetConfig.feeContracts,
-      );
+      intendsRoutingConfigMutation =
+        Object.keys(normalizedTargetConfig.feeContracts).length > 0;
       const onchainUsesCrossCollateralRoutingFee =
         await this.isCrossCollateralRoutingFeeOnchain(
           this.args.addresses.deployedFee,
@@ -491,14 +492,18 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       usesCrossCollateralRoutingFee = onchainUsesCrossCollateralRoutingFee;
     }
 
+    const routingUpdateTransactions = intendsRoutingConfigMutation
+      ? await this.updateRoutingFee(
+          objMerge(actualConfig, normalizedTargetConfig, 10, true) as
+            | DerivedRoutingFeeConfig
+            | DerivedCrossCollateralRoutingFeeConfig,
+          usesCrossCollateralRoutingFee,
+        )
+      : [];
+
     // if the type is a mutable (for now, only routing fee), then update
     updateTransactions = [
-      ...(await this.updateRoutingFee(
-        objMerge(actualConfig, normalizedTargetConfig, 10, true) as
-          | DerivedRoutingFeeConfig
-          | DerivedCrossCollateralRoutingFeeConfig,
-        usesCrossCollateralRoutingFee,
-      )),
+      ...routingUpdateTransactions,
       ...this.createOwnershipUpdateTxs(
         normalizedActualConfig,
         normalizedTargetConfig,
@@ -519,7 +524,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const ccrfRouters: string[] = [];
     const ccrfFeeContracts: string[] = [];
 
-    if (!targetConfig.feeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
     const ccrfInterface = new utils.Interface([
       'function setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])',
@@ -555,11 +559,13 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     };
 
     if (isCrossCollateralRoutingFee) {
-      const ccrfFeeContracts = (
-        targetConfig as DerivedCrossCollateralRoutingFeeConfig
-      ).feeContracts;
+      if (targetConfig.type !== TokenFeeType.CrossCollateralRoutingFee) {
+        throw new Error(
+          'Expected CrossCollateralRoutingFee config for CCRF update path',
+        );
+      }
       for (const [chainName, destinationConfig] of Object.entries(
-        ccrfFeeContracts,
+        targetConfig.feeContracts,
       )) {
         if (destinationConfig.default) {
           setDestinationConfig(
@@ -581,9 +587,12 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         }
       }
     } else {
-      const routingFeeContracts = (targetConfig as DerivedRoutingFeeConfig)
-        .feeContracts;
-      for (const [chainName, config] of Object.entries(routingFeeContracts)) {
+      if (targetConfig.type !== TokenFeeType.RoutingFee) {
+        throw new Error('Expected RoutingFee config for routing update path');
+      }
+      for (const [chainName, config] of Object.entries(
+        targetConfig.feeContracts,
+      )) {
         setDestinationConfig(
           chainName,
           DEFAULT_ROUTER_KEY,

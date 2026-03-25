@@ -5,6 +5,7 @@ import sinon from 'sinon';
 
 import {
   BaseFee__factory,
+  CrossCollateralRoutingFee__factory,
   ERC20Test,
   ERC20Test__factory,
 } from '@hyperlane-xyz/core';
@@ -53,11 +54,8 @@ describe('EvmTokenFeeModule', () => {
     };
   });
 
-  async function deployCrossCollateralRoutingFee(owner: string): Promise<any> {
-    const factory = await hre.ethers.getContractFactory(
-      'MockCrossCollateralRoutingFee',
-      signer,
-    );
+  async function deployCrossCollateralRoutingFee(owner: string) {
+    const factory = new CrossCollateralRoutingFee__factory(signer);
     const ccrf = await factory.deploy(owner);
     await ccrf.deployed();
     return ccrf;
@@ -284,7 +282,7 @@ describe('EvmTokenFeeModule', () => {
       );
       expect(normalizeConfig(onchainConfig).owner).to.equal(newOwner);
       expect(
-        normalizeConfig(onchainConfig.feeContracts?.[test4Chain]).owner,
+        normalizeConfig(onchainConfig.feeContracts[test4Chain]).owner,
       ).to.equal(newOwner);
     });
 
@@ -388,6 +386,7 @@ describe('EvmTokenFeeModule', () => {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
+        feeContracts: {},
       };
       const module = new EvmTokenFeeModule(multiProvider, {
         chain: test4Chain,
@@ -398,8 +397,9 @@ describe('EvmTokenFeeModule', () => {
       const newOwner = randomAddress();
       const txs = await module.update(
         {
-          type: TokenFeeType.RoutingFee,
+          type: TokenFeeType.CrossCollateralRoutingFee,
           owner: newOwner,
+          feeContracts: {},
         },
         {
           routingDestinations: [routingDestination],
@@ -432,6 +432,7 @@ describe('EvmTokenFeeModule', () => {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
+        feeContracts: {},
       };
       const module = new EvmTokenFeeModule(multiProvider, {
         chain: test4Chain,
@@ -463,17 +464,20 @@ describe('EvmTokenFeeModule', () => {
 
       const onchainConfig = await module.read({
         routingDestinations: [routingDestination],
+        crossCollateralRouters: {
+          [routingDestination]: [],
+        },
       });
       assert(
         onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
       assert(
-        onchainConfig.feeContracts?.[test4Chain]?.default?.type ===
+        onchainConfig.feeContracts[test4Chain]?.default?.type ===
           TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      expect(onchainConfig.feeContracts?.[test4Chain]?.default?.bps).to.equal(
+      expect(onchainConfig.feeContracts[test4Chain]?.default?.bps).to.equal(
         BPS + 1n,
       );
     });
@@ -497,6 +501,7 @@ describe('EvmTokenFeeModule', () => {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
+        feeContracts: {},
       };
       const module = new EvmTokenFeeModule(multiProvider, {
         chain: test4Chain,
@@ -594,7 +599,7 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(onchainConfig.feeContracts?.[test1Chain]).to.not.be.undefined;
+      expect(onchainConfig.feeContracts[test1Chain]).to.not.be.undefined;
     });
   });
 
@@ -663,7 +668,7 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.RoutingFee}`,
       );
       const routingConfig = expandedConfig as RoutingFeeConfig;
-      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      const nestedFee = routingConfig.feeContracts[test4Chain];
       assert(nestedFee, 'Nested fee must exist');
       assert(
         nestedFee.type === TokenFeeType.LinearFee,
@@ -739,7 +744,7 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.RoutingFee}`,
       );
       const routingConfig = expandedConfig as RoutingFeeConfig;
-      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      const nestedFee = routingConfig.feeContracts[test4Chain];
       assert(nestedFee, 'Nested fee must exist');
       assert(
         nestedFee.type === TokenFeeType.LinearFee,
@@ -776,7 +781,7 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.RoutingFee}`,
       );
       const routingConfig = expandedConfig as RoutingFeeConfig;
-      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      const nestedFee = routingConfig.feeContracts[test4Chain];
       assert(nestedFee, 'Nested fee must exist');
       expect(nestedFee.token).to.equal(token.address);
     });

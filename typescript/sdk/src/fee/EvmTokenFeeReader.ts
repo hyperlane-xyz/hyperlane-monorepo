@@ -54,6 +54,7 @@ export const DEFAULT_ROUTER_KEY =
   '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
 
 const crossCollateralRoutingFeeReadAbi = [
+  'function token() view returns (address)',
   'function DEFAULT_ROUTER() view returns (bytes32)',
   'function feeContracts(uint32,bytes32) view returns (address)',
   'function owner() view returns (address)',
@@ -77,7 +78,21 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
-    const onchainFeeType = (await tokenFee.feeType()) as OnchainTokenFeeType;
+    let onchainFeeType: number;
+    try {
+      onchainFeeType = Number(await tokenFee.feeType());
+    } catch (error) {
+      const maybeCcrf = new Contract(
+        address,
+        ['function DEFAULT_ROUTER() view returns (bytes32)'],
+        this.provider,
+      );
+      const defaultRouter = await maybeCcrf.DEFAULT_ROUTER().catch(() => null);
+      if (defaultRouter !== DEFAULT_ROUTER_KEY) {
+        throw error;
+      }
+      onchainFeeType = OnchainTokenFeeType.CrossCollateralRoutingFee;
+    }
     switch (onchainFeeType) {
       case OnchainTokenFeeType.LinearFee:
         derivedConfig = await this.deriveLinearFeeConfig(address);
@@ -165,9 +180,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
           const chainName = this.multiProvider.getChainName(destination);
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
-            // Currently, it's not possible to configure nested routing fees domains,
-            // but we should not expect that to exist
-            routingDestinations,
           });
         }),
       );
@@ -183,16 +195,14 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   private async deriveCrossCollateralRoutingFeeConfig(
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
-    const { address, routingDestinations, crossCollateralRouters } = params;
-    const effectiveRoutingDestinations = routingDestinations?.length
-      ? routingDestinations
-      : Object.keys(crossCollateralRouters ?? {}).map((domain) =>
-          Number(domain),
-        );
+    const { address, crossCollateralRouters } = params;
+    const effectiveRoutingDestinations = Object.keys(
+      crossCollateralRouters ?? {},
+    ).map((domain) => Number(domain));
 
     if (!effectiveRoutingDestinations.length) {
       throw new Error(
-        'CrossCollateralRoutingFee requires routingDestinations or crossCollateralRouters to derive fee config',
+        'CrossCollateralRoutingFee requires crossCollateralRouters to derive fee config',
       );
     }
 
@@ -201,22 +211,26 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       crossCollateralRoutingFeeReadAbi,
       this.provider,
     );
-    const [owner, defaultRouter] = await Promise.all([
+    const [tokenFromContract, owner, defaultRouter] = await Promise.all([
+      routingFee.token().catch(() => undefined),
       routingFee.owner(),
       routingFee.DEFAULT_ROUTER(),
     ]);
 
     const feeContracts: DerivedCrossCollateralFeeContracts = {};
-    let resolvedToken: Address | undefined;
+    const feeConfigCache = new Map<string, Promise<DerivedTokenFeeConfig>>();
 
     const parseFeeConfig = async (subFeeAddress: Address) => {
-      const parsed = await this.deriveTokenFeeConfig({
-        address: subFeeAddress,
-        routingDestinations: effectiveRoutingDestinations,
-        crossCollateralRouters,
-      });
-      resolvedToken ??= parsed.token;
-      return parsed;
+      const cacheKey = subFeeAddress.toLowerCase();
+      if (!feeConfigCache.has(cacheKey)) {
+        feeConfigCache.set(
+          cacheKey,
+          this.deriveTokenFeeConfig({
+            address: subFeeAddress,
+          }),
+        );
+      }
+      return feeConfigCache.get(cacheKey)!;
     };
 
     const destinationConfigs = await concurrentMap(
@@ -240,19 +254,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         return { chainName, defaultSubFeeAddress, routerSubFees };
       },
     );
-
-    for (const { defaultSubFeeAddress, routerSubFees } of destinationConfigs) {
-      if (resolvedToken) break;
-      if (defaultSubFeeAddress !== constants.AddressZero) {
-        await parseFeeConfig(defaultSubFeeAddress);
-        continue;
-      }
-      for (const { subFeeAddress } of routerSubFees) {
-        if (subFeeAddress === constants.AddressZero) continue;
-        await parseFeeConfig(subFeeAddress);
-        if (resolvedToken) break;
-      }
-    }
 
     await concurrentMap(
       this.concurrency,
@@ -287,7 +288,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       },
     );
 
-    const token = resolvedToken;
+    const token =
+      tokenFromContract ??
+      (
+        await Promise.all([...feeConfigCache.values()].map((config) => config))
+      )[0]?.token;
     if (!token) {
       throw new Error(
         `CrossCollateralRoutingFee at ${address} does not have any readable destination fee contracts`,

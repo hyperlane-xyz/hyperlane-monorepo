@@ -400,6 +400,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       string,
       ContractVerificationStatus
     > = {};
+    if (process.env.HYP_SKIP_VERIFICATION_STATUS === '1') {
+      return {
+        [VerifyContractTypes.Implementation]:
+          ContractVerificationStatus.Skipped,
+      };
+    }
 
     const contractType = (await isProxy(this.provider, address))
       ? VerifyContractTypes.Proxy

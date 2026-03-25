@@ -414,7 +414,7 @@ export function resolveTokenFeeAddress(
     throw new Error(`Unsupported token type for fee resolution`);
   }
 
-  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
     return {
       ...feeConfig,
       token: feeToken,
@@ -427,10 +427,7 @@ export function resolveTokenFeeAddress(
     } satisfies ResolvedTokenFeeConfigInput;
   }
 
-  if (
-    feeConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
-    feeConfig.feeContracts
-  ) {
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
     return {
       ...feeConfig,
       token: feeToken,
@@ -564,17 +561,12 @@ function normalizeTokenFeeForCheck(
   if (!feeConfig) return feeConfig;
 
   if (feeConfig.type === TokenFeeType.RoutingFee) {
-    const normalizedFeeContracts =
-      feeConfig.feeContracts &&
-      Object.fromEntries(
-        Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
-          chain,
-          normalizeTokenFeeForCheck(nestedFee),
-        ]),
-      );
-
-    const hasFeeContracts =
-      !!normalizedFeeContracts && !isObjEmpty(normalizedFeeContracts);
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
+        chain,
+        normalizeTokenFeeForCheck(nestedFee),
+      ]),
+    );
 
     return {
       type: TokenFeeType.RoutingFee,
@@ -582,44 +574,40 @@ function normalizeTokenFeeForCheck(
       ...('token' in feeConfig && feeConfig.token
         ? { token: feeConfig.token }
         : {}),
-      ...(hasFeeContracts ? { feeContracts: normalizedFeeContracts } : {}),
+      feeContracts: normalizedFeeContracts,
     };
   }
 
   if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
-    const normalizedFeeContracts =
-      feeConfig.feeContracts &&
-      Object.fromEntries(
-        Object.entries(feeConfig.feeContracts).map(
-          ([chain, destinationConfig]) => [
-            chain,
-            {
-              default: destinationConfig.default
-                ? normalizeTokenFeeForCheck(destinationConfig.default)
-                : undefined,
-              routers: destinationConfig.routers
-                ? Object.fromEntries(
-                    Object.entries(destinationConfig.routers).map(
-                      ([router, nestedFee]) => [
-                        router,
-                        normalizeTokenFeeForCheck(nestedFee),
-                      ],
-                    ),
-                  )
-                : undefined,
-            },
-          ],
-        ),
-      );
-    const hasFeeContracts =
-      !!normalizedFeeContracts && !isObjEmpty(normalizedFeeContracts);
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.entries(feeConfig.feeContracts).map(
+        ([chain, destinationConfig]) => [
+          chain,
+          {
+            default: destinationConfig.default
+              ? normalizeTokenFeeForCheck(destinationConfig.default)
+              : undefined,
+            routers: destinationConfig.routers
+              ? Object.fromEntries(
+                  Object.entries(destinationConfig.routers).map(
+                    ([router, nestedFee]) => [
+                      router,
+                      normalizeTokenFeeForCheck(nestedFee),
+                    ],
+                  ),
+                )
+              : undefined,
+          },
+        ],
+      ),
+    );
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
       owner: feeConfig.owner,
       ...('token' in feeConfig && feeConfig.token
         ? { token: feeConfig.token }
         : {}),
-      ...(hasFeeContracts ? { feeContracts: normalizedFeeContracts } : {}),
+      feeContracts: normalizedFeeContracts,
     };
   }
 

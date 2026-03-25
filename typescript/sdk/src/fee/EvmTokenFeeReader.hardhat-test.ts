@@ -216,9 +216,7 @@ describe('EvmTokenFeeReader', () => {
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
-      expect(
-        Object.keys((routingFee as any).feeContracts ?? {}),
-      ).to.have.length(0);
+      expect(Object.keys((routingFee as any).feeContracts)).to.have.length(0);
     });
 
     it('should derive cross collateral routing fee config from destination defaults', async () => {
@@ -264,15 +262,16 @@ describe('EvmTokenFeeReader', () => {
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const routingFee = await reader.deriveTokenFeeConfig({
         address: crossCollateralRoutingFee.address,
-        routingDestinations: [destination, destination2],
+        crossCollateralRouters: {
+          [destination]: [],
+          [destination2]: [],
+        },
       });
 
       expect(routingFee.type).to.equal(TokenFeeType.CrossCollateralRoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
-      expect(
-        Object.keys((routingFee as any).feeContracts ?? {}),
-      ).to.have.length(2);
+      expect(Object.keys((routingFee as any).feeContracts)).to.have.length(2);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
           type: TokenFeeType.CrossCollateralRoutingFee,
@@ -344,9 +343,7 @@ describe('EvmTokenFeeReader', () => {
         },
       });
 
-      expect(
-        Object.keys((routingFee as any).feeContracts ?? {}),
-      ).to.have.length(1);
+      expect(Object.keys((routingFee as any).feeContracts)).to.have.length(1);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
           type: TokenFeeType.CrossCollateralRoutingFee,

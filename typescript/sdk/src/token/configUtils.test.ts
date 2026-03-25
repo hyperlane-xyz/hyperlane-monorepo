@@ -467,18 +467,19 @@ describe('configUtils', () => {
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
 
       const routingResult = result as ResolvedRoutingFeeConfigInput;
-      expect(routingResult.feeContracts?.ethereum?.token).to.equal(
+      expect(routingResult.feeContracts.ethereum.token).to.equal(
         ROUTER_ADDRESS,
       );
-      expect(routingResult.feeContracts?.arbitrum?.token).to.equal(
+      expect(routingResult.feeContracts.arbitrum.token).to.equal(
         ROUTER_ADDRESS,
       );
     });
 
-    it('should handle RoutingFee without feeContracts', () => {
+    it('should handle RoutingFee with empty feeContracts', () => {
       const input = {
         type: TokenFeeType.RoutingFee as const,
         owner: OWNER_ADDRESS,
+        feeContracts: {},
       };
 
       const result = resolveTokenFeeAddress(
@@ -522,11 +523,11 @@ describe('configUtils', () => {
       ) as ResolvedCrossCollateralRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.feeContracts?.ethereum?.default?.token).to.equal(
+      expect(result.feeContracts.ethereum.default?.token).to.equal(
         ROUTER_ADDRESS,
       );
       expect(
-        result.feeContracts?.ethereum?.routers?.[ROUTER_KEY]?.token,
+        result.feeContracts.ethereum.routers?.[ROUTER_KEY]?.token,
       ).to.equal(ROUTER_ADDRESS);
     });
   });

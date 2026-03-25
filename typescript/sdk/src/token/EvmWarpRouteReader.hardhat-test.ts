@@ -944,7 +944,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
     expect((derivedConfig.tokenFee as any).owner).to.equal(mailbox.address);
     expect(
-      Object.keys(((derivedConfig.tokenFee as any)?.feeContracts ?? {}) as any),
+      Object.keys((derivedConfig.tokenFee as any).feeContracts as any),
     ).to.have.length(0);
   });
 

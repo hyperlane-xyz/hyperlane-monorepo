@@ -523,7 +523,7 @@ function populateFeeOwner(params: {
   const resolvedOwner = feeConfig.owner ?? inheritedOwner ?? tokenConfig.owner;
   feeConfig.owner = resolvedOwner;
 
-  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
     objMap(feeConfig.feeContracts, (_, innerConfig) => {
       populateFeeOwner({
         tokenConfig,
@@ -532,10 +532,7 @@ function populateFeeOwner(params: {
       });
     });
   }
-  if (
-    feeConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
-    feeConfig.feeContracts
-  ) {
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
     objMap(feeConfig.feeContracts, (_, destinationConfig) => {
       if (destinationConfig.default) {
         populateFeeOwner({
