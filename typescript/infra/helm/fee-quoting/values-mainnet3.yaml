@@ -11,4 +11,4 @@ env:
   - name: QUOTE_MODE
     value: 'transient'
   - name: WARP_ROUTE_IDS
-    value: 'USDC/quoted-calls-demo'
+    value: 'USDC/quoted-calls-demo,USDC/ctusd,USDT/ctusd'

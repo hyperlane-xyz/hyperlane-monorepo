@@ -93,6 +93,7 @@ export class QuoteService {
     destination: number,
     salt: Hex,
     recipient?: Hex,
+    targetRouter?: Hex,
   ): Promise<QuoteResponse> {
     const ctx = this.chainContexts.get(origin);
     if (!ctx) {
@@ -126,6 +127,7 @@ export class QuoteService {
         routerCtx.derivedConfig,
         destChainName,
         this.account.address,
+        targetRouter,
       );
       if ('address' in feeResult) {
         quotePromises.push(
@@ -344,6 +346,7 @@ function resolveFeeQuoter(
   config: DerivedTokenRouterConfig,
   destChainName: string,
   signer: Address,
+  targetRouter?: Hex,
 ): ResolveResult {
   const tokenFee = config.tokenFee;
   if (!tokenFee) return { skipped: 'not_configured' };
@@ -354,6 +357,24 @@ function resolveFeeQuoter(
       | DerivedTokenFeeConfig
       | undefined;
     if (destFee) resolved = destFee;
+  } else if (
+    tokenFee.type === TokenFeeType.CrossCollateralRoutingFee &&
+    tokenFee.feeContracts
+  ) {
+    const destConfig = tokenFee.feeContracts[destChainName] as
+      | {
+          default?: DerivedTokenFeeConfig;
+          routers?: Record<string, DerivedTokenFeeConfig>;
+        }
+      | undefined;
+    if (destConfig) {
+      // For transferRemoteTo, resolve the router-specific fee contract
+      const routerFee = targetRouter
+        ? destConfig.routers?.[targetRouter]
+        : undefined;
+      // Fall back to default fee contract
+      resolved = routerFee ?? destConfig.default ?? resolved;
+    }
   }
 
   const signers =

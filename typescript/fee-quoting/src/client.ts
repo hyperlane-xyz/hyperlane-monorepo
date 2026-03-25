@@ -16,6 +16,8 @@ export interface QuoteParams {
   salt: Hex;
   /** Required for warp commands (transferRemote, transferRemoteTo) */
   recipient?: Hex;
+  /** Target router for transferRemoteTo with CrossCollateralRoutingFee */
+  targetRouter?: Hex;
 }
 
 export class FeeQuotingClient {
@@ -36,6 +38,7 @@ export class FeeQuotingClient {
     });
 
     if (params.recipient) query.set('recipient', params.recipient);
+    if (params.targetRouter) query.set('targetRouter', params.targetRouter);
 
     const res = await fetch(
       `${this.baseUrl}/quote/${params.command}?${query}`,

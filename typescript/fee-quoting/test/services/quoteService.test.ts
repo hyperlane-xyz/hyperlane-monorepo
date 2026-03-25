@@ -348,6 +348,164 @@ describe('QuoteService', () => {
       );
     });
 
+    it('resolves CCRF default fee for transferRemote', async () => {
+      const routers = new Map();
+      routers.set(ROUTER, {
+        feeToken: FEE_TOKEN,
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            type: TokenFeeType.CrossCollateralRoutingFee,
+            address: FEE_CONTRACT,
+            token: FEE_TOKEN,
+            owner: ZERO_ADDRESS,
+            feeContracts: {
+              arbitrum: {
+                default: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: DEST_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+              },
+            },
+          },
+        },
+      });
+      const chainContexts = new Map<string, ChainQuoteContext>();
+      chainContexts.set('ethereum', createTestContext({ routers }));
+      const svc = createTestService({ chainContexts });
+
+      const res = await svc.getQuote(
+        'ethereum',
+        QuotedCallsCommand.TransferRemote,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+      );
+      const feeQuote = res.quotes.find(
+        (q) => q.quoter.toLowerCase() === DEST_FEE.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+    });
+
+    it('resolves CCRF router-specific fee for transferRemoteTo', async () => {
+      const ROUTER_FEE =
+        '0x6666666666666666666666666666666666666666' as Address;
+      const TARGET_ROUTER =
+        '0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc' as Hex;
+      const routers = new Map();
+      routers.set(ROUTER, {
+        feeToken: FEE_TOKEN,
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            type: TokenFeeType.CrossCollateralRoutingFee,
+            address: FEE_CONTRACT,
+            token: FEE_TOKEN,
+            owner: ZERO_ADDRESS,
+            feeContracts: {
+              arbitrum: {
+                default: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: DEST_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+                routers: {
+                  [TARGET_ROUTER]: {
+                    type: TokenFeeType.OffchainQuotedLinearFee,
+                    address: ROUTER_FEE,
+                    token: FEE_TOKEN,
+                    owner: ZERO_ADDRESS,
+                    maxFee: 0n,
+                    halfAmount: 1n,
+                    bps: 0n,
+                    quoteSigners: [TEST_SIGNER],
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const chainContexts = new Map<string, ChainQuoteContext>();
+      chainContexts.set('ethereum', createTestContext({ routers }));
+      const svc = createTestService({ chainContexts });
+
+      const res = await svc.getQuote(
+        'ethereum',
+        QuotedCallsCommand.TransferRemoteTo,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+        TARGET_ROUTER,
+      );
+      const feeQuote = res.quotes.find(
+        (q) => q.quoter.toLowerCase() === ROUTER_FEE.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+    });
+
+    it('falls back to CCRF default when targetRouter not in routers', async () => {
+      const UNKNOWN_ROUTER =
+        '0x000000000000000000000000dddddddddddddddddddddddddddddddddddddddd' as Hex;
+      const routers = new Map();
+      routers.set(ROUTER, {
+        feeToken: FEE_TOKEN,
+        derivedConfig: {
+          ...mockDerivedConfig,
+          tokenFee: {
+            type: TokenFeeType.CrossCollateralRoutingFee,
+            address: FEE_CONTRACT,
+            token: FEE_TOKEN,
+            owner: ZERO_ADDRESS,
+            feeContracts: {
+              arbitrum: {
+                default: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: DEST_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
+                },
+              },
+            },
+          },
+        },
+      });
+      const chainContexts = new Map<string, ChainQuoteContext>();
+      chainContexts.set('ethereum', createTestContext({ routers }));
+      const svc = createTestService({ chainContexts });
+
+      const res = await svc.getQuote(
+        'ethereum',
+        QuotedCallsCommand.TransferRemoteTo,
+        ROUTER,
+        DESTINATION,
+        SALT,
+        RECIPIENT,
+        UNKNOWN_ROUTER,
+      );
+      const feeQuote = res.quotes.find(
+        (q) => q.quoter.toLowerCase() === DEST_FEE.toLowerCase(),
+      );
+      expect(feeQuote).to.exist;
+    });
+
     it('falls back to parent fee contract when destination not in feeContracts', async () => {
       const routers = new Map();
       routers.set(ROUTER, {
