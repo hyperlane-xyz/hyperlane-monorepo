@@ -60,10 +60,11 @@ export class ConfiguredMultiProtocolProvider<
     protected readonly options: ConfiguredMultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
+    const loggerModule = new.target?.name || 'ConfiguredMultiProtocolProvider';
     this.logger =
       options.logger ||
       rootLogger.child({
-        module: 'ConfiguredMultiProtocolProvider',
+        module: loggerModule,
       });
     this.providers = options.providers || {};
     this.providerBuilders = options.providerBuilders || {};
