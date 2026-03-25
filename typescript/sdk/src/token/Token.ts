@@ -12,7 +12,7 @@ import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '.
 import { ChainName } from '../types.js';
 import { isStarknetFeeToken } from '../utils/starknet.js';
 
-import type { IToken, TokenArgs } from './IToken.js';
+import type { IToken } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
@@ -79,10 +79,6 @@ import {
   StarknetHypSyntheticAdapter,
   StarknetTokenAdapter,
 } from './adapters/StarknetTokenAdapter.js';
-
-// Declaring the interface in addition to class allows
-// Typescript to infer the members vars from TokenArgs
-export interface Token extends TokenArgs {}
 
 export class Token extends TokenMetadata implements IToken {
   override amount(amount: Numberish): TokenAmount<this> {

@@ -10,11 +10,8 @@ import type {
   IHypTokenAdapter,
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
-export {
-  type ITokenMetadata,
-  TokenArgs,
-  TokenConfigSchema,
-} from './ITokenMetadata.js';
+export type { ITokenMetadata, TokenArgs } from './ITokenMetadata.js';
+export { TokenConfigSchema } from './ITokenMetadata.js';
 
 export interface IToken extends ITokenMetadata {
   getConnections(): TokenConnection<IToken>[];
