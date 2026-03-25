@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 29.1.0
+
+### Minor Changes
+
+- e4d56e9: Added tron support for hyperlane send message command
+
 ## 29.0.1
 
 ## 29.0.0

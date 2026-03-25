@@ -1,5 +1,17 @@
 # @hyperlane-xyz/rebalancer-sim
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [a8192d7]
+- Updated dependencies [a891402]
+  - @hyperlane-xyz/sdk@29.1.0
+  - @hyperlane-xyz/rebalancer@27.2.1
+  - @hyperlane-xyz/utils@29.1.0
+  - @hyperlane-xyz/core@11.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.2
+
 ## 0.2.6
 
 ### Patch Changes

@@ -126,6 +126,12 @@ where
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
+        // Null-type ISMs (e.g. TrustedRelayerIsm) check post-delivery state (e.g.
+        // mailbox.processor()), so verify() always returns false pre-delivery. Assign
+        // gas cost 0 so they are always preferred over heavier sub-ISMs in aggregation.
+        if self.module_type().await? == ModuleType::Null {
+            return Ok(Some(U256::zero()));
+        }
         let mut tx = self.contract.verify(
             metadata.to_owned().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
@@ -143,6 +149,62 @@ where
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::Arc;
+
+    use ethers::providers::{MockProvider, Provider};
+    use ethers_core::{abi, types::Bytes};
+    use hyperlane_core::{
+        ContractLocator, HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule,
+        KnownHyperlaneDomain, Metadata, ModuleType, H256, U256,
+    };
+
+    use super::EthereumInterchainSecurityModule;
+
+    fn get_test_ism(
+        domain: HyperlaneDomain,
+    ) -> (
+        EthereumInterchainSecurityModule<Provider<Arc<MockProvider>>>,
+        Arc<MockProvider>,
+    ) {
+        let mock_provider = Arc::new(MockProvider::new());
+        let provider = Arc::new(Provider::new(mock_provider.clone()));
+        let ism = EthereumInterchainSecurityModule::new(
+            provider,
+            &ContractLocator {
+                domain: &domain,
+                // Address doesn't matter because we're using a MockProvider
+                address: H256::default(),
+            },
+        );
+        (ism, mock_provider)
+    }
+
+    /// Verifies that dry_run_verify returns Ok(Some(U256::zero())) for Null-type ISMs
+    /// (e.g. TrustedRelayerIsm) without calling verify(), since verify() always returns
+    /// false pre-delivery (mailbox.processor() state check).
+    #[tokio::test]
+    async fn test_dry_run_verify_null_ism_returns_zero_gas() {
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let (ism, mock_provider) = get_test_ism(domain);
+
+        // MockProvider responses are LIFO — only module_type() is called; verify() is not.
+        // ABI-encode uint8(6) = ModuleType::Null as a 32-byte padded value.
+        let encoded = Bytes::from(abi::encode(&[abi::Token::Uint(
+            (ModuleType::Null as u8).into(),
+        )]));
+        mock_provider.push::<Bytes, _>(encoded).unwrap();
+
+        let result = ism
+            .dry_run_verify(&HyperlaneMessage::default(), &Metadata::new(vec![]))
+            .await
+            .unwrap();
+
+        assert_eq!(result, Some(U256::zero()));
     }
 }
 
