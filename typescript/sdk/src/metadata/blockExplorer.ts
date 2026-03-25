@@ -37,10 +37,6 @@ export function getExplorerBaseUrl(
 ): string | null {
   if (!metadata?.blockExplorers?.length) return null;
   const url = new URL(metadata.blockExplorers[index].url);
-  if (metadata.blockExplorers[index].family === ExplorerFamily.TronScan) {
-    // TronScan URLs need special '#' handling for correct path appending
-    return url.toString() + '#';
-  }
   return url.toString();
 }
 
