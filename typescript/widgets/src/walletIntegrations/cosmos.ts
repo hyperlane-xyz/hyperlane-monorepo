@@ -11,7 +11,7 @@ import {
   type TypedTransactionReceipt,
   ProviderType,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
-import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';

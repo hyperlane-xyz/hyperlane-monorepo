@@ -15,7 +15,7 @@ import {
   ProviderType,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
-import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import { EvmHypXERC20LockboxAdapter } from '@hyperlane-xyz/sdk/token/adapters/EvmTokenAdapter';
 import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
 import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
