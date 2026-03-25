@@ -8,7 +8,14 @@ import {
   isDeterministicCallException,
 } from '../providers/SmartProvider/SmartProvider.js';
 import { ChainNameOrId } from '../types.js';
-import { ReadContractCall, readContractsWithMulticall } from './multicall.js';
+import {
+  MULTICALL3_ADDRESS,
+  MULTICALL3_INTERFACE,
+  ReadContractCall,
+  normalizeDecodedResult,
+  readContractsWithMulticall,
+  supportsMulticall,
+} from './multicall.js';
 
 type NestedError = {
   cause?: unknown;
@@ -211,5 +218,68 @@ export class HyperlaneReader {
     blockTag: providers.BlockTag = 'latest',
   ): Promise<T[]> {
     return readContractsWithMulticall(this.provider, calls, blockTag);
+  }
+
+  protected async tryProbeContractBatch<T>(
+    calls: ReadContractCall<T>[],
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<Array<T | undefined> | undefined> {
+    if (!calls.length) {
+      return [];
+    }
+
+    if (!(await supportsMulticall(this.provider))) {
+      return undefined;
+    }
+
+    const response = await this.probeCall(
+      {
+        to: MULTICALL3_ADDRESS,
+        data: MULTICALL3_INTERFACE.encodeFunctionData('aggregate3', [
+          calls.map((call) => ({
+            target: call.target,
+            allowFailure: true,
+            callData: call.contractInterface.encodeFunctionData(
+              call.method,
+              call.args ?? [],
+            ),
+          })),
+        ]),
+      },
+      blockTag,
+    );
+    const [results] = MULTICALL3_INTERFACE.decodeFunctionResult(
+      'aggregate3',
+      response,
+    );
+
+    return calls.map((call, index) => {
+      const result = results[index] as {
+        success: boolean;
+        returnData: string;
+      };
+      if (!result.success || result.returnData === '0x') {
+        return undefined;
+      }
+
+      try {
+        return normalizeDecodedResult(
+          call.contractInterface.decodeFunctionResult(
+            call.method,
+            result.returnData,
+          ),
+          call.decode,
+        );
+      } catch (error) {
+        if (
+          (error as any)?.code === EthersError.INVALID_ARGUMENT ||
+          this.isProbeMissError(error)
+        ) {
+          return undefined;
+        }
+
+        throw error;
+      }
+    });
   }
 }
