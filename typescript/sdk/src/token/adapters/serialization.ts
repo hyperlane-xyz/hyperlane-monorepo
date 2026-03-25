@@ -228,8 +228,7 @@ export const SealevelCCTransferRemoteToSchema = new Map<any, any>([
 
 export class SealevelCCHandleLocalInstruction {
   sender_program_id!: Uint8Array;
-  amount_or_id!: number;
-  recipient!: Uint8Array;
+  message!: Uint8Array;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
   }
@@ -252,8 +251,7 @@ export const SealevelCCHandleLocalSchema = new Map<any, any>([
       kind: 'struct',
       fields: [
         ['sender_program_id', [32]],
-        ['amount_or_id', 'u256'],
-        ['recipient', [32]],
+        ['message', ['u8']],
       ],
     },
   ],
