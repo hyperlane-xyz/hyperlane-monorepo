@@ -225,20 +225,16 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     } else if (config.type === TokenFeeType.RoutingFee) {
       const { token, owner } = config;
       const feeContracts = await promiseObjAll(
-        objMap(
-          config.feeContracts as Record<string, ResolvedTokenFeeConfigInput>,
-          async (_, innerConfig) => {
-            const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
-              ...innerConfig,
-              token: innerConfig.token ?? token,
-            };
-            return EvmTokenFeeModule.expandConfig({
-              config: resolvedInnerConfig,
-              multiProvider,
-              chainName,
-            });
-          },
-        ),
+        objMap(config.feeContracts, async (_, innerConfig) => {
+          return EvmTokenFeeModule.expandConfig({
+            config: resolveTokenForFeeConfig(
+              innerConfig,
+              ('token' in innerConfig ? innerConfig.token : undefined) ?? token,
+            ),
+            multiProvider,
+            chainName,
+          });
+        }),
       );
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
