@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -14,10 +15,10 @@ import { tryClipboardSet } from '../utils/clipboard.js';
 import { WalletLogo } from '../walletIntegrations/WalletLogo.js';
 import {
   getAddressFromAccountAndChain,
-  useAccounts,
-  useDisconnectFns,
-  useWalletDetails,
-} from '../walletIntegrations/multiProtocol.js';
+} from '../walletIntegrations/accountUtils.js';
+import { useAccounts } from '../walletIntegrations/accounts.js';
+import { useDisconnectFns } from '../walletIntegrations/disconnectFns.js';
+import { useWalletDetails } from '../walletIntegrations/walletDetails.js';
 
 import { AccountInfo, WalletDetails } from './types.js';
 

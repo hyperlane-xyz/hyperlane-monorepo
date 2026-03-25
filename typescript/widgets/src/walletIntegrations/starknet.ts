@@ -11,15 +11,15 @@ import { useCallback, useMemo } from 'react';
 import { Call } from 'starknet';
 import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
+import { chainMetadataToStarknetChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-  chainMetadataToStarknetChain,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';

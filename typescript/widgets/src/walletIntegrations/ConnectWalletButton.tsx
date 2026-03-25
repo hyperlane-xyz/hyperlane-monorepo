@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import type { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -10,11 +11,9 @@ import { WalletIcon } from '../icons/Wallet.js';
 import { useIsSsr } from '../utils/ssr.js';
 
 import { WalletLogo } from './WalletLogo.js';
-import {
-  getAddressFromAccountAndChain,
-  useAccounts,
-  useWalletDetails,
-} from './multiProtocol.js';
+import { getAddressFromAccountAndChain } from './accountUtils.js';
+import { useAccounts } from './accounts.js';
+import { useWalletDetails } from './walletDetails.js';
 
 type Props = {
   multiProvider: MultiProtocolProvider;
