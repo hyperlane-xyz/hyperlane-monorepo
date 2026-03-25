@@ -127,6 +127,23 @@ function getJsonRpcErrorCode(error: any): number | undefined {
   return error?.error?.error?.code ?? error?.error?.code;
 }
 
+function getJsonRpcErrorData(error: any): unknown {
+  return error?.error?.error?.data ?? error?.error?.data;
+}
+
+function isEmptyObjectLikeJsonRpcData(data: unknown): boolean {
+  if (typeof data === 'string') {
+    return data.trim() === '{}';
+  }
+
+  return (
+    data != null &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    Object.keys(data).length === 0
+  );
+}
+
 export function isDeterministicCallException(error: any): boolean {
   const hasRevertData = !!error?.data && error.data !== '0x';
   if (hasRevertData) {
@@ -135,6 +152,15 @@ export function isDeterministicCallException(error: any): boolean {
 
   const jsonRpcErrorCode = getJsonRpcErrorCode(error);
   if (jsonRpcErrorCode === 3) {
+    return true;
+  }
+
+  // Some Tron RPCs surface selector misses as CALL_EXCEPTION with nested
+  // JSON-RPC -32000 and an empty object payload instead of revert data.
+  if (
+    jsonRpcErrorCode === -32000 &&
+    isEmptyObjectLikeJsonRpcData(getJsonRpcErrorData(error))
+  ) {
     return true;
   }
 
