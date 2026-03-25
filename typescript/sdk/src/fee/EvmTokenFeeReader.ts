@@ -1,7 +1,8 @@
-import { Contract, constants } from 'ethers';
+import { constants } from 'ethers';
 
 import {
   BaseFee__factory,
+  CrossCollateralRoutingFee__factory,
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
@@ -58,13 +59,6 @@ export type TokenFeeReaderParams = {
 // keccak256("RoutingFee.DEFAULT_ROUTER")
 export const DEFAULT_ROUTER_KEY =
   '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
-
-const crossCollateralRoutingFeeReadAbi = [
-  'function token() view returns (address)',
-  'function DEFAULT_ROUTER() view returns (bytes32)',
-  'function feeContracts(uint32,bytes32) view returns (address)',
-  'function owner() view returns (address)',
-] as const;
 
 export class EvmTokenFeeReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({ module: 'EvmTokenFeeReader' });
@@ -199,19 +193,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       'CrossCollateralRoutingFee requires crossCollateralRouters to derive fee config',
     );
 
-    const routingFee = new Contract(
+    const routingFee = CrossCollateralRoutingFee__factory.connect(
       address,
-      crossCollateralRoutingFeeReadAbi,
       this.provider,
     );
-    const [tokenFromContract, owner, defaultRouter] = await Promise.all([
-      routingFee.token().catch((error: unknown) => {
-        this.logger.debug(
-          `Failed to read token() for CrossCollateralRoutingFee at ${address} on ${this.chain}, falling back to sub-fee token`,
-          error,
-        );
-        return undefined;
-      }),
+    const [owner, defaultRouter] = await Promise.all([
       routingFee.owner(),
       routingFee.DEFAULT_ROUTER(),
     ]);
@@ -294,7 +280,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
 
     const firstChildToken = (await Promise.all([...feeConfigCache.values()]))[0]
       ?.token;
-    const token = tokenFromContract ?? firstChildToken ?? constants.AddressZero;
+    const token = firstChildToken ?? constants.AddressZero;
 
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
