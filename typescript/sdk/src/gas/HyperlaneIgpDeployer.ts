@@ -20,6 +20,7 @@ import { ChainName } from '../types.js';
 
 import { IgpFactories, igpFactories } from './contracts.js';
 import {
+  StorageGasOracleConfig,
   oracleConfigToOracleData,
   serializeDifference,
 } from './oracle/types.js';
@@ -179,6 +180,111 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     return gasOracle;
   }
 
+  async deployTokenGasOracles(
+    chain: ChainName,
+    igp: InterchainGasPaymaster,
+    config: IgpConfig,
+  ): Promise<StorageGasOracle[]> {
+    if (!config.tokenOracleConfig) return [];
+
+    const tokenOracles: StorageGasOracle[] = [];
+
+    for (const [feeToken, remoteConfigs] of Object.entries(
+      config.tokenOracleConfig,
+    )) {
+      this.logger.info(
+        `Deploying StorageGasOracle for fee token ${feeToken} on ${chain}...`,
+      );
+      const oracle = await this.deployContract(chain, 'storageGasOracle', []);
+      tokenOracles.push(oracle);
+
+      // Configure remote gas data on the oracle
+      await this.configureTokenOracle(chain, oracle, remoteConfigs);
+
+      // Set the oracle on the IGP for this fee token
+      const tokenGasOracleConfigs: InterchainGasPaymaster.TokenGasOracleConfigStruct[] =
+        [];
+      for (const remote of Object.keys(remoteConfigs)) {
+        const remoteId = this.multiProvider.tryGetDomainId(remote);
+        if (remoteId === null) {
+          this.logger.warn(
+            `Skipping token oracle ${chain} -> ${remote} for fee token ${feeToken}`,
+          );
+          continue;
+        }
+        tokenGasOracleConfigs.push({
+          feeToken,
+          remoteDomain: remoteId,
+          gasOracle: oracle.address,
+        });
+      }
+
+      if (tokenGasOracleConfigs.length > 0) {
+        await this.runIfOwner(chain, igp, async () => {
+          const estimatedGas = await igp.estimateGas.setTokenGasOracles(
+            tokenGasOracleConfigs,
+          );
+          return this.multiProvider.handleTx(
+            chain,
+            igp.setTokenGasOracles(tokenGasOracleConfigs, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...this.multiProvider.getTransactionOverrides(chain),
+            }),
+          );
+        });
+      }
+
+      // Transfer ownership to oracleKey
+      await this.runIfOwner(chain, oracle, async () =>
+        this.multiProvider.handleTx(
+          chain,
+          oracle.transferOwnership(config.oracleKey, {
+            ...this.multiProvider.getTransactionOverrides(chain),
+          }),
+        ),
+      );
+    }
+
+    return tokenOracles;
+  }
+
+  private async configureTokenOracle(
+    chain: ChainName,
+    oracle: StorageGasOracle,
+    remoteConfigs: Record<string, StorageGasOracleConfig>,
+  ): Promise<void> {
+    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+
+    for (const [remote, desired] of Object.entries(remoteConfigs)) {
+      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+      if (remoteDomain === null) continue;
+
+      const actual = await oracle.remoteGasData(remoteDomain);
+      const desiredData = oracleConfigToOracleData(desired);
+
+      if (
+        !actual.gasPrice.eq(desired.gasPrice) ||
+        !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
+      ) {
+        configsToSet.push({ remoteDomain, ...desiredData });
+      }
+    }
+
+    if (configsToSet.length > 0) {
+      await this.runIfOwner(chain, oracle, async () => {
+        const estimatedGas =
+          await oracle.estimateGas.setRemoteGasDataConfigs(configsToSet);
+        return this.multiProvider.handleTx(
+          chain,
+          oracle.setRemoteGasDataConfigs(configsToSet, {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+            ...this.multiProvider.getTransactionOverrides(chain),
+          }),
+        );
+      });
+    }
+  }
+
   async deployContracts(
     chain: ChainName,
     config: IgpConfig,
@@ -194,6 +300,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       storageGasOracle,
       config,
     );
+
+    // Deploy per-token gas oracles for ERC20 fee payments
+    await this.deployTokenGasOracles(chain, interchainGasPaymaster, config);
 
     const contracts = {
       proxyAdmin,

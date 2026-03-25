@@ -10,6 +10,8 @@ import {
   DefaultHook__factory,
   IPostDispatchHook,
   IPostDispatchHook__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
   MerkleTreeHook,
   MerkleTreeHook__factory,
   OPStackHook,
@@ -18,6 +20,8 @@ import {
   PausableHook__factory,
   ProtocolFee,
   ProtocolFee__factory,
+  StorageGasOracle,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
@@ -275,6 +279,62 @@ describe('EvmHookReader', () => {
         `Failed to derive undefined hook (${mockAddress}):`,
       );
     }
+  });
+
+  it('should derive IGP config with tokenOracleConfig', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockBeneficiary = randomAddress();
+    const mockOracleAddress = randomAddress();
+    const feeToken = randomAddress();
+
+    const mockIgp = {
+      hookType: sandbox
+        .stub()
+        .resolves(OnchainHookType.INTERCHAIN_GAS_PAYMASTER),
+      owner: sandbox.stub().resolves(mockOwner),
+      beneficiary: sandbox.stub().resolves(mockBeneficiary),
+      getExchangeRateAndGasPrice: sandbox.stub().rejects(new Error('no data')),
+      destinationGasLimit: sandbox.stub().resolves(ethers.BigNumber.from(0)),
+      destinationGasConfigs: sandbox.stub().resolves({
+        gasOracle: mockOracleAddress,
+        gasOverhead: ethers.BigNumber.from(0),
+      }),
+      tokenGasOracles: sandbox.stub(),
+    };
+
+    // tokenGasOracles returns zero for all domains except when feeToken matches
+    mockIgp.tokenGasOracles.resolves(ethers.constants.AddressZero);
+    // No configured domains for native oracle
+    mockIgp.getExchangeRateAndGasPrice.rejects(new Error('no data'));
+
+    sandbox
+      .stub(InterchainGasPaymaster__factory, 'connect')
+      .returns(mockIgp as unknown as InterchainGasPaymaster);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockIgp as unknown as IPostDispatchHook);
+
+    const mockOracle = {
+      owner: sandbox.stub().resolves(mockOwner),
+      remoteGasData: sandbox.stub().resolves({
+        tokenExchangeRate: ethers.BigNumber.from('15000000000'),
+        gasPrice: ethers.BigNumber.from('500000000'),
+      }),
+    };
+    sandbox
+      .stub(StorageGasOracle__factory, 'connect')
+      .returns(mockOracle as unknown as StorageGasOracle);
+
+    // No fee tokens provided - should not have tokenOracleConfig
+    const configNoTokens = await evmHookReader.deriveIgpConfig(mockAddress);
+    expect(configNoTokens.tokenOracleConfig).to.be.undefined;
+
+    // With fee tokens but all return zero address - should be undefined
+    const configZeroOracle = await evmHookReader.deriveIgpConfig(mockAddress, [
+      feeToken,
+    ]);
+    expect(configZeroOracle.tokenOracleConfig).to.be.undefined;
   });
 
   /*
