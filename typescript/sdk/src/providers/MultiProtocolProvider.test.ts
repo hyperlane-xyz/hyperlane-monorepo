@@ -1,13 +1,22 @@
 import { expect } from 'chai';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { TestChainName, test1 } from '../consts/testChains.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { defaultProviderBuilderMap } from '../providers/defaultProviderBuilderMaps.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
+import {
+  clearRegisteredProviderBuilders,
+  registerAllRuntimeAdapters,
+  registerEvmRuntimeAdapters,
+  registerTronRuntimeAdapters,
+} from '../runtime.js';
 
 describe('MultiProtocolProvider', () => {
   describe('constructs', () => {
@@ -83,6 +92,51 @@ describe('MultiProtocolProvider', () => {
         1,
       );
       expect(provider.type).to.equal(ProviderType.GnosisTxBuilder);
+    });
+
+    describe('runtime registration', () => {
+      afterEach(() => {
+        clearRegisteredProviderBuilders();
+        registerAllRuntimeAdapters();
+      });
+
+      it('requires provider runtime registration for deep imports', () => {
+        clearRegisteredProviderBuilders();
+
+        const multiProvider = new MultiProtocolProvider({ test1 });
+        expect(() => multiProvider.getProvider(TestChainName.test1)).to.throw(
+          'No provider available for test1',
+        );
+
+        registerEvmRuntimeAdapters();
+        expect(multiProvider.getProvider(TestChainName.test1).type).to.equal(
+          ProviderType.EthersV5,
+        );
+      });
+
+      it('supports tron-specific ethers providers from the runtime registry', () => {
+        clearRegisteredProviderBuilders();
+        registerTronRuntimeAdapters();
+
+        const tronMetadata: Record<string, ChainMetadata> = {
+          tron: {
+            ...test1,
+            name: 'tron',
+            domainId: 9913388,
+            chainId: 9913388,
+            protocol: ProtocolType.Tron,
+          },
+        };
+
+        const multiProvider = new MultiProtocolProvider(tronMetadata);
+
+        expect(multiProvider.getProvider('tron').type).to.equal(
+          ProviderType.Tron,
+        );
+        expect(
+          multiProvider.getProvider('tron', ProviderType.EthersV5).type,
+        ).to.equal(ProviderType.EthersV5);
+      });
     });
   });
 });
