@@ -23,7 +23,7 @@ import {
 
 import packageJson from './package.json' with { type: 'json' };
 import type { ServerConfig } from './src/config.js';
-import { DEFAULT_PORT } from './src/constants.js';
+import { DEFAULT_METRICS_PORT, DEFAULT_PORT } from './src/constants.js';
 import { createApiKeyAuth } from './src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from './src/middleware/errorHandler.js';
 import { createMetrics } from './src/middleware/metrics.js';
@@ -64,10 +64,19 @@ export class FeeQuotingServer {
     this.app.use(pinoHttp({ logger: this.logger }));
     this.app.use(metrics.middleware);
 
-    this.app.get('/metrics', async (_req, res) => {
+    // Serve metrics on a separate port (cluster-internal only)
+    const metricsApp = express();
+    metricsApp.get('/metrics', async (_req, res) => {
       res.set('Content-Type', register.contentType);
       res.end(await register.metrics());
     });
+    metricsApp.listen(DEFAULT_METRICS_PORT, () => {
+      this.logger.info(
+        { port: DEFAULT_METRICS_PORT },
+        'Metrics server running',
+      );
+    });
+
     this.app.use(createHealthRouter(() => this.ready));
 
     const chainContexts = await this.buildChainContexts(registry);
