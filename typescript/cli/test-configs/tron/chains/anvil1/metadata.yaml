@@ -2,12 +2,16 @@
 # Placeholder chain to maintain parity with anvil registry structure
 ---
 chainId: 3360022319
-domainId: 3360022317
+domainId: 1212538670
 name: anvil1
 displayName: Tron Local 1
 protocol: tron
 rpcUrls:
   - http: http://127.0.0.1:9090/jsonrpc
+blocks:
+  confirmations: 1
+  estimateBlockTime: 3
+  reorgPeriod: 0
 nativeToken:
   name: TRX
   symbol: TRX

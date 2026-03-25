@@ -3,12 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import { type ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  addressToBytes32,
-  isEVMLike,
-  timeout,
-} from '@hyperlane-xyz/utils';
+import { addressToBytes32, isEVMLike, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
 import { ensureEvmSignersForChains } from '../context/context.js';
@@ -19,7 +14,6 @@ import {
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
-  filterChainMetadataByProtocol,
   filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
@@ -45,18 +39,18 @@ export async function sendTestMessage({
 }) {
   const { chainMetadata, multiProvider } = context;
 
-  // TODO: Add multi-protocol support when HyperlaneCore is extended for other VMs.
-  // Currently, sendMessage only works with EVM chains as it uses ethers.js and Solidity contracts.
-  const evmChainMetadata = filterChainMetadataByProtocol(
-    chainMetadata,
-    multiProvider,
-    ProtocolType.Ethereum,
+  // sendMessage works with EVM-like chains (Ethereum + Tron) as they share
+  // the same Solidity contracts and ethers.js-compatible providers.
+  const evmLikeChainMetadata = Object.fromEntries(
+    Object.entries(chainMetadata).filter(([chain]) =>
+      isEVMLike(multiProvider.getProtocol(chain)),
+    ),
   );
-  const activeEvmChainMetadata = filterOutDisabledChains(evmChainMetadata);
+  const activeEvmChainMetadata = filterOutDisabledChains(evmLikeChainMetadata);
 
   if (Object.keys(activeEvmChainMetadata).length === 0) {
     throw new Error(
-      `No EVM chains found in registry. 'hyperlane send message' only supports EVM chains.`,
+      `No EVM-compatible chains found in registry. 'hyperlane send message' only supports EVM-like chains.`,
     );
   }
 

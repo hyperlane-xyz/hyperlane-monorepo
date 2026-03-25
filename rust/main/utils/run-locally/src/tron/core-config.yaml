@@ -1,0 +1,25 @@
+# Core config for Tron agent e2e tests (run-locally)
+# Uses merkleTreeHook as required hook so validators can create checkpoints
+owner: "0xC8599111F29c1e1E061265b4AF93eA1F274aD78A"
+defaultIsm:
+  threshold: 1
+  type: merkleRootMultisigIsm
+  validators:
+    - "0xC8599111F29c1e1E061265b4AF93eA1F274aD78A"
+defaultHook:
+  type: interchainGasPaymaster
+  beneficiary: "0xC8599111F29c1e1E061265b4AF93eA1F274aD78A"
+  owner: "0xC8599111F29c1e1E061265b4AF93eA1F274aD78A"
+  oracleKey: "0xC8599111F29c1e1E061265b4AF93eA1F274aD78A"
+  oracleConfig:
+    anvil1:
+      tokenExchangeRate: "100000"
+      gasPrice: "100000"
+    anvil2:
+      tokenExchangeRate: "100000"
+      gasPrice: "100000"
+  overhead:
+    anvil1: 1100
+    anvil2: 1100
+requiredHook:
+  type: merkleTreeHook

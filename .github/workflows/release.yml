@@ -289,3 +289,31 @@ jobs:
           echo "npm install @hyperlane-xyz/sdk@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @hyperlane-xyz/cli@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  notify-publish-failure:
+    if: >-
+      always() && (
+        needs.publish-release.result == 'failure' ||
+        needs.check-latest-published.result == 'failure' ||
+        needs.cli-install-cross-platform-release-test.result == 'failure'
+      )
+    needs:
+      [
+        check-latest-published,
+        cli-install-cross-platform-release-test,
+        publish-release,
+      ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack on publish failure
+        uses: slackapi/slack-github-action@v3
+        with:
+          webhook: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":red-siren: NPM package publish failed — see workflow run for details"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ":red-siren: *NPM package publish failed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run #${{ github.run_number }}>"
