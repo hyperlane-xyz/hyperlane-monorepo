@@ -131,6 +131,24 @@ function getJsonRpcErrorData(error: any): unknown {
   return error?.error?.error?.data ?? error?.error?.data;
 }
 
+function getJsonRpcErrorMessage(error: any): string | undefined {
+  const nestedMessage = error?.error?.error?.message ?? error?.error?.message;
+  if (nestedMessage) {
+    return nestedMessage;
+  }
+
+  const body = error?.error?.body;
+  if (typeof body !== 'string') {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(body)?.error?.message;
+  } catch {
+    return undefined;
+  }
+}
+
 function isEmptyObjectLikeJsonRpcData(data: unknown): boolean {
   if (typeof data === 'string') {
     return data.trim() === '{}';
@@ -160,6 +178,15 @@ export function isDeterministicCallException(error: any): boolean {
   if (
     jsonRpcErrorCode === -32000 &&
     isEmptyObjectLikeJsonRpcData(getJsonRpcErrorData(error))
+  ) {
+    return true;
+  }
+
+  // Some RPCs surface selector misses as -32000 "execution reverted" without
+  // revert data. For probe requests, that is still a deterministic miss.
+  if (
+    jsonRpcErrorCode === -32000 &&
+    getJsonRpcErrorMessage(error)?.toLowerCase().includes('execution reverted')
   ) {
     return true;
   }
