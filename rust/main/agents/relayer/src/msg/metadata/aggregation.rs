@@ -100,12 +100,11 @@ impl AggregationIsmMetadataBuilder {
         threshold: usize,
         err_isms: Vec<(H256, Option<ModuleType>)>,
     ) -> Result<Vec<SubModuleMetadata>, MetadataBuildError> {
-        let gas_cost_results: Vec<_> = join_all(sub_modules.iter().map(|module| async {
-            module
-                .ism
-                .dry_run_verify(message, &module.meta.metadata)
-                .await
-        }))
+        let gas_cost_results: Vec<_> = join_all(
+            sub_modules
+                .iter()
+                .map(|module| module.ism.dry_run_verify(message, &(module.meta.metadata))),
+        )
         .await;
         // Filter out the ISMs with a gas cost estimate
         let metas_and_gas: Vec<_> = sub_modules
@@ -371,8 +370,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use ethers::utils::hex::FromHex;
+
+    use super::*;
 
     #[test]
     fn test_format_n_of_n_metadata_works_correctly() {
