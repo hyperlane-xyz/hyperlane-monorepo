@@ -504,6 +504,79 @@ describe('EvmTokenFeeModule', () => {
       );
     });
 
+    it('should preserve caller-provided CCR routers when diffing for redeploy', async () => {
+      const initialSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config,
+      });
+      const ccrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routerKey = hre.ethers.utils.hexZeroPad(signer.address, 32);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+
+      await ccrf.setCrossCollateralRouterFeeContracts(
+        [routingDestination],
+        [routerKey],
+        [initialSubFeeModule.serialize().deployedFee],
+      );
+
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {
+            [test4Chain]: {
+              routers: {
+                [routerKey]: config,
+              },
+            },
+          },
+        },
+        addresses: { deployedFee: ccrf.address },
+      });
+
+      const txs = await module.update(
+        {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {
+            [test4Chain]: {
+              default: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                bps: BPS,
+              },
+            },
+          },
+        },
+        {
+          crossCollateralRouters: {
+            [routingDestination]: [routerKey],
+          },
+        },
+      );
+
+      expect(txs).to.have.lengthOf(0);
+      expect(module.serialize().deployedFee).to.not.equal(ccrf.address);
+
+      const onchainConfig = await module.read({
+        crossCollateralRouters: {
+          [routingDestination]: [],
+        },
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
+        `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
+      );
+      expect(onchainConfig.feeContracts[test4Chain]?.default?.type).to.equal(
+        TokenFeeType.LinearFee,
+      );
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.routers ?? {},
+      ).to.deep.equal({});
+    });
+
     it('should redeploy when fee type changes', async () => {
       const module = await EvmTokenFeeModule.create({
         multiProvider,

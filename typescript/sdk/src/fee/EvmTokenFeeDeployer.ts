@@ -114,7 +114,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       maxFee,
       halfAmount,
       config.owner,
-    ]) as Promise<BaseFee>;
+    ]);
   }
 
   private async deployRoutingFee(

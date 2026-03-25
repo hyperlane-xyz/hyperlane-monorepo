@@ -349,12 +349,38 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return effectiveParams;
     }
 
-    effectiveParams.crossCollateralRouters = Object.fromEntries(
+    const targetCrossCollateralRouters = Object.fromEntries(
       Object.entries(targetConfig.feeContracts).map(
         ([chainName, destinationConfig]) => [
           this.multiProvider.getDomainId(chainName),
           Object.keys(destinationConfig.routers ?? {}),
         ],
+      ),
+    );
+    if (!effectiveParams.crossCollateralRouters) {
+      effectiveParams.crossCollateralRouters = targetCrossCollateralRouters;
+      return effectiveParams;
+    }
+
+    const mergedCrossCollateralRouters = new Map<number, Set<string>>();
+    for (const [destination, routers] of Object.entries(
+      effectiveParams.crossCollateralRouters,
+    )) {
+      mergedCrossCollateralRouters.set(Number(destination), new Set(routers));
+    }
+    for (const [destination, routers] of Object.entries(
+      targetCrossCollateralRouters,
+    )) {
+      const destinationKey = Number(destination);
+      const existingRouters =
+        mergedCrossCollateralRouters.get(destinationKey) ?? new Set<string>();
+      for (const router of routers) existingRouters.add(router);
+      mergedCrossCollateralRouters.set(destinationKey, existingRouters);
+    }
+
+    effectiveParams.crossCollateralRouters = Object.fromEntries(
+      [...mergedCrossCollateralRouters.entries()].map(
+        ([destination, routers]) => [destination, [...routers]],
       ),
     );
     return effectiveParams;
