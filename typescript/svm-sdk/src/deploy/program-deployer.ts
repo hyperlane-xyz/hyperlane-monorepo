@@ -31,8 +31,18 @@ export interface DeployProgramPlan {
   stages: DeployStage[];
 }
 
+export const DeployStageKind = {
+  Init: 'init',
+  Write: 'write',
+  Finalize: 'finalize',
+} as const;
+
+export type DeployStageKind =
+  (typeof DeployStageKind)[keyof typeof DeployStageKind];
+
 export interface DeployStage {
   label: string;
+  kind: DeployStageKind;
   instructions: Instruction[];
   additionalSigners?: TransactionSigner[];
 }
@@ -51,6 +61,8 @@ export interface DeployProgramPlanArgs {
 export interface ExecutePlanArgs {
   plan: DeployProgramPlan;
   executeStage: (stage: DeployStage) => Promise<SvmReceipt>;
+  /** Max write transactions to send concurrently. Defaults to 10. */
+  writeBatchSize?: number;
 }
 
 export interface UpgradeProgramPlanArgs {
@@ -99,6 +111,7 @@ export async function createDeployProgramPlan(
   const stages: DeployStage[] = [
     {
       label: 'create-and-init-buffer',
+      kind: DeployStageKind.Init,
       instructions: [createBufferInstruction, initializeBufferInstruction],
       additionalSigners: [bufferSigner],
     },
@@ -108,6 +121,7 @@ export async function createDeployProgramPlan(
     const bytes = args.programBytes.slice(offset, offset + chunkSize);
     stages.push({
       label: `write-${offset}`,
+      kind: DeployStageKind.Write,
       instructions: [
         getWriteInstruction({
           bufferAccount: bufferSigner.address,
@@ -138,6 +152,7 @@ export async function createDeployProgramPlan(
 
   stages.push({
     label: 'create-and-deploy-program',
+    kind: DeployStageKind.Finalize,
     instructions: [createProgramInstruction, deployInstruction],
     additionalSigners: [programSigner],
   });
@@ -165,6 +180,7 @@ export async function createUpgradeProgramPlan(
   const stages: DeployStage[] = [
     {
       label: 'create-and-init-buffer',
+      kind: DeployStageKind.Init,
       instructions: [
         getCreateAccountInstruction({
           payer: args.payer,
@@ -190,6 +206,7 @@ export async function createUpgradeProgramPlan(
     const bytes = args.newProgramBytes.slice(offset, offset + chunkSize);
     stages.push({
       label: `write-${offset}`,
+      kind: DeployStageKind.Write,
       instructions: [
         getWriteInstruction({
           bufferAccount: bufferSigner.address,
@@ -203,6 +220,7 @@ export async function createUpgradeProgramPlan(
 
   stages.push({
     label: 'upgrade-program',
+    kind: DeployStageKind.Finalize,
     instructions: [
       getUpgradeInstruction({
         programDataAccount: programDataAddress,
@@ -225,9 +243,77 @@ export async function executeDeployPlan(
   args: ExecutePlanArgs,
 ): Promise<SvmReceipt[]> {
   const receipts: SvmReceipt[] = [];
+
+  // Partition stages by kind
+  const initStages: DeployStage[] = [];
+  const writeStages: DeployStage[] = [];
+  const finalStages: DeployStage[] = [];
+
   for (const stage of args.plan.stages) {
+    switch (stage.kind) {
+      case DeployStageKind.Init:
+        initStages.push(stage);
+        break;
+      case DeployStageKind.Write:
+        writeStages.push(stage);
+        break;
+      case DeployStageKind.Finalize:
+        finalStages.push(stage);
+        break;
+      default: {
+        const _exhaustive: never = stage.kind;
+        throw new Error(`Unknown stage kind: ${_exhaustive}`);
+      }
+    }
+  }
+
+  // Init stages must complete before writes begin
+  for (const stage of initStages) {
     receipts.push(await args.executeStage(stage));
   }
+
+  // Write stages are independent — send in parallel batches
+  const batchSize = args.writeBatchSize ?? 10;
+  assert(
+    Number.isInteger(batchSize) && batchSize > 0,
+    'writeBatchSize must be a positive integer',
+  );
+  for (
+    let currentStageIdx = 0;
+    currentStageIdx < writeStages.length;
+    currentStageIdx += batchSize
+  ) {
+    const batch = writeStages.slice(
+      currentStageIdx,
+      currentStageIdx + batchSize,
+    );
+    const results = await Promise.allSettled(
+      batch.map((stage) => args.executeStage(stage)),
+    );
+
+    const fulfilled: SvmReceipt[] = [];
+    const failedStages: DeployStage[] = [];
+
+    results.forEach((currWriteStageRes, idx) => {
+      if (currWriteStageRes.status === 'fulfilled') {
+        fulfilled.push(currWriteStageRes.value);
+      } else {
+        failedStages.push(batch[idx]);
+      }
+    });
+    receipts.push(...fulfilled);
+
+    // Retry failed writes sequentially
+    for (const stage of failedStages) {
+      receipts.push(await args.executeStage(stage));
+    }
+  }
+
+  // Final stages (deploy/upgrade) must wait for all writes
+  for (const stage of finalStages) {
+    receipts.push(await args.executeStage(stage));
+  }
+
   return receipts;
 }
 
