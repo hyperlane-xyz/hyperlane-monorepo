@@ -93,7 +93,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
         aws: !!this.config.aws,
         chains: this.config.contextChainNames[this.role].map((chain) => {
           const metadata = getChain(chain);
-          const reorgPeriod = metadata.blocks?.reorgPeriod;
+          const reorgPeriod =
+            this.config.rawConfig.relayer?.reorgPeriodOverrides?.[chain] ??
+            metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }

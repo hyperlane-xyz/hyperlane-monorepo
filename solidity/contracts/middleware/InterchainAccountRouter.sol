@@ -17,30 +17,28 @@ pragma solidity ^0.8.13;
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
 import {InterchainAccountMessage, InterchainAccountMessageReveal} from "./libs/InterchainAccountMessage.sol";
 import {CallLib} from "./libs/Call.sol";
-import {MinimalProxy} from "../libs/MinimalProxy.sol";
+import {AbstractInterchainAccountRouter} from "./AbstractInterchainAccountRouter.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Router} from "../client/Router.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
-import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
 import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
  * @dev ISMs enrolled alongside routers via _enrollRemoteRouterAndIsm, domains always match router table
  */
-// solhint-disable-next-line hyperlane/enumerable-domain-mapping
-contract InterchainAccountRouter is Router, AbstractRoutingIsm {
+contract InterchainAccountRouter is
+    AbstractInterchainAccountRouter,
+    AbstractRoutingIsm
+{
     // ============ Libraries ============
 
     using TypeCasts for address;
@@ -48,70 +46,17 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     using InterchainAccountMessage for bytes;
     using Message for bytes;
     using StandardHookMetadata for bytes;
-    using SafeERC20 for IERC20;
 
     // ============ Constants ============
 
-    address public immutable implementation;
-    bytes32 public immutable bytecodeHash;
     CommitmentReadIsm public immutable CCIP_READ_ISM;
     uint public immutable COMMIT_TX_GAS_USAGE;
-
-    // ============ Public Storage ============
-    mapping(uint32 destinationDomain => bytes32 ism) public isms;
-
-    // ============ Upgrade Gap ============
-
-    uint256[47] private __GAP;
-
-    // ============ Events ============
-
-    /**
-     * @notice Emitted when a default ISM is set for a remote domain
-     * @param domain The remote domain
-     * @param ism The address of the remote ISM
-     */
-    event RemoteIsmEnrolled(uint32 indexed domain, bytes32 ism);
-
-    /**
-     * @notice Emitted when an interchain call is dispatched to a remote domain
-     * @param destination The destination domain on which to make the call
-     * @param owner The local owner of the remote ICA
-     * @param router The address of the remote router
-     * @param ism The address of the remote ISM
-     * @param salt The salt used to derive the interchain account
-     */
-    event RemoteCallDispatched(
-        uint32 indexed destination,
-        address indexed owner,
-        bytes32 router,
-        bytes32 ism,
-        bytes32 salt
-    );
 
     /**
      * @notice Emitted when a commit-reveal interchain call is dispatched to a remote domain
      * @param commitment The commitment that was dispatched
      */
     event CommitRevealDispatched(bytes32 indexed commitment);
-
-    /**
-     * @notice Emitted when an interchain account contract is deployed
-     * @param account The address of the proxy account that was created
-     * @param origin The domain of the chain where the message was sent from
-     * @param router The router on the origin domain
-     * @param owner The address of the account that sent the message
-     * @param ism The address of the local ISM
-     * @param salt The salt used to derive the interchain account
-     */
-    event InterchainAccountCreated(
-        address indexed account,
-        uint32 origin,
-        bytes32 router,
-        bytes32 owner,
-        address ism,
-        bytes32 salt
-    );
 
     // ============ Constructor ============
     constructor(
@@ -130,79 +75,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
         CCIP_READ_ISM = new CommitmentReadIsm(_owner, _commitment_urls);
         COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
-    }
-
-    function interchainSecurityModule()
-        external
-        view
-        override
-        returns (IInterchainSecurityModule)
-    {
-        return IInterchainSecurityModule(address(this));
-    }
-
-    /**
-     * @notice Registers the address of remote InterchainAccountRouter
-     * and ISM contracts to use as a default when making interchain calls
-     * @param _destination The remote domain
-     * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
-     */
-    function enrollRemoteRouterAndIsm(
-        uint32 _destination,
-        bytes32 _router,
-        bytes32 _ism
-    ) external onlyOwner {
-        _enrollRemoteRouterAndIsm(_destination, _router, _ism);
-    }
-
-    /**
-     * @notice Registers the address of remote InterchainAccountRouters
-     * and ISM contracts to use as defaults when making interchain calls
-     * @param _destinations The remote domains
-     * @param _routers The address of the remote InterchainAccountRouters
-     * @param _isms The address of the remote ISMs
-     */
-    function enrollRemoteRouterAndIsms(
-        uint32[] calldata _destinations,
-        bytes32[] calldata _routers,
-        bytes32[] calldata _isms
-    ) external onlyOwner {
-        require(
-            _destinations.length == _routers.length &&
-                _destinations.length == _isms.length,
-            "length mismatch"
-        );
-        for (uint256 i = 0; i < _destinations.length; i++) {
-            _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
-        }
-    }
-
-    // ============ External Functions ============
-
-    /**
-     * @notice Approves a hook to spend a fee token on behalf of this router.
-     * @dev Use this to pre-approve hooks that will call transferFrom for ERC-20 fees,
-     * such as the IGP when it is a child of a StaticAggregationHook. The per-dispatch
-     * approval in _dispatchMessageWithValue only approves the top-level hook, so child
-     * hooks that call transferFrom (like the IGP inside an aggregation) need to be
-     * pre-approved via this function.
-     *
-     * Security: Infinite approvals are safe from the ICA router because:
-     * 1. The router never holds user funds - tokens are pulled from the caller
-     *    and immediately forwarded to hooks during dispatch in a single transaction
-     * 2. Any tokens remaining in the router after a dispatch are not user funds -
-     *    they would only exist due to a bug or unexpected hook behavior
-     * 3. This is distinct from warp routes which hold collateral and therefore
-     *    must NOT grant infinite approvals to arbitrary addresses
-     * 4. The function is permissionless because restricting it provides no
-     *    additional security - the router's token balance is always ~0
-     *
-     * @param _feeToken The ERC-20 fee token address.
-     * @param _hook The hook address to approve for spending the fee token.
-     */
-    function approveFeeTokenForHook(address _feeToken, address _hook) external {
-        IERC20(_feeToken).forceApprove(_hook, type(uint256).max);
     }
 
     /**
@@ -332,7 +204,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _owner,
         address _router,
         address _ism
-    ) external view returns (OwnableMulticall) {
+    ) external view override returns (OwnableMulticall) {
         return
             getLocalInterchainAccount(
                 _origin,
@@ -395,30 +267,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      */
     function getDeployedInterchainAccount(
         uint32 _origin,
-        address _owner,
-        address _router,
-        address _ism
-    ) public returns (OwnableMulticall) {
-        return
-            getDeployedInterchainAccount(
-                _origin,
-                _owner.addressToBytes32(),
-                _router.addressToBytes32(),
-                _ism,
-                InterchainAccountMessage.EMPTY_SALT
-            );
-    }
-
-    /*
-     * @notice Returns and deploys (if not already) an interchain account
-     * @param _origin The remote origin domain of the interchain account
-     * @param _owner The remote owner of the interchain account
-     * @param _router The remote origin InterchainAccountRouter
-     * @param _ism The local address of the ISM
-     * @return The address of the interchain account
-     */
-    function getDeployedInterchainAccount(
-        uint32 _origin,
         bytes32 _owner,
         bytes32 _router,
         address _ism
@@ -431,44 +279,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _ism,
                 InterchainAccountMessage.EMPTY_SALT
             );
-    }
-
-    /**
-     * @notice Returns and deploys (if not already) an interchain account
-     * @param _origin The remote origin domain of the interchain account
-     * @param _owner The remote owner of the interchain account
-     * @param _router The remote origin InterchainAccountRouter
-     * @param _ism The local address of the ISM
-     * @return The address of the interchain account
-     */
-    function getDeployedInterchainAccount(
-        uint32 _origin,
-        bytes32 _owner,
-        bytes32 _router,
-        address _ism,
-        bytes32 _userSalt
-    ) public returns (OwnableMulticall) {
-        bytes32 _deploySalt = _getSalt(
-            _origin,
-            _owner,
-            _router,
-            _ism.addressToBytes32(),
-            _userSalt
-        );
-        address payable _account = _getLocalInterchainAccount(_deploySalt);
-        if (!Address.isContract(_account)) {
-            bytes memory _bytecode = MinimalProxy.bytecode(implementation);
-            _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
-            emit InterchainAccountCreated(
-                _account,
-                _origin,
-                _router,
-                _owner,
-                _ism,
-                _userSalt
-            );
-        }
-        return OwnableMulticall(_account);
     }
 
     /**
@@ -660,7 +470,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _ism,
         CallLib.Call[] calldata _calls,
         bytes memory _hookMetadata
-    ) public payable returns (bytes32) {
+    ) public payable override returns (bytes32) {
         return
             callRemoteWithOverrides(
                 _destination,
@@ -748,9 +558,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _hook
             );
     }
-
-    // refunds from the commit dispatch call used to fund reveal dispatch call
-    receive() external payable {}
 
     /**
      * @notice Dispatches a commitment and reveal message to the destination domain.
@@ -874,80 +681,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
-    // ============ Internal Functions ============
-    function _implementationBytecode(
-        address router
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                type(OwnableMulticall).creationCode,
-                abi.encode(router)
-            );
-    }
-
-    function _proxyBytecodeHash(
-        address _implementation
-    ) internal pure returns (bytes32) {
-        return keccak256(MinimalProxy.bytecode(_implementation));
-    }
-
-    /**
-     * @dev Required for use of Router, compiler will not include this function in the bytecode
-     */
-    function _handle(uint32, bytes32, bytes calldata) internal pure override {
-        assert(false);
-    }
-
-    /**
-     * @notice Overrides Router._enrollRemoteRouter to also enroll a default ISM
-     * @param _destination The remote domain
-     * @param _address The address of the remote InterchainAccountRouter
-     * @dev Sets the default ISM to the zero address
-     */
-    function _enrollRemoteRouter(
-        uint32 _destination,
-        bytes32 _address
-    ) internal override {
-        _enrollRemoteRouterAndIsm(
-            _destination,
-            _address,
-            InterchainAccountMessage.EMPTY_SALT
-        );
-    }
-
-    // ============ Private Functions ============
-
-    /**
-     * @notice Registers the address of a remote ISM contract to use as default
-     * @param _destination The remote domain
-     * @param _ism The address of the remote ISM
-     */
-    function _enrollRemoteIsm(uint32 _destination, bytes32 _ism) private {
-        isms[_destination] = _ism;
-        emit RemoteIsmEnrolled(_destination, _ism);
-    }
-
-    /**
-     * @notice Registers the address of remote InterchainAccountRouter
-     * and ISM contracts to use as a default when making interchain calls
-     * @param _destination The remote domain
-     * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
-     */
-    function _enrollRemoteRouterAndIsm(
-        uint32 _destination,
-        bytes32 _router,
-        bytes32 _ism
-    ) private {
-        require(
-            routers(_destination) == InterchainAccountMessage.EMPTY_SALT &&
-                isms[_destination] == InterchainAccountMessage.EMPTY_SALT,
-            "router and ISM defaults are immutable once set"
-        );
-        Router._enrollRemoteRouter(_destination, _router);
-        _enrollRemoteIsm(_destination, _ism);
-    }
-
     /**
      * @notice Dispatches an InterchainAccountMessage to the remote router
      * @param _destination The remote domain
@@ -1014,100 +747,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _hookMetadata,
                 _hook,
                 msg.value
-            );
-    }
-
-    /**
-     * @notice Dispatches an InterchainAccountMessage to the remote router using a `value` parameter for msg.value
-     * @dev If hookMetadata contains a non-zero feeToken, pulls ERC20 from caller and approves hook
-     * @param _value The amount to pass as `msg.value` to the mailbox.dispatch()
-     */
-    function _dispatchMessageWithValue(
-        uint32 _destination,
-        bytes32 _router,
-        bytes memory _body,
-        bytes memory _hookMetadata,
-        IPostDispatchHook _hook,
-        uint _value
-    ) private returns (bytes32) {
-        require(_router != bytes32(0), "no router specified for destination");
-
-        // Check if ERC20 fee payment is requested via hookMetadata
-        address _feeToken = _hookMetadata.feeToken();
-        if (_feeToken != address(0)) {
-            uint256 _fee = _Router_quoteDispatch(
-                _destination,
-                bytes(""),
-                _hookMetadata,
-                address(_hook)
-            );
-
-            // Pull fee tokens from caller and approve hook
-            // Use max approval to avoid overwriting pre-approved child hook allowances
-            // (e.g., when using StaticAggregationHook with IGP as a child)
-            IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
-            IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
-        }
-
-        return
-            mailbox.dispatch{value: _value}(
-                _destination,
-                _router,
-                _body,
-                _hookMetadata,
-                _hook
-            );
-    }
-
-    /**
-     * @notice Returns the salt used to deploy an interchain account
-     * @param _origin The remote origin domain of the interchain account
-     * @param _owner The remote owner of the interchain account
-     * @param _router The remote origin InterchainAccountRouter
-     * @param _ism The local address of the ISM
-     * @param _userSalt Salt provided by the user, allows control over account derivation.
-     * @return The CREATE2 salt used for deploying the interchain account
-     */
-    function _getSalt(
-        uint32 _origin,
-        bytes32 _owner,
-        bytes32 _router,
-        bytes32 _ism,
-        bytes32 _userSalt
-    ) private pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(_origin, _owner, _router, _ism, _userSalt)
-            );
-    }
-
-    /**
-     * @notice Returns the address of the interchain account on the local chain
-     * @param _salt The CREATE2 salt used for deploying the interchain account
-     * @return The address of the interchain account
-     */
-    function _getLocalInterchainAccount(
-        bytes32 _salt
-    ) private view returns (address payable) {
-        return payable(Create2.computeAddress(_salt, bytecodeHash));
-    }
-
-    /**
-     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
-     * @param _destination The domain of the destination router.
-     * @param _gasLimit The gas limit that the calls will use.
-     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
-     */
-    function quoteGasPayment(
-        uint32 _destination,
-        uint256 _gasLimit
-    ) public view returns (uint256 _gasPayment) {
-        return
-            _Router_quoteDispatch(
-                _destination,
-                new bytes(0),
-                StandardHookMetadata.overrideGasLimit(_gasLimit),
-                address(hook)
             );
     }
 

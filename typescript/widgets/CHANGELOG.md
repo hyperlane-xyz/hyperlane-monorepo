@@ -1,5 +1,66 @@
 # @hyperlane-xyz/widgets
 
+## 29.1.0
+
+### Patch Changes
+
+- Updated dependencies [a8192d7]
+- Updated dependencies [a891402]
+  - @hyperlane-xyz/sdk@29.1.0
+  - @hyperlane-xyz/aleo-sdk@29.1.0
+  - @hyperlane-xyz/cosmos-sdk@29.1.0
+  - @hyperlane-xyz/radix-sdk@29.1.0
+  - @hyperlane-xyz/utils@29.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.2
+  - @hyperlane-xyz/tron-sdk@22.1.6
+
+## 29.0.1
+
+### Patch Changes
+
+- Updated dependencies [96508ed]
+  - @hyperlane-xyz/sdk@29.0.1
+  - @hyperlane-xyz/aleo-sdk@29.0.1
+  - @hyperlane-xyz/cosmos-sdk@29.0.1
+  - @hyperlane-xyz/radix-sdk@29.0.1
+  - @hyperlane-xyz/utils@29.0.1
+  - @hyperlane-xyz/provider-sdk@4.2.1
+  - @hyperlane-xyz/tron-sdk@22.1.5
+
+## 29.0.0
+
+### Patch Changes
+
+- 3c6b1ad: Fixed Tron gas estimation and transaction building for wallet integration.
+- Updated dependencies [cc6d57b]
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/sdk@29.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.4
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/aleo-sdk@29.0.0
+  - @hyperlane-xyz/cosmos-sdk@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/radix-sdk@29.0.0
+
+## 28.1.0
+
+### Patch Changes
+
+- 83cbe4d: Fixed `MessageTimeline` rendering invalid `width="auto"` on SVG chevrons, which could break consumers on newer React/browser combinations.
+- Updated dependencies [5caac66]
+- Updated dependencies [6c715a7]
+- Updated dependencies [2e622e8]
+- Updated dependencies [2e622e8]
+- Updated dependencies [e93a4c8]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/radix-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@28.1.0
+  - @hyperlane-xyz/aleo-sdk@28.1.0
+  - @hyperlane-xyz/sdk@28.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.3
+  - @hyperlane-xyz/utils@28.1.0
+
 ## 28.0.0
 
 ### Patch Changes

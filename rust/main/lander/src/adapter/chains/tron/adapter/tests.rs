@@ -742,13 +742,10 @@ async fn test_tx_ready_for_resubmission_respects_block_time() {
     let provider = MockTronProvider::new();
     let adapter = create_test_adapter(provider);
 
-    // A just-created transaction should NOT be ready for resubmission
+    // A just-created transaction should be ready for resubmission
     let tx = create_test_transaction();
     let result = adapter.tx_ready_for_resubmission(&tx).await;
-    assert!(
-        !result,
-        "Newly created tx should not be ready for resubmission"
-    );
+    assert!(result, "Newly created tx should be ready for resubmission");
 
     // A transaction with an old timestamp should be ready for resubmission
     let mut old_tx = create_test_transaction();

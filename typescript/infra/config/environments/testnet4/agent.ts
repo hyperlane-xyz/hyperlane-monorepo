@@ -435,8 +435,35 @@ const neutron: RootAgentConfig = {
   },
 };
 
+const fastPath: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.FastPath,
+  contextChainNames: {
+    [Role.Validator]: [],
+    [Role.Relayer]: ['arbitrumsepolia', 'basesepolia', 'sepolia'],
+    [Role.Scraper]: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayer,
+    },
+    gasPaymentEnforcement,
+    reorgPeriodOverrides: { sepolia: 1 },
+    blacklist: relayBlacklist,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
+    resources: relayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.FastPath]: fastPath,
 };

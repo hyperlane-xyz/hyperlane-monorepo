@@ -194,6 +194,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -339,6 +340,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -484,6 +486,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
@@ -801,6 +804,13 @@ const relayerResources = {
   },
 };
 
+const fastPathRelayerResources = {
+  requests: {
+    cpu: '8000m',
+    memory: '16G',
+  },
+};
+
 const validatorResources = {
   requests: {
     cpu: '500m',
@@ -1010,8 +1020,36 @@ const neutron: RootAgentConfig = {
   },
 };
 
+const fastPath: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.FastPath,
+  contextChainNames: {
+    validator: [],
+    relayer: ['arbitrum', 'base', 'citrea', 'ethereum'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayer,
+    },
+    blacklist,
+    gasPaymentEnforcement,
+    reorgPeriodOverrides: { ethereum: 1 },
+    whitelist: warpRouteMatchingList(WarpRouteIds.CitreaUSD),
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
+    resources: fastPathRelayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.FastPath]: fastPath,
 };

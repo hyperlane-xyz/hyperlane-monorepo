@@ -130,6 +130,7 @@ export const mainnet3SupportedChainNames = [
   'taiko',
   'tangle',
   'torus',
+  'tron',
   'unichain',
   'vana',
   'viction',

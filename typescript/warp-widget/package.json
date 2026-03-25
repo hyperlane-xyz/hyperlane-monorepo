@@ -1,0 +1,50 @@
+{
+  "name": "@hyperlane-xyz/warp-widget",
+  "version": "1.0.0",
+  "description": "Embed the Hyperlane Warp bridge widget in any web app",
+  "keywords": [
+    "Bridge",
+    "Embed",
+    "Hyperlane",
+    "React",
+    "Warp",
+    "Widget"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./react": "./dist/react.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf ./dist ./cache",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "format": "oxfmt --write ./src"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:*",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/react": "^18.0.27",
+    "eslint": "catalog:",
+    "eslint-plugin-react": "^7.37.2",
+    "react": "^18.2.0",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}

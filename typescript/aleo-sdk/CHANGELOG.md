@@ -1,5 +1,38 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 29.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+
+## 29.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.0.1
+- @hyperlane-xyz/provider-sdk@4.2.1
+
+## 29.0.0
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+
+## 28.1.0
+
+### Patch Changes
+
+- 5caac66: Added `crossCollateral` warp token type to the provider-sdk type system. All protocol SDK artifact managers were updated to handle the new type in their exhaustive switches.
+- Updated dependencies [5caac66]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
 ## 28.0.0
 
 ### Minor Changes
