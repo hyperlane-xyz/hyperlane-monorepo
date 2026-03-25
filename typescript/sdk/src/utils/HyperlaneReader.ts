@@ -86,7 +86,10 @@ export class HyperlaneReader {
       const decoded = contractInterface.decodeFunctionResult(method, result);
       return (decoded.length === 1 ? decoded[0] : decoded) as T;
     } catch (error) {
-      if ((error as any)?.code === EthersError.INVALID_ARGUMENT) {
+      if (
+        (error as any)?.code === EthersError.INVALID_ARGUMENT ||
+        this.isProbeMissError(error)
+      ) {
         return undefined;
       }
 
