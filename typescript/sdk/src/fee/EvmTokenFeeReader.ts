@@ -183,14 +183,19 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   private async deriveCrossCollateralRoutingFeeConfig(
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
-    const { address, crossCollateralRouters } = params;
-    const effectiveRoutingDestinations = Object.keys(
-      crossCollateralRouters ?? {},
-    ).map((domain) => Number(domain));
+    const { address, routingDestinations, crossCollateralRouters } = params;
+    const effectiveRoutingDestinations = [
+      ...new Set([
+        ...(routingDestinations ?? []),
+        ...Object.keys(crossCollateralRouters ?? {}).map((domain) =>
+          Number(domain),
+        ),
+      ]),
+    ];
 
     assert(
       effectiveRoutingDestinations.length > 0,
-      'CrossCollateralRoutingFee requires crossCollateralRouters to derive fee config',
+      'CrossCollateralRoutingFee requires routingDestinations or crossCollateralRouters to derive fee config',
     );
 
     const routingFee = CrossCollateralRoutingFee__factory.connect(

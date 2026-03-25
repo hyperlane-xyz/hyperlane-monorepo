@@ -359,5 +359,71 @@ describe('EvmTokenFeeReader', () => {
         }),
       );
     });
+
+    it('should derive CCRF defaults for routing destinations outside cross collateral routers', async () => {
+      const linearFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: linearFeeConfig,
+      });
+
+      const crossCollateralRoutingFeeFactory =
+        await hre.ethers.getContractFactory(
+          'MockCrossCollateralRoutingFee',
+          signer,
+        );
+      const crossCollateralRoutingFee =
+        await crossCollateralRoutingFeeFactory.deploy(signer.address);
+      await crossCollateralRoutingFee.deployed();
+
+      const destination = multiProvider.getDomainId(TestChainName.test3);
+      const destination2 = multiProvider.getDomainId(TestChainName.test4);
+      const defaultRouter = await crossCollateralRoutingFee.DEFAULT_ROUTER();
+      await crossCollateralRoutingFee.setCrossCollateralRouterFeeContracts(
+        [destination, destination2],
+        [defaultRouter, defaultRouter],
+        [
+          deployedContracts[TestChainName.test2][TokenFeeType.LinearFee]
+            .address,
+          deployedContracts[TestChainName.test2][TokenFeeType.LinearFee]
+            .address,
+        ],
+      );
+
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const routingFee = await reader.deriveTokenFeeConfig({
+        address: crossCollateralRoutingFee.address,
+        routingDestinations: [destination, destination2],
+        crossCollateralRouters: {
+          [destination]: [],
+        },
+      });
+
+      expect(normalizeConfig(routingFee)).to.deep.equal(
+        normalizeConfig({
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          token: token.address,
+          feeContracts: {
+            [TestChainName.test3]: {
+              default: linearFeeConfig,
+            },
+            [TestChainName.test4]: {
+              default: linearFeeConfig,
+            },
+          },
+        }),
+      );
+    });
   });
 });
