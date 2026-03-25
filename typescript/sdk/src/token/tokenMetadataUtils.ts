@@ -60,10 +60,10 @@ export async function deriveTokenMetadata(
     }
   }
 
-  const derivedMetadata = await Promise.all(
+  await Promise.all(
     sortedEntries.map(async ([chain, config]) => {
       if (!isEVMLike(multiProvider.getProtocol(chain))) {
-        return [chain, undefined] as const;
+        return;
       }
 
       if (
@@ -71,14 +71,15 @@ export async function deriveTokenMetadata(
         isEverclearEthBridgeTokenConfig(config)
       ) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
-        return [
-          chain,
-          nativeToken
-            ? TokenMetadataSchema.parse({
-                ...nativeToken,
-              })
-            : undefined,
-        ] as const;
+        if (nativeToken) {
+          metadataMap.update(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
+        }
+        return;
       }
 
       if (
@@ -113,13 +114,14 @@ export async function deriveTokenMetadata(
             batchContractAddress,
             chain,
           )) as [string, string];
-          return [
+          metadataMap.update(
             chain,
             TokenMetadataSchema.parse({
               name,
               symbol,
             }),
-          ] as const;
+          );
+          return;
         }
 
         let token: string;
@@ -166,25 +168,17 @@ export async function deriveTokenMetadata(
           chain,
         )) as [string, string, number];
 
-        return [
+        metadataMap.update(
           chain,
           TokenMetadataSchema.parse({
             name,
             symbol,
             decimals,
           }),
-        ] as const;
+        );
       }
-
-      return [chain, undefined] as const;
     }),
   );
-
-  for (const [chain, metadata] of derivedMetadata) {
-    if (metadata) {
-      metadataMap.update(chain, metadata);
-    }
-  }
 
   metadataMap.finalize(validateScale);
   return metadataMap;
