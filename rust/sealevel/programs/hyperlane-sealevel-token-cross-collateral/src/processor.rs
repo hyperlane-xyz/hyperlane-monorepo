@@ -18,15 +18,18 @@ use hyperlane_sealevel_igp::{
 use hyperlane_sealevel_mailbox::{
     accounts::Outbox,
     instruction::{Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch},
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
-    accounts::{HyperlaneToken, HyperlaneTokenAccount},
+    accounts::HyperlaneToken,
     instruction::{Init, Instruction as TokenIxn},
-    processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
+    processor::{
+        build_token_state, create_core_pdas, validate_init_accounts, HyperlaneSealevelToken,
+        HyperlaneSealevelTokenPlugin,
+    },
 };
 use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
@@ -42,7 +45,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 use solana_system_interface::program as system_program;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use crate::{
     accounts::{CrossCollateralState, CrossCollateralStateAccount},
@@ -54,8 +57,6 @@ use crate::{
     plugin::CollateralPlugin,
 };
 use hyperlane_sealevel_token_lib::error::Error as TokenError;
-
-use hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
@@ -183,54 +184,15 @@ pub fn process_instruction(
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program
-    let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &system_program::ID {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1: Token storage account
-    let token_account = next_account_info(accounts_iter)?;
-    let (token_key, token_bump) =
-        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
-    if &token_key != token_account.key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if !token_account.data_is_empty() || token_account.owner != &system_program::ID {
-        return Err(ProgramError::AccountAlreadyInitialized);
-    }
-
-    // Account 2: Dispatch authority PDA
-    let dispatch_authority_account = next_account_info(accounts_iter)?;
-    let (dispatch_authority_key, dispatch_authority_bump) =
-        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
-    if *dispatch_authority_account.key != dispatch_authority_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if !dispatch_authority_account.data_is_empty()
-        || dispatch_authority_account.owner != &system_program::ID
-    {
-        return Err(ProgramError::AccountAlreadyInitialized);
-    }
-
-    // Account 3: Payer
-    let payer_account = next_account_info(accounts_iter)?;
-    if !payer_account.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Mailbox process authority for this program as a recipient
-    let (mailbox_process_authority, _mailbox_process_authority_bump) = Pubkey::find_program_address(
-        mailbox_process_authority_pda_seeds!(program_id),
-        &init.mailbox,
-    );
+    // Accounts 0-3: system program, token PDA, dispatch authority PDA, payer
+    let bundle = validate_init_accounts(program_id, accounts_iter, &init.mailbox)?;
 
     // Accounts 4-8: CollateralPlugin::initialize
     let plugin_data = CollateralPlugin::initialize(
         program_id,
-        system_program_info,
-        token_account,
-        payer_account,
+        bundle.system_program,
+        bundle.token_account,
+        bundle.payer_account,
         accounts_iter,
     )?;
 
@@ -268,49 +230,9 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         return Err(TokenError::ExtraneousAccount.into());
     }
 
-    let rent = Rent::get()?;
-
-    // Build and store HyperlaneToken<CollateralPlugin>
-    let hyperlane_token: HyperlaneToken<CollateralPlugin> = HyperlaneToken {
-        bump: token_bump,
-        mailbox: init.mailbox,
-        mailbox_process_authority,
-        dispatch_authority_bump,
-        owner: Some(*payer_account.key),
-        interchain_security_module: init.interchain_security_module,
-        interchain_gas_paymaster: init.interchain_gas_paymaster,
-        destination_gas: HashMap::new(),
-        decimals: init.decimals,
-        remote_decimals: init.remote_decimals,
-        remote_routers: HashMap::new(),
-        plugin_data,
-    };
-    let hyperlane_token_account_data =
-        HyperlaneTokenAccount::<CollateralPlugin>::from(hyperlane_token);
-
-    // Create token account PDA
-    create_pda_account(
-        payer_account,
-        &rent,
-        hyperlane_token_account_data.size(),
-        program_id,
-        system_program_info,
-        token_account,
-        hyperlane_token_pda_seeds!(token_bump),
-    )?;
-
-    // Create dispatch authority PDA (0 bytes)
-    create_pda_account(
-        payer_account,
-        &rent,
-        0,
-        program_id,
-        system_program_info,
-        dispatch_authority_account,
-        mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump),
-    )?;
-
-    hyperlane_token_account_data.store(token_account, false)?;
+    // Build and store HyperlaneToken<CollateralPlugin> + create core PDAs
+    let token_account_data = build_token_state(init, plugin_data, &bundle);
+    create_core_pdas(program_id, &bundle, &token_account_data)?;
 
     // Build and store CrossCollateralState
     let cc_state = CrossCollateralState {
@@ -321,13 +243,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     };
     let cc_state_account_data = CrossCollateralStateAccount::from(cc_state);
 
+    let rent = Rent::get()?;
+
     // Create CC state PDA
     create_pda_account(
-        payer_account,
+        bundle.payer_account,
         &rent,
         cc_state_account_data.size(),
         program_id,
-        system_program_info,
+        bundle.system_program,
         cc_state_account,
         cross_collateral_pda_seeds!(cc_state_bump),
     )?;
@@ -336,11 +260,11 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 
     // Create CC dispatch authority PDA (0 bytes)
     create_pda_account(
-        payer_account,
+        bundle.payer_account,
         &rent,
         0,
         program_id,
-        system_program_info,
+        bundle.system_program,
         cc_dispatch_authority_account,
         cross_collateral_dispatch_authority_pda_seeds!(cc_dispatch_authority_bump),
     )?;
