@@ -1,5 +1,3 @@
-import { utils } from 'ethers';
-
 import {
   BaseFee,
   CrossCollateralRoutingFee,
@@ -28,7 +26,7 @@ import {
 
 type RoutingFeeDeploymentResult = {
   routingFee: RoutingFee | CrossCollateralRoutingFee;
-  subFeeContracts: Record<ChainName, BaseFee>;
+  subFeeContracts: BaseFee[];
 };
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
@@ -67,9 +65,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
           parsedConfig,
         );
         deployedContract[TokenFeeType.RoutingFee] = routingFeeResult.routingFee;
-        for (const [_, contract] of Object.entries(
-          routingFeeResult.subFeeContracts,
-        )) {
+        for (const contract of routingFeeResult.subFeeContracts) {
           const onchainFeeType: OnchainTokenFeeType = await contract.feeType();
           const feeType = onChainTypeToTokenFeeTypeMap[onchainFeeType];
           deployedContract[feeType] = contract;
@@ -83,9 +79,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         );
         deployedContract[TokenFeeType.CrossCollateralRoutingFee] =
           routingFeeResult.routingFee;
-        for (const [_, contract] of Object.entries(
-          routingFeeResult.subFeeContracts,
-        )) {
+        for (const contract of routingFeeResult.subFeeContracts) {
           const onchainFeeType: OnchainTokenFeeType = await contract.feeType();
           const feeType = onChainTypeToTokenFeeTypeMap[onchainFeeType];
           deployedContract[feeType] = contract;
@@ -141,7 +135,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       [config.token, signerAddress],
     );
 
-    const subFeeContracts: Record<ChainName, BaseFee> = {};
+    const subFeeContracts: BaseFee[] = [];
     // Deploy each fee contract & set each fee for the routing fee
     for (const [destinationChain, feeConfig] of Object.entries(
       config.feeContracts,
@@ -151,12 +145,12 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       await this.multiProvider.handleTx(
         chain,
         routingFee.setFeeContract(
-          this.multiProvider.getChainId(destinationChain),
+          this.multiProvider.getDomainId(destinationChain),
           deployedFeeContract.address,
           this.multiProvider.getTransactionOverrides(chain),
         ),
       );
-      subFeeContracts[destinationChain] = deployedFeeContract;
+      subFeeContracts.push(deployedFeeContract);
     }
 
     if (!eqAddress(signerAddress, config.owner)) {
@@ -194,7 +188,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       [signerAddress],
     );
 
-    const subFeeContracts: Record<ChainName, BaseFee> = {};
+    const subFeeContracts: BaseFee[] = [];
     const destinations: number[] = [];
     const routers: string[] = [];
     const fees: string[] = [];
@@ -211,7 +205,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         destinations.push(this.multiProvider.getDomainId(destinationChain));
         routers.push(defaultRouter);
         fees.push(deployedFeeContract.address);
-        subFeeContracts[destinationChain] = deployedFeeContract;
+        subFeeContracts.push(deployedFeeContract);
       }
 
       for (const [routerKey, routerFeeConfig] of Object.entries(
@@ -224,23 +218,20 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         destinations.push(this.multiProvider.getDomainId(destinationChain));
         routers.push(routerKey);
         fees.push(deployedFeeContract.address);
-        subFeeContracts[destinationChain] = deployedFeeContract;
+        subFeeContracts.push(deployedFeeContract);
       }
     }
 
     if (destinations.length > 0) {
-      const ccrfInterface = new utils.Interface([
-        'function setCrossCollateralRouterFeeContracts(uint32[],bytes32[],address[])',
-      ]);
-      await this.multiProvider.sendTransaction(chain, {
-        annotation: `Setting CrossCollateralRoutingFee contracts for ${destinations.length} destination/router pair(s)`,
-        chainId: Number(this.multiProvider.getChainId(chain)),
-        to: routingFee.address,
-        data: ccrfInterface.encodeFunctionData(
-          'setCrossCollateralRouterFeeContracts',
-          [destinations, routers, fees],
+      await this.multiProvider.handleTx(
+        chain,
+        routingFee.setCrossCollateralRouterFeeContracts(
+          destinations,
+          routers,
+          fees,
+          this.multiProvider.getTransactionOverrides(chain),
         ),
-      });
+      );
     }
 
     if (!eqAddress(signerAddress, config.owner)) {

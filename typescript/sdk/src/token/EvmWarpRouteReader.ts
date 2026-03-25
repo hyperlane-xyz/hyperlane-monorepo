@@ -198,14 +198,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    // OFT contracts don't have Router/MailboxClient interfaces — read owner directly
+    const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
+    // OFT and deposit-address bridges don't expose Router/MailboxClient interfaces.
     const isOft = type === TokenType.collateralOft;
-    const routerConfig = isOft
+    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
+    const routerConfig = usesSentinelRouterConfig
       ? {
+          mailbox: constants.AddressZero,
           owner: await Ownable__factory.connect(
             warpRouteAddress,
             this.provider,
           ).owner(),
+          hook: constants.AddressZero,
+          interchainSecurityModule: constants.AddressZero,
+          remoteRouters: {},
         }
       : await this.readRouterConfig(warpRouteAddress);
     // if the token has not been deployed as a proxy do not derive the config
@@ -226,7 +232,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
     // fetchDestinationGas also reads gas for MC-only enrolled domains.
     let destinationGas: Record<string, string> | undefined;
-    if (isOft) {
+    if (usesSentinelRouterConfig) {
       destinationGas = undefined;
     } else {
       destinationGas = await this.fetchDestinationGas(
@@ -300,9 +306,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Use both router.domains() and CCR-enrolled domains for token fee derivation.
     // This ensures RoutingFee/CrossCollateralRoutingFee sub-fees on CCR-only domains
     // are considered during read/check.
+    const selfDomain = this.multiProvider.getDomainId(this.chain);
     const feeDestinations = [
       ...new Set([...(domains ?? []), ...ccrEnrolledDomains]),
-    ];
+    ].filter((domain) => domain !== selfDomain);
     const tokenFee = await this.fetchTokenFee(
       warpRouteAddress,
       feeDestinations.length ? feeDestinations : undefined,
@@ -320,8 +327,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
-    // CAST: token/router config variants are discriminated by token type at runtime.
-    return {
+    const derivedConfig = {
       ...routerConfig,
       ...tokenConfig,
       allowedRebalancers,
@@ -329,7 +335,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       proxyAdmin,
       destinationGas,
       tokenFee,
-    } as DerivedTokenRouterConfig;
+    };
+    return derivedConfig;
   }
 
   public async fetchTokenFee(
@@ -400,12 +407,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       string,
       ContractVerificationStatus
     > = {};
-    if (process.env.HYP_SKIP_VERIFICATION_STATUS === '1') {
-      return {
-        [VerifyContractTypes.Implementation]:
-          ContractVerificationStatus.Skipped,
-      };
-    }
 
     const contractType = (await isProxy(this.provider, address))
       ? VerifyContractTypes.Proxy

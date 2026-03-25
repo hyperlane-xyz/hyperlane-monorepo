@@ -1,7 +1,13 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { LinearFeeInputConfigSchema, TokenFeeType } from './types.js';
+import {
+  CrossCollateralRoutingFeeConfigSchema,
+  CrossCollateralRoutingFeeInputConfigSchema,
+  LinearFeeInputConfigSchema,
+  RoutingFeeInputConfigSchema,
+  TokenFeeType,
+} from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 
@@ -114,5 +120,52 @@ describe('LinearFeeInputConfigSchema', () => {
       expect(result.data.bps).to.exist;
       expect(result.data.bps).to.be.a('bigint');
     }
+  });
+});
+
+describe('CrossCollateralRoutingFee schemas', () => {
+  it('rejects empty routing feeContracts for routing fee input config', () => {
+    const result = RoutingFeeInputConfigSchema.safeParse({
+      type: TokenFeeType.RoutingFee,
+      owner: SOME_ADDRESS,
+      feeContracts: {},
+    });
+
+    expect(result.success).to.equal(false);
+  });
+
+  it('rejects empty feeContracts for cross collateral input config', () => {
+    const result = CrossCollateralRoutingFeeInputConfigSchema.safeParse({
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: SOME_ADDRESS,
+      feeContracts: {},
+    });
+
+    expect(result.success).to.equal(false);
+  });
+
+  it('rejects empty destination entries for deployed config', () => {
+    const result = CrossCollateralRoutingFeeConfigSchema.safeParse({
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: SOME_ADDRESS,
+      token: SOME_ADDRESS,
+      feeContracts: {
+        ethereum: {},
+      },
+    });
+
+    expect(result.success).to.equal(false);
+  });
+
+  it('rejects empty destination entries for input config', () => {
+    const result = CrossCollateralRoutingFeeInputConfigSchema.safeParse({
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: SOME_ADDRESS,
+      feeContracts: {
+        ethereum: {},
+      },
+    });
+
+    expect(result.success).to.equal(false);
   });
 });

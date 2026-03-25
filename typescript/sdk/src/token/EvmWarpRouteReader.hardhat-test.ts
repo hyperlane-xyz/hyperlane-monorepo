@@ -1598,9 +1598,13 @@ describe('EvmWarpRouteReader', async () => {
         .stub(TokenRouter__factory, 'connect')
         .returns(mockTokenRouter as any);
 
-      await expect(
-        evmERC20WarpRouteReader.deriveTokenType(warpAddress),
-      ).to.be.rejectedWith(
+      let thrownError: Error | undefined;
+      try {
+        await evmERC20WarpRouteReader.deriveTokenType(warpAddress);
+      } catch (error) {
+        thrownError = error as Error;
+      }
+      expect(thrownError?.message).to.include(
         `Error deriving token type for token at address "${warpAddress}"`,
       );
 
