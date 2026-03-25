@@ -428,7 +428,6 @@ fn run_locally() {
 
     // Wait for termination invariants
     const TIMEOUT_SECS: u64 = 60 * 10;
-    let mut failure_occurred = false;
 
     let test_passed = wait_for_condition(
         &config,
@@ -438,7 +437,7 @@ fn run_locally() {
         || false, // No long-running process checks for tron
     );
 
-    if failure_occurred {
+    if !test_passed {
         panic!("Tron E2E tests failed");
     } else {
         log!("Tron E2E tests passed");
