@@ -113,7 +113,7 @@ export function getExplorerTxUrl(
     metadata.blockExplorers.length &&
     metadata.blockExplorers[0].family === ExplorerFamily.TronScan
   ) {
-    return appendToPath(baseUrl, `${urlPathStub}/${strip0x(hash)}`).toString();
+    return appendToPath(baseUrl, `transaction/${strip0x(hash)}`).toString();
   }
   return appendToPath(baseUrl, `${urlPathStub}/${hash}`).toString();
 }
