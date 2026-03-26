@@ -90,9 +90,10 @@ export function buildWarpRouteMaps(warpRouteConfigs: WarpRouteConfigs): {
         ...rest
       } = token;
       if (!addressOrDenom) return;
+      const normalizedAddress = normalizeAddress(addressOrDenom);
 
       warpRouteChainAddressMap[chainName] ||= {};
-      warpRouteChainAddressMap[chainName][addressOrDenom] = {
+      warpRouteChainAddressMap[chainName][normalizedAddress] = {
         ...rest,
         addressOrDenom,
         chainName,
