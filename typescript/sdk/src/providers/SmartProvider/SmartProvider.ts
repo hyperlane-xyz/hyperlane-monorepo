@@ -559,6 +559,7 @@ export class HyperlaneSmartProvider
     reqId: number,
     policy = this.getReadRequestPolicy(),
   ): Promise<any> {
+    // Keep this thin wrapper as the protected override seam for subclasses.
     return this.performWithFallbackForPolicy(
       method,
       params,
