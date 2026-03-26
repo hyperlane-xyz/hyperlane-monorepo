@@ -205,9 +205,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const isOft = type === TokenType.collateralOft;
     const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
     const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
-    const tokenRouterDomainsPromise = usesSentinelRouterConfig
+    let tokenRouterDomainsPromise: Promise<number[]> | undefined;
+    const getTokenRouterDomainsPromise = usesSentinelRouterConfig
       ? undefined
-      : TokenRouter__factory.connect(warpRouteAddress, this.provider).domains();
+      : () =>
+          (tokenRouterDomainsPromise ??= TokenRouter__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).domains());
     const routerConfigPromise = usesSentinelRouterConfig
       ? Ownable__factory.connect(warpRouteAddress, this.provider)
           .owner()
@@ -292,7 +297,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       try {
         const tokenRouterDomains = await this.fetchTokenRouterDomains(
           movableToken,
-          tokenRouterDomainsPromise,
+          getTokenRouterDomainsPromise,
         );
         assert(
           tokenRouterDomains,
@@ -334,7 +339,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       isCrossCollateralTokenConfig(tokenConfig)
         ? tokenConfig.crossCollateralRouters
         : undefined,
-      tokenRouterDomainsPromise,
+      getTokenRouterDomainsPromise,
     );
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
@@ -359,8 +364,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   private async fetchTokenRouterDomains(
     tokenRouter: { domains: () => Promise<number[]> },
-    domainsPromise?: Promise<number[]>,
+    getDomainsPromise?: () => Promise<number[] | undefined>,
   ): Promise<number[] | undefined> {
+    const domainsPromise = getDomainsPromise?.();
     if (domainsPromise) {
       try {
         const domains = await domainsPromise;
@@ -388,7 +394,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     routerAddress: Address,
     destinations?: number[],
     crossCollateralRouters?: Record<string, string[]>,
-    destinationsPromise?: Promise<number[] | undefined>,
+    getDestinationsPromise?: () => Promise<number[] | undefined>,
   ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
@@ -425,7 +431,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await this.fetchTokenRouterDomains(TokenRouter, destinationsPromise));
+      (await this.fetchTokenRouterDomains(TokenRouter, getDestinationsPromise));
 
     const normalizedCrossCollateralRouters = crossCollateralRouters
       ? Object.fromEntries(
