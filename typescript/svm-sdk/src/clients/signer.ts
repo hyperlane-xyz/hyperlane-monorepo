@@ -318,6 +318,19 @@ export class SvmSigner
         if (check?.confirmed) {
           return { signature, slot: check.slot };
         }
+
+        if (check) {
+          // Tx still progressing (e.g. 'processed') — keep polling same
+          // signature instead of resubmitting to avoid double-execution
+          const retry = await this.pollForConfirmation(
+            signature,
+            rawTx,
+            lastValidBlockHeight,
+            pollIntervalMs,
+          );
+
+          if (retry) return retry;
+        }
       } catch (error) {
         if (error instanceof SvmTransactionError) throw error;
         this.logger.debug('History check failed, will resubmit', { error });
@@ -344,9 +357,11 @@ export class SvmSigner
     lastValidBlockHeight: bigint,
     pollIntervalMs: number,
   ): Promise<SvmReceipt | null> {
-    const deadline = Date.now() + 60_000;
+    const maxBlockHeightFailures = 3;
+    let blockHeightFailures = 0;
     let delay = Math.max(Math.floor(pollIntervalMs / 4), 250);
-    while (Date.now() < deadline) {
+
+    while (true) {
       await sleep(delay);
       delay = Math.min(Math.floor(delay * 1.5), pollIntervalMs);
 
@@ -371,11 +386,21 @@ export class SvmSigner
         const currentBlockHeight = await this.rpc
           .getBlockHeight({ commitment: RPC_COMMITMENT_LEVEL })
           .send();
+
+        // Reset on successful fetch
+        blockHeightFailures = 0;
         if (currentBlockHeight > lastValidBlockHeight) {
-          return null; // Blockhash expired — caller handles history check
+          return null;
         }
       } catch (error) {
+        blockHeightFailures++;
         this.logger.debug('Block height check failed', { error });
+        if (blockHeightFailures >= maxBlockHeightFailures) {
+          this.logger.warn(
+            `Block height check failed ${maxBlockHeightFailures} times, treating as expired`,
+          );
+          return null;
+        }
       }
 
       // Rebroadcast same signed tx (fire-and-forget, always skip preflight)
@@ -391,10 +416,6 @@ export class SvmSigner
         // Rebroadcast is best-effort — ignore all errors
       }
     }
-
-    // Deadline exceeded — treat as blockhash expiry
-    this.logger.debug('Poll deadline exceeded, treating as blockhash expiry');
-    return null;
   }
 
   async sendAndConfirmTransaction(

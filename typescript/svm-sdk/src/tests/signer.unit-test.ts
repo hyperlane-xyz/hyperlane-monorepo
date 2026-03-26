@@ -285,28 +285,22 @@ describe('SvmSigner', () => {
 
   // ---- Poll deadline ----
 
-  describe('send — poll deadline', () => {
-    it('exits polling after wall-clock deadline even if block height is valid', async function () {
+  describe('send — block height failure safety net', () => {
+    it('exits polling after consecutive block height check failures', async function () {
       this.timeout(10_000);
 
-      let pollCount = 0;
-      // Stub Date.now to jump forward past the 60s deadline after a few polls
-      const realNow = Date.now;
-      let fakeTime = realNow.call(Date);
-      sinon.stub(Date, 'now').callsFake(() => fakeTime);
-
+      let blockHeightCalls = 0;
       const rpc = createMockRpc({
+        // Tx never found
         getSignatureStatuses: () => ({
-          send: async () => {
-            pollCount++;
-            // Jump 25s each poll — after 3 polls we're past 60s
-            fakeTime += 25_000;
-            return { value: [null] };
-          },
+          send: async () => ({ value: [null] }),
         }),
-        // Block height never expires — only the deadline should trigger exit
+        // Always fails — triggers the safety net after 3 consecutive failures
         getBlockHeight: () => ({
-          send: async () => 500n,
+          send: async () => {
+            blockHeightCalls++;
+            throw new Error('RPC unavailable');
+          },
         }),
       });
 
@@ -314,8 +308,8 @@ describe('SvmSigner', () => {
       await expect(signer.send(noopTx())).to.be.rejectedWith(
         'Transaction not confirmed after all blockhash attempts',
       );
-      // 3 blockhash attempts × 4 polls each (25s jumps, exits after 75s > 60s deadline)
-      expect(pollCount).to.equal(12);
+      // 3 blockhash attempts × 3 failures each = 9
+      expect(blockHeightCalls).to.equal(9);
     });
   });
 

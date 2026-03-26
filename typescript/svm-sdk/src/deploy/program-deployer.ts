@@ -15,12 +15,13 @@ import {
   type TransactionSigner,
 } from '@solana/kit';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { LOADER_V3_PROGRAM_ADDRESS } from '../constants.js';
 import { DEFAULT_WRITE_CHUNK_SIZE } from '../tx.js';
 import type { SvmReceipt, SvmRpc } from '../types.js';
 
+const logger = rootLogger.child({ module: 'ProgramDeployer' });
 const ADDRESS_CODEC = getAddressCodec();
 const BUFFER_METADATA_SIZE = 37;
 const PROGRAM_ACCOUNT_SIZE = 36;
@@ -298,6 +299,9 @@ export async function executeDeployPlan(
       if (currWriteStageRes.status === 'fulfilled') {
         fulfilled.push(currWriteStageRes.value);
       } else {
+        logger.debug(`Write stage ${batch[idx].label} failed, will retry`, {
+          error: currWriteStageRes.reason,
+        });
         failedStages.push(batch[idx]);
       }
     });
