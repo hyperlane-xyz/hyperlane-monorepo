@@ -1387,6 +1387,55 @@ export class GovernTransactionReader {
       };
     }
 
+    if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+      const routes: Record<string, Record<string, any>> = {};
+      const routeInsights: string[] = [];
+
+      for (const [chainName, routerConfigs] of Object.entries(
+        feeConfig.feeContracts || {},
+      )) {
+        const routerEntries = Object.entries(routerConfigs);
+        routes[chainName] = Object.fromEntries(
+          routerEntries.map(([routerKey, subConfig]) => {
+            const bps = subConfig.bps ? Number(subConfig.bps) : 0;
+            const percent = (bps / 100).toFixed(2);
+
+            return [
+              routerKey,
+              {
+                type: subConfig.type,
+                address: subConfig.address,
+                bps,
+                percent: `${percent}%`,
+              },
+            ];
+          }),
+        );
+
+        routeInsights.push(
+          `${chainName}: ${routerEntries.length} router${routerEntries.length === 1 ? '' : 's'}`,
+        );
+      }
+
+      const routeCount = Object.keys(routes).length;
+      const routeSummary =
+        routeCount <= 3
+          ? routeInsights.join(', ')
+          : `${routeCount} destinations configured`;
+
+      const description = `CrossCollateralRoutingFee contract (${routeSummary}, owner: ${ownerInsight})`;
+      return {
+        insight: `Set fee recipient to ${description}`,
+        description,
+        feeDetails: {
+          type: 'CrossCollateralRoutingFee',
+          address: feeConfig.address,
+          owner: feeConfig.owner,
+          routes,
+        },
+      };
+    }
+
     // Fallback for other fee types (Progressive, Regressive)
     const description = `${feeConfig.type} contract (owner: ${ownerInsight})`;
     return {
