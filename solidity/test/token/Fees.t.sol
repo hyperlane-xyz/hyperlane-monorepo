@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {ERC20Test, FalseReturnERC20Test} from "../../contracts/test/ERC20Test.sol";
 
 import {BaseFee, FeeType} from "../../contracts/token/fees/BaseFee.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
@@ -69,7 +69,7 @@ contract LinearFeeTest is BaseFeeTest {
     }
 
     function test_LinearFee_Type() public {
-        assertEq(uint(feeContract.feeType()), uint(FeeType.LINEAR));
+        assertEq(uint256(feeContract.feeType()), uint256(FeeType.LINEAR));
     }
 
     function test_LinearFee_Quote(
@@ -125,6 +125,30 @@ contract LinearFeeTest is BaseFeeTest {
     }
 }
 
+contract LinearFeeFalseReturnClaimTest is Test {
+    address internal constant OWNER = address(0x123);
+    address internal constant BENEFICIARY = address(0x456);
+
+    FalseReturnERC20Test internal token;
+    LinearFee internal feeContract;
+
+    function setUp() public {
+        token = new FalseReturnERC20Test("Test Token", "TST", 0, 18);
+        feeContract = new LinearFee(address(token), 1000, 10000, OWNER);
+    }
+
+    function test_Claim_falseReturnTransferSucceeds() public {
+        uint256 amount = 100e18;
+        token.mintTo(address(feeContract), amount);
+
+        vm.prank(OWNER);
+        feeContract.claim(BENEFICIARY);
+
+        assertEq(token.balanceOf(BENEFICIARY), amount);
+        assertEq(token.balanceOf(address(feeContract)), 0);
+    }
+}
+
 // --- ProgressiveFee Tests ---
 
 contract ProgressiveFeeTest is BaseFeeTest {
@@ -142,7 +166,7 @@ contract ProgressiveFeeTest is BaseFeeTest {
     }
 
     function test_ProgressiveFee_Type() public {
-        assertEq(uint(feeContract.feeType()), uint(FeeType.PROGRESSIVE));
+        assertEq(uint256(feeContract.feeType()), uint256(FeeType.PROGRESSIVE));
     }
 
     function test_ProgressiveFee_Quote(
@@ -271,7 +295,7 @@ contract RegressiveFeeTest is BaseFeeTest {
     }
 
     function test_RegressiveFee_Type() public {
-        assertEq(uint(feeContract.feeType()), uint(FeeType.REGRESSIVE));
+        assertEq(uint256(feeContract.feeType()), uint256(FeeType.REGRESSIVE));
     }
 
     function test_RegressiveFee_Quote(
@@ -354,7 +378,7 @@ contract RoutingFeeTest is BaseFeeTest {
     }
 
     function test_RoutingFee_Type() public {
-        assertEq(uint(routingFee.feeType()), uint(FeeType.ROUTING));
+        assertEq(uint256(routingFee.feeType()), uint256(FeeType.ROUTING));
     }
 
     function test_Quote_NoFeeContract() public {
