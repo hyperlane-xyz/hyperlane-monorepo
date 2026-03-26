@@ -1,6 +1,7 @@
 import { ContractFactory } from 'ethers';
 
 import {
+  CrossCollateralRoutingFee__factory,
   LinearFee__factory,
   ProgressiveFee__factory,
   RegressiveFee__factory,
@@ -14,6 +15,8 @@ export const evmTokenFeeFactories = {
   [TokenFeeType.ProgressiveFee]: new ProgressiveFee__factory(),
   [TokenFeeType.RegressiveFee]: new RegressiveFee__factory(),
   [TokenFeeType.RoutingFee]: new RoutingFee__factory(),
+  [TokenFeeType.CrossCollateralRoutingFee]:
+    new CrossCollateralRoutingFee__factory(),
 } as const satisfies Record<TokenFeeType, ContractFactory>;
 
 export type EvmTokenFeeFactories = typeof evmTokenFeeFactories;
