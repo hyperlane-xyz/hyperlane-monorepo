@@ -22,7 +22,7 @@ import {
   SwitchNetworkFns,
   WatchAssetFns,
 } from './types.js';
-import { getCosmosChainNames, getCosmosChains } from './cosmosBase.js';
+import { getCosmosChainNames, getCosmosChains } from './cosmosWallet.js';
 
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/cosmos',
@@ -33,7 +33,7 @@ export {
   useCosmosConnectFn,
   useCosmosDisconnectFn,
   useCosmosWalletDetails,
-} from './cosmosBase.js';
+} from './cosmosWallet.js';
 
 export function useCosmosSwitchNetwork(
   multiProvider: MultiProtocolProvider,

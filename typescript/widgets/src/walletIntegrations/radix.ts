@@ -24,7 +24,7 @@ export {
   useRadixConnectFn,
   useRadixDisconnectFn,
   useRadixWalletDetails,
-} from './radixBase.js';
+} from './radixWallet.js';
 
 export function useRadixSwitchNetwork(
   multiProvider: MultiProtocolProvider,

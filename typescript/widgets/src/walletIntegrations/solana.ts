@@ -26,7 +26,7 @@ export {
   useSolanaConnectFn,
   useSolanaDisconnectFn,
   useSolanaWalletDetails,
-} from './solanaBase.js';
+} from './solanaWallet.js';
 
 export function useSolanaSwitchNetwork(): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {

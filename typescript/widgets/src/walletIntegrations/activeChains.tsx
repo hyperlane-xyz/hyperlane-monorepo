@@ -3,14 +3,14 @@ import { useMemo } from 'react';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
 import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { useAleoActiveChain } from './aleoBase.js';
-import { useCosmosActiveChain } from './cosmosBase.js';
-import { useEthereumActiveChain } from './ethereumBase.js';
-import { useRadixActiveChain } from './radixBase.js';
-import { useSolanaActiveChain } from './solanaBase.js';
-import { useStarknetActiveChain } from './starknetBase.js';
+import { useAleoActiveChain } from './aleoWallet.js';
+import { useCosmosActiveChain } from './cosmosWallet.js';
+import { useEthereumActiveChain } from './ethereumWallet.js';
+import { useRadixActiveChain } from './radixWallet.js';
+import { useSolanaActiveChain } from './solanaWallet.js';
+import { useStarknetActiveChain } from './starknetWallet.js';
 import { type ActiveChainInfo } from './types.js';
-import { useTronActiveChain } from './tronBase.js';
+import { useTronActiveChain } from './tronWallet.js';
 
 export function useActiveChains(multiProvider: MultiProtocolProvider): {
   chains: Record<KnownProtocolType, ActiveChainInfo>;
