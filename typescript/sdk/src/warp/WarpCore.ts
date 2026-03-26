@@ -17,7 +17,6 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Keypair } from '@solana/web3.js';
 
-import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import {
@@ -27,7 +26,7 @@ import {
 import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
-import { TokenMetadata } from '../token/TokenMetadata.js';
+import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
@@ -66,7 +65,6 @@ import {
   WarpTxCategory,
   WarpTypedTransaction,
 } from './types.js';
-import { WarpRouteGraph, buildWarpRouteTokens } from './WarpRouteGraph.js';
 
 export interface WarpCoreOptions {
   logger?: Logger;
@@ -75,7 +73,9 @@ export interface WarpCoreOptions {
   routeBlacklist?: RouteBlacklist;
 }
 
-export class WarpCore extends WarpRouteGraph<Token> {
+export class WarpCore {
+  public readonly multiProvider: MultiProtocolProvider<{ mailbox?: Address }>;
+  public readonly tokens: Token[];
   public readonly localFeeConstants: FeeConstantConfig;
   public readonly interchainFeeConstants: FeeConstantConfig;
   public readonly routeBlacklist: RouteBlacklist;
@@ -86,7 +86,8 @@ export class WarpCore extends WarpRouteGraph<Token> {
     tokens: Token[],
     options?: WarpCoreOptions,
   ) {
-    super(multiProvider, tokens);
+    this.multiProvider = multiProvider;
+    this.tokens = tokens;
     this.localFeeConstants = options?.localFeeConstants || [];
     this.interchainFeeConstants = options?.interchainFeeConstants || [];
     this.routeBlacklist = options?.routeBlacklist || [];
@@ -107,23 +108,40 @@ export class WarpCore extends WarpRouteGraph<Token> {
     config: unknown,
   ): WarpCore {
     const parsedConfig = WarpCoreConfigSchema.parse(config);
-    const routeGraph = new WarpRouteGraph(
-      multiProvider,
-      buildWarpRouteTokens(parsedConfig, (token) => new TokenMetadata(token)),
+    const tokens = parsedConfig.tokens.map(
+      (token) =>
+        new Token({
+          ...token,
+          addressOrDenom: token.addressOrDenom || '',
+          connections: undefined,
+        }),
     );
-    return WarpCore.FromRouteGraph(routeGraph, parsedConfig.options);
-  }
 
-  static FromRouteGraph(
-    routeGraph: WarpRouteGraph,
-    options?: WarpCoreOptions,
-  ): WarpCore {
-    const tokens = routeGraph.mapTokens((token) => new Token(token)).tokens;
-    return new WarpCore(routeGraph.multiProvider, tokens, options);
-  }
+    parsedConfig.tokens.forEach((config, i) => {
+      for (const connection of config.connections || []) {
+        const token1 = tokens[i];
+        assert(token1, `Token config missing at index ${i}`);
+        const { chainName, addressOrDenom } = parseTokenConnectionId(
+          connection.token,
+        );
+        const token2 = tokens.find(
+          (token) =>
+            token.chainName === chainName &&
+            token.addressOrDenom === addressOrDenom &&
+            (!token1.warpRouteId || token.warpRouteId === token1.warpRouteId),
+        );
+        assert(
+          token2,
+          `Connected token not found: ${chainName} ${addressOrDenom}`,
+        );
+        token1.addConnection({
+          ...connection,
+          token: token2,
+        });
+      }
+    });
 
-  protected override createNativeToken(chainMetadata: ChainMetadata): Token {
-    return Token.FromChainMetadataNativeToken(chainMetadata);
+    return new WarpCore(multiProvider, tokens, parsedConfig.options);
   }
 
   /**
@@ -1557,6 +1575,91 @@ export class WarpCore extends WarpRouteGraph<Token> {
     }
 
     return null;
+  }
+
+  protected resolveDestinationToken({
+    originToken,
+    destination,
+    destinationToken,
+  }: {
+    originToken: IToken;
+    destination: ChainNameOrId;
+    destinationToken?: IToken;
+  }): IToken {
+    const destinationName = this.multiProvider.getChainName(destination);
+    const destinationCandidates = originToken
+      .getConnections()
+      .filter((connection) => connection.token.chainName === destinationName)
+      .map((connection) => connection.token);
+
+    assert(
+      destinationCandidates.length > 0,
+      `No connection found for ${destinationName}`,
+    );
+
+    if (destinationToken) {
+      assert(
+        destinationToken.chainName === destinationName,
+        `Destination token chain mismatch for ${destinationName}`,
+      );
+      const matchedToken = destinationCandidates.find(
+        (candidate) =>
+          candidate.equals(destinationToken) ||
+          candidate.addressOrDenom.toLowerCase() ===
+            destinationToken.addressOrDenom.toLowerCase(),
+      );
+      assert(
+        matchedToken,
+        `Destination token ${destinationToken.addressOrDenom} is not connected from ${originToken.chainName} to ${destinationName}`,
+      );
+      return matchedToken;
+    }
+
+    assert(
+      destinationCandidates.length === 1,
+      `Ambiguous route to ${destinationName}; specify destination token`,
+    );
+    return destinationCandidates[0];
+  }
+
+  findToken(
+    chainName: ChainName,
+    addressOrDenom?: Address | string,
+  ): Token | null {
+    if (!addressOrDenom) return null;
+
+    const results = this.tokens.filter(
+      (token) =>
+        token.chainName === chainName &&
+        token.addressOrDenom.toLowerCase() === addressOrDenom.toLowerCase(),
+    );
+
+    if (results.length === 1) return results[0];
+
+    if (results.length > 1)
+      throw new Error(`Ambiguous token search results for ${addressOrDenom}`);
+
+    const chainMetadata = this.multiProvider.getChainMetadata(chainName);
+    if (chainMetadata.nativeToken?.denom === addressOrDenom) {
+      return Token.FromChainMetadataNativeToken(chainMetadata);
+    }
+
+    return null;
+  }
+
+  getTokenChains(): ChainName[] {
+    return [...new Set(this.tokens.map((token) => token.chainName)).values()];
+  }
+
+  getTokensForChain(chainName: ChainName): Token[] {
+    return this.tokens.filter((token) => token.chainName === chainName);
+  }
+
+  getTokensForRoute(origin: ChainName, destination: ChainName): Token[] {
+    return this.tokens.filter(
+      (token) =>
+        token.chainName === origin && token.getConnectionForChain(destination),
+    );
   }
 
   /**

@@ -976,11 +976,6 @@ export {
   WarpCoreFeeEstimate,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
-export {
-  WarpRouteGraph,
-  buildWarpRouteTokens,
-  mapWarpRouteTokens,
-} from './warp/WarpRouteGraph.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {
