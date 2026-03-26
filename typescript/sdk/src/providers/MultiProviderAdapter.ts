@@ -23,6 +23,7 @@ import {
   TypedTransaction,
   TypedProvider,
 } from './ProviderType.js';
+import { defaultTronEthersProviderBuilder } from './builders/tron.js';
 import { defaultZKSyncProviderBuilder } from './builders/zksync.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 import {
@@ -93,6 +94,16 @@ export function createAdapterFromMultiProvider<
         [ProviderType.EthersV5]: wrapMultiProviderBuilder(mp.providerBuilder),
         [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
       },
+      protocolProviderBuilders: {
+        ...options?.protocolProviderBuilders,
+        [ProtocolType.Tron]: {
+          ...options?.protocolProviderBuilders?.[ProtocolType.Tron],
+          [ProviderType.EthersV5]: (urls, chainId) => ({
+            type: ProviderType.EthersV5,
+            provider: defaultTronEthersProviderBuilder(urls, chainId),
+          }),
+        },
+      },
     } as TOptions;
   const newMp = new AdapterClass(mp.metadata, adapterOptions);
   newMp.setProviders(wrapMultiProviderProviders(mp.metadata, mp.providers));
@@ -147,7 +158,7 @@ export class MultiProviderAdapter<
       providerBuilder:
         options?.providerBuilder ||
         unwrapEthersProviderBuilder(
-          this.providerBuilders[ProviderType.EthersV5],
+          this.getProviderBuilder(ProtocolType.Ethereum, ProviderType.EthersV5),
         ),
     });
 
@@ -173,6 +184,7 @@ export class MultiProviderAdapter<
       ...this.options,
       providers: this.providers,
       providerBuilders: this.providerBuilders,
+      protocolProviderBuilders: this.protocolProviderBuilders,
     });
   }
 
@@ -190,6 +202,7 @@ export class MultiProviderAdapter<
         ...this.options,
         providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,
+        protocolProviderBuilders: this.protocolProviderBuilders,
       }),
     };
   }

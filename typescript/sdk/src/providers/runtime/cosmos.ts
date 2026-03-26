@@ -13,9 +13,9 @@ import { ProviderType } from '../ProviderType.js';
 
 import {
   assertProtocolRuntimeMetadata,
-  createProtocolRuntimeMultiProvider,
-  type ProtocolRuntimeMultiProtocolProvider,
-  type ProtocolRuntimeMultiProtocolProviderOptions,
+  createProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistryOptions,
 } from './utils.js';
 
 export const cosmosRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
@@ -24,16 +24,16 @@ export const cosmosRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
 };
 
-export function createCosmosRuntimeMultiProvider<MetaExt>(
+export function createCosmosRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
   assertProtocolRuntimeMetadata(
     chainMetadata,
     [ProtocolType.Cosmos, ProtocolType.CosmosNative],
-    createCosmosRuntimeMultiProvider.name,
+    createCosmosRuntimeProviderRegistry.name,
   );
-  return createProtocolRuntimeMultiProvider(
+  return createProtocolRuntimeProviderRegistry(
     chainMetadata,
     cosmosRuntimeProviderBuilders,
     options,

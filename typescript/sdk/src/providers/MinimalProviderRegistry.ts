@@ -12,6 +12,7 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  KnownProtocolType,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
   ProviderType,
@@ -26,11 +27,15 @@ import type {
   ProviderBuilderFn,
   ProviderBuilderMap,
 } from './providerBuilders.js';
+import { getRegisteredProviderBuilder } from './providerBuilderRegistry.js';
 
 export interface MinimalProviderRegistryOptions {
   logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
+  protocolProviderBuilders?: Partial<
+    Record<KnownProtocolType, Partial<ProviderBuilderMap>>
+  >;
 }
 
 // Lightweight provider registry for metadata-backed reads. It owns typed
@@ -41,6 +46,9 @@ export class MinimalProviderRegistry<
 > extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>>;
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
+  protected readonly protocolProviderBuilders: Partial<
+    Record<KnownProtocolType, Partial<ProviderBuilderMap>>
+  >;
   public readonly logger: Logger;
 
   constructor(
@@ -56,6 +64,7 @@ export class MinimalProviderRegistry<
       });
     this.providers = options.providers ?? {};
     this.providerBuilders = options.providerBuilders ?? {};
+    this.protocolProviderBuilders = options.protocolProviderBuilders ?? {};
   }
 
   override extendChainMetadata<NewExt = {}>(
@@ -66,14 +75,23 @@ export class MinimalProviderRegistry<
       ...this.options,
       providers: this.providers,
       providerBuilders: this.providerBuilders,
+      protocolProviderBuilders: this.protocolProviderBuilders,
     });
   }
 
   protected getProviderBuilder(
-    _protocol: ProtocolType,
+    protocol: ProtocolType,
     type: ProviderType,
   ): ProviderBuilderFn<TypedProvider> | undefined {
-    return this.providerBuilders[type];
+    if (protocol !== ProtocolType.Unknown) {
+      const protocolBuilder = this.protocolProviderBuilders[protocol]?.[type];
+      if (protocolBuilder) return protocolBuilder;
+    }
+
+    return (
+      this.providerBuilders[type] ??
+      getRegisteredProviderBuilder(protocol, type)
+    );
   }
 
   tryGetProvider(
@@ -232,6 +250,7 @@ export class MinimalProviderRegistry<
         ...this.options,
         providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,
+        protocolProviderBuilders: this.protocolProviderBuilders,
       }),
     };
   }
