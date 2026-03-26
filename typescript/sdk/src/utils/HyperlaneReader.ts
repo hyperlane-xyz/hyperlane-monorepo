@@ -45,6 +45,17 @@ function getNestedErrorWithCode(
   return undefined;
 }
 
+function buildProbeTransactionRequest(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  transaction: providers.TransactionRequest,
+): providers.TransactionRequest {
+  return {
+    ...multiProvider.getTransactionOverrides(chain),
+    ...transaction,
+  };
+}
+
 export async function performProbeEstimateGas(
   multiProvider: MultiProvider,
   chain: ChainNameOrId,
@@ -52,8 +63,7 @@ export async function performProbeEstimateGas(
   transaction: providers.TransactionRequest,
 ): Promise<BigNumber> {
   const txReq = {
-    ...transaction,
-    ...multiProvider.getTransactionOverrides(chain),
+    ...buildProbeTransactionRequest(multiProvider, chain, transaction),
     gasLimit: undefined,
     gasPrice: undefined,
     maxPriorityFeePerGas: undefined,
@@ -91,10 +101,11 @@ export class HyperlaneReader {
     transaction: providers.TransactionRequest,
     blockTag: providers.BlockTag = 'latest',
   ): Promise<string> {
-    const txReq = {
-      ...transaction,
-      ...this.multiProvider.getTransactionOverrides(this.chain),
-    };
+    const txReq = buildProbeTransactionRequest(
+      this.multiProvider,
+      this.chain,
+      transaction,
+    );
     if (this.provider instanceof HyperlaneSmartProvider) {
       return this.provider.probeCall(txReq, blockTag);
     }

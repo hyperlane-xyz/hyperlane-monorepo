@@ -11,16 +11,21 @@ import {
 import { HyperlaneReader } from './HyperlaneReader.js';
 
 const TEST_ADDRESS = '0x0000000000000000000000000000000000000001';
+const TEST_ADDRESS_2 = '0x0000000000000000000000000000000000000002';
 const TEST_INTERFACE = new utils.Interface([
   'function probe() view returns (address)',
 ]);
 
 class ReaderHarness extends HyperlaneReader {
-  async testProbeContractCall(): Promise<string | undefined> {
+  async testProbeContractCall(
+    txOverrides: providers.TransactionRequest = {},
+  ): Promise<string | undefined> {
     return this.probeContractCall<string>(
       TEST_ADDRESS,
       TEST_INTERFACE,
       'probe',
+      [],
+      txOverrides,
     );
   }
 
@@ -207,7 +212,7 @@ describe('HyperlaneReader', () => {
       ...multiProvider.metadata,
       [TestChainName.test1]: {
         ...multiProvider.metadata[TestChainName.test1],
-        transactionOverrides: { type: 0 },
+        transactionOverrides: { type: 0, from: TEST_ADDRESS_2 },
       },
     });
     const provider = new ProbeReaderProvider({
@@ -218,12 +223,14 @@ describe('HyperlaneReader', () => {
     const reader = new ReaderHarness(multiProvider, TestChainName.test1);
 
     await Promise.all([
-      reader.testProbeContractCall(),
-      reader.testProbeEstimateGas(),
+      reader.testProbeContractCall({ from: TEST_ADDRESS }),
+      reader.testProbeEstimateGas({ from: TEST_ADDRESS }),
     ]);
 
     expect(provider.lastCallTransaction?.type).to.equal(0);
+    expect(provider.lastCallTransaction?.from).to.equal(TEST_ADDRESS);
     expect(provider.lastEstimateGasTransaction?.type).to.equal(0);
+    expect(provider.lastEstimateGasTransaction?.from).to.equal(TEST_ADDRESS);
   });
 
   it('strips gas pricing fields before probe gas estimation', async () => {
