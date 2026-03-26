@@ -26,7 +26,7 @@ export {
   useAleoConnectFn,
   useAleoDisconnectFn,
   useAleoWalletDetails,
-} from './aleoBase.js';
+} from './aleoWallet.js';
 
 export function useAleoSwitchNetwork(
   multiProvider: MultiProtocolProvider,

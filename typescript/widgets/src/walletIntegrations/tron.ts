@@ -27,7 +27,7 @@ export {
   useTronConnectFn,
   useTronDisconnectFn,
   useTronWalletDetails,
-} from './tronBase.js';
+} from './tronWallet.js';
 
 export function useTronSwitchNetwork(
   _multiProvider: MultiProtocolProvider,

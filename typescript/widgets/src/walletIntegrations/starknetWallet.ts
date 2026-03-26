@@ -15,7 +15,7 @@ import { widgetLogger } from '../logger.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 
 const logger = widgetLogger.child({
-  module: 'widgets/walletIntegrations/starknetBase',
+  module: 'widgets/walletIntegrations/starknetWallet',
 });
 
 export function useStarknetAccount(

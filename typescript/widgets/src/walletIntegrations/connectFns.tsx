@@ -2,13 +2,13 @@ import { useMemo } from 'react';
 
 import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { useAleoConnectFn } from './aleoBase.js';
-import { useCosmosConnectFn } from './cosmosBase.js';
-import { useEthereumConnectFn } from './ethereumBase.js';
-import { useRadixConnectFn } from './radixBase.js';
-import { useSolanaConnectFn } from './solanaBase.js';
-import { useStarknetConnectFn } from './starknetBase.js';
-import { useTronConnectFn } from './tronBase.js';
+import { useAleoConnectFn } from './aleoWallet.js';
+import { useCosmosConnectFn } from './cosmosWallet.js';
+import { useEthereumConnectFn } from './ethereumWallet.js';
+import { useRadixConnectFn } from './radixWallet.js';
+import { useSolanaConnectFn } from './solanaWallet.js';
+import { useStarknetConnectFn } from './starknetWallet.js';
+import { useTronConnectFn } from './tronWallet.js';
 
 export function useConnectFns(): Record<KnownProtocolType, () => void> {
   const onConnectEthereum = useEthereumConnectFn();

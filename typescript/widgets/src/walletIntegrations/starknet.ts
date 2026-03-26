@@ -36,7 +36,7 @@ export {
   useStarknetConnectFn,
   useStarknetDisconnectFn,
   useStarknetWalletDetails,
-} from './starknetBase.js';
+} from './starknetWallet.js';
 
 export function useStarknetSwitchNetwork(
   multiProvider: MultiProtocolProvider,

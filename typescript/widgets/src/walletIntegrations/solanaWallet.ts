@@ -10,7 +10,9 @@ import { widgetLogger } from '../logger.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 import { findChainByRpcUrl } from './utils.js';
 
-const logger = widgetLogger.child({ module: 'walletIntegrations/solanaBase' });
+const logger = widgetLogger.child({
+  module: 'walletIntegrations/solanaWallet',
+});
 
 export function useSolanaAccount(
   _multiProvider: MultiProtocolProvider,

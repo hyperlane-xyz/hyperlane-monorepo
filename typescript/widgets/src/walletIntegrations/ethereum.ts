@@ -38,7 +38,7 @@ export {
   useEthereumConnectFn,
   useEthereumDisconnectFn,
   useEthereumWalletDetails,
-} from './ethereumBase.js';
+} from './ethereumWallet.js';
 
 export function useEthereumSwitchNetwork(
   multiProvider: MultiProtocolProvider,

@@ -2,14 +2,14 @@ import { useMemo } from 'react';
 
 import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { useAleoWalletDetails } from './aleoBase.js';
-import { useCosmosWalletDetails } from './cosmosBase.js';
-import { useEthereumWalletDetails } from './ethereumBase.js';
-import { useRadixWalletDetails } from './radixBase.js';
-import { useSolanaWalletDetails } from './solanaBase.js';
-import { useStarknetWalletDetails } from './starknetBase.js';
+import { useAleoWalletDetails } from './aleoWallet.js';
+import { useCosmosWalletDetails } from './cosmosWallet.js';
+import { useEthereumWalletDetails } from './ethereumWallet.js';
+import { useRadixWalletDetails } from './radixWallet.js';
+import { useSolanaWalletDetails } from './solanaWallet.js';
+import { useStarknetWalletDetails } from './starknetWallet.js';
 import { type WalletDetails } from './types.js';
-import { useTronWalletDetails } from './tronBase.js';
+import { useTronWalletDetails } from './tronWallet.js';
 
 export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
   const evmWallet = useEthereumWalletDetails();
