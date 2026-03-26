@@ -37,6 +37,7 @@ export enum ExecutionType {
 export enum ExternalBridgeType {
   LiFi = 'lifi',
   LayerZero = 'layerzero',
+  DeBridge = 'debridge',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -129,9 +130,12 @@ export const LiFiBridgeConfigSchema = z.object({
 
 export const LayerZeroBridgeConfigSchema = z.object({});
 
+export const DeBridgeBridgeConfigSchema = z.object({});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   layerzero: LayerZeroBridgeConfigSchema.optional(),
+  debridge: DeBridgeBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
