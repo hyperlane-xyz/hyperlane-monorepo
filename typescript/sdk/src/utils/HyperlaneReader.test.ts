@@ -29,6 +29,16 @@ class ReaderHarness extends HyperlaneReader {
     );
   }
 
+  async testProbeContractCallWithInterface(
+    contractInterface: utils.Interface,
+  ): Promise<string | undefined> {
+    return this.probeContractCall<string>(
+      TEST_ADDRESS,
+      contractInterface,
+      'probe',
+    );
+  }
+
   async testProbeEstimateGas(
     overrides: providers.TransactionRequest = {},
   ): Promise<BigNumber | undefined> {
@@ -153,6 +163,31 @@ describe('HyperlaneReader', () => {
     const reader = new ReaderHarness(multiProvider, TestChainName.test1);
 
     const result = await reader.testProbeContractCall();
+
+    expect(result).to.be.undefined;
+  });
+
+  it('returns undefined when decoding probe results hits BUFFER_OVERRUN', async () => {
+    const provider = new ProbeReaderProvider({
+      callResult:
+        '0x0000000000000000000000000000000000000000000000000000000000000001',
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+    const interfaceWithBufferOverrun = Object.assign(
+      Object.create(TEST_INTERFACE),
+      {
+        decodeFunctionResult: () => {
+          throw Object.assign(new Error('data out-of-bounds'), {
+            code: EthersError.BUFFER_OVERRUN,
+          });
+        },
+      },
+    ) as utils.Interface;
+
+    const result = await reader.testProbeContractCallWithInterface(
+      interfaceWithBufferOverrun,
+    );
 
     expect(result).to.be.undefined;
   });

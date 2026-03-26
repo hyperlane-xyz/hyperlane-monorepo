@@ -161,6 +161,7 @@ export class HyperlaneReader {
     } catch (error) {
       if (
         getNestedErrorWithCode(error, EthersError.INVALID_ARGUMENT) ||
+        getNestedErrorWithCode(error, EthersError.BUFFER_OVERRUN) ||
         this.isProbeMissError(error)
       ) {
         return undefined;
