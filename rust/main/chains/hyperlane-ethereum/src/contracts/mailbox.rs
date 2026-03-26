@@ -659,20 +659,20 @@ where
         // In that case we fall back to l2_gas_limit = None so enforceable_gas_limit() uses
         // the direct process() gas estimate instead.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            match arbitrum_node_interface
-                .estimate_retryable_ticket(
-                    H160::zero().into(),
-                    // Give the sender a deposit (100 ETH), otherwise it reverts
-                    WEI_IN_ETHER.mul(100u32),
-                    self.contract.address(),
-                    U256::zero().into(),
-                    H160::zero().into(),
-                    H160::zero().into(),
-                    contract_call.calldata().unwrap_or_default(),
-                )
-                .estimate_gas()
-                .await
-            {
+            let mut retryable_call = arbitrum_node_interface.estimate_retryable_ticket(
+                H160::zero().into(),
+                // Give the sender a deposit (100 ETH), otherwise it reverts
+                WEI_IN_ETHER.mul(100u32),
+                self.contract.address(),
+                U256::zero().into(),
+                H160::zero().into(),
+                H160::zero().into(),
+                contract_call.calldata().unwrap_or_default(),
+            );
+            if let Some(sender) = self.provider.default_sender() {
+                retryable_call = retryable_call.from(sender);
+            }
+            match retryable_call.estimate_gas().await {
                 Ok(estimate) => Some(estimate),
                 Err(err) => {
                     warn!(?err, "Failed to estimate l2_gas_limit via ArbitrumNodeInterface, falling back to direct gas estimate");
