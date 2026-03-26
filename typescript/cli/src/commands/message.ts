@@ -1,9 +1,10 @@
 import { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 
+import type { ProtocolType } from '@hyperlane-xyz/utils';
 import {
-  ProtocolType,
   addressToBytes32,
+  assert,
   bytesToProtocolAddress,
   formatMessage,
   messageId,
@@ -181,9 +182,7 @@ const encodeMessageCommand: CommandModuleWithContext<EncodeMessageArgs> = {
     let messageBody = body ?? '0x';
 
     if (warpRecipient) {
-      if (!warpAmount) {
-        throw new Error('--warp-amount is required with --warp-recipient');
-      }
+      assert(warpAmount, '--warp-amount is required with --warp-recipient');
       const recipientBytes32 = addressToBytes32(warpRecipient);
       messageBody = ethers.utils.solidityPack(
         ['bytes32', 'uint256'],
