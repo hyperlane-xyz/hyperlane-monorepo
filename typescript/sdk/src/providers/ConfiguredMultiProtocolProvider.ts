@@ -51,7 +51,6 @@ export class ConfiguredMultiProtocolProvider<
   MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>>;
-  protected signers: ChainMap<ProviderMap<never>> = {};
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
   public readonly logger: Logger;
 
