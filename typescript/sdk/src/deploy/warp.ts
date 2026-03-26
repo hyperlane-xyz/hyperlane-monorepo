@@ -523,25 +523,57 @@ export async function enrollCrossChainRouters(
     async (currentChain) => {
       const protocol = multiProvider.getProtocol(currentChain);
 
-      const remoteRouters: RemoteRouters = Object.fromEntries(
-        Object.entries(deployedContracts)
-          .filter(([chain, _address]) => chain !== currentChain)
-          .map(([chain, address]) => [
-            multiProvider.getDomainId(chain).toString(),
-            {
-              address: addressToBytes32(address),
-            },
-          ]),
+      // Start with user-specified remote routers (for chains not in the deployment)
+      const userRemoteRouters: RemoteRouters = Object.fromEntries(
+        Object.entries(resolvedConfigMap[currentChain].remoteRouters ?? {}).map(
+          ([domainIdOrChainName, value]) => {
+            return [
+              multiProvider.getDomainId(domainIdOrChainName).toString(),
+              { address: addressToBytes32(value.address) },
+            ];
+          },
+        ),
       );
 
-      const destinationGas: DestinationGas = Object.fromEntries(
-        Object.entries(deployedContracts)
-          .filter(([chain, _address]) => chain !== currentChain)
-          .map(([chain, _address]) => [
-            multiProvider.getDomainId(chain).toString(),
-            resolvedConfigMap[chain].gas.toString(),
-          ]),
+      // Merge: deployed routers take precedence over user-specified
+      const remoteRouters: RemoteRouters = {
+        ...userRemoteRouters,
+        ...Object.fromEntries(
+          Object.entries(deployedContracts)
+            .filter(([chain, _address]) => chain !== currentChain)
+            .map(([chain, address]) => [
+              multiProvider.getDomainId(chain).toString(),
+              {
+                address: addressToBytes32(address),
+              },
+            ]),
+        ),
+      };
+
+      // Start with user-specified destination gas
+      const userDestinationGas: DestinationGas = Object.fromEntries(
+        Object.entries(
+          resolvedConfigMap[currentChain].destinationGas ?? {},
+        ).map(([domainIdOrChainName, value]) => {
+          return [
+            multiProvider.getDomainId(domainIdOrChainName).toString(),
+            value,
+          ];
+        }),
       );
+
+      // Merge: deployed chain gas takes precedence over user-specified
+      const destinationGas: DestinationGas = {
+        ...userDestinationGas,
+        ...Object.fromEntries(
+          Object.entries(deployedContracts)
+            .filter(([chain, _address]) => chain !== currentChain)
+            .map(([chain, _address]) => [
+              multiProvider.getDomainId(chain).toString(),
+              resolvedConfigMap[chain].gas.toString(),
+            ]),
+        ),
+      };
 
       for (const domainId of Object.keys(remoteRouters)) {
         rootLogger.debug(
