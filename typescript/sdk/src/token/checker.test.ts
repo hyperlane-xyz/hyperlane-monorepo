@@ -1,4 +1,6 @@
+import { BigNumber } from 'ethers';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import type { TokenRouter } from '@hyperlane-xyz/core';
 
@@ -8,7 +10,7 @@ import { ChainMap } from '../types.js';
 
 import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
-import { TokenType } from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import { HypTokenRouterConfig } from './types.js';
 
 describe('HypERC20Checker.checkDecimalConsistency', () => {
@@ -269,5 +271,45 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
 
     expect(checker.violations).to.have.length(1);
     expect(checker.violations[0].type).to.equal('TokenDecimalsMismatch');
+  });
+
+  it('uses multiprovider estimateGas for native token payability checks', async () => {
+    const config: ChainMap<HypTokenRouterConfig> = {
+      [TestChainName.test1]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        decimals: 18,
+      },
+    };
+
+    const mp = new MultiProvider(testChainMetadata);
+    const routerAddress = '0x6666666666666666666666666666666666666666';
+    const app = {
+      getContracts: () => ({}),
+      router: () => dummyToken(routerAddress),
+    } as unknown as HypERC20App;
+    const checker = new HypERC20Checker(mp, app, config);
+
+    const estimateGasStub = sinon
+      .stub((checker as any).multiProvider, 'estimateGas')
+      .resolves(BigNumber.from(1));
+    const prepareTxStub = sinon.stub(
+      (checker as any).multiProvider,
+      'prepareTx',
+    );
+
+    await checker.checkToken(TestChainName.test1);
+
+    expect(estimateGasStub.calledOnce).to.equal(true);
+    const [chainArg, txArg, fromArg] = estimateGasStub.firstCall.args;
+    expect(chainArg).to.equal(TestChainName.test1);
+    expect(txArg.to).to.equal(routerAddress);
+    expect(BigNumber.from(txArg.value).eq(1)).to.equal(true);
+    expect(fromArg).to.equal(NON_ZERO_SENDER_ADDRESS);
+    expect(prepareTxStub.called).to.equal(false);
+    expect(checker.violations).to.have.length(0);
   });
 });

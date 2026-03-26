@@ -20,7 +20,6 @@ import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
 import { DEFAULT_SCALE, verifyScale } from '../utils/decimals.js';
-import { performProbeEstimateGas } from '../utils/HyperlaneReader.js';
 
 import { HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -151,18 +150,13 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // Check if configured token type matches actual token type
     if (isNativeTokenConfig(expectedConfig)) {
       try {
-        await performProbeEstimateGas(
-          this.multiProvider,
+        await this.multiProvider.estimateGas(
           chain,
-          this.multiProvider.getProvider(chain),
-          await this.multiProvider.prepareTx(
-            chain,
-            {
-              to: hypToken.address,
-              value: BigNumber.from(1),
-            },
-            NON_ZERO_SENDER_ADDRESS,
-          ),
+          {
+            to: hypToken.address,
+            value: BigNumber.from(1),
+          },
+          NON_ZERO_SENDER_ADDRESS,
         );
       } catch {
         const violation: TokenMismatchViolation = {
