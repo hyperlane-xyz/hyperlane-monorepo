@@ -5,6 +5,7 @@ import {
   type ChainMap,
   type CoreAddresses,
   MultiProtocolCore,
+  MultiProtocolProvider,
   MultiProviderAdapter,
   MultiProvider,
   type Token,
@@ -149,7 +150,7 @@ export class RebalancerContextFactory {
     // Create MultiProviderAdapter (convert from MultiProvider if not provided)
     const mpp =
       multiProtocolProvider ??
-      MultiProviderAdapter.fromMultiProvider(multiProvider);
+      MultiProtocolProvider.fromMultiProvider(multiProvider);
     const extendedMultiProtocolProvider = mpp.extendChainMetadata(mailboxes);
 
     const warpCore = WarpCore.FromConfig(
