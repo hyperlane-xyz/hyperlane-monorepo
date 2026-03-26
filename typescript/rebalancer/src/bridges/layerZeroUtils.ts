@@ -7,14 +7,14 @@ import { ethers } from 'ethers';
 export const CHAIN_ID_TO_EID: Record<number, number> = {
   1: 30101, // Ethereum
   42161: 30110, // Arbitrum
-  7758: 30383, // Plasma
+  9745: 30383, // Plasma
   728126428: 30420, // Tron
 };
 
 export const EID_TO_CHAIN_ID: Record<number, number> = {
   30101: 1, // Ethereum
   30110: 42161, // Arbitrum
-  30383: 7758, // Plasma
+  30383: 9745, // Plasma
   30420: 728126428, // Tron
 };
 
@@ -23,36 +23,31 @@ export const EID_TO_CHAIN_ID: Record<number, number> = {
 // ============================================================================
 
 export const OFT_CONTRACTS: Record<number, Record<number, string>> = {
+  // Contract addresses from https://docs.usdt0.to/technical-documentation/deployments
+  // NOTE: Tron is on the Legacy Mesh and is NOT a direct OFT peer.
+  //       Sending TO Tron requires the MultiHop Composer on Arbitrum (not yet supported).
+  //       Only native USDT0 chains (Ethereum, Arbitrum, Plasma) can route directly via OFT.
   1: {
-    // Ethereum
-    42161: '0x1f748c76de468e9d11bd340fa9d5cbadf315dfb0', // Legacy Mesh (Eth -> Arb)
-    7758: '0x1f748c76de468e9d11bd340fa9d5cbadf315dfb0', // Legacy Mesh (Eth -> Plasma)
-    728126428: '0x1f748c76de468e9d11bd340fa9d5cbadf315dfb0', // Legacy Mesh (Eth -> Tron)
+    // Ethereum OFT Adapter: 0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee
+    42161: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee', // Eth -> Arb
+    9745: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee', // Eth -> Plasma
   },
   42161: {
-    // Arbitrum
-    1: '0x77652d5aba086137b595875263fc200182919b92', // Legacy Mesh (Arb -> Eth)
-    7758: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92', // Native OFT (Arb -> Plasma)
-    728126428: '0x77652d5aba086137b595875263fc200182919b92', // Legacy Mesh (Arb -> Tron)
+    // Arbitrum OFT: 0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92
+    1: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92', // Arb -> Eth
+    9745: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92', // Arb -> Plasma
   },
-  7758: {
-    // Plasma
-    1: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9', // Native OFT (Plasma -> Eth)
-    42161: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9', // Native OFT (Plasma -> Arb)
-    728126428: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9', // Native OFT (Plasma -> Tron)
-  },
-  728126428: {
-    // Tron
-    1: '0x3a08f76772e200653bb55c2a92998daca62e0e97', // Tron OFT (Tron -> Eth)
-    42161: '0x3a08f76772e200653bb55c2a92998daca62e0e97', // Tron OFT (Tron -> Arb)
-    7758: '0x3a08f76772e200653bb55c2a92998daca62e0e97', // Tron OFT (Tron -> Plasma)
+  9745: {
+    // Plasma OFT: 0x02ca37966753bDdDf11216B73B16C1dE756A7CF9
+    1: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9', // Plasma -> Eth
+    42161: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9', // Plasma -> Arb
   },
 };
 
 export const USDT_CONTRACTS: Record<number, string> = {
   1: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // Ethereum USDT
   42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
-  7758: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', // Plasma USDT
+  9745: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', // Plasma USDT
   728126428: '0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C', // Tron USDT (hex)
 };
 
@@ -209,15 +204,15 @@ export function isSupportedRoute(
   fromChainId: number,
   toChainId: number,
 ): boolean {
+  // Only native USDT0 chains can route directly via OFT.
+  // Tron is Legacy Mesh — requires MultiHop Composer (not yet supported).
   const supportedPairs = [
-    [728126428, 42161], // Tron <-> Arbitrum
-    [42161, 728126428],
-    [728126428, 1], // Tron <-> Ethereum
-    [1, 728126428],
     [1, 42161], // Ethereum <-> Arbitrum
     [42161, 1],
-    [42161, 7758], // Arbitrum <-> Plasma
-    [7758, 42161],
+    [1, 9745], // Ethereum <-> Plasma
+    [9745, 1],
+    [42161, 9745], // Arbitrum <-> Plasma
+    [9745, 42161],
   ];
 
   return supportedPairs.some(
