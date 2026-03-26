@@ -17,7 +17,7 @@ use futures_util::future::join_all;
 use hyperlane_core::Metadata;
 use tokio::join;
 use tokio::sync::Mutex;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     rpc_clients::call_and_retry_indefinitely, BatchItem, BatchResult, ChainCommunicationError,
@@ -341,7 +341,16 @@ where
         tx_gas_estimate: Option<U256>,
         with_gas_estimate_buffer: bool,
     ) -> ChainResult<ContractCall<M, ()>> {
-        let tx = self.contract_call(message, metadata, tx_gas_estimate)?;
+        let mut tx = self.contract_call(message, metadata, tx_gas_estimate)?;
+
+        // Explicitly set `from` to the relayer's signer address so that during
+        // eth_estimateGas the simulated msg.sender matches the trusted relayer.
+        // TrustedRelayerIsm sets deliveries[id].processor = msg.sender *before*
+        // calling ism.verify(), so verify() checks msg.sender == trustedRelayer.
+        // Without this, from defaults to address(0) and estimation reverts.
+        if let Some(sender) = self.provider.default_sender() {
+            tx = tx.from(sender);
+        }
 
         fill_tx_gas_params(
             tx,
@@ -644,22 +653,32 @@ where
             .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
+        // Note: estimate_retryable_ticket simulates execution via a retryable ticket, where
+        // msg.sender is the L2 alias of the sender arg (not the actual relayer address).
+        // For ISMs like TrustedRelayerIsm that check msg.sender, this simulation will fail.
+        // In that case we fall back to l2_gas_limit = None so enforceable_gas_limit() uses
+        // the direct process() gas estimate instead.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            Some(
-                arbitrum_node_interface
-                    .estimate_retryable_ticket(
-                        H160::zero().into(),
-                        // Give the sender a deposit (100 ETH), otherwise it reverts
-                        WEI_IN_ETHER.mul(100u32),
-                        self.contract.address(),
-                        U256::zero().into(),
-                        H160::zero().into(),
-                        H160::zero().into(),
-                        contract_call.calldata().unwrap_or_default(),
-                    )
-                    .estimate_gas()
-                    .await?,
-            )
+            match arbitrum_node_interface
+                .estimate_retryable_ticket(
+                    H160::zero().into(),
+                    // Give the sender a deposit (100 ETH), otherwise it reverts
+                    WEI_IN_ETHER.mul(100u32),
+                    self.contract.address(),
+                    U256::zero().into(),
+                    H160::zero().into(),
+                    H160::zero().into(),
+                    contract_call.calldata().unwrap_or_default(),
+                )
+                .estimate_gas()
+                .await
+            {
+                Ok(estimate) => Some(estimate),
+                Err(err) => {
+                    warn!(?err, "Failed to estimate l2_gas_limit via ArbitrumNodeInterface, falling back to direct gas estimate");
+                    None
+                }
+            }
         } else {
             None
         };
