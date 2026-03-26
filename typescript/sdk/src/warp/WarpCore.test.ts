@@ -18,11 +18,13 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
+import { TokenMetadata } from '../token/TokenMetadata.js';
 import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
 import { ChainName } from '../types.js';
 
 import { WarpCore } from './WarpCore.js';
+import { WarpRouteGraph } from './WarpRouteGraph.js';
 import { WarpTxCategory } from './types.js';
 
 const MOCK_LOCAL_QUOTE = { gasUnits: 2_000n, gasPrice: 100, fee: 200_000n };
@@ -62,10 +64,29 @@ describe('WarpCore', () => {
     const exampleConfig = yamlParse(
       fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
     );
+    const routeGraph = WarpRouteGraph.FromConfig(multiProvider, exampleConfig);
     const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
+    const fromRouteGraph = WarpCore.FromRouteGraph(
+      routeGraph,
+      exampleConfig.options,
+    );
     expect(fromArgs).to.be.instanceOf(WarpCore);
+    expect(routeGraph).to.be.instanceOf(WarpRouteGraph);
     expect(fromConfig).to.be.instanceOf(WarpCore);
+    expect(fromRouteGraph).to.be.instanceOf(WarpCore);
+    expect(routeGraph.tokens[0]).to.be.instanceOf(TokenMetadata);
     expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
+    expect(fromRouteGraph.tokens.length).to.equal(exampleConfig.tokens.length);
+    expect(fromRouteGraph.tokens[0]).to.be.instanceOf(Token);
+    expect(
+      fromRouteGraph.tokens[0]?.getConnections(),
+    ).to.have.length.greaterThan(0);
+    expect(fromRouteGraph.localFeeConstants).to.deep.equal(
+      fromConfig.localFeeConstants,
+    );
+    expect(fromRouteGraph.interchainFeeConstants).to.deep.equal(
+      fromConfig.interchainFeeConstants,
+    );
 
     warpCore = fromConfig;
     [
