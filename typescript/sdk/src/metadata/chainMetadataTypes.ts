@@ -186,6 +186,13 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('The human readable address prefix for the chains using bech32.'),
 
+  batchContractAddress: z
+    .string()
+    .optional()
+    .describe(
+      'Optional address of the batch/multicall contract when the chain does not use the canonical Multicall3 deployment address.',
+    ),
+
   blockExplorers: z
     .array(BlockExplorerSchema)
     .optional()
