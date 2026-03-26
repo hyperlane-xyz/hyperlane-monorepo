@@ -1199,6 +1199,37 @@ contract CrossCollateralRouterTest is Test {
         assertEq(routerQuotes[0].amount, 10e6, "router-specific fee");
     }
 
+    function test_routingFee_quoteTransferRemoteTo_revert_noFeeContract()
+        public
+    {
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            address(this)
+        );
+
+        vm.expectRevert("CCRF: no fee contract");
+        routingFee.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            10000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
+    }
+
+    function test_quoteTransferRemoteTo_revert_noRoutingFeeContract() public {
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            address(this)
+        );
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        vm.expectRevert("CCRF: no fee contract");
+        usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            10000e6,
+            address(usdtRouterB).addressToBytes32()
+        );
+    }
+
     function test_routingFee_quoteMatchesCharge() public {
         LinearFee linearFee5bps = new LinearFee(
             address(originUSDC),

@@ -133,7 +133,7 @@ contract CrossCollateralRoutingFee is
                     _amount
                 );
         }
-        // 3. No fee configured → empty quotes
-        return new Quote[](0);
+        // 3. No fee configured for router or destination default
+        revert("CCRF: no fee contract");
     }
 }
