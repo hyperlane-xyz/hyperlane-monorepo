@@ -131,6 +131,13 @@ interface IcaRemoteCallInsight {
   calls: GovernTransaction[];
 }
 
+type FeeRouteDetail = {
+  type: string;
+  address: string;
+  bps: number;
+  percent: string;
+};
+
 type XERC20Metadata = {
   type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
   symbol: string;
@@ -1388,7 +1395,7 @@ export class GovernTransactionReader {
     }
 
     if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
-      const routes: Record<string, Record<string, any>> = {};
+      const routes: Record<string, Record<string, FeeRouteDetail>> = {};
       const routeInsights: string[] = [];
 
       for (const [chainName, routerConfigs] of Object.entries(
