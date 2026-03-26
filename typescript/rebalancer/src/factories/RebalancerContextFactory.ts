@@ -21,6 +21,7 @@ import {
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { LayerZeroBridge } from '../bridges/LayerZeroBridge.js';
+import { DeBridgeBridge } from '../bridges/DeBridgeBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -646,6 +647,13 @@ export class RebalancerContextFactory {
               this.logger,
             );
           }
+          break;
+        }
+        case ExternalBridgeType.DeBridge: {
+          registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
+            { chainMetadata: this.multiProvider.metadata },
+            this.logger,
+          );
           break;
         }
         default: {
