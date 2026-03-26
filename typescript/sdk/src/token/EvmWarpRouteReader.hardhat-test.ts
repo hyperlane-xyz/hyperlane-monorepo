@@ -1088,6 +1088,31 @@ describe('EvmWarpRouteReader', async () => {
     fetchPackageVersionStub.restore();
   });
 
+  it('caches unknown package version fallbacks after non-call errors', async () => {
+    const packageVersion = sinon
+      .stub()
+      .rejects(new Error('temporary rpc failure'));
+    const fetchPackageVersionStub = sinon
+      .stub(PackageVersioned__factory, 'connect')
+      .returns({
+        PACKAGE_VERSION: packageVersion,
+      } as any);
+
+    const address = '0x1000000000000000000000000000000000000001';
+    const [first, second] = await Promise.all([
+      evmERC20WarpRouteReader.fetchPackageVersion(address),
+      evmERC20WarpRouteReader.fetchPackageVersion(address),
+    ]);
+    const third = await evmERC20WarpRouteReader.fetchPackageVersion(address);
+
+    expect(first).to.equal('0.0.0');
+    expect(second).to.equal('0.0.0');
+    expect(third).to.equal('0.0.0');
+    expect(packageVersion.callCount).to.equal(1);
+
+    fetchPackageVersionStub.restore();
+  });
+
   it('derives multicollateral config with scale from the router', async () => {
     const routerAddress = '0x1000000000000000000000000000000000000001';
     const wrappedTokenAddress = '0x2000000000000000000000000000000000000002';
