@@ -6,3 +6,4 @@
 @predicate/=dependencies/@predicate-contracts-2.2.2/src/
 forge-std/=dependencies/forge-std-1.9.2/src/
 ds-test/=dependencies/forge-std-1.9.2/lib/ds-test/src/
+permit2/=dependencies/permit2-1.0.0/src/

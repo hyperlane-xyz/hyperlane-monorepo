@@ -24,6 +24,15 @@ import {ERC20Test} from "contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {ITokenFee, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {CallLib} from "contracts/middleware/libs/Call.sol";
+import {AbstractOffchainQuoter} from "contracts/libs/AbstractOffchainQuoter.sol";
+import {SignedQuote} from "contracts/interfaces/IOffchainQuoter.sol";
+import {OffchainQuotedLinearFee, FeeQuoteData, FeeQuoteContext} from "contracts/token/fees/OffchainQuotedLinearFee.sol";
+import {QuotedCalls} from "contracts/token/QuotedCalls.sol";
+import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {CrossCollateralRouter} from "contracts/token/CrossCollateralRouter.sol";
 import {CrossCollateralRoutingFee} from "contracts/token/CrossCollateralRoutingFee.sol";
@@ -1504,6 +1513,143 @@ contract CrossCollateralRouterTest is Test {
 
         vm.expectRevert("CCR: domain has no routers");
         usdcRouterA.setDestinationGas(configs);
+    }
+
+    // ============ QuotedCalls + CrossCollateral ============
+
+    uint256 constant QC_SIGNER_PK = 0xA11CE;
+    uint256 constant QC_QUOTED_MAX_FEE = 5e6;
+    uint256 constant QC_QUOTED_HALF_AMOUNT = 50_000e6;
+    uint256 constant QC_TRANSFER_AMOUNT = 10_000e6;
+
+    function _buildFeeQuoteInput(
+        OffchainQuotedLinearFee _quotedFee,
+        QuotedCalls _quotedCalls
+    ) internal view returns (bytes memory) {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: FeeQuoteContext.encode(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                QC_TRANSFER_AMOUNT
+            ),
+            data: FeeQuoteData.encode(QC_QUOTED_MAX_FEE, QC_QUOTED_HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_, // transient
+            salt: keccak256(
+                abi.encodePacked(
+                    ALICE,
+                    bytes32(uint256(uint160(address(this))))
+                )
+            ),
+            submitter: address(_quotedCalls)
+        });
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _quotedFee.SIGNED_QUOTE_TYPEHASH(),
+                keccak256(sq.context),
+                keccak256(sq.data),
+                sq.issuedAt,
+                sq.expiry,
+                sq.salt,
+                sq.submitter
+            )
+        );
+        bytes32 domainSep = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256("OffchainQuoter"),
+                keccak256("1"),
+                block.chainid,
+                address(_quotedFee)
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            QC_SIGNER_PK,
+            ECDSA.toTypedDataHash(domainSep, structHash)
+        );
+
+        return
+            abi.encode(
+                address(_quotedFee),
+                sq,
+                abi.encodePacked(r, s, v),
+                bytes32(uint256(uint160(address(this))))
+            );
+    }
+
+    function test_quotedCalls_crossCollateralTransfer() public {
+        address qcSigner = vm.addr(QC_SIGNER_PK);
+        OffchainQuotedLinearFee quotedFee = new OffchainQuotedLinearFee(
+            qcSigner,
+            address(originUSDC),
+            100e6, // immutable fallback maxFee
+            100_000e6, // immutable fallback halfAmount
+            address(this)
+        );
+
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            address(this)
+        );
+        {
+            uint32[] memory dests = new uint32[](1);
+            bytes32[] memory targets = new bytes32[](1);
+            address[] memory feeAddrs = new address[](1);
+            dests[0] = DESTINATION;
+            targets[0] = address(usdtRouterB).addressToBytes32();
+            feeAddrs[0] = address(quotedFee);
+            routingFee.setCrossCollateralRouterFeeContracts(
+                dests,
+                targets,
+                feeAddrs
+            );
+        }
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        QuotedCalls quotedCalls = new QuotedCalls(
+            IAllowanceTransfer(address(0))
+        );
+
+        uint256 expectedFee = (QC_TRANSFER_AMOUNT * QC_QUOTED_MAX_FEE) /
+            (2 * QC_QUOTED_HALF_AMOUNT);
+        uint256 totalTokens = QC_TRANSFER_AMOUNT + expectedFee;
+
+        bytes memory commands = new bytes(3);
+        bytes[] memory inputs = new bytes[](3);
+
+        commands[0] = bytes1(uint8(quotedCalls.SUBMIT_QUOTE()));
+        inputs[0] = _buildFeeQuoteInput(quotedFee, quotedCalls);
+
+        commands[1] = bytes1(uint8(quotedCalls.TRANSFER_FROM()));
+        inputs[1] = abi.encode(address(originUSDC), totalTokens);
+
+        commands[2] = bytes1(uint8(quotedCalls.TRANSFER_REMOTE_TO()));
+        inputs[2] = abi.encode(
+            address(usdcRouterA),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            QC_TRANSFER_AMOUNT,
+            address(usdtRouterB).addressToBytes32(),
+            uint256(0), // native value
+            address(originUSDC),
+            totalTokens
+        );
+
+        uint256 aliceBefore = originUSDC.balanceOf(ALICE);
+        vm.startPrank(ALICE);
+        originUSDC.approve(address(quotedCalls), totalTokens);
+        quotedCalls.execute(commands, inputs);
+        vm.stopPrank();
+
+        assertEq(originUSDC.balanceOf(ALICE), aliceBefore - totalTokens);
+        assertEq(originUSDC.balanceOf(address(routingFee)), expectedFee);
+        assertEq(originUSDC.balanceOf(address(quotedCalls)), 0);
+
+        env.processNextPendingMessage();
+        assertGt(destUSDT.balanceOf(BOB), 0);
     }
 
     // ============ Helpers ============

@@ -5,9 +5,9 @@ out = 'out'
 libs = ["dependencies", "lib"]
 test = 'test'
 cache_path = 'forge-cache'
-solc_version = '0.8.22'
-evm_version= 'paris'
-optimizer_runs = 25_000
+solc_version = '0.8.33'
+evm_version= 'cancun'
+optimizer_runs = 10_000
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
@@ -63,6 +63,7 @@ forge-std = "1.9.2"
 "@chainlink-contracts-ccip" = { version = "1.5.0", git = "https://github.com/smartcontractkit/ccip.git", tag = "contracts-ccip/v1.5.0" }
 "@eth-optimism-contracts" = { version = "0.6.0", git = "https://github.com/ethereum-optimism/optimism.git", tag = "@eth-optimism/contracts@0.6.0" }
 "@predicate-contracts" = { version = "2.2.2", git = "https://github.com/predicatelabs/predicate-contracts.git", tag = "v2.2.2" }
+permit2 = { version = "1.0.0", git = "https://github.com/Uniswap/permit2", branch = "main" }
 
 [soldeer]
 remappings_generate = false  # We'll manage remappings manually to preserve import paths

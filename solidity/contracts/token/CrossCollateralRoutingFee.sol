@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
 import {ITokenFee, Quote} from "../interfaces/ITokenBridge.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
+import {FeeType} from "./fees/BaseFee.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -68,6 +69,10 @@ contract CrossCollateralRoutingFee is
     function claim(address beneficiary, address token) external onlyOwner {
         uint256 balance = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransfer(beneficiary, balance);
+    }
+
+    function feeType() external pure returns (FeeType) {
+        return FeeType.CROSS_COLLATERAL_ROUTING;
     }
 
     /**
