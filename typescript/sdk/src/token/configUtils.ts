@@ -574,6 +574,9 @@ function normalizeTokenFeeForCheck(
 ): TokenFeeConfigInput | undefined {
   if (!feeConfig) return feeConfig;
 
+  const tokenConfig =
+    'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+
   if (feeConfig.type === TokenFeeType.RoutingFee) {
     const normalizedFeeContracts = Object.fromEntries(
       Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
@@ -585,9 +588,7 @@ function normalizeTokenFeeForCheck(
     return {
       type: TokenFeeType.RoutingFee,
       owner: feeConfig.owner,
-      ...('token' in feeConfig && feeConfig.token
-        ? { token: feeConfig.token }
-        : {}),
+      ...tokenConfig,
       feeContracts: normalizedFeeContracts,
     };
   }
@@ -604,9 +605,7 @@ function normalizeTokenFeeForCheck(
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
       owner: feeConfig.owner,
-      ...('token' in feeConfig && feeConfig.token
-        ? { token: feeConfig.token }
-        : {}),
+      ...tokenConfig,
       feeContracts: normalizedFeeContracts,
     };
   }
@@ -616,9 +615,7 @@ function normalizeTokenFeeForCheck(
       type: TokenFeeType.LinearFee,
       owner: feeConfig.owner,
       bps: feeConfig.bps,
-      ...('token' in feeConfig && feeConfig.token
-        ? { token: feeConfig.token }
-        : {}),
+      ...tokenConfig,
     };
   }
 
