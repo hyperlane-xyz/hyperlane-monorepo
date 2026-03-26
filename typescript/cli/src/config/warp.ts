@@ -53,6 +53,10 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
     'Extends an existing ERC20 with remote transfer functionality',
   [TokenType.collateralCctp]:
     'A collateral token that can be transferred via CCTP',
+  [TokenType.collateralAggLayer]:
+    'A collateral token that can be transferred via AggLayer',
+  [TokenType.collateralVaultBridge]:
+    'A collateral token that deposits into VaultBridge before bridging',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:

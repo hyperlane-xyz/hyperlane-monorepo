@@ -11,6 +11,8 @@ import {
   MailboxClient__factory,
   MovableCollateralRouter__factory,
   ProxyAdmin__factory,
+  TokenBridgeAggLayer__factory,
+  TokenBridgeVaultBridge__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -66,9 +68,8 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
-import { DeployableTokenType, TokenType } from './config.js';
+import { TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
-import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
@@ -79,8 +80,10 @@ import {
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
   derivedIsmAddress,
+  isAggLayerTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isVaultBridgeTokenConfig,
   isCrossCollateralTokenConfig,
   isOftTokenConfig,
   isXERC20TokenConfig,
@@ -106,6 +109,7 @@ const getAllowedRebalancingBridgesByDomain = (
     },
   );
 };
+
 export class EvmWarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -217,6 +221,14 @@ export class EvmWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
+      ...this.createSetAggLayerRemoteBridgeConfigTxs(
+        actualConfig,
+        expectedConfig,
+      ),
+      ...this.createRemoveAggLayerRemoteBridgeConfigTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
 
       ...this.createAddRemoteOutputAssetsTxs(actualConfig, expectedConfig),
@@ -249,8 +261,11 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    // OFT contracts don't have Router interface — no remote router enrollment
-    if (isOftTokenConfig(expectedConfig)) {
+    // OFT and VaultBridge contracts don't have Router interface.
+    if (
+      isOftTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig)
+    ) {
       return [];
     }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -307,8 +322,11 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    // OFT contracts don't have Router interface — no remote router unenrollment
-    if (isOftTokenConfig(expectedConfig)) {
+    // OFT and VaultBridge contracts don't have Router interface.
+    if (
+      isOftTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig)
+    ) {
       return [];
     }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -745,6 +763,143 @@ export class EvmWarpModule extends HyperlaneModule<
     );
   }
 
+  createSetAggLayerRemoteBridgeConfigTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      (!isAggLayerTokenConfig(expectedConfig) &&
+        !isVaultBridgeTokenConfig(expectedConfig)) ||
+      (!isAggLayerTokenConfig(actualConfig) &&
+        !isVaultBridgeTokenConfig(actualConfig))
+    ) {
+      return [];
+    }
+    if (!expectedConfig.remoteBridgeConfigs) {
+      return [];
+    }
+
+    const actualRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.remoteBridgeConfigs ?? {},
+    );
+
+    const txs: AnnotatedEV5Transaction[] = [];
+
+    if (isVaultBridgeTokenConfig(expectedConfig)) {
+      const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.remoteBridgeConfigs,
+      );
+
+      for (const [domain, config] of Object.entries(
+        expectedRemoteBridgeConfigs,
+      )) {
+        const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
+        const matches =
+          actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
+          (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
+            (config.forceUpdateGlobalExitRoot ?? false);
+        if (matches) continue;
+
+        txs.push({
+          chainId: this.chainId,
+          annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: TokenBridgeVaultBridge__factory.createInterface().encodeFunctionData(
+            'setRemoteBridgeConfig',
+            [
+              Number(domain),
+              config.agglayerNetworkId,
+              config.forceUpdateGlobalExitRoot ?? false,
+            ],
+          ),
+        });
+      }
+    } else {
+      const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.remoteBridgeConfigs,
+      );
+
+      for (const [domain, config] of Object.entries(
+        expectedRemoteBridgeConfigs,
+      )) {
+        const actualDomainConfig = actualRemoteBridgeConfigs[Number(domain)];
+        assert(config.remoteToken, 'remoteToken is undefined');
+        const matches =
+          actualDomainConfig?.agglayerNetworkId === config.agglayerNetworkId &&
+          (actualDomainConfig.forceUpdateGlobalExitRoot ?? false) ===
+            (config.forceUpdateGlobalExitRoot ?? false) &&
+          !!actualDomainConfig &&
+          'remoteToken' in actualDomainConfig &&
+          typeof actualDomainConfig.remoteToken === 'string' &&
+          eqAddress(actualDomainConfig.remoteToken, config.remoteToken);
+        if (matches) continue;
+
+        txs.push({
+          chainId: this.chainId,
+          annotation: `Setting AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+            'setRemoteBridgeConfig',
+            [
+              Number(domain),
+              config.agglayerNetworkId,
+              config.remoteToken,
+              config.forceUpdateGlobalExitRoot ?? false,
+            ],
+          ),
+        });
+      }
+    }
+
+    return txs;
+  }
+
+  createRemoveAggLayerRemoteBridgeConfigTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      (!isAggLayerTokenConfig(expectedConfig) &&
+        !isVaultBridgeTokenConfig(expectedConfig)) ||
+      (!isAggLayerTokenConfig(actualConfig) &&
+        !isVaultBridgeTokenConfig(actualConfig))
+    ) {
+      return [];
+    }
+    if (!expectedConfig.remoteBridgeConfigs) {
+      return [];
+    }
+
+    const expectedRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteBridgeConfigs,
+    );
+    const actualRemoteBridgeConfigs = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.remoteBridgeConfigs ?? {},
+    );
+
+    return Object.keys(actualRemoteBridgeConfigs)
+      .filter((domain) => !expectedRemoteBridgeConfigs[Number(domain)])
+      .map((domain) => ({
+        chainId: this.chainId,
+        annotation: `Removing AggLayer remote bridge config for domain "${domain}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: isVaultBridgeTokenConfig(expectedConfig)
+          ? TokenBridgeVaultBridge__factory.createInterface().encodeFunctionData(
+              'removeRemoteBridgeConfig',
+              [Number(domain)],
+            )
+          : TokenBridgeAggLayer__factory.createInterface().encodeFunctionData(
+              'removeRemoteBridgeConfig',
+              [Number(domain)],
+            ),
+      }));
+  }
+
   createAddRemoteOutputAssetsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
@@ -972,8 +1127,11 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    // OFT contracts don't have GasRouter interface — no destination gas config
-    if (isOftTokenConfig(expectedConfig)) {
+    // OFT and VaultBridge contracts don't have GasRouter interface.
+    if (
+      isOftTokenConfig(expectedConfig) ||
+      isVaultBridgeTokenConfig(expectedConfig)
+    ) {
       return [];
     }
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -1410,11 +1568,10 @@ export class EvmWarpModule extends HyperlaneModule<
       this.chainName,
       expectedConfig,
     );
-    const tokenType = expectedConfig.type as DeployableTokenType;
     const implementation = await deployer.deployContractWithName(
       this.chainName,
-      tokenType,
-      hypERC20contracts[tokenType],
+      deployer.routerContractKey(expectedConfig),
+      deployer.routerContractName(expectedConfig),
       constructorArgs,
       undefined,
       false,

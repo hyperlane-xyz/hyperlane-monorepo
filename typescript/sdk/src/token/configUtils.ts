@@ -46,11 +46,13 @@ import {
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isAggLayerTokenConfig,
   isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
+  isVaultBridgeTokenConfig,
 } from './types.js';
 
 /**
@@ -340,7 +342,11 @@ export function resolveTokenFeeAddress(
 
   if (isNativeTokenConfig(tokenConfig)) {
     feeToken = constants.AddressZero;
-  } else if (isCollateralTokenConfig(tokenConfig)) {
+  } else if (
+    isAggLayerTokenConfig(tokenConfig) ||
+    isCollateralTokenConfig(tokenConfig) ||
+    isVaultBridgeTokenConfig(tokenConfig)
+  ) {
     feeToken = tokenConfig.token;
   } else if (
     isSyntheticTokenConfig(tokenConfig) ||

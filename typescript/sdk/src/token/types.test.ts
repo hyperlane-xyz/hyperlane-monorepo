@@ -516,4 +516,46 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
     }
   });
+
+  it('should parse standalone AggLayer token config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      ethereum: {
+        type: TokenType.collateralAggLayer,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        token: SOME_ADDRESS,
+        agglayerBridge: SOME_ADDRESS,
+        urls: ['https://lookup.example'],
+        remoteBridgeConfigs: {
+          katana: {
+            agglayerNetworkId: 20,
+            remoteToken: SOME_ADDRESS,
+            forceUpdateGlobalExitRoot: false,
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.true;
+  });
+
+  it('should parse VaultBridge token config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      ethereum: {
+        type: TokenType.collateralVaultBridge,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        token: SOME_ADDRESS,
+        vaultBridgeToken: SOME_ADDRESS,
+        remoteBridgeConfigs: {
+          katana: {
+            agglayerNetworkId: 20,
+            forceUpdateGlobalExitRoot: false,
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.true;
+  });
 });

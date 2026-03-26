@@ -13,6 +13,7 @@ import { TokenType } from './config.js';
 import {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  isAggLayerTokenConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isDepositAddressTokenConfig,
@@ -21,6 +22,7 @@ import {
   isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isTokenMetadata,
+  isVaultBridgeTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -82,6 +84,8 @@ export async function deriveTokenMetadata(
       isCrossCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
+      isAggLayerTokenConfig(config) ||
+      isVaultBridgeTokenConfig(config) ||
       isDepositAddressTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)
     ) {

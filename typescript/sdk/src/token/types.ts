@@ -56,6 +56,15 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+export const AggLayerRemoteBridgeConfigSchema = z.object({
+  agglayerNetworkId: z.number().int().nonnegative(),
+  remoteToken: ZHash.optional(),
+  forceUpdateGlobalExitRoot: z.boolean().optional(),
+});
+export type AggLayerRemoteBridgeConfig = z.infer<
+  typeof AggLayerRemoteBridgeConfigSchema
+>;
+
 const MovableTokenRebalancingBridgeConfigSchema = z.object({
   bridge: ZHash,
   approvedTokens: z
@@ -226,6 +235,44 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
+export const AggLayerTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
+    type: z.literal(TokenType.collateralAggLayer),
+    token: z.string().describe('AggLayer route local token'),
+    agglayerBridge: z
+      .string()
+      .describe('AggLayer bridge contract address for the generic route'),
+    remoteBridgeConfigs: z
+      .record(
+        RemoteRouterDomainOrChainNameSchema,
+        AggLayerRemoteBridgeConfigSchema,
+      )
+      .optional(),
+  })
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+
+export type AggLayerTokenConfig = z.infer<typeof AggLayerTokenConfigSchema>;
+export const isAggLayerTokenConfig = isCompliant(AggLayerTokenConfigSchema);
+
+export const VaultBridgeTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.collateralVaultBridge),
+    token: z.string().describe('VaultBridge wrapper local token'),
+    vaultBridgeToken: z.string().describe('Vault bridge token address'),
+    remoteBridgeConfigs: z
+      .record(
+        RemoteRouterDomainOrChainNameSchema,
+        AggLayerRemoteBridgeConfigSchema.omit({ remoteToken: true }),
+      )
+      .optional(),
+  });
+
+export type VaultBridgeTokenConfig = z.infer<
+  typeof VaultBridgeTokenConfigSchema
+>;
+export const isVaultBridgeTokenConfig = isCompliant(
+  VaultBridgeTokenConfigSchema,
+);
 export const DepositAddressRecipientConfigSchema = z.object({
   depositAddress: z
     .string()
@@ -431,6 +478,8 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  AggLayerTokenConfigSchema,
+  VaultBridgeTokenConfigSchema,
   OftTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
@@ -539,6 +588,8 @@ export const WarpRouteDeployConfigSchema = z
           isCollateralTokenConfig(config) ||
           isCollateralRebaseTokenConfig(config) ||
           isCctpTokenConfig(config) ||
+          isAggLayerTokenConfig(config) ||
+          isVaultBridgeTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config) ||

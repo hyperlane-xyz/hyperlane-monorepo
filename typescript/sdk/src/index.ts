@@ -765,6 +765,10 @@ export {
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
+  AggLayerRemoteBridgeConfig,
+  AggLayerRemoteBridgeConfigSchema,
+  AggLayerTokenConfig,
+  AggLayerTokenConfigSchema,
   XERC20LimitsTokenConfig,
   CctpTokenConfig,
   CctpTokenConfigSchema,
@@ -801,8 +805,11 @@ export {
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
+  isAggLayerTokenConfig,
+  isVaultBridgeTokenConfig,
   isCrossCollateralTokenConfig,
   isOftTokenConfig,
+  VaultBridgeTokenConfig,
   CrossCollateralTokenConfig,
   NativeTokenConfig,
   OftTokenConfig,

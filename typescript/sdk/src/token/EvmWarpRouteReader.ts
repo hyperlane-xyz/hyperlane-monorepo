@@ -23,6 +23,8 @@ import {
   Ownable__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
+  TokenBridgeAggLayer__factory,
+  TokenBridgeVaultBridge__factory,
   TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
@@ -64,6 +66,7 @@ import { NormalizedScale } from '../utils/decimals.js';
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  AggLayerTokenConfig,
   CctpTokenConfig,
   CollateralTokenConfig,
   ContractVerificationStatus,
@@ -80,6 +83,7 @@ import {
   OpL2TokenConfig,
   OwnerStatus,
   TokenMetadata,
+  VaultBridgeTokenConfig,
   XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
@@ -151,6 +155,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralVaultTokenConfig.bind(this),
       [TokenType.collateralCctp]:
         this.deriveHypCollateralCctpTokenConfig.bind(this),
+      [TokenType.collateralAggLayer]: this.deriveAggLayerTokenConfig.bind(this),
+      [TokenType.collateralVaultBridge]:
+        this.deriveVaultBridgeTokenConfig.bind(this),
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
@@ -200,7 +207,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
     const isOft = type === TokenType.collateralOft;
-    const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
+    const isVaultBridge = type === TokenType.collateralVaultBridge;
+    const usesSentinelRouterConfig =
+      isDepositAddressBridge || isOft || isVaultBridge;
     const routerConfig = usesSentinelRouterConfig
       ? {
           mailbox: constants.AddressZero,
@@ -305,7 +314,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (
-      type === TokenType.collateralCctp &&
+      (type === TokenType.collateralCctp ||
+        type === TokenType.collateralAggLayer) &&
       'interchainSecurityModule' in routerConfig
     ) {
       routerConfig.interchainSecurityModule = constants.AddressZero;
@@ -521,6 +531,34 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     this.setSmartProviderLogLevel('silent');
 
     try {
+      try {
+        const vaultWrapper = TokenBridgeVaultBridge__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+        await vaultWrapper.vaultBridgeToken();
+        return TokenType.collateralVaultBridge;
+      } catch (error) {
+        this.logger.debug(
+          `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralVaultBridge}`,
+          error,
+        );
+      }
+
+      try {
+        const aggLayerRoute = TokenBridgeAggLayer__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+        await aggLayerRoute.agglayerBridge();
+        return TokenType.collateralAggLayer;
+      } catch (error) {
+        this.logger.debug(
+          `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralAggLayer}`,
+          error,
+        );
+      }
+
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,
@@ -1010,6 +1048,103 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ...erc20TokenMetadata,
       type: TokenType.collateral,
       token: collateralTokenAddress,
+      scale,
+    };
+  }
+
+  private async deriveVaultBridgeTokenConfig(
+    hypToken: Address,
+  ): Promise<VaultBridgeTokenConfig> {
+    const vaultWrapper = TokenBridgeVaultBridge__factory.connect(
+      hypToken,
+      this.provider,
+    );
+    const [localTokenAddress, vaultBridgeToken, domains] = await Promise.all([
+      vaultWrapper.token(),
+      vaultWrapper.vaultBridgeToken(),
+      vaultWrapper.remoteBridgeConfigDomains(),
+    ]);
+
+    const [erc20TokenMetadata, scale] = await Promise.all([
+      this.fetchERC20Metadata(localTokenAddress),
+      this.fetchScale(hypToken),
+    ]);
+
+    const remoteBridgeConfigs = Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain) => {
+          const cfg = await vaultWrapper.remoteBridgeConfigs(domain);
+          return [
+            domain.toString(),
+            {
+              agglayerNetworkId: Number(cfg.agglayerNetworkId),
+              forceUpdateGlobalExitRoot: cfg.forceUpdateGlobalExitRoot,
+            },
+          ];
+        }),
+      ),
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralVaultBridge,
+      token: localTokenAddress,
+      vaultBridgeToken,
+      remoteBridgeConfigs:
+        Object.keys(remoteBridgeConfigs).length > 0
+          ? remoteBridgeConfigs
+          : undefined,
+      scale,
+    };
+  }
+
+  private async deriveAggLayerTokenConfig(
+    hypToken: Address,
+  ): Promise<AggLayerTokenConfig> {
+    const tokenBridge = TokenBridgeAggLayer__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const [localTokenAddress, agglayerBridge, urls, domains] =
+      await Promise.all([
+        tokenBridge.token(),
+        tokenBridge.agglayerBridge(),
+        tokenBridge.urls(),
+        tokenBridge.remoteBridgeConfigDomains(),
+      ]);
+
+    const [erc20TokenMetadata, scale] = await Promise.all([
+      this.fetchERC20Metadata(localTokenAddress),
+      this.fetchScale(hypToken),
+    ]);
+
+    const remoteBridgeConfigs = Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain) => {
+          const cfg = await tokenBridge.remoteBridgeConfigs(domain);
+          return [
+            domain.toString(),
+            {
+              agglayerNetworkId: Number(cfg.agglayerNetworkId),
+              remoteToken: cfg.remoteToken,
+              forceUpdateGlobalExitRoot: cfg.forceUpdateGlobalExitRoot,
+            },
+          ];
+        }),
+      ),
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralAggLayer,
+      token: localTokenAddress,
+      agglayerBridge,
+      urls,
+      remoteBridgeConfigs:
+        Object.keys(remoteBridgeConfigs).length > 0
+          ? remoteBridgeConfigs
+          : undefined,
       scale,
     };
   }
