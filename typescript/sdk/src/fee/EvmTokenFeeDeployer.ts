@@ -17,7 +17,6 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   CrossCollateralRoutingFeeConfig,
-  DEFAULT_ROUTER_KEY,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -171,11 +170,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         destinationDomains.push(
           this.multiProvider.getDomainId(destinationChain),
         );
-        routerKeys.push(
-          routerKey.toLowerCase() === DEFAULT_ROUTER_KEY
-            ? DEFAULT_ROUTER_KEY
-            : routerKey,
-        );
+        routerKeys.push(routerKey);
         feeAddresses.push(deployedFeeContract.address);
       }
     }
