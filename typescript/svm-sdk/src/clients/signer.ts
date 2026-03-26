@@ -321,11 +321,15 @@ export class SvmSigner
 
         if (check) {
           // Tx still progressing (e.g. 'processed') — keep polling same
-          // signature instead of resubmitting to avoid double-execution
+          // signature with a fresh block height ceiling
+          const { value: freshBlockhash } = await this.rpc
+            .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
+            .send();
+
           const retry = await this.pollForConfirmation(
             signature,
             rawTx,
-            lastValidBlockHeight,
+            freshBlockhash.lastValidBlockHeight,
             pollIntervalMs,
           );
 

@@ -443,6 +443,130 @@ describe('SvmSigner', () => {
     });
   });
 
+  // ---- History check — processed status re-polling ----
+
+  describe('send — history check with processed status', () => {
+    it('re-polls with fresh blockhash when history finds tx at processed', async function () {
+      this.timeout(10_000);
+
+      let blockhashFetches = 0;
+      let pollPhase: 'initial' | 'retry' = 'initial';
+
+      const rpc = createMockRpc({
+        getLatestBlockhash: () => ({
+          send: async () => {
+            blockhashFetches++;
+            return {
+              value: {
+                blockhash: FAKE_BLOCKHASH,
+                // Fresh blockhash on retry gives new valid height
+                lastValidBlockHeight: blockhashFetches === 1 ? 100n : 2000n,
+              },
+            };
+          },
+        }),
+        getSignatureStatuses: (...args: unknown[]) => ({
+          send: async () => {
+            const opts = args[1] as
+              | { searchTransactionHistory?: boolean }
+              | undefined;
+            if (opts?.searchTransactionHistory) {
+              // History check: tx is at processed
+              pollPhase = 'retry';
+              return {
+                value: [
+                  {
+                    slot: 88n,
+                    confirmationStatus: 'processed',
+                    confirmations: 0n,
+                    err: null,
+                  },
+                ],
+              };
+            }
+            if (pollPhase === 'retry') {
+              // During retry poll: tx now confirmed
+              return {
+                value: [
+                  {
+                    slot: 88n,
+                    confirmationStatus: 'confirmed',
+                    confirmations: 10n,
+                    err: null,
+                  },
+                ],
+              };
+            }
+            // Initial poll: not found
+            return { value: [null] };
+          },
+        }),
+        getBlockHeight: () => ({
+          send: async () => 200n,
+        }),
+      });
+
+      const signer = await createTestSigner(rpc);
+      const receipt = await signer.send(noopTx());
+
+      expect(receipt.slot).to.equal(88n);
+      // 1 for signAndSend + 1 for fresh blockhash in processed retry
+      expect(blockhashFetches).to.equal(2);
+    });
+
+    it('resubmits if processed tx never confirms after retry poll', async function () {
+      this.timeout(15_000);
+
+      let blockhashFetches = 0;
+
+      const rpc = createMockRpc({
+        getLatestBlockhash: () => ({
+          send: async () => {
+            blockhashFetches++;
+            return {
+              value: {
+                blockhash: FAKE_BLOCKHASH,
+                lastValidBlockHeight: 100n,
+              },
+            };
+          },
+        }),
+        getSignatureStatuses: (...args: unknown[]) => ({
+          send: async () => {
+            const opts = args[1] as
+              | { searchTransactionHistory?: boolean }
+              | undefined;
+            if (opts?.searchTransactionHistory) {
+              // History: always processed, never confirms
+              return {
+                value: [
+                  {
+                    slot: 88n,
+                    confirmationStatus: 'processed',
+                    confirmations: 0n,
+                    err: null,
+                  },
+                ],
+              };
+            }
+            return { value: [null] };
+          },
+        }),
+        // Always expired
+        getBlockHeight: () => ({
+          send: async () => 200n,
+        }),
+      });
+
+      const signer = await createTestSigner(rpc);
+      await expect(signer.send(noopTx())).to.be.rejectedWith(
+        'Transaction not confirmed after all blockhash attempts',
+      );
+      // 3 signAndSend + 3 fresh blockhash fetches for processed retries = 6
+      expect(blockhashFetches).to.equal(6);
+    });
+  });
+
   // ---- RPC failures during polling ----
 
   describe('send — RPC failures during polling', () => {
