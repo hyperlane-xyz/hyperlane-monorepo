@@ -27,6 +27,7 @@ import {
 import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
+import { TokenMetadata } from '../token/TokenMetadata.js';
 import {
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
@@ -106,16 +107,19 @@ export class WarpCore extends WarpRouteGraph<Token> {
     config: unknown,
   ): WarpCore {
     const parsedConfig = WarpCoreConfigSchema.parse(config);
-    const tokens = buildWarpRouteTokens(
-      parsedConfig,
-      (token) =>
-        new Token({
-          ...token,
-          addressOrDenom: token.addressOrDenom || '',
-          connections: undefined,
-        }),
+    const routeGraph = new WarpRouteGraph(
+      multiProvider,
+      buildWarpRouteTokens(parsedConfig, (token) => new TokenMetadata(token)),
     );
-    return new WarpCore(multiProvider, tokens, parsedConfig.options);
+    return WarpCore.FromRouteGraph(routeGraph, parsedConfig.options);
+  }
+
+  static FromRouteGraph(
+    routeGraph: WarpRouteGraph,
+    options?: WarpCoreOptions,
+  ): WarpCore {
+    const tokens = routeGraph.mapTokens((token) => new Token(token)).tokens;
+    return new WarpCore(routeGraph.multiProvider, tokens, options);
   }
 
   protected override createNativeToken(chainMetadata: ChainMetadata): Token {

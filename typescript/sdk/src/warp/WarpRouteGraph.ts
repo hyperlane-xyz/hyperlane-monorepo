@@ -3,6 +3,7 @@ import { Address, assert } from '@hyperlane-xyz/utils';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
 import type { ITokenMetadata, TokenArgs } from '../token/ITokenMetadata.js';
+import type { TokenConnection } from '../token/TokenConnection.js';
 import { TokenMetadata } from '../token/TokenMetadata.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import type { ChainName, ChainNameOrId } from '../types.js';
@@ -48,6 +49,65 @@ export function buildWarpRouteTokens<TToken extends ITokenMetadata>(
   return tokens;
 }
 
+function matchesTokenIdentity(
+  token: ITokenMetadata,
+  reference: ITokenMetadata,
+): boolean {
+  return (
+    token.chainName === reference.chainName &&
+    token.addressOrDenom === reference.addressOrDenom &&
+    (!reference.warpRouteId || token.warpRouteId === reference.warpRouteId)
+  );
+}
+
+function toTokenArgs(token: ITokenMetadata): TokenArgs {
+  return {
+    chainName: token.chainName,
+    standard: token.standard,
+    decimals: token.decimals,
+    symbol: token.symbol,
+    name: token.name,
+    addressOrDenom: token.addressOrDenom,
+    collateralAddressOrDenom: token.collateralAddressOrDenom,
+    igpTokenAddressOrDenom: token.igpTokenAddressOrDenom,
+    logoURI: token.logoURI,
+    coinGeckoId: token.coinGeckoId,
+    scale: token.scale,
+    warpRouteId: token.warpRouteId,
+    connections: undefined,
+  };
+}
+
+export function mapWarpRouteTokens<
+  TSourceToken extends ITokenMetadata,
+  TTargetToken extends ITokenMetadata,
+>(
+  tokens: TSourceToken[],
+  createToken: (tokenArgs: TokenArgs) => TTargetToken,
+): TTargetToken[] {
+  const mappedTokens = tokens.map((token) => createToken(toTokenArgs(token)));
+
+  tokens.forEach((token, i) => {
+    for (const connection of token.getConnections()) {
+      const mappedToken = mappedTokens[i];
+      assert(mappedToken, `Mapped token missing at index ${i}`);
+      const mappedConnectionToken = mappedTokens.find((candidate) =>
+        matchesTokenIdentity(candidate, connection.token),
+      );
+      assert(
+        mappedConnectionToken,
+        `Mapped connection token not found: ${connection.token.chainName} ${connection.token.addressOrDenom}`,
+      );
+      mappedToken.addConnection({
+        ...connection,
+        token: mappedConnectionToken,
+      } as TokenConnection<TTargetToken>);
+    }
+  });
+
+  return mappedTokens;
+}
+
 export class WarpRouteGraph<TToken extends ITokenMetadata = TokenMetadata> {
   constructor(
     public readonly multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
@@ -70,6 +130,15 @@ export class WarpRouteGraph<TToken extends ITokenMetadata = TokenMetadata> {
     return TokenMetadata.FromChainMetadataNativeToken(
       chainMetadata,
     ) as unknown as TToken;
+  }
+
+  mapTokens<TMappedToken extends ITokenMetadata>(
+    createToken: (tokenArgs: TokenArgs) => TMappedToken,
+  ): WarpRouteGraph<TMappedToken> {
+    return new WarpRouteGraph(
+      this.multiProvider,
+      mapWarpRouteTokens(this.tokens, createToken),
+    );
   }
 
   protected resolveDestinationToken({
