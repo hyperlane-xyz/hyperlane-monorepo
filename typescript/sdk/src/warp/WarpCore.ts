@@ -938,26 +938,26 @@ export class WarpCore {
       tokenTotals.get(transferParams.token.toLowerCase() as `0x${string}`) ??
       0n;
 
-    // Check approval for QuotedCalls (TransferFrom mode)
+    // Check approval for QuotedCalls (TransferFrom mode).
+    // The spender is quotedCalls.address (not the token itself), so
+    // EvmHypSyntheticAdapter correctly falls through to the ERC20 allowance
+    // check rather than returning false.
     if (
       quotedCalls.tokenPullMode === TokenPullMode.TransferFrom &&
       totalTokenNeeded > 0n
     ) {
-      const hypAdapter = token.getHypAdapter(
-        this.multiProvider,
-        this.multiProvider.getChainName(destination),
-      );
+      const adapter = token.getAdapter(this.multiProvider);
       const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
-        hypAdapter.isApproveRequired(
+        adapter.isApproveRequired(
           sender,
           quotedCalls.address,
           totalTokenNeeded,
         ),
-        hypAdapter.isRevokeApprovalRequired(sender, quotedCalls.address),
+        adapter.isRevokeApprovalRequired(sender, quotedCalls.address),
       ]);
       // USDT-like tokens require revoking to 0 before re-approving
       if (isApproveRequired && isRevokeApprovalRequired) {
-        const revokeTxReq = await hypAdapter.populateApproveTx({
+        const revokeTxReq = await adapter.populateApproveTx({
           weiAmountOrId: 0,
           recipient: quotedCalls.address,
         });
@@ -968,7 +968,7 @@ export class WarpCore {
         } as WarpTypedTransaction); // CAST: providerType is determined at runtime from token.standard
       }
       if (isApproveRequired) {
-        const approveTxReq = await hypAdapter.populateApproveTx({
+        const approveTxReq = await adapter.populateApproveTx({
           weiAmountOrId: totalTokenNeeded,
           recipient: quotedCalls.address,
         });
