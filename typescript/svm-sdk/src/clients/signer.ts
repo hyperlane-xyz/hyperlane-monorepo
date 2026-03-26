@@ -112,6 +112,11 @@ function isBlockhashNotFoundError(error: unknown): boolean {
   return false;
 }
 
+type HistoryCheckResult =
+  | { confirmed: true; slot: bigint }
+  | { confirmed: false }
+  | null;
+
 export class SvmSigner
   extends SvmProvider
   implements AltVM.ISigner<SvmTransaction, SvmReceipt>
@@ -259,7 +264,7 @@ export class SvmSigner
   private checkSignatureResult(
     signature: Signature,
     result: SignatureStatusResponse,
-  ): { confirmed: true; slot: bigint } | { confirmed: false } | null {
+  ): HistoryCheckResult {
     if (!result) return null;
 
     if (result.err) {
@@ -284,6 +289,7 @@ export class SvmSigner
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
 
+    let lastSignature: string | undefined;
     for (
       let blockhashAttempt = 0;
       blockhashAttempt < maxBlockhashAttempts;
@@ -291,6 +297,7 @@ export class SvmSigner
     ) {
       const { signature, rawTx, lastValidBlockHeight } =
         await this.signAndSend(tx);
+      lastSignature = signature;
 
       // Poll while blockhash is valid
       const result = await this.pollForConfirmation(
@@ -304,6 +311,7 @@ export class SvmSigner
       }
 
       // Blockhash expired — check history before resubmitting
+      let historyCheck: HistoryCheckResult = null;
       try {
         const historyStatus = await this.rpc
           .getSignatureStatuses([signature], {
@@ -311,33 +319,42 @@ export class SvmSigner
           })
           .send();
 
-        const check = this.checkSignatureResult(
+        historyCheck = this.checkSignatureResult(
           signature,
           historyStatus.value[0],
         );
-        if (check?.confirmed) {
-          return { signature, slot: check.slot };
-        }
-
-        if (check) {
-          // Tx still progressing (e.g. 'processed') — keep polling same
-          // signature with a fresh block height ceiling
-          const { value: freshBlockhash } = await this.rpc
-            .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
-            .send();
-
-          const retry = await this.pollForConfirmation(
-            signature,
-            rawTx,
-            freshBlockhash.lastValidBlockHeight,
-            pollIntervalMs,
-          );
-
-          if (retry) return retry;
-        }
       } catch (error) {
         if (error instanceof SvmTransactionError) throw error;
-        this.logger.debug('History check failed, will resubmit', { error });
+
+        throw new Error(
+          `Cannot safely resubmit: history lookup failed for ${signature}, aborting to prevent double-execution.`,
+          { cause: error },
+        );
+      }
+
+      if (historyCheck?.confirmed) {
+        return { signature, slot: historyCheck.slot };
+      }
+
+      if (historyCheck) {
+        // Tx still progressing (e.g. 'processed') — keep polling same
+        // signature with a fresh block height ceiling
+        const { value: freshBlockhash } = await this.rpc
+          .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
+          .send();
+
+        const retry = await this.pollForConfirmation(
+          signature,
+          rawTx,
+          freshBlockhash.lastValidBlockHeight,
+          pollIntervalMs,
+        );
+
+        if (retry) return retry;
+
+        throw new Error(
+          `Transaction ${signature} was observed at 'processed' but never confirmed`,
+        );
       }
 
       if (blockhashAttempt < maxBlockhashAttempts - 1) {
@@ -347,7 +364,9 @@ export class SvmSigner
       }
     }
 
-    throw new Error('Transaction not confirmed after all blockhash attempts');
+    throw new Error(
+      `Transaction not confirmed after ${maxBlockhashAttempts} blockhash attempts (last signature: ${lastSignature})`,
+    );
   }
 
   /**
@@ -362,10 +381,11 @@ export class SvmSigner
     pollIntervalMs: number,
   ): Promise<SvmReceipt | null> {
     const maxBlockHeightFailures = 3;
+    const wallClockDeadline = Date.now() + 2 * 60 * 1000;
     let blockHeightFailures = 0;
     let delay = Math.max(Math.floor(pollIntervalMs / 4), 250);
 
-    while (true) {
+    while (Date.now() < wallClockDeadline) {
       await sleep(delay);
       delay = Math.min(Math.floor(delay * 1.5), pollIntervalMs);
 
@@ -420,6 +440,10 @@ export class SvmSigner
         // Rebroadcast is best-effort — ignore all errors
       }
     }
+
+    // Wall-clock timeout exceeded
+    this.logger.debug('Poll wall-clock timeout exceeded', { signature });
+    return null;
   }
 
   async sendAndConfirmTransaction(

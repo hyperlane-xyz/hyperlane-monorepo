@@ -306,7 +306,7 @@ describe('SvmSigner', () => {
 
       const signer = await createTestSigner(rpc);
       await expect(signer.send(noopTx())).to.be.rejectedWith(
-        'Transaction not confirmed after all blockhash attempts',
+        /Transaction not confirmed after 3 blockhash attempts/,
       );
       // 3 blockhash attempts × 3 failures each = 9
       expect(blockHeightCalls).to.equal(9);
@@ -393,7 +393,7 @@ describe('SvmSigner', () => {
 
       const signer = await createTestSigner(rpc);
       await expect(signer.send(noopTx())).to.be.rejectedWith(
-        'Transaction not confirmed after all blockhash attempts',
+        /Transaction not confirmed after 3 blockhash attempts/,
       );
       // 3 outer attempts * signAndSend fetches
       expect(blockhashFetches).to.equal(3);
@@ -514,8 +514,8 @@ describe('SvmSigner', () => {
       expect(blockhashFetches).to.equal(2);
     });
 
-    it('resubmits if processed tx never confirms after retry poll', async function () {
-      this.timeout(15_000);
+    it('throws if processed tx never confirms after retry poll', async function () {
+      this.timeout(10_000);
 
       let blockhashFetches = 0;
 
@@ -560,10 +560,10 @@ describe('SvmSigner', () => {
 
       const signer = await createTestSigner(rpc);
       await expect(signer.send(noopTx())).to.be.rejectedWith(
-        'Transaction not confirmed after all blockhash attempts',
+        /was observed at 'processed' but never confirmed/,
       );
-      // 3 signAndSend + 3 fresh blockhash fetches for processed retries = 6
-      expect(blockhashFetches).to.equal(6);
+      // 1 signAndSend + 1 fresh blockhash for processed retry = 2
+      expect(blockhashFetches).to.equal(2);
     });
   });
 
@@ -641,6 +641,44 @@ describe('SvmSigner', () => {
       expect(receipt.slot).to.equal(42n);
       // 2 polls with null status hit getBlockHeight before 3rd poll confirms
       expect(blockHeightCalls).to.equal(2);
+    });
+
+    it('throws instead of resubmitting when history check hits transient RPC error', async function () {
+      this.timeout(10_000);
+
+      let sendTxCalls = 0;
+
+      const rpc = createMockRpc({
+        sendTransaction: () => ({
+          send: async () => {
+            sendTxCalls++;
+            return FAKE_SIGNATURE;
+          },
+        }),
+        getSignatureStatuses: (...args: unknown[]) => ({
+          send: async () => {
+            const opts = args[1] as
+              | { searchTransactionHistory?: boolean }
+              | undefined;
+            if (opts?.searchTransactionHistory) {
+              throw new Error('503 Service Unavailable');
+            }
+            // Regular polls: not found
+            return { value: [null] };
+          },
+        }),
+        // Always expired so pollForConfirmation returns null
+        getBlockHeight: () => ({
+          send: async () => 9999n,
+        }),
+      });
+
+      const signer = await createTestSigner(rpc);
+      await expect(signer.send(noopTx())).to.be.rejectedWith(
+        /Cannot safely resubmit: history lookup failed/,
+      );
+      // Only one send — no resubmit after RPC error
+      expect(sendTxCalls).to.equal(1);
     });
   });
 

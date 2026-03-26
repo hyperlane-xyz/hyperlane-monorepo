@@ -35,7 +35,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
-    "test": "echo \"no tests in svm-sdk\"",
+    "test": "pnpm test:unit",
     "test:e2e": "./scripts/run-e2e-test.sh",
     "test:unit": "mocha --require tsx --timeout 10000 'src/tests/**/*.unit-test.ts'"
   },
