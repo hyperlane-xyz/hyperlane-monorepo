@@ -1235,6 +1235,7 @@ describe('EvmWarpRouteReader', async () => {
       await evmERC20WarpRouteReader.deriveWarpRouteConfig(routerAddress);
       expect(fetchTokenFeeStub.calledOnce).to.equal(true);
       expect(fetchTokenFeeStub.firstCall.args[1]).to.deep.equal([
+        localDomain,
         ccrOnlyDomain,
       ]);
     } finally {

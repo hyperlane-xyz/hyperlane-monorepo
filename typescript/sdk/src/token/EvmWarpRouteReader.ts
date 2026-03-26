@@ -304,12 +304,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     }
 
     // Use both router.domains() and CCR-enrolled domains for token fee derivation.
-    // This ensures RoutingFee/CrossCollateralRoutingFee sub-fees on CCR-only domains
-    // are considered during read/check.
-    const selfDomain = this.multiProvider.getDomainId(this.chain);
+    // Unlike destinationGas, token fees may legitimately exist for self-domain
+    // same-chain CCR swaps, so keep selfDomain in the destination set here.
     const feeDestinations = [
       ...new Set([...(domains ?? []), ...ccrEnrolledDomains]),
-    ].filter((domain) => domain !== selfDomain);
+    ];
     const tokenFee = await this.fetchTokenFee(
       warpRouteAddress,
       feeDestinations.length ? feeDestinations : undefined,
