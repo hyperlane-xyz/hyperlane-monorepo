@@ -160,12 +160,21 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
+const CROSS_COLLATERAL_DESTINATION_MESSAGE =
+  'CrossCollateralRoutingFee destinations must define a default fee or at least one router fee';
+
 const CrossCollateralRoutingFeeDestinationConfigSchema = z
   .object({
-    default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(), // DEFAULT_ROUTER sentinel
+    // `default` is stored under the contract's DEFAULT_ROUTER sentinel for
+    // the destination-level fallback fee. It applies whenever no router-
+    // specific override exists for that destination.
+    default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(),
+    // `routers` contains per-target-router overrides for the same
+    // destination. Unlike the normal remote router table, this is purely a
+    // fee override map, so both can coexist in one destination entry.
     routers: z
       .record(
-        ZHash, // bytes32 router key
+        ZHash,
         z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
       )
       .optional(),
@@ -175,8 +184,7 @@ const CrossCollateralRoutingFeeDestinationConfigSchema = z
       value.default !== undefined ||
       Object.keys(value.routers ?? {}).length > 0,
     {
-      message:
-        'CrossCollateralRoutingFee destinations must define a default fee or at least one router fee',
+      message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
     },
   );
 
@@ -208,10 +216,16 @@ export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 
 const CrossCollateralRoutingFeeDestinationInputConfigSchema = z
   .object({
+    // `default` is stored under the contract's DEFAULT_ROUTER sentinel for
+    // the destination-level fallback fee. It applies whenever no router-
+    // specific override exists for that destination.
     default: z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema).optional(),
+    // `routers` contains per-target-router overrides for the same
+    // destination. Unlike the normal remote router table, this is purely a
+    // fee override map, so both can coexist in one destination entry.
     routers: z
       .record(
-        ZHash, // bytes32 router key
+        ZHash,
         z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
       )
       .optional(),
@@ -221,8 +235,7 @@ const CrossCollateralRoutingFeeDestinationInputConfigSchema = z
       value.default !== undefined ||
       Object.keys(value.routers ?? {}).length > 0,
     {
-      message:
-        'CrossCollateralRoutingFee destinations must define a default fee or at least one router fee',
+      message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
     },
   );
 

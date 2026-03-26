@@ -184,12 +184,17 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations, crossCollateralRouters } = params;
+    const crossCollateralDestinations = Object.keys(
+      crossCollateralRouters ?? {},
+    ).map((domain) => Number(domain));
+
+    // CCRF can have ordinary route defaults on any routing destination and
+    // router-specific overrides on any CCR-enrolled destination. Read the
+    // union so check/apply sees both sets even when they do not match 1:1.
     const effectiveRoutingDestinations = [
       ...new Set([
         ...(routingDestinations ?? []),
-        ...Object.keys(crossCollateralRouters ?? {}).map((domain) =>
-          Number(domain),
-        ),
+        ...crossCollateralDestinations,
       ]),
     ];
 
@@ -213,8 +218,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const parseFeeConfig = async (subFeeAddress: Address) => {
       const cacheKey = subFeeAddress.toLowerCase();
       // Multiple destinations and router overrides can point at the same child
-      // fee contract. Cache the recursive read so we only derive that shared
-      // sub-fee once per address.
+      // fee contract. Memoize the recursive derive work here so one CCRF read
+      // shares the same in-flight Promise per child address instead of
+      // re-deriving the identical sub-fee N times. RPC caching alone is not
+      // enough because each recursive derive fans out into its own set of
+      // contract calls.
       if (!feeConfigCache.has(cacheKey)) {
         feeConfigCache.set(
           cacheKey,

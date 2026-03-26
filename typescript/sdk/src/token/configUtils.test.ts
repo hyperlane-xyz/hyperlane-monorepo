@@ -333,6 +333,49 @@ describe('configUtils', () => {
       });
     });
 
+    it('omits empty CCRF router override maps during normalization', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              default: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+              routers: {},
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              default: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+            },
+          },
+        },
+      });
+    });
+
     it('normalizes RoutingFee feeContracts when both destination and nested fee contracts are provided', () => {
       const transformedObj = transformConfigToCheck({
         type: TokenType.collateral,

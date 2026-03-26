@@ -504,6 +504,61 @@ describe('EvmTokenFeeModule', () => {
       );
     });
 
+    it('should preserve an explicit target token when redeploying an empty CCRF', async () => {
+      const emptyCcrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          token: token.address,
+          feeContracts: {},
+        } as TokenFeeConfig,
+        addresses: { deployedFee: emptyCcrf.address },
+      });
+
+      const targetConfig = {
+        type: TokenFeeType.CrossCollateralRoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: {
+            default: {
+              type: TokenFeeType.LinearFee,
+              owner: signer.address,
+              bps: BPS,
+            },
+          },
+        },
+      } as ResolvedTokenFeeConfigInput;
+
+      const txs = await module.update(targetConfig, {
+        routingDestinations: [routingDestination],
+        crossCollateralRouters: {
+          [routingDestination]: [],
+        },
+      });
+
+      expect(txs).to.have.lengthOf(0);
+      expect(module.serialize().deployedFee).to.not.equal(emptyCcrf.address);
+
+      const onchainConfig = await module.read({
+        routingDestinations: [routingDestination],
+        crossCollateralRouters: {
+          [routingDestination]: [],
+        },
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
+        `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
+      );
+      expect(onchainConfig.token).to.equal(token.address);
+      expect(onchainConfig.feeContracts[test4Chain]?.default?.token).to.equal(
+        token.address,
+      );
+    });
+
     it('should preserve caller-provided CCR routers when diffing for redeploy', async () => {
       const initialSubFeeModule = await EvmTokenFeeModule.create({
         multiProvider,

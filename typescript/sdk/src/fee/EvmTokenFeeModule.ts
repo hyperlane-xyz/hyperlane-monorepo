@@ -11,7 +11,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { HyperlaneContractsMap } from '../contracts/types.js';
+import {
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -43,18 +46,79 @@ type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
 
+function getDeployedFeeAddress(
+  contracts: HyperlaneContracts<EvmTokenFeeFactories>,
+  feeType: TokenFeeType,
+): Address {
+  switch (feeType) {
+    case TokenFeeType.LinearFee:
+      return contracts.LinearFee.address;
+    case TokenFeeType.ProgressiveFee:
+      return contracts.ProgressiveFee.address;
+    case TokenFeeType.RegressiveFee:
+      return contracts.RegressiveFee.address;
+    case TokenFeeType.RoutingFee:
+      return contracts.RoutingFee.address;
+    case TokenFeeType.CrossCollateralRoutingFee:
+      return contracts.CrossCollateralRoutingFee.address;
+  }
+}
+
+function getResolvedFeeToken(
+  config: TokenFeeConfigInput,
+  fallbackToken: Address,
+): Address {
+  return hasResolvedFeeToken(config) ? config.token : fallbackToken;
+}
+
+function hasResolvedFeeToken(
+  config: TokenFeeConfigInput,
+): config is TokenFeeConfigInput & { token: Address } {
+  return 'token' in config && typeof config.token === 'string';
+}
+
 function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
-  token: Address,
+  fallbackToken: Address,
 ): ResolvedTokenFeeConfigInput {
+  // Keep an explicit token already present on the target config. The fallback
+  // token is only for nested fees that omitted one.
+  const resolvedToken = getResolvedFeeToken(config, fallbackToken);
+  const resolveNestedFeeConfig = (subFee: TokenFeeConfigInput) =>
+    resolveTokenForFeeConfig(subFee, resolvedToken);
+  const resolveCrossCollateralDestinationConfig = (destinationConfig: {
+    default?: TokenFeeConfigInput;
+    routers?: Record<string, TokenFeeConfigInput>;
+  }) => {
+    const resolvedRouters = Object.fromEntries(
+      Object.entries(destinationConfig.routers ?? {}).map(
+        ([routerKey, subFee]) => [routerKey, resolveNestedFeeConfig(subFee)],
+      ),
+    );
+
+    return {
+      // CrossCollateralRoutingFee keeps one fee table per destination:
+      // `default` is stored under the DEFAULT_ROUTER sentinel and `routers`
+      // contains per-target-router overrides.
+      ...(destinationConfig.default
+        ? {
+            default: resolveNestedFeeConfig(destinationConfig.default),
+          }
+        : {}),
+      ...(Object.keys(resolvedRouters).length
+        ? { routers: resolvedRouters }
+        : {}),
+    };
+  };
+
   if (config.type === TokenFeeType.RoutingFee) {
     return {
       ...config,
-      token,
+      token: resolvedToken,
       feeContracts: Object.fromEntries(
         Object.entries(config.feeContracts).map(([chain, subFee]) => [
           chain,
-          resolveTokenForFeeConfig(subFee, token),
+          resolveNestedFeeConfig(subFee),
         ]),
       ),
     };
@@ -62,39 +126,16 @@ function resolveTokenForFeeConfig(
   if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
     return {
       ...config,
-      token,
+      token: resolvedToken,
       feeContracts: Object.fromEntries(
-        Object.entries(config.feeContracts).map(
-          ([chain, destinationConfig]) => [
-            chain,
-            {
-              ...(destinationConfig.default
-                ? {
-                    default: resolveTokenForFeeConfig(
-                      destinationConfig.default,
-                      token,
-                    ),
-                  }
-                : {}),
-              ...(destinationConfig.routers
-                ? {
-                    routers: Object.fromEntries(
-                      Object.entries(destinationConfig.routers).map(
-                        ([routerKey, subFee]) => [
-                          routerKey,
-                          resolveTokenForFeeConfig(subFee, token),
-                        ],
-                      ),
-                    ),
-                  }
-                : {}),
-            },
-          ],
-        ),
+        Object.keys(config.feeContracts).map((chain) => [
+          chain,
+          resolveCrossCollateralDestinationConfig(config.feeContracts[chain]),
+        ]),
       ),
     };
   }
-  return { ...config, token };
+  return { ...config, token: resolvedToken };
 }
 
 export class EvmTokenFeeModule extends HyperlaneModule<
@@ -154,8 +195,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
       config,
     });
-    module.args.addresses.deployedFee =
-      contracts[chainName][config.type].address;
+    module.args.addresses.deployedFee = getDeployedFeeAddress(
+      contracts[chainName],
+      config.type,
+    );
 
     return module;
   }
@@ -325,6 +368,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     });
   }
 
+  // Diffing mutable routing fees needs enough read context to observe both the
+  // destination-level defaults declared in the target config and any
+  // caller-specified CCR router hints for stale on-chain entries.
   private deriveReadParams(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
@@ -336,6 +382,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) &&
       !effectiveParams.routingDestinations
     ) {
+      // Route-wide defaults are keyed by destination domain, independent of
+      // whether that destination also has CCR router overrides.
       // Read defaults for every destination the target config cares about so
       // comparisons don't accidentally drop fee contracts on ordinary route
       // destinations that have no CCR router override.
@@ -349,12 +397,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     const targetCrossCollateralRouters = Object.fromEntries(
-      Object.entries(targetConfig.feeContracts).map(
-        ([chainName, destinationConfig]) => [
-          this.multiProvider.getDomainId(chainName),
-          Object.keys(destinationConfig.routers ?? {}),
-        ],
-      ),
+      Object.keys(targetConfig.feeContracts).map((chainName) => [
+        this.multiProvider.getDomainId(chainName),
+        Object.keys(targetConfig.feeContracts[chainName].routers ?? {}),
+      ]),
     );
     if (!effectiveParams.crossCollateralRouters) {
       effectiveParams.crossCollateralRouters = targetCrossCollateralRouters;
@@ -461,8 +507,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         chainName: this.chainName,
         contractVerifier: this.contractVerifier,
       });
-      this.args.addresses.deployedFee =
-        contracts[this.chainName][normalizedTargetConfig.type].address;
+      this.args.addresses.deployedFee = getDeployedFeeAddress(
+        contracts[this.chainName],
+        normalizedTargetConfig.type,
+      );
 
       return [];
     }
