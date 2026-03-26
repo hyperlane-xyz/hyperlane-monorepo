@@ -50,7 +50,7 @@ export const DEFAULT_ROUTER_KEY =
 
 // ====== SHARED SCHEMAS ======
 
-// For deployed/read configs - token is required
+// For deployed/read configs - token is required for BaseFee implementations
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
@@ -176,15 +176,14 @@ const CrossCollateralRoutingFeeDestinationConfigSchema = z
     message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
   });
 
-export const CrossCollateralRoutingFeeConfigSchema = BaseFeeConfigSchema.extend(
-  {
-    type: z.literal(TokenFeeType.CrossCollateralRoutingFee),
-    feeContracts: z.record(
-      ZChainName,
-      CrossCollateralRoutingFeeDestinationConfigSchema,
-    ), // Destination -> { routerKey -> Fee }, including DEFAULT_ROUTER_KEY
-  },
-);
+export const CrossCollateralRoutingFeeConfigSchema = z.object({
+  type: z.literal(TokenFeeType.CrossCollateralRoutingFee),
+  owner: ZHash,
+  feeContracts: z.record(
+    ZChainName,
+    CrossCollateralRoutingFeeDestinationConfigSchema,
+  ), // Destination -> { routerKey -> Fee }, including DEFAULT_ROUTER_KEY
+});
 export type CrossCollateralRoutingFeeConfig = z.infer<
   typeof CrossCollateralRoutingFeeConfigSchema
 >;
@@ -247,8 +246,13 @@ export const TokenFeeConfigInputSchema = z.union([
 ]);
 export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
 
-// After resolveTokenFeeAddress() adds the token field
-export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
+export type ResolvedLinearFeeConfigInput = LinearFeeInputConfig & {
+  token: string;
+};
+export type ResolvedProgressiveFeeConfigInput = ProgressiveFeeInputConfig & {
+  token: string;
+};
+export type ResolvedRegressiveFeeConfigInput = RegressiveFeeInputConfig & {
   token: string;
 };
 
@@ -260,6 +264,12 @@ export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
 
 export type ResolvedCrossCollateralRoutingFeeConfigInput =
   CrossCollateralRoutingFeeInputConfig & {
-    token: string;
     feeContracts: Record<string, Record<string, ResolvedTokenFeeConfigInput>>;
   };
+
+export type ResolvedTokenFeeConfigInput =
+  | ResolvedLinearFeeConfigInput
+  | ResolvedProgressiveFeeConfigInput
+  | ResolvedRegressiveFeeConfigInput
+  | ResolvedRoutingFeeConfigInput
+  | ResolvedCrossCollateralRoutingFeeConfigInput;

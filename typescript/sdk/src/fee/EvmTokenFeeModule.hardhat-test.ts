@@ -21,6 +21,7 @@ import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
   DEFAULT_ROUTER_KEY,
   LinearFeeConfig,
+  ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
@@ -34,7 +35,7 @@ describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
-  let config: TokenFeeConfig;
+  let config: LinearFeeConfig;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -505,7 +506,7 @@ describe('EvmTokenFeeModule', () => {
       ).to.equal(BPS + 1n);
     });
 
-    it('should preserve an explicit target token when redeploying an empty CCRF', async () => {
+    it('should redeploy an empty CCRF using explicitly resolved child tokens', async () => {
       const emptyCcrf = await deployCrossCollateralRoutingFee(signer.address);
       const routingDestination = multiProvider.getDomainId(test4Chain);
       const module = new EvmTokenFeeModule(multiProvider, {
@@ -513,26 +514,25 @@ describe('EvmTokenFeeModule', () => {
         config: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
-          token: token.address,
           feeContracts: {},
         } as TokenFeeConfig,
         addresses: { deployedFee: emptyCcrf.address },
       });
 
-      const targetConfig = {
+      const targetConfig: ResolvedCrossCollateralRoutingFeeConfigInput = {
         type: TokenFeeType.CrossCollateralRoutingFee,
         owner: signer.address,
-        token: token.address,
         feeContracts: {
           [test4Chain]: {
             [DEFAULT_ROUTER_KEY]: {
               type: TokenFeeType.LinearFee,
               owner: signer.address,
+              token: token.address,
               bps: BPS,
             },
           },
         },
-      } as ResolvedTokenFeeConfigInput;
+      };
 
       const txs = await module.update(targetConfig, {
         routingDestinations: [routingDestination],
@@ -554,7 +554,6 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
-      expect(onchainConfig.token).to.equal(token.address);
       expect(
         onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.token,
       ).to.equal(token.address);
@@ -837,7 +836,7 @@ describe('EvmTokenFeeModule', () => {
             halfAmount: explicitHalfAmount,
           },
         },
-      } as ResolvedTokenFeeConfigInput;
+      } as unknown as ResolvedTokenFeeConfigInput;
 
       const expandedConfig = await EvmTokenFeeModule.expandConfig({
         config: inputConfig,
@@ -874,7 +873,7 @@ describe('EvmTokenFeeModule', () => {
             bps: 8n,
           },
         },
-      } as ResolvedTokenFeeConfigInput;
+      } as unknown as ResolvedTokenFeeConfigInput;
 
       const expandedConfig = await EvmTokenFeeModule.expandConfig({
         config: inputConfig,

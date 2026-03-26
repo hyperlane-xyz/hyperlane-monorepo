@@ -457,7 +457,6 @@ export function resolveTokenFeeAddress(
   if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
     return {
       ...feeConfig,
-      token: feeToken,
       feeContracts: Object.fromEntries(
         Object.keys(feeConfig.feeContracts).map((chain) => [
           chain,
@@ -605,7 +604,6 @@ function normalizeTokenFeeForCheck(
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
       owner: feeConfig.owner,
-      ...tokenConfig,
       feeContracts: normalizedFeeContracts,
     };
   }

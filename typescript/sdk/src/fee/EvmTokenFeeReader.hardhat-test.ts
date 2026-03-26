@@ -4,6 +4,7 @@ import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -218,6 +219,10 @@ describe('EvmTokenFeeReader', () => {
             .address,
       });
 
+      assert(
+        routingFee.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
@@ -275,13 +280,11 @@ describe('EvmTokenFeeReader', () => {
 
       expect(routingFee.type).to.equal(TokenFeeType.CrossCollateralRoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
-      expect(routingFee.token).to.equal(token.address);
       expect(Object.keys((routingFee as any).feeContracts)).to.have.length(2);
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig({
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
-          token: token.address,
           feeContracts: {
             [TestChainName.test3]: {
               [DEFAULT_ROUTER_KEY]: linearFeeConfig,
@@ -353,7 +356,6 @@ describe('EvmTokenFeeReader', () => {
         normalizeConfig({
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
-          token: token.address,
           feeContracts: {
             [TestChainName.test3]: {
               [routerBytes32]: linearFeeConfig,
@@ -416,7 +418,6 @@ describe('EvmTokenFeeReader', () => {
         normalizeConfig({
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
-          token: token.address,
           feeContracts: {
             [TestChainName.test3]: {
               [DEFAULT_ROUTER_KEY]: linearFeeConfig,

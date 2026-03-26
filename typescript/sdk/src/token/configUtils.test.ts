@@ -5,6 +5,7 @@ import { constants } from 'ethers';
 import {
   DEFAULT_ROUTER_KEY,
   ResolvedCrossCollateralRoutingFeeConfigInput,
+  ResolvedLinearFeeConfigInput,
   ResolvedRoutingFeeConfigInput,
   TokenFeeType,
 } from '../fee/types.js';
@@ -279,7 +280,6 @@ describe('configUtils', () => {
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
-          token: ADDRESS,
           feeContracts: {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
@@ -309,7 +309,6 @@ describe('configUtils', () => {
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
-          token: ADDRESS,
           feeContracts: {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
@@ -337,7 +336,6 @@ describe('configUtils', () => {
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
-          token: ADDRESS,
           feeContracts: {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
@@ -357,7 +355,6 @@ describe('configUtils', () => {
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
-          token: ADDRESS,
           feeContracts: {
             ethereum: {
               [DEFAULT_ROUTER_KEY]: {
@@ -440,7 +437,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      );
+      ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.owner).to.equal(OWNER_ADDRESS);
@@ -457,7 +454,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         collateralConfig,
-      );
+      ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(COLLATERAL_TOKEN);
     });
@@ -473,7 +470,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         nativeConfig,
-      );
+      ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(constants.AddressZero);
     });
@@ -500,7 +497,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      );
+      ) as ResolvedRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
@@ -525,7 +522,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      );
+      ) as ResolvedRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
@@ -559,7 +556,6 @@ describe('configUtils', () => {
         syntheticConfig,
       ) as ResolvedCrossCollateralRoutingFeeConfigInput;
 
-      expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).to.equal(
         ROUTER_ADDRESS,
       );

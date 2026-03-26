@@ -70,51 +70,81 @@ function getDeployedFeeAddress(
 }
 
 function getResolvedFeeToken(
-  config: TokenFeeConfigInput,
-  fallbackToken: Address,
-): Address {
-  return hasResolvedFeeToken(config) ? config.token : fallbackToken;
+  config: TokenFeeConfigInput | ResolvedTokenFeeConfigInput | TokenFeeConfig,
+  fallbackToken?: Address,
+): Address | undefined {
+  return 'token' in config && typeof config.token === 'string'
+    ? config.token
+    : fallbackToken;
 }
 
-function hasResolvedFeeToken(
-  config: TokenFeeConfigInput,
-): config is TokenFeeConfigInput & { token: Address } {
-  return 'token' in config && typeof config.token === 'string';
+function getFallbackTokenFromFeeConfig(
+  config: TokenFeeConfigInput | ResolvedTokenFeeConfigInput | TokenFeeConfig,
+): Address | undefined {
+  const directToken = getResolvedFeeToken(config);
+  if (directToken) return directToken;
+
+  if (config.type === TokenFeeType.RoutingFee) {
+    return Object.values(config.feeContracts)
+      .map(getFallbackTokenFromFeeConfig)
+      .find(Boolean);
+  }
+
+  if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
+    return Object.values(config.feeContracts)
+      .flatMap((destinationConfig) => Object.values(destinationConfig))
+      .map(getFallbackTokenFromFeeConfig)
+      .find(Boolean);
+  }
+
+  return undefined;
+}
+
+function requireResolvedFeeToken(
+  config: TokenFeeConfigInput | ResolvedTokenFeeConfigInput | TokenFeeConfig,
+  fallbackToken?: Address,
+): Address {
+  const resolvedToken = getResolvedFeeToken(config, fallbackToken);
+  if (!resolvedToken) {
+    throw new Error(
+      `Token is required to resolve ${config.type} fee config children`,
+    );
+  }
+  return resolvedToken;
 }
 
 function resolveTokenForFeeConfig(
   config: TokenFeeConfigInput,
-  fallbackToken: Address,
+  fallbackToken?: Address,
 ): ResolvedTokenFeeConfigInput {
-  // Keep an explicit token already present on the target config. The fallback
-  // token is only for nested fees that omitted one.
-  const resolvedToken = getResolvedFeeToken(config, fallbackToken);
-  const resolveNestedFeeConfig = (subFee: TokenFeeConfigInput) =>
-    resolveTokenForFeeConfig(subFee, resolvedToken);
   if (config.type === TokenFeeType.RoutingFee) {
+    const resolvedToken = requireResolvedFeeToken(config, fallbackToken);
     return {
       ...config,
       token: resolvedToken,
       feeContracts: Object.fromEntries(
         Object.entries(config.feeContracts).map(([chain, subFee]) => [
           chain,
-          resolveNestedFeeConfig(subFee),
+          resolveTokenForFeeConfig(subFee, resolvedToken),
         ]),
       ),
     };
   }
   if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
+    const nestedFallbackToken = getResolvedFeeToken(config, fallbackToken);
     return {
       ...config,
-      token: resolvedToken,
       feeContracts: objMap(config.feeContracts, (_, destinationConfig) =>
         objMap(destinationConfig, (_, subFee) =>
-          resolveNestedFeeConfig(subFee),
+          resolveTokenForFeeConfig(subFee, nestedFallbackToken),
         ),
       ),
     };
   }
-  return { ...config, token: resolvedToken };
+  return {
+    ...config,
+    token: requireResolvedFeeToken(config, fallbackToken),
+  };
 }
 
 export class EvmTokenFeeModule extends HyperlaneModule<
@@ -265,17 +295,14 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         feeContracts,
       };
     } else if (config.type === TokenFeeType.CrossCollateralRoutingFee) {
-      const { token, owner } = config;
+      const { owner } = config;
 
       const feeContracts = await promiseObjAll(
         objMap(config.feeContracts, async (_, destinationConfig) => {
           return promiseObjAll(
             objMap(destinationConfig, async (_, innerConfig) =>
               EvmTokenFeeModule.expandConfig({
-                config: {
-                  ...innerConfig,
-                  token: innerConfig.token ?? token,
-                },
+                config: innerConfig,
                 multiProvider,
                 chainName,
               }),
@@ -286,7 +313,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       intermediaryConfig = {
         type: TokenFeeType.CrossCollateralRoutingFee,
-        token,
         owner,
         feeContracts,
       };
@@ -410,7 +436,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     const resolvedTargetConfig = resolveTokenForFeeConfig(
       targetConfig,
-      actualConfig.token,
+      getFallbackTokenFromFeeConfig(actualConfig),
     );
 
     const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(

@@ -219,14 +219,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       feeContracts[entry.chainName] = entry.routerFeeConfigs;
     }
 
-    const firstChildToken = (await Promise.all(feeConfigCache.values()))[0]
-      ?.token;
-    const token = firstChildToken ?? constants.AddressZero;
-
     return {
       type: TokenFeeType.CrossCollateralRoutingFee,
       address,
-      token,
       owner,
       feeContracts,
     };

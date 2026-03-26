@@ -111,7 +111,7 @@ describe('EvmTokenFeeDeployer', () => {
   });
 
   it('should deploy RoutingFee with correct parameters', async () => {
-    const config = TokenFeeConfigSchema.parse({
+    const config = RoutingFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: signer.address,
       token: token.address,
@@ -250,7 +250,7 @@ describe('EvmTokenFeeDeployer', () => {
   it('should deploy RoutingFee and transfer ownership when owner differs from signer (no fee contracts)', async () => {
     const [, otherSigner] = await hre.ethers.getSigners();
 
-    const config = TokenFeeConfigSchema.parse({
+    const config = RoutingFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: otherSigner.address,
       token: token.address,
@@ -273,7 +273,6 @@ describe('EvmTokenFeeDeployer', () => {
     const config = CrossCollateralRoutingFeeConfigSchema.parse({
       type: TokenFeeType.CrossCollateralRoutingFee,
       owner: signer.address,
-      token: token.address,
       feeContracts: {
         [TestChainName.test2]: {
           [DEFAULT_ROUTER_KEY]: {
@@ -325,8 +324,8 @@ describe('EvmTokenFeeDeployer', () => {
     expect(defaultFeeAddress).to.not.equal(hre.ethers.constants.AddressZero);
     expect(routerFeeAddress).to.not.equal(hre.ethers.constants.AddressZero);
     expect(await defaultFeeContract.owner()).to.equal(config.owner);
-    expect(await defaultFeeContract.token()).to.equal(config.token);
+    expect(await defaultFeeContract.token()).to.equal(token.address);
     expect(await routerFeeContract.owner()).to.equal(config.owner);
-    expect(await routerFeeContract.token()).to.equal(config.token);
+    expect(await routerFeeContract.token()).to.equal(token.address);
   });
 });
