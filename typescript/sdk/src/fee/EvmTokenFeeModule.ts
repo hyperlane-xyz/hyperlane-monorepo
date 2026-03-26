@@ -334,9 +334,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     });
   }
 
-  // Diffing mutable routing fees needs enough read context to observe both the
-  // destination-level DEFAULT_ROUTER_KEY entries declared in the target config
-  // and any caller-specified CCR router hints for stale on-chain entries.
+  // Routing-fee diffs need enough read context to observe every configured
+  // destination plus any caller-specified CCR router hints for stale entries.
   private deriveReadParams(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
@@ -348,11 +347,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) &&
       !effectiveParams.routingDestinations
     ) {
-      // Route-wide DEFAULT_ROUTER_KEY entries are keyed by destination
-      // domain, independent of whether that destination also has other CCR
-      // router entries. Read every configured destination so comparisons
-      // don't accidentally drop fee contracts on ordinary route destinations
-      // that have no extra CCR router override.
+      // Read every configured destination so ordinary route entries are
+      // included even if they have no extra CCR router keys.
       effectiveParams.routingDestinations = Object.keys(
         targetConfig.feeContracts,
       ).map((chainName) => this.multiProvider.getDomainId(chainName));
@@ -373,10 +369,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return effectiveParams;
     }
 
-    // Preserve caller-supplied router hints while unioning in target-config
-    // router keys so CCRF reads can see both stale on-chain routers and the
-    // new target router set during diffing. DEFAULT_ROUTER_KEY is handled just
-    // like any other router entry.
+    // Preserve caller hints while unioning in target-config router keys so
+    // reads can see both stale on-chain entries and the new target set.
     const mergedCrossCollateralRouters = new Map<number, Set<string>>();
     for (const [destination, routers] of Object.entries(
       effectiveParams.crossCollateralRouters,
