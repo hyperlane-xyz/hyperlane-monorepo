@@ -7,6 +7,7 @@ import type { ChainMap, ChainName } from '../types.js';
 import {
   ConfiguredMultiProtocolProvider,
   ConfiguredMultiProtocolProviderOptions,
+  wrapMultiProviderProviders,
 } from './ConfiguredMultiProtocolProvider.js';
 import { MultiProvider } from './MultiProvider.js';
 import { ProviderType, TypedProvider } from './ProviderType.js';
@@ -27,17 +28,7 @@ export class MultiProtocolProvider<
     options: MultiProtocolProviderOptions = {},
   ): MultiProtocolProvider<MetaExt> {
     const newMp = new MultiProtocolProvider<MetaExt>(mp.metadata, options);
-    newMp.setProviders(
-      Object.fromEntries(
-        Object.entries(mp.providers).map(([chain, provider]) => [
-          chain,
-          {
-            type: ProviderType.EthersV5,
-            provider,
-          },
-        ]),
-      ) as ChainMap<TypedProvider>,
-    );
+    newMp.setProviders(wrapMultiProviderProviders(mp.providers));
     return newMp;
   }
 

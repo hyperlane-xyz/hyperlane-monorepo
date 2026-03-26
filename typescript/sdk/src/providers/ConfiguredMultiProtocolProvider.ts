@@ -47,6 +47,15 @@ export interface ConfiguredMultiProtocolProviderOptions {
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
 
+export function wrapMultiProviderProviders<MetaExt = {}>(
+  providers: MultiProvider<MetaExt>['providers'],
+): ChainMap<TypedProvider> {
+  return objMap(providers, (_, provider) => ({
+    type: ProviderType.EthersV5,
+    provider,
+  })) as ChainMap<TypedProvider>;
+}
+
 export class ConfiguredMultiProtocolProvider<
   MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {
@@ -77,13 +86,7 @@ export class ConfiguredMultiProtocolProvider<
       mp.metadata,
       options,
     );
-
-    const typedProviders = objMap(mp.providers, (_, provider) => ({
-      type: ProviderType.EthersV5,
-      provider,
-    })) as ChainMap<TypedProvider>;
-
-    newMp.setProviders(typedProviders);
+    newMp.setProviders(wrapMultiProviderProviders(mp.providers));
     return newMp;
   }
 
