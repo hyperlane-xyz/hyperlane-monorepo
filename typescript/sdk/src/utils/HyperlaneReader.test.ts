@@ -86,6 +86,23 @@ class ReaderHarness extends HyperlaneReader {
       },
     ]) as Promise<[string | undefined, string | undefined] | undefined>;
   }
+
+  async testTryProbeContractBatchWithInterface(
+    contractInterface: utils.Interface,
+  ): Promise<[string | undefined, string | undefined] | undefined> {
+    return this.tryProbeContractBatch<string>([
+      {
+        target: TEST_ADDRESS,
+        contractInterface,
+        method: 'probe',
+      },
+      {
+        target: TEST_ADDRESS_2,
+        contractInterface: TEST_INTERFACE,
+        method: 'owner',
+      },
+    ]) as Promise<[string | undefined, string | undefined] | undefined>;
+  }
 }
 
 class ProbeReaderProvider extends providers.BaseProvider {
@@ -606,6 +623,30 @@ describe('HyperlaneReader', () => {
     expect(result).to.be.undefined;
     expect(provider.callTransactions).to.have.length(1);
     expect(provider.callTransactions[0].to).to.equal(MULTICALL3_ADDRESS);
+  });
+
+  it('returns undefined for batched probe decodes that hit BUFFER_OVERRUN', async () => {
+    const provider = new BatchReaderProvider({
+      supportsMulticall: true,
+    });
+    multiProvider.setProvider(TestChainName.test1, provider);
+    const reader = new ReaderHarness(multiProvider, TestChainName.test1);
+    const interfaceWithBufferOverrun = Object.assign(
+      Object.create(TEST_INTERFACE),
+      {
+        decodeFunctionResult: () => {
+          throw Object.assign(new Error('data out-of-bounds'), {
+            code: EthersError.BUFFER_OVERRUN,
+          });
+        },
+      },
+    ) as utils.Interface;
+
+    const result = await reader.testTryProbeContractBatchWithInterface(
+      interfaceWithBufferOverrun,
+    );
+
+    expect(result).to.deep.equal([undefined, TEST_ADDRESS_2]);
   });
 
   it('uses batchContractAddress from chain metadata for batched probe calls', async () => {
