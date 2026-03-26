@@ -102,17 +102,9 @@ function resolveTokenForFeeConfig(
     return {
       ...config,
       token: resolvedToken,
-      feeContracts: Object.fromEntries(
-        Object.entries(config.feeContracts).map(
-          ([chain, destinationConfig]) => [
-            chain,
-            Object.fromEntries(
-              Object.entries(destinationConfig).map(([routerKey, subFee]) => [
-                routerKey,
-                resolveNestedFeeConfig(subFee),
-              ]),
-            ),
-          ],
+      feeContracts: objMap(config.feeContracts, (_, destinationConfig) =>
+        objMap(destinationConfig, (_, subFee) =>
+          resolveNestedFeeConfig(subFee),
         ),
       ),
     };
