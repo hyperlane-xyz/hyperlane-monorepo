@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "31.1.0",
+  "version": "30.1.1",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -20,6 +20,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./register/*": {
+      "types": "./dist/register/*.d.ts",
+      "default": "./dist/register/*.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
     },
     "./metadata/*": {
       "types": "./dist/metadata/*.d.ts",
