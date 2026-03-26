@@ -1033,7 +1033,7 @@ const fastPath: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo: DockerImageRepos.AGENT,
-      tag: mainnetDockerTags.relayer,
+      tag: mainnetDockerTags.relayerFastPath,
     },
     blacklist,
     gasPaymentEnforcement,
