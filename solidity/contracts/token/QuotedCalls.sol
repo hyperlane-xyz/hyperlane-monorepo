@@ -20,7 +20,8 @@ import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {SignedQuote, IOffchainQuoter} from "../interfaces/IOffchainQuoter.sol";
-import {ITokenBridge} from "../interfaces/ITokenBridge.sol";
+import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 
@@ -31,6 +32,13 @@ interface ICrossCollateralRouter {
         uint256 _amount,
         bytes32 _targetRouter
     ) external payable returns (bytes32);
+
+    function quoteTransferRemoteTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 _targetRouter
+    ) external view returns (Quote[] memory);
 }
 
 interface IInterchainAccountRouter {
@@ -52,6 +60,78 @@ interface IInterchainAccountRouter {
         bytes32 _salt,
         bytes32 _commitment
     ) external payable returns (bytes32, bytes32);
+
+    function quoteGasPayment(
+        address _feeToken,
+        uint32 _destination,
+        uint256 _gasLimit
+    ) external view returns (uint256);
+
+    function quoteGasForCommitReveal(
+        address _feeToken,
+        uint32 _destination,
+        uint256 _gasLimit
+    ) external view returns (uint256);
+}
+
+/**
+ * @title CalldataHeadLib
+ * @notice Reads static fields from the ABI-encoded head of calldata and
+ *         resolves token amounts / approvals. Shared by QuotedCalls and
+ *         factored into a library so callers get a separate stack frame
+ *         under --ir-minimum coverage instrumentation.
+ */
+library CalldataHeadLib {
+    using SafeERC20 for IERC20;
+
+    /// @dev Sentinel: resolve to the contract's entire token/ETH balance.
+    uint256 internal constant CONTRACT_BALANCE =
+        0x8000000000000000000000000000000000000000000000000000000000000000;
+
+    function readAddress(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (address) {
+        return
+            address(
+                uint160(uint256(bytes32(input[slot * 32:(slot + 1) * 32])))
+            );
+    }
+
+    function readUint256(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (uint256) {
+        return uint256(bytes32(input[slot * 32:(slot + 1) * 32]));
+    }
+
+    function resolveAmount(
+        address token,
+        uint256 amount
+    ) internal view returns (uint256) {
+        if (amount != CONTRACT_BALANCE) return amount;
+        if (token == address(0)) return address(this).balance;
+        return IERC20(token).balanceOf(address(this));
+    }
+
+    function approve(address token, address spender, uint256 amount) internal {
+        if (token != address(0)) IERC20(token).forceApprove(spender, amount);
+    }
+
+    /**
+     * @dev Read spender (slot 0), token (slot N-2), and approval (slot N-1)
+     *      from the ABI-encoded head, resolve the approval, and set allowance.
+     * @param input   Full ABI-encoded command input.
+     * @param nSlots  Total number of head slots in this command layout.
+     */
+    function approveFromHead(bytes calldata input, uint256 nSlots) internal {
+        address token = readAddress(input, nSlots - 2);
+        approve(
+            token,
+            readAddress(input, 0),
+            resolveAmount(token, readUint256(input, nSlots - 1))
+        );
+    }
 }
 
 /**
@@ -94,8 +174,7 @@ contract QuotedCalls is PackageVersioned {
     // ============ Constants ============
 
     /// @notice Sentinel: resolve amount to this contract's entire token balance
-    uint256 public constant CONTRACT_BALANCE =
-        0x8000000000000000000000000000000000000000000000000000000000000000;
+    uint256 public constant CONTRACT_BALANCE = CalldataHeadLib.CONTRACT_BALANCE;
 
     // ============ Command Types ============
     //
@@ -213,7 +292,29 @@ contract QuotedCalls is PackageVersioned {
         }
     }
 
-    // ============ Internal ============
+    /**
+     * @notice Quote a sequence of commands without executing transfers.
+     * @dev Intended for eth_call only. Runs SUBMIT_QUOTE normally (sets
+     *      transient quotes), skips token pull/sweep commands, and returns
+     *      per-command Quote[] arrays for transfer/ICA commands.
+     *      Same command bytes and inputs as execute().
+     * @param commands Concatenated command bytes (1 byte per command)
+     * @param inputs ABI-encoded inputs for each command
+     * @return results Per-command Quote arrays. Empty for non-quoting commands.
+     */
+    function quoteExecute(
+        bytes calldata commands,
+        bytes[] calldata inputs
+    ) external returns (Quote[][] memory results) {
+        require(commands.length == inputs.length, "length mismatch");
+
+        results = new Quote[][](commands.length);
+        for (uint256 i; i < commands.length; ++i) {
+            results[i] = _dispatchQuote(uint8(commands[i]), inputs[i]);
+        }
+    }
+
+    // ============ Internal: shared ============
 
     function _scopeSalt(
         address caller,
@@ -226,28 +327,30 @@ contract QuotedCalls is PackageVersioned {
         address token,
         uint256 amount
     ) internal view returns (uint256) {
-        if (amount != CONTRACT_BALANCE) return amount;
-        if (token == address(0)) return address(this).balance;
-        return IERC20(token).balanceOf(address(this));
+        return CalldataHeadLib.resolveAmount(token, amount);
     }
 
     function _approve(address token, address spender, uint256 amount) internal {
-        if (token != address(0)) IERC20(token).forceApprove(spender, amount);
+        CalldataHeadLib.approve(token, spender, amount);
     }
+
+    function _submitQuote(bytes calldata input) internal {
+        (
+            address quoter,
+            SignedQuote memory quote,
+            bytes memory signature,
+            bytes32 clientSalt
+        ) = abi.decode(input, (address, SignedQuote, bytes, bytes32));
+        bytes32 scopedSalt = _scopeSalt(msg.sender, clientSalt);
+        if (quote.salt != scopedSalt) revert InvalidSalt();
+        IOffchainQuoter(quoter).submitQuote(quote, signature);
+    }
+
+    // ============ Internal: execute dispatch ============
 
     function _dispatch(uint256 command, bytes calldata input) internal {
         if (command == SUBMIT_QUOTE) {
-            (
-                address quoter,
-                SignedQuote memory quote,
-                bytes memory signature,
-                bytes32 clientSalt
-            ) = abi.decode(input, (address, SignedQuote, bytes, bytes32));
-            // signer signs scopedSalt = keccak256(msg.sender, clientSalt).
-            // prevents cross-user replay while letting callers choose salts.
-            bytes32 scopedSalt = _scopeSalt(msg.sender, clientSalt);
-            if (quote.salt != scopedSalt) revert InvalidSalt();
-            IOffchainQuoter(quoter).submitQuote(quote, signature);
+            _submitQuote(input);
         } else if (command == PERMIT2_PERMIT) {
             (
                 IAllowanceTransfer.PermitSingle memory permitSingle,
@@ -323,6 +426,7 @@ contract QuotedCalls is PackageVersioned {
     }
 
     function _dispatchCallRemoteWithOverrides(bytes calldata input) internal {
+        CalldataHeadLib.approveFromHead(input, 10);
         (
             address icaRouter,
             uint32 destination,
@@ -332,8 +436,8 @@ contract QuotedCalls is PackageVersioned {
             bytes memory hookMetadata,
             bytes32 userSalt,
             uint256 value,
-            address token,
-            uint256 approval
+            ,
+
         ) = abi.decode(
                 input,
                 (
@@ -349,11 +453,8 @@ contract QuotedCalls is PackageVersioned {
                     uint256
                 )
             );
-        value = _resolveAmount(address(0), value);
-        approval = _resolveAmount(token, approval);
-        _approve(token, icaRouter, approval);
         IInterchainAccountRouter(icaRouter).callRemoteWithOverrides{
-            value: value
+            value: _resolveAmount(address(0), value)
         }(
             destination,
             router,
@@ -365,6 +466,13 @@ contract QuotedCalls is PackageVersioned {
     }
 
     function _dispatchCallRemoteCommitReveal(bytes calldata input) internal {
+        CalldataHeadLib.approveFromHead(input, 11);
+        _executeCommitReveal(input);
+    }
+
+    /// @dev Decode + external call in its own stack frame so abi.decode locals
+    ///      don't share the stack with _approveFromCalldata's frame.
+    function _executeCommitReveal(bytes calldata input) internal {
         (
             address icaRouter,
             uint32 destination,
@@ -375,8 +483,8 @@ contract QuotedCalls is PackageVersioned {
             bytes32 salt,
             bytes32 commitment,
             uint256 value,
-            address token,
-            uint256 approval
+            ,
+
         ) = abi.decode(
                 input,
                 (
@@ -393,11 +501,8 @@ contract QuotedCalls is PackageVersioned {
                     uint256
                 )
             );
-        value = _resolveAmount(address(0), value);
-        approval = _resolveAmount(token, approval);
-        _approve(token, icaRouter, approval);
         IInterchainAccountRouter(icaRouter).callRemoteCommitReveal{
-            value: value
+            value: _resolveAmount(address(0), value)
         }(
             destination,
             router,
@@ -407,6 +512,184 @@ contract QuotedCalls is PackageVersioned {
             _scopeSalt(msg.sender, salt),
             commitment
         );
+    }
+
+    // ============ Internal: quote dispatch ============
+
+    function _dispatchQuote(
+        uint256 command,
+        bytes calldata input
+    ) internal returns (Quote[] memory) {
+        if (command == SUBMIT_QUOTE) {
+            _submitQuote(input);
+            return new Quote[](0);
+        } else if (command == TRANSFER_REMOTE) {
+            return _quoteTransferRemote(input);
+        } else if (command == TRANSFER_REMOTE_TO) {
+            return _quoteTransferRemoteTo(input);
+        } else if (command == CALL_REMOTE_WITH_OVERRIDES) {
+            return _quoteCallRemoteWithOverrides(input);
+        } else if (command == CALL_REMOTE_COMMIT_REVEAL) {
+            return _quoteCallRemoteCommitReveal(input);
+        }
+        // PERMIT2_PERMIT, PERMIT2_TRANSFER_FROM, TRANSFER_FROM, SWEEP: skip
+        if (
+            command != PERMIT2_PERMIT &&
+            command != PERMIT2_TRANSFER_FROM &&
+            command != TRANSFER_FROM &&
+            command != SWEEP
+        ) revert InvalidCommandType(command);
+        return new Quote[](0);
+    }
+
+    function _quoteTransferRemote(
+        bytes calldata input
+    ) internal view returns (Quote[] memory) {
+        (
+            address warpRoute,
+            uint32 destination,
+            bytes32 recipient,
+            uint256 amount,
+            ,
+            ,
+
+        ) = abi.decode(
+                input,
+                (address, uint32, bytes32, uint256, uint256, address, uint256)
+            );
+        return
+            ITokenBridge(warpRoute).quoteTransferRemote(
+                destination,
+                recipient,
+                amount
+            );
+    }
+
+    function _quoteTransferRemoteTo(
+        bytes calldata input
+    ) internal view returns (Quote[] memory) {
+        (
+            address router,
+            uint32 destination,
+            bytes32 recipient,
+            uint256 amount,
+            bytes32 targetRouter,
+            ,
+            ,
+
+        ) = abi.decode(
+                input,
+                (
+                    address,
+                    uint32,
+                    bytes32,
+                    uint256,
+                    bytes32,
+                    uint256,
+                    address,
+                    uint256
+                )
+            );
+        return
+            ICrossCollateralRouter(router).quoteTransferRemoteTo(
+                destination,
+                recipient,
+                amount,
+                targetRouter
+            );
+    }
+
+    function _quoteIcaGasPayment(
+        address icaRouter,
+        uint32 destination,
+        bytes memory hookMetadata,
+        address token
+    ) internal view returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: token,
+            amount: IInterchainAccountRouter(icaRouter).quoteGasPayment(
+                token,
+                destination,
+                StandardHookMetadata.gasLimit(hookMetadata)
+            )
+        });
+    }
+
+    function _quoteCallRemoteWithOverrides(
+        bytes calldata input
+    ) internal view returns (Quote[] memory) {
+        (
+            address icaRouter,
+            uint32 destination,
+            ,
+            ,
+            ,
+            bytes memory hookMetadata,
+            ,
+            ,
+            address token,
+
+        ) = abi.decode(
+                input,
+                (
+                    address,
+                    uint32,
+                    bytes32,
+                    bytes32,
+                    CallLib.Call[],
+                    bytes,
+                    bytes32,
+                    uint256,
+                    address,
+                    uint256
+                )
+            );
+        return _quoteIcaGasPayment(icaRouter, destination, hookMetadata, token);
+    }
+
+    function _quoteCallRemoteCommitReveal(
+        bytes calldata input
+    ) internal view returns (Quote[] memory quotes) {
+        (
+            address icaRouter,
+            uint32 destination,
+            ,
+            ,
+            bytes memory hookMetadata,
+            ,
+            ,
+            ,
+            ,
+            address token,
+
+        ) = abi.decode(
+                input,
+                (
+                    address,
+                    uint32,
+                    bytes32,
+                    bytes32,
+                    bytes,
+                    address,
+                    bytes32,
+                    bytes32,
+                    uint256,
+                    address,
+                    uint256
+                )
+            );
+        // Commit-reveal pays for two dispatches (commit + reveal).
+        // quoteGasForCommitReveal returns the combined cost.
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: token,
+            amount: IInterchainAccountRouter(icaRouter).quoteGasForCommitReveal(
+                token,
+                destination,
+                StandardHookMetadata.gasLimit(hookMetadata)
+            )
+        });
     }
 
     receive() external payable {}

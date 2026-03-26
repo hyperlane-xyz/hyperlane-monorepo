@@ -794,7 +794,7 @@ contract InterchainAccountRouter is
     }
 
     /**
-     * @notice Returns the payment required to commit reveal to the destination router.
+     * @notice Returns the native payment required to commit reveal to the destination router.
      * @param _destination The domain of the destination router.
      * @param gasLimit The gas limit that the reveal calls will use.
      * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
@@ -810,5 +810,31 @@ contract InterchainAccountRouter is
                 StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
                 address(hook)
             ) + quoteGasPayment(_destination, gasLimit);
+    }
+
+    /**
+     * @notice Returns the ERC20 token payment required to commit reveal to the destination router.
+     * @param _feeToken The ERC20 token to pay gas fees in.
+     * @param _destination The domain of the destination router.
+     * @param gasLimit The gas limit that the reveal calls will use.
+     * @return _gasPayment Payment amount in the specified token for both commit and reveal dispatches.
+     */
+    function quoteGasForCommitReveal(
+        address _feeToken,
+        uint32 _destination,
+        uint256 gasLimit
+    ) external view returns (uint256 _gasPayment) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                new bytes(0),
+                StandardHookMetadata.formatWithFeeToken(
+                    0,
+                    COMMIT_TX_GAS_USAGE,
+                    msg.sender,
+                    _feeToken
+                ),
+                address(hook)
+            ) + quoteGasPayment(_feeToken, _destination, gasLimit);
     }
 }

@@ -1261,5 +1261,529 @@ contract QuotedCallsTest is Test {
         assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
     }
 
+    // ============ Tests: quoteExecute ============
+
+    /// @dev Sum Quote[][] into totals per token address
+    function _sumQuotes(
+        Quote[][] memory results
+    )
+        internal
+        pure
+        returns (uint256 nativeTotal, uint256 tokenTotal, address tokenAddr)
+    {
+        for (uint256 i; i < results.length; ++i) {
+            for (uint256 j; j < results[i].length; ++j) {
+                if (results[i][j].token == address(0)) {
+                    nativeTotal += results[i][j].amount;
+                } else {
+                    tokenTotal += results[i][j].amount;
+                    tokenAddr = results[i][j].token;
+                }
+            }
+        }
+    }
+
+    /// @dev quoteExecute with TRANSFER_REMOTE returns per-command Quote[][]
+    function test_quoteExecute_transferRemote() public {
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(address(this)));
+        (cmds[1], ins[1]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        // cmd[0]=SUBMIT_QUOTE → empty, cmd[1]=TRANSFER_REMOTE → 3 quotes
+        assertEq(results[0].length, 0, "SUBMIT_QUOTE returns no quotes");
+        assertEq(results[1].length, 3, "TRANSFER_REMOTE returns 3 quotes");
+        (, uint256 tokenTotal, ) = _sumQuotes(results);
+        assertGt(tokenTotal, TRANSFER_AMT, "token total should include fee");
+    }
+
+    /// @dev quoteExecute with TRANSFER_REMOTE using ERC20 IGP fee token
+    function test_quoteExecute_transferRemote_erc20Igp() public {
+        localToken.setFeeHook(address(igp));
+        localToken.setHook(address(igp));
+
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(
+            _buildIgpQuote(
+                address(this),
+                address(primaryToken),
+                address(localToken)
+            )
+        );
+        (cmds[1], ins[1]) = _cmdSubmitQuote(_buildFeeQuote(address(this)));
+        (cmds[2], ins[2]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        // cmd[2]=TRANSFER_REMOTE has the quotes
+        assertEq(results[2].length, 3, "TRANSFER_REMOTE returns 3 quotes");
+        (, uint256 tokenTotal, ) = _sumQuotes(results);
+        assertGt(tokenTotal, TRANSFER_AMT, "token total should include fees");
+    }
+
+    /// @dev quoteExecute with CALL_REMOTE_WITH_OVERRIDES returns ICA gas quote
+    function test_quoteExecute_callRemoteWithOverrides() public {
+        string[] memory icaUrls = new string[](1);
+        icaUrls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(igp),
+            address(this),
+            0,
+            icaUrls
+        );
+        icaRouter.enrollRemoteRouter(
+            DESTINATION,
+            address(0xdead).addressToBytes32()
+        );
+
+        CallLib.Call[] memory remoteCalls = new CallLib.Call[](1);
+        remoteCalls[0] = CallLib.Call({
+            to: address(0xbeef).addressToBytes32(),
+            value: 0,
+            data: ""
+        });
+
+        bytes memory hookMetadata = StandardHookMetadata.format(
+            0,
+            uint256(50_000),
+            address(quotedCalls)
+        );
+
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(
+            _buildIgpQuote(address(this), address(0), address(icaRouter))
+        );
+        (cmds[1], ins[1]) = _cmdCallRemoteWithOverrides(
+            address(icaRouter),
+            DESTINATION,
+            address(0xdead).addressToBytes32(),
+            bytes32(0),
+            remoteCalls,
+            hookMetadata,
+            bytes32(0),
+            0,
+            address(0),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        assertEq(results[1].length, 1, "ICA should return 1 quote");
+        assertEq(results[1][0].token, address(0), "ICA fee should be native");
+        assertGt(results[1][0].amount, 0, "ICA fee should be > 0");
+    }
+
+    /// @dev quoteExecute with CALL_REMOTE_COMMIT_REVEAL returns ICA gas quote
+    function test_quoteExecute_callRemoteCommitReveal() public {
+        string[] memory icaUrls = new string[](1);
+        icaUrls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(igp),
+            address(this),
+            0,
+            icaUrls
+        );
+        icaRouter.enrollRemoteRouter(
+            DESTINATION,
+            address(0xdead).addressToBytes32()
+        );
+
+        bytes memory hookMetadata = StandardHookMetadata.format(
+            0,
+            uint256(50_000),
+            address(quotedCalls)
+        );
+
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(
+            _buildIgpQuote(address(this), address(0), address(icaRouter))
+        );
+        (cmds[1], ins[1]) = _cmdCallRemoteCommitReveal(
+            address(icaRouter),
+            DESTINATION,
+            address(0xdead).addressToBytes32(),
+            bytes32(0),
+            hookMetadata,
+            address(noopHook),
+            bytes32(0),
+            keccak256("commitment"),
+            0,
+            address(0),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        assertEq(results[1].length, 1, "commit-reveal should return 1 quote");
+        assertEq(results[1][0].token, address(0), "fee should be native");
+        assertGt(results[1][0].amount, 0, "fee should be > 0");
+    }
+
+    /// @dev quoteExecute skips TRANSFER_FROM, PERMIT2, and SWEEP commands
+    function test_quoteExecute_skipsTokenOps() public {
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdTransferFrom(address(primaryToken), 100e18);
+        (cmds[1], ins[1]) = _cmdSweep(address(primaryToken));
+        (cmds[2], ins[2]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        // Should not revert despite no approvals — TRANSFER_FROM is skipped
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+        assertEq(results[0].length, 0, "TRANSFER_FROM skipped");
+        assertEq(results[1].length, 0, "SWEEP skipped");
+        assertEq(results[2].length, 3, "TRANSFER_REMOTE returns quotes");
+    }
+
+    /// @dev quoteExecute with vs without SUBMIT_QUOTE — offchain quotes
+    ///      produce different fees than the onchain oracle fallback.
+    function test_quoteExecute_withVsWithoutSubmitQuote() public {
+        localToken.setFeeHook(address(igp));
+        localToken.setHook(address(igp));
+
+        // Shared TRANSFER_REMOTE input
+        (bytes1 trCmd, bytes memory trInput) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            0
+        );
+
+        // Without SUBMIT_QUOTE — uses oracle fallback
+        {
+            bytes1[] memory cmds = new bytes1[](1);
+            bytes[] memory ins = new bytes[](1);
+            cmds[0] = trCmd;
+            ins[0] = trInput;
+            (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+            Quote[][] memory fallbackResults = quotedCalls.quoteExecute(
+                commands,
+                inputs
+            );
+            (, uint256 fallbackTokenTotal, ) = _sumQuotes(fallbackResults);
+            assertGt(fallbackTokenTotal, 0, "fallback should quote nonzero");
+
+            // With SUBMIT_QUOTE — uses offchain rates (2x oracle)
+            bytes1[] memory cmds2 = new bytes1[](3);
+            bytes[] memory ins2 = new bytes[](3);
+            (cmds2[0], ins2[0]) = _cmdSubmitQuote(
+                _buildIgpQuote(
+                    address(this),
+                    address(primaryToken),
+                    address(localToken)
+                )
+            );
+            (cmds2[1], ins2[1]) = _cmdSubmitQuote(
+                _buildFeeQuote(address(this))
+            );
+            cmds2[2] = trCmd;
+            ins2[2] = trInput;
+            (bytes memory commands2, bytes[] memory inputs2) = _pack(
+                cmds2,
+                ins2
+            );
+
+            Quote[][] memory quotedResults = quotedCalls.quoteExecute(
+                commands2,
+                inputs2
+            );
+            (, uint256 quotedTokenTotal, ) = _sumQuotes(quotedResults);
+            assertGt(quotedTokenTotal, 0, "quoted should quote nonzero");
+
+            // Offchain IGP rate is 2x oracle → different total
+            assertTrue(
+                quotedTokenTotal != fallbackTokenTotal,
+                "offchain quotes should differ from oracle fallback"
+            );
+        }
+    }
+
+    // ============ Fuzz: quoteExecute → execute round-trip ============
+
+    function _buildFeeQuoteForAmount(
+        uint256 amount,
+        address caller
+    ) internal view returns (bytes memory) {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: FeeQuoteContext.encode(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                amount
+            ),
+            data: FeeQuoteData.encode(MAX_FEE, HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_,
+            salt: _scopedSalt(caller),
+            submitter: address(quotedCalls)
+        });
+        return
+            abi.encode(
+                address(quotedFee),
+                sq,
+                _signQuote(address(quotedFee), sq),
+                CLIENT_SALT
+            );
+    }
+
+    function _quoteTransfer(
+        uint256 transferAmt,
+        bytes memory feeQuoteInput
+    ) internal returns (Quote[][] memory) {
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(feeQuoteInput);
+        (cmds[1], ins[1]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            transferAmt,
+            0,
+            address(primaryToken),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+        return quotedCalls.quoteExecute(commands, inputs);
+    }
+
+    function _executeTransfer(
+        uint256 transferAmt,
+        uint256 totalTokenNeeded,
+        uint256 totalNativeNeeded,
+        bytes memory feeQuoteInput
+    ) internal {
+        uint256 CONTRACT_BAL = quotedCalls.CONTRACT_BALANCE();
+        bytes1[] memory cmds = new bytes1[](4);
+        bytes[] memory ins = new bytes[](4);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(feeQuoteInput);
+        (cmds[1], ins[1]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokenNeeded
+        );
+        (cmds[2], ins[2]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            transferAmt,
+            CONTRACT_BAL,
+            address(primaryToken),
+            CONTRACT_BAL
+        );
+        (cmds[3], ins[3]) = _cmdSweep(address(primaryToken));
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        primaryToken.approve(address(quotedCalls), totalTokenNeeded);
+        vm.deal(ALICE, totalNativeNeeded);
+        quotedCalls.execute{value: totalNativeNeeded}(commands, inputs);
+    }
+
+    /// @dev Fuzz transfer amount, use quoteExecute to determine fees for
+    ///      both a warp TRANSFER_REMOTE and ICA CALL_REMOTE, then execute
+    ///      the full sequence — as the offchain client would.
+    function test_fuzz_quoteExecuteThenExecute(uint256 transferAmt) public {
+        transferAmt = bound(transferAmt, 1, 500e18);
+
+        // Setup: ERC20 IGP for warp route, native IGP for ICA
+        localToken.setFeeHook(address(igp));
+        localToken.setHook(address(igp));
+
+        string[] memory icaUrls = new string[](1);
+        icaUrls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(igp),
+            address(this),
+            0,
+            icaUrls
+        );
+        icaRouter.enrollRemoteRouter(
+            DESTINATION,
+            address(0xdead).addressToBytes32()
+        );
+
+        CallLib.Call[] memory remoteCalls = new CallLib.Call[](1);
+        remoteCalls[0] = CallLib.Call({
+            to: address(0xbeef).addressToBytes32(),
+            value: 0,
+            data: ""
+        });
+        bytes memory hookMetadata = StandardHookMetadata.format(
+            0,
+            uint256(50_000),
+            address(quotedCalls)
+        );
+
+        bytes memory warpFeeQuote = _buildFeeQuoteForAmount(transferAmt, ALICE);
+        bytes memory warpIgpQuote = _buildIgpQuote(
+            ALICE,
+            address(primaryToken),
+            address(localToken)
+        );
+        bytes memory icaIgpQuote = _buildIgpQuote(
+            ALICE,
+            address(0),
+            address(icaRouter)
+        );
+
+        vm.startPrank(ALICE);
+
+        // Step 1: quoteExecute — same commands, no TRANSFER_FROM/SWEEP
+        //   [0] SUBMIT_QUOTE  (warp IGP)
+        //   [1] SUBMIT_QUOTE  (warp fee)
+        //   [2] TRANSFER_REMOTE
+        //   [3] SUBMIT_QUOTE  (ICA IGP)
+        //   [4] CALL_REMOTE_WITH_OVERRIDES
+        {
+            bytes1[] memory qCmds = new bytes1[](5);
+            bytes[] memory qIns = new bytes[](5);
+            (qCmds[0], qIns[0]) = _cmdSubmitQuote(warpIgpQuote);
+            (qCmds[1], qIns[1]) = _cmdSubmitQuote(warpFeeQuote);
+            (qCmds[2], qIns[2]) = _cmdTransferRemote(
+                address(localToken),
+                DESTINATION,
+                BOB.addressToBytes32(),
+                transferAmt,
+                0,
+                address(primaryToken),
+                0
+            );
+            (qCmds[3], qIns[3]) = _cmdSubmitQuote(icaIgpQuote);
+            (qCmds[4], qIns[4]) = _cmdCallRemoteWithOverrides(
+                address(icaRouter),
+                DESTINATION,
+                address(0xdead).addressToBytes32(),
+                bytes32(0),
+                remoteCalls,
+                hookMetadata,
+                bytes32(0),
+                0,
+                address(0),
+                0
+            );
+            (bytes memory commands, bytes[] memory inputs) = _pack(qCmds, qIns);
+
+            Quote[][] memory results = quotedCalls.quoteExecute(
+                commands,
+                inputs
+            );
+
+            // results[i] corresponds to commands[i]
+            assertEq(results[0].length, 0, "[0] SUBMIT_QUOTE: no quotes");
+            assertEq(results[1].length, 0, "[1] SUBMIT_QUOTE: no quotes");
+            assertGt(results[2].length, 0, "[2] TRANSFER_REMOTE: has quotes");
+            assertEq(results[3].length, 0, "[3] SUBMIT_QUOTE: no quotes");
+            assertEq(results[4].length, 1, "[4] CALL_REMOTE: 1 quote");
+
+            (totalNativeNeeded, totalTokenNeeded, ) = _sumQuotes(results);
+        }
+
+        // Step 2: execute with quoted amounts — insert TRANSFER_FROM + SWEEP
+        uint256 aliceBefore = primaryToken.balanceOf(ALICE);
+        {
+            uint256 CONTRACT_BAL = quotedCalls.CONTRACT_BALANCE();
+            bytes1[] memory eCmds = new bytes1[](8);
+            bytes[] memory eIns = new bytes[](8);
+            // Same quote commands at same relative positions
+            (eCmds[0], eIns[0]) = _cmdSubmitQuote(warpIgpQuote);
+            (eCmds[1], eIns[1]) = _cmdSubmitQuote(warpFeeQuote);
+            // Inserted: pull tokens using quoted amount
+            (eCmds[2], eIns[2]) = _cmdTransferFrom(
+                address(primaryToken),
+                totalTokenNeeded
+            );
+            // value=0: warp route uses ERC20 IGP, not native
+            (eCmds[3], eIns[3]) = _cmdTransferRemote(
+                address(localToken),
+                DESTINATION,
+                BOB.addressToBytes32(),
+                transferAmt,
+                0,
+                address(primaryToken),
+                CONTRACT_BAL
+            );
+            (eCmds[4], eIns[4]) = _cmdSubmitQuote(icaIgpQuote);
+            (eCmds[5], eIns[5]) = _cmdCallRemoteWithOverrides(
+                address(icaRouter),
+                DESTINATION,
+                address(0xdead).addressToBytes32(),
+                bytes32(0),
+                remoteCalls,
+                hookMetadata,
+                bytes32(0),
+                CONTRACT_BAL,
+                address(0),
+                0
+            );
+            // Inserted: sweep leftover tokens + ETH
+            (eCmds[6], eIns[6]) = _cmdSweep(address(primaryToken));
+            (eCmds[7], eIns[7]) = _cmdSweep(address(0));
+            (bytes memory commands, bytes[] memory inputs) = _pack(eCmds, eIns);
+
+            primaryToken.approve(address(quotedCalls), totalTokenNeeded);
+            vm.deal(ALICE, totalNativeNeeded);
+            quotedCalls.execute{value: totalNativeNeeded}(commands, inputs);
+        }
+        vm.stopPrank();
+
+        // Verify: exact spend, nothing stuck
+        assertEq(
+            primaryToken.balanceOf(ALICE),
+            aliceBefore - totalTokenNeeded,
+            "ALICE should spend exactly quoted ERC20 amount"
+        );
+        assertEq(
+            primaryToken.balanceOf(address(quotedCalls)),
+            0,
+            "no tokens stuck in QuotedCalls"
+        );
+        assertEq(
+            address(quotedCalls).balance,
+            0,
+            "no ETH stuck in QuotedCalls"
+        );
+    }
+    // Storage vars for fuzz test (avoids stack-too-deep)
+    uint256 totalTokenNeeded;
+    uint256 totalNativeNeeded;
+
     receive() external payable {}
 }

@@ -5,6 +5,39 @@ export {
 } from './fee/EvmTokenFeeReader.js';
 
 export {
+  buildExecuteCalldata,
+  buildQuoteCalldata,
+  type QuotedCallsTransaction,
+  type QuotedTransferParams,
+} from './quoted-calls/builder.js';
+export {
+  CONTRACT_BALANCE,
+  type Quote as QuotedCallsQuote,
+  computeScopedSalt,
+  decodeQuoteExecuteResult,
+  encodeExecuteCalldata,
+  encodePermit2PermitInput,
+  encodePermit2TransferFromInput,
+  encodeQuoteExecuteCalldata,
+  encodeSubmitQuoteInput,
+  encodeSweepInput,
+  encodeTransferFromInput,
+  encodeTransferRemoteInput,
+  encodeTransferRemoteToInput,
+  extractQuoteTotals,
+  quotedCallsAbi,
+  sumQuotesByToken,
+} from './quoted-calls/codec.js';
+export {
+  type Permit2Data,
+  type QuotedCallsParams,
+  QuotedCallsCommand,
+  type SignedQuoteData,
+  type SubmitQuoteCommand,
+  TokenPullMode,
+} from './quoted-calls/types.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
