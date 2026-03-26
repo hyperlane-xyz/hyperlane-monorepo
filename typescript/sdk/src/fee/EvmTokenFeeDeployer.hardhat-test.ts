@@ -16,6 +16,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import {
+  DEFAULT_ROUTER_KEY,
   LinearFeeConfig,
   ProgressiveFeeConfig,
   RegressiveFeeConfig,
@@ -267,7 +268,7 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await routingFeeContract.token()).to.equal(token.address);
   });
 
-  it('should deploy CrossCollateralRoutingFee with default and router-specific fee contracts', async () => {
+  it('should deploy CrossCollateralRoutingFee with router-keyed fee contracts', async () => {
     const routerKey = hre.ethers.utils.hexZeroPad(signer.address, 32);
     const config = CrossCollateralRoutingFeeConfigSchema.parse({
       type: TokenFeeType.CrossCollateralRoutingFee,
@@ -275,7 +276,7 @@ describe('EvmTokenFeeDeployer', () => {
       token: token.address,
       feeContracts: {
         [TestChainName.test2]: {
-          default: {
+          [DEFAULT_ROUTER_KEY]: {
             type: TokenFeeType.LinearFee,
             token: token.address,
             owner: signer.address,
@@ -283,14 +284,12 @@ describe('EvmTokenFeeDeployer', () => {
             halfAmount: HALF_AMOUNT,
             bps: BPS,
           },
-          routers: {
-            [routerKey]: {
-              type: TokenFeeType.ProgressiveFee,
-              token: token.address,
-              owner: signer.address,
-              maxFee: MAX_FEE,
-              halfAmount: HALF_AMOUNT,
-            },
+          [routerKey]: {
+            type: TokenFeeType.ProgressiveFee,
+            token: token.address,
+            owner: signer.address,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
           },
         },
       },

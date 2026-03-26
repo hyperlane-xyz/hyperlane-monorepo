@@ -44,6 +44,10 @@ export const onChainTypeToTokenFeeTypeMap: Record<
     TokenFeeType.CrossCollateralRoutingFee,
 };
 
+// keccak256("RoutingFee.DEFAULT_ROUTER")
+export const DEFAULT_ROUTER_KEY =
+  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
+
 // ====== SHARED SCHEMAS ======
 
 // For deployed/read configs - token is required
@@ -161,32 +165,16 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
 const CROSS_COLLATERAL_DESTINATION_MESSAGE =
-  'CrossCollateralRoutingFee destinations must define a default fee or at least one router fee';
+  'CrossCollateralRoutingFee destinations must define at least one router fee';
 
 const CrossCollateralRoutingFeeDestinationConfigSchema = z
-  .object({
-    // `default` is stored under the contract's DEFAULT_ROUTER sentinel for
-    // the destination-level fallback fee. It applies whenever no router-
-    // specific override exists for that destination.
-    default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(),
-    // `routers` contains per-target-router overrides for the same
-    // destination. Unlike the normal remote router table, this is purely a
-    // fee override map, so both can coexist in one destination entry.
-    routers: z
-      .record(
-        ZHash,
-        z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
-      )
-      .optional(),
-  })
-  .refine(
-    (value) =>
-      value.default !== undefined ||
-      Object.keys(value.routers ?? {}).length > 0,
-    {
-      message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
-    },
-  );
+  .record(
+    ZHash,
+    z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
+  )
+  .refine((value) => Object.keys(value).length > 0, {
+    message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
+  });
 
 export const CrossCollateralRoutingFeeConfigSchema = BaseFeeConfigSchema.extend(
   {
@@ -194,7 +182,7 @@ export const CrossCollateralRoutingFeeConfigSchema = BaseFeeConfigSchema.extend(
     feeContracts: z.record(
       ZChainName,
       CrossCollateralRoutingFeeDestinationConfigSchema,
-    ), // Destination -> { default?, routers? }
+    ), // Destination -> { routerKey -> Fee }, including DEFAULT_ROUTER_KEY
   },
 );
 export type CrossCollateralRoutingFeeConfig = z.infer<
@@ -215,29 +203,13 @@ export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
 export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 
 const CrossCollateralRoutingFeeDestinationInputConfigSchema = z
-  .object({
-    // `default` is stored under the contract's DEFAULT_ROUTER sentinel for
-    // the destination-level fallback fee. It applies whenever no router-
-    // specific override exists for that destination.
-    default: z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema).optional(),
-    // `routers` contains per-target-router overrides for the same
-    // destination. Unlike the normal remote router table, this is purely a
-    // fee override map, so both can coexist in one destination entry.
-    routers: z
-      .record(
-        ZHash,
-        z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
-      )
-      .optional(),
-  })
-  .refine(
-    (value) =>
-      value.default !== undefined ||
-      Object.keys(value.routers ?? {}).length > 0,
-    {
-      message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
-    },
-  );
+  .record(
+    ZHash,
+    z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
+  )
+  .refine((value) => Object.keys(value).length > 0, {
+    message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
+  });
 
 export const CrossCollateralRoutingFeeInputConfigSchema =
   BaseFeeConfigInputSchema.extend({
@@ -289,11 +261,5 @@ export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
 export type ResolvedCrossCollateralRoutingFeeConfigInput =
   CrossCollateralRoutingFeeInputConfig & {
     token: string;
-    feeContracts: Record<
-      string,
-      {
-        default?: ResolvedTokenFeeConfigInput;
-        routers?: Record<string, ResolvedTokenFeeConfigInput>;
-      }
-    >;
+    feeContracts: Record<string, Record<string, ResolvedTokenFeeConfigInput>>;
   };

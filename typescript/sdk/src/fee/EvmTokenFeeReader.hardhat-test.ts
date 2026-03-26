@@ -12,7 +12,12 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
-import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
+import {
+  DEFAULT_ROUTER_KEY,
+  TokenFeeConfig,
+  TokenFeeConfigSchema,
+  TokenFeeType,
+} from './types.js';
 import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
 
 // eslint-disable-next-line jest/no-export -- test fixtures shared across test files
@@ -219,7 +224,7 @@ describe('EvmTokenFeeReader', () => {
       expect(Object.keys((routingFee as any).feeContracts)).to.have.length(0);
     });
 
-    it('should derive cross collateral routing fee config from destination defaults', async () => {
+    it('should derive cross collateral routing fee config from DEFAULT_ROUTER entries', async () => {
       const linearFeeConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.LinearFee,
         owner: signer.address,
@@ -279,10 +284,10 @@ describe('EvmTokenFeeReader', () => {
           token: token.address,
           feeContracts: {
             [TestChainName.test3]: {
-              default: linearFeeConfig,
+              [DEFAULT_ROUTER_KEY]: linearFeeConfig,
             },
             [TestChainName.test4]: {
-              default: linearFeeConfig,
+              [DEFAULT_ROUTER_KEY]: linearFeeConfig,
             },
           },
         }),
@@ -351,16 +356,14 @@ describe('EvmTokenFeeReader', () => {
           token: token.address,
           feeContracts: {
             [TestChainName.test3]: {
-              routers: {
-                [routerBytes32]: linearFeeConfig,
-              },
+              [routerBytes32]: linearFeeConfig,
             },
           },
         }),
       );
     });
 
-    it('should derive CCRF defaults for routing destinations outside cross collateral routers', async () => {
+    it('should derive CCRF DEFAULT_ROUTER entries for routing destinations outside cross collateral routers', async () => {
       const linearFeeConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.LinearFee,
         owner: signer.address,
@@ -416,10 +419,10 @@ describe('EvmTokenFeeReader', () => {
           token: token.address,
           feeContracts: {
             [TestChainName.test3]: {
-              default: linearFeeConfig,
+              [DEFAULT_ROUTER_KEY]: linearFeeConfig,
             },
             [TestChainName.test4]: {
-              default: linearFeeConfig,
+              [DEFAULT_ROUTER_KEY]: linearFeeConfig,
             },
           },
         }),

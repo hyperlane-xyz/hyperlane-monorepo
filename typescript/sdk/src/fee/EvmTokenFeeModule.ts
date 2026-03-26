@@ -86,31 +86,6 @@ function resolveTokenForFeeConfig(
   const resolvedToken = getResolvedFeeToken(config, fallbackToken);
   const resolveNestedFeeConfig = (subFee: TokenFeeConfigInput) =>
     resolveTokenForFeeConfig(subFee, resolvedToken);
-  const resolveCrossCollateralDestinationConfig = (destinationConfig: {
-    default?: TokenFeeConfigInput;
-    routers?: Record<string, TokenFeeConfigInput>;
-  }) => {
-    const resolvedRouters = Object.fromEntries(
-      Object.entries(destinationConfig.routers ?? {}).map(
-        ([routerKey, subFee]) => [routerKey, resolveNestedFeeConfig(subFee)],
-      ),
-    );
-
-    return {
-      // CrossCollateralRoutingFee keeps one fee table per destination:
-      // `default` is stored under the DEFAULT_ROUTER sentinel and `routers`
-      // contains per-target-router overrides.
-      ...(destinationConfig.default
-        ? {
-            default: resolveNestedFeeConfig(destinationConfig.default),
-          }
-        : {}),
-      ...(Object.keys(resolvedRouters).length
-        ? { routers: resolvedRouters }
-        : {}),
-    };
-  };
-
   if (config.type === TokenFeeType.RoutingFee) {
     return {
       ...config,
@@ -128,10 +103,17 @@ function resolveTokenForFeeConfig(
       ...config,
       token: resolvedToken,
       feeContracts: Object.fromEntries(
-        Object.keys(config.feeContracts).map((chain) => [
-          chain,
-          resolveCrossCollateralDestinationConfig(config.feeContracts[chain]),
-        ]),
+        Object.entries(config.feeContracts).map(
+          ([chain, destinationConfig]) => [
+            chain,
+            Object.fromEntries(
+              Object.entries(destinationConfig).map(([routerKey, subFee]) => [
+                routerKey,
+                resolveNestedFeeConfig(subFee),
+              ]),
+            ),
+          ],
+        ),
       ),
     };
   }
@@ -290,34 +272,18 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       const feeContracts = await promiseObjAll(
         objMap(config.feeContracts, async (_, destinationConfig) => {
-          const defaultFee = destinationConfig.default
-            ? await EvmTokenFeeModule.expandConfig({
+          return promiseObjAll(
+            objMap(destinationConfig, async (_, innerConfig) =>
+              EvmTokenFeeModule.expandConfig({
                 config: {
-                  ...destinationConfig.default,
-                  token: destinationConfig.default.token ?? token,
+                  ...innerConfig,
+                  token: innerConfig.token ?? token,
                 },
                 multiProvider,
                 chainName,
-              })
-            : undefined;
-          const routers = destinationConfig.routers
-            ? await promiseObjAll(
-                objMap(destinationConfig.routers, async (_, innerConfig) =>
-                  EvmTokenFeeModule.expandConfig({
-                    config: {
-                      ...innerConfig,
-                      token: innerConfig.token ?? token,
-                    },
-                    multiProvider,
-                    chainName,
-                  }),
-                ),
-              )
-            : undefined;
-          return {
-            ...(defaultFee ? { default: defaultFee } : {}),
-            ...(routers ? { routers } : {}),
-          };
+              }),
+            ),
+          );
         }),
       );
 
@@ -369,8 +335,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   // Diffing mutable routing fees needs enough read context to observe both the
-  // destination-level defaults declared in the target config and any
-  // caller-specified CCR router hints for stale on-chain entries.
+  // destination-level DEFAULT_ROUTER_KEY entries declared in the target config
+  // and any caller-specified CCR router hints for stale on-chain entries.
   private deriveReadParams(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
@@ -382,11 +348,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) &&
       !effectiveParams.routingDestinations
     ) {
-      // Route-wide defaults are keyed by destination domain, independent of
-      // whether that destination also has CCR router overrides.
-      // Read defaults for every destination the target config cares about so
-      // comparisons don't accidentally drop fee contracts on ordinary route
-      // destinations that have no CCR router override.
+      // Route-wide DEFAULT_ROUTER_KEY entries are keyed by destination
+      // domain, independent of whether that destination also has other CCR
+      // router entries. Read every configured destination so comparisons
+      // don't accidentally drop fee contracts on ordinary route destinations
+      // that have no extra CCR router override.
       effectiveParams.routingDestinations = Object.keys(
         targetConfig.feeContracts,
       ).map((chainName) => this.multiProvider.getDomainId(chainName));
@@ -399,7 +365,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const targetCrossCollateralRouters = Object.fromEntries(
       Object.keys(targetConfig.feeContracts).map((chainName) => [
         this.multiProvider.getDomainId(chainName),
-        Object.keys(targetConfig.feeContracts[chainName].routers ?? {}),
+        Object.keys(targetConfig.feeContracts[chainName]),
       ]),
     );
     if (!effectiveParams.crossCollateralRouters) {
@@ -408,8 +374,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     // Preserve caller-supplied router hints while unioning in target-config
-    // routers so CCRF reads can see both stale on-chain routers and the new
-    // target router set during diffing.
+    // router keys so CCRF reads can see both stale on-chain routers and the
+    // new target router set during diffing. DEFAULT_ROUTER_KEY is handled just
+    // like any other router entry.
     const mergedCrossCollateralRouters = new Map<number, Set<string>>();
     for (const [destination, routers] of Object.entries(
       effectiveParams.crossCollateralRouters,

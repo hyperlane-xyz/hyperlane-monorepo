@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { constants } from 'ethers';
 
 import {
+  DEFAULT_ROUTER_KEY,
   ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedRoutingFeeConfigInput,
   TokenFeeType,
@@ -269,7 +270,7 @@ describe('configUtils', () => {
       });
     });
 
-    it('normalizes CCRF router/default fee contracts recursively', () => {
+    it('normalizes CCRF router-keyed fee contracts recursively', () => {
       const ROUTER_KEY =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const transformedObj = transformConfigToCheck({
@@ -281,7 +282,7 @@ describe('configUtils', () => {
           token: ADDRESS,
           feeContracts: {
             ethereum: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: ADDRESS,
                 token: ADDRESS,
@@ -289,15 +290,13 @@ describe('configUtils', () => {
                 maxFee: 3n,
                 halfAmount: 4n,
               },
-              routers: {
-                [ROUTER_KEY]: {
-                  type: TokenFeeType.LinearFee,
-                  owner: ADDRESS,
-                  token: ADDRESS,
-                  bps: 300n,
-                  maxFee: 5n,
-                  halfAmount: 6n,
-                },
+              [ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 300n,
+                maxFee: 5n,
+                halfAmount: 6n,
               },
             },
           },
@@ -313,19 +312,17 @@ describe('configUtils', () => {
           token: ADDRESS,
           feeContracts: {
             ethereum: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: ADDRESS,
                 token: ADDRESS,
                 bps: 200n,
               },
-              routers: {
-                [ROUTER_KEY]: {
-                  type: TokenFeeType.LinearFee,
-                  owner: ADDRESS,
-                  token: ADDRESS,
-                  bps: 300n,
-                },
+              [ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 300n,
               },
             },
           },
@@ -333,7 +330,7 @@ describe('configUtils', () => {
       });
     });
 
-    it('omits empty CCRF router override maps during normalization', () => {
+    it('keeps only populated CCRF router entries during normalization', () => {
       const transformedObj = transformConfigToCheck({
         type: TokenType.collateral,
         token: ADDRESS,
@@ -343,13 +340,12 @@ describe('configUtils', () => {
           token: ADDRESS,
           feeContracts: {
             ethereum: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: ADDRESS,
                 token: ADDRESS,
                 bps: 200n,
               },
-              routers: {},
             },
           },
         },
@@ -364,7 +360,7 @@ describe('configUtils', () => {
           token: ADDRESS,
           feeContracts: {
             ethereum: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: ADDRESS,
                 token: ADDRESS,
@@ -543,17 +539,15 @@ describe('configUtils', () => {
         owner: OWNER_ADDRESS,
         feeContracts: {
           ethereum: {
-            default: {
+            [DEFAULT_ROUTER_KEY]: {
               type: TokenFeeType.LinearFee as const,
               owner: OWNER_ADDRESS,
               bps: 100n,
             },
-            routers: {
-              [ROUTER_KEY]: {
-                type: TokenFeeType.LinearFee as const,
-                owner: OWNER_ADDRESS,
-                bps: 200n,
-              },
+            [ROUTER_KEY]: {
+              type: TokenFeeType.LinearFee as const,
+              owner: OWNER_ADDRESS,
+              bps: 200n,
             },
           },
         },
@@ -566,12 +560,12 @@ describe('configUtils', () => {
       ) as ResolvedCrossCollateralRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.feeContracts.ethereum.default?.token).to.equal(
+      expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).to.equal(
         ROUTER_ADDRESS,
       );
-      expect(
-        result.feeContracts.ethereum.routers?.[ROUTER_KEY]?.token,
-      ).to.equal(ROUTER_ADDRESS);
+      expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
+        ROUTER_ADDRESS,
+      );
     });
   });
 });

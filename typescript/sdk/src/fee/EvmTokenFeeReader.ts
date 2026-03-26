@@ -21,6 +21,7 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   CrossCollateralRoutingFeeConfig,
+  DEFAULT_ROUTER_KEY,
   FeeParameters,
   OnchainTokenFeeType,
   RoutingFeeConfig,
@@ -36,10 +37,7 @@ import {
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 type DerivedCrossCollateralFeeContracts = Record<
   ChainName,
-  {
-    default?: DerivedTokenFeeConfig;
-    routers?: Record<string, DerivedTokenFeeConfig>;
-  }
+  Record<string, DerivedTokenFeeConfig>
 >;
 export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
   feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
@@ -55,10 +53,6 @@ export type TokenFeeReaderParams = {
   // Optional CCR-enrolled router map by destination domain (bytes32 router addresses)
   crossCollateralRouters?: Record<number, string[]>;
 };
-
-// keccak256("RoutingFee.DEFAULT_ROUTER")
-export const DEFAULT_ROUTER_KEY =
-  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
 
 export class EvmTokenFeeReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({ module: 'EvmTokenFeeReader' });
@@ -188,9 +182,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       crossCollateralRouters ?? {},
     ).map((domain) => Number(domain));
 
-    // CCRF can have ordinary route defaults on any routing destination and
-    // router-specific overrides on any CCR-enrolled destination. Read the
-    // union so check/apply sees both sets even when they do not match 1:1.
+    // CCRF can store DEFAULT_ROUTER_KEY entries on ordinary route destinations
+    // and arbitrary router-key overrides on CCR-enrolled destinations. Read
+    // the union so check/apply sees both sets even when they do not match 1:1.
     const effectiveRoutingDestinations = [
       ...new Set([
         ...(routingDestinations ?? []),
@@ -207,10 +201,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       address,
       this.provider,
     );
-    const [owner, defaultRouter] = await Promise.all([
-      routingFee.owner(),
-      routingFee.DEFAULT_ROUTER(),
-    ]);
+    const owner = await routingFee.owner();
 
     const feeContracts: DerivedCrossCollateralFeeContracts = {};
     const feeConfigCache = new Map<string, Promise<DerivedTokenFeeConfig>>();
@@ -244,20 +235,21 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       effectiveRoutingDestinations,
       async (destination) => {
         const chainName = this.multiProvider.getChainName(destination);
-        const configuredRouters = crossCollateralRouters?.[destination] ?? [];
-        const defaultSubFeeAddress = await routingFee.feeContracts(
-          destination,
-          defaultRouter,
-        );
+        const routerKeys = [
+          ...new Set([
+            DEFAULT_ROUTER_KEY,
+            ...(crossCollateralRouters?.[destination] ?? []),
+          ]),
+        ];
         const routerSubFees = await concurrentMap(
           this.concurrency,
-          configuredRouters,
+          routerKeys,
           async (router) => ({
             router,
             subFeeAddress: await routingFee.feeContracts(destination, router),
           }),
         );
-        return { chainName, defaultSubFeeAddress, routerSubFees };
+        return { chainName, routerSubFees };
       },
     );
 
@@ -265,14 +257,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       this.concurrency,
       destinationConfigs,
       async (destinationConfig) => {
-        const { chainName, defaultSubFeeAddress, routerSubFees } =
-          destinationConfig;
-
-        let defaultFeeConfig: DerivedTokenFeeConfig | undefined;
-        if (defaultSubFeeAddress !== constants.AddressZero) {
-          defaultFeeConfig = await parseFeeConfig(defaultSubFeeAddress);
-        }
-
+        const { chainName, routerSubFees } = destinationConfig;
         const routerFeeConfigs: Record<string, DerivedTokenFeeConfig> = {};
         await concurrentMap(
           this.concurrency,
@@ -283,13 +268,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
           },
         );
 
-        if (defaultFeeConfig || Object.keys(routerFeeConfigs).length > 0) {
-          feeContracts[chainName] = {
-            ...(defaultFeeConfig ? { default: defaultFeeConfig } : {}),
-            ...(Object.keys(routerFeeConfigs).length
-              ? { routers: routerFeeConfigs }
-              : {}),
-          };
+        if (Object.keys(routerFeeConfigs).length > 0) {
+          feeContracts[chainName] = routerFeeConfigs;
         }
       },
     );

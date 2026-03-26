@@ -17,6 +17,7 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   CrossCollateralRoutingFeeConfig,
+  DEFAULT_ROUTER_KEY,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -157,28 +158,11 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     const routerKeys: string[] = [];
     const feeAddresses: string[] = [];
 
-    // CCRF stores both destination defaults and router-specific overrides in
-    // the same on-chain table. `DEFAULT_ROUTER()` is the sentinel key for the
-    // destination-level fallback fee, while `routers[...]` holds per-router
-    // overrides for that same destination.
-    const defaultRouterKey = await routingFee.DEFAULT_ROUTER();
     for (const [destinationChain, destinationConfig] of Object.entries(
       config.feeContracts,
     )) {
-      if (destinationConfig.default) {
-        const deployedFeeContract = await this.deployFee(
-          chain,
-          destinationConfig.default,
-        );
-        destinationDomains.push(
-          this.multiProvider.getDomainId(destinationChain),
-        );
-        routerKeys.push(defaultRouterKey);
-        feeAddresses.push(deployedFeeContract.address);
-      }
-
       for (const [routerKey, routerFeeConfig] of Object.entries(
-        destinationConfig.routers ?? {},
+        destinationConfig,
       )) {
         const deployedFeeContract = await this.deployFee(
           chain,
@@ -187,7 +171,11 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         destinationDomains.push(
           this.multiProvider.getDomainId(destinationChain),
         );
-        routerKeys.push(routerKey);
+        routerKeys.push(
+          routerKey.toLowerCase() === DEFAULT_ROUTER_KEY
+            ? DEFAULT_ROUTER_KEY
+            : routerKey,
+        );
         feeAddresses.push(deployedFeeContract.address);
       }
     }

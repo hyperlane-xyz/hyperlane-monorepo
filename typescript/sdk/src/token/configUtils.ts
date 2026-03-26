@@ -422,34 +422,16 @@ function getFeeTokenAddress(
 }
 
 function resolveCrossCollateralFeeContracts(
-  destinationConfig: {
-    default?: TokenFeeConfigInput;
-    routers?: Record<string, TokenFeeConfigInput>;
-  },
+  destinationConfig: Record<string, TokenFeeConfigInput>,
   routerAddress: Address,
   tokenConfig: HypTokenConfig,
 ) {
-  const resolvedRouters = Object.fromEntries(
-    Object.entries(destinationConfig.routers ?? {}).map(([router, subFee]) => [
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, subFee]) => [
       router,
       resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
     ]),
   );
-
-  return {
-    ...(destinationConfig.default
-      ? {
-          default: resolveTokenFeeAddress(
-            destinationConfig.default,
-            routerAddress,
-            tokenConfig,
-          ),
-        }
-      : {}),
-    ...(Object.keys(resolvedRouters).length
-      ? { routers: resolvedRouters }
-      : {}),
-  };
 }
 
 export function resolveTokenFeeAddress(
@@ -576,26 +558,15 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
-function normalizeCrossCollateralFeeContractsForCheck(destinationConfig: {
-  default?: TokenFeeConfigInput;
-  routers?: Record<string, TokenFeeConfigInput>;
-}) {
-  const normalizedRouters = Object.fromEntries(
-    Object.entries(destinationConfig.routers ?? {}).map(
-      ([router, nestedFee]) => [router, normalizeTokenFeeForCheck(nestedFee)],
-    ),
+function normalizeCrossCollateralFeeContractsForCheck(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, nestedFee]) => [
+      router,
+      normalizeTokenFeeForCheck(nestedFee),
+    ]),
   );
-
-  return {
-    ...(destinationConfig.default
-      ? {
-          default: normalizeTokenFeeForCheck(destinationConfig.default),
-        }
-      : {}),
-    ...(Object.keys(normalizedRouters).length
-      ? { routers: normalizedRouters }
-      : {}),
-  };
 }
 
 function normalizeTokenFeeForCheck(
