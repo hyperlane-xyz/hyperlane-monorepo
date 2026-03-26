@@ -31,6 +31,11 @@ import {
   EvmTokenFeeReader,
   TokenFeeReaderParams,
 } from './EvmTokenFeeReader.js';
+import {
+  getConfiguredCrossCollateralRouters,
+  getConfiguredRoutingDestinations,
+  mergeCrossCollateralRouters,
+} from './crossCollateralUtils.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ResolvedTokenFeeConfigInput,
@@ -339,50 +344,23 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         targetConfig.type === TokenFeeType.CrossCollateralRoutingFee) &&
       !effectiveParams.routingDestinations
     ) {
-      // Read every configured destination so ordinary route entries are
-      // included even if they have no extra CCR router keys.
-      effectiveParams.routingDestinations = Object.keys(
+      effectiveParams.routingDestinations = getConfiguredRoutingDestinations(
         targetConfig.feeContracts,
-      ).map((chainName) => this.multiProvider.getDomainId(chainName));
+        (chainName) => this.multiProvider.getDomainId(chainName),
+      );
     }
 
     if (targetConfig.type !== TokenFeeType.CrossCollateralRoutingFee) {
       return effectiveParams;
     }
 
-    const targetCrossCollateralRouters = Object.fromEntries(
-      Object.keys(targetConfig.feeContracts).map((chainName) => [
-        this.multiProvider.getDomainId(chainName),
-        Object.keys(targetConfig.feeContracts[chainName]),
-      ]),
+    const targetCrossCollateralRouters = getConfiguredCrossCollateralRouters(
+      targetConfig.feeContracts,
+      (chainName) => this.multiProvider.getDomainId(chainName),
     );
-    if (!effectiveParams.crossCollateralRouters) {
-      effectiveParams.crossCollateralRouters = targetCrossCollateralRouters;
-      return effectiveParams;
-    }
-
-    // Preserve caller hints while unioning in target-config router keys so
-    // reads can see both stale on-chain entries and the new target set.
-    const mergedCrossCollateralRouters = new Map<number, Set<string>>();
-    for (const [destination, routers] of Object.entries(
+    effectiveParams.crossCollateralRouters = mergeCrossCollateralRouters(
       effectiveParams.crossCollateralRouters,
-    )) {
-      mergedCrossCollateralRouters.set(Number(destination), new Set(routers));
-    }
-    for (const [destination, routers] of Object.entries(
       targetCrossCollateralRouters,
-    )) {
-      const destinationKey = Number(destination);
-      const existingRouters =
-        mergedCrossCollateralRouters.get(destinationKey) ?? new Set<string>();
-      for (const router of routers) existingRouters.add(router);
-      mergedCrossCollateralRouters.set(destinationKey, existingRouters);
-    }
-
-    effectiveParams.crossCollateralRouters = Object.fromEntries(
-      [...mergedCrossCollateralRouters.entries()].map(
-        ([destination, routers]) => [destination, [...routers]],
-      ),
     );
     return effectiveParams;
   }

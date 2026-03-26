@@ -21,13 +21,17 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   CrossCollateralRoutingFeeConfig,
-  DEFAULT_ROUTER_KEY,
   FeeParameters,
   OnchainTokenFeeType,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeType,
 } from './types.js';
+import {
+  CrossCollateralRoutersByDomain,
+  getCrossCollateralRouterKeys,
+  getEffectiveCrossCollateralDestinations,
+} from './crossCollateralUtils.js';
 import {
   ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
   MAX_BPS,
@@ -51,7 +55,7 @@ export type TokenFeeReaderParams = {
   address: Address;
   routingDestinations?: number[]; // Optional: when provided, derives feeContracts
   // Optional CCR-enrolled router map by destination domain (bytes32 router addresses)
-  crossCollateralRouters?: Record<number, string[]>;
+  crossCollateralRouters?: CrossCollateralRoutersByDomain;
 };
 
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -179,7 +183,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations, crossCollateralRouters } = params;
     const effectiveRoutingDestinations =
-      this.getEffectiveCrossCollateralDestinations(
+      getEffectiveCrossCollateralDestinations(
         routingDestinations,
         crossCollateralRouters,
       );
@@ -228,35 +232,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     };
   }
 
-  private getEffectiveCrossCollateralDestinations(
-    routingDestinations?: number[],
-    crossCollateralRouters?: Record<number, string[]>,
-  ): number[] {
-    // Probe both ordinary route destinations and any extra CCR-enrolled ones.
-    const crossCollateralDestinations = Object.keys(
-      crossCollateralRouters ?? {},
-    ).map((domain) => Number(domain));
-
-    return [
-      ...new Set([
-        ...(routingDestinations ?? []),
-        ...crossCollateralDestinations,
-      ]),
-    ];
-  }
-
-  private getCrossCollateralRouterKeys(
-    destination: number,
-    crossCollateralRouters?: Record<number, string[]>,
-  ): string[] {
-    return [
-      ...new Set([
-        DEFAULT_ROUTER_KEY,
-        ...(crossCollateralRouters?.[destination] ?? []),
-      ]),
-    ];
-  }
-
   private createCachedFeeConfigReader(
     feeConfigCache: Map<string, Promise<DerivedTokenFeeConfig>>,
   ) {
@@ -288,7 +263,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }: {
     routingFee: ReturnType<typeof CrossCollateralRoutingFee__factory.connect>;
     destination: number;
-    crossCollateralRouters?: Record<number, string[]>;
+    crossCollateralRouters?: CrossCollateralRoutersByDomain;
     parseFeeConfig: (subFeeAddress: Address) => Promise<DerivedTokenFeeConfig>;
   }): Promise<
     | {
@@ -297,7 +272,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       }
     | undefined
   > {
-    const routerKeys = this.getCrossCollateralRouterKeys(
+    const routerKeys = getCrossCollateralRouterKeys(
       destination,
       crossCollateralRouters,
     );
