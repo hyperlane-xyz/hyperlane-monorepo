@@ -1020,6 +1020,20 @@ const neutron: RootAgentConfig = {
   },
 };
 
+// Cross Collateral USDC - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDC/ctusd-config.yaml
+const fastPathUsdcMatchingList = chainMapMatchingList({
+  arbitrum: '0x62fe676dff1e7ABBCcbedc8BABc993827b9fb189',
+  base: '0xd54A15f8dF8C6dD9Ef3b5589BE0bF37EC6f61F91',
+  ethereum: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
+  citrea: '0x38E8720EBE02e7c5254F9De9F81440C7a770a9c6',
+});
+
+// Cross Collateral USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDT/ctusd-config.yaml
+const fastPathUsdtMatchingList = chainMapMatchingList({
+  arbitrum: '0x824353938ee1361265097acC9E329828e3455c15',
+  base: '0xA9A434f0aBCE2f3e7073752046545530e32DE6cF',
+});
+
 const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
@@ -1035,6 +1049,7 @@ const fastPath: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
     },
+    whitelist: [...fastPathUsdcMatchingList, ...fastPathUsdtMatchingList],
     blacklist,
     gasPaymentEnforcement,
     reorgPeriodOverrides: { ethereum: 1 },
