@@ -5,7 +5,7 @@ import {
   ProviderType,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
@@ -30,7 +30,7 @@ export {
 } from './tronWallet.js';
 
 export function useTronSwitchNetwork(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
     // Most Tron wallets (like TronLink) don't support programmatic
@@ -44,7 +44,7 @@ export function useTronSwitchNetwork(
 }
 
 export function useTronWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
     async (_token: ITokenMetadata, _activeChainName: ChainName) => {
@@ -60,7 +60,7 @@ export function useTronWatchAsset(
  * Core Transaction Functionality for Tron.
  */
 export function useTronTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const { address, signTransaction, connected } = useWallet();
   const { switchNetwork } = useTronSwitchNetwork(multiProvider);

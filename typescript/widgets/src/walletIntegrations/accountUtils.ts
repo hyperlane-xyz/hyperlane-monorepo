@@ -1,5 +1,5 @@
 import { cosmoshub } from '@hyperlane-xyz/registry';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import {
   type Address,
@@ -11,7 +11,7 @@ import {
 import type { AccountInfo } from './types.js';
 
 export function getAccountAddressForChain(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
   chainName?: ChainName,
   accounts?: Record<KnownProtocolType, AccountInfo>,
 ): Address | undefined {
@@ -64,7 +64,7 @@ export function getAddressFromAccountAndChain(
 }
 
 export function getAccountAddressAndPubKey(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
   chainName?: ChainName,
   accounts?: Record<KnownProtocolType, AccountInfo>,
 ): { address?: Address; publicKey?: Promise<HexString> } {

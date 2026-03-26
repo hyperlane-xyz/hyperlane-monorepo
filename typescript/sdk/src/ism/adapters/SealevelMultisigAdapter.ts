@@ -16,7 +16,7 @@ import {
   SealevelMultisigIsmTransferOwnershipInstruction,
   SealevelMultisigIsmTransferOwnershipInstructionSchema,
 } from '../../ism/serialization.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 
@@ -25,7 +25,7 @@ export class SealevelMultisigAdapter extends BaseSealevelAdapter {
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { multisigIsm: Address },
   ) {
     super(chainName, multiProvider, addresses);

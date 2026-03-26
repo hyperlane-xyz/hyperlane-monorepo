@@ -4,7 +4,7 @@ import {
 } from '@radixdlt/radix-dapp-toolkit';
 import { useMemo } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { useAccount } from './radix/AccountContext.js';
@@ -13,7 +13,7 @@ import { useRdt } from './radix/hooks/useRdt.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 
 export function useRadixAccount(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const { accounts } = useAccount();
 
@@ -82,7 +82,7 @@ export function useRadixDisconnectFn(): () => Promise<void> {
 }
 
 export function useRadixActiveChain(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }

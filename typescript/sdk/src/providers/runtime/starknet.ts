@@ -9,25 +9,25 @@ import { ProviderType } from '../ProviderType.js';
 
 import {
   assertProtocolRuntimeMetadata,
-  createProtocolRuntimeMultiProvider,
-  type ProtocolRuntimeMultiProtocolProvider,
-  type ProtocolRuntimeMultiProtocolProviderOptions,
+  createProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistryOptions,
 } from './utils.js';
 
 export const starknetRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
 };
 
-export function createStarknetRuntimeMultiProvider<MetaExt>(
+export function createStarknetRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
   assertProtocolRuntimeMetadata(
     chainMetadata,
     [ProtocolType.Starknet],
-    createStarknetRuntimeMultiProvider.name,
+    createStarknetRuntimeProviderRegistry.name,
   );
-  return createProtocolRuntimeMultiProvider(
+  return createProtocolRuntimeProviderRegistry(
     chainMetadata,
     starknetRuntimeProviderBuilders,
     options,

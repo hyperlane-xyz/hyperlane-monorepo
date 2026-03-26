@@ -15,7 +15,7 @@ import {
   hasOnlyHyperlaneConnections,
   type HypTokenAdapterInput,
 } from './hypTokenAdapterUtils.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import type { TokenStandard } from '../TokenStandard.js';
 
 interface EvmLikeHypAdapterStandards {
@@ -32,7 +32,7 @@ interface EvmLikeHypAdapterStandards {
 }
 
 export function createEvmLikeHypAdapter(
-  multiProvider: MultiProtocolProvider<{ mailbox?: string }>,
+  multiProvider: MultiProviderAdapter<{ mailbox?: string }>,
   token: HypTokenAdapterInput,
   standards: EvmLikeHypAdapterStandards,
 ): IHypTokenAdapter<unknown> | undefined {

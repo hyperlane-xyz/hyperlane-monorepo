@@ -1,4 +1,4 @@
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { isStarknetFeeToken } from '../../utils/starknet.js';
 
 import {
@@ -15,7 +15,7 @@ import {
 import { TokenStandard } from '../TokenStandard.js';
 
 export function createStarknetHypAdapter(
-  multiProvider: MultiProtocolProvider<{ mailbox?: string }>,
+  multiProvider: MultiProviderAdapter<{ mailbox?: string }>,
   token: HypTokenAdapterInput,
 ): IHypTokenAdapter<unknown> | undefined {
   const { standard, chainName, addressOrDenom } = token;

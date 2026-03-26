@@ -11,7 +11,7 @@ import {
 import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
@@ -74,7 +74,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   constructor(
     private readonly chainName: ChainName,
     signer: SvmTransactionSigner,
-    multiProtocolProvider: MultiProtocolProvider,
+    multiProtocolProvider: MultiProviderAdapter,
     config?: SvmSignerConfig,
   ) {
     this.signer = signer;

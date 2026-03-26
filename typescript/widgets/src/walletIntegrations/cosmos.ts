@@ -9,7 +9,7 @@ import {
   type TypedTransactionReceipt,
   ProviderType,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
@@ -36,7 +36,7 @@ export {
 } from './cosmosWallet.js';
 
 export function useCosmosSwitchNetwork(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
@@ -54,7 +54,7 @@ export function useCosmosSwitchNetwork(
 }
 
 export function useCosmosWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
     async (_token: ITokenMetadata, _activeChainName: ChainName) => {
@@ -67,7 +67,7 @@ export function useCosmosWatchAsset(
 }
 
 export function useCosmosTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const cosmosChains = getCosmosChainNames(multiProvider);
   const chainToContext = useChains(cosmosChains);
@@ -183,9 +183,7 @@ export function useCosmosTransactionFns(
 }
 
 // Metadata formatted for use in Wagmi config
-export function getCosmosKitChainConfigs(
-  multiProvider: MultiProtocolProvider,
-): {
+export function getCosmosKitChainConfigs(multiProvider: MultiProviderAdapter): {
   chains: CosmosChain[];
   assets: AssetList[];
 } {

@@ -1,7 +1,7 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
 
@@ -16,7 +16,7 @@ import { useAccounts } from './accounts.js';
 import { useWalletDetails } from './walletDetails.js';
 
 type Props = {
-  multiProvider: MultiProtocolProvider;
+  multiProvider: MinimalProviderRegistry;
   onClickWhenConnected: () => void;
   onClickWhenUnconnected: () => void;
   countClassName?: string;

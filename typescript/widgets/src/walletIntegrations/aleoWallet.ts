@@ -3,7 +3,7 @@ import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
 import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import { useEffect, useMemo, useState } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { useAleoPopup } from './aleo/AleoProviders.js';
@@ -11,7 +11,7 @@ import { getAdapter } from './aleo/utils.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 
 export function useAleoAccount(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const [account, setAccount] =
     useState<ShieldWalletAdapter['account']>(undefined);
@@ -95,7 +95,7 @@ export function useAleoDisconnectFn(): () => Promise<void> {
 }
 
 export function useAleoActiveChain(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }

@@ -2,7 +2,7 @@ import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { type MultiProvider, Token } from '@hyperlane-xyz/sdk';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { ProtocolType, assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -121,7 +121,7 @@ export class RebalancerService {
   private orchestrator?: RebalancerOrchestrator;
   constructor(
     private readonly multiProvider: MultiProvider,
-    private readonly multiProtocolProvider: MultiProtocolProvider | undefined,
+    private readonly multiProtocolProvider: MultiProviderAdapter | undefined,
     private readonly registry: IRegistry,
     private readonly rebalancerConfig: RebalancerConfig,
     private readonly config: RebalancerServiceConfig,

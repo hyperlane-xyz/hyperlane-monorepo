@@ -1,6 +1,6 @@
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import type { ChainName } from '../../types.js';
 
 import type { TokenConnection } from '../TokenConnection.js';
@@ -26,7 +26,7 @@ export function hasOnlyHyperlaneConnections(token: HypTokenAdapterInput) {
 }
 
 export function hasChainMetadata(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
   chainName: ChainName,
 ): boolean {
   return !!multiProvider.tryGetChainMetadata(chainName);

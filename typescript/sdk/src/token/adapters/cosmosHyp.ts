@@ -1,6 +1,6 @@
 import { assert } from '@hyperlane-xyz/utils';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 
 import {
   CwHypCollateralAdapter,
@@ -19,7 +19,7 @@ import {
 import { TokenStandard } from '../TokenStandard.js';
 
 export function createCosmosHypAdapter(
-  multiProvider: MultiProtocolProvider<{ mailbox?: string }>,
+  multiProvider: MultiProviderAdapter<{ mailbox?: string }>,
   token: HypTokenAdapterInput,
 ): IHypTokenAdapter<unknown> | undefined {
   const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =

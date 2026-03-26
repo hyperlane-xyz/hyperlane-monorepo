@@ -4,9 +4,9 @@ import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName } from '../types.js';
 
 import {
-  ConfiguredProviderRegistry,
-  ConfiguredProviderRegistryOptions,
-} from './ConfiguredProviderRegistry.js';
+  MinimalProviderRegistry,
+  MinimalProviderRegistryOptions,
+} from './MinimalProviderRegistry.js';
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
   EthersV5Provider,
@@ -14,7 +14,7 @@ import {
   TypedProvider,
 } from './ProviderType.js';
 
-export interface ConfiguredMultiProtocolProviderOptions extends ConfiguredProviderRegistryOptions {}
+export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {}
 
 export function wrapMultiProviderProviders<MetaExt = {}>(
   providers: MultiProvider<MetaExt>['providers'],
@@ -25,24 +25,21 @@ export function wrapMultiProviderProviders<MetaExt = {}>(
   })) as ChainMap<TypedProvider>;
 }
 
-export class ConfiguredMultiProtocolProvider<
+export class MultiProviderAdapter<
   MetaExt = {},
-> extends ConfiguredProviderRegistry<MetaExt> {
+> extends MinimalProviderRegistry<MetaExt> {
   constructor(
     chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-    protected readonly options: ConfiguredMultiProtocolProviderOptions = {},
+    protected readonly options: MultiProviderAdapterOptions = {},
   ) {
     super(chainMetadata, options);
   }
 
   static fromMultiProvider<MetaExt = {}>(
     mp: MultiProvider<MetaExt>,
-    options: ConfiguredMultiProtocolProviderOptions = {},
-  ): ConfiguredMultiProtocolProvider<MetaExt> {
-    const newMp = new ConfiguredMultiProtocolProvider<MetaExt>(
-      mp.metadata,
-      options,
-    );
+    options: MultiProviderAdapterOptions = {},
+  ): MultiProviderAdapter<MetaExt> {
+    const newMp = new MultiProviderAdapter<MetaExt>(mp.metadata, options);
     newMp.setProviders(wrapMultiProviderProviders(mp.providers));
     return newMp;
   }
@@ -66,9 +63,9 @@ export class ConfiguredMultiProtocolProvider<
 
   override extendChainMetadata<NewExt = {}>(
     additionalMetadata: ChainMap<NewExt>,
-  ): ConfiguredMultiProtocolProvider<MetaExt & NewExt> {
+  ): MultiProviderAdapter<MetaExt & NewExt> {
     const newMetadata = super.extendChainMetadata(additionalMetadata).metadata;
-    return new ConfiguredMultiProtocolProvider(newMetadata, {
+    return new MultiProviderAdapter(newMetadata, {
       ...this.options,
       providers: this.providers,
       providerBuilders: this.providerBuilders,
@@ -80,12 +77,12 @@ export class ConfiguredMultiProtocolProvider<
     throwIfNotSubset = false,
   ): {
     intersection: ChainName[];
-    result: ConfiguredMultiProtocolProvider<MetaExt>;
+    result: MultiProviderAdapter<MetaExt>;
   } {
     const { intersection, result } = super.intersect(chains, throwIfNotSubset);
     return {
       intersection,
-      result: new ConfiguredMultiProtocolProvider(result.metadata, {
+      result: new MultiProviderAdapter(result.metadata, {
         ...this.options,
         providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import {
   type Address,
@@ -19,7 +19,7 @@ import { type AccountInfo } from './types.js';
 import { useTronAccount } from './tronWallet.js';
 
 export function useAccounts(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
   blacklistedAddresses: Address[] = [],
 ): {
   accounts: Record<KnownProtocolType, AccountInfo>;
@@ -91,7 +91,7 @@ export function useAccounts(
 }
 
 export function useAccountForChain(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
   chainName?: ChainName,
 ): AccountInfo | undefined {
   const { accounts } = useAccounts(multiProvider);
@@ -101,7 +101,7 @@ export function useAccountForChain(
 }
 
 export function useAccountAddressForChain(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
   chainName?: ChainName,
 ): Address | undefined {
   const { accounts } = useAccounts(multiProvider);

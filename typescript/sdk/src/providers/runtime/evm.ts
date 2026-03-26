@@ -11,9 +11,9 @@ import { ProviderType } from '../ProviderType.js';
 
 import {
   assertProtocolRuntimeMetadata,
-  createProtocolRuntimeMultiProvider,
-  type ProtocolRuntimeMultiProtocolProvider,
-  type ProtocolRuntimeMultiProtocolProviderOptions,
+  createProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistryOptions,
 } from './utils.js';
 
 export const evmRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
@@ -23,16 +23,16 @@ export const evmRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
 };
 
-export function createEvmRuntimeMultiProvider<MetaExt>(
+export function createEvmRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
   assertProtocolRuntimeMetadata(
     chainMetadata,
     [ProtocolType.Ethereum],
-    createEvmRuntimeMultiProvider.name,
+    createEvmRuntimeProviderRegistry.name,
   );
-  return createProtocolRuntimeMultiProvider(
+  return createProtocolRuntimeProviderRegistry(
     chainMetadata,
     evmRuntimeProviderBuilders,
     options,

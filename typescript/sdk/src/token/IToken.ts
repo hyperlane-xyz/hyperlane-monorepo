@@ -1,6 +1,6 @@
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import type { ChainName } from '../types.js';
 
 import type { TokenAmount } from './TokenAmount.js';
@@ -19,14 +19,14 @@ export interface IToken extends ITokenMetadata {
   addConnection(connection: TokenConnection<IToken>): IToken;
   removeConnection(token: IToken): IToken;
 
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown>;
+  getAdapter(multiProvider: MultiProviderAdapter): ITokenAdapter<unknown>;
   getHypAdapter(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     destination?: ChainName,
   ): IHypTokenAdapter<unknown>;
 
   getBalance(
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     address: Address,
   ): Promise<TokenAmount<IToken>>;
 }

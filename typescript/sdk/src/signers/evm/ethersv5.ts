@@ -5,7 +5,7 @@ import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../metadata/chainMetadataTypes.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import {
   MultiProvider,
   SendTransactionOptions,
@@ -20,7 +20,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   constructor(
     private readonly chainName: ChainName,
     privateKey: string,
-    multiProtocolProvider: MultiProtocolProvider,
+    multiProtocolProvider: MultiProviderAdapter,
   ) {
     const multiProvider = multiProtocolProvider.toMultiProvider();
     const { protocol, technicalStack, rpcUrls } =
