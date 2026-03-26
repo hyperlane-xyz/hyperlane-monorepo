@@ -49,7 +49,7 @@ describe('EvmWarpRouteReader', () => {
     const tokenFee = await evmWarpRouteReader.fetchTokenFee(
       routerAddress,
       undefined,
-      Promise.reject(new Error('transient domains failure')),
+      () => Promise.reject(new Error('transient domains failure')),
     );
 
     expect(tokenFee).to.equal(derivedTokenFeeConfig);
@@ -60,5 +60,28 @@ describe('EvmWarpRouteReader', () => {
         routingDestinations,
       }),
     ).to.equal(true);
+  });
+
+  it('does not start shared domains reads when token fee derivation returns early', async () => {
+    const routerAddress = randomAddress();
+    let getDestinationsCalls = 0;
+
+    sandbox.stub(TokenRouter__factory, 'connect').returns({
+      feeRecipient: sandbox.stub().resolves(randomAddress()),
+      domains: sandbox.stub().resolves([1, 2]),
+    } as any);
+    sandbox.stub(evmWarpRouteReader, 'fetchPackageVersion').resolves('9.9.9');
+
+    const tokenFee = await evmWarpRouteReader.fetchTokenFee(
+      routerAddress,
+      undefined,
+      () => {
+        getDestinationsCalls += 1;
+        return Promise.resolve([1, 2]);
+      },
+    );
+
+    expect(tokenFee).to.be.undefined;
+    expect(getDestinationsCalls).to.equal(0);
   });
 });

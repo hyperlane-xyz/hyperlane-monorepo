@@ -192,13 +192,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const type = await this.deriveTokenType(warpRouteAddress);
     const isOft = type === TokenType.collateralOft;
     const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
-    const tokenRouterDomainsPromise = isOft
+    let tokenRouterDomainsPromise: Promise<number[]> | undefined;
+    const getTokenRouterDomainsPromise = isOft
       ? undefined
-      : TokenRouter__factory.connect(warpRouteAddress, this.provider).domains();
+      : () =>
+          (tokenRouterDomainsPromise ??= TokenRouter__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).domains());
     const tokenFeePromise = this.fetchTokenFee(
       warpRouteAddress,
       undefined,
-      tokenRouterDomainsPromise,
+      getTokenRouterDomainsPromise,
     );
     // OFT contracts don't have Router/MailboxClient interfaces — read owner directly.
     // Start the router-side reads now so they overlap with token config derivation.
@@ -279,7 +284,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       try {
         const domains = await this.fetchTokenRouterDomains(
           movableToken,
-          tokenRouterDomainsPromise,
+          getTokenRouterDomainsPromise,
         );
         assert(
           domains,
@@ -330,8 +335,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   private async fetchTokenRouterDomains(
     tokenRouter: { domains: () => Promise<number[]> },
-    domainsPromise?: Promise<number[]>,
+    getDomainsPromise?: () => Promise<number[] | undefined>,
   ): Promise<number[] | undefined> {
+    const domainsPromise = getDomainsPromise?.();
     if (domainsPromise) {
       try {
         const domains = await domainsPromise;
@@ -358,7 +364,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
-    destinationsPromise?: Promise<number[] | undefined>,
+    getDestinationsPromise?: () => Promise<number[] | undefined>,
   ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
@@ -389,10 +395,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await this.fetchTokenRouterDomains(
-        TokenRouter,
-        destinationsPromise as Promise<number[]> | undefined,
-      ));
+      (await this.fetchTokenRouterDomains(TokenRouter, getDestinationsPromise));
 
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
