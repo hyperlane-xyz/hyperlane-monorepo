@@ -436,14 +436,15 @@ export class SvmSigner
             maxRetries: 0n,
           })
           .send();
-      } catch {
-        // Rebroadcast is best-effort — ignore all errors
+      } catch (error) {
+        this.logger.debug('Rebroadcast failed', { error, signature });
       }
     }
 
-    // Wall-clock timeout exceeded
-    this.logger.debug('Poll wall-clock timeout exceeded', { signature });
-    return null;
+    // Wall-clock timeout exceeded — tx fate unknown, unsafe to resubmit
+    throw new Error(
+      `Poll timeout exceeded for ${signature}, aborting to prevent potential double-execution`,
+    );
   }
 
   async sendAndConfirmTransaction(
