@@ -3,6 +3,8 @@ import {
   decodeAbiParameters,
   decodeFunctionData,
   encodeAbiParameters,
+  encodePacked,
+  keccak256,
   zeroAddress,
 } from 'viem';
 
@@ -361,7 +363,6 @@ describe('QuotedCalls codec', () => {
       const caller = QUOTER;
       const salt = computeScopedSalt(caller, CLIENT_SALT);
       // encodePacked(address, bytes32) = 20 + 32 = 52 bytes
-      const { encodePacked, keccak256 } = require('viem');
       const expected = keccak256(
         encodePacked(['address', 'bytes32'], [caller, CLIENT_SALT]),
       );

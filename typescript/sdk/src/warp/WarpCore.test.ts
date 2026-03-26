@@ -1035,6 +1035,7 @@ describe('WarpCore', () => {
     const providerStub = sinon
       .stub(multiProvider, 'getEthersV5Provider')
       .returns({
+        _isProvider: true,
         call: () => Promise.resolve(mockQuoteResult),
       } as any);
 
@@ -1079,7 +1080,7 @@ describe('WarpCore', () => {
         call: () => Promise.resolve(mockQuoteResult),
       } as any);
     const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      sinon.stub(t, 'getAdapter').returns({
         isApproveRequired: () => Promise.resolve(true),
         populateApproveTx: () =>
           Promise.resolve({ to: MOCK_QUOTED_CALLS_ADDRESS, data: '0x' }),
@@ -1126,9 +1127,8 @@ describe('WarpCore', () => {
       ],
     ];
 
-    // No provider stub — if quoteExecute were called, it would fail
     const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      sinon.stub(t, 'getAdapter').returns({
         isApproveRequired: () => Promise.resolve(false),
         isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),

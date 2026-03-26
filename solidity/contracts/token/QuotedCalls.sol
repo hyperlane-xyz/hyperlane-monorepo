@@ -75,6 +75,66 @@ interface IInterchainAccountRouter {
 }
 
 /**
+ * @title CalldataHeadLib
+ * @notice Reads static fields from the ABI-encoded head of calldata and
+ *         resolves token amounts / approvals. Shared by QuotedCalls and
+ *         factored into a library so callers get a separate stack frame
+ *         under --ir-minimum coverage instrumentation.
+ */
+library CalldataHeadLib {
+    using SafeERC20 for IERC20;
+
+    /// @dev Sentinel: resolve to the contract's entire token/ETH balance.
+    uint256 internal constant CONTRACT_BALANCE =
+        0x8000000000000000000000000000000000000000000000000000000000000000;
+
+    function readAddress(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (address) {
+        return
+            address(
+                uint160(uint256(bytes32(input[slot * 32:(slot + 1) * 32])))
+            );
+    }
+
+    function readUint256(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (uint256) {
+        return uint256(bytes32(input[slot * 32:(slot + 1) * 32]));
+    }
+
+    function resolveAmount(
+        address token,
+        uint256 amount
+    ) internal view returns (uint256) {
+        if (amount != CONTRACT_BALANCE) return amount;
+        if (token == address(0)) return address(this).balance;
+        return IERC20(token).balanceOf(address(this));
+    }
+
+    function approve(address token, address spender, uint256 amount) internal {
+        if (token != address(0)) IERC20(token).forceApprove(spender, amount);
+    }
+
+    /**
+     * @dev Read spender (slot 0), token (slot N-2), and approval (slot N-1)
+     *      from the ABI-encoded head, resolve the approval, and set allowance.
+     * @param input   Full ABI-encoded command input.
+     * @param nSlots  Total number of head slots in this command layout.
+     */
+    function approveFromHead(bytes calldata input, uint256 nSlots) internal {
+        address token = readAddress(input, nSlots - 2);
+        approve(
+            token,
+            readAddress(input, 0),
+            resolveAmount(token, readUint256(input, nSlots - 1))
+        );
+    }
+}
+
+/**
  * @title QuotedCalls
  * @notice Command-based router for chaining offchain-quoted Hyperlane operations.
  * @dev Follows the UniversalRouter command pattern: execute(bytes commands, bytes[] inputs).
@@ -114,8 +174,7 @@ contract QuotedCalls is PackageVersioned {
     // ============ Constants ============
 
     /// @notice Sentinel: resolve amount to this contract's entire token balance
-    uint256 public constant CONTRACT_BALANCE =
-        0x8000000000000000000000000000000000000000000000000000000000000000;
+    uint256 public constant CONTRACT_BALANCE = CalldataHeadLib.CONTRACT_BALANCE;
 
     // ============ Command Types ============
     //
@@ -268,13 +327,11 @@ contract QuotedCalls is PackageVersioned {
         address token,
         uint256 amount
     ) internal view returns (uint256) {
-        if (amount != CONTRACT_BALANCE) return amount;
-        if (token == address(0)) return address(this).balance;
-        return IERC20(token).balanceOf(address(this));
+        return CalldataHeadLib.resolveAmount(token, amount);
     }
 
     function _approve(address token, address spender, uint256 amount) internal {
-        if (token != address(0)) IERC20(token).forceApprove(spender, amount);
+        CalldataHeadLib.approve(token, spender, amount);
     }
 
     function _submitQuote(bytes calldata input) internal {
@@ -369,6 +426,7 @@ contract QuotedCalls is PackageVersioned {
     }
 
     function _dispatchCallRemoteWithOverrides(bytes calldata input) internal {
+        CalldataHeadLib.approveFromHead(input, 10);
         (
             address icaRouter,
             uint32 destination,
@@ -378,8 +436,8 @@ contract QuotedCalls is PackageVersioned {
             bytes memory hookMetadata,
             bytes32 userSalt,
             uint256 value,
-            address token,
-            uint256 approval
+            ,
+
         ) = abi.decode(
                 input,
                 (
@@ -395,11 +453,8 @@ contract QuotedCalls is PackageVersioned {
                     uint256
                 )
             );
-        value = _resolveAmount(address(0), value);
-        approval = _resolveAmount(token, approval);
-        _approve(token, icaRouter, approval);
         IInterchainAccountRouter(icaRouter).callRemoteWithOverrides{
-            value: value
+            value: _resolveAmount(address(0), value)
         }(
             destination,
             router,
@@ -411,6 +466,13 @@ contract QuotedCalls is PackageVersioned {
     }
 
     function _dispatchCallRemoteCommitReveal(bytes calldata input) internal {
+        CalldataHeadLib.approveFromHead(input, 11);
+        _executeCommitReveal(input);
+    }
+
+    /// @dev Decode + external call in its own stack frame so abi.decode locals
+    ///      don't share the stack with _approveFromCalldata's frame.
+    function _executeCommitReveal(bytes calldata input) internal {
         (
             address icaRouter,
             uint32 destination,
@@ -421,8 +483,8 @@ contract QuotedCalls is PackageVersioned {
             bytes32 salt,
             bytes32 commitment,
             uint256 value,
-            address token,
-            uint256 approval
+            ,
+
         ) = abi.decode(
                 input,
                 (
@@ -439,11 +501,8 @@ contract QuotedCalls is PackageVersioned {
                     uint256
                 )
             );
-        value = _resolveAmount(address(0), value);
-        approval = _resolveAmount(token, approval);
-        _approve(token, icaRouter, approval);
         IInterchainAccountRouter(icaRouter).callRemoteCommitReveal{
-            value: value
+            value: _resolveAmount(address(0), value)
         }(
             destination,
             router,
