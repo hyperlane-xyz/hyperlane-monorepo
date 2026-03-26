@@ -92,8 +92,11 @@ export class LayerZeroBridge implements IExternalBridge {
     this.logger = logger;
     this.chainMetadataByChainId = new Map();
     if (config.chainMetadata) {
-      for (const metadata of Object.values(config.chainMetadata)) {
-        if (metadata.chainId !== undefined) {
+      for (const [, metadata] of Object.entries(config.chainMetadata)) {
+        if (
+          metadata.chainId !== undefined &&
+          metadata.protocol === ProtocolType.Ethereum
+        ) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
       }
@@ -144,8 +147,9 @@ export class LayerZeroBridge implements IExternalBridge {
     let messagingFee: MessagingFee = { nativeFee: 0n, lzTokenFee: 0n };
 
     if (!isTronChain(fromChain)) {
-      const provider = new ethers.providers.JsonRpcProvider(
+      const provider = new ethers.providers.StaticJsonRpcProvider(
         this.getRpcUrl(fromChain),
+        fromChain,
       );
       const oft = new ethers.Contract(oftContract, OFT_ABI, provider);
 
@@ -287,7 +291,10 @@ export class LayerZeroBridge implements IExternalBridge {
       const key = privateKeys[ProtocolType.Ethereum];
       assert(key, 'Missing private key for EVM chain');
 
-      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      const provider = new ethers.providers.StaticJsonRpcProvider(
+        rpcUrl,
+        fromChain,
+      );
       const wallet = new ethers.Wallet(ensure0x(key), provider);
 
       const erc20 = new ethers.Contract(route.usdtContract, ERC20_ABI, wallet);
