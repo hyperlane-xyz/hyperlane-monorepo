@@ -16,8 +16,8 @@ import {
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
-import { EvmHypXERC20LockboxAdapter } from '@hyperlane-xyz/sdk/token/adapters/EvmTokenAdapter';
-import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import { createEvmHypAdapter } from '@hyperlane-xyz/sdk/token/adapters/evmHyp';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
@@ -118,7 +118,7 @@ export function useEthereumWatchAsset(
   const config = useConfig();
 
   const onAddAsset = useCallback(
-    async (token: IToken, activeChainName: ChainName) => {
+    async (token: ITokenMetadata, activeChainName: ChainName) => {
       const chainName = token.chainName;
       // If the active chain is different from tx origin chain, try to switch network first
       if (activeChainName && activeChainName !== chainName)
@@ -126,10 +126,14 @@ export function useEthereumWatchAsset(
 
       let tokenAddress = '';
       if (LOCKBOX_STANDARDS.includes(token.standard)) {
-        const adapter = token.getAdapter(
-          multiProvider,
-        ) as EvmHypXERC20LockboxAdapter;
-        tokenAddress = await adapter.getWrappedTokenAddress();
+        const adapter = createEvmHypAdapter(multiProvider, token);
+        assert(
+          adapter,
+          `No EVM hyp adapter found for lockbox token ${token.symbol}`,
+        );
+        tokenAddress = await (
+          adapter as unknown as { getWrappedTokenAddress(): Promise<string> }
+        ).getWrappedTokenAddress();
       } else {
         tokenAddress = token.collateralAddressOrDenom || token.addressOrDenom;
       }

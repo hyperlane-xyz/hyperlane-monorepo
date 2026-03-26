@@ -12,7 +12,7 @@ import {
   ProviderType,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
 import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
-import type { IToken } from '@hyperlane-xyz/sdk/token/IToken';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -120,7 +120,7 @@ export function useCosmosWatchAsset(
   _multiProvider: MultiProtocolProvider,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
-    async (_token: IToken, _activeChainName: ChainName) => {
+    async (_token: ITokenMetadata, _activeChainName: ChainName) => {
       throw new Error('Watch asset not available for cosmos');
     },
     [],
