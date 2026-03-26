@@ -1,34 +1,51 @@
 warpRouteId: USDTSTAGE/mode
 
 inventorySigners:
-    ethereum:
-        address: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+  ethereum:
+    address: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+  tron:
+    address: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
 
 externalBridges:
-    lifi:
-        integrator: "rebalancer"
-    layerzero: {}
+  lifi:
+    integrator: "rebalancer"
+  layerzero: {}
+  debridge: {}
 
 strategy:
-    rebalanceStrategy: weighted
-    chains:
-        ethereum:
-            weighted:
-                weight: 10
-                tolerance: 5
-            executionType: inventory
-            externalBridge: layerzero
+  rebalanceStrategy: weighted
+  chains:
+    ethereum:
+      weighted:
+        weight: 35
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
 
-        arbitrum:
-            weighted:
-                weight: 10
-                tolerance: 5
-            executionType: inventory
-            externalBridge: layerzero
+    arbitrum:
+      weighted:
+        weight: 20
+        tolerance: 5
+      executionType: inventory
+      externalBridge: layerzero
 
-        plasma:
-            weighted:
-                weight: 80
-                tolerance: 5
-            executionType: inventory
-            externalBridge: layerzero
+    plasma:
+      weighted:
+        weight: 20
+        tolerance: 5
+      executionType: inventory
+      externalBridge: layerzero
+
+    bsc:
+      weighted:
+        weight: 15
+        tolerance: 5
+      executionType: inventory
+      externalBridge: debridge
+
+    tron:
+      weighted:
+        weight: 10
+        tolerance: 5
+      executionType: inventory
+      externalBridge: debridge
