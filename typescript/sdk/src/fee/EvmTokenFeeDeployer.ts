@@ -1,5 +1,9 @@
-import { BaseFee, RoutingFee } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import {
+  BaseFee,
+  OffchainQuotedLinearFee,
+  RoutingFee,
+} from '@hyperlane-xyz/core';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import type { HyperlaneContracts } from '../contracts/types.js';
 import {
@@ -12,6 +16,7 @@ import { ChainName } from '../types.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
+  OffchainQuotedLinearFeeConfig,
   OnchainTokenFeeType,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -54,6 +59,10 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
           parsedConfig,
         );
         break;
+      case TokenFeeType.OffchainQuotedLinearFee:
+        deployedContract[parsedConfig.type] =
+          await this.deployOffchainQuotedLinearFee(chain, parsedConfig);
+        break;
       case TokenFeeType.RoutingFee: {
         // Return the routing fee and all the child fee contracts
         const routingFeeResult = await this.deployRoutingFee(
@@ -76,10 +85,12 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployFee(
     chain: ChainName,
-    config: Exclude<TokenFeeConfig, { type: TokenFeeType.RoutingFee }>,
-  ): Promise<
-    ReturnType<EvmTokenFeeFactories[TokenFeeConfig['type']]['deploy']>
-  > {
+    config: Exclude<
+      TokenFeeConfig,
+      | { type: TokenFeeType.RoutingFee }
+      | { type: TokenFeeType.OffchainQuotedLinearFee }
+    >,
+  ): Promise<BaseFee> {
     let { maxFee, halfAmount } = config;
     if (
       config.type === TokenFeeType.LinearFee &&
@@ -97,6 +108,41 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       halfAmount,
       config.owner,
     ]);
+  }
+
+  private async deployOffchainQuotedLinearFee(
+    chain: ChainName,
+    config: OffchainQuotedLinearFeeConfig,
+  ): Promise<OffchainQuotedLinearFee> {
+    let { maxFee, halfAmount } = config;
+    if (config.bps && (!maxFee || !halfAmount)) {
+      const derived = this.tokenFeeReader.convertFromBps(config.bps);
+      maxFee = derived.maxFee;
+      halfAmount = derived.halfAmount;
+    }
+
+    assert(
+      config.quoteSigners?.length,
+      'At least one quote signer is required for OffchainQuotedLinearFee',
+    );
+    const [firstSigner, ...additionalSigners] = config.quoteSigners;
+    const contract = await this.deployContract(
+      chain,
+      TokenFeeType.OffchainQuotedLinearFee,
+      [firstSigner, config.token, maxFee, halfAmount, config.owner],
+    );
+
+    for (const signer of additionalSigners) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.addQuoteSigner(
+          signer,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    return contract;
   }
 
   private async deployRoutingFee(
@@ -123,7 +169,18 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [destinationChain, feeConfig] of Object.entries(
         config.feeContracts,
       )) {
-        const deployedFeeContract = await this.deployFee(chain, feeConfig);
+        // Sub-fee configs inherit the routing fee's token if not explicitly set
+        const resolvedFeeConfig = {
+          ...feeConfig,
+          token: feeConfig.token ?? config.token,
+        };
+        const deployedFeeContract =
+          resolvedFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
+            ? ((await this.deployOffchainQuotedLinearFee(
+                chain,
+                resolvedFeeConfig,
+              )) as unknown as BaseFee)
+            : await this.deployFee(chain, resolvedFeeConfig);
 
         await this.multiProvider.handleTx(
           chain,

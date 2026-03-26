@@ -2,7 +2,11 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC20Test__factory,
+  OffchainQuotedLinearFee__factory,
+} from '@hyperlane-xyz/core';
 import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -247,5 +251,46 @@ describe('EvmTokenFeeDeployer', () => {
 
     expect(await routingFeeContract.owner()).to.equal(otherSigner.address);
     expect(await routingFeeContract.token()).to.equal(token.address);
+  });
+
+  it('should deploy OffchainQuotedLinearFee with correct parameters', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+    const config = TokenFeeConfigSchema.parse({
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      token: token.address,
+      owner: signer.address,
+      maxFee: MAX_FEE,
+      halfAmount: HALF_AMOUNT,
+      bps: BPS,
+      quoteSigners: [signer.address, otherSigner.address],
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const contract =
+      deployedContracts[TestChainName.test2][
+        TokenFeeType.OffchainQuotedLinearFee
+      ];
+
+    const offchainFee = OffchainQuotedLinearFee__factory.connect(
+      contract.address,
+      signer,
+    );
+
+    expect(await offchainFee.owner()).to.equal(signer.address);
+    expect(await offchainFee.token()).to.equal(token.address);
+    expect(
+      convertToBps(
+        (await offchainFee.maxFee()).toBigInt(),
+        (await offchainFee.halfAmount()).toBigInt(),
+      ),
+    ).to.equal(BPS);
+
+    const signers = await offchainFee.quoteSigners();
+    expect(signers).to.have.lengthOf(2);
+    expect(signers).to.include(signer.address);
+    expect(signers).to.include(otherSigner.address);
   });
 });

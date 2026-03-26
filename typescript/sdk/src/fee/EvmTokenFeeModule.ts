@@ -1,10 +1,14 @@
 import { constants } from 'ethers';
 
-import { RoutingFee__factory } from '@hyperlane-xyz/core';
+import {
+  OffchainQuotedLinearFee__factory,
+  RoutingFee__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
   deepEquals,
+  difference,
   eqAddress,
   isNullish,
   objMap,
@@ -136,7 +140,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   // Processes the Input config to the Final config
-  // For LinearFee, it converts the bps to maxFee and halfAmount
+  // For LinearFee/OffchainQuotedLinearFee, it converts the bps to maxFee and halfAmount
   public static async expandConfig(params: {
     config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
@@ -144,7 +148,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }): Promise<TokenFeeConfig> {
     const { config, multiProvider, chainName } = params;
     let intermediaryConfig: TokenFeeConfig;
-    if (config.type === TokenFeeType.LinearFee) {
+    if (
+      config.type === TokenFeeType.LinearFee ||
+      config.type === TokenFeeType.OffchainQuotedLinearFee
+    ) {
       const { token } = config;
 
       let maxFee: bigint;
@@ -189,14 +196,26 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         );
       }
 
-      intermediaryConfig = {
-        type: TokenFeeType.LinearFee,
-        token,
-        owner: config.owner,
-        bps,
-        maxFee,
-        halfAmount,
-      };
+      if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
+        intermediaryConfig = {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          token,
+          owner: config.owner,
+          bps,
+          maxFee,
+          halfAmount,
+          quoteSigners: config.quoteSigners,
+        };
+      } else {
+        intermediaryConfig = {
+          type: TokenFeeType.LinearFee,
+          token,
+          owner: config.owner,
+          bps,
+          maxFee,
+          halfAmount,
+        };
+      }
     } else if (config.type === TokenFeeType.RoutingFee) {
       const { token, owner } = config;
       const inputFeeContracts =
@@ -335,6 +354,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
+    // Type changed — must redeploy (except routing fee which handles sub-fee updates)
+    if (normalizedActualConfig.type !== normalizedTargetConfig.type) {
+      this.logger.info(
+        `Fee type changed from ${normalizedActualConfig.type} to ${normalizedTargetConfig.type}, redeploying`,
+      );
+      const contracts = await this.deploy({
+        config: normalizedTargetConfig,
+        multiProvider: this.multiProvider,
+        chainName: this.chainName,
+        contractVerifier: this.contractVerifier,
+      });
+      this.args.addresses.deployedFee =
+        contracts[this.chainName][normalizedTargetConfig.type].address;
+      return [];
+    }
+
     // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
     const nonOwnerDiffers = !deepEquals(
       objOmit(normalizedActualConfig, { owner: true }),
@@ -359,6 +394,51 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         contracts[this.chainName][normalizedTargetConfig.type].address;
 
       return [];
+    }
+
+    // OffchainQuotedLinearFee: fee params are immutable, but signers are mutable
+    if (
+      normalizedTargetConfig.type === TokenFeeType.OffchainQuotedLinearFee &&
+      normalizedActualConfig.type === TokenFeeType.OffchainQuotedLinearFee
+    ) {
+      // Check if fee params differ (requires redeploy)
+      const feeParamsDiffer = !deepEquals(
+        objOmit(normalizedActualConfig, {
+          owner: true,
+          quoteSigners: true,
+        }),
+        objOmit(normalizedTargetConfig, {
+          owner: true,
+          quoteSigners: true,
+        }),
+      );
+      if (feeParamsDiffer) {
+        this.logger.info(
+          'OffchainQuotedLinearFee fee params changed, redeploying',
+        );
+        const contracts = await this.deploy({
+          config: normalizedTargetConfig,
+          multiProvider: this.multiProvider,
+          chainName: this.chainName,
+          contractVerifier: this.contractVerifier,
+        });
+        this.args.addresses.deployedFee =
+          contracts[this.chainName][normalizedTargetConfig.type].address;
+        return [];
+      }
+
+      // Only signers/owner differ — generate update txs
+      updateTransactions = [
+        ...this.createQuoteSignerUpdateTxs(
+          normalizedActualConfig.quoteSigners,
+          normalizedTargetConfig.quoteSigners,
+        ),
+        ...this.createOwnershipUpdateTxs(
+          normalizedActualConfig,
+          normalizedTargetConfig,
+        ),
+      ];
+      return updateTransactions;
     }
 
     // if the type is a mutable (for now, only routing fee), then update
@@ -454,6 +534,42 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     return updateTransactions;
+  }
+
+  private createQuoteSignerUpdateTxs(
+    actualSigners: string[] | undefined,
+    targetSigners: string[] | undefined,
+  ): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+    const iface = OffchainQuotedLinearFee__factory.createInterface();
+    const contractAddress = this.args.addresses.deployedFee;
+
+    const actualSet = new Set(
+      (actualSigners ?? []).map((s) => s.toLowerCase()),
+    );
+    const targetSet = new Set(
+      (targetSigners ?? []).map((s) => s.toLowerCase()),
+    );
+
+    for (const signer of difference(targetSet, actualSet)) {
+      txs.push({
+        annotation: `Add quote signer ${signer}`,
+        chainId: this.chainId,
+        to: contractAddress,
+        data: iface.encodeFunctionData('addQuoteSigner', [signer]),
+      });
+    }
+
+    for (const signer of difference(actualSet, targetSet)) {
+      txs.push({
+        annotation: `Remove quote signer ${signer}`,
+        chainId: this.chainId,
+        to: contractAddress,
+        data: iface.encodeFunctionData('removeQuoteSigner', [signer]),
+      });
+    }
+
+    return txs;
   }
 
   private createOwnershipUpdateTxs(

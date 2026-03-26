@@ -161,6 +161,7 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  quoteSigners: z.array(z.string()).optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =

@@ -1,12 +1,15 @@
 import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
 
+import { compareVersions } from 'compare-versions';
+
 import {
   AmountRoutingHook,
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
   CCIPHook,
   CCIPHook__factory,
+  CONTRACTS_PACKAGE_VERSION,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -17,8 +20,10 @@ import {
   OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
+  PackageVersioned__factory,
   PausableHook,
   PausableHook__factory,
+  ProxyAdmin__factory,
   ProtocolFee,
   ProtocolFee__factory,
   StaticAggregationHook,
@@ -36,6 +41,7 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  difference,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -51,6 +57,7 @@ import {
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -390,7 +397,44 @@ export class EvmHookModule extends HyperlaneModule<
     targetConfig: IgpHookConfig;
   }): Promise<AnnotatedEV5Transaction[]> {
     const updateTxs: AnnotatedEV5Transaction[] = [];
+    const igpAddress = this.args.addresses.deployedHook;
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
+    const provider = this.multiProvider.getProvider(this.domainId);
+
+    // Upgrade IGP proxy implementation if outdated
+    if (await isProxy(provider, igpAddress)) {
+      const currentVersion = await PackageVersioned__factory.connect(
+        igpAddress,
+        provider,
+      )
+        .PACKAGE_VERSION()
+        .catch(() => undefined);
+
+      if (
+        !currentVersion ||
+        compareVersions(CONTRACTS_PACKAGE_VERSION, currentVersion) > 0
+      ) {
+        this.logger.info(
+          `Upgrading IGP implementation from ${currentVersion ?? 'unknown'} to ${CONTRACTS_PACKAGE_VERSION}`,
+        );
+        const newImpl = await this.deployer.deployContractFromFactory(
+          this.chain,
+          new InterchainGasPaymaster__factory(),
+          HookType.INTERCHAIN_GAS_PAYMASTER,
+          [],
+        );
+        const igpProxyAdmin = await proxyAdmin(provider, igpAddress);
+        updateTxs.push({
+          annotation: `Upgrade IGP proxy implementation to ${CONTRACTS_PACKAGE_VERSION}`,
+          chainId: this.chainId,
+          to: igpProxyAdmin,
+          data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+            'upgrade',
+            [igpAddress, newImpl.address],
+          ),
+        });
+      }
+    }
 
     // Update beneficiary if changed
     if (!eqAddress(currentConfig.beneficiary, targetConfig.beneficiary)) {
@@ -446,7 +490,49 @@ export class EvmHookModule extends HyperlaneModule<
       })),
     );
 
+    // update quote signers
+    updateTxs.push(
+      ...this.updateIgpQuoteSigners({
+        currentSigners: currentConfig.quoteSigners ?? [],
+        targetSigners: targetConfig.quoteSigners ?? [],
+      }),
+    );
+
     return updateTxs;
+  }
+
+  protected updateIgpQuoteSigners({
+    currentSigners,
+    targetSigners,
+  }: {
+    currentSigners: string[];
+    targetSigners: string[];
+  }): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+    const igpInterface = InterchainGasPaymaster__factory.createInterface();
+
+    const currentSet = new Set(currentSigners.map((s) => s.toLowerCase()));
+    const targetSet = new Set(targetSigners.map((s) => s.toLowerCase()));
+
+    for (const signer of difference(targetSet, currentSet)) {
+      txs.push({
+        annotation: `Add IGP quote signer ${signer}`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedHook,
+        data: igpInterface.encodeFunctionData('addQuoteSigner', [signer]),
+      });
+    }
+
+    for (const signer of difference(currentSet, targetSet)) {
+      txs.push({
+        annotation: `Remove IGP quote signer ${signer}`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedHook,
+        data: igpInterface.encodeFunctionData('removeQuoteSigner', [signer]),
+      });
+    }
+
+    return txs;
   }
 
   protected async updateIgpRemoteGasParams({
@@ -1098,6 +1184,16 @@ export class EvmHookModule extends HyperlaneModule<
     // Set the gas params for each remote
     for (const tx of configureTxs) {
       await this.multiProvider.sendTransaction(this.chain, tx);
+    }
+
+    // Add quote signers if configured
+    if (config.quoteSigners?.length) {
+      for (const signer of config.quoteSigners) {
+        await this.multiProvider.handleTx(
+          this.chain,
+          igp.addQuoteSigner(signer, this.txOverrides),
+        );
+      }
     }
 
     // Transfer igp to the configured owner
