@@ -6,7 +6,6 @@ import {
   ChainMetadata,
   ChainMetadataSchema,
 } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
 import type { ChainMap } from '@hyperlane-xyz/sdk/types';
 import {
   Result,
@@ -150,13 +149,16 @@ function tryParseMetadataInput(
   }
 
   const newMetadata = result.data as ChainMetadata;
-  const multiProvider = new MultiProtocolProvider(existingChainMetadata);
 
-  if (multiProvider.tryGetChainMetadata(newMetadata.name)) {
+  if (existingChainMetadata[newMetadata.name]) {
     return failure('name is already in use by another chain');
   }
 
-  if (multiProvider.tryGetChainMetadata(newMetadata.domainId)) {
+  if (
+    Object.values(existingChainMetadata).some(
+      (metadata) => metadata.domainId === newMetadata.domainId,
+    )
+  ) {
     return failure('domainId is already in use by another chain');
   }
 
