@@ -45,6 +45,14 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       minPriorityFeePerGas: 11 * 10 ** 5,
     },
   },
+  eni: {
+    transactionOverrides: {
+      // ENI is Cosmos EVM (Ethermint) with a fixed 99 gwei base fee.
+      // Cap the priority fee to prevent the gas escalation logic from
+      // driving the effective gas price too high (median was 297 gwei without this).
+      maxPriorityFeePerGas: 15 * 10 ** 9, // 15 gwei tip
+    },
+  },
 };
 
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts

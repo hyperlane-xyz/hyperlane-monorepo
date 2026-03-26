@@ -65,6 +65,7 @@ export {
   createDeployProgramPlan,
   createUpgradeProgramPlan,
   executeDeployPlan,
+  DeployStageKind,
 } from './deploy/program-deployer.js';
 export type {
   DeployProgramPlan,
