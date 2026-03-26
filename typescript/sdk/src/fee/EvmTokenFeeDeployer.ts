@@ -139,11 +139,15 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       config.quoteSigners?.length,
       'At least one quote signer is required for OffchainQuotedLinearFee',
     );
+
+    const signerAddress = await this.multiProvider.getSignerAddress(chain);
     const [firstSigner, ...additionalSigners] = config.quoteSigners;
+
+    // addQuoteSigner is onlyOwner, so deploy with signer as temporary owner
     const contract = await this.deployContract(
       chain,
       TokenFeeType.OffchainQuotedLinearFee,
-      [firstSigner, config.token, maxFee, halfAmount, config.owner],
+      [firstSigner, config.token, maxFee, halfAmount, signerAddress],
     );
 
     for (const signer of additionalSigners) {
@@ -151,6 +155,16 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         chain,
         contract.addQuoteSigner(
           signer,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.transferOwnership(
+          config.owner,
           this.multiProvider.getTransactionOverrides(chain),
         ),
       );
