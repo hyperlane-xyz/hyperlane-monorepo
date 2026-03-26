@@ -1,6 +1,5 @@
 import { useWallet } from '@tronweb3/tronwallet-adapter-react-hooks';
-import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapter-tronlink';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 
 import {
   ProviderType,
@@ -10,7 +9,6 @@ import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   TronJsonRpcProvider,
@@ -19,67 +17,17 @@ import {
 } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainAddress,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
-
-export function useTronAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { address, connected } = useWallet();
-
-  return useMemo<AccountInfo>(() => {
-    const addresses: Array<ChainAddress> = [];
-    if (address) {
-      addresses.push({ address });
-    }
-
-    return {
-      protocol: ProtocolType.Tron,
-      addresses,
-      publicKey: undefined,
-      isReady: connected && !!address,
-    };
-  }, [address, connected]);
-}
-
-export function useTronWalletDetails() {
-  const { wallet } = useWallet();
-  const { icon, name } = wallet?.adapter || {};
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name: name,
-      logoUrl: icon,
-    }),
-    [name, icon],
-  );
-}
-
-export function useTronConnectFn(): () => void {
-  const { connect, select } = useWallet();
-  return async () => {
-    select(TronLinkAdapterName);
-    await connect();
-  };
-}
-
-export function useTronDisconnectFn(): () => Promise<void> {
-  const { disconnect } = useWallet();
-  return disconnect;
-}
-
-export function useTronActiveChain(
-  _multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  // Tron doesn't has the concept of an active chain
-  return useMemo(() => ({}) as ActiveChainInfo, []);
-}
+export {
+  useTronAccount,
+  useTronActiveChain,
+  useTronConnectFn,
+  useTronDisconnectFn,
+  useTronWalletDetails,
+} from './tronBase.js';
 
 export function useTronSwitchNetwork(
   _multiProvider: MultiProtocolProvider,
