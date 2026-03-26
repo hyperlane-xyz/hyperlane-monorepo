@@ -1038,7 +1038,6 @@ const fastPath: RootAgentConfig = {
     blacklist,
     gasPaymentEnforcement,
     reorgPeriodOverrides: { ethereum: 1 },
-    whitelist: warpRouteMatchingList(WarpRouteIds.CitreaUSD),
     ismCacheConfigs,
     cache: {
       enabled: true,

@@ -40,7 +40,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
   relayer: 'c847aae-20260325-174645',
   relayerRC: 'c847aae-20260325-174645',
-  relayerFastPath: 'c847aae-20260325-174645',
+  relayerFastPath: '3754d4f-20260326-130321',
   validator: '910e8e8-20260318-204227',
   validatorRC: '910e8e8-20260318-204227',
   scraper: '910e8e8-20260318-204227',
