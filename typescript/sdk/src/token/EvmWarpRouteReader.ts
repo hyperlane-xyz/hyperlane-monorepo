@@ -1344,7 +1344,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           return legacyVersion;
         } else {
           this.logger.error(`Error when fetching package version ${err}`);
-          return '0.0.0';
+          const unknownVersion = '0.0.0';
+          this.packageVersionCache.set(cacheKey, unknownVersion);
+          return unknownVersion;
         }
       } finally {
         this.packageVersionInflight.delete(cacheKey);
