@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract, constants, utils } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
@@ -107,6 +107,20 @@ type DepositAddressDomainConfigs = [
   string[],
   BigNumber[],
 ];
+
+function decodeBigNumberResult(decoded: utils.Result): BigNumber {
+  return BigNumber.from(decoded[0]);
+}
+
+function decodeUint32Result(decoded: utils.Result): number {
+  return decodeBigNumberResult(decoded).toNumber();
+}
+
+function decodeUint32ArrayResult(decoded: utils.Result): number[] {
+  return (decoded[0] as ReadonlyArray<BigNumber | number | string>).map(
+    (value) => BigNumber.from(value).toNumber(),
+  );
+}
 
 export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -993,11 +1007,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
       const [minFinalityThreshold, maxFeePpm] = usesPpmName
         ? ((await this.readContractBatch<unknown>([
-            minFinalityThresholdCall,
+            {
+              ...minFinalityThresholdCall,
+              decode: decodeUint32Result,
+            },
             {
               target: hypToken,
               contractInterface: tokenBridgeV2Interface,
               method: 'maxFeePpm',
+              decode: decodeBigNumberResult,
             },
           ])) as [number, BigNumber])
         : await Promise.all([
@@ -1421,7 +1439,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ],
       scale,
     ] = await Promise.all([
-      this.readContractBatch([
+      this.readContractBatch<unknown>([
         {
           target: hypTokenAddress,
           contractInterface: crossCollateralRouterInterface,
@@ -1431,18 +1449,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           target: hypTokenAddress,
           contractInterface: tokenRouterInterface,
           method: 'domains',
+          decode: decodeUint32ArrayResult,
         },
         {
           target: hypTokenAddress,
           contractInterface: crossCollateralRouterInterface,
           method: 'getCrossCollateralDomains',
+          decode: decodeUint32ArrayResult,
         },
         {
           target: hypTokenAddress,
           contractInterface: crossCollateralRouterInterface,
           method: 'localDomain',
+          decode: decodeUint32Result,
         },
-      ]) as Promise<[Address, any[], any[], number]>,
+      ]) as Promise<[Address, number[], number[], number]>,
       this.fetchScale(hypTokenAddress),
     ]);
 
@@ -1452,11 +1473,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     // Merge Router._routers domains, MC-enrolled domains, and localDomain
     const allDomains = [
-      ...new Set([
-        ...remoteDomains.map(Number),
-        ...crossCollateralDomains.map(Number),
-        localDomain,
-      ]),
+      ...new Set([...remoteDomains, ...crossCollateralDomains, localDomain]),
     ];
     const routersByDomain = await this.readContractBatch<string[]>(
       allDomains.map((domain) => ({
