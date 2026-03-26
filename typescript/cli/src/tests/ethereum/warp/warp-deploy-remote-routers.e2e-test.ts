@@ -11,6 +11,7 @@ import {
 import {
   type Address,
   addressToBytes32,
+  assert,
   isObjEmpty,
 } from '@hyperlane-xyz/utils';
 
@@ -29,6 +30,7 @@ import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   IS_TRON_TEST,
@@ -46,6 +48,7 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
   let chain3Addresses: ChainAddresses = {};
   let ownerAddress: Address;
   let chain3DomainId: string;
+  let chain4DomainId: string;
 
   before(async function () {
     ownerAddress = new Wallet(ANVIL_KEY).address;
@@ -54,7 +57,10 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
     ]);
-    chain3DomainId = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    [chain3DomainId, chain4DomainId] = await Promise.all([
+      getDomainId(CHAIN_NAME_3, ANVIL_KEY),
+      getDomainId(CHAIN_NAME_4, ANVIL_KEY),
+    ]);
   });
 
   it('should enroll user-specified remote routers for chains not in the deploy config', async function () {
@@ -95,17 +101,16 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
 
     // Verify the user-specified remote router was enrolled
     const remoteRouters = deployedConfig[CHAIN_NAME_2].remoteRouters;
-    expect(remoteRouters).to.not.be.undefined;
-    expect(Object.keys(remoteRouters!)).to.include(chain3DomainId);
-    expect(remoteRouters![chain3DomainId].address).to.equal(
+    assert(remoteRouters, 'Expected remoteRouters to be defined');
+    expect(Object.keys(remoteRouters)).to.include(chain3DomainId);
+    expect(remoteRouters[chain3DomainId].address).to.equal(
       addressToBytes32(fakeRemoteRouterAddress),
     );
   });
 
   it('should enroll user-specified remote routers alongside routers from other deployed chains', async function () {
     // Deploy on both anvil2 and anvil3, but also specify a remote router
-    // for a domain that is not part of the deployment
-    const fakeDomainId = '99999';
+    // for anvil4 which is not part of the deployment
     const fakeRemoteRouterAddress = randomAddress();
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -116,7 +121,7 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
         symbol: 'ETH',
         name: 'Ether',
         remoteRouters: {
-          [fakeDomainId]: {
+          [CHAIN_NAME_4]: {
             address: addressToBytes32(fakeRemoteRouterAddress),
           },
         },
@@ -146,14 +151,14 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
     );
 
     const remoteRouters = deployedConfig[CHAIN_NAME_2].remoteRouters;
-    expect(remoteRouters).to.not.be.undefined;
+    assert(remoteRouters, 'Expected remoteRouters to be defined');
 
-    // Should have both: the user-specified fake domain AND the auto-discovered anvil3
-    expect(Object.keys(remoteRouters!)).to.include(fakeDomainId);
-    expect(Object.keys(remoteRouters!)).to.include(chain3DomainId);
+    // Should have both: the user-specified anvil4 AND the auto-discovered anvil3
+    expect(Object.keys(remoteRouters)).to.include(chain4DomainId);
+    expect(Object.keys(remoteRouters)).to.include(chain3DomainId);
 
     // Verify the user-specified address
-    expect(remoteRouters![fakeDomainId].address).to.equal(
+    expect(remoteRouters[chain4DomainId].address).to.equal(
       addressToBytes32(fakeRemoteRouterAddress),
     );
   });
