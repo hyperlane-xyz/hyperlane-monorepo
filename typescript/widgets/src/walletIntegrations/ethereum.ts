@@ -15,7 +15,6 @@ import {
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
 import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
-import { createEvmHypAdapter } from '@hyperlane-xyz/sdk/token/adapters/evmHyp';
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
@@ -74,6 +73,8 @@ export function useEthereumWatchAsset(
 
       let tokenAddress = '';
       if (LOCKBOX_STANDARDS.includes(token.standard)) {
+        const { createEvmHypAdapter } =
+          await import('@hyperlane-xyz/sdk/token/adapters/evmHyp');
         const adapter = createEvmHypAdapter(multiProvider, token);
         assert(
           adapter,
