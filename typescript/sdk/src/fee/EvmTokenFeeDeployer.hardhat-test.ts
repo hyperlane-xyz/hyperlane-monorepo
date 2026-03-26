@@ -2,7 +2,12 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC20Test__factory,
+  LinearFee__factory,
+  ProgressiveFee__factory,
+} from '@hyperlane-xyz/core';
 import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -188,10 +193,16 @@ describe('EvmTokenFeeDeployer', () => {
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getDomainId(TestChainName.test2),
     );
-
-    expect(actualLinearFeeAddress).to.equal(
-      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
+    const linearFeeContract = LinearFee__factory.connect(
+      actualLinearFeeAddress,
+      signer,
     );
+
+    expect(actualLinearFeeAddress).to.not.equal(
+      hre.ethers.constants.AddressZero,
+    );
+    expect(await linearFeeContract.owner()).to.equal(config.owner);
+    expect(await linearFeeContract.token()).to.equal(config.token);
   });
 
   it('should deploy RoutingFee with fee contracts when owner differs from signer', async () => {
@@ -219,15 +230,19 @@ describe('EvmTokenFeeDeployer', () => {
 
     const routingFeeContract =
       deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
-    const linearFeeContract =
-      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
 
     expect(await routingFeeContract.owner()).to.equal(config.owner);
 
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getDomainId(TestChainName.test2),
     );
-    expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
+    const linearFeeContract = LinearFee__factory.connect(
+      actualLinearFeeAddress,
+      signer,
+    );
+    expect(actualLinearFeeAddress).to.not.equal(
+      hre.ethers.constants.AddressZero,
+    );
     expect(await linearFeeContract.owner()).to.equal(otherSigner.address);
   });
 
@@ -291,17 +306,28 @@ describe('EvmTokenFeeDeployer', () => {
       ];
     const defaultRouter = await routingFeeContract.DEFAULT_ROUTER();
     const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+    const defaultFeeAddress = await routingFeeContract.feeContracts(
+      destinationDomain,
+      defaultRouter,
+    );
+    const routerFeeAddress = await routingFeeContract.feeContracts(
+      destinationDomain,
+      routerKey,
+    );
+    const defaultFeeContract = LinearFee__factory.connect(
+      defaultFeeAddress,
+      signer,
+    );
+    const routerFeeContract = ProgressiveFee__factory.connect(
+      routerFeeAddress,
+      signer,
+    );
 
-    expect(
-      await routingFeeContract.feeContracts(destinationDomain, defaultRouter),
-    ).to.equal(
-      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
-    );
-    expect(
-      await routingFeeContract.feeContracts(destinationDomain, routerKey),
-    ).to.equal(
-      deployedContracts[TestChainName.test2][TokenFeeType.ProgressiveFee]
-        .address,
-    );
+    expect(defaultFeeAddress).to.not.equal(hre.ethers.constants.AddressZero);
+    expect(routerFeeAddress).to.not.equal(hre.ethers.constants.AddressZero);
+    expect(await defaultFeeContract.owner()).to.equal(config.owner);
+    expect(await defaultFeeContract.token()).to.equal(config.token);
+    expect(await routerFeeContract.owner()).to.equal(config.owner);
+    expect(await routerFeeContract.token()).to.equal(config.token);
   });
 });

@@ -17,22 +17,12 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   CrossCollateralRoutingFeeConfig,
-  OnchainTokenFeeType,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
-  onChainTypeToTokenFeeTypeMap,
 } from './types.js';
-
-type RoutingFeeDeploymentResult = {
-  routingFee: RoutingFee | CrossCollateralRoutingFee;
-  // Flat list of deployed child fees. The routing contract itself stores the
-  // destination/router mapping; deployContracts only needs the concrete child
-  // instances so it can expose them by type in the returned contract map.
-  childFeeContracts: BaseFee[];
-};
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   TokenFeeConfig,
@@ -64,31 +54,15 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         );
         break;
       case TokenFeeType.RoutingFee: {
-        // Return the routing fee and all the child fee contracts
-        const routingFeeResult = await this.deployRoutingFee(
+        deployedContract[TokenFeeType.RoutingFee] = await this.deployRoutingFee(
           chain,
           parsedConfig,
         );
-        deployedContract[TokenFeeType.RoutingFee] = routingFeeResult.routingFee;
-        for (const contract of routingFeeResult.childFeeContracts) {
-          const onchainFeeType: OnchainTokenFeeType = await contract.feeType();
-          const feeType = onChainTypeToTokenFeeTypeMap[onchainFeeType];
-          deployedContract[feeType] = contract;
-        }
         break;
       }
       case TokenFeeType.CrossCollateralRoutingFee: {
-        const routingFeeResult = await this.deployCrossCollateralRoutingFee(
-          chain,
-          parsedConfig,
-        );
         deployedContract[TokenFeeType.CrossCollateralRoutingFee] =
-          routingFeeResult.routingFee;
-        for (const contract of routingFeeResult.childFeeContracts) {
-          const onchainFeeType: OnchainTokenFeeType = await contract.feeType();
-          const feeType = onChainTypeToTokenFeeTypeMap[onchainFeeType];
-          deployedContract[feeType] = contract;
-        }
+          await this.deployCrossCollateralRoutingFee(chain, parsedConfig);
         break;
       }
     }
@@ -125,7 +99,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   private async deployRoutingFee(
     chain: ChainName,
     config: RoutingFeeConfig,
-  ): Promise<RoutingFeeDeploymentResult> {
+  ): Promise<RoutingFee> {
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
 
     // RoutingFee.setFeeContract is onlyOwner, so we deploy with the signer as a
@@ -136,7 +110,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       [config.token, signerAddress],
     );
 
-    const childFeeContracts: BaseFee[] = [];
     // Deploy each fee contract & set each fee for the routing fee
     for (const [destinationChain, feeConfig] of Object.entries(
       config.feeContracts,
@@ -151,7 +124,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
           this.multiProvider.getTransactionOverrides(chain),
         ),
       );
-      childFeeContracts.push(deployedFeeContract);
     }
 
     if (!eqAddress(signerAddress, config.owner)) {
@@ -167,16 +139,13 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       );
     }
 
-    return {
-      routingFee,
-      childFeeContracts,
-    };
+    return routingFee;
   }
 
   private async deployCrossCollateralRoutingFee(
     chain: ChainName,
     config: CrossCollateralRoutingFeeConfig,
-  ): Promise<RoutingFeeDeploymentResult> {
+  ): Promise<CrossCollateralRoutingFee> {
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
     const routingFee = await this.deployContract(
       chain,
@@ -184,7 +153,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       [signerAddress],
     );
 
-    const childFeeContracts: BaseFee[] = [];
     const destinationDomains: number[] = [];
     const routerKeys: string[] = [];
     const feeAddresses: string[] = [];
@@ -207,7 +175,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         );
         routerKeys.push(defaultRouterKey);
         feeAddresses.push(deployedFeeContract.address);
-        childFeeContracts.push(deployedFeeContract);
       }
 
       for (const [routerKey, routerFeeConfig] of Object.entries(
@@ -222,7 +189,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         );
         routerKeys.push(routerKey);
         feeAddresses.push(deployedFeeContract.address);
-        childFeeContracts.push(deployedFeeContract);
       }
     }
 
@@ -251,9 +217,6 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       );
     }
 
-    return {
-      routingFee,
-      childFeeContracts,
-    };
+    return routingFee;
   }
 }
