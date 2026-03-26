@@ -19,6 +19,7 @@ import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
+  CrossCollateralRoutingFeeConfigSchema,
   DEFAULT_ROUTER_KEY,
   LinearFeeConfig,
   ResolvedCrossCollateralRoutingFeeConfigInput,
@@ -511,11 +512,11 @@ describe('EvmTokenFeeModule', () => {
       const routingDestination = multiProvider.getDomainId(test4Chain);
       const module = new EvmTokenFeeModule(multiProvider, {
         chain: test4Chain,
-        config: {
+        config: CrossCollateralRoutingFeeConfigSchema.parse({
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: signer.address,
           feeContracts: {},
-        } as TokenFeeConfig,
+        }),
         addresses: { deployedFee: emptyCcrf.address },
       });
 
