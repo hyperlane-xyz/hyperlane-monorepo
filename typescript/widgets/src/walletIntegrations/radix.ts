@@ -1,8 +1,4 @@
-import {
-  DataRequestBuilder,
-  generateRolaChallenge,
-} from '@radixdlt/radix-dapp-toolkit';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 
 import type { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk/runtime';
 import {
@@ -13,103 +9,22 @@ import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
-import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
-import { useAccount } from './radix/AccountContext.js';
-import { usePopup } from './radix/RadixProviders.js';
 import { useGatewayApi } from './radix/hooks/useGatewayApi.js';
 import { useRdt } from './radix/hooks/useRdt.js';
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
-
-export function useRadixAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { accounts } = useAccount();
-
-  return {
-    protocol: ProtocolType.Radix,
-    addresses: accounts.map((account) => ({
-      address: account.address,
-    })),
-    publicKey: undefined, // we don't need the public key for radix
-    isReady: !!accounts.length,
-  };
-}
-
-export function useRadixWalletDetails() {
-  const name = 'Radix Wallet';
-  const logoUrl =
-    'https://raw.githubusercontent.com/radixdlt/radix-dapp-toolkit/refs/heads/main/docs/radix-logo.png';
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name,
-      logoUrl,
-    }),
-    [name, logoUrl],
-  );
-}
-
-export function useRadixConnectFn(): () => void {
-  const rdt = useRdt();
-  assert(rdt, `radix dapp toolkit not defined`);
-
-  const popUp = usePopup();
-  assert(popUp, `radix wallet popup not defined`);
-
-  const { setAccounts } = useAccount();
-
-  rdt.walletApi.provideChallengeGenerator(async () => {
-    return generateRolaChallenge();
-  });
-
-  const connect = async () => {
-    popUp.setShowPopUp(true);
-
-    rdt.walletApi.setRequestData(
-      DataRequestBuilder.accounts().exactly(1).reset(),
-    );
-    const result = await rdt.walletApi.sendRequest();
-    if (result.isOk()) {
-      setAccounts(
-        result.value.accounts.map((p) => ({
-          address: p.address,
-        })),
-      );
-    }
-    popUp.setShowPopUp(false);
-  };
-
-  return connect;
-}
-
-export function useRadixDisconnectFn(): () => Promise<void> {
-  const rdt = useRdt();
-  assert(rdt, `radix dapp toolkit not defined`);
-
-  const { setAccounts } = useAccount();
-
-  const safeDisconnect = async () => {
-    rdt.disconnect();
-    setAccounts([]);
-  };
-
-  return safeDisconnect;
-}
-
-export function useRadixActiveChain(
-  _multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  // Radix doesn't has the concept of an active chain
-  return useMemo(() => ({}) as ActiveChainInfo, []);
-}
+export {
+  useRadixAccount,
+  useRadixActiveChain,
+  useRadixConnectFn,
+  useRadixDisconnectFn,
+  useRadixWalletDetails,
+} from './radixBase.js';
 
 export function useRadixSwitchNetwork(
   multiProvider: MultiProtocolProvider,

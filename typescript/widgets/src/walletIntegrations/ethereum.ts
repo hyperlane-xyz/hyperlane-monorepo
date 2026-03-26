@@ -1,4 +1,3 @@
-import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   getAccount,
   sendTransaction,
@@ -6,9 +5,9 @@ import {
   waitForTransactionReceipt,
   watchAsset,
 } from '@wagmi/core';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Chain as ViemChain } from 'viem';
-import { useAccount, useConfig, useDisconnect } from 'wagmi';
+import { useConfig } from 'wagmi';
 
 import { chainMetadataToViemChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
 import {
@@ -26,71 +25,20 @@ import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
 import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/ethereum' });
-
-export function useEthereumAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { address, isConnected, connector } = useAccount();
-  const isReady = !!(address && isConnected && connector);
-
-  return useMemo<AccountInfo>(
-    () => ({
-      protocol: ProtocolType.Ethereum,
-      addresses: address ? [{ address: `${address}` }] : [],
-      isReady: isReady,
-    }),
-    [address, isReady],
-  );
-}
-
-export function useEthereumWalletDetails() {
-  const { connector } = useAccount();
-  const name = connector?.name;
-  const logoUrl = connector?.icon;
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name,
-      logoUrl,
-    }),
-    [name, logoUrl],
-  );
-}
-
-export function useEthereumConnectFn(): () => void {
-  const { openConnectModal } = useConnectModal();
-  return useCallback(() => openConnectModal?.(), [openConnectModal]);
-}
-
-export function useEthereumDisconnectFn(): () => Promise<void> {
-  const { disconnectAsync } = useDisconnect();
-  return disconnectAsync;
-}
-
-export function useEthereumActiveChain(
-  multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  const { chain } = useAccount();
-  return useMemo<ActiveChainInfo>(
-    () => ({
-      chainDisplayName: chain?.name,
-      chainName: chain
-        ? multiProvider.tryGetChainMetadata(chain.id)?.name
-        : undefined,
-    }),
-    [chain, multiProvider],
-  );
-}
+export {
+  useEthereumAccount,
+  useEthereumActiveChain,
+  useEthereumConnectFn,
+  useEthereumDisconnectFn,
+  useEthereumWalletDetails,
+} from './ethereumBase.js';
 
 export function useEthereumSwitchNetwork(
   multiProvider: MultiProtocolProvider,

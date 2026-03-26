@@ -1,7 +1,4 @@
-import { Network } from '@provablehq/aleo-types';
-import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
-import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback } from 'react';
 
 import type { AleoTransaction } from '@hyperlane-xyz/aleo-sdk/runtime';
 import {
@@ -12,119 +9,24 @@ import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
-import { ProtocolType, assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
+import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
-import { useAleoPopup } from './aleo/AleoProviders.js';
 import { getAdapter } from './aleo/utils.js';
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
 
 const MAX_POLLING_ATTEMPTS = 60;
 const POLLING_DELAY_MS = 1000;
-
-export function useAleoAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const [account, setAccount] =
-    useState<ShieldWalletAdapter['account']>(undefined);
-
-  useEffect(() => {
-    // Only access adapter in useEffect to avoid SSR issues
-    const adapterInstance = getAdapter();
-
-    const handleAccountChange = () => {
-      setAccount(adapterInstance.account);
-    };
-
-    const handleAccountSwitched = async () => {
-      await adapterInstance.connect(
-        Network.MAINNET,
-        WalletDecryptPermission.AutoDecrypt,
-        [],
-      );
-    };
-
-    adapterInstance.on('connect', handleAccountChange);
-    adapterInstance.on('disconnect', handleAccountChange);
-    adapterInstance.on('accountChange', handleAccountSwitched);
-
-    // Initialize account state
-    handleAccountChange();
-
-    return () => {
-      adapterInstance.off('connect', handleAccountChange);
-      adapterInstance.off('disconnect', handleAccountChange);
-      adapterInstance.off('accountChange', handleAccountSwitched);
-    };
-  }, []);
-
-  return {
-    protocol: ProtocolType.Aleo,
-    addresses: account
-      ? [
-          {
-            address: account.address ?? '',
-            chainName: 'Aleo',
-          },
-        ]
-      : [],
-    publicKey: undefined, // we don't need the public key for aleo
-    isReady: !!account,
-  };
-}
-
-export function useAleoWalletDetails() {
-  const [details, setDetails] = useState<WalletDetails>({
-    name: undefined,
-    logoUrl: undefined,
-  });
-
-  useEffect(() => {
-    // Only access adapter in useEffect to avoid SSR issues
-    if (typeof window !== 'undefined') {
-      const adapterInstance = getAdapter();
-      setDetails({
-        name: adapterInstance.name,
-        logoUrl: adapterInstance.icon,
-      });
-    }
-  }, []);
-
-  return details;
-}
-
-export function useAleoConnectFn(): () => void {
-  const popUp = useAleoPopup();
-  assert(
-    popUp,
-    `AleoPopupProvider is not defined, make sure it is imported and wrapping your application`,
-  );
-
-  const connect = () => {
-    popUp.setShowPopUp(true);
-  };
-
-  return connect;
-}
-
-export function useAleoDisconnectFn(): () => Promise<void> {
-  return async () => {
-    await getAdapter().disconnect();
-  };
-}
-
-export function useAleoActiveChain(
-  _multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  // Aleo doesn't have the concept of an active chain
-  return useMemo(() => ({}) as ActiveChainInfo, []);
-}
+export {
+  useAleoAccount,
+  useAleoActiveChain,
+  useAleoConnectFn,
+  useAleoDisconnectFn,
+  useAleoWalletDetails,
+} from './aleoBase.js';
 
 export function useAleoSwitchNetwork(
   multiProvider: MultiProtocolProvider,

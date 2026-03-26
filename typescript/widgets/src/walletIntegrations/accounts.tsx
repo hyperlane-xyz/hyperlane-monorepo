@@ -8,15 +8,15 @@ import {
   ProtocolType,
 } from '@hyperlane-xyz/utils';
 
-import { useAleoAccount } from './aleo.js';
+import { useAleoAccount } from './aleoBase.js';
 import { getAccountAddressForChain } from './accountUtils.js';
-import { useCosmosAccount } from './cosmos.js';
-import { useEthereumAccount } from './ethereum.js';
-import { useRadixAccount } from './radix.js';
-import { useSolanaAccount } from './solana.js';
-import { useStarknetAccount } from './starknet.js';
+import { useCosmosAccount } from './cosmosBase.js';
+import { useEthereumAccount } from './ethereumBase.js';
+import { useRadixAccount } from './radixBase.js';
+import { useSolanaAccount } from './solanaBase.js';
+import { useStarknetAccount } from './starknetBase.js';
 import { type AccountInfo } from './types.js';
-import { useTronAccount } from './tron.js';
+import { useTronAccount } from './tronBase.js';
 
 export function useAccounts(
   multiProvider: MultiProtocolProvider,

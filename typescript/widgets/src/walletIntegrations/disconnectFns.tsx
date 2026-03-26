@@ -4,13 +4,13 @@ import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
-import { useAleoDisconnectFn } from './aleo.js';
-import { useCosmosDisconnectFn } from './cosmos.js';
-import { useEthereumDisconnectFn } from './ethereum.js';
-import { useRadixDisconnectFn } from './radix.js';
-import { useSolanaDisconnectFn } from './solana.js';
-import { useStarknetDisconnectFn } from './starknet.js';
-import { useTronDisconnectFn } from './tron.js';
+import { useAleoDisconnectFn } from './aleoBase.js';
+import { useCosmosDisconnectFn } from './cosmosBase.js';
+import { useEthereumDisconnectFn } from './ethereumBase.js';
+import { useRadixDisconnectFn } from './radixBase.js';
+import { useSolanaDisconnectFn } from './solanaBase.js';
+import { useStarknetDisconnectFn } from './starknetBase.js';
+import { useTronDisconnectFn } from './tronBase.js';
 
 const logger = widgetLogger.child({
   module: 'walletIntegrations/disconnectFns',
