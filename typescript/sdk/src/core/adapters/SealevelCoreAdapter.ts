@@ -21,7 +21,7 @@ import {
   SealevelMailboxTransferOwnershipInstruction,
   SealevelMailboxTransferOwnershipInstructionSchema,
 } from '../../mailbox/serialization.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
@@ -40,7 +40,7 @@ export class SealevelCoreAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);

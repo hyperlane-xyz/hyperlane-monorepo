@@ -2,7 +2,7 @@ import { useWallet } from '@tronweb3/tronwallet-adapter-react-hooks';
 import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapter-tronlink';
 import { useMemo } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
@@ -13,7 +13,7 @@ import type {
 } from './types.js';
 
 export function useTronAccount(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const { address, connected } = useWallet();
 
@@ -57,7 +57,7 @@ export function useTronDisconnectFn(): () => Promise<void> {
 }
 
 export function useTronActiveChain(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }

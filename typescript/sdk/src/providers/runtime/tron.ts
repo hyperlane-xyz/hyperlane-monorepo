@@ -13,9 +13,9 @@ import { ProviderType, type TypedProvider } from '../ProviderType.js';
 
 import {
   assertProtocolRuntimeMetadata,
-  createProtocolRuntimeMultiProvider,
-  type ProtocolRuntimeMultiProtocolProvider,
-  type ProtocolRuntimeMultiProtocolProviderOptions,
+  createProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistryOptions,
 } from './utils.js';
 
 const defaultTronEthersTypedProviderBuilder: ProviderBuilderFn<
@@ -30,16 +30,16 @@ export const tronRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
   [ProviderType.Tron]: defaultTronProviderBuilder,
 };
 
-export function createTronRuntimeMultiProvider<MetaExt>(
+export function createTronRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
   assertProtocolRuntimeMetadata(
     chainMetadata,
     [ProtocolType.Tron],
-    createTronRuntimeMultiProvider.name,
+    createTronRuntimeProviderRegistry.name,
   );
-  return createProtocolRuntimeMultiProvider(
+  return createProtocolRuntimeProviderRegistry(
     chainMetadata,
     tronRuntimeProviderBuilders,
     options,

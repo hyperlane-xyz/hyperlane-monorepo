@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -18,7 +18,7 @@ import { getChainsForProtocol } from './utils.js';
 const PLACEHOLDER_COSMOS_CHAIN = cosmoshub.name;
 
 export function useCosmosAccount(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const cosmosChains = getCosmosChainNames(multiProvider);
   const chainToContext = useChains(cosmosChains);
@@ -72,13 +72,13 @@ export function useCosmosDisconnectFn(): () => Promise<void> {
 }
 
 export function useCosmosActiveChain(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
 export function getCosmosChains(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
 ): ChainMetadata[] {
   return [
     ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
@@ -88,7 +88,7 @@ export function getCosmosChains(
 }
 
 export function getCosmosChainNames(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
 ): ChainName[] {
   return getCosmosChains(multiProvider).map((c) => c.name);
 }

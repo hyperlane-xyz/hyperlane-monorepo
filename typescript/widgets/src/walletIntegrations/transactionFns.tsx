@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { useAleoTransactionFns } from './aleo.js';
@@ -13,7 +13,7 @@ import { type ChainTransactionFns } from './types.js';
 import { useTronTransactionFns } from './tron.js';
 
 export function useTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): Record<KnownProtocolType, ChainTransactionFns> {
   const {
     switchNetwork: onSwitchEvmNetwork,

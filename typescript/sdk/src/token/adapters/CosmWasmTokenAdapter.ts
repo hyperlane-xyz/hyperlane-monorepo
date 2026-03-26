@@ -28,7 +28,7 @@ import {
   ExecuteMsg as WarpCw20Execute,
   QueryMsg as WarpCw20Query,
 } from '../../cw-types/WarpCw20.types.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -48,7 +48,7 @@ export class CwNativeTokenAdapter
 {
   constructor(
     public readonly chainName: string,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: Record<string, Address>,
     public readonly denom: string,
   ) {
@@ -119,7 +119,7 @@ export class CwTokenAdapter
 {
   constructor(
     public readonly chainName: string,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -218,7 +218,7 @@ export class CwHypSyntheticAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { token: Address; warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -364,7 +364,7 @@ export class CwHypNativeAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses, '');
@@ -476,7 +476,7 @@ export class CwHypCollateralAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { warpRouter: Address; token: Address },
   ) {
     super(chainName, multiProvider, addresses);

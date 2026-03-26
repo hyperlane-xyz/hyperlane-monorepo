@@ -7,7 +7,7 @@ import {
 import { useCallback, useMemo } from 'react';
 import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
@@ -19,7 +19,7 @@ const logger = widgetLogger.child({
 });
 
 export function useStarknetAccount(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const { address, isConnected } = useAccount();
 
@@ -70,7 +70,7 @@ export function useStarknetDisconnectFn(): () => Promise<void> {
 }
 
 export function useStarknetActiveChain(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   const { chain } = useNetwork();
 

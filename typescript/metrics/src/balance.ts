@@ -12,7 +12,7 @@ import {
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import type {
@@ -226,7 +226,7 @@ export async function getXERC20Limit(
  * @returns The Contract instance
  */
 export function getManagedLockBox(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
   chainName: string,
   lockboxAddress: Address,
 ): Contract {
@@ -243,7 +243,7 @@ export function getManagedLockBox(
  * @returns The xERC20 info for the lockbox
  */
 export async function getExtraLockboxInfo(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
   warpToken: Token,
   lockboxAddress: Address,
 ): Promise<XERC20Info> {
@@ -291,7 +291,7 @@ export async function getExtraLockboxInfo(
  * @returns The balance information or undefined if not available
  */
 export async function getExtraLockboxBalance(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
   warpToken: Token,
   tokenPriceGetter: TokenPriceGetter,
   lockboxAddress: Address,
@@ -352,7 +352,7 @@ export async function getExtraLockboxBalance(
  * @returns The token name and address of the collateral
  */
 export async function getManagedLockBoxCollateralInfo(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
   warpToken: Token,
   lockBoxAddress: Address,
 ): Promise<{ tokenName: string; tokenAddress: Address }> {

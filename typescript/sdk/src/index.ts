@@ -393,9 +393,13 @@ export {
 } from './middleware/query/InterchainQueryDeployer.js';
 export { isBlockExplorerHealthy } from './providers/explorerHealthTest.js';
 export {
-  ConfiguredMultiProtocolProvider,
-  ConfiguredMultiProtocolProviderOptions,
-} from './providers/ConfiguredMultiProtocolProvider.js';
+  MinimalProviderRegistry,
+  MinimalProviderRegistryOptions,
+} from './providers/MinimalProviderRegistry.js';
+export {
+  MultiProviderAdapter,
+  MultiProviderAdapterOptions,
+} from './providers/MultiProviderAdapter.js';
 export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,

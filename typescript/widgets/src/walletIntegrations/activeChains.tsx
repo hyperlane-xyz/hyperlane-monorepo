@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { useAleoActiveChain } from './aleoWallet.js';
@@ -12,7 +12,7 @@ import { useStarknetActiveChain } from './starknetWallet.js';
 import { type ActiveChainInfo } from './types.js';
 import { useTronActiveChain } from './tronWallet.js';
 
-export function useActiveChains(multiProvider: MultiProtocolProvider): {
+export function useActiveChains(multiProvider: MinimalProviderRegistry): {
   chains: Record<KnownProtocolType, ActiveChainInfo>;
   readyChains: Array<ActiveChainInfo>;
 } {

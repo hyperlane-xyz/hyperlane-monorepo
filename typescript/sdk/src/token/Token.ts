@@ -8,7 +8,7 @@ import {
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ChainName } from '../types.js';
 
 import type { IToken } from './IToken.js';
@@ -85,7 +85,7 @@ export class Token extends TokenMetadata implements IToken {
    * @throws If multiProvider does not contain this token's chain.
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
+  getAdapter(multiProvider: MultiProviderAdapter): ITokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom } = this;
 
     assert(!this.isNft(), 'NFT adapters not yet supported');
@@ -167,7 +167,7 @@ export class Token extends TokenMetadata implements IToken {
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
   getHypAdapter(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     destination?: ChainName,
   ): IHypTokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
@@ -235,7 +235,7 @@ export class Token extends TokenMetadata implements IToken {
   }
 
   protected getIbcAdapter(
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     connection: TokenConnection,
   ): IHypTokenAdapter<MsgTransferEncodeObject> {
     if (connection.type === TokenConnectionType.Ibc) {
@@ -279,7 +279,7 @@ export class Token extends TokenMetadata implements IToken {
    * Convenience method to create an adapter and return an account balance
    */
   async getBalance(
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     address: Address,
   ): Promise<TokenAmount<IToken>> {
     const adapter = this.getAdapter(multiProvider);
@@ -289,7 +289,7 @@ export class Token extends TokenMetadata implements IToken {
 }
 
 interface GetCollateralTokenAdapterOptions {
-  multiProvider: MultiProtocolProvider;
+  multiProvider: MultiProviderAdapter;
   chainName: ChainName;
   tokenAddress: Address;
 }

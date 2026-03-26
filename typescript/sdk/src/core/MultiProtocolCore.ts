@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { TypedTransactionReceipt } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -25,7 +25,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
   CoreAddresses
 > {
   constructor(
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: ChainMap<CoreAddresses>,
     public readonly logger = rootLogger.child({ module: 'MultiProtocolCore' }),
   ) {
@@ -34,7 +34,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
 
   static fromAddressesMap(
     addressesMap: ChainMap<CoreAddresses>,
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
   ): MultiProtocolCore {
     return new MultiProtocolCore(
       multiProvider.intersect(Object.keys(addressesMap)).result,

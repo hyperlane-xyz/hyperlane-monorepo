@@ -21,7 +21,7 @@ import {
   SolanaWeb3Transaction,
   getSealevelAccountDataSchema,
 } from '@hyperlane-xyz/sdk';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { IHelloWorldAdapter } from './types.js';
@@ -32,7 +32,7 @@ export class SealevelHelloWorldAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { router: Address; mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);

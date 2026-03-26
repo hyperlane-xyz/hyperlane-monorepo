@@ -3,7 +3,7 @@ import { PublicKey } from '@solana/web3.js';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types.js';
@@ -14,7 +14,7 @@ export class SealevelRouterAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { router: Address },
   ) {
     super(chainName, multiProvider, addresses);

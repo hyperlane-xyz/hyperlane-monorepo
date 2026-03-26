@@ -5,10 +5,10 @@ import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName } from '../types.js';
 
 import {
-  ConfiguredMultiProtocolProvider,
-  ConfiguredMultiProtocolProviderOptions,
+  MultiProviderAdapter,
+  MultiProviderAdapterOptions,
   wrapMultiProviderProviders,
-} from './ConfiguredMultiProtocolProvider.js';
+} from './MultiProviderAdapter.js';
 import { MultiProvider } from './MultiProvider.js';
 import { ProviderType, TypedProvider } from './ProviderType.js';
 import {
@@ -18,11 +18,11 @@ import {
 import { defaultProviderBuilderMap } from './defaultProviderBuilderMaps.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 
-export interface MultiProtocolProviderOptions extends ConfiguredMultiProtocolProviderOptions {}
+export interface MultiProtocolProviderOptions extends MultiProviderAdapterOptions {}
 
 export class MultiProtocolProvider<
   MetaExt = {},
-> extends ConfiguredMultiProtocolProvider<MetaExt> {
+> extends MultiProviderAdapter<MetaExt> {
   static fromMultiProvider<MetaExt = {}>(
     mp: MultiProvider<MetaExt>,
     options: MultiProtocolProviderOptions = {},

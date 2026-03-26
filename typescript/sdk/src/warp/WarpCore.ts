@@ -16,7 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Keypair } from '@solana/web3.js';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import {
   TransactionFeeEstimate,
@@ -62,7 +62,7 @@ export interface WarpCoreOptions {
 }
 
 export class WarpCore {
-  public readonly multiProvider: MultiProtocolProvider<{ mailbox?: Address }>;
+  public readonly multiProvider: MultiProviderAdapter<{ mailbox?: Address }>;
   public readonly tokens: Token[];
   public readonly localFeeConstants: FeeConstantConfig;
   public readonly interchainFeeConstants: FeeConstantConfig;
@@ -70,7 +70,7 @@ export class WarpCore {
   public readonly logger: Logger;
 
   constructor(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     tokens: Token[],
     options?: WarpCoreOptions,
   ) {
@@ -88,11 +88,11 @@ export class WarpCore {
 
   /**
    * Takes the serialized representation of a warp config and returns a WarpCore instance
-   * @param multiProvider the MultiProtocolProvider containing chain metadata
+   * @param multiProvider the MultiProviderAdapter containing chain metadata
    * @param config the config object of type WarpCoreConfig
    */
   static FromConfig(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     config: unknown,
   ): WarpCore {
     const parsedConfig = WarpCoreConfigSchema.parse(config);

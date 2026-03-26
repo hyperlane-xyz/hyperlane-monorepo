@@ -9,25 +9,25 @@ import { ProviderType } from '../ProviderType.js';
 
 import {
   assertProtocolRuntimeMetadata,
-  createProtocolRuntimeMultiProvider,
-  type ProtocolRuntimeMultiProtocolProvider,
-  type ProtocolRuntimeMultiProtocolProviderOptions,
+  createProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistryOptions,
 } from './utils.js';
 
 export const aleoRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
   [ProviderType.Aleo]: defaultAleoProviderBuilder,
 };
 
-export function createAleoRuntimeMultiProvider<MetaExt>(
+export function createAleoRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
   assertProtocolRuntimeMetadata(
     chainMetadata,
     [ProtocolType.Aleo],
-    createAleoRuntimeMultiProvider.name,
+    createAleoRuntimeProviderRegistry.name,
   );
-  return createProtocolRuntimeMultiProvider(
+  return createProtocolRuntimeProviderRegistry(
     chainMetadata,
     aleoRuntimeProviderBuilders,
     options,

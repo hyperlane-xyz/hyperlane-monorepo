@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
@@ -24,7 +24,7 @@ const MESSAGE_DESTINATION_FIELD_KEY = 'destination';
 export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);

@@ -14,7 +14,7 @@ import {
   QueryMsg as MultisigQuery,
 } from '../../cw-types/IsmMultisig.types.js';
 import { MultisigConfig, MultisigIsmConfig } from '../../ism/types.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 type MultisigResponse = EnrolledValidatorsResponse;
@@ -22,7 +22,7 @@ type MultisigResponse = EnrolledValidatorsResponse;
 export class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { multisig: Address },
   ) {
     super(chainName, multiProvider, addresses);

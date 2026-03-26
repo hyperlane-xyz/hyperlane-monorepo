@@ -2,7 +2,7 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useCallback, useMemo } from 'react';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
@@ -15,7 +15,7 @@ const logger = widgetLogger.child({
 });
 
 export function useSolanaAccount(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const { publicKey, connected, wallet } = useWallet();
   const isReady = !!(publicKey && wallet && connected);
@@ -55,7 +55,7 @@ export function useSolanaDisconnectFn(): () => Promise<void> {
 }
 
 export function useSolanaActiveChain(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   const { connection } = useConnection();
   const connectionEndpoint = connection?.rpcEndpoint;

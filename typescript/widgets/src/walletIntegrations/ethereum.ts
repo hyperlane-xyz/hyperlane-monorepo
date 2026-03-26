@@ -14,7 +14,7 @@ import {
   ProviderType,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { createEvmHypAdapter } from '@hyperlane-xyz/sdk/token/adapters/evmHyp';
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
@@ -41,7 +41,7 @@ export {
 } from './ethereumWallet.js';
 
 export function useEthereumSwitchNetwork(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const config = useConfig();
 
@@ -60,7 +60,7 @@ export function useEthereumSwitchNetwork(
 }
 
 export function useEthereumWatchAsset(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
   const config = useConfig();
@@ -102,7 +102,7 @@ export function useEthereumWatchAsset(
 }
 
 export function useEthereumTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const config = useConfig();
   const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
@@ -186,7 +186,7 @@ export function useEthereumTransactionFns(
 
 // Metadata formatted for use in Wagmi config
 export function getWagmiChainConfigs(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ViemChain[] {
   return getChainsForProtocol(multiProvider, ProtocolType.Ethereum).map(
     chainMetadataToViemChain,

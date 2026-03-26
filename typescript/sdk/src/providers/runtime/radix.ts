@@ -9,25 +9,25 @@ import { ProviderType } from '../ProviderType.js';
 
 import {
   assertProtocolRuntimeMetadata,
-  createProtocolRuntimeMultiProvider,
-  type ProtocolRuntimeMultiProtocolProvider,
-  type ProtocolRuntimeMultiProtocolProviderOptions,
+  createProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistry,
+  type ProtocolRuntimeProviderRegistryOptions,
 } from './utils.js';
 
 export const radixRuntimeProviderBuilders: Partial<ProviderBuilderMap> = {
   [ProviderType.Radix]: defaultRadixProviderBuilder,
 };
 
-export function createRadixRuntimeMultiProvider<MetaExt>(
+export function createRadixRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
   assertProtocolRuntimeMetadata(
     chainMetadata,
     [ProtocolType.Radix],
-    createRadixRuntimeMultiProvider.name,
+    createRadixRuntimeProviderRegistry.name,
   );
-  return createProtocolRuntimeMultiProvider(
+  return createProtocolRuntimeProviderRegistry(
     chainMetadata,
     radixRuntimeProviderBuilders,
     options,

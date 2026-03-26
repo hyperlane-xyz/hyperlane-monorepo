@@ -38,13 +38,13 @@ import {
   estimateTransactionFee,
 } from './transactionFeeEstimators.js';
 
-export interface ConfiguredProviderRegistryOptions {
+export interface MinimalProviderRegistryOptions {
   logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
 
-export class ConfiguredProviderRegistry<
+export class MinimalProviderRegistry<
   MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>>;
@@ -53,10 +53,10 @@ export class ConfiguredProviderRegistry<
 
   constructor(
     chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
-    protected readonly options: ConfiguredProviderRegistryOptions = {},
+    protected readonly options: MinimalProviderRegistryOptions = {},
   ) {
     super(chainMetadata, options);
-    const loggerModule = new.target?.name || 'ConfiguredProviderRegistry';
+    const loggerModule = new.target?.name || 'MinimalProviderRegistry';
     this.logger =
       options.logger ||
       rootLogger.child({
@@ -68,9 +68,9 @@ export class ConfiguredProviderRegistry<
 
   override extendChainMetadata<NewExt = {}>(
     additionalMetadata: ChainMap<NewExt>,
-  ): ConfiguredProviderRegistry<MetaExt & NewExt> {
+  ): MinimalProviderRegistry<MetaExt & NewExt> {
     const newMetadata = super.extendChainMetadata(additionalMetadata).metadata;
-    return new ConfiguredProviderRegistry(newMetadata, {
+    return new MinimalProviderRegistry(newMetadata, {
       ...this.options,
       providers: this.providers,
       providerBuilders: this.providerBuilders,
@@ -251,12 +251,12 @@ export class ConfiguredProviderRegistry<
     throwIfNotSubset = false,
   ): {
     intersection: ChainName[];
-    result: ConfiguredProviderRegistry<MetaExt>;
+    result: MinimalProviderRegistry<MetaExt>;
   } {
     const { intersection, result } = super.intersect(chains, throwIfNotSubset);
     return {
       intersection,
-      result: new ConfiguredProviderRegistry(result.metadata, {
+      result: new MinimalProviderRegistry(result.metadata, {
         ...this.options,
         providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,

@@ -3,7 +3,7 @@ import { MsgSendEncodeObject, MsgTransferEncodeObject } from '@cosmjs/stargate';
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -26,7 +26,7 @@ export class CosmNativeTokenAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: Record<string, Address>,
     public readonly properties: {
       ibcDenom: string;
@@ -111,7 +111,7 @@ export class CosmIbcTokenAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: Record<string, Address>,
     public readonly properties: {
       ibcDenom: string;
@@ -202,7 +202,7 @@ export class CosmIbcToWarpTokenAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: {
       intermediateRouterAddress: Address;
       destinationRouterAddress: Address;

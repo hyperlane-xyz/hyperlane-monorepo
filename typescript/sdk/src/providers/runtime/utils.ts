@@ -4,16 +4,16 @@ import type { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import type { ChainMap } from '../../types.js';
 
 import {
-  ConfiguredMultiProtocolProvider,
-  type ConfiguredMultiProtocolProviderOptions,
-} from '../ConfiguredMultiProtocolProvider.js';
+  MinimalProviderRegistry,
+  type MinimalProviderRegistryOptions,
+} from '../MinimalProviderRegistry.js';
 import type { ProviderBuilderMap } from '../defaultProviderBuilderMaps.js';
 
-export type ProtocolRuntimeMultiProtocolProvider<MetaExt = {}> =
-  ConfiguredMultiProtocolProvider<MetaExt>;
+export type ProtocolRuntimeProviderRegistry<MetaExt = {}> =
+  MinimalProviderRegistry<MetaExt>;
 
-export interface ProtocolRuntimeMultiProtocolProviderOptions extends Omit<
-  ConfiguredMultiProtocolProviderOptions,
+export interface ProtocolRuntimeProviderRegistryOptions extends Omit<
+  MinimalProviderRegistryOptions,
   'providerBuilders'
 > {
   providerBuilders?: Partial<ProviderBuilderMap>;
@@ -35,12 +35,12 @@ export function assertProtocolRuntimeMetadata<MetaExt>(
   );
 }
 
-export function createProtocolRuntimeMultiProvider<MetaExt>(
+export function createProtocolRuntimeProviderRegistry<MetaExt>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
   providerBuilders: Partial<ProviderBuilderMap>,
-  options: ProtocolRuntimeMultiProtocolProviderOptions = {},
-): ProtocolRuntimeMultiProtocolProvider<MetaExt> {
-  return new ConfiguredMultiProtocolProvider(chainMetadata, {
+  options: ProtocolRuntimeProviderRegistryOptions = {},
+): ProtocolRuntimeProviderRegistry<MetaExt> {
+  return new MinimalProviderRegistry(chainMetadata, {
     ...options,
     providerBuilders: {
       ...providerBuilders,

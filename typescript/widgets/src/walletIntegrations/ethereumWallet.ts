@@ -2,13 +2,13 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useCallback, useMemo } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 
 export function useEthereumAccount(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const { address, isConnected, connector } = useAccount();
   const isReady = !!(address && isConnected && connector);
@@ -48,7 +48,7 @@ export function useEthereumDisconnectFn(): () => Promise<void> {
 }
 
 export function useEthereumActiveChain(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
   const { chain } = useAccount();
   return useMemo(

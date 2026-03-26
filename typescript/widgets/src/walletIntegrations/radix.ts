@@ -5,7 +5,7 @@ import {
   ProviderType,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk/providers/ProviderType';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/ConfiguredMultiProtocolProvider';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
@@ -27,7 +27,7 @@ export {
 } from './radixWallet.js';
 
 export function useRadixSwitchNetwork(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
@@ -45,7 +45,7 @@ export function useRadixSwitchNetwork(
 }
 
 export function useRadixWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
     async (_token: ITokenMetadata, _activeChainName: ChainName) => {
@@ -58,7 +58,7 @@ export function useRadixWatchAsset(
 }
 
 export function useRadixTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const rdt = useRdt();
   const gatewayApi = useGatewayApi();

@@ -1,11 +1,11 @@
 import type { IHypTokenAdapter } from './ITokenAdapter.js';
 import type { HypTokenAdapterInput } from './hypTokenAdapterUtils.js';
 import { createEvmLikeHypAdapter } from './evmLikeHyp.js';
-import type { ConfiguredMultiProtocolProvider as MultiProtocolProvider } from '../../providers/ConfiguredMultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { TokenStandard } from '../TokenStandard.js';
 
 export function createTronHypAdapter(
-  multiProvider: MultiProtocolProvider<{ mailbox?: string }>,
+  multiProvider: MultiProviderAdapter<{ mailbox?: string }>,
   token: HypTokenAdapterInput,
 ): IHypTokenAdapter<unknown> | undefined {
   return createEvmLikeHypAdapter(multiProvider, token, {
