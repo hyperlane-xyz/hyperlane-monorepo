@@ -60,6 +60,7 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
+  getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import {
   getEclipseUSDCStrategyConfig,
@@ -126,6 +127,7 @@ import {
   getoXAUTGnosisSafeSubmitterStrategyConfig,
   getoXAUTTokenProductionWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getoXAUTTokenWarpConfig.js';
+import { getQuotedCallsDemoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getQuotedCallsDemoUSDCWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
@@ -215,6 +217,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
+  [WarpRouteIds.QuotedCallsDemoUSDC]: getQuotedCallsDemoUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -243,6 +246,15 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
   [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
+};
+
+/** Sandbox strategy map — uses impersonated accounts for anvil fork testing */
+export const sandboxStrategyConfigGetterMap: Record<
+  string,
+  StrategyConfigGetter
+> = {
+  [WarpRouteIds.EclipseUSDCSTAGE]:
+    getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 };
 
 /**

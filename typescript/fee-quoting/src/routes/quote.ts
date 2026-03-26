@@ -31,6 +31,10 @@ const WarpQuerySchema = z.object({
   recipient: bytes32Schema,
 });
 
+const WarpQueryWithTargetRouterSchema = WarpQuerySchema.extend({
+  targetRouter: bytes32Schema.optional(),
+});
+
 const IcaQuerySchema = z.object({
   origin: z.string().min(1),
   router: addressSchema,
@@ -87,7 +91,19 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
   );
   router.get(
     '/transferRemoteTo',
-    asyncHandler(warpHandler(QuotedCallsCommand.TransferRemoteTo)),
+    asyncHandler(async (req: Request, res: Response) => {
+      const data = parseAndValidate(WarpQueryWithTargetRouterSchema, req.query);
+      const response = await quoteService.getQuote(
+        data.origin,
+        QuotedCallsCommand.TransferRemoteTo,
+        data.router as Address,
+        parseInt(data.destination, 10),
+        data.salt as Hex,
+        data.recipient as Hex,
+        data.targetRouter as Hex | undefined,
+      );
+      res.json(response);
+    }),
   );
   router.get(
     '/callRemoteWithOverrides',

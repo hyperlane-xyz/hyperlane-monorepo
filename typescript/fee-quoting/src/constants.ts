@@ -1,6 +1,7 @@
 import type { Address, Hex } from 'viem';
 
 export const DEFAULT_PORT = 8080;
+export const DEFAULT_METRICS_PORT = 9090;
 export const DEFAULT_QUOTE_EXPIRY_SECONDS = 3600;
 
 export const ZERO_ADDRESS =

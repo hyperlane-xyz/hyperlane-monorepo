@@ -6,6 +6,7 @@ export const DockerImageNames = {
   KEY_FUNDER: 'hyperlane-key-funder',
   WARP_MONITOR: 'hyperlane-warp-monitor',
   REBALANCER: 'hyperlane-rebalancer',
+  FEE_QUOTING: 'hyperlane-fee-quoting',
 } as const;
 
 type DockerImageReposType = {
@@ -35,6 +36,7 @@ interface MainnetDockerTags extends BaseDockerTags {
   checkWarpDeploy: string;
   warpMonitor: string;
   rebalancer: string;
+  feeQuoting: string;
 }
 
 export const mainnetDockerTags: MainnetDockerTags = {
@@ -50,6 +52,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: 'c558a9f-20260304-105251',
   warpMonitor: 'c558a9f-20260304-105251',
   rebalancer: 'c558a9f-20260304-105251',
+  feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {

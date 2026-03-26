@@ -1,18 +1,27 @@
-import { Contract, constants } from 'ethers';
+import { constants } from 'ethers';
 
 import {
   BaseFee__factory,
+  CrossCollateralRoutingFee__factory,
   LinearFee__factory,
   OffchainQuotedLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  assert,
+  concurrentMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
+  CrossCollateralRoutingFeeConfig,
   FeeParameters,
   OnchainTokenFeeType,
   RoutingFeeConfig,
@@ -26,26 +35,41 @@ import {
 } from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
-
+type DerivedCrossCollateralFeeContracts = Record<
+  ChainName,
+  {
+    default?: DerivedTokenFeeConfig;
+    routers?: Record<string, DerivedTokenFeeConfig>;
+  }
+>;
 export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
   feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
 };
+export type DerivedCrossCollateralRoutingFeeConfig =
+  WithAddress<CrossCollateralRoutingFeeConfig> & {
+    feeContracts: DerivedCrossCollateralFeeContracts;
+  };
 
 export type TokenFeeReaderParams = {
   address: Address;
   routingDestinations?: number[]; // Optional: when provided, derives feeContracts
+  // Optional CCR-enrolled router map by destination domain (bytes32 router addresses)
+  crossCollateralRouters?: Record<number, string[]>;
 };
 
-const crossCollateralRoutingFeeReadAbi = [
-  'function DEFAULT_ROUTER() view returns (bytes32)',
-  'function feeContracts(uint32,bytes32) view returns (address)',
-  'function owner() view returns (address)',
-] as const;
+// keccak256("RoutingFee.DEFAULT_ROUTER")
+export const DEFAULT_ROUTER_KEY =
+  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
 
 export class EvmTokenFeeReader extends HyperlaneReader {
+  protected readonly logger = rootLogger.child({ module: 'EvmTokenFeeReader' });
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+      chain,
+    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     super(multiProvider, chain);
   }
@@ -53,11 +77,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   async deriveTokenFeeConfig(
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
-    const { address, routingDestinations } = params;
+    const { address, routingDestinations, crossCollateralRouters } = params;
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
-    const onchainFeeType = await tokenFee.feeType();
+    const onchainFeeType: OnchainTokenFeeType = await tokenFee.feeType();
     switch (onchainFeeType) {
       case OnchainTokenFeeType.LinearFee:
         derivedConfig = await this.deriveLinearFeeConfig(address);
@@ -81,6 +105,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         derivedConfig = await this.deriveCrossCollateralRoutingFeeConfig({
           address,
           routingDestinations,
+          crossCollateralRouters,
         });
         break;
       default:
@@ -162,15 +187,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations } = params;
     const routingFee = RoutingFee__factory.connect(address, this.provider);
-    const [token, owner, maxFee, halfAmount] = await Promise.all([
+    const [token, owner] = await Promise.all([
       routingFee.token(),
       routingFee.owner(),
-      routingFee.maxFee(),
-      routingFee.halfAmount(),
     ]);
-
-    const maxFeeBn = BigInt(maxFee.toString());
-    const halfAmountBn = BigInt(halfAmount.toString());
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 
@@ -182,17 +202,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
           const chainName = this.multiProvider.getChainName(destination);
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
-
-            // Currently, it's not possible to configure nested routing fees domains,
-            // but we should not expect that to exist
-            routingDestinations,
           });
         }),
       );
     return {
       type: TokenFeeType.RoutingFee,
-      maxFee: maxFeeBn,
-      halfAmount: halfAmountBn,
       address,
       token,
       owner,
@@ -203,16 +217,23 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   private async deriveCrossCollateralRoutingFeeConfig(
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
-    const { address, routingDestinations } = params;
-    if (!routingDestinations?.length) {
-      throw new Error(
-        'CrossCollateralRoutingFee requires routingDestinations to derive fee config',
-      );
-    }
+    const { address, routingDestinations, crossCollateralRouters } = params;
+    const effectiveRoutingDestinations = [
+      ...new Set([
+        ...(routingDestinations ?? []),
+        ...Object.keys(crossCollateralRouters ?? {}).map((domain) =>
+          Number(domain),
+        ),
+      ]),
+    ];
 
-    const routingFee = new Contract(
+    assert(
+      effectiveRoutingDestinations.length > 0,
+      'CrossCollateralRoutingFee requires routingDestinations or crossCollateralRouters to derive fee config',
+    );
+
+    const routingFee = CrossCollateralRoutingFee__factory.connect(
       address,
-      crossCollateralRoutingFeeReadAbi,
       this.provider,
     );
     const [owner, defaultRouter] = await Promise.all([
@@ -220,39 +241,91 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       routingFee.DEFAULT_ROUTER(),
     ]);
 
-    const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
-    await Promise.all(
-      routingDestinations.map(async (destination) => {
-        const subFeeAddress = await routingFee.feeContracts(
+    const feeContracts: DerivedCrossCollateralFeeContracts = {};
+    const feeConfigCache = new Map<string, Promise<DerivedTokenFeeConfig>>();
+
+    const parseFeeConfig = async (subFeeAddress: Address) => {
+      const cacheKey = subFeeAddress.toLowerCase();
+      // Multiple destinations and router overrides can point at the same child
+      // fee contract. Cache the recursive read so we only derive that shared
+      // sub-fee once per address.
+      if (!feeConfigCache.has(cacheKey)) {
+        feeConfigCache.set(
+          cacheKey,
+          this.deriveTokenFeeConfig({
+            address: subFeeAddress,
+          }),
+        );
+      }
+      const cachedFeeConfig = feeConfigCache.get(cacheKey);
+      assert(
+        cachedFeeConfig,
+        `Missing cached fee config promise for ${subFeeAddress}`,
+      );
+      return cachedFeeConfig;
+    };
+
+    const destinationConfigs = await concurrentMap(
+      this.concurrency,
+      effectiveRoutingDestinations,
+      async (destination) => {
+        const chainName = this.multiProvider.getChainName(destination);
+        const configuredRouters = crossCollateralRouters?.[destination] ?? [];
+        const defaultSubFeeAddress = await routingFee.feeContracts(
           destination,
           defaultRouter,
         );
-        if (subFeeAddress === constants.AddressZero) return;
-        const chainName = this.multiProvider.getChainName(destination);
-        feeContracts[chainName] = await this.deriveTokenFeeConfig({
-          address: subFeeAddress,
-          routingDestinations,
-        });
-      }),
+        const routerSubFees = await concurrentMap(
+          this.concurrency,
+          configuredRouters,
+          async (router) => ({
+            router,
+            subFeeAddress: await routingFee.feeContracts(destination, router),
+          }),
+        );
+        return { chainName, defaultSubFeeAddress, routerSubFees };
+      },
     );
 
-    let token: Address | undefined;
-    for (const destination of routingDestinations) {
-      const chainName = this.multiProvider.getChainName(destination);
-      const feeConfig = feeContracts[chainName];
-      if (feeConfig) {
-        token = feeConfig.token;
-        break;
-      }
-    }
-    if (!token) {
-      throw new Error(
-        `CrossCollateralRoutingFee at ${address} does not have any readable destination fee contracts`,
-      );
-    }
+    await concurrentMap(
+      this.concurrency,
+      destinationConfigs,
+      async (destinationConfig) => {
+        const { chainName, defaultSubFeeAddress, routerSubFees } =
+          destinationConfig;
+
+        let defaultFeeConfig: DerivedTokenFeeConfig | undefined;
+        if (defaultSubFeeAddress !== constants.AddressZero) {
+          defaultFeeConfig = await parseFeeConfig(defaultSubFeeAddress);
+        }
+
+        const routerFeeConfigs: Record<string, DerivedTokenFeeConfig> = {};
+        await concurrentMap(
+          this.concurrency,
+          routerSubFees,
+          async ({ router, subFeeAddress }) => {
+            if (subFeeAddress === constants.AddressZero) return;
+            routerFeeConfigs[router] = await parseFeeConfig(subFeeAddress);
+          },
+        );
+
+        if (defaultFeeConfig || Object.keys(routerFeeConfigs).length > 0) {
+          feeContracts[chainName] = {
+            ...(defaultFeeConfig ? { default: defaultFeeConfig } : {}),
+            ...(Object.keys(routerFeeConfigs).length
+              ? { routers: routerFeeConfigs }
+              : {}),
+          };
+        }
+      },
+    );
+
+    const firstChildToken = (await Promise.all(feeConfigCache.values()))[0]
+      ?.token;
+    const token = firstChildToken ?? constants.AddressZero;
 
     return {
-      type: TokenFeeType.RoutingFee,
+      type: TokenFeeType.CrossCollateralRoutingFee,
       address,
       token,
       owner,

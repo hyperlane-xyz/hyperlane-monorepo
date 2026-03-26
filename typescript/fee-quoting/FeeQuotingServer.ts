@@ -8,16 +8,22 @@ import type { Address, Hex } from 'viem';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  EvmHookReader,
   EvmWarpRouteReader,
+  HyperlaneCore,
   MultiProvider,
   getChainIdNumber,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { assert, createServiceLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  createServiceLogger,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };
 import type { ServerConfig } from './src/config.js';
-import { DEFAULT_PORT } from './src/constants.js';
+import { DEFAULT_METRICS_PORT, DEFAULT_PORT } from './src/constants.js';
 import { createApiKeyAuth } from './src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from './src/middleware/errorHandler.js';
 import { createMetrics } from './src/middleware/metrics.js';
@@ -58,10 +64,19 @@ export class FeeQuotingServer {
     this.app.use(pinoHttp({ logger: this.logger }));
     this.app.use(metrics.middleware);
 
-    this.app.get('/metrics', async (_req, res) => {
+    // Serve metrics on a separate port (cluster-internal only)
+    const metricsApp = express();
+    metricsApp.get('/metrics', async (_req, res) => {
       res.set('Content-Type', register.contentType);
       res.end(await register.metrics());
     });
+    metricsApp.listen(DEFAULT_METRICS_PORT, () => {
+      this.logger.info(
+        { port: DEFAULT_METRICS_PORT },
+        'Metrics server running',
+      );
+    });
+
     this.app.use(createHealthRouter(() => this.ready));
 
     const chainContexts = await this.buildChainContexts(registry);
@@ -150,6 +165,15 @@ export class FeeQuotingServer {
     );
 
     const multiProvider = new MultiProvider(chainMetadataMap);
+    const filteredAddresses = Object.fromEntries(
+      Object.entries(chainAddresses).filter(
+        ([chain]) => chain in chainMetadataMap,
+      ),
+    );
+    const core = HyperlaneCore.fromAddressesMap(
+      filteredAddresses,
+      multiProvider,
+    );
     const chainContexts = new Map<string, ChainQuoteContext>();
 
     for (const warpConfig of warpConfigs) {
@@ -175,6 +199,19 @@ export class FeeQuotingServer {
         const reader = new EvmWarpRouteReader(multiProvider, chainName);
         const derivedConfig =
           await reader.deriveWarpRouteConfig(warpRouteAddress);
+
+        // Resolve hook with Mailbox default fallback when router hook is unset
+        if (
+          typeof derivedConfig.hook === 'string' &&
+          isZeroishAddress(derivedConfig.hook)
+        ) {
+          const hookAddress = await core.getHook(
+            chainName,
+            warpRouteAddress as Address,
+          );
+          const hookReader = new EvmHookReader(multiProvider, chainName);
+          derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
+        }
 
         this.logger.info(
           {
