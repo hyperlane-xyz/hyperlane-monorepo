@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
 
 import {
   TokenConnectionType,
@@ -96,5 +96,42 @@ describe('warp read helpers', () => {
       result.arbitrum['0x2222222222222222222222222222222222222222']
         ?.wireDecimals,
     ).to.equal(6);
+  });
+
+  it('normalizes chain-address map keys consistently with wire-decimal lookups', () => {
+    const mixedCaseConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: 'ethereum',
+          standard: TokenStandard.EvmHypCollateral,
+          decimals: 18,
+          symbol: 'ETH',
+          name: 'Ether',
+          addressOrDenom: '0xAbCdEf1111111111111111111111111111111111',
+        },
+      ],
+    };
+
+    const { warpRouteChainAddressMap } = buildWarpRouteMaps({
+      'ETH/ethereum': mixedCaseConfig,
+    });
+    const normalizedAddress = normalizeAddress(
+      '0xAbCdEf1111111111111111111111111111111111',
+    );
+
+    expect(
+      warpRouteChainAddressMap.ethereum[normalizedAddress]?.addressOrDenom,
+    ).to.equal('0xAbCdEf1111111111111111111111111111111111');
+
+    const tokens = buildWarpRouteTokens(mixedCaseConfig);
+    const wireDecimalsMap = buildWarpRouteWireDecimalsMap(tokens, {
+      ethereum: {
+        [normalizedAddress]: 8,
+      },
+    });
+
+    expect(wireDecimalsMap.ethereum[normalizedAddress]?.wireDecimals).to.equal(
+      8,
+    );
   });
 });
