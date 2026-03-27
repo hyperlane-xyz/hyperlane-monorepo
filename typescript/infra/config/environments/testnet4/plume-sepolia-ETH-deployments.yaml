@@ -1,5 +1,3 @@
-# Configs and artifacts for the deployment of Hyperlane Warp Routes
-# Between Plume Testnet and ethereum, ETH
 data:
   config:
     plumetestnet:
@@ -18,4 +16,4 @@ data:
       type: native
 deployer: Abacus Works (Hyperlane)
 description: Hyperlane Warp Route artifacts
-timestamp: '2023-02-14T20:00:00.000Z'
+timestamp: 2023-02-14T20:00:00.000Z

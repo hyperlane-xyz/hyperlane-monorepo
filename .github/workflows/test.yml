@@ -3,11 +3,11 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, "audit-*"]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
-      - "*"
+      - '*'
   merge_group:
   workflow_dispatch:
 
@@ -70,6 +70,12 @@ jobs:
       - name: solhint
         run: pnpm -C solidity lint
 
+      - name: helloworld solhint
+        run: pnpm -C typescript/helloworld lint
+
+      - name: multicollateral lint
+        run: pnpm -C solidity/multicollateral lint
+
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
         run: |
@@ -82,7 +88,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' | \
-          xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
+          xargs -r pnpm exec oxfmt --ignore-path .gitignore --check --no-error-on-unmatched-pattern
 
       - name: Run prettier for Solidity (changed files)
         if: github.event_name == 'pull_request'
@@ -92,7 +98,7 @@ jobs:
 
       - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec oxfmt --check .
+        run: pnpm exec oxfmt --ignore-path .gitignore --check .
         continue-on-error: true
 
       - name: Run prettier for Solidity (all files)
@@ -117,7 +123,7 @@ jobs:
       - name: Check lint-prettier status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "Lint Prettier"
+          job_name: 'Lint Prettier'
           result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
@@ -172,7 +178,7 @@ jobs:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
           path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
-          path_pattern_only: "true"
+          path_pattern_only: 'true'
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
@@ -323,7 +329,7 @@ jobs:
       - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "PNPM Test"
+          job_name: 'PNPM Test'
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
@@ -405,7 +411,7 @@ jobs:
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "CLI Install Test"
+          job_name: 'CLI Install Test'
           result: ${{ needs.cli-install-test-run.result }}
 
   # Reusable workflow callers
@@ -435,7 +441,7 @@ jobs:
       - name: Check CLI E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "CLI E2E"
+          job_name: 'CLI E2E'
           result: ${{ needs.cli-e2e-tests.result }}
 
   sdk-e2e-tests:
@@ -459,7 +465,7 @@ jobs:
       - name: Check SDK E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "SDK E2E"
+          job_name: 'SDK E2E'
           result: ${{ needs.sdk-e2e-tests.result }}
 
   rust-e2e-tests:
