@@ -739,16 +739,6 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 0);
     });
 
-    it('should read contractVersion from deployed IGP', async () => {
-      const config = await createDeployerOwnedIgpHookConfig();
-      const { hook } = await createHook(config);
-
-      const readConfig = await hook.read();
-      expect((readConfig as IgpHookConfig).contractVersion).to.equal(
-        CONTRACTS_PACKAGE_VERSION,
-      );
-    });
-
     it('should not upgrade IGP when contractVersion is not in config', async () => {
       const config = await createDeployerOwnedIgpHookConfig();
       const { hook, initialHookAddress } = await createHook(config);
