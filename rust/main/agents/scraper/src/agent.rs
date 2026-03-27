@@ -4,21 +4,29 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneMessage,
-    InterchainGasPayment, H512,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneMessage, Indexer,
+    InterchainGasPayment, ReorgPeriod, H512,
 };
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument, trace, Instrument};
 
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
-    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSyncMetrics, ContractSyncer,
-    CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
+    broadcast::BroadcastMpscSender,
+    metrics::AgentMetrics,
+    settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
+    AgentMetadata, BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSync,
+    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, RuntimeMetrics,
+    SyncOptions, WatermarkContractSync, WatermarkLogStore,
 };
 
-use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+use crate::{
+    db::ScraperDb,
+    settings::ScraperSettings,
+    store::{HyperlaneDbStore, TipMessageStore},
+};
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const MESSAGE_DISPATCH_TIP_LABEL: &str = "message_dispatch_tip";
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -40,6 +48,7 @@ struct ChainScraper {
     index_settings: IndexSettings,
     store: HyperlaneDbStore,
     domain: HyperlaneDomain,
+    tip_chain_setup: Option<ChainConf>,
 }
 
 #[async_trait]
@@ -189,7 +198,7 @@ impl Scraper {
         let index_settings = scraper.index_settings.clone();
         let domain = scraper.domain.clone();
 
-        let mut tasks = Vec::with_capacity(2);
+        let mut tasks = Vec::with_capacity(4);
         let (message_indexer, maybe_broadcaster) = self
             .build_message_indexer(
                 domain.clone(),
@@ -214,15 +223,29 @@ impl Scraper {
 
         let gas_payment_indexer = self
             .build_interchain_gas_payment_indexer(
-                domain,
+                domain.clone(),
                 self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
-                store,
+                store.clone(),
                 index_settings.clone(),
                 BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
             )
             .await?;
         tasks.push(gas_payment_indexer);
+
+        if let Some(tip_chain_setup) = scraper.tip_chain_setup.as_ref() {
+            let tip_message_indexer = self
+                .build_tip_message_indexer(
+                    domain,
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store,
+                    index_settings,
+                    tip_chain_setup,
+                )
+                .await?;
+            tasks.push(tip_message_indexer);
+        }
 
         Ok(tokio::spawn(
             async move {
@@ -244,6 +267,17 @@ impl Scraper {
     ) -> eyre::Result<ChainScraper> {
         info!(domain = domain.name(), "create chain scraper for domain");
         let chain_setup = settings.chain_setup(domain)?;
+        let tip_chain_setup = if chain_setup.reorg_period.is_none() {
+            info!(
+                domain = domain.name(),
+                "No reorg period configured, skipping tip message indexer"
+            );
+            None
+        } else {
+            let mut tip_chain_setup = chain_setup.clone();
+            tip_chain_setup.reorg_period = ReorgPeriod::None;
+            Some(tip_chain_setup)
+        };
         info!(domain = domain.name(), "create HyperlaneProvider");
         let provider = chain_setup.build_provider(&metrics).await?.into();
         info!(domain = domain.name(), "create HyperlaneDbStore");
@@ -261,6 +295,7 @@ impl Scraper {
             domain: domain.clone(),
             store,
             index_settings: chain_setup.index.clone(),
+            tip_chain_setup,
         })
     }
 
@@ -340,6 +375,90 @@ impl Scraper {
                 .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         );
         Ok((task, maybe_broadcaser))
+    }
+
+    async fn build_tip_message_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        finalized_store: HyperlaneDbStore,
+        index_settings: IndexSettings,
+        tip_chain_setup: &ChainConf,
+    ) -> eyre::Result<JoinHandle<()>> {
+        let label = MESSAGE_DISPATCH_TIP_LABEL;
+        let indexer = SequenceIndexer::<HyperlaneMessage>::try_from_with_metrics(
+            tip_chain_setup,
+            &metrics,
+            true,
+        )
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                ?err,
+                domain = domain.name(),
+                label,
+                "Error building tip message indexer"
+            );
+            err
+        })?;
+
+        // With `reorg_period = None` on `tip_chain_setup`, this returns the latest tip height.
+        let tip_height = indexer.get_finalized_block_number().await.map_err(|err| {
+            tracing::error!(
+                ?err,
+                domain = domain.name(),
+                label,
+                "Error getting tip block height"
+            );
+            err
+        })?;
+
+        let tip_store = Arc::new(
+            TipMessageStore::new(
+                finalized_store.db.clone(),
+                domain.clone(),
+                finalized_store.mailbox_address,
+                // Seed tip cursor near-head on first run for responsiveness.
+                // Use tip-1 so the first sync pass still includes current tip block.
+                // Finalized pipeline remains authoritative for historical backfill.
+                tip_height.saturating_sub(1) as u64,
+                Some(contract_sync_metrics.stored_events.clone()),
+            )
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error creating tip message store"
+                );
+                err
+            })?,
+        );
+
+        let sync: Arc<WatermarkContractSync<HyperlaneMessage>> = Arc::new(ContractSync::new(
+            domain.clone(),
+            tip_store as WatermarkLogStore<_>,
+            indexer,
+            contract_sync_metrics.as_ref().clone(),
+            false,
+        ));
+
+        let cursor = sync.cursor(index_settings).await.map_err(|err| {
+            tracing::error!(
+                ?err,
+                domain = domain.name(),
+                label,
+                "Error getting tip cursor"
+            );
+            err
+        })?;
+
+        Ok(tokio::spawn(
+            async move { sync.sync(label, cursor.into()).await }
+                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
+        ))
     }
 
     async fn build_delivery_indexer(

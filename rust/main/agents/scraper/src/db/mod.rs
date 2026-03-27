@@ -1,5 +1,5 @@
 pub use block::*;
-pub use block_cursor::BlockCursor;
+pub use block_cursor::{BlockCursor, CursorKind};
 use eyre::Result;
 pub use message::*;
 pub use payment::*;
