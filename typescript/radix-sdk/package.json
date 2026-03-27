@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/radix-sdk",
-  "version": "27.1.0",
+  "version": "29.1.0",
   "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
   "keywords": [
     "blockchain",
@@ -55,6 +55,7 @@
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "chai": "catalog:",

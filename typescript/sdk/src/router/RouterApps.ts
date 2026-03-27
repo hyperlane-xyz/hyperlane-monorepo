@@ -4,7 +4,7 @@ import { Logger } from 'pino';
 import { GasRouter, Router } from '@hyperlane-xyz/core';
 import {
   Address,
-  ProtocolType,
+  isEVMLike,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -33,10 +33,7 @@ export abstract class RouterApp<
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
   routerAddress(chainName: string): Address {
-    if (
-      this.multiProvider.getChainMetadata(chainName).protocol ===
-      ProtocolType.Ethereum
-    ) {
+    if (isEVMLike(this.multiProvider.getChainMetadata(chainName).protocol)) {
       return this.router(this.contractsMap[chainName]).address;
     }
     return this.foreignDeployments[chainName];

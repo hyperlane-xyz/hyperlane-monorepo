@@ -20,6 +20,7 @@ export const DockerImageRepos = Object.fromEntries(
 interface AgentDockerTags {
   relayer: string;
   relayerRC: string;
+  relayerFastPath: string;
   validator: string;
   validatorRC: string;
   scraper: string;
@@ -37,11 +38,12 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '1d56bfd-20260312-161015',
-  relayerRC: '1d56bfd-20260312-161015',
-  validator: '6d8f392-20260310-131412',
-  validatorRC: '6d8f392-20260310-131412',
-  scraper: '6d8f392-20260310-131412',
+  relayer: '6bbc7b5-20260326-002348',
+  relayerRC: '6bbc7b5-20260326-002348',
+  relayerFastPath: '3754d4f-20260326-130321',
+  validator: '910e8e8-20260318-204227',
+  validatorRC: '910e8e8-20260318-204227',
+  scraper: '910e8e8-20260318-204227',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
@@ -52,11 +54,12 @@ export const mainnetDockerTags: MainnetDockerTags = {
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: 'c558a9f-20260304-105241',
-  relayerRC: 'c558a9f-20260304-105241',
-  validator: 'c558a9f-20260304-105241',
-  validatorRC: 'c558a9f-20260304-105241',
-  scraper: 'c558a9f-20260304-105241',
+  relayer: '6bbc7b5-20260326-002348',
+  relayerRC: '6bbc7b5-20260326-002348',
+  relayerFastPath: '3754d4f-20260326-130321',
+  validator: '910e8e8-20260318-204227',
+  validatorRC: '910e8e8-20260318-204227',
+  scraper: '910e8e8-20260318-204227',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
 };

@@ -30,7 +30,7 @@ describe('TronWallet Integration Tests', function () {
   before(async () => {
     node = await runTronNode(TEST_CHAIN);
 
-    const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}`;
+    const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}/jsonrpc`;
     wallet = new TronWallet(node.privateKeys[0], tronUrl);
   });
 
@@ -50,7 +50,7 @@ describe('TronWallet Integration Tests', function () {
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const recipientWallet = new TronWallet(
         recipientPrivateKey,
-        `http://127.0.0.1:${TEST_CHAIN.port}`,
+        `http://127.0.0.1:${TEST_CHAIN.port}/jsonrpc`,
       );
       const recipientAddress = recipientWallet.address;
 

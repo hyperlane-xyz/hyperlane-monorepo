@@ -1,24 +1,21 @@
-import {
-  address as parseAddress,
-  type Address,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress, type Address } from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
   ArtifactReader,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedHookArtifact,
-  IRawHookArtifactManager,
-  RawHookArtifactConfigs,
+import {
+  type DeployedHookArtifact,
+  type IRawHookArtifactManager,
+  type RawHookArtifactConfigs,
+  throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
-import type { SvmDeployedHook, SvmDeployedIgpHook } from '../types.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import type { SvmDeployedHook, SvmDeployedIgpHook, SvmRpc } from '../types.js';
 
 import { detectHookType } from './hook-query.js';
 import {
@@ -35,7 +32,7 @@ export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
   constructor(
-    private readonly rpc: Rpc<SolanaRpcApi>,
+    private readonly rpc: SvmRpc,
     private readonly mailboxAddress?: Address,
     private readonly salt: Uint8Array = DEFAULT_IGP_SALT,
   ) {}
@@ -67,17 +64,19 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const readers: {
+    const readers: Partial<{
       [K in keyof RawHookArtifactConfigs]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
-    } = {
+    }> = {
       merkleTreeHook: () => new SvmMerkleTreeHookReader(this.rpc),
       interchainGasPaymaster: () => new SvmIgpHookReader(this.rpc, this.salt),
     };
     const factory = readers[type];
-    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    if (!factory) {
+      return throwUnsupportedHookType(type, 'Sealevel');
+    }
     return factory();
   }
 
@@ -88,18 +87,35 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const writers: {
+    const writers: Partial<{
       [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
         SvmDeployedHook | SvmDeployedIgpHook
       >;
-    } = {
-      merkleTreeHook: () => new SvmMerkleTreeHookWriter(this.rpc, signer),
+    }> = {
+      merkleTreeHook: () => {
+        assert(
+          this.mailboxAddress,
+          'Mailbox address is required to create a merkle tree hook writer on SVM',
+        );
+        return new SvmMerkleTreeHookWriter(
+          { mailboxAddress: this.mailboxAddress },
+          this.rpc,
+          signer,
+        );
+      },
       interchainGasPaymaster: () =>
-        new SvmIgpHookWriter(this.rpc, this.salt, signer),
+        new SvmIgpHookWriter(
+          { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+          this.rpc,
+          this.salt,
+          signer,
+        ),
     };
     const factory = writers[type];
-    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    if (!factory) {
+      return throwUnsupportedHookType(type, 'Sealevel');
+    }
     return factory();
   }
 

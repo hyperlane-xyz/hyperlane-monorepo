@@ -440,12 +440,11 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const amount = BigInt(weiAmountOrId.toString());
     const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
-    const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(amount),
-      cairo.uint256(totalAmount),
+      cairo.uint256(gasAmount),
       nonOption,
       nonOption,
     );
@@ -508,12 +507,11 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const amount = BigInt(weiAmountOrId.toString());
     const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
-    const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(amount),
-      cairo.uint256(totalAmount),
+      cairo.uint256(gasAmount),
       nonOption,
       nonOption,
     );

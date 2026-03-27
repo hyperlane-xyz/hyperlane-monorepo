@@ -195,7 +195,7 @@ export const getNativeTokenConfigForChain = <
 export function getFixedRoutingFeeConfig(
   owner: Address,
   feeDestinations: readonly ChainName[],
-  bps: bigint,
+  bps: number,
   feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};

@@ -137,9 +137,9 @@ impl PendingOperation for MockQueueOperation {
     fn on_reprepare(
         &mut self,
         _err_msg: Option<String>,
-        _reason: ReprepareReason,
+        reason: ReprepareReason,
     ) -> PendingOperationResult {
-        unimplemented!()
+        PendingOperationResult::Reprepare(reason)
     }
 }
 

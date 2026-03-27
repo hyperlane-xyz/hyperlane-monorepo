@@ -3,7 +3,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hyperlane_base::db::HyperlaneDb;
-use hyperlane_core::{identifiers::UniqueIdentifier, QueueOperation, H256};
+use hyperlane_core::{
+    identifiers::UniqueIdentifier, PendingOperationStatus, QueueOperation, ReprepareReason, H256,
+};
 use lander::{
     Entrypoint, LanderError, PayloadDropReason, PayloadRetryReason, PayloadStatus,
     TransactionDropReason, TransactionStatus,
@@ -13,8 +15,31 @@ use crate::msg::message_processor::tests::tests_common::{
     create_test_metrics, create_test_queue, MockDispatcherEntrypoint, MockHyperlaneDb,
     MockQueueOperation,
 };
+use crate::msg::message_processor::MessageProcessorMetrics;
+use crate::msg::op_queue::OpQueue;
 
-use super::filter_operations_for_submit;
+use super::filter_operations_for_submit as filter_operations_for_submit_impl;
+
+async fn filter_operations_for_submit(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    submit_queue: &OpQueue,
+    confirm_queue: &OpQueue,
+    metrics: &MessageProcessorMetrics,
+    db: Arc<dyn HyperlaneDb>,
+    batch: Vec<QueueOperation>,
+) -> Vec<QueueOperation> {
+    let prepare_queue = create_test_queue();
+    filter_operations_for_submit_impl(
+        entrypoint,
+        &prepare_queue,
+        submit_queue,
+        confirm_queue,
+        metrics,
+        db,
+        batch,
+    )
+    .await
+}
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_empty_batch() {
@@ -175,6 +200,7 @@ async fn test_filter_operations_for_submit_all_finalized() {
 async fn test_filter_operations_for_submit_payload_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let mut prepare_queue = create_test_queue();
     let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
     let metrics = create_test_metrics();
@@ -196,8 +222,9 @@ async fn test_filter_operations_for_submit_payload_dropped() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = filter_operations_for_submit(
+    let result = filter_operations_for_submit_impl(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &prepare_queue,
         &submit_queue,
         &confirm_queue,
         &metrics,
@@ -209,27 +236,42 @@ async fn test_filter_operations_for_submit_payload_dropped() {
     assert_eq!(
         result.len(),
         0,
-        "Dropped operation should not be returned (PostSubmitFailure goes to confirm queue)"
+        "Dropped operation should not be returned (PostSubmitFailure goes to prepare queue)"
     );
 
-    // Verify dropped operation moved to confirm queue
+    // Verify dropped operation moved to prepare queue for immediate re-preparation
     assert_eq!(submit_queue.len().await, 0);
     assert_eq!(
         confirm_queue.len().await,
-        1,
-        "Dropped operation should be in confirm queue for delivery check"
+        0,
+        "Dropped operation should not be sent to confirm queue"
     );
+    assert_eq!(
+        prepare_queue.len().await,
+        1,
+        "Dropped operation should be in prepare queue for immediate retry"
+    );
+    let queued_op = prepare_queue
+        .pop()
+        .await
+        .expect("Operation should be queued");
+    assert_eq!(queued_op.id(), message_id);
+    assert!(matches!(
+        queued_op.status(),
+        PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting)
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_filter_operations_for_submit_mixed_batch() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let prepare_queue = create_test_queue();
     let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
     let metrics = create_test_metrics();
 
-    let message_id1 = H256::from_low_u64_be(1); // Dropped - should go to confirm (PostSubmitFailure)
+    let message_id1 = H256::from_low_u64_be(1); // Dropped - should go to prepare (PostSubmitFailure)
     let message_id2 = H256::from_low_u64_be(2); // PendingInclusion - should be re-queued to submit
     let message_id3 = H256::from_low_u64_be(3); // Finalized - should go to confirm (PostSubmitSuccess)
 
@@ -283,8 +325,9 @@ async fn test_filter_operations_for_submit_mixed_batch() {
 
     let batch = vec![op1, op2, op3];
 
-    let result = filter_operations_for_submit(
+    let result = filter_operations_for_submit_impl(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &prepare_queue,
         &submit_queue,
         &confirm_queue,
         &metrics,
@@ -296,25 +339,27 @@ async fn test_filter_operations_for_submit_mixed_batch() {
     assert_eq!(
         result.len(),
         0,
-        "No operations should be returned (PostSubmitFailure goes to confirm queue)"
+        "No operations should be returned (PostSubmitFailure goes to prepare queue)"
     );
 
     // Verify submit queue has 1 operation (pending inclusion re-queued)
     assert_eq!(submit_queue.len().await, 1);
 
-    // Verify confirm queue has 2 operations (dropped + finalized)
+    // Verify prepare queue has 1 dropped op and confirm queue has 1 finalized op
+    assert_eq!(prepare_queue.len().await, 1);
     assert_eq!(
         confirm_queue.len().await,
-        2,
-        "Both dropped and finalized operations should be in confirm queue"
+        1,
+        "Only finalized operations should be in confirm queue"
     );
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_retry_status() {
-    // Test that Retry status (e.g., Reorged) goes to confirm queue (PostSubmitFailure)
+    // Test that Retry status (e.g., Reorged) goes to prepare queue (PostSubmitFailure)
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let mut prepare_queue = create_test_queue();
     let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
     let metrics = create_test_metrics();
@@ -336,8 +381,9 @@ async fn test_filter_operations_for_submit_retry_status() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = filter_operations_for_submit(
+    let result = filter_operations_for_submit_impl(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &prepare_queue,
         &submit_queue,
         &confirm_queue,
         &metrics,
@@ -349,16 +395,30 @@ async fn test_filter_operations_for_submit_retry_status() {
     assert_eq!(
         result.len(),
         0,
-        "Retry (Reorged) operation should not be returned (PostSubmitFailure goes to confirm queue)"
+        "Retry (Reorged) operation should not be returned (PostSubmitFailure goes to prepare queue)"
     );
 
-    // Verify operation moved to confirm queue
+    // Verify operation moved to prepare queue
     assert_eq!(submit_queue.len().await, 0);
     assert_eq!(
         confirm_queue.len().await,
-        1,
-        "Retry operation should be in confirm queue for delivery check"
+        0,
+        "Retry operation should not be sent to confirm queue"
     );
+    assert_eq!(
+        prepare_queue.len().await,
+        1,
+        "Retry operation should be in prepare queue for immediate retry"
+    );
+    let queued_op = prepare_queue
+        .pop()
+        .await
+        .expect("Operation should be queued");
+    assert_eq!(queued_op.id(), message_id);
+    assert!(matches!(
+        queued_op.status(),
+        PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting)
+    ));
 }
 
 #[tokio::test]
@@ -581,7 +641,7 @@ async fn test_filter_operations_for_submit_empty_payload_uuids() {
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
-    // Test that all PayloadDropReason variants go to confirm queue (PostSubmitFailure)
+    // Test that all PayloadDropReason variants go to prepare queue (PostSubmitFailure)
     let test_cases = vec![
         (
             "FailedToBuildAsTransaction",
@@ -595,6 +655,7 @@ async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
     for (test_name, drop_reason) in test_cases {
         let mut mock_db = MockHyperlaneDb::new();
         let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+        let prepare_queue = create_test_queue();
         let submit_queue = create_test_queue();
         let confirm_queue = create_test_queue();
         let metrics = create_test_metrics();
@@ -617,8 +678,9 @@ async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
         let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
         let batch = vec![op];
 
-        let result = filter_operations_for_submit(
+        let result = filter_operations_for_submit_impl(
             Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+            &prepare_queue,
             &submit_queue,
             &confirm_queue,
             &metrics,
@@ -630,15 +692,21 @@ async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
         assert_eq!(
             result.len(),
             0,
-            "{} should not return operation (PostSubmitFailure goes to confirm queue)",
+            "{} should not return operation (PostSubmitFailure goes to prepare queue)",
             test_name
         );
 
         assert_eq!(submit_queue.len().await, 0);
         assert_eq!(
             confirm_queue.len().await,
+            0,
+            "{} should not send operation to confirm queue",
+            test_name
+        );
+        assert_eq!(
+            prepare_queue.len().await,
             1,
-            "{} should send operation to confirm queue",
+            "{} should send operation to prepare queue",
             test_name
         );
     }
@@ -646,7 +714,7 @@ async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_all_transaction_drop_reasons() {
-    // Test that all TransactionDropReason variants go to confirm queue (PostSubmitFailure)
+    // Test that all TransactionDropReason variants go to prepare queue (PostSubmitFailure)
     let test_cases = vec![
         ("DroppedByChain", TransactionDropReason::DroppedByChain),
         ("FailedSimulation", TransactionDropReason::FailedSimulation),
@@ -655,6 +723,7 @@ async fn test_filter_operations_for_submit_all_transaction_drop_reasons() {
     for (test_name, drop_reason) in test_cases {
         let mut mock_db = MockHyperlaneDb::new();
         let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+        let prepare_queue = create_test_queue();
         let submit_queue = create_test_queue();
         let confirm_queue = create_test_queue();
         let metrics = create_test_metrics();
@@ -681,8 +750,9 @@ async fn test_filter_operations_for_submit_all_transaction_drop_reasons() {
         let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
         let batch = vec![op];
 
-        let result = filter_operations_for_submit(
+        let result = filter_operations_for_submit_impl(
             Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+            &prepare_queue,
             &submit_queue,
             &confirm_queue,
             &metrics,
@@ -694,15 +764,21 @@ async fn test_filter_operations_for_submit_all_transaction_drop_reasons() {
         assert_eq!(
             result.len(),
             0,
-            "{} should not return operation (PostSubmitFailure goes to confirm queue)",
+            "{} should not return operation (PostSubmitFailure goes to prepare queue)",
             test_name
         );
 
         assert_eq!(submit_queue.len().await, 0);
         assert_eq!(
             confirm_queue.len().await,
+            0,
+            "{} should not send operation to confirm queue",
+            test_name
+        );
+        assert_eq!(
+            prepare_queue.len().await,
             1,
-            "{} should send operation to confirm queue",
+            "{} should send operation to prepare queue",
             test_name
         );
     }

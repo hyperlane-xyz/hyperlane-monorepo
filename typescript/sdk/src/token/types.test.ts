@@ -187,7 +187,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           symbol: 'TEST',
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -211,7 +211,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
             feeContracts: {
               ethereum: {
                 type: TokenFeeType.LinearFee,
-                bps: 100n,
+                bps: 100,
               },
             },
           },
@@ -233,7 +233,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           mailbox: SOME_ADDRESS,
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -252,7 +252,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           mailbox: SOME_ADDRESS,
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -273,7 +273,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           symbol: 'TEST',
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
