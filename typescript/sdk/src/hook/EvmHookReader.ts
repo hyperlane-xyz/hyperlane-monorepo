@@ -386,11 +386,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       hook.owner(),
       hook.beneficiary(),
       // quoteSigners() not available on IGP versions before offchain fee quoting
+      // returns undefined for old IGPs, empty array for new IGPs with no signers
       hook.quoteSigners().catch(() => {
         this.logger.debug(
           'quoteSigners() not available on this IGP version, skipping',
         );
-        return [] as string[];
+        return undefined;
       }),
     ]);
 
@@ -456,7 +457,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
-      ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
+      ...(quoteSigners !== undefined
+        ? { quoteSigners: [...quoteSigners] }
+        : {}),
     };
 
     this._cache.set(address, config);
