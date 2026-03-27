@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["import", "typescript", "unicorn", "jest"],
+  "plugins": ["import", "typescript", "unicorn", "jest", "react"],
   "options": {
     "typeAware": true
   },
@@ -128,6 +128,10 @@
         "typescript/infra/**/*.ts",
         "typescript/cli/**/*.ts",
         "typescript/ccip-server/**/*.ts",
+        "typescript/http-registry-server/**/*.ts",
+        "typescript/helloworld/src/**/*.ts",
+        "typescript/rebalancer-sim/**/*.ts",
+        "starknet/**/*.ts",
         "**/scripts/**",
         "**/*.stories.tsx"
       ],
@@ -148,62 +152,52 @@
         "typescript/utils/src/**/*.ts"
       ],
       "rules": {
-        "import/no-nodejs-modules": "warn",
+        "import/no-nodejs-modules": "warn"
+      }
+    },
+    {
+      "files": ["typescript/sdk/src/**/*.ts"],
+      "rules": {
         "no-restricted-imports": [
-          "warn",
+          "error",
           {
             "paths": [
               {
-                "name": "fs",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
+                "name": "console",
+                "message": "Please use a logger and/or the utils package assert"
               },
               {
-                "name": "path",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
+                "name": "@hyperlane-xyz/registry",
+                "message": "Imports from @hyperlane-xyz/registry are not allowed in the SDK"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["typescript/deploy-sdk/src/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "console",
+                "message": "Please use a logger and/or the utils package assert"
               },
               {
-                "name": "child_process",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
+                "name": "@hyperlane-xyz/sdk",
+                "message": "Imports from @hyperlane-xyz/sdk are not allowed in this package"
               },
               {
-                "name": "os",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "http",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "https",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "net",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "dgram",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "dns",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "tls",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "cluster",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "vm",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
-              },
-              {
-                "name": "readline",
-                "message": "Avoid Node.js built-in modules in browser-targeted packages. Use environment-agnostic alternatives."
+                "name": "@hyperlane-xyz/utils",
+                "importNames": [
+                  "ProtocolType",
+                  "ProtocolTypeValue",
+                  "ProtocolSmallestUnit"
+                ],
+                "message": "Use the export from the `@hyperlane-xyz/protocol-sdk` package"
               }
             ]
           }
@@ -212,8 +206,60 @@
     },
     {
       "files": [
+        "typescript/provider-sdk/src/**/*.ts",
+        "typescript/starknet-sdk/src/**/*.ts"
+      ],
+      "rules": {
+        "import/no-nodejs-modules": "error",
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "console",
+                "message": "Please use a logger and/or the utils package assert"
+              },
+              {
+                "name": "@hyperlane-xyz/sdk",
+                "message": "Imports from @hyperlane-xyz/sdk are not allowed in this package"
+              },
+              {
+                "name": "@hyperlane-xyz/utils/fs",
+                "message": "The @hyperlane-xyz/utils/fs submodule requires Node.js and cannot be used in browser packages"
+              },
+              {
+                "name": "@hyperlane-xyz/utils",
+                "importNames": [
+                  "ProtocolType",
+                  "ProtocolTypeValue",
+                  "ProtocolSmallestUnit"
+                ],
+                "message": "Use the export from the `@hyperlane-xyz/protocol-sdk` package"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["typescript/relayer/src/**/*.ts"],
+      "rules": {
+        "import/no-nodejs-modules": "error"
+      }
+    },
+    {
+      "files": [
+        "typescript/relayer/src/fs/**/*.ts",
+        "typescript/relayer/**/*.test.ts",
+        "typescript/relayer/**/*.hardhat-test.ts"
+      ],
+      "rules": {
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      "files": [
         "typescript/utils/src/fs/**/*.ts",
-        "typescript/utils/src/eslint-rules/**/*.ts",
         "typescript/sdk/src/**/*.test.ts",
         "typescript/sdk/src/**/*.spec.ts",
         "typescript/sdk/src/**/*-test.ts",
@@ -284,7 +330,10 @@
       }
     },
     {
-      "files": ["typescript/widgets/src/**/*.{ts,tsx}"],
+      "files": [
+        "typescript/widgets/src/**/*.{ts,tsx}",
+        "typescript/warp-widget/src/**/*.{ts,tsx}"
+      ],
       "plugins": ["react"],
       "rules": {
         "react/rules-of-hooks": "error",

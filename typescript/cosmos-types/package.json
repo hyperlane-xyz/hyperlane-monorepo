@@ -23,7 +23,7 @@
   "scripts": {
     "build": "rm -rf ./dist && tsc",
     "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in cosmos-types\"",
     "test:ci": "echo \"no tests in cosmos-types\""
@@ -33,18 +33,9 @@
     "protobufjs": "^7.4.0"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/node": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
     "oxfmt": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript": "catalog:"
   }
 }

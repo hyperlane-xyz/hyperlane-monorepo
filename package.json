@@ -9,9 +9,8 @@
     "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "format": "turbo run format",
-    "prettier": "turbo run format",
-    "format:check": "oxfmt --check . && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'",
-    "lint": "oxlint -c oxlint.json && turbo run lint",
+    "format:check": "oxfmt --check . && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol' 'solidity/multicollateral/**/*.sol'",
+    "lint": "oxlint -c oxlint.json",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
     "test:ci": "turbo run test:ci",
@@ -27,8 +26,6 @@
     "@changesets/cli": "^2.26.2"
   },
   "devDependencies": {
-    "@hyperlane-xyz/eslint-config": "workspace:*",
-    "eslint": "catalog:",
     "husky": "^8.0.0",
     "lint-staged": "^15.5.2",
     "oxfmt": "catalog:",

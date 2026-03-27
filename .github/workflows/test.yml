@@ -64,8 +64,11 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: lint
+      - name: oxlint
         run: pnpm run lint
+
+      - name: solhint
+        run: pnpm -C solidity lint
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -78,7 +81,7 @@ jobs:
       - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|md)$' | \
+          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' | \
           xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
 
       - name: Run prettier for Solidity (changed files)
@@ -96,6 +99,9 @@ jobs:
         if: github.event_name != 'pull_request'
         run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'
         continue-on-error: true
+
+      - name: Check YAML sort order
+        run: ./scripts/sort-yaml.sh --check
 
       - name: Clean up
         if: always()
