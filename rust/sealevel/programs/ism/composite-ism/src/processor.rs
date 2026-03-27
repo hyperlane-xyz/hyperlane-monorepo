@@ -80,6 +80,7 @@ fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         Some(IsmNode::Routing { .. }) => ModuleType::Routing,
         Some(IsmNode::Test { .. }) => ModuleType::Unused,
         Some(IsmNode::Pausable { .. }) => ModuleType::Null,
+        Some(IsmNode::AmountRouting { .. }) => ModuleType::Routing,
         None => return Err(Error::ConfigNotSet.into()),
     };
 
@@ -284,6 +285,10 @@ fn validate_config(node: &IsmNode) -> ProgramResult {
                 validate_config(d)?;
             }
             Ok(())
+        }
+        IsmNode::AmountRouting { lower, upper, .. } => {
+            validate_config(lower)?;
+            validate_config(upper)
         }
         // Leaf nodes with no sub-config to validate.
         IsmNode::TrustedRelayer { .. } | IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),

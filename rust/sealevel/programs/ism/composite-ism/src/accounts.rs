@@ -46,6 +46,18 @@ pub enum IsmNode {
     /// Rejects all messages when paused. Emergency circuit breaker.
     /// ModuleType: Null.
     Pausable { paused: bool },
+
+    /// Routes based on the token amount in the message body.
+    ///
+    /// Reads `body[32..64]` as a big-endian u256 amount (TokenMessage format).
+    /// Routes to `upper` if `amount >= threshold`, else `lower`.
+    /// ModuleType: Routing.
+    AmountRouting {
+        /// Big-endian u256 threshold (32 bytes).
+        threshold: [u8; 32],
+        lower: Box<IsmNode>,
+        upper: Box<IsmNode>,
+    },
 }
 
 /// Data stored in the VAM PDA account (VERIFY_ACCOUNT_METAS_PDA_SEEDS).

@@ -107,6 +107,25 @@ where
             verify_node(sub_ism, metadata, message, accounts_iter)
         }
 
+        IsmNode::AmountRouting {
+            threshold,
+            lower,
+            upper,
+        } => {
+            // TokenMessage body layout: [recipient (32b) | amount (32b BE) | ...]
+            const AMOUNT_OFFSET: usize = 32;
+            const AMOUNT_END: usize = 64;
+            if message.body.len() < AMOUNT_END {
+                return Err(Error::InvalidMessageBody.into());
+            }
+            let amount: [u8; 32] = message.body[AMOUNT_OFFSET..AMOUNT_END]
+                .try_into()
+                .map_err(|_| Error::InvalidMessageBody)?;
+
+            let sub_ism = if amount >= *threshold { upper } else { lower };
+            verify_node(sub_ism, metadata, message, accounts_iter)
+        }
+
         IsmNode::Test { accept } => {
             if *accept {
                 Ok(())
@@ -367,6 +386,75 @@ mod test {
         assert_eq!(
             verify_node(&node, &dummy_meta, &msg, &mut iter).unwrap_err(),
             Error::NoDomainConfig.into()
+        );
+    }
+
+    // ── AmountRouting ISM node ─────────────────────────────────────────────
+
+    fn token_message_body(amount_bytes: [u8; 32]) -> Vec<u8> {
+        let mut body = vec![0u8; 64]; // recipient (32b) + amount (32b)
+        body[32..64].copy_from_slice(&amount_bytes);
+        body
+    }
+
+    fn amount_routing_node(threshold_value: u64) -> IsmNode {
+        let mut threshold = [0u8; 32];
+        threshold[24..32].copy_from_slice(&threshold_value.to_be_bytes());
+        IsmNode::AmountRouting {
+            threshold,
+            lower: Box::new(IsmNode::Test { accept: true }),
+            upper: Box::new(IsmNode::Test { accept: false }), // upper rejects, lower accepts
+        }
+    }
+
+    #[test]
+    fn test_amount_routing_below_threshold_routes_lower() {
+        let node = amount_routing_node(1000);
+        // amount = 500 < 1000 → lower (accept=true)
+        let mut amount = [0u8; 32];
+        amount[24..32].copy_from_slice(&500u64.to_be_bytes());
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = token_message_body(amount);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert!(verify_node(&node, &[], &msg, &mut iter).is_ok());
+    }
+
+    #[test]
+    fn test_amount_routing_at_threshold_routes_upper() {
+        let node = amount_routing_node(1000);
+        // amount = 1000 >= 1000 → upper (accept=false)
+        let mut amount = [0u8; 32];
+        amount[24..32].copy_from_slice(&1000u64.to_be_bytes());
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = token_message_body(amount);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            Error::VerifyRejected.into()
+        );
+    }
+
+    #[test]
+    fn test_amount_routing_above_threshold_routes_upper() {
+        let node = amount_routing_node(1000);
+        // amount = 5000 >= 1000 → upper (accept=false)
+        let mut amount = [0u8; 32];
+        amount[24..32].copy_from_slice(&5000u64.to_be_bytes());
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = token_message_body(amount);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert!(verify_node(&node, &[], &msg, &mut iter).is_err());
+    }
+
+    #[test]
+    fn test_amount_routing_body_too_short() {
+        let node = amount_routing_node(1000);
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = vec![0u8; 10]; // too short
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            Error::InvalidMessageBody.into()
         );
     }
 }

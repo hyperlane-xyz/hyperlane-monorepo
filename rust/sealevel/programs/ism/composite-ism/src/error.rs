@@ -32,6 +32,8 @@ pub enum Error {
     VerifyRejected = 13,
     #[error("Invalid ISM config (e.g. threshold exceeds sub-ISM count)")]
     InvalidConfig = 14,
+    #[error("Message body too short to decode token amount")]
+    InvalidMessageBody = 15,
 }
 
 impl From<MultisigIsmError> for Error {

@@ -73,6 +73,26 @@ pub fn required_accounts_for_node(
             }
         }
 
+        IsmNode::AmountRouting {
+            threshold,
+            lower,
+            upper,
+        } => {
+            // Mirror verify_node: select branch based on amount in message body.
+            const AMOUNT_OFFSET: usize = 32;
+            const AMOUNT_END: usize = 64;
+            if message.body.len() < AMOUNT_END {
+                return vec![];
+            }
+            let Ok(amount): Result<[u8; 32], _> =
+                message.body[AMOUNT_OFFSET..AMOUNT_END].try_into()
+            else {
+                return vec![];
+            };
+            let sub_ism = if amount >= *threshold { upper } else { lower };
+            required_accounts_for_node(sub_ism, metadata, message)
+        }
+
         // No extra accounts for these leaf ISMs.
         IsmNode::Test { .. } | IsmNode::Pausable { .. } => vec![],
     }
