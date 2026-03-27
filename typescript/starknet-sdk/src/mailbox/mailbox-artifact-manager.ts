@@ -292,6 +292,10 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     } = {
       mailbox: new StarknetMailboxReader(this.provider),
     };
+    assert(
+      Object.prototype.hasOwnProperty.call(readers, type),
+      'Unsupported Starknet mailbox type',
+    );
     return readers[type];
   }
 
@@ -299,19 +303,23 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    const starknetSigner = this.requireStarknetSigner(signer);
-    const writers: {
-      [K in MailboxType]: ArtifactWriter<
+    const writerFactories: {
+      [K in MailboxType]: () => ArtifactWriter<
         RawMailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {
-      mailbox: new StarknetMailboxWriter(
-        this.provider,
-        starknetSigner,
-        this.chainMetadata,
-      ),
+      mailbox: () =>
+        new StarknetMailboxWriter(
+          this.provider,
+          this.requireStarknetSigner(signer),
+          this.chainMetadata,
+        ),
     };
-    return writers[type];
+    assert(
+      Object.prototype.hasOwnProperty.call(writerFactories, type),
+      'Unsupported Starknet mailbox type',
+    );
+    return writerFactories[type]();
   }
 }

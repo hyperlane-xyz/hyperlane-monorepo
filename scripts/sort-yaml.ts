@@ -10,16 +10,24 @@ import {
   WARP_YAML_SORT_CONFIG,
 } from '../typescript/utils/src/yaml.ts';
 
+function hasIgnoredSegment(filePath: string): boolean {
+  const segments = path.normalize(filePath).split(path.sep);
+  return ['helm', 'node_modules', 'dist', 'rebalancer'].some((segment) =>
+    segments.includes(segment),
+  );
+}
+
+function isYamlFile(filePath: string): boolean {
+  return filePath.endsWith('.yaml') || filePath.endsWith('.yml');
+}
+
+function getTargetFiles(files: string[]): string[] {
+  return files.filter((file) => isYamlFile(file) && !hasIgnoredSegment(file));
+}
+
 function getDefaultFiles(): string[] {
   const root = path.resolve('typescript/infra');
   const files: string[] = [];
-
-  function hasIgnoredSegment(relativePath: string): boolean {
-    const segments = relativePath.split(path.sep);
-    return ['helm', 'node_modules', 'dist', 'rebalancer'].some((segment) =>
-      segments.includes(segment),
-    );
-  }
 
   function walk(dir: string): void {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -34,20 +42,21 @@ function getDefaultFiles(): string[] {
         continue;
       }
 
-      if (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml')) {
+      if (isYamlFile(entry.name)) {
         files.push(relativePath);
       }
     }
   }
 
   walk(root);
-  return files;
+  return getTargetFiles(files);
 }
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
 const files = args.filter((arg) => arg !== '--check');
-const targetFiles = files.length > 0 ? files : getDefaultFiles();
+const targetFiles =
+  files.length > 0 ? getTargetFiles(files) : getDefaultFiles();
 
 if (targetFiles.length === 0) {
   console.log('No YAML files found.');
