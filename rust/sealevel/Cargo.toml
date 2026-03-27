@@ -20,6 +20,7 @@ members = [
     "programs/hyperlane-sealevel-token-native",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",
+    "programs/ism/trusted-relayer-ism",
     "programs/mailbox",
     "programs/mailbox-test",
     "programs/test-send-receiver",
@@ -213,6 +214,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-test-ism]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-trusted-relayer-ism]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-mailbox-test]

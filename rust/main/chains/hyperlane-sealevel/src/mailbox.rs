@@ -243,14 +243,19 @@ impl SealevelMailbox {
                 metadata,
                 message,
             });
-        self.get_non_signer_account_metas_with_instruction_bytes(
+        let (account_metas_pda_key, _) = Pubkey::find_program_address(
+            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+            &ism,
+        );
+        let ix = Instruction::new_with_bytes(
             ism,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
-        )
-        .await
+            vec![AccountMeta::new(account_metas_pda_key, false)],
+        );
+        let account_metas = self.get_account_metas(ix).await?;
+        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.

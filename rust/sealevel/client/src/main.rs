@@ -72,16 +72,20 @@ mod context;
 mod r#core;
 mod helloworld;
 mod igp;
+mod ism;
 mod multisig_ism;
 mod registry;
 mod router;
 mod serde;
 mod squads;
+mod trusted_relayer_ism;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
+use crate::ism::process_ism_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
+use crate::trusted_relayer_ism::process_trusted_relayer_ism_cmd;
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
 
@@ -121,7 +125,9 @@ enum HyperlaneSealevelCmd {
     Token(TokenCmd),
     Igp(IgpCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
+    Ism(IsmCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
+    TrustedRelayerIsm(TrustedRelayerIsmCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
     Squads(SquadsCmd),
@@ -210,6 +216,58 @@ enum CoreSubCmd {
     Deploy(CoreDeploy),
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+pub(crate) enum IsmType {
+    MultisigMessageId,
+    TrustedRelayer,
+    /// Unconditionally accepts all messages. NOT FOR PRODUCTION USE.
+    Test,
+}
+
+#[derive(Args)]
+pub(crate) struct IsmCmd {
+    #[command(subcommand)]
+    pub cmd: IsmSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum IsmSubCmd {
+    /// Deploy an ISM program and initialize it.
+    Deploy(IsmDeploy),
+    /// Read the on-chain state of a deployed ISM.
+    Read(IsmRead),
+}
+
+#[derive(Args)]
+pub(crate) struct IsmDeploy {
+    #[arg(long, value_enum)]
+    pub ism_type: IsmType,
+    /// Directory where program .so files live.
+    #[arg(long)]
+    pub built_so_dir: PathBuf,
+    /// Directory where program keypairs will be stored.
+    #[arg(long)]
+    pub key_dir: PathBuf,
+    /// Local domain ID (affects compute unit pricing). Defaults to 0.
+    #[arg(long, default_value_t = 0)]
+    pub local_domain: u32,
+    /// Relayer pubkey. Required for --ism-type trusted-relayer.
+    #[arg(long)]
+    pub relayer: Option<Pubkey>,
+}
+
+#[derive(Args)]
+pub(crate) struct IsmRead {
+    /// Program ID of the deployed ISM.
+    #[arg(long)]
+    pub address: Pubkey,
+    #[arg(long, value_enum)]
+    pub ism_type: IsmType,
+    /// Domains to query. Only used for --ism-type multisig-message-id.
+    #[arg(long, value_delimiter = ',')]
+    pub domains: Option<Vec<u32>>,
+}
+
 #[derive(Args)]
 struct CoreDeploy {
     #[arg(long)]
@@ -228,6 +286,12 @@ struct CoreDeploy {
     remote_domains: Vec<u32>,
     #[arg(long)]
     built_so_dir: PathBuf,
+    /// ISM type to deploy as the default ISM. Defaults to multisig-message-id.
+    #[arg(long, value_enum, default_value_t = IsmType::MultisigMessageId)]
+    ism_type: IsmType,
+    /// Relayer pubkey. Required for --ism-type trusted-relayer.
+    #[arg(long)]
+    relayer: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -728,6 +792,59 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
 }
 
 #[derive(Args)]
+pub(crate) struct TrustedRelayerIsmCmd {
+    #[command(subcommand)]
+    cmd: TrustedRelayerIsmSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum TrustedRelayerIsmSubCmd {
+    Deploy(TrustedRelayerIsmDeploy),
+    Init(TrustedRelayerIsmInit),
+    SetRelayer(TrustedRelayerIsmSetRelayer),
+    Query(TrustedRelayerIsmQuery),
+    TransferOwnership(TransferOwnership),
+}
+
+#[derive(Args)]
+struct TrustedRelayerIsmDeploy {
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    context: String,
+    #[arg(long)]
+    registry: PathBuf,
+    #[arg(long)]
+    relayer: Pubkey,
+}
+
+#[derive(Args)]
+struct TrustedRelayerIsmInit {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    relayer: Pubkey,
+}
+
+#[derive(Args)]
+struct TrustedRelayerIsmSetRelayer {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    relayer: Pubkey,
+}
+
+#[derive(Args)]
+struct TrustedRelayerIsmQuery {
+    #[arg(long)]
+    program_id: Pubkey,
+}
+
+#[derive(Args)]
 pub(crate) struct HelloWorldCmd {
     #[command(subcommand)]
     cmd: HelloWorldSubCmd,
@@ -830,9 +947,11 @@ fn main() {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Ism(cmd) => process_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
+        HyperlaneSealevelCmd::TrustedRelayerIsm(cmd) => process_trusted_relayer_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),

@@ -13,9 +13,11 @@ use crate::{
     artifacts::{read_json, write_json},
     cmd_utils::{create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
-    Context, CoreCmd, CoreDeploy, CoreSubCmd,
+    trusted_relayer_ism::deploy_trusted_relayer_ism,
+    Context, CoreCmd, CoreDeploy, CoreSubCmd, IsmType,
 };
 use hyperlane_core::H256;
+use hyperlane_sealevel_test_ism::program::TestIsmInstruction;
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
     if chain_name.eq("solanamainnet") {
@@ -83,12 +85,27 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
 
-            let ism_program_id = deploy_multisig_ism_message_id(
-                &mut ctx,
-                &core.built_so_dir,
-                &key_dir,
-                core.local_domain,
-            );
+            let ism_program_id = match core.ism_type {
+                IsmType::MultisigMessageId => deploy_multisig_ism_message_id(
+                    &mut ctx,
+                    &core.built_so_dir,
+                    &key_dir,
+                    core.local_domain,
+                ),
+                IsmType::TrustedRelayer => {
+                    let relayer = core
+                        .relayer
+                        .expect("--relayer is required for --ism-type trusted-relayer");
+                    deploy_trusted_relayer_ism(
+                        &mut ctx,
+                        &core.built_so_dir,
+                        &key_dir,
+                        core.local_domain,
+                        relayer,
+                    )
+                }
+                IsmType::Test => deploy_test_ism(&mut ctx, &core.built_so_dir, &key_dir),
+            };
 
             let mailbox_program_id =
                 deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id, core.local_domain);
@@ -102,7 +119,11 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
                 validator_announce: validator_announce_program_id,
-                multisig_ism_message_id: ism_program_id,
+                multisig_ism_message_id: (core.ism_type == IsmType::MultisigMessageId)
+                    .then_some(ism_program_id),
+                trusted_relayer_ism: (core.ism_type == IsmType::TrustedRelayer)
+                    .then_some(ism_program_id),
+                test_ism: (core.ism_type == IsmType::Test).then_some(ism_program_id),
                 igp_program_id,
                 overhead_igp_account,
                 igp_account,
@@ -110,6 +131,58 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             write_program_ids(&core_dir, program_ids);
         }
     }
+}
+
+pub(crate) fn deploy_test_ism(ctx: &mut Context, built_so_dir: &Path, key_dir: &Path) -> Pubkey {
+    let program_id = deploy_program(
+        ctx.payer_keypair_path(),
+        key_dir,
+        "hyperlane_sealevel_test_ism",
+        built_so_dir
+            .join("hyperlane_sealevel_test_ism.so")
+            .to_str()
+            .unwrap(),
+        &ctx.client.url(),
+        0,
+    )
+    .unwrap();
+
+    println!("Deployed Test ISM at program ID {}", program_id);
+
+    let (storage_pda, _bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_test_ism::test_ism_storage_pda_seeds!(),
+        &program_id,
+    );
+
+    let already_initialized = ctx
+        .client
+        .get_account_with_commitment(&storage_pda, ctx.commitment)
+        .unwrap()
+        .value
+        .is_some();
+
+    if already_initialized {
+        println!("Test ISM already initialized at program ID {}", program_id);
+    } else {
+        let instruction = solana_sdk::instruction::Instruction {
+            program_id,
+            accounts: vec![
+                solana_sdk::instruction::AccountMeta::new_readonly(
+                    solana_system_interface::program::ID,
+                    false,
+                ),
+                solana_sdk::instruction::AccountMeta::new(ctx.payer_pubkey, true),
+                solana_sdk::instruction::AccountMeta::new(storage_pda, false),
+            ],
+            data: borsh::to_vec(&TestIsmInstruction::Init).unwrap(),
+        };
+
+        ctx.new_txn().add(instruction).send_with_payer();
+
+        println!("Initialized Test ISM");
+    }
+
+    program_id
 }
 
 fn deploy_mailbox(
@@ -279,8 +352,20 @@ pub struct CoreProgramIds {
     pub mailbox: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub validator_announce: Pubkey,
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub multisig_ism_message_id: Pubkey,
+    #[serde(with = "crate::serde::serde_option_pubkey", default)]
+    pub multisig_ism_message_id: Option<Pubkey>,
+    #[serde(
+        with = "crate::serde::serde_option_pubkey",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub trusted_relayer_ism: Option<Pubkey>,
+    #[serde(
+        with = "crate::serde::serde_option_pubkey",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub test_ism: Option<Pubkey>,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_program_id: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]
