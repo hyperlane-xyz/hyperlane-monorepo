@@ -1,3 +1,9 @@
+## [2.3.0] - 2026-03-27
+
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* fix: Ethermint nonce detection and PostSubmitFailure retry latency (#8426)
+* refactor(evm): remove evm tron techstack (#8408)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)
