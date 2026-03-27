@@ -418,7 +418,6 @@ export class EvmHookModule extends HyperlaneModule<
       )
         .PACKAGE_VERSION()
         .catch(() => undefined);
-
       if (
         !currentVersion ||
         compareVersions(targetConfig.contractVersion, currentVersion) > 0
