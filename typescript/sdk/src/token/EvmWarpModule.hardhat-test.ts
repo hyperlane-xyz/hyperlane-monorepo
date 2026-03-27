@@ -548,6 +548,7 @@ describe('EvmWarpModule', async () => {
         oracleKey: owner,
         overhead: {},
         oracleConfig: {},
+        contractVersion: CONTRACTS_PACKAGE_VERSION,
       },
       {
         type: HookType.MERKLE_TREE,
