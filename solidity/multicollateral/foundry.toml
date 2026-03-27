@@ -22,8 +22,9 @@ quote_style = "double"
 number_underscore = "preserve"
 hex_underscore = "preserve"
 single_line_statement_blocks = "preserve"
-multiline_func_header = "params_first"
+multiline_func_header = "params_first_multi"
 docs_style = "preserve"
+single_line_imports = true
 ignore = ["../dependencies/**", "../lib/**"]
 
 [fuzz]

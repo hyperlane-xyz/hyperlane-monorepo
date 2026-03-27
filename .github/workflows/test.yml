@@ -48,7 +48,7 @@ jobs:
 
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
-    needs: [change-detection]
+    needs: [change-detection, set-base-sha]
     if: needs.change-detection.outputs.skip_ts != 'true'
     timeout-minutes: 10
     steps:
@@ -70,13 +70,10 @@ jobs:
       - name: solhint
         run: pnpm -C solidity lint
 
-      - name: Get changed PR files
-        if: github.event_name == 'pull_request'
+      - name: Get changed files
         run: |
-          gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[] | select (.status != "removed") | .path' > changed_files.txt
+          git diff --name-only --diff-filter=d "${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }}" > changed_files.txt
           echo "Changed files: $(cat changed_files.txt)"
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
@@ -84,8 +81,10 @@ jobs:
           cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' | \
           xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
 
-      - name: Run forge fmt check for Solidity
-        run: forge fmt --check --root solidity && forge fmt --check --root solidity/multicollateral
+      - name: Run forge fmt check for Solidity (changed files)
+        run: |
+          cat changed_files.txt | grep -E '\.sol$' | \
+          xargs -r ./scripts/forge-fmt.sh --check
 
       - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'

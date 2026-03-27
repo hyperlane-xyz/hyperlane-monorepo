@@ -9,7 +9,7 @@
     "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "format": "turbo run format",
-    "format:check": "oxfmt --ignore-path .gitignore --check . && forge fmt --check --root solidity && forge fmt --check --root solidity/multicollateral",
+    "format:check": "oxfmt --ignore-path .gitignore --check . && ./scripts/forge-fmt.sh --check",
     "lint": "oxlint -c oxlint.json",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
