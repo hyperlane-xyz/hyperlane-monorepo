@@ -23,6 +23,7 @@
     "**/*.mjs",
     "jest.config.js",
     "solidity/**",
+    "!solidity/multicollateral/**",
     "**/examples/**"
   ],
   "rules": {
@@ -198,7 +199,7 @@
                   "ProtocolTypeValue",
                   "ProtocolSmallestUnit"
                 ],
-                "message": "Use the export from the `@hyperlane-xyz/protocol-sdk` package"
+                "message": "Use the export from the `@hyperlane-xyz/provider-sdk` package"
               }
             ]
           }
@@ -235,7 +236,7 @@
                   "ProtocolTypeValue",
                   "ProtocolSmallestUnit"
                 ],
-                "message": "Use the export from the `@hyperlane-xyz/protocol-sdk` package"
+                "message": "Use the export from the `@hyperlane-xyz/provider-sdk` package"
               }
             ]
           }
