@@ -109,8 +109,18 @@ export const getMantraUSDCWarpConfig = async (
     ),
   } satisfies DeploymentChains<HypTokenRouterConfig>;
 
+  for (const currentChain of Object.keys(ownersByChain)) {
+    const config = deployConfig[currentChain as keyof typeof ownersByChain];
+    assert(
+      config.type === TokenType.collateral,
+      `Expected config to be defined on chain ${currentChain}`,
+    );
+
+    config.contractVersion = '11.1.0';
+  }
+
   // Inject the cctpV1 config for existing chains until the route is updated to use
-  // cctpv2
+  // cctpv2 and set the contract version
   const cctpV1Chains: (keyof DeploymentChains<unknown>)[] = [
     'arbitrum',
     'base',
