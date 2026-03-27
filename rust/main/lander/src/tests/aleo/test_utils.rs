@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use hyperlane_aleo::{
     AleoConfirmedTransaction, AleoProviderForLander, AleoUnconfirmedTransaction, CurrentNetwork,
-    Plaintext,
+    FeeEstimate, Plaintext,
 };
 use hyperlane_core::{ChainResult, H512};
 
@@ -54,5 +54,14 @@ impl AleoProviderForLander for MockAleoProvider {
     ) -> ChainResult<bool> {
         // Default: mapping values don't exist (messages not delivered)
         Ok(false)
+    }
+
+    async fn estimate_tx(
+        &self,
+        _program_id: &str,
+        _function_name: &str,
+        _input: Vec<String>,
+    ) -> ChainResult<FeeEstimate> {
+        Ok(FeeEstimate::new(1_000, 0))
     }
 }

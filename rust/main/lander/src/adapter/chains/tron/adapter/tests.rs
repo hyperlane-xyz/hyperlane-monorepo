@@ -25,6 +25,8 @@ pub struct MockTronProvider {
     calls: Arc<Mutex<Vec<MockCall>>>,
     /// Configurable gas estimate to return
     gas_estimate: Arc<Mutex<Option<U256>>>,
+    /// Configurable gas price to return
+    gas_price: Arc<Mutex<Option<U256>>>,
     /// Configurable receipts by hash
     receipts: Arc<Mutex<HashMap<H512, Option<TransactionReceipt>>>>,
     /// Finalized block number
@@ -45,6 +47,7 @@ pub enum MockCall {
     GetFinalizedBlockNumber,
     SubmitTx,
     EstimateGas,
+    GetGasPrice,
     Call,
 }
 
@@ -59,6 +62,7 @@ impl MockTronProvider {
         Self {
             calls: Arc::new(Mutex::new(Vec::new())),
             gas_estimate: Arc::new(Mutex::new(Some(U256::from(100_000)))),
+            gas_price: Arc::new(Mutex::new(Some(U256::from(100)))),
             receipts: Arc::new(Mutex::new(HashMap::new())),
             finalized_block: Arc::new(Mutex::new(Ok(100))),
             submit_error: Arc::new(Mutex::new(None)),
@@ -79,6 +83,16 @@ impl MockTronProvider {
 
     pub fn with_estimate_error(self, error: &str) -> Self {
         *self.estimate_error.lock().unwrap() = Some(error.to_string());
+        self
+    }
+
+    pub fn with_gas_price(self, gas_price: U256) -> Self {
+        *self.gas_price.lock().unwrap() = Some(gas_price);
+        self
+    }
+
+    pub fn with_missing_gas_price(self) -> Self {
+        *self.gas_price.lock().unwrap() = None;
         self
     }
 
@@ -172,6 +186,18 @@ impl TronProviderForLander for MockTronProvider {
 
         let gas = self.gas_estimate.lock().unwrap();
         Ok(gas.unwrap_or(U256::from(21_000)))
+    }
+
+    async fn get_gas_price(&self, _tx: &TypedTransaction) -> ChainResult<U256> {
+        self.calls.lock().unwrap().push(MockCall::GetGasPrice);
+
+        let gas_price = self.gas_price.lock().unwrap();
+        match *gas_price {
+            Some(value) => Ok(value),
+            None => Err(ChainCommunicationError::from_other_str(
+                "missing gas price in mock provider",
+            )),
+        }
     }
 
     async fn call<T: Detokenize>(
@@ -462,6 +488,62 @@ async fn test_build_transactions_creates_correct_precursor() {
 // ============================================================================
 // estimate_tx Tests
 // ============================================================================
+
+#[tokio::test]
+async fn test_estimate_gas_limit_success() {
+    let provider = MockTronProvider::new()
+        .with_gas_estimate(U256::from(150_000))
+        .with_gas_price(U256::from(250));
+    let adapter = create_test_adapter(provider.clone());
+    let payload = create_test_payload();
+
+    let result = adapter.estimate_gas_limit(&payload).await;
+    assert!(result.is_ok());
+
+    let estimate = result.unwrap();
+    assert_eq!(estimate.gas_limit, hyperlane_core::U256::from(150_000));
+    assert_eq!(
+        estimate.gas_price,
+        hyperlane_core::FixedPointNumber::try_from(hyperlane_core::U256::from(250)).unwrap()
+    );
+    assert_eq!(estimate.l2_gas_limit, None);
+
+    let calls = provider.get_calls();
+    assert!(calls.contains(&MockCall::EstimateGas));
+    assert!(calls.contains(&MockCall::GetGasPrice));
+}
+
+#[tokio::test]
+async fn test_estimate_gas_limit_returns_error_on_missing_gas_price() {
+    let provider = MockTronProvider::new()
+        .with_gas_estimate(U256::from(150_000))
+        .with_missing_gas_price();
+    let adapter = create_test_adapter(provider);
+    let payload = create_test_payload();
+
+    let result = adapter.estimate_gas_limit(&payload).await;
+    assert!(matches!(
+        result,
+        Err(LanderError::ChainCommunicationError(_))
+    ));
+}
+
+#[tokio::test]
+async fn test_estimate_gas_limit_for_preparation_matches_estimate_gas_limit() {
+    let provider = MockTronProvider::new()
+        .with_gas_estimate(U256::from(150_000))
+        .with_gas_price(U256::from(250));
+    let adapter = create_test_adapter(provider);
+    let payload = create_test_payload();
+
+    let estimate = adapter.estimate_gas_limit(&payload).await.unwrap();
+    let preparation_estimate = adapter
+        .estimate_gas_limit_for_preparation(&payload)
+        .await
+        .unwrap();
+
+    assert_eq!(preparation_estimate, estimate);
+}
 
 #[tokio::test]
 async fn test_estimate_tx_skips_when_gas_already_set() {
