@@ -4,41 +4,10 @@ import path from 'node:path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 
 import {
-  ArraySortConfig,
   sortNestedArrays,
+  sortObjectKeys,
+  WARP_YAML_SORT_CONFIG,
 } from '../typescript/utils/src/yaml.ts';
-
-const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
-  arrays: [
-    { path: 'tokens', sortKey: 'chainName' },
-    { path: 'tokens[].connections', sortKey: 'token' },
-    { path: '*.interchainSecurityModule.modules', sortKey: 'type' },
-    {
-      path: '*.interchainSecurityModule.modules[].domains.*.modules',
-      sortKey: 'type',
-    },
-  ],
-};
-
-function sortObjectKeys(obj: unknown): unknown {
-  if (Array.isArray(obj)) {
-    return obj.map(sortObjectKeys);
-  }
-
-  if (obj !== null && typeof obj === 'object') {
-    return Object.keys(obj as Record<string, unknown>)
-      .sort()
-      .reduce(
-        (sorted, key) => {
-          sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
-          return sorted;
-        },
-        {} as Record<string, unknown>,
-      );
-  }
-
-  return obj;
-}
 
 function getDefaultFiles(): string[] {
   const root = path.resolve('typescript/infra');
@@ -87,9 +56,8 @@ if (targetFiles.length === 0) {
 let failed = false;
 
 for (const file of targetFiles) {
-  const content = fs.readFileSync(file, 'utf8');
-
   try {
+    const content = fs.readFileSync(file, 'utf8');
     const parsed = yamlParse(content);
     const sorted = yamlStringify(
       sortObjectKeys(sortNestedArrays(parsed, WARP_YAML_SORT_CONFIG)),

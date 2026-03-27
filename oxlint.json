@@ -149,7 +149,6 @@
     },
     {
       "files": [
-        "typescript/sdk/src/**/*.ts",
         "typescript/widgets/src/**/*.ts",
         "typescript/utils/src/**/*.ts"
       ],
@@ -160,6 +159,7 @@
     {
       "files": ["typescript/sdk/src/**/*.ts"],
       "rules": {
+        "import/no-nodejs-modules": "error",
         "no-restricted-imports": [
           "error",
           {
@@ -209,7 +209,11 @@
     {
       "files": [
         "typescript/provider-sdk/src/**/*.ts",
-        "typescript/starknet-sdk/src/**/*.ts"
+        "typescript/starknet-sdk/src/**/*.ts",
+        "typescript/cosmos-sdk/src/**/*.ts",
+        "typescript/radix-sdk/src/**/*.ts",
+        "typescript/svm-sdk/src/**/*.ts",
+        "typescript/tron-sdk/src/**/*.ts"
       ],
       "rules": {
         "import/no-nodejs-modules": "error",

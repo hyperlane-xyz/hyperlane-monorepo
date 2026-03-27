@@ -4,43 +4,14 @@ import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import {
   objMap,
   sortNestedArrays,
-  ArraySortConfig,
+  sortObjectKeys,
+  WARP_YAML_SORT_CONFIG,
 } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
 import { getArgs, withWarpRouteIds } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
-
-const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
-  arrays: [
-    { path: 'tokens', sortKey: 'chainName' },
-    { path: 'tokens[].connections', sortKey: 'token' },
-    { path: '*.interchainSecurityModule.modules', sortKey: 'type' },
-    {
-      path: '*.interchainSecurityModule.modules[].domains.*.modules',
-      sortKey: 'type',
-    },
-  ],
-};
-
-function sortObjectKeys(obj: unknown): unknown {
-  if (Array.isArray(obj)) {
-    return obj.map(sortObjectKeys);
-  }
-  if (obj !== null && typeof obj === 'object') {
-    return Object.keys(obj as Record<string, unknown>)
-      .sort()
-      .reduce(
-        (sorted, key) => {
-          sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
-          return sorted;
-        },
-        {} as Record<string, unknown>,
-      );
-  }
-  return obj;
-}
 
 // Writes the warp configs into the Registry
 async function main() {

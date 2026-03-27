@@ -368,6 +368,38 @@ export type ArraySortConfig = {
   }>;
 };
 
+export const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
+  arrays: [
+    { path: 'tokens', sortKey: 'chainName' },
+    { path: 'tokens[].connections', sortKey: 'token' },
+    { path: '*.interchainSecurityModule.modules', sortKey: 'type' },
+    {
+      path: '*.interchainSecurityModule.modules[].domains.*.modules',
+      sortKey: 'type',
+    },
+  ],
+};
+
+export function sortObjectKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map(sortObjectKeys);
+  }
+
+  if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj as Record<string, unknown>)
+      .sort()
+      .reduce(
+        (sorted, key) => {
+          sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
+          return sorted;
+        },
+        {} as Record<string, unknown>,
+      );
+  }
+
+  return obj;
+}
+
 /**
  * Finds a matching sort key from configuration based on the given path array
  * Supports various pattern formats including wildcards, array notation, and exact matches
@@ -421,6 +453,30 @@ function isPathMatch(path: string[], patternParts: string[]): boolean {
   return pathIndex === path.length;
 }
 
+function isSortablePrimitive(
+  value: unknown,
+): value is string | number | bigint | boolean | null {
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean'
+  );
+}
+
+function sortPrimitiveArray<T>(array: T[]): T[] {
+  if (!array.every(isSortablePrimitive)) return array;
+
+  return [...array].sort((a, b) => {
+    const left = String(a);
+    const right = String(b);
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  });
+}
+
 /**
  * Sorts arrays nested within objects according to configuration
  */
@@ -439,7 +495,9 @@ export function sortNestedArrays<T>(
     );
 
     return (
-      sortKey ? sortArrayByKey(processedArray, sortKey) : processedArray
+      sortKey
+        ? sortArrayByKey(processedArray, sortKey)
+        : sortPrimitiveArray(processedArray)
     ) as T;
   }
 
