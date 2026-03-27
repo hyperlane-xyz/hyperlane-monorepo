@@ -1,28 +1,25 @@
-warpRouteId: USDC/paradex
-
 strategy:
-  rebalanceStrategy: weighted
   chains:
-    base:
-      weighted:
-        weight: 15
-        tolerance: 5
-      bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 50000
-      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
-
-    ethereum:
-      weighted:
-        weight: 40
-        tolerance: 5
-      bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 50000
-      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
-
     arbitrum:
-      weighted:
-        weight: 45
-        tolerance: 5
+      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 50000
-      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+      weighted:
+        tolerance: 5
+        weight: 45
+    base:
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 50000
+      weighted:
+        tolerance: 5
+        weight: 15
+    ethereum:
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 50000
+      weighted:
+        tolerance: 5
+        weight: 40
+  rebalanceStrategy: weighted
+warpRouteId: USDC/paradex
