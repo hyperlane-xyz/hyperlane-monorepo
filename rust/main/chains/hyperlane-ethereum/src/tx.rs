@@ -68,6 +68,14 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
+pub(crate) fn set_from_if_unset(tx: &mut TypedTransaction, from: Option<H160>) {
+    if tx.from().is_none() {
+        if let Some(from) = from {
+            tx.set_from(from);
+        }
+    }
+}
+
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
 where
@@ -131,6 +139,9 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
+    let mut tx = tx;
+    set_from_if_unset(&mut tx.tx, provider.default_sender());
+
     // either use the pre-estimated gas limit or estimate it
     let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
@@ -520,7 +531,7 @@ mod test {
         providers::{Http, Provider},
         types::{
             transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
-            NameOrAddress,
+            NameOrAddress, H160,
         },
     };
     use ethers_core::types::FeeHistory;
@@ -548,6 +559,43 @@ mod test {
             gas_used_ratio: vec![],
         };
         assert!(super::has_rewards(&fee_history));
+    }
+
+    #[test]
+    fn test_set_from_if_unset_sets_sender() {
+        let mut tx = TypedTransaction::Eip1559(
+            Eip1559TransactionRequest::new()
+                .to(Address::zero())
+                .value(1),
+        );
+        let sender = H160::from_low_u64_be(42);
+        super::set_from_if_unset(&mut tx, Some(sender));
+        assert_eq!(tx.from().copied(), Some(sender));
+    }
+
+    #[test]
+    fn test_set_from_if_unset_does_not_override_existing_sender() {
+        let existing_sender = H160::from_low_u64_be(42);
+        let mut tx = TypedTransaction::Eip1559(
+            Eip1559TransactionRequest::new()
+                .to(Address::zero())
+                .value(1)
+                .from(existing_sender),
+        );
+        let new_sender = H160::from_low_u64_be(7);
+        super::set_from_if_unset(&mut tx, Some(new_sender));
+        assert_eq!(tx.from().copied(), Some(existing_sender));
+    }
+
+    #[test]
+    fn test_set_from_if_unset_noop_when_none_provided() {
+        let mut tx = TypedTransaction::Eip1559(
+            Eip1559TransactionRequest::new()
+                .to(Address::zero())
+                .value(1),
+        );
+        super::set_from_if_unset(&mut tx, None);
+        assert_eq!(tx.from().copied(), None);
     }
 
     #[ignore = "Not running a flaky test requiring network"]
