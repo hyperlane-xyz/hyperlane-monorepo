@@ -107,7 +107,7 @@ jobs:
         continue-on-error: true
 
       - name: Check YAML sort order
-        run: ./scripts/sort-yaml.sh --check
+        run: pnpm exec tsx ./scripts/sort-yaml.ts --check
 
       - name: Clean up
         if: always()
