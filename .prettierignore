@@ -9,6 +9,7 @@ solidity/artifacts/**
 solidity/cache/**
 solidity/core-utils/typechain/**
 solidity/dependencies/**
+solidity/lib/**
 typescript/helloworld/artifacts/**
 typescript/helloworld/cache/**
 typescript/helloworld/src/types/**
