@@ -398,6 +398,177 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  it('uses IMultiProtocolSigner path for tron transfer txs', async () => {
+    // Re-use SOLANA_CHAIN slot but treat it as Tron protocol.
+    // This mirrors the Sealevel test above which also re-uses the same slot.
+    const route = createTestRoute({ amount: 5000000000n });
+    createTestIntent({ amount: 5000000000n });
+
+    inventoryRebalancer.setInventoryBalances({
+      [SOLANA_CHAIN]: 5000000000n,
+      [ARBITRUM_CHAIN]: 0n,
+    });
+
+    config.inventorySigners[ProtocolType.Tron] = {
+      address: INVENTORY_SIGNER,
+      key: TEST_PRIVATE_KEY,
+    };
+
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === SOLANA_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+      blocks: { reorgPeriod: 1 },
+    }));
+
+    const sendAndConfirmStub = Sinon.stub(
+      InventoryRebalancer.prototype as any,
+      'sendAndConfirmInventoryTx',
+    ).resolves({ txHash: '0xTronTxHash' });
+
+    multiProvider.sendTransaction.resetHistory();
+    warpCore.getTransferRemoteTxs.resolves([
+      {
+        category: WarpTxCategory.Transfer,
+        type: ProviderType.EthersV5,
+        transaction: {} as any,
+      },
+    ]);
+
+    const results = await inventoryRebalancer.rebalance([route]);
+
+    expect(results).to.have.lengthOf(1);
+    expect(results[0].success).to.be.true;
+    expect(sendAndConfirmStub.calledOnce).to.be.true;
+    expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
+    expect(multiProvider.sendTransaction.called).to.be.false;
+
+    const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+    expect(actionParams.txHash).to.equal('0xTronTxHash');
+  });
+
+  it('buildSignerAccountConfig returns correct config for Tron protocol', () => {
+    config.inventorySigners[ProtocolType.Tron] = {
+      address: INVENTORY_SIGNER,
+      key: TEST_PRIVATE_KEY,
+    };
+
+    const buildFn = (inventoryRebalancer as any).buildSignerAccountConfig.bind(
+      inventoryRebalancer,
+    );
+    const result = buildFn(
+      ProtocolType.Tron,
+      TEST_PRIVATE_KEY,
+      'tron' as ChainName,
+    );
+
+    expect(result.protocol).to.equal(ProtocolType.Tron);
+    expect(result.privateKey).to.equal(TEST_PRIVATE_KEY);
+    // Tron uses same 0x-prefixed hex key format as Ethereum
+    expect(result.privateKey.startsWith('0x')).to.be.true;
+  });
+
+  it('getTransactionReceipt returns EthersV5 type for Tron chain', async () => {
+    const TRON_CHAIN = 'tron' as ChainName;
+    const mockReceipt = {
+      transactionHash: '0xTronReceipt',
+      logs: [],
+    };
+
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+    }));
+
+    warpCore.multiProvider.getEthersV5Provider.returns({
+      getTransactionReceipt: Sinon.stub().resolves(mockReceipt),
+    });
+
+    const getReceiptFn = (
+      inventoryRebalancer as any
+    ).getTransactionReceipt.bind(inventoryRebalancer);
+    const receipt = await getReceiptFn(TRON_CHAIN, '0xTronTxHash');
+
+    expect(receipt).to.not.be.undefined;
+    expect(receipt.type).to.equal(ProviderType.EthersV5);
+    expect(receipt.receipt).to.deep.equal(mockReceipt);
+  });
+
+  it('extractDispatchedMessageId parses Tron dispatch logs via EthersV5 path', async () => {
+    const TRON_CHAIN = 'tron' as ChainName;
+
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+    }));
+
+    // Mock EthersV5 provider returning a receipt with no dispatch logs
+    warpCore.multiProvider.getEthersV5Provider.returns({
+      getTransactionReceipt: Sinon.stub().resolves({
+        transactionHash: '0xTronTx',
+        logs: [],
+      }),
+    });
+
+    const extractFn = (
+      inventoryRebalancer as any
+    ).extractDispatchedMessageId.bind(inventoryRebalancer);
+    // With empty logs, no message ID should be found (undefined)
+    const messageId = await extractFn(TRON_CHAIN, '0xTronTx');
+    expect(messageId).to.be.undefined;
+  });
+
+  it('accepts multi-protocol config with Ethereum + Tron + Sealevel signers', () => {
+    config.inventorySigners[ProtocolType.Tron] = {
+      address: INVENTORY_SIGNER,
+      key: TEST_PRIVATE_KEY,
+    };
+    config.inventorySigners[ProtocolType.Sealevel] = {
+      address: 'SoLANAAddReSs1234567890123456789012345678',
+      key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
+    };
+
+    // Should not throw during construction
+    const rebalancer = new InventoryRebalancer(
+      config,
+      actionTracker as unknown as IActionTracker,
+      { lifi: bridge as unknown as IExternalBridge },
+      warpCore as unknown as WarpCore,
+      multiProvider as unknown as MultiProvider,
+      testLogger,
+    );
+
+    expect(rebalancer).to.be.instanceOf(InventoryRebalancer);
+    expect(config.inventorySigners[ProtocolType.Ethereum]).to.exist;
+    expect(config.inventorySigners[ProtocolType.Tron]).to.exist;
+    expect(config.inventorySigners[ProtocolType.Sealevel]).to.exist;
+  });
+
+  it('Tron chain is accepted in inventoryChains config', () => {
+    const tronConfig: InventoryRebalancerConfig = {
+      inventorySigners: {
+        [ProtocolType.Tron]: {
+          address: INVENTORY_SIGNER,
+          key: TEST_PRIVATE_KEY,
+        },
+      },
+      inventoryChains: ['tron' as ChainName, ARBITRUM_CHAIN],
+    };
+
+    const rebalancer = new InventoryRebalancer(
+      tronConfig,
+      actionTracker as unknown as IActionTracker,
+      { lifi: bridge as unknown as IExternalBridge },
+      warpCore as unknown as WarpCore,
+      multiProvider as unknown as MultiProvider,
+      testLogger,
+    );
+
+    expect(rebalancer).to.be.instanceOf(InventoryRebalancer);
+  });
+
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
     // Partial transfers happen when maxTransferable >= minViableTransfer
     // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so partial always viable

@@ -110,6 +110,13 @@ function toBase58SolanaKey(rawKey: string): string {
  *
  * @see https://docs.li.fi/integrate-li.fi-sdk
  */
+/**
+ * Protocols known to be unsupported by LiFi.
+ * Only Tron is explicitly unsupported (no LiFi aggregator available).
+ * All other unknown protocols will throw to preserve fail-fast behavior.
+ */
+const LIFI_UNSUPPORTED_PROTOCOLS = new Set([ProtocolType.Tron]);
+
 export class LiFiBridge implements IExternalBridge {
   private static readonly NATIVE_TOKEN_ADDRESS =
     '0x0000000000000000000000000000000000000000';
@@ -189,6 +196,7 @@ export class LiFiBridge implements IExternalBridge {
   private addressesEqual(a: string, b: string, chainId: number): boolean {
     const protocol = this.getProtocolTypeForChainId(chainId);
     // Sealevel uses base58 addresses where case is significant.
+    // EVM and Tron use hex addresses where case is insignificant.
     if (protocol === ProtocolType.Sealevel) {
       return a === b;
     }
@@ -244,6 +252,13 @@ export class LiFiBridge implements IExternalBridge {
           break;
         }
         default:
+          if (LIFI_UNSUPPORTED_PROTOCOLS.has(protocol as ProtocolType)) {
+            this.logger.warn(
+              { protocol },
+              `Skipping unsupported protocol for LiFi provider — no LiFi bridge support for ${protocol}`,
+            );
+            break;
+          }
           throw new Error(
             `Unsupported protocol type '${protocol}' for LiFi provider`,
           );
