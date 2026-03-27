@@ -54,7 +54,7 @@ describe(createChainMetadataResolver.name, () => {
     expect(resolver.tryGetChainMetadata(11155111)).to.equal(metadata.sepolia);
   });
 
-  it('does not mis-handle non-numeric chain ids', () => {
+  it('does not mishandle non-numeric chain ids', () => {
     const resolver = createChainMetadataResolver(metadata);
     expect(resolver.tryGetChainMetadata('cosmoshub-4')).to.equal(
       metadata.cosmos,
