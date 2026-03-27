@@ -31,6 +31,10 @@ impl BuildableWithProvider for InterchainSecurityModuleBuilder {
     type Output = Box<dyn InterchainSecurityModule>;
     const NEEDS_SIGNER: bool = true;
 
+    fn uses_ethers_submission_middleware(&self) -> bool {
+        false
+    }
+
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
@@ -148,9 +152,18 @@ where
         if self.module_type().await? == ModuleType::Null {
             if let Some(sender) = self.contract.client().default_sender() {
                 let tr = ITrustedRelayerIsm::new(self.contract.address(), self.contract.client());
-                if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
-                    if trusted_relayer == sender {
+                match tr.trusted_relayer().call().await {
+                    Ok(trusted_relayer) if trusted_relayer == sender => {
                         return Ok(Some(U256::zero()));
+                    }
+                    Ok(_) => {} // not the trusted relayer, return None below
+                    Err(err) => {
+                        warn!(
+                            ?err,
+                            ism_address = ?self.contract.address(),
+                            ?sender,
+                            "Failed to query trustedRelayer() on Null ISM"
+                        );
                     }
                 }
             }
