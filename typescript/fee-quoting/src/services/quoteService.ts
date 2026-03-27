@@ -52,7 +52,7 @@ export interface QuoteServiceOptions {
   quoteExpiry: number;
   chainContexts: Map<string, ChainQuoteContext>;
   logger: Logger;
-  quotesServed?: Counter;
+  quotesServed?: Counter<string>;
 }
 
 export class QuoteService {
@@ -61,7 +61,7 @@ export class QuoteService {
   private readonly quoteExpiry: number;
   private readonly chainContexts: Map<string, ChainQuoteContext>;
   private readonly logger: Logger;
-  private readonly quotesServed?: Counter;
+  private readonly quotesServed?: Counter<string>;
 
   constructor(options: QuoteServiceOptions) {
     this.account = privateKeyToAccount(options.signerKey);
@@ -294,7 +294,7 @@ export class QuoteService {
     const signature = await this.account.signTypedData({
       domain: {
         ...EIP712_DOMAIN,
-        chainId: BigInt(chainId),
+        chainId: chainId,
         verifyingContract,
       },
       types: SIGNED_QUOTE_TYPES,
