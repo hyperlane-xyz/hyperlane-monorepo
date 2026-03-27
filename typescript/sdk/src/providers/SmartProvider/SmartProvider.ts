@@ -26,6 +26,9 @@ import {
   ProviderStatus,
   ProviderTimeoutResult,
   RpcConfigWithConnectionInfo,
+  SMART_PROVIDER_REQUEST_CONFIG,
+  SmartProviderRequestConfig,
+  SmartProviderRequestKind,
   SmartProviderOptions,
 } from './types.js';
 import { parseCustomRpcHeaders } from '../../utils/provider.js';
@@ -99,10 +102,156 @@ const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 const DEFAULT_PHASE2_WAIT_MULTIPLIER = 20;
+const INVALID_PROVIDER_RESPONSE_ERROR_MSG = 'Invalid response from provider';
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
+interface SmartProviderRequestPolicy {
+  kind: SmartProviderRequestKind;
+  allowEmptyCallResult?: boolean;
+  attempts: number;
+  baseRetryDelayMs: number;
+  fallbackStaggerMs: number;
+  phase2WaitMultiplier: number;
+}
+
+type ProviderErrorClassification =
+  | 'permanent'
+  | 'probe_miss'
+  | 'server'
+  | 'timeout'
+  | 'transient'
+  | 'unknown';
+
+function getJsonRpcErrorCode(error: any): number | undefined {
+  return error?.error?.error?.code ?? error?.error?.code;
+}
+
+function getJsonRpcErrorData(error: any): unknown {
+  return error?.error?.error?.data ?? error?.error?.data;
+}
+
+function getJsonRpcErrorMessage(error: any): string | undefined {
+  const nestedMessage = error?.error?.error?.message ?? error?.error?.message;
+  if (nestedMessage) {
+    return nestedMessage;
+  }
+
+  const body = error?.error?.body;
+  if (typeof body !== 'string') {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(body)?.error?.message;
+  } catch {
+    return undefined;
+  }
+}
+
+function isEmptyObjectLikeJsonRpcData(data: unknown): boolean {
+  if (typeof data === 'string') {
+    return data.trim() === '{}';
+  }
+
+  return (
+    data != null &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    Object.keys(data).length === 0
+  );
+}
+
+function isEmptyReturnDecodeFailure(error: any): boolean {
+  return error?.data === '0x' && !error?.error;
+}
+
+export function isDeterministicCallException(error: any): boolean {
+  const hasRevertData = !!error?.data && error.data !== '0x';
+  if (hasRevertData) {
+    return true;
+  }
+
+  const jsonRpcErrorCode = getJsonRpcErrorCode(error);
+  if (jsonRpcErrorCode === 3) {
+    return true;
+  }
+
+  // Some Tron RPCs surface selector misses as CALL_EXCEPTION with nested
+  // JSON-RPC -32000 and an empty object payload instead of revert data.
+  if (
+    jsonRpcErrorCode === -32000 &&
+    isEmptyObjectLikeJsonRpcData(getJsonRpcErrorData(error))
+  ) {
+    return true;
+  }
+
+  // Some RPCs surface selector misses as -32000 "execution reverted" without
+  // revert data. For probe requests, that is still a deterministic miss.
+  if (
+    jsonRpcErrorCode === -32000 &&
+    getJsonRpcErrorMessage(error)?.toLowerCase().includes('execution reverted')
+  ) {
+    return true;
+  }
+
+  return isEmptyReturnDecodeFailure(error);
+}
+
+function classifyProviderError(
+  error: any,
+  requestKind: SmartProviderRequestKind,
+): ProviderErrorClassification {
+  if (error?.status === ProviderStatus.Timeout) {
+    return 'timeout';
+  }
+
+  if (error?.message === INVALID_PROVIDER_RESPONSE_ERROR_MSG) {
+    return 'transient';
+  }
+
+  const errorCode = error?.code;
+  if (RPC_SERVER_ERRORS.includes(errorCode)) {
+    return 'server';
+  }
+
+  if (errorCode === EthersError.CALL_EXCEPTION) {
+    if (isDeterministicCallException(error)) {
+      return requestKind === SmartProviderRequestKind.Probe
+        ? 'probe_miss'
+        : 'permanent';
+    }
+
+    return 'transient';
+  }
+
+  if (
+    requestKind === SmartProviderRequestKind.Probe &&
+    errorCode === EthersError.UNPREDICTABLE_GAS_LIMIT
+  ) {
+    return 'probe_miss';
+  }
+
+  if (RPC_BLOCKCHAIN_ERRORS.includes(errorCode)) {
+    return 'permanent';
+  }
+
+  return 'unknown';
+}
+
 export class BlockchainError extends Error {
+  public readonly isRecoverable = false;
+
+  constructor(message: string, options?: { cause?: Error }) {
+    super(message, options);
+  }
+
+  static {
+    this.prototype.name = this.name;
+  }
+}
+
+export class ProbeMissError extends Error {
   public readonly isRecoverable = false;
 
   constructor(message: string, options?: { cause?: Error }) {
@@ -271,6 +420,66 @@ export class HyperlaneSmartProvider
   }
 
   async perform(method: string, params: { [name: string]: any }): Promise<any> {
+    return this.performWithRequestPolicy(
+      method,
+      params,
+      this.getReadRequestPolicy(),
+    );
+  }
+
+  async probeCall(
+    transaction: providers.TransactionRequest,
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<string> {
+    return this.performWithRequestPolicy(
+      ProviderMethod.Call,
+      { transaction, blockTag },
+      this.getProbeRequestPolicy(),
+    );
+  }
+
+  async probeEstimateGas(
+    transaction: providers.TransactionRequest,
+  ): Promise<BigNumber> {
+    return BigNumber.from(
+      await this.performWithRequestPolicy(
+        ProviderMethod.EstimateGas,
+        { transaction },
+        this.getProbeRequestPolicy(),
+      ),
+    );
+  }
+
+  protected getReadRequestPolicy(): SmartProviderRequestPolicy {
+    return {
+      kind: SmartProviderRequestKind.Read,
+      attempts: this.options?.maxRetries ?? DEFAULT_MAX_RETRIES,
+      baseRetryDelayMs:
+        this.options?.baseRetryDelayMs ?? DEFAULT_BASE_RETRY_DELAY_MS,
+      fallbackStaggerMs:
+        this.options?.fallbackStaggerMs ?? DEFAULT_STAGGER_DELAY_MS,
+      phase2WaitMultiplier: DEFAULT_PHASE2_WAIT_MULTIPLIER,
+    };
+  }
+
+  protected getProbeRequestPolicy(): SmartProviderRequestPolicy {
+    return {
+      kind: SmartProviderRequestKind.Probe,
+      allowEmptyCallResult: true,
+      attempts: 1,
+      baseRetryDelayMs:
+        this.options?.baseRetryDelayMs ?? DEFAULT_BASE_RETRY_DELAY_MS,
+      fallbackStaggerMs:
+        this.options?.fallbackStaggerMs ?? DEFAULT_STAGGER_DELAY_MS,
+      phase2WaitMultiplier: DEFAULT_PHASE2_WAIT_MULTIPLIER,
+    };
+  }
+
+  protected async performWithRequestPolicy(
+    method: string,
+    params: { [name: string]: any },
+    policy: SmartProviderRequestPolicy,
+  ): Promise<any> {
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
@@ -283,20 +492,24 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
-    // SendTransaction must not be retried - it could cause duplicate submissions
-    if (method === ProviderMethod.SendTransaction) {
-      return this.performWithFallback(
+    const performWithFallback = () =>
+      this.performWithFallback(
         method,
         params,
         supportedProviders,
         reqId,
+        policy,
       );
+
+    // SendTransaction must not be retried - it could cause duplicate submissions
+    if (method === ProviderMethod.SendTransaction) {
+      return performWithFallback();
     }
 
     return retryAsync(
-      () => this.performWithFallback(method, params, supportedProviders, reqId),
-      this.options?.maxRetries || DEFAULT_MAX_RETRIES,
-      this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
+      performWithFallback,
+      policy.attempts,
+      policy.baseRetryDelayMs,
     );
   }
 
@@ -344,6 +557,24 @@ export class HyperlaneSmartProvider
     params: { [name: string]: any },
     providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
     reqId: number,
+    policy = this.getReadRequestPolicy(),
+  ): Promise<any> {
+    // Keep this thin wrapper as the protected override seam for subclasses.
+    return this.performWithFallbackForPolicy(
+      method,
+      params,
+      providers,
+      reqId,
+      policy,
+    );
+  }
+
+  protected async performWithFallbackForPolicy(
+    method: string,
+    params: { [name: string]: any },
+    providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
+    reqId: number,
+    policy: SmartProviderRequestPolicy,
   ): Promise<any> {
     let pIndex = 0;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
@@ -371,6 +602,7 @@ export class HyperlaneSmartProvider
         method,
         params,
         reqId,
+        policy,
       );
       // SendTransaction must not race against a timeout - we must wait for the
       // RPC response to avoid losing track of a submitted transaction
@@ -378,9 +610,7 @@ export class HyperlaneSmartProvider
       if (method === ProviderMethod.SendTransaction) {
         result = await resultPromise;
       } else {
-        const timeoutPromise = timeoutResult(
-          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-        );
+        const timeoutPromise = timeoutResult(policy.fallbackStaggerMs);
         result = await Promise.race([resultPromise, timeoutPromise]);
       }
 
@@ -416,47 +646,24 @@ export class HyperlaneSmartProvider
             break providerLoop;
           }
 
-          // If this is a blockchain error, stop trying additional providers as it's a permanent failure
-          // For CALL_EXCEPTION, we need to distinguish:
-          // 1. Real revert with data - permanent (has revert data like "0x08c379a0...")
-          // 2. Real revert without data - permanent (has nested error.error.code === 3 from JSON-RPC)
-          // 3. Empty return data decode failure - permanent (no nested error, ethers failed to decode "0x")
-          // 4. Actual RPC issue - transient (has nested error but not code 3)
           const errorCode = (result.error as any)?.code;
-          const revertData = (result.error as any)?.data;
-          const hasRevertData = !!revertData && revertData !== '0x';
-          const nestedError = (result.error as any)?.error;
-          // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
-          // Check both nested levels as ethers wraps errors in error.error.code structure
-          const jsonRpcErrorCode =
-            nestedError?.error?.code ?? nestedError?.code;
-          const isJsonRpcRevert = jsonRpcErrorCode === 3;
-          // No nested error means ethers failed to decode empty return data - this is permanent
-          const isEmptyReturnDecodeFailure =
-            errorCode === EthersError.CALL_EXCEPTION &&
-            !hasRevertData &&
-            !nestedError;
-          const isCallExceptionWithoutData =
-            errorCode === EthersError.CALL_EXCEPTION &&
-            !hasRevertData &&
-            !isJsonRpcRevert &&
-            !isEmptyReturnDecodeFailure;
-          const isPermanentBlockchainError =
-            RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
-            !isCallExceptionWithoutData;
-
-          if (isPermanentBlockchainError) {
+          const errorClassification = classifyProviderError(
+            result.error,
+            policy.kind,
+          );
+          if (
+            errorClassification === 'permanent' ||
+            errorClassification === 'probe_miss'
+          ) {
+            const stopReason =
+              errorClassification === 'probe_miss'
+                ? 'a deterministic probe miss'
+                : 'a permanent failure';
             this.logger.debug(
               { ...providerMetadata },
-              `${errorCode} detected - stopping provider fallback as this is a permanent failure`,
+              `${errorCode} detected - stopping provider fallback as this is ${stopReason}`,
             );
             break providerLoop;
-          }
-          if (isCallExceptionWithoutData) {
-            this.logger.debug(
-              { ...providerMetadata },
-              `${errorCode} without revert data detected - treating as transient RPC error, will retry`,
-            );
           }
           this.logger.debug(
             {
@@ -486,14 +693,15 @@ export class HyperlaneSmartProvider
         `All providers failed on chain ${
           this.network.name
         } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        policy.kind,
       );
       throw new CombinedError();
     }
 
     // Wait for at least one provider to succeed or all to fail/timeout
     const timeoutPromise = timeoutResult(
-      this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-      DEFAULT_PHASE2_WAIT_MULTIPLIER,
+      policy.fallbackStaggerMs,
+      policy.phase2WaitMultiplier,
     );
     const resultPromise = this.waitForProviderSuccess(providerResultPromises);
     const result = await Promise.race([resultPromise, timeoutPromise]);
@@ -505,6 +713,7 @@ export class HyperlaneSmartProvider
         const CombinedError = this.getCombinedProviderError(
           [result, ...providerResultErrors],
           `All providers timed out on chain ${this.network.name} for method ${method}`,
+          policy.kind,
         );
         throw new CombinedError();
       }
@@ -514,6 +723,7 @@ export class HyperlaneSmartProvider
           `All providers failed on chain ${
             this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          policy.kind,
         );
         throw new CombinedError();
       }
@@ -529,13 +739,18 @@ export class HyperlaneSmartProvider
     method: string,
     params: any,
     reqId: number,
+    policy: SmartProviderRequestPolicy,
   ): Promise<ProviderPerformResult> {
     try {
       if (this.options?.debug)
         this.logger.debug(
           `Provider #${pIndex} performing method ${method} for reqId ${reqId}`,
         );
-      const result = await provider.perform(method, params, reqId);
+      const result = await provider.perform(
+        method,
+        this.getProviderParams(provider, params, policy),
+        reqId,
+      );
       return { status: ProviderStatus.Success, value: result };
     } catch (error) {
       if (this.options?.debug)
@@ -545,6 +760,35 @@ export class HyperlaneSmartProvider
         );
       return { status: ProviderStatus.Error, error };
     }
+  }
+
+  protected getProviderParams(
+    provider: HyperlaneProvider,
+    params: any,
+    policy: SmartProviderRequestPolicy,
+  ): any {
+    if (
+      !(provider instanceof HyperlaneJsonRpcProvider) ||
+      params == null ||
+      typeof params !== 'object'
+    ) {
+      return params;
+    }
+
+    if (
+      policy.kind !== SmartProviderRequestKind.Probe &&
+      !policy.allowEmptyCallResult
+    ) {
+      return params;
+    }
+
+    return {
+      ...params,
+      [SMART_PROVIDER_REQUEST_CONFIG]: {
+        kind: policy.kind,
+        allowEmptyCallResult: policy.allowEmptyCallResult,
+      } satisfies SmartProviderRequestConfig,
+    };
   }
 
   // Returns the first success from a list a promises, or an error if all fail
@@ -584,6 +828,7 @@ export class HyperlaneSmartProvider
   protected getCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
+    requestKind = SmartProviderRequestKind.Read,
   ): new () => Error {
     this.logger.debug(fallbackMsg);
     if (errors.length === 0) {
@@ -594,33 +839,29 @@ export class HyperlaneSmartProvider
       };
     }
 
-    // Find blockchain errors, but exclude CALL_EXCEPTION without revert data (likely RPC issues)
-    // Note: ethers sets data to "0x" when there's no actual revert data
-    // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
-    // Also, no nested error means ethers failed to decode empty return data - also permanent
-    const rpcBlockchainError = errors.find((e) => {
-      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
-      if (e.code !== EthersError.CALL_EXCEPTION) return true;
-      // For CALL_EXCEPTION, check if it's a real revert or decode failure
-      const hasRevertData = !!e.data && e.data !== '0x';
-      // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
-      // Also check shallower level as error nesting varies
-      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
-      const isJsonRpcRevert = jsonRpcErrorCode === 3;
-      // No nested error means ethers failed to decode empty return data - permanent
-      const isEmptyReturnDecodeFailure = !e.error;
-      return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
-    });
+    const classifiedErrors = new Map<ProviderErrorClassification, any>();
+    for (const error of errors) {
+      const classification = classifyProviderError(error, requestKind);
+      if (!classifiedErrors.has(classification)) {
+        classifiedErrors.set(classification, error);
+      }
+    }
 
-    const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
-    );
+    const probeMissError = classifiedErrors.get('probe_miss');
+    const rpcBlockchainError = classifiedErrors.get('permanent');
+    const rpcServerError = classifiedErrors.get('server');
+    const rpcTransientError = classifiedErrors.get('transient');
+    const timedOutError = classifiedErrors.get('timeout');
 
-    const timedOutError = errors.find(
-      (e) => e.status === ProviderStatus.Timeout,
-    );
-
-    if (rpcBlockchainError) {
+    if (probeMissError) {
+      return class extends ProbeMissError {
+        constructor() {
+          super(probeMissError.reason ?? probeMissError.code ?? fallbackMsg, {
+            cause: probeMissError,
+          });
+        }
+      };
+    } else if (rpcBlockchainError) {
       // All blockchain errors are non-retryable and take priority
       return class extends BlockchainError {
         constructor() {
@@ -637,6 +878,14 @@ export class HyperlaneSmartProvider
               getSmartProviderErrorMessage(rpcServerError.code),
             { cause: rpcServerError },
           );
+        }
+      };
+    } else if (rpcTransientError) {
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg, {
+            cause: rpcTransientError,
+          });
         }
       };
     } else if (timedOutError) {

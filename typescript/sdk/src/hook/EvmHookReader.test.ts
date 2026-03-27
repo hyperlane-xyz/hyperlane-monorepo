@@ -8,8 +8,6 @@ import {
   CCIPHook__factory,
   DefaultHook,
   DefaultHook__factory,
-  IPostDispatchHook,
-  IPostDispatchHook__factory,
   MerkleTreeHook,
   MerkleTreeHook__factory,
   OPStackHook,
@@ -65,8 +63,8 @@ describe('EvmHookReader', () => {
       .stub(MerkleTreeHook__factory, 'connect')
       .returns(mockContract as unknown as MerkleTreeHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.MERKLE_TREE);
 
     const expectedConfig: WithAddress<MerkleTreeHookConfig> = {
       address: mockAddress,
@@ -99,8 +97,8 @@ describe('EvmHookReader', () => {
       .stub(ProtocolFee__factory, 'connect')
       .returns(mockContract as unknown as ProtocolFee);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.PROTOCOL_FEE);
 
     const expectedConfig: WithAddress<ProtocolFeeHookConfig> = {
       owner: mockOwner,
@@ -135,8 +133,8 @@ describe('EvmHookReader', () => {
       .stub(PausableHook__factory, 'connect')
       .returns(mockContract as unknown as PausableHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.PAUSABLE);
 
     const expectedConfig: WithAddress<PausableHookConfig> = {
       owner: mockOwner,
@@ -167,8 +165,8 @@ describe('EvmHookReader', () => {
       .stub(DefaultHook__factory, 'connect')
       .returns(mockContract as unknown as DefaultHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .resolves(OnchainHookType.MAILBOX_DEFAULT_HOOK);
 
     const expectedConfig: WithAddress<MailboxDefaultHookConfig> = {
       address: mockAddress,
@@ -201,8 +199,17 @@ describe('EvmHookReader', () => {
       .stub(OPStackHook__factory, 'connect')
       .returns(mockContract as unknown as OPStackHook);
     sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+      .stub(evmHookReader as any, 'probeContractCall')
+      .callsFake(async (...args: unknown[]) => {
+        const method = args[2] as string;
+        if (method === 'hookType') {
+          return OnchainHookType.ID_AUTH_ISM;
+        }
+        if (method === 'l1Messenger') {
+          return l1Messenger;
+        }
+        return undefined;
+      });
 
     const expectedConfig: WithAddress<OpStackHookConfig> = {
       owner: mockOwner,
@@ -221,6 +228,42 @@ describe('EvmHookReader', () => {
     expect(config).to.deep.equal(hookConfig);
   });
 
+  it('should derive CCIP hook through probe helpers', async () => {
+    const ccipHookAddress = randomAddress();
+    const destinationDomain = test1.domainId;
+    const ism = randomAddress();
+
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
+      destinationDomain: sandbox.stub().resolves(destinationDomain),
+      ism: sandbox.stub().resolves(ism),
+    };
+
+    sandbox
+      .stub(CCIPHook__factory, 'connect')
+      .returns(mockContract as unknown as CCIPHook);
+    sandbox
+      .stub(evmHookReader as any, 'probeContractCall')
+      .callsFake(async (...args: unknown[]) => {
+        const method = args[2] as string;
+        if (method === 'hookType') {
+          return OnchainHookType.ID_AUTH_ISM;
+        }
+        if (method === 'ccipDestination') {
+          return randomAddress();
+        }
+        return undefined;
+      });
+
+    const config = await evmHookReader.deriveHookConfig(ccipHookAddress);
+
+    expect(config).to.deep.equal({
+      address: ccipHookAddress,
+      type: HookType.CCIP,
+      destinationChain: TestChainName.test1,
+    });
+  });
+
   it('should derive CCIPHook configuration correctly', async () => {
     const ccipHookAddress = randomAddress();
     const destinationDomain = test1.domainId;
@@ -236,9 +279,6 @@ describe('EvmHookReader', () => {
     sandbox
       .stub(CCIPHook__factory, 'connect')
       .returns(mockContract as unknown as CCIPHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
 
     const config = await evmHookReader.deriveCcipConfig(ccipHookAddress);
 
@@ -263,9 +303,7 @@ describe('EvmHookReader', () => {
     sandbox
       .stub(MerkleTreeHook__factory, 'connect')
       .returns(mockContract as unknown as MerkleTreeHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    sandbox.stub(evmHookReader as any, 'probeContractCall').resolves(undefined);
 
     // top-level method infers hook type
     try {
