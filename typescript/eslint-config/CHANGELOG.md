@@ -1,5 +1,7 @@
 # @hyperlane-xyz/eslint-config
 
+## 30.0.0
+
 ## 29.1.0
 
 ## 29.0.1

@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [37255ba]
+  - @hyperlane-xyz/deploy-sdk@4.2.3
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/aleo-sdk@30.0.0
+  - @hyperlane-xyz/cosmos-sdk@30.0.0
+  - @hyperlane-xyz/radix-sdk@30.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.7
+  - @hyperlane-xyz/starknet-core@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+  - @hyperlane-xyz/core@11.1.0
+
 ## 29.1.0
 
 ### Minor Changes
