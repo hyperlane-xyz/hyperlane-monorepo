@@ -104,6 +104,22 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     ]);
   }
 
+  private async deployLeafFee(
+    chain: ChainName,
+    config: Exclude<
+      TokenFeeConfig,
+      | { type: TokenFeeType.RoutingFee }
+      | { type: TokenFeeType.CrossCollateralRoutingFee }
+    >,
+  ): Promise<BaseFee> {
+    return config.type === TokenFeeType.OffchainQuotedLinearFee
+      ? BaseFee__factory.connect(
+          (await this.deployOffchainQuotedLinearFee(chain, config)).address,
+          this.multiProvider.getSigner(chain),
+        )
+      : await this.deployFee(chain, config);
+  }
+
   private async deployOffchainQuotedLinearFee(
     chain: ChainName,
     config: OffchainQuotedLinearFeeConfig,
@@ -176,18 +192,10 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         ...feeConfig,
         token: feeConfig.token ?? config.token,
       };
-      const deployedFeeContract =
-        resolvedFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
-          ? BaseFee__factory.connect(
-              (
-                await this.deployOffchainQuotedLinearFee(
-                  chain,
-                  resolvedFeeConfig,
-                )
-              ).address,
-              this.multiProvider.getSigner(chain),
-            )
-          : await this.deployFee(chain, resolvedFeeConfig);
+      const deployedFeeContract = await this.deployLeafFee(
+        chain,
+        resolvedFeeConfig,
+      );
 
       await this.multiProvider.handleTx(
         chain,
@@ -236,7 +244,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [routerKey, routerFeeConfig] of Object.entries(
         destinationConfig,
       )) {
-        const deployedFeeContract = await this.deployFee(
+        const deployedFeeContract = await this.deployLeafFee(
           chain,
           routerFeeConfig,
         );
