@@ -2,6 +2,7 @@ import type { Keypair } from '@solana/web3.js';
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
+import type { PredicateAttestation } from '../../predicate/PredicateApiClient.js';
 import { TokenMetadata } from '../types.js';
 
 export interface TransferParams {
@@ -17,6 +18,8 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   customHook?: Address;
+  /** Optional Predicate attestation for compliance-gated warp routes */
+  attestation?: PredicateAttestation;
   /** Optional extra signers for Sealevel transactions (e.g., randomWallet Keypair for dispatch PDA) */
   extraSigners?: Keypair[];
 }
