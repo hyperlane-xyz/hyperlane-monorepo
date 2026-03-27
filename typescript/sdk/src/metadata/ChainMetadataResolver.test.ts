@@ -46,4 +46,27 @@ describe('createChainMetadataResolver', () => {
       'cosmoshub',
     );
   });
+
+  it('prioritizes numeric chainId lookups consistently for strings and numbers', () => {
+    const resolver = createChainMetadataResolver({
+      ...metadata,
+      domainOnly: {
+        name: 'domainOnly',
+        domainId: 10,
+        chainId: 999,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [{ http: 'https://domain.invalid' }],
+      },
+      chainOnly: {
+        name: 'chainOnly',
+        domainId: 1111,
+        chainId: 10,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [{ http: 'https://chain.invalid' }],
+      },
+    });
+
+    expect(resolver.tryGetChainMetadata('10')?.name).to.equal('chainOnly');
+    expect(resolver.tryGetChainMetadata(10)?.name).to.equal('chainOnly');
+  });
 });
