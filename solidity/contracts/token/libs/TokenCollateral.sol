@@ -8,6 +8,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {SafeERC20Ext} from "../../libs/SafeERC20Ext.sol";
 
 /**
  * @title Handles deposits and withdrawals of native token collateral.
@@ -47,6 +48,7 @@ library WETHCollateral {
  */
 library ERC20Collateral {
     using SafeERC20 for IERC20;
+    using SafeERC20Ext for IERC20;
 
     function _transferFromSender(IERC20 token, uint256 _amount) internal {
         token.safeTransferFrom(msg.sender, address(this), _amount);
@@ -57,7 +59,7 @@ library ERC20Collateral {
         address _recipient,
         uint256 _amount
     ) internal {
-        token.safeTransfer(_recipient, _amount);
+        token.safeTransferWithBalanceCheck(_recipient, _amount);
     }
 }
 

@@ -2,11 +2,11 @@
 pragma solidity >=0.8.0;
 
 import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
+import {SafeERC20Ext} from "../../libs/SafeERC20Ext.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {PackageVersioned} from "../../PackageVersioned.sol";
 
 enum FeeType {
     ZERO,
@@ -18,7 +18,7 @@ enum FeeType {
 
 abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
     using Address for address payable;
-    using SafeERC20 for IERC20;
+    using SafeERC20Ext for IERC20;
 
     /**
      * @notice The ERC20 token for which this fee contract applies.
@@ -58,13 +58,15 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
             payable(beneficiary).sendValue(address(this).balance);
         } else {
             uint256 balance = token.balanceOf(address(this));
-            token.safeTransfer(beneficiary, balance);
+            token.safeTransferWithBalanceCheck(beneficiary, balance);
         }
     }
 
     function quoteTransferRemote(
-        uint32 /*_destination*/,
-        bytes32 /*_recipient*/,
+        uint32,
+        /*_destination*/
+        bytes32,
+        /*_recipient*/
         uint256 _amount
     ) external view virtual returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
