@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { computeSealevelSourceHash } from './sealevel-source-hash.mjs';
+import crossCollateralFallbackBytes from './cross-collateral-program-bytes.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,6 +24,12 @@ const PROGRAMS = {
   tokenSynthetic: 'hyperlane_sealevel_token.so',
   tokenNative: 'hyperlane_sealevel_token_native.so',
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
+  tokenCrossCollateral: 'hyperlane_sealevel_token_cross_collateral.so',
+};
+
+/** Fallback bytes for programs whose .so is not yet available locally. */
+const FALLBACK_BYTES = {
+  tokenCrossCollateral: crossCollateralFallbackBytes,
 };
 
 console.log('🔧 Generating program bytes from .so files...\n');
@@ -36,8 +43,14 @@ for (const [key, filename] of Object.entries(PROGRAMS)) {
     programBytes[key] = Array.from(bytes);
     console.log(`  ✅ ${key}: ${bytes.length.toLocaleString()} bytes`);
   } catch {
-    console.error(`  ❌ ${key}: required .so file not found at ${path}`);
-    process.exit(1);
+    const fallback = FALLBACK_BYTES[key];
+    if (fallback) {
+      programBytes[key] = Array.from(fallback);
+      console.log(`  ⚠️  ${key}: using fallback bytes (${fallback.length.toLocaleString()} bytes)`);
+    } else {
+      console.error(`  ❌ ${key}: required .so file not found at ${path}`);
+      process.exit(1);
+    }
   }
 }
 
