@@ -220,7 +220,8 @@ describe('EvmTokenFeeModule', () => {
         },
       };
 
-      await expectTxsAndUpdate(module, updatedConfig, 0, {
+      // 1 tx: setFeeContract to point to redeployed sub-fee
+      await expectTxsAndUpdate(module, updatedConfig, 1, {
         routingDestinations: [multiProvider.getDomainId(test4Chain)],
       });
       const onchainConfig = await module.read({
@@ -269,6 +270,7 @@ describe('EvmTokenFeeModule', () => {
       });
 
       const newOwner = normalizeConfig(randomAddress());
+      // 2 txs: sub-fee ownership transfer + routing fee ownership transfer
       await expectTxsAndUpdate(
         module,
         {
@@ -278,7 +280,7 @@ describe('EvmTokenFeeModule', () => {
             [test4Chain]: { ...feeContracts[test4Chain], owner: newOwner },
           },
         },
-        0,
+        2,
         {
           routingDestinations: [multiProvider.getDomainId(test4Chain)],
         },
@@ -323,8 +325,12 @@ describe('EvmTokenFeeModule', () => {
         },
       };
 
+      // 1 tx: setFeeContract to point to redeployed sub-fee
       const txs = await module.update(updatedConfig);
-      expect(txs.length).to.equal(0);
+      expect(txs.length).to.equal(1);
+      for (const tx of txs) {
+        await multiProvider.sendTransaction(test4Chain, tx);
+      }
       const onchainConfig = await module.read({
         routingDestinations: [multiProvider.getDomainId(test4Chain)],
       });
@@ -693,8 +699,12 @@ describe('EvmTokenFeeModule', () => {
         },
       };
 
+      // 1 tx: setFeeContract for the new destination
       const txs = await module.update(updatedConfig);
-      expect(txs.length).to.equal(0);
+      expect(txs.length).to.equal(1);
+      for (const tx of txs) {
+        await multiProvider.sendTransaction(test4Chain, tx);
+      }
 
       const onchainConfig = await module.read({
         routingDestinations: [
