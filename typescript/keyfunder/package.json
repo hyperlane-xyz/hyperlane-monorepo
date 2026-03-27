@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/keyfunder",
-  "version": "0.1.9",
+  "version": "0.1.14",
   "private": true,
   "description": "Hyperlane Key Funder Service - funds agent keys with native tokens",
   "keywords": [
@@ -51,6 +51,7 @@
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",

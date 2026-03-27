@@ -283,9 +283,8 @@ function Chevron({
       <WideChevronIcon
         direction="e"
         height="100%"
-        width="auto"
         color={color}
-        style={{ display: 'block' }}
+        style={{ display: 'block', width: 'auto' }}
       />
     </div>
   );

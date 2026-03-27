@@ -3,11 +3,11 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, 'audit-*']
+    branches: [main, "audit-*"]
   # Triggers on pull requests
   pull_request:
     branches:
-      - '*'
+      - "*"
   merge_group:
   workflow_dispatch:
 
@@ -111,7 +111,7 @@ jobs:
       - name: Check lint-prettier status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'Lint Prettier'
+          job_name: "Lint Prettier"
           result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
@@ -140,6 +140,7 @@ jobs:
       has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
       has_aleo: ${{ steps.decide.outputs.has_aleo }}
       has_radix: ${{ steps.decide.outputs.has_radix }}
+      has_starknet: ${{ steps.decide.outputs.has_starknet }}
       has_tron: ${{ steps.decide.outputs.has_tron }}
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
@@ -164,8 +165,8 @@ jobs:
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: '(rust/|\.github/|typescript/docker-bake\.hcl)'
-          path_pattern_only: 'true'
+          path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
+          path_pattern_only: "true"
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
@@ -179,6 +180,7 @@ jobs:
             echo "has_radix=true" >> $GITHUB_OUTPUT
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
+            echo "has_starknet=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
@@ -191,6 +193,7 @@ jobs:
             echo "has_radix=false" >> $GITHUB_OUTPUT
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
+            echo "has_starknet=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
@@ -202,6 +205,7 @@ jobs:
           has_radix=$(echo "$CHANGED_FILES" | grep -qE '^typescript/radix-sdk/' && echo true || echo false)
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
+          has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
           has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/svm-sdk/)' && echo true || echo false)
 
@@ -219,16 +223,17 @@ jobs:
           echo "has_radix=$has_radix" >> $GITHUB_OUTPUT
           echo "has_aleo=$has_aleo" >> $GITHUB_OUTPUT
           echo "has_cosmos=$has_cosmos" >> $GITHUB_OUTPUT
+          echo "has_starknet=$has_starknet" >> $GITHUB_OUTPUT
           echo "has_tron=$has_tron" >> $GITHUB_OUTPUT
           echo "has_relayer=$has_relayer" >> $GITHUB_OUTPUT
           echo "has_rebalancer=$has_rebalancer" >> $GITHUB_OUTPUT
 
           echo "CLI changes: $has_cli_changes"
-          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron"
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos starknet=$has_starknet tron=$has_tron"
           echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
           echo "has_svm=$has_svm" >> $GITHUB_OUTPUT
 
-          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron svm=$has_svm"
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos starknet=$has_starknet tron=$has_tron svm=$has_svm"
 
       - name: Decide what to run
         id: decide
@@ -248,6 +253,7 @@ jobs:
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_radix=false" >> $GITHUB_OUTPUT
+            echo "has_starknet=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
@@ -262,6 +268,7 @@ jobs:
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_radix=true" >> $GITHUB_OUTPUT
+            echo "has_starknet=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
@@ -275,6 +282,7 @@ jobs:
           echo "has_cosmos=${{ steps.check-vm.outputs.has_cosmos }}" >> $GITHUB_OUTPUT
           echo "has_aleo=${{ steps.check-vm.outputs.has_aleo }}" >> $GITHUB_OUTPUT
           echo "has_radix=${{ steps.check-vm.outputs.has_radix }}" >> $GITHUB_OUTPUT
+          echo "has_starknet=${{ steps.check-vm.outputs.has_starknet }}" >> $GITHUB_OUTPUT
           echo "has_tron=${{ steps.check-vm.outputs.has_tron }}" >> $GITHUB_OUTPUT
           echo "has_relayer=${{ steps.check-vm.outputs.has_relayer }}" >> $GITHUB_OUTPUT
           echo "has_rebalancer=${{ steps.check-vm.outputs.has_rebalancer }}" >> $GITHUB_OUTPUT
@@ -309,7 +317,7 @@ jobs:
       - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'PNPM Test'
+          job_name: "PNPM Test"
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
@@ -391,7 +399,7 @@ jobs:
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'CLI Install Test'
+          job_name: "CLI Install Test"
           result: ${{ needs.cli-install-test-run.result }}
 
   # Reusable workflow callers
@@ -406,9 +414,11 @@ jobs:
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
       has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
       has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
     runs-on: ubuntu-latest
@@ -419,7 +429,7 @@ jobs:
       - name: Check CLI E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'CLI E2E'
+          job_name: "CLI E2E"
           result: ${{ needs.cli-e2e-tests.result }}
 
   sdk-e2e-tests:
@@ -430,6 +440,7 @@ jobs:
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
       has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
@@ -442,7 +453,7 @@ jobs:
       - name: Check SDK E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'SDK E2E'
+          job_name: "SDK E2E"
           result: ${{ needs.sdk-e2e-tests.result }}
 
   rust-e2e-tests:

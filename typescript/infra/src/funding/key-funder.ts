@@ -8,6 +8,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 
 import { Contexts } from '../../config/contexts.js';
 import { DockerImageRepos } from '../../config/docker.js';
+import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
 import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
 import { getEnvAddresses } from '../../config/registry.js';
@@ -54,6 +55,11 @@ export class KeyFunderHelmManager extends HelmManager {
     readonly config: KeyFunderConfig<string[]>,
     readonly agentConfig: AgentContextConfig,
     readonly registryCommit: string,
+    // Per-context EVM chain allowlist for relayer funding. If set for a context,
+    // only those chains will be funded for that context's relayer.
+    private readonly contextRelayerChains: Partial<
+      Record<Contexts, string[]>
+    > = {},
   ) {
     super();
   }
@@ -65,10 +71,28 @@ export class KeyFunderHelmManager extends HelmManager {
     const envConfig = getEnvironmentConfig(environment);
     const keyFunderConfig = getKeyFunderConfig(envConfig);
     const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+
+    const contextRelayerChains: Partial<Record<Contexts, string[]>> = {};
+    for (const [contextStr, roles] of Object.entries(
+      keyFunderConfig.contextsAndRolesToFund,
+    )) {
+      if (!roles?.includes(Role.Relayer)) continue;
+      const context = contextStr as Contexts;
+      try {
+        const ctxAgentConfig = getAgentConfig(context, environment);
+        contextRelayerChains[context] = ctxAgentConfig.contextChainNames[
+          Role.Relayer
+        ].filter(isEthereumProtocolChain);
+      } catch {
+        // context may not have an agent config in this environment
+      }
+    }
+
     return new KeyFunderHelmManager(
       keyFunderConfig,
       agentConfig,
       registryCommit,
+      contextRelayerChains,
     );
   }
 
@@ -94,9 +118,10 @@ export class KeyFunderHelmManager extends HelmManager {
         prometheusPushGateway: this.config.prometheusPushGateway,
       },
       image: {
-        repository: DockerImageRepos.KEY_FUNDER,
+        repository: DockerImageRepos.NODE_SERVICES,
         tag: this.config.docker.tag,
       },
+      serviceName: NODE_SERVICE_NAMES.KEYFUNDER,
     };
   }
 
@@ -223,6 +248,11 @@ export class KeyFunderHelmManager extends HelmManager {
       if (!roles) continue;
 
       for (const role of roles) {
+        if (role === Role.Relayer) {
+          const allowedChains = this.contextRelayerChains[context];
+          if (allowedChains && !allowedChains.includes(chain)) continue;
+        }
+
         const roleName = `${context}-${role}`;
         if (!roleAddressMap[roleName]) continue;
 

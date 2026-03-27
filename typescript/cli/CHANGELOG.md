@@ -1,5 +1,60 @@
 # @hyperlane-xyz/cli
 
+## 29.1.0
+
+### Minor Changes
+
+- e4d56e9: Added tron support for hyperlane send message command
+
+## 29.0.1
+
+## 29.0.0
+
+### Minor Changes
+
+- 09d6760: Added Starknet artifact API support across the TypeScript AltVM toolchain. The new `@hyperlane-xyz/starknet-sdk` package provides Starknet protocol, signer, provider, ISM, hook, mailbox, validator announce, and end-to-end test coverage. Deploy SDK protocol loading and the CLI context/signer flows were updated so Starknet chains can be resolved and used through the shared AltVM paths.
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+
+## 28.1.0
+
+### Minor Changes
+
+- 63100a2: Added bytes32 address conversion utility commands to the CLI for converting between protocol-specific addresses and bytes32 format used in cross-chain messages.
+- e93a4c8: Added multi-VM support to `hyperlane warp send` command. The command now supports transfers across all WarpCore-supported VMs including EVM, Sealevel (Solana), Cosmos, CosmosNative, Starknet, and Radix. Non-EVM destinations use Explorer GraphQL polling for delivery verification with automatic fallback to on-chain polling. Self-relay is only supported for EVM destinations and will warn/skip otherwise.
+
+### Patch Changes
+
+- ba9e35a: Only loaded relevant chains for warp send command, improving performance by avoiding loading all chain configurations.
+
+## 28.0.0
+
+### Major Changes
+
+- 5a5d172: CLI warp route reference methods were consolidated into a single `--warp-route-id` flag with `-w` and `--id` aliases. The `--config/-wd` (deploy config path) and `--warp/-wc` (warp config path) flags were removed in favor of registry-based warp route IDs. Symbol-only references (for example, `-w ETH`) now auto-resolve when unique or prompt for selection when multiple matches exist.
+
+  Migration examples:
+  - Before: `hyperlane warp deploy --config ./config.yaml`
+  - After: `hyperlane warp deploy -w ETH/ethereum-arbitrum`
+
+### Minor Changes
+
+- b9c6844: MultiCollateral contracts and SDK/CLI terminology were renamed to CrossCollateral.
+
+  The Solidity ABI was updated with renamed contracts, interfaces, router enrollment methods, domain/route getters, fee-quote method, events, and revert prefixes.
+
+  The SDK token type was migrated to `crossCollateral`.
+
+  Reader compatibility for legacy deployed contracts was not retained; readers now require the renamed CrossCollateral ABI methods.
+
+### Patch Changes
+
+- 83767b9: Removed `AltVMCoreModule`, `AltVMCoreReader`, and `coreModuleProvider` from deploy-sdk in favor of the new core artifact API (`CoreWriter`, `createCoreReader`). Added `coreConfigToArtifact` and `coreResultToDeployedAddresses` helpers to provider-sdk. Updated CLI core deploy and read commands to use the new API.
+- a4a74d8: TokenBridgeOft was refactored to remove TokenRouter inheritance, implementing ITokenBridge directly with OwnableUpgradeable. The contract no longer requires a mailbox, remote router enrollment, or destination gas configuration. Fee recipient support was removed and OFT fee quotes were consolidated into a single token quote entry. SDK deployer, warp route reader, and warp module were updated to handle OFT configs separately from Router-based configs.
+- 5ebefdb: Added support for `hyperlane warp send` from EVM chains to non-EVM destinations (Eclipse, Solana, Cosmos). Transaction is submitted on EVM origin, Rust relayer handles delivery. Non-EVM destinations require explicit `--recipient`.
+
 ## 27.1.0
 
 ## 27.0.0

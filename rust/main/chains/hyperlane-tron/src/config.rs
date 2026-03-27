@@ -8,10 +8,10 @@ pub(crate) const DEFAULT_ENERGY_MULTIPLIER: f64 = 1.5;
 pub struct ConnectionConf {
     /// RPC urls
     pub rpc_urls: Vec<Url>,
-    /// gRPC urls
-    pub grpc_urls: Vec<Url>,
-    /// Solidity gRPC urls
-    pub solidity_grpc_urls: Vec<Url>,
+    /// Wallet HTTP API urls (full node)
+    pub wallet_urls: Vec<Url>,
+    /// Wallet Solidity HTTP API urls (solidity node)
+    pub wallet_solidity_urls: Vec<Url>,
     /// Optional Energy multiplier
     pub energy_multiplier: Option<f64>,
 }

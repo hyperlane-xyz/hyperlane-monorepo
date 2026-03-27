@@ -13,23 +13,26 @@ import {
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
+import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
-  MAINNET_PREFIX,
-  TESTNET_PREFIX,
   fromAleoAddress,
+  getNetworkPrefix,
   getProgramIdFromSuffix,
   getProgramSuffix,
 } from '../utils/helper.js';
-import { AleoNetworkId } from '../utils/types.js';
+import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
+import { AleoValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
 import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { AleoProvider } from './provider.js';
@@ -123,8 +126,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
         ? new AleoMainnetNetworkClient(rpcUrl)
         : new AleoTestnetNetworkClient(rpcUrl);
 
-    const prefix =
-      chainId === AleoNetworkId.TESTNET ? TESTNET_PREFIX : MAINNET_PREFIX;
+    const prefix = getNetworkPrefix(chainId);
     const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
     const ismManagerAddress = customIsmSuffix
       ? `${prefix}_ism_manager_${customIsmSuffix}.aleo`
@@ -144,6 +146,48 @@ export class AleoProtocolProvider implements ProtocolProvider {
       ismManagerAddress,
       hookManagerAddress,
     });
+  }
+
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager {
+    const aleoNetworkId = toAleoNetworkId(
+      parseInt(chainMetadata.chainId.toString()),
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      aleoNetworkId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoMailboxArtifactManager(
+      { domainId: chainMetadata.domainId, aleoNetworkId },
+      aleoClient,
+    );
+  }
+
+  createValidatorAnnounceArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager | null {
+    const aleoNetworkId = toAleoNetworkId(
+      parseInt(chainMetadata.chainId.toString()),
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      aleoNetworkId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoValidatorAnnounceArtifactManager(
+      { domainId: chainMetadata.domainId, aleoNetworkId },
+      aleoClient,
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {

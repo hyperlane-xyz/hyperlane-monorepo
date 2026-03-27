@@ -224,26 +224,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return this.deriveIsmConfig(routedIsmAddress);
     }
 
-    // check if its the ICA ISM
-    try {
-      const icaInstance = InterchainAccountRouter__factory.connect(
-        address,
-        this.provider,
-      );
-      await icaInstance.CCIP_READ_ISM();
-      // If no message context, just return this ICA ISM placeholder
-      return {
-        address,
-        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
-        isms: {},
-        owner: await icaInstance.owner(),
-      };
-    } catch {
-      this.logger.debug(
-        'Error accessing CCIP_READ_ISM property, implying this is not an ICA ISM.',
-        address,
-      );
-    }
+    const isIca = await this.isIcaRouter(address);
 
     let owner: Address | undefined;
     const ownableIsm = Ownable__factory.connect(address, this.provider);
@@ -258,6 +239,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     // If the current ISM does not have an owner then it is an Amount Router
     if (!owner) {
+      if (isIca) {
+        return {
+          type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+          isms: {},
+          address,
+          owner: ethers.constants.AddressZero,
+        };
+      }
       return this.deriveNonOwnableRoutingConfig(address);
     }
 
@@ -265,13 +254,12 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
     const domainIds = await defaultFallbackIsmInstance.domains();
 
-    const icaRouter = InterchainAccountRouter__factory.connect(
-      address,
-      this.provider,
-    );
-    try {
-      await icaRouter.CCIP_READ_ISM();
-
+    // Detect ICA routing ISM (full or minimal router)
+    if (isIca) {
+      const icaRouter = InterchainAccountRouter__factory.connect(
+        address,
+        this.provider,
+      );
       return {
         type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
         isms: await this.deriveRemoteIsmConfigs(
@@ -284,11 +272,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         address,
         owner,
       };
-    } catch {
-      this.logger.debug(
-        `Error accessing CCIP_READ_ISM property, implying that this is not a InterchainAccountRouterIsm.`,
-        address,
-      );
     }
 
     const domains: DomainRoutingIsmConfig['domains'] =
@@ -331,6 +314,32 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       type: ismType,
       domains,
     };
+  }
+
+  /**
+   * Detects whether the contract at `address` is an ICA router
+   * by probing for CCIP_READ_ISM() (full router) or bytecodeHash() (minimal router).
+   */
+  private async isIcaRouter(address: Address): Promise<boolean> {
+    const icaInstance = InterchainAccountRouter__factory.connect(
+      address,
+      this.provider,
+    );
+    try {
+      await icaInstance.CCIP_READ_ISM();
+      return true;
+    } catch {
+      try {
+        await icaInstance.bytecodeHash();
+        return true;
+      } catch {
+        this.logger.debug(
+          'Not an ICA router (no CCIP_READ_ISM or bytecodeHash).',
+          address,
+        );
+        return false;
+      }
+    }
   }
 
   private async deriveRemoteIsmConfigs(

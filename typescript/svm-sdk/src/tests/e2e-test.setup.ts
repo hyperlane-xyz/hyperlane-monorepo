@@ -21,6 +21,7 @@ const ALL_PRELOADED_PROGRAMS: Array<PreloadableProgram> = [
   'igp',
   'testIsm',
   'multisigIsm',
+  'validatorAnnounce',
 ];
 
 let validator: SolanaTestValidator | undefined;

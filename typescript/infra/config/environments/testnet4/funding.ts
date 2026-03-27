@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof testnet4SupportedChainNames
 > = {
   docker: {
-    repo: DockerImageRepos.KEY_FUNDER,
+    repo: DockerImageRepos.NODE_SERVICES,
     tag: testnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer key as testnet2.
@@ -24,6 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
+    [Contexts.FastPath]: [Role.Relayer],
   },
   chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config

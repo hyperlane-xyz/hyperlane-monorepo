@@ -44,16 +44,16 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
-    signer = (await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
+    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
       metadata: {
         chainId: 1,
       },
-    })) as AleoSigner;
+    });
 
     providerSdkSigner = signer;
 
     // Access the aleoClient from the signer to create the artifact manager
-    const aleoClient = (signer as any).aleoClient;
+    const aleoClient = signer.getAleoClient();
     artifactManager = new AleoIsmArtifactManager(aleoClient);
   });
 

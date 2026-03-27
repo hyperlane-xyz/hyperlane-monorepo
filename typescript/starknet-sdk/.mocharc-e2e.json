@@ -1,0 +1,5 @@
+{
+  "import": ["tsx"],
+  "file": ["src/tests/e2e-test.setup.ts"],
+  "exit": true
+}

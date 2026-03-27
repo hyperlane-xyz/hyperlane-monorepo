@@ -15,7 +15,10 @@ import { readYaml } from '@hyperlane-xyz/utils/fs';
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
+import {
+  NODE_SERVICE_NAMES,
+  WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+} from '../utils/consts.js';
 import {
   HelmManager,
   getDeployedRegistryCommit,
@@ -92,9 +95,10 @@ export class RebalancerHelmManager extends HelmManager {
 
     return {
       image: {
-        repository: DockerImageRepos.REBALANCER,
+        repository: DockerImageRepos.NODE_SERVICES,
         tag: mainnetDockerTags.rebalancer,
       },
+      serviceName: NODE_SERVICE_NAMES.REBALANCER,
       warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,

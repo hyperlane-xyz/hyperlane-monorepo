@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/infra",
-  "version": "27.1.0",
+  "version": "29.1.0",
   "private": true,
   "description": "Infrastructure utilities for the Hyperlane Network",
   "keywords": [
@@ -27,7 +27,7 @@
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
     "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
     "test:balance": "mocha --config ../sdk/.mocharc.json test/balance-alerts.test.ts",
-    "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
+    "test:unit": "mocha --config ../sdk/.mocharc.json --timeout 10000 \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
     "test:hardhat": "pnpm hardhat-esm test test/govern.hardhat-test.ts",
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:warp && pnpm test:balance",
     "test:ci": "pnpm test:unit && pnpm test:hardhat",
