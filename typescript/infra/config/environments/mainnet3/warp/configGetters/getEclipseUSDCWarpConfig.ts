@@ -37,7 +37,7 @@ import {
  *
  * Features:
  * - CCTP V2 rebalancing bridges (Standard + Fast) on all EVM chains
- * - Routing fee: 5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
+ * - Routing fee: 1.5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  * - Contract version 10.1.3
  */
 const awProxyAdminAddresses: ChainMap<string> = {
@@ -109,65 +109,6 @@ export const rebalanceableCollateralChains = [
   // No monad yet
 ] as const satisfies DeploymentChain[];
 
-// On-chain LinearFee parameters for already-deployed chains.
-// These were deployed with the original bps logic of using the totalSupply()
-// Without these, warp apply will 1) redeploy the fees and 2) warp check will show diffs
-const deployedChainFeeParams: Record<
-  string,
-  { maxFee: string; halfAmount: string }
-> = {
-  arbitrum: {
-    maxFee: '18459382986016399860015592127403368310046070992504417749897631',
-    halfAmount:
-      '18459382986016399860015592127403368310046070992504417749897630000',
-  },
-  base: {
-    maxFee: '27099327091626495140416592859206796555048937074435830815167597',
-    halfAmount:
-      '27099327091626495140416592859206796555048937074435830815167596000',
-  },
-  ethereum: {
-    maxFee: '2207817649756434359838725503051961931875524909323049373661705',
-    halfAmount:
-      '2207817649756434359838725503051961931875524909323049373661704000',
-  },
-  optimism: {
-    maxFee: '557857035769277571442107158893568717753786146662512570068048277',
-    halfAmount:
-      '557857035769277571442107158893568717753786146662512570068048276000',
-  },
-  polygon: {
-    maxFee: '189444232384281426231109839818586514265950429404753541975752862',
-    halfAmount:
-      '189444232384281426231109839818586514265950429404753541975752862000',
-  },
-  unichain: {
-    maxFee: '2675917496765118465156267568419760491445101099689821059982086779',
-    halfAmount:
-      '2675917496765118465156267568419760491445101099689821059982086778000',
-  },
-  avalanche: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  hyperevm: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  ink: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  linea: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  worldchain: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-};
-
 const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
@@ -229,10 +170,6 @@ export const buildEclipseUSDCWarpConfig = async (
       const destinations = rebalanceableCollateralChains.filter(
         (c) => c !== chain,
       );
-      const originFeeParams = deployedChainFeeParams[chain];
-      const feeParams = originFeeParams
-        ? Object.fromEntries(destinations.map((d) => [d, originFeeParams]))
-        : undefined;
       chainConfig = {
         ...baseConfig,
         ...tokenMetadata,
@@ -240,8 +177,7 @@ export const buildEclipseUSDCWarpConfig = async (
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(chain),
           destinations,
-          5,
-          feeParams,
+          1.5,
         ),
       };
     } else {
