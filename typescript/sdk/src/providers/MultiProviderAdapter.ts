@@ -25,6 +25,24 @@ export function wrapMultiProviderProviders<MetaExt = {}>(
   })) as ChainMap<TypedProvider>;
 }
 
+export function createAdapterFromMultiProvider<
+  MetaExt = {},
+  TOptions = MultiProviderAdapterOptions,
+  TAdapter extends MultiProviderAdapter<MetaExt> =
+    MultiProviderAdapter<MetaExt>,
+>(
+  AdapterClass: new (
+    chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
+    options?: TOptions,
+  ) => TAdapter,
+  mp: MultiProvider<MetaExt>,
+  options?: TOptions,
+): TAdapter {
+  const newMp = new AdapterClass(mp.metadata, options);
+  newMp.setProviders(wrapMultiProviderProviders(mp.providers));
+  return newMp;
+}
+
 export class MultiProviderAdapter<
   MetaExt = {},
 > extends MinimalProviderRegistry<MetaExt> {
@@ -39,9 +57,7 @@ export class MultiProviderAdapter<
     mp: MultiProvider<MetaExt>,
     options: MultiProviderAdapterOptions = {},
   ): MultiProviderAdapter<MetaExt> {
-    const newMp = new MultiProviderAdapter<MetaExt>(mp.metadata, options);
-    newMp.setProviders(wrapMultiProviderProviders(mp.providers));
-    return newMp;
+    return createAdapterFromMultiProvider(MultiProviderAdapter, mp, options);
   }
 
   toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {

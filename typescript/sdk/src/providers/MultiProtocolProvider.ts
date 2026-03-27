@@ -5,9 +5,9 @@ import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName } from '../types.js';
 
 import {
+  createAdapterFromMultiProvider,
   MultiProviderAdapter,
   MultiProviderAdapterOptions,
-  wrapMultiProviderProviders,
 } from './MultiProviderAdapter.js';
 import { MultiProvider } from './MultiProvider.js';
 import { ProviderType, TypedProvider } from './ProviderType.js';
@@ -27,9 +27,7 @@ export class MultiProtocolProvider<
     mp: MultiProvider<MetaExt>,
     options: MultiProtocolProviderOptions = {},
   ): MultiProtocolProvider<MetaExt> {
-    const newMp = new MultiProtocolProvider<MetaExt>(mp.metadata, options);
-    newMp.setProviders(wrapMultiProviderProviders(mp.providers));
-    return newMp;
+    return createAdapterFromMultiProvider(MultiProtocolProvider, mp, options);
   }
 
   constructor(
