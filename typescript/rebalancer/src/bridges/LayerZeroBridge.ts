@@ -24,7 +24,6 @@ import {
   type SendParam,
   type MessagingFee,
   type LayerZeroBridgeRoute,
-  type LayerZeroScanResponse,
 } from './layerZeroUtils.js';
 
 type TronWebLike = {
@@ -453,28 +452,33 @@ export class LayerZeroBridge implements IExternalBridge {
     const response = await this.fetchWithRetry(
       LAYERZERO_SCAN_API_URL + normalizedHash,
     );
-    const data: LayerZeroScanResponse = await response.json();
+    const responseData = await response.json();
 
-    if (!data.messages || data.messages.length === 0) {
+    // LZ Scan API returns { data: [...] } with status at data[].status.name
+    // and destination tx at data[].destination.tx.txHash
+    const messages = responseData.data ?? responseData.messages ?? [];
+    if (!messages || messages.length === 0) {
       return { status: 'not_found' };
     }
 
-    const msg = data.messages[0];
+    const msg = messages[0];
+    const statusName = msg.status?.name ?? msg.status;
+    const dstTxHash = msg.destination?.tx?.txHash ?? msg.dstTxHash ?? '';
 
-    switch (msg.status) {
+    switch (statusName) {
       case 'INFLIGHT':
         return { status: 'pending', substatus: 'INFLIGHT' };
       case 'DELIVERED':
         return {
           status: 'complete',
-          receivingTxHash: msg.dstTxHash ?? '',
+          receivingTxHash: dstTxHash,
           receivedAmount: 0n,
         };
       case 'FAILED':
       case 'BLOCKED':
-        return { status: 'failed', error: msg.status };
+        return { status: 'failed', error: statusName };
       default:
-        return { status: 'pending', substatus: msg.status };
+        return { status: 'pending', substatus: statusName };
     }
   }
 
