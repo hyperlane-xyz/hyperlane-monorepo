@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -12,12 +13,10 @@ import { XCircleIcon } from '../icons/XCircle.js';
 import { widgetLogger } from '../logger.js';
 import { tryClipboardSet } from '../utils/clipboard.js';
 import { WalletLogo } from '../walletIntegrations/WalletLogo.js';
-import {
-  getAddressFromAccountAndChain,
-  useAccounts,
-  useDisconnectFns,
-  useWalletDetails,
-} from '../walletIntegrations/multiProtocol.js';
+import { getAddressFromAccountAndChain } from '../walletIntegrations/accountUtils.js';
+import { useAccounts } from '../walletIntegrations/accounts.js';
+import { useDisconnectFns } from '../walletIntegrations/disconnectFns.js';
+import { useWalletDetails } from '../walletIntegrations/walletDetails.js';
 
 import { AccountInfo, WalletDetails } from './types.js';
 
@@ -30,7 +29,7 @@ export function AccountList({
   className,
   chainName,
 }: {
-  multiProvider: MultiProtocolProvider;
+  multiProvider: MinimalProviderRegistry;
   onClickConnectWallet: () => void;
   onCopySuccess?: () => void;
   className?: string;

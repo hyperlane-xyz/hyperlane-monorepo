@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
+import { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 describe('MultiProtocolProvider', () => {
@@ -20,6 +21,18 @@ describe('MultiProtocolProvider', () => {
       const metadata = multiProvider.getChainMetadata(TestChainName.test1);
       expect(metadata.foo).to.equal('0x123');
       expect(metadata.bar).to.equal(1);
+    });
+
+    it('keeps distinct logger module names for base and derived providers', () => {
+      const adapter = new MultiProviderAdapter({
+        test1,
+      });
+      const multiProvider = new MultiProtocolProvider({ test1 });
+
+      expect(adapter.logger.bindings().module).to.equal('MultiProviderAdapter');
+      expect(multiProvider.logger.bindings().module).to.equal(
+        'MultiProtocolProvider',
+      );
     });
   });
 });

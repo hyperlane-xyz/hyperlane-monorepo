@@ -3,7 +3,7 @@ import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 
 import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
@@ -19,7 +19,7 @@ export class CosmosNativeMultiProtocolSignerAdapter implements IMultiProtocolSig
   static async init(
     chainName: ChainName,
     privateKey: string,
-    multiProtocolProvider: MultiProtocolProvider,
+    multiProtocolProvider: MultiProviderAdapter,
   ): Promise<CosmosNativeMultiProtocolSignerAdapter> {
     const { bech32Prefix, rpcUrls, gasPrice } =
       multiProtocolProvider.getChainMetadata(chainName);

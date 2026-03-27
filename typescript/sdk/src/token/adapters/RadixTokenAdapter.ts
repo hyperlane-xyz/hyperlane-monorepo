@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -37,7 +37,7 @@ export class RadixTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -151,7 +151,7 @@ export class RadixHypCollateralAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);

@@ -393,6 +393,14 @@ export {
 } from './middleware/query/InterchainQueryDeployer.js';
 export { isBlockExplorerHealthy } from './providers/explorerHealthTest.js';
 export {
+  MinimalProviderRegistry,
+  MinimalProviderRegistryOptions,
+} from './providers/MinimalProviderRegistry.js';
+export {
+  MultiProviderAdapter,
+  MultiProviderAdapterOptions,
+} from './providers/MultiProviderAdapter.js';
+export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,
 } from './providers/MultiProtocolProvider.js';
@@ -402,15 +410,17 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
+  defaultProviderBuilderMap,
+  protocolToDefaultProviderBuilder,
+  ProviderBuilderMap,
+} from './providers/defaultProviderBuilderMaps.js';
+export {
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
-  defaultProviderBuilderMap,
   defaultSolProviderBuilder,
   defaultViemProviderBuilder,
-  protocolToDefaultProviderBuilder,
   ProviderBuilderFn,
-  ProviderBuilderMap,
   TypedProviderBuilderFn,
 } from './providers/providerBuilders.js';
 export {

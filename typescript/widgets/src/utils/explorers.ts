@@ -1,4 +1,4 @@
-import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import type { ChainMetadataManager } from '@hyperlane-xyz/sdk/metadata/ChainMetadataManager';
 import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
@@ -11,9 +11,9 @@ export interface ExplorerQueryResponse<R> {
 
 export async function getExplorerApiUrl(
   chainName: string,
-  multiProvider: MultiProvider,
+  chainMetadata: ChainMetadataManager,
 ) {
-  const metadata = await multiProvider.getChainMetadata(chainName);
+  const metadata = chainMetadata.getChainMetadata(chainName);
   const blockExplorers = metadata?.blockExplorers;
   if (!blockExplorers?.length) return null;
   return blockExplorers[0].apiUrl || blockExplorers[0].url;
@@ -21,12 +21,12 @@ export async function getExplorerApiUrl(
 
 export async function queryExplorer<P>(
   chainName: string,
-  multiProvider: MultiProvider,
+  chainMetadata: ChainMetadataManager,
   path: string,
   apiKey?: string,
   timeout?: number,
 ) {
-  const baseUrl = getExplorerApiUrl(chainName, multiProvider);
+  const baseUrl = getExplorerApiUrl(chainName, chainMetadata);
   if (!baseUrl)
     throw new Error(`No URL found for explorer for chain ${chainName}`);
 
@@ -65,7 +65,7 @@ interface PartialBlock {
 
 export async function queryExplorerForBlock(
   chainName: string,
-  multiProvider: MultiProvider,
+  chainMetadata: ChainMetadataManager,
   blockNumber?: number | string,
 ) {
   const path = `?module=proxy&action=eth_getBlockByNumber&tag=${
@@ -73,7 +73,7 @@ export async function queryExplorerForBlock(
   }&boolean=false`;
   const block = await queryExplorer<PartialBlock>(
     chainName,
-    multiProvider,
+    chainMetadata,
     path,
   );
   if (!block?.number || parseInt(block.number.toString()) < 0) {

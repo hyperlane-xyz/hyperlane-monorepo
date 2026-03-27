@@ -2,10 +2,8 @@ import type { Logger } from 'pino';
 
 import { providers } from 'ethers';
 
-import {
-  EthJsonRpcBlockParameterTag,
-  MultiProtocolProvider,
-} from '@hyperlane-xyz/sdk';
+import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
@@ -13,13 +11,13 @@ import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
  * Get the confirmed block tag for a chain, accounting for reorg period.
  * Returns a block number that is safe from reorgs, or a named tag like 'finalized'.
  *
- * @param multiProvider - MultiProtocolProvider instance
+ * @param multiProvider - MinimalProviderRegistry instance
  * @param chainName - Name of the chain
  * @param logger - Optional logger for warnings
  * @returns Confirmed block tag (number, named tag, or undefined on error)
  */
 export async function getConfirmedBlockTag(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MinimalProviderRegistry,
   chainName: string,
   logger?: Logger,
 ): Promise<ConfirmedBlockTag> {

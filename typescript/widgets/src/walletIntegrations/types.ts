@@ -1,9 +1,7 @@
-import {
-  ChainName,
-  IToken,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
+import { type TypedTransactionReceipt } from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 export interface ChainAddress {
@@ -63,5 +61,8 @@ export interface SwitchNetworkFns {
 }
 
 export interface WatchAssetFns {
-  addAsset: (token: IToken, activeChainName: ChainName) => Promise<boolean>;
+  addAsset: (
+    token: ITokenMetadata,
+    activeChainName: ChainName,
+  ) => Promise<boolean>;
 }
