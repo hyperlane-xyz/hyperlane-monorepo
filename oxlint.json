@@ -322,6 +322,27 @@
     },
     {
       "files": [
+        "typescript/deploy-sdk/src/**/*.ts",
+        "typescript/keyfunder/src/**/*.ts",
+        "typescript/metrics/src/**/*.ts",
+        "typescript/provider-sdk/src/**/*.ts",
+        "typescript/starknet-sdk/src/**/*.ts",
+        "typescript/warp-monitor/src/**/*.ts",
+        "typescript/warp-widget/src/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "@typescript-eslint/no-confusing-void-expression": "error",
+        "@typescript-eslint/no-deprecated": "error",
+        "@typescript-eslint/no-misused-promises": "error",
+        "@typescript-eslint/no-unnecessary-condition": "error",
+        "@typescript-eslint/prefer-nullish-coalescing": "error",
+        "@typescript-eslint/prefer-optional-chain": "error",
+        "@typescript-eslint/promise-function-async": "error",
+        "@typescript-eslint/return-await": "error"
+      }
+    },
+    {
+      "files": [
         "typescript/cli/**/*.ts",
         "typescript/svm-sdk/src/**/*.ts",
         "typescript/cosmos-sdk/src/**/*.ts",

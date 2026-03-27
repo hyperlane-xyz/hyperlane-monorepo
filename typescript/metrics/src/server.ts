@@ -16,7 +16,7 @@ export function startMetricsServer(
   register: Registry,
   logger?: Logger,
 ): http.Server {
-  const port = parseInt(process.env['PROMETHEUS_PORT'] || '9090');
+  const port = parseInt(process.env['PROMETHEUS_PORT'] ?? '9090', 10);
   const server = http
     .createServer((req, res) => {
       if (req.url !== '/metrics') {

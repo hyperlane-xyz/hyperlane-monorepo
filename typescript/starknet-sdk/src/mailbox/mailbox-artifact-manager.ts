@@ -277,16 +277,13 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     return signer;
   }
 
-  readMailbox(address: string): Promise<DeployedRawMailboxArtifact> {
+  async readMailbox(address: string): Promise<DeployedRawMailboxArtifact> {
     return this.createReader('mailbox').read(address);
   }
 
   createReader<T extends MailboxType>(
     type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    if (type !== 'mailbox') {
-      throw new Error('Unsupported Starknet mailbox type');
-    }
     const readers: {
       [K in MailboxType]: ArtifactReader<
         RawMailboxArtifactConfigs[K],
@@ -302,9 +299,6 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    if (type !== 'mailbox') {
-      throw new Error('Unsupported Starknet mailbox type');
-    }
     const starknetSigner = this.requireStarknetSigner(signer);
     const writers: {
       [K in MailboxType]: ArtifactWriter<

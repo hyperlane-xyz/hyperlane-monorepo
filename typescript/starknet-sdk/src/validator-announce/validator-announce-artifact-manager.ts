@@ -90,7 +90,7 @@ async function readMailboxAddressFromStorage(
 ): Promise<string | undefined> {
   const candidates = (
     await Promise.all(
-      MAILBOX_STORAGE_KEYS.map((key) =>
+      MAILBOX_STORAGE_KEYS.map(async (key) =>
         readStorageAddress(provider, contractAddress, key),
       ),
     )
@@ -226,7 +226,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     return signer;
   }
 
-  readValidatorAnnounce(
+  async readValidatorAnnounce(
     address: string,
   ): Promise<DeployedRawValidatorAnnounceArtifact> {
     return this.createReader('validatorAnnounce').read(address);
@@ -238,9 +238,6 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    if (type !== 'validatorAnnounce') {
-      throw new Error('Unsupported Starknet validator announce type');
-    }
     const readers: {
       [K in ValidatorAnnounceType]: ArtifactReader<
         RawValidatorAnnounceArtifactConfigs[K],
@@ -259,9 +256,6 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    if (type !== 'validatorAnnounce') {
-      throw new Error('Unsupported Starknet validator announce type');
-    }
     const starknetSigner = this.requireStarknetSigner(signer);
     const writers: {
       [K in ValidatorAnnounceType]: ArtifactWriter<
