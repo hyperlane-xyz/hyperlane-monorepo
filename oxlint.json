@@ -22,7 +22,7 @@
     "**/*.cts",
     "**/*.mjs",
     "jest.config.js",
-    "solidity/**",
+    "solidity/**/*.sol",
     "!solidity/multicollateral/**",
     "**/examples/**"
   ],

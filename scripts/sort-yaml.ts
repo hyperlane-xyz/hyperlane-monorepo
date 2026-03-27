@@ -61,7 +61,7 @@ for (const file of targetFiles) {
     const parsed = yamlParse(content);
     const sorted = yamlStringify(
       sortObjectKeys(sortNestedArrays(parsed, WARP_YAML_SORT_CONFIG)),
-      null,
+      undefined,
       { singleQuote: true },
     );
 
