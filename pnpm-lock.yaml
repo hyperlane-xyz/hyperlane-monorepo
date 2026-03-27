@@ -2290,9 +2290,6 @@ importers:
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       testcontainers:
         specifier: 'catalog:'
         version: 11.12.0
