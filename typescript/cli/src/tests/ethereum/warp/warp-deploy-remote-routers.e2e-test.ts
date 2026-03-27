@@ -15,15 +15,12 @@ import {
   isObjEmpty,
 } from '@hyperlane-xyz/utils';
 
-import { writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
-import {
-  GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
-  getDomainId,
-} from '../commands/helpers.js';
+import { getDomainId } from '../commands/helpers.js';
 import {
   hyperlaneWarpDeploy,
-  readWarpConfig,
+  hyperlaneWarpReadRaw,
   resolveWarpRouteIdForDeploy,
 } from '../commands/warp.js';
 import {
@@ -47,6 +44,7 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let ownerAddress: Address;
+  let chain2DomainId: string;
   let chain3DomainId: string;
   let chain4DomainId: string;
 
@@ -57,7 +55,8 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
     ]);
-    [chain3DomainId, chain4DomainId] = await Promise.all([
+    [chain2DomainId, chain3DomainId, chain4DomainId] = await Promise.all([
+      getDomainId(CHAIN_NAME_2, ANVIL_KEY),
       getDomainId(CHAIN_NAME_3, ANVIL_KEY),
       getDomainId(CHAIN_NAME_4, ANVIL_KEY),
     ]);
@@ -87,17 +86,16 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
       warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH =
-      GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(WARP_DEPLOY_OUTPUT_PATH, 'ETH');
-
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, resolvedWarpRouteId);
 
     // Read back the deployed config
-    const deployedConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      COMBINED_WARP_CORE_CONFIG_PATH,
+    await hyperlaneWarpReadRaw({
+      warpRouteId: resolvedWarpRouteId,
+      outputPath: WARP_DEPLOY_OUTPUT_PATH,
+    });
+    const deployedConfig = readYamlOrJson(
       WARP_DEPLOY_OUTPUT_PATH,
-    );
+    ) as WarpRouteDeployConfig;
 
     // Verify the user-specified remote router was enrolled
     const remoteRouters = deployedConfig[CHAIN_NAME_2].remoteRouters;
@@ -106,6 +104,11 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
     expect(remoteRouters[chain3DomainId].address).to.equal(
       addressToBytes32(fakeRemoteRouterAddress),
     );
+
+    // Verify destinationGas defaults to MAX_GAS_OVERHEAD for user-specified remote routers
+    const destinationGas = deployedConfig[CHAIN_NAME_2].destinationGas;
+    assert(destinationGas, 'Expected destinationGas to be defined');
+    expect(destinationGas[chain3DomainId]).to.equal('68000');
   });
 
   it('should enroll user-specified remote routers alongside routers from other deployed chains', async function () {
@@ -138,29 +141,37 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
       warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH =
-      GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(WARP_DEPLOY_OUTPUT_PATH, 'ETH');
-
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, resolvedWarpRouteId);
 
-    // Read back the deployed config for anvil2
-    const deployedConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      COMBINED_WARP_CORE_CONFIG_PATH,
+    // Read back the deployed config for all chains
+    await hyperlaneWarpReadRaw({
+      warpRouteId: resolvedWarpRouteId,
+      outputPath: WARP_DEPLOY_OUTPUT_PATH,
+    });
+    const deployedConfig = readYamlOrJson(
       WARP_DEPLOY_OUTPUT_PATH,
-    );
+    ) as WarpRouteDeployConfig;
 
-    const remoteRouters = deployedConfig[CHAIN_NAME_2].remoteRouters;
-    assert(remoteRouters, 'Expected remoteRouters to be defined');
-
-    // Should have both: the user-specified anvil4 AND the auto-discovered anvil3
-    expect(Object.keys(remoteRouters)).to.include(chain4DomainId);
-    expect(Object.keys(remoteRouters)).to.include(chain3DomainId);
-
-    // Verify the user-specified address
-    expect(remoteRouters[chain4DomainId].address).to.equal(
+    // Verify anvil2 has both: the user-specified anvil4 AND the auto-discovered anvil3
+    const remoteRouters2 = deployedConfig[CHAIN_NAME_2].remoteRouters;
+    assert(remoteRouters2, 'Expected remoteRouters to be defined');
+    expect(Object.keys(remoteRouters2)).to.include(chain4DomainId);
+    expect(Object.keys(remoteRouters2)).to.include(chain3DomainId);
+    expect(remoteRouters2[chain4DomainId].address).to.equal(
       addressToBytes32(fakeRemoteRouterAddress),
     );
+
+    // Verify destinationGas on anvil2
+    const destinationGas2 = deployedConfig[CHAIN_NAME_2].destinationGas;
+    assert(destinationGas2, 'Expected destinationGas to be defined');
+    expect(destinationGas2[chain4DomainId]).to.equal('68000');
+    expect(destinationGas2[chain3DomainId]).to.equal('64000');
+
+    // Verify anvil3 does NOT include anvil4 — user-specified routers are scoped per-chain
+    const remoteRouters3 = deployedConfig[CHAIN_NAME_3].remoteRouters;
+    assert(remoteRouters3, 'Expected remoteRouters to be defined');
+    expect(Object.keys(remoteRouters3)).to.include(chain2DomainId);
+    expect(Object.keys(remoteRouters3)).to.not.include(chain4DomainId);
   });
 
   it('should not enroll any remote routers when none are specified and only one chain is deployed', async function () {
@@ -180,17 +191,16 @@ describe('hyperlane warp deploy with user-specified remote routers', async funct
       warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH =
-      GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(WARP_DEPLOY_OUTPUT_PATH, 'ETH');
-
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, resolvedWarpRouteId);
 
     // Read back the deployed config
-    const deployedConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      COMBINED_WARP_CORE_CONFIG_PATH,
+    await hyperlaneWarpReadRaw({
+      warpRouteId: resolvedWarpRouteId,
+      outputPath: WARP_DEPLOY_OUTPUT_PATH,
+    });
+    const deployedConfig = readYamlOrJson(
       WARP_DEPLOY_OUTPUT_PATH,
-    );
+    ) as WarpRouteDeployConfig;
 
     // Verify no remote routers were enrolled
     const remoteRouters = deployedConfig[CHAIN_NAME_2].remoteRouters;

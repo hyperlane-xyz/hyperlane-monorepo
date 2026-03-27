@@ -53,9 +53,13 @@ import { IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  resolveRouterMapConfig,
+} from '../router/types.js';
 import { EvmWarpModule } from '../token/EvmWarpModule.js';
-import { TokenType, gasOverhead } from '../token/config.js';
+import { MAX_GAS_OVERHEAD, TokenType, gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
@@ -524,15 +528,12 @@ export async function enrollCrossChainRouters(
       const protocol = multiProvider.getProtocol(currentChain);
 
       // Start with user-specified remote routers (for chains not in the deployment)
-      const userRemoteRouters: RemoteRouters = Object.fromEntries(
-        Object.entries(resolvedConfigMap[currentChain].remoteRouters ?? {}).map(
-          ([domainIdOrChainName, value]) => {
-            return [
-              multiProvider.getDomainId(domainIdOrChainName).toString(),
-              { address: addressToBytes32(value.address) },
-            ];
-          },
+      const userRemoteRouters: RemoteRouters = objMap(
+        resolveRouterMapConfig(
+          multiProvider,
+          resolvedConfigMap[currentChain].remoteRouters ?? {},
         ),
+        (_, value) => ({ address: addressToBytes32(value.address) }),
       );
 
       // Merge: deployed routers take precedence over user-specified
@@ -551,20 +552,21 @@ export async function enrollCrossChainRouters(
       };
 
       // Start with user-specified destination gas
-      const userDestinationGas: DestinationGas = Object.fromEntries(
-        Object.entries(
-          resolvedConfigMap[currentChain].destinationGas ?? {},
-        ).map(([domainIdOrChainName, value]) => {
-          return [
-            multiProvider.getDomainId(domainIdOrChainName).toString(),
-            value,
-          ];
-        }),
+      const userDestinationGas: DestinationGas = resolveRouterMapConfig(
+        multiProvider,
+        resolvedConfigMap[currentChain].destinationGas ?? {},
       );
 
-      // Merge: deployed chain gas takes precedence over user-specified
+      // Default to MAX_GAS_OVERHEAD for user-specified remote routers without explicit destinationGas
+      const defaultGasForUserRouters: DestinationGas = objMap(
+        userRemoteRouters,
+        (domainId) =>
+          userDestinationGas[domainId] ?? MAX_GAS_OVERHEAD.toString(),
+      );
+
+      // Merge: deployed chain gas takes precedence over defaults and user-specified
       const destinationGas: DestinationGas = {
-        ...userDestinationGas,
+        ...defaultGasForUserRouters,
         ...Object.fromEntries(
           Object.entries(deployedContracts)
             .filter(([chain, _address]) => chain !== currentChain)
