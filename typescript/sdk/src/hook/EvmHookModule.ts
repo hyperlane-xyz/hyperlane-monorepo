@@ -498,8 +498,11 @@ export class EvmHookModule extends HyperlaneModule<
       })),
     );
 
-    // update quote signers (requires upgraded IGP with quoteSigners support)
-    if (targetConfig.contractVersion) {
+    // update quote signers if IGP supports them (detected from on-chain read or upgrade)
+    if (
+      currentConfig.quoteSigners !== undefined ||
+      targetConfig.contractVersion
+    ) {
       updateTxs.push(
         ...this.updateIgpQuoteSigners({
           currentSigners: currentConfig.quoteSigners ?? [],
