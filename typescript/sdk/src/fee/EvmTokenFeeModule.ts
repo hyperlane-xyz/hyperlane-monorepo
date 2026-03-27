@@ -423,11 +423,13 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ): boolean {
     if (actualConfig.type !== targetConfig.type) return true;
 
-    // OffchainQuotedLinearFee: fee params are immutable, but signers are mutable
-    const mutableFields =
-      targetConfig.type === TokenFeeType.OffchainQuotedLinearFee
-        ? { owner: true, quoteSigners: true }
-        : { owner: true };
+    const mutableFields: Record<string, true> = { owner: true };
+    if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+      mutableFields.quoteSigners = true;
+    }
+    if (targetConfig.type === TokenFeeType.RoutingFee) {
+      mutableFields.feeContracts = true;
+    }
 
     return !deepEquals(
       objOmit(actualConfig, mutableFields),

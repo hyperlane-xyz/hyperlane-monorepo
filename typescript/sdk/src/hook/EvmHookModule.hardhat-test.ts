@@ -671,11 +671,12 @@ describe('EvmHookModule', async () => {
 
     it('should add quote signers to IGP', async () => {
       const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
 
       // create a new hook
       const { hook } = await createHook(config);
 
-      // add quote signers
+      // add quote signers (contractVersion needed to confirm IGP supports them)
       config.quoteSigners = [randomAddress(), randomAddress()];
 
       // expect 2 txs to add quote signers
