@@ -3,6 +3,9 @@ import react from 'eslint-plugin-react';
 import { defaultConfig } from '@hyperlane-xyz/eslint-config';
 
 export default [
+  {
+    ignores: ['examples/**'],
+  },
   ...defaultConfig,
   {
     files: ['./src/**/*.ts', './src/**/*.tsx'],
