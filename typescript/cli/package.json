@@ -54,6 +54,7 @@
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
+    "@hyperlane-xyz/fee-quoting": "workspace:*",
     "@hyperlane-xyz/http-registry-server": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",
