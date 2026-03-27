@@ -3768,6 +3768,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-trusted-relayer-ism"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 1.6.0",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-test-transaction-utils",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+]
+
+[[package]]
 name = "hyperlane-sealevel-validator-announce"
 version = "0.1.0"
 dependencies = [
