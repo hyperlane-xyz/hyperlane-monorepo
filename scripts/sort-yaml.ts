@@ -84,6 +84,7 @@ for (const file of targetFiles) {
       (data) =>
         sortObjectKeys(
           sortNestedArrays(data, WARP_YAML_SORT_CONFIG),
+          // CAST: sortObjectKeys preserves YAML structure but returns unknown.
         ) as typeof data,
       { singleQuote: true },
     ).trimEnd()}\n`;

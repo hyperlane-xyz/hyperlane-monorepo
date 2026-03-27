@@ -388,13 +388,16 @@ export function sortObjectKeys(obj: unknown): unknown {
   }
 
   if (obj !== null && typeof obj === 'object') {
+    // CAST: after the object check, we need an indexable record view to sort keys.
     return Object.keys(obj as Record<string, unknown>)
       .sort()
       .reduce(
         (sorted, key) => {
+          // CAST: same narrowed object, indexed by a sorted string key.
           sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
           return sorted;
         },
+        // CAST: reduce builds a plain object with sorted keys.
         {} as Record<string, unknown>,
       );
   }
