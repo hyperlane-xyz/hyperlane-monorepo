@@ -72,7 +72,12 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   async estimateGas(
     _transaction: providers.TransactionRequest,
   ): Promise<BigNumber> {
-    return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
+    try {
+      return await super.estimateGas(_transaction);
+    } catch {
+      // Return a default gas limit for Tron transactions since estimation is unreliable.
+      return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
+    }
   }
 
   /**

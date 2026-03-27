@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.066613",
+    "amount": "0.02",
     "decimals": 9
   },
   "arbitrumnova": {
@@ -60,7 +60,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.029771807",
+    "amount": "0.006",
     "decimals": 9
   },
   "berachain": {
@@ -132,7 +132,7 @@
     "decimals": 9
   },
   "eclipsemainnet": {
-    "amount": "0.0000001",
+    "amount": "0.07555556",
     "decimals": 1
   },
   "eden": {
@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "0.3",
+    "amount": "0.04210292",
     "decimals": 9
   },
   "everclear": {
@@ -360,7 +360,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001001926",
+    "amount": "0.00100052",
     "decimals": 9
   },
   "orderly": {
@@ -384,7 +384,7 @@
     "decimals": 9
   },
   "polygon": {
-    "amount": "225.399111295",
+    "amount": "116.87204498",
     "decimals": 9
   },
   "polygonzkevm": {
@@ -436,7 +436,7 @@
     "decimals": 9
   },
   "solanamainnet": {
-    "amount": "0.5",
+    "amount": "1.05555556",
     "decimals": 1
   },
   "solaxy": {
@@ -520,7 +520,7 @@
     "decimals": 9
   },
   "unichain": {
-    "amount": "0.00100063",
+    "amount": "0.0015",
     "decimals": 9
   },
   "vana": {

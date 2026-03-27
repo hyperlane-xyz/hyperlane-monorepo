@@ -70,11 +70,8 @@ pub enum OperationDisposition {
     /// - Operation requires retry due to submission failure (`Retry`)
     ///
     /// **Prepare stage**: Removes message-payload linkage and returns operation for re-preparation
-    /// **Submit stage**: Routes to confirm queue to verify transaction was not delivered before re-preparation
-    ///
-    /// This disposition is critical for preventing infinite loops when transactions drop.
-    /// By routing through the Confirm stage, we verify that the message wasn't actually
-    /// delivered before creating a new payload, avoiding duplicate message delivery.
+    /// **Submit stage**: Increments retry count (with backoff) and routes to prepare queue for
+    ///   re-preparation. The prepare stage's `mailbox.delivered()` check prevents duplicate delivery.
     PostSubmitFailure,
 }
 

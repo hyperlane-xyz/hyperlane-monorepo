@@ -45,6 +45,16 @@ import { RadixWarpTx } from '../warp/tx.js';
 
 import { RadixProvider } from './provider.js';
 
+type RadixSignerMetadata = {
+  chainId?: string | number;
+  gatewayUrls?: { http: string }[];
+  packageAddress?: string;
+};
+
+type RadixSignerConnectionParams = {
+  metadata?: RadixSignerMetadata;
+};
+
 export class RadixSigner
   extends RadixProvider
   implements AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>
@@ -80,11 +90,11 @@ export class RadixSigner
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
-    extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>> {
+    extraParams?: RadixSignerConnectionParams,
+  ): Promise<RadixSigner> {
     assert(extraParams, `extra params not defined`);
 
-    const metadata = extraParams.metadata as Record<string, unknown>;
+    const metadata = extraParams.metadata;
     assert(metadata, `metadata not defined in extra params`);
     assert(metadata.chainId, `chainId not defined in metadata extra params`);
 
@@ -98,10 +108,8 @@ export class RadixSigner
     return new RadixSigner(account, {
       networkId,
       rpcUrls,
-      gatewayUrls: (metadata?.gatewayUrls as { http: string }[])?.map(
-        ({ http }) => http,
-      ),
-      packageAddress: metadata.packageAddress as string | undefined,
+      gatewayUrls: metadata.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata.packageAddress,
     });
   }
 
@@ -115,6 +123,14 @@ export class RadixSigner
 
   getBaseSigner(): RadixBaseSigner {
     return this.signer;
+  }
+
+  getGatewayClient() {
+    return this.gateway;
+  }
+
+  getBaseClient() {
+    return this.base;
   }
 
   async transactionToPrintableJson(

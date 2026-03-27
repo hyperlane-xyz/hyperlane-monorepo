@@ -41,6 +41,7 @@
     "@hyperlane-xyz/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@typechain/ethers-v5": "catalog:",
     "typechain": "catalog:",
     "typescript": "catalog:"

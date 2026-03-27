@@ -1,0 +1,778 @@
+import {
+  Account,
+  Call,
+  CallData,
+  ContractFactory,
+  GetTransactionReceiptResponse,
+  RawArgs,
+  RpcProvider,
+} from 'starknet';
+
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ContractType,
+  getCompiledClassHash,
+  getCompiledContract,
+  getContractArtifact,
+} from '@hyperlane-xyz/starknet-core';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
+
+import {
+  StarknetContractName,
+  getStarknetContract,
+  normalizeStarknetAddressSafe,
+  populateInvokeTx,
+  toBigInt,
+} from '../contracts.js';
+import {
+  StarknetAnnotatedTx,
+  StarknetInvokeTx,
+  StarknetTxReceipt,
+} from '../types.js';
+
+import { StarknetProvider } from './provider.js';
+
+export class StarknetSigner
+  extends StarknetProvider
+  implements AltVM.ISigner<StarknetAnnotatedTx, StarknetTxReceipt>
+{
+  private static readStringField(
+    value: unknown,
+    key: string,
+  ): string | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const candidate = Reflect.get(value, key);
+    return typeof candidate === 'string' ? candidate : undefined;
+  }
+
+  static async connectWithSigner(
+    rpcUrls: string[],
+    privateKey: string,
+    extraParams?: {
+      metadata?: ChainMetadataForAltVM;
+      accountAddress?: string;
+    },
+  ): Promise<StarknetSigner> {
+    assert(extraParams?.metadata, 'metadata missing for Starknet signer');
+    const metadata = extraParams.metadata;
+    const accountAddress = extraParams.accountAddress;
+    assert(accountAddress, 'accountAddress missing for Starknet signer');
+    assert(privateKey, 'private key missing for Starknet signer');
+
+    const provider = StarknetProvider.connect(rpcUrls, metadata.chainId, {
+      metadata,
+    });
+
+    return new StarknetSigner(
+      provider.getRawProvider(),
+      metadata,
+      rpcUrls,
+      normalizeStarknetAddressSafe(accountAddress),
+      privateKey,
+    );
+  }
+
+  private readonly account: Account;
+
+  protected constructor(
+    provider: RpcProvider,
+    metadata: ChainMetadataForAltVM,
+    rpcUrls: string[],
+    private readonly signerAddress: string,
+    privateKey: string,
+  ) {
+    super(provider, metadata, rpcUrls);
+    this.account = new Account(provider, signerAddress, privateKey);
+  }
+
+  protected override get accountAddress(): string {
+    return this.signerAddress;
+  }
+
+  getSignerAddress(): string {
+    return this.signerAddress;
+  }
+
+  supportsTransactionBatching(): boolean {
+    return true;
+  }
+
+  async transactionToPrintableJson(
+    transaction: StarknetAnnotatedTx,
+  ): Promise<object> {
+    return transaction;
+  }
+
+  private assertSuccessfulReceipt(
+    transactionHash: string,
+    receipt: GetTransactionReceiptResponse,
+  ): void {
+    if (receipt.isSuccess()) return;
+
+    if (receipt.isReverted()) {
+      const revertReason =
+        receipt.value &&
+        typeof receipt.value === 'object' &&
+        typeof Reflect.get(receipt.value, 'revert_reason') === 'string'
+          ? Reflect.get(receipt.value, 'revert_reason')
+          : undefined;
+      const details =
+        typeof revertReason === 'string' && revertReason.length > 0
+          ? `: ${revertReason}`
+          : '';
+      assert(
+        false,
+        `Starknet transaction ${transactionHash} reverted${details}`,
+      );
+    }
+
+    if (receipt.isError()) {
+      assert(
+        false,
+        `Starknet transaction ${transactionHash} failed: ${receipt.value.message}`,
+      );
+    }
+
+    assert(
+      false,
+      `Starknet transaction ${transactionHash} failed with status ${receipt.statusReceipt}`,
+    );
+  }
+
+  private async deployContract(params: {
+    contractName: string;
+    constructorArgs: RawArgs;
+    contractType?: ContractType;
+  }): Promise<{
+    transactionHash: string;
+    contractAddress: string;
+    receipt: GetTransactionReceiptResponse;
+  }> {
+    const compiledContract = getCompiledContract(
+      params.contractName,
+      params.contractType,
+    );
+    const compiledClassHash = getCompiledClassHash(
+      params.contractName,
+      params.contractType,
+    );
+    const contractArtifact = getContractArtifact(
+      params.contractName,
+      params.contractType,
+    );
+    assert(
+      contractArtifact.compiled_contract_class,
+      `Missing compiled_contract_class for Starknet contract ${params.contractName}`,
+    );
+    assert(
+      compiledClassHash,
+      `Missing compiledClassHash for Starknet contract ${params.contractName}`,
+    );
+    const hasConstructor = compiledContract.abi.some(
+      (item) => item.type === 'constructor',
+    );
+    const constructorCalldata = hasConstructor
+      ? new CallData(compiledContract.abi).compile(
+          'constructor',
+          params.constructorArgs,
+        )
+      : undefined;
+
+    const factory = new ContractFactory({
+      compiledContract,
+      casm: contractArtifact.compiled_contract_class,
+      compiledClassHash,
+      account: this.account,
+    });
+
+    const deployment =
+      constructorCalldata === undefined
+        ? await factory.deploy()
+        : await factory.deploy(constructorCalldata);
+
+    const transactionHash =
+      deployment.deployTransactionHash ||
+      StarknetSigner.readStringField(deployment, 'transaction_hash');
+    assert(transactionHash, 'missing Starknet deploy transaction hash');
+
+    const rawAddress =
+      deployment.address ||
+      StarknetSigner.readStringField(deployment, 'contract_address');
+    assert(rawAddress, 'missing Starknet deploy contract address');
+
+    const address = normalizeStarknetAddressSafe(rawAddress);
+    const receipt = await this.account.waitForTransaction(transactionHash);
+    this.assertSuccessfulReceipt(transactionHash, receipt);
+
+    return {
+      transactionHash,
+      contractAddress: address,
+      receipt,
+    };
+  }
+
+  async sendAndConfirmTransaction(
+    transaction: StarknetAnnotatedTx,
+  ): Promise<StarknetTxReceipt> {
+    if (transaction.kind === 'deploy') {
+      const deployed = await this.deployContract({
+        contractName: transaction.contractName,
+        constructorArgs: transaction.constructorArgs,
+        contractType: transaction.contractType,
+      });
+
+      return {
+        transactionHash: deployed.transactionHash,
+        contractAddress: deployed.contractAddress,
+        receipt: deployed.receipt,
+      };
+    }
+
+    const calls: Call[] = transaction.calls ?? [
+      {
+        contractAddress: transaction.contractAddress,
+        entrypoint: transaction.entrypoint,
+        calldata: transaction.calldata,
+      },
+    ];
+
+    const response = await this.account.execute(calls);
+    const transactionHash = response.transaction_hash;
+    const receipt = await this.account.waitForTransaction(transactionHash);
+    this.assertSuccessfulReceipt(transactionHash, receipt);
+
+    return { transactionHash, receipt };
+  }
+
+  async sendAndConfirmBatchTransactions(
+    transactions: StarknetAnnotatedTx[],
+  ): Promise<StarknetTxReceipt> {
+    const hasDeploy = transactions.some((tx) => tx.kind === 'deploy');
+    if (hasDeploy) {
+      throw new Error(
+        'Batch transactions with deploy operations are unsupported on Starknet signer',
+      );
+    }
+
+    const invokeTransactions = transactions.filter(
+      (tx): tx is StarknetInvokeTx => tx.kind === 'invoke',
+    );
+    assert(
+      invokeTransactions.length === transactions.length,
+      'Batch transactions with non-invoke operations are unsupported on Starknet signer',
+    );
+
+    const calls: Call[] = invokeTransactions.flatMap(
+      (invoke) =>
+        invoke.calls ?? [
+          {
+            contractAddress: invoke.contractAddress,
+            entrypoint: invoke.entrypoint,
+            calldata: invoke.calldata,
+          },
+        ],
+    );
+
+    const response = await this.account.execute(calls);
+    const transactionHash = response.transaction_hash;
+    const receipt = await this.account.waitForTransaction(transactionHash);
+    this.assertSuccessfulReceipt(transactionHash, receipt);
+    return { transactionHash, receipt };
+  }
+
+  // ### TX CORE ###
+
+  override async estimateTransactionFee(
+    req: AltVM.ReqEstimateTransactionFee<StarknetAnnotatedTx>,
+  ): Promise<AltVM.ResEstimateTransactionFee> {
+    assert(
+      req.transaction.kind === 'invoke',
+      'Starknet transaction fee estimation only supports invoke transactions',
+    );
+
+    const calls: Call[] = req.transaction.calls ?? [
+      {
+        contractAddress: req.transaction.contractAddress,
+        entrypoint: req.transaction.entrypoint,
+        calldata: req.transaction.calldata,
+      },
+    ];
+
+    const estimate = await this.account.estimateInvokeFee(calls);
+    const gasUnits =
+      estimate.l1_gas_consumed +
+      estimate.l1_data_gas_consumed +
+      (estimate.l2_gas_consumed ?? 0n);
+
+    return {
+      gasUnits,
+      gasPrice: Number(estimate.l1_gas_price),
+      fee: estimate.overall_fee,
+    };
+  }
+
+  async createMailbox(
+    req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
+  ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error('Proxy admin unsupported on Starknet');
+    }
+
+    const defaultIsmAddress =
+      req.defaultIsmAddress ?? (await this.createNoopIsm({})).ismAddress;
+    const defaultHookAddress =
+      req.defaultHookAddress ??
+      (
+        await this.createNoopHook({
+          // Hook deployment currently ignores mailboxAddress on Starknet.
+          mailboxAddress: this.signerAddress,
+        })
+      ).hookAddress;
+    // Keep required hooks opt-in. Auto-deploying a noop required hook would
+    // change mailbox semantics for callers that intentionally leave it unset.
+    const requiredHookAddress = req.requiredHookAddress;
+
+    const tx = await this.getCreateMailboxTransaction({
+      signer: this.signerAddress,
+      ...req,
+      defaultIsmAddress,
+      defaultHookAddress,
+      requiredHookAddress,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet mailbox address');
+    return { mailboxAddress: receipt.contractAddress };
+  }
+
+  async setDefaultIsm(
+    req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
+  ): Promise<AltVM.ResSetDefaultIsm> {
+    const tx = await this.getSetDefaultIsmTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { ismAddress: req.ismAddress };
+  }
+
+  async setDefaultHook(
+    req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
+  ): Promise<AltVM.ResSetDefaultHook> {
+    const tx = await this.getSetDefaultHookTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { hookAddress: req.hookAddress };
+  }
+
+  async setRequiredHook(
+    req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
+  ): Promise<AltVM.ResSetRequiredHook> {
+    const tx = await this.getSetRequiredHookTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { hookAddress: req.hookAddress };
+  }
+
+  async setMailboxOwner(
+    req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
+  ): Promise<AltVM.ResSetMailboxOwner> {
+    const tx = await this.getSetMailboxOwnerTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { newOwner: req.newOwner };
+  }
+
+  async createMerkleRootMultisigIsm(
+    req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
+    const tx = await this.getCreateMerkleRootMultisigIsmTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet ISM address');
+    return { ismAddress: receipt.contractAddress };
+  }
+
+  async createMessageIdMultisigIsm(
+    req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
+    const tx = await this.getCreateMessageIdMultisigIsmTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet ISM address');
+    return { ismAddress: receipt.contractAddress };
+  }
+
+  async createRoutingIsm(
+    req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateRoutingIsm> {
+    const tx = await this.getCreateRoutingIsmTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    const ismAddress = receipt.contractAddress;
+    assert(ismAddress, 'failed to get Starknet routing ISM address');
+
+    if (req.routes.length > 0) {
+      const routeTxs = await Promise.all(
+        req.routes.map((route) =>
+          this.getSetRoutingIsmRouteTransaction({
+            signer: this.signerAddress,
+            ismAddress,
+            route,
+          }),
+        ),
+      );
+      await this.sendAndConfirmBatchTransactions(routeTxs);
+    }
+
+    return { ismAddress };
+  }
+
+  async setRoutingIsmRoute(
+    req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
+  ): Promise<AltVM.ResSetRoutingIsmRoute> {
+    const tx = await this.getSetRoutingIsmRouteTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { route: req.route };
+  }
+
+  async removeRoutingIsmRoute(
+    req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
+  ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
+    const tx = await this.getRemoveRoutingIsmRouteTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { domainId: req.domainId };
+  }
+
+  async setRoutingIsmOwner(
+    req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
+  ): Promise<AltVM.ResSetRoutingIsmOwner> {
+    const tx = await this.getSetRoutingIsmOwnerTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { newOwner: req.newOwner };
+  }
+
+  async createNoopIsm(
+    req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopIsm> {
+    const tx = await this.getCreateNoopIsmTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet noop ISM address');
+    return { ismAddress: receipt.contractAddress };
+  }
+
+  async createMerkleTreeHook(
+    req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
+  ): Promise<AltVM.ResCreateMerkleTreeHook> {
+    const tx = await this.getCreateMerkleTreeHookTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet hook address');
+    return { hookAddress: receipt.contractAddress };
+  }
+
+  async createInterchainGasPaymasterHook(
+    req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
+  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+    const tx = await this.getCreateInterchainGasPaymasterHookTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(
+      receipt.contractAddress,
+      'failed to get Starknet interchainGasPaymaster hook',
+    );
+    return { hookAddress: receipt.contractAddress };
+  }
+
+  async setInterchainGasPaymasterHookOwner(
+    req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
+  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
+    const tx = await this.getSetInterchainGasPaymasterHookOwnerTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { newOwner: req.newOwner };
+  }
+
+  async setDestinationGasConfig(
+    req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResSetDestinationGasConfig> {
+    const tx = await this.getSetDestinationGasConfigTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { destinationGasConfig: req.destinationGasConfig };
+  }
+
+  async removeDestinationGasConfig(
+    req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    const tx = await this.getRemoveDestinationGasConfigTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { remoteDomainId: req.remoteDomainId };
+  }
+
+  async createNoopHook(
+    req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    const tx = await this.getCreateNoopHookTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet noop hook');
+    return { hookAddress: receipt.contractAddress };
+  }
+
+  async createValidatorAnnounce(
+    req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
+  ): Promise<AltVM.ResCreateValidatorAnnounce> {
+    const tx = await this.getCreateValidatorAnnounceTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(
+      receipt.contractAddress,
+      'failed to get Starknet validator announce address',
+    );
+    return { validatorAnnounceId: receipt.contractAddress };
+  }
+
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('Proxy admin unsupported on Starknet');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('Proxy admin unsupported on Starknet');
+  }
+
+  // ### TX WARP ###
+
+  async createNativeToken(
+    req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error('Proxy admin unsupported on Starknet');
+    }
+    const tx = await this.getCreateNativeTokenTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet warp token');
+    return { tokenAddress: receipt.contractAddress };
+  }
+
+  async createCollateralToken(
+    req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
+  ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error('Proxy admin unsupported on Starknet');
+    }
+    const tx = await this.getCreateCollateralTokenTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet warp token');
+    return { tokenAddress: receipt.contractAddress };
+  }
+
+  async createSyntheticToken(
+    req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
+  ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error('Proxy admin unsupported on Starknet');
+    }
+    const tx = await this.getCreateSyntheticTokenTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    assert(receipt.contractAddress, 'failed to get Starknet warp token');
+    return { tokenAddress: receipt.contractAddress };
+  }
+
+  async setTokenOwner(
+    req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
+  ): Promise<AltVM.ResSetTokenOwner> {
+    const tx = await this.getSetTokenOwnerTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { newOwner: req.newOwner };
+  }
+
+  async setTokenIsm(
+    req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
+  ): Promise<AltVM.ResSetTokenIsm> {
+    const tx = await this.getSetTokenIsmTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { ismAddress: req.ismAddress ?? ZERO_ADDRESS_HEX_32 };
+  }
+
+  async setTokenHook(
+    req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    const tx = await this.getSetTokenHookTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { hookAddress: req.hookAddress ?? ZERO_ADDRESS_HEX_32 };
+  }
+
+  async enrollRemoteRouter(
+    req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
+  ): Promise<AltVM.ResEnrollRemoteRouter> {
+    const tx = await this.getEnrollRemoteRouterTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { receiverDomainId: req.remoteRouter.receiverDomainId };
+  }
+
+  async unenrollRemoteRouter(
+    req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
+  ): Promise<AltVM.ResUnenrollRemoteRouter> {
+    const tx = await this.getUnenrollRemoteRouterTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { receiverDomainId: req.receiverDomainId };
+  }
+
+  async transfer(
+    req: Omit<AltVM.ReqTransfer, 'signer'>,
+  ): Promise<AltVM.ResTransfer> {
+    const tx = await this.getTransferTransaction({
+      signer: this.signerAddress,
+      ...req,
+    });
+    await this.sendAndConfirmTransaction(tx);
+    return { recipient: req.recipient };
+  }
+
+  async remoteTransfer(
+    req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
+  ): Promise<AltVM.ResRemoteTransfer> {
+    const token = await this.getToken({ tokenAddress: req.tokenAddress });
+    const tokenType = token.tokenType;
+    const tx = await this.buildRemoteTransferTransaction(
+      {
+        signer: this.signerAddress,
+        ...req,
+      },
+      token,
+    );
+    const batchedTxs: StarknetAnnotatedTx[] = [];
+
+    if (tokenType === AltVM.TokenType.native) {
+      const nativeToken = getStarknetContract(
+        StarknetContractName.ETHER,
+        token.denom,
+        this.provider,
+        ContractType.TOKEN,
+      );
+      batchedTxs.push(
+        await populateInvokeTx(nativeToken, 'approve', [
+          normalizeStarknetAddressSafe(req.tokenAddress),
+          toBigInt(req.amount) + toBigInt(req.maxFee.amount),
+        ]),
+      );
+    } else if (tokenType === AltVM.TokenType.collateral) {
+      const collateralToken = getStarknetContract(
+        StarknetContractName.ETHER,
+        token.denom,
+        this.provider,
+        ContractType.TOKEN,
+      );
+      const collateralDenom = normalizeStarknetAddressSafe(token.denom);
+      const feeDenom = normalizeStarknetAddressSafe(req.maxFee.denom);
+      const approvalAmount =
+        collateralDenom === feeDenom
+          ? toBigInt(req.amount) + toBigInt(req.maxFee.amount)
+          : toBigInt(req.amount);
+      batchedTxs.push(
+        await populateInvokeTx(collateralToken, 'approve', [
+          normalizeStarknetAddressSafe(req.tokenAddress),
+          approvalAmount,
+        ]),
+      );
+    }
+
+    const usesSharedCollateralAndFeeToken =
+      tokenType === AltVM.TokenType.collateral &&
+      normalizeStarknetAddressSafe(token.denom) ===
+        normalizeStarknetAddressSafe(req.maxFee.denom);
+
+    if (
+      tokenType !== AltVM.TokenType.native &&
+      !usesSharedCollateralAndFeeToken
+    ) {
+      const feeToken = getStarknetContract(
+        StarknetContractName.ETHER,
+        req.maxFee.denom,
+        this.provider,
+        ContractType.TOKEN,
+      );
+      batchedTxs.push(
+        await populateInvokeTx(feeToken, 'approve', [
+          normalizeStarknetAddressSafe(req.tokenAddress),
+          toBigInt(req.maxFee.amount),
+        ]),
+      );
+    }
+
+    if (batchedTxs.length > 0) {
+      await this.sendAndConfirmBatchTransactions([...batchedTxs, tx]);
+    } else {
+      await this.sendAndConfirmTransaction(tx);
+    }
+    return { tokenAddress: req.tokenAddress };
+  }
+}

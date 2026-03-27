@@ -38,6 +38,12 @@ export async function loadProtocolProviders(
         registerProtocol(protocol, () => new SealevelProtocolProvider());
         break;
       }
+      case ProtocolType.Starknet: {
+        const { StarknetProtocolProvider } =
+          await import('@hyperlane-xyz/starknet-sdk');
+        registerProtocol(protocol, () => new StarknetProtocolProvider());
+        break;
+      }
     }
   }
 }
