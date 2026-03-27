@@ -1,5 +1,15 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 27.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [37255ba]
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/starknet-core@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 27.2.2
 
 ### Patch Changes

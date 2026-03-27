@@ -1,5 +1,13 @@
 # @hyperlane-xyz/metrics
 
+## 0.2.8
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@30.0.0
+- @hyperlane-xyz/utils@30.0.0
+- @hyperlane-xyz/core@11.1.0
+
 ## 0.2.7
 
 ### Patch Changes

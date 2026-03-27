@@ -1,5 +1,13 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [37255ba]
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes
