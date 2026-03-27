@@ -102,6 +102,7 @@ jobs:
           - warp-bridge-2
           - warp-deploy-1
           - warp-deploy-2
+          - warp-deploy-remote-routers
           # check
           - warp-check-1
           - warp-check-2
