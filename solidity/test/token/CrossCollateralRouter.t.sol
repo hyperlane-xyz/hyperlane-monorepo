@@ -757,6 +757,33 @@ contract CrossCollateralRouterTest is Test {
         assertEq(quotes[2].amount, 0);
     }
 
+    function test_quoteTransferRemoteTo_withCanonicalRemoteRouterEnrollment()
+        public
+        view
+    {
+        bytes32 canonicalRemoteRouter = address(usdcRouterB).addressToBytes32();
+
+        // The canonical remote router is authorized through Router._routers,
+        // not the CrossCollateral-specific enrollment set.
+        assertFalse(
+            usdcRouterA.crossCollateralRouters(DESTINATION, canonicalRemoteRouter)
+        );
+
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            canonicalRemoteRouter
+        );
+
+        assertEq(quotes.length, 3);
+        assertEq(quotes[0].token, address(0));
+        uint256 expectedFee = (1000e6 * DEFAULT_FEE_BPS) / 10000;
+        assertEq(quotes[1].token, address(originUSDC));
+        assertEq(quotes[1].amount, 1000e6 + expectedFee);
+        assertEq(quotes[2].amount, 0);
+    }
+
     function test_quoteTransferRemoteTo_withoutDefaultRouterEnrollment()
         public
     {
@@ -825,6 +852,30 @@ contract CrossCollateralRouterTest is Test {
         env.processNextPendingMessage();
 
         assertEq(destUSDT.balanceOf(BOB), bobBefore + 1234e18);
+    }
+
+    function test_transferRemoteTo_withCanonicalRemoteRouterEnrollment() public {
+        usdcRouterA.setFeeRecipient(address(0));
+        usdcRouterB.setFeeRecipient(address(0));
+
+        uint256 amount = 1234e6;
+        uint256 bobBefore = destUSDC.balanceOf(BOB);
+        bytes32 canonicalRemoteRouter = address(usdcRouterB).addressToBytes32();
+
+        assertFalse(
+            usdcRouterA.crossCollateralRouters(DESTINATION, canonicalRemoteRouter)
+        );
+
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            canonicalRemoteRouter
+        );
+        env.processNextPendingMessage();
+
+        assertEq(destUSDC.balanceOf(BOB), bobBefore + amount);
     }
 
     function test_transferRemoteTo_withHookFee_withoutDefaultRouterEnrollment()

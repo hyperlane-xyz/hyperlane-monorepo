@@ -110,6 +110,9 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         }
     }
 
+    /// @notice Returns whether `_router` is explicitly enrolled via the
+    /// CrossCollateral-specific per-domain set.
+    /// @dev This does not include the canonical remote router from Router._routers.
     function crossCollateralRouters(
         uint32 _domain,
         bytes32 _router
@@ -156,17 +159,25 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
 
     // ============ Internal Helpers ============
 
+    /// @dev Returns true when `_router` is authorized for `_domain` via either
+    /// the canonical Router._routers mapping or the CrossCollateral-specific
+    /// per-domain enrollment set.
+    function _isAuthorizedRouter(
+        uint32 _domain,
+        bytes32 _router
+    ) internal view returns (bool) {
+        return
+            _isRemoteRouter(_domain, _router) ||
+            _crossCollateralRouters[_domain].contains(_router);
+    }
+
     /// @dev Reverts unless `_router` is enrolled for `_domain` (either via the
     /// standard Router._routers map or via the CrossCollateral-specific _crossCollateralRouters set).
     function _requireAuthorizedRouter(
         uint32 _domain,
         bytes32 _router
     ) internal view {
-        require(
-            _isRemoteRouter(_domain, _router) ||
-                _crossCollateralRouters[_domain].contains(_router),
-            "CCR: unauthorized router"
-        );
+        require(_isAuthorizedRouter(_domain, _router), "CCR: unauthorized router");
     }
 
     // ============ Handle Override ============
