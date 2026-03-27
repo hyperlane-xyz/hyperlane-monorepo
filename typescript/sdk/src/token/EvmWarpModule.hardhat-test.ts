@@ -1235,6 +1235,37 @@ describe('EvmWarpModule', async () => {
       expect(updatedConfig.destinationGas![domain]).to.equal('5000');
     });
 
+    it('should update the feeHook', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+      };
+
+      const evmERC20WarpModule = await EvmWarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      // Verify no feeHook initially
+      const initialConfig = await evmERC20WarpModule.read();
+      expect(initialConfig.feeHook).to.be.undefined;
+
+      // Set feeHook to a random address
+      const feeHookAddress = randomAddress();
+      const txs = await evmERC20WarpModule.update({
+        ...config,
+        feeHook: feeHookAddress,
+      });
+      expect(txs.length).to.equal(1);
+      await sendTxs(txs);
+
+      // Verify feeHook was set
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(eqAddress(updatedConfig.feeHook!, feeHookAddress)).to.be.true;
+    });
+
     for (const tokenType of movableCollateralTypes) {
       it(`should add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
         const initialRebalancer = randomAddress();

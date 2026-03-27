@@ -370,4 +370,17 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
     }
   });
+
+  describe('feeHook', () => {
+    it('should accept config with feeHook', () => {
+      config.arbitrum.feeHook = SOME_ADDRESS;
+      const result = WarpRouteDeployConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+
+    it('should accept config without feeHook', () => {
+      const result = WarpRouteDeployConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+  });
 });
