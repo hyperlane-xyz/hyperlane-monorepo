@@ -1073,7 +1073,8 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Tron(conf) => {
-                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let signer = self.tron_signer().await.context(ctx)?;
+                let provider = build_tron_provider(self, conf, metrics, &locator, signer)?;
                 let ism = h_tron::TronInterchainSecurityModule::new(provider, &locator);
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }

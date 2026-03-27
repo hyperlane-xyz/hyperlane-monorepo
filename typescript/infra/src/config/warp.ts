@@ -50,6 +50,7 @@ export const tokens = {
     enzoBTC: '0x6A9A65B84843F5fD4aC9a0471C4fc11AFfFBce4a',
     stBTC: '0xf6718b2701d4a6498ef77d7c152b2137ab28b8a3',
     WBTC: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c',
+    '1Piece': '0xf263cc32caed261a819713f3dcc494a96c3e5111',
   },
   mantle: {
     USDT: '0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE',

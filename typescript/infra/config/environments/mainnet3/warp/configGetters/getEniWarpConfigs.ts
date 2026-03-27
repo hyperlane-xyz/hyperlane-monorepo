@@ -263,3 +263,36 @@ export async function getEniUsdtWarpConfig(
 
   return Object.fromEntries(configs);
 }
+
+export async function getEni1PieceWarpConfig(
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const eni: HypTokenRouterConfig = {
+    ...routerConfig.eni,
+    owner: owners.eni,
+    type: TokenType.synthetic,
+    name: 'OnePiece',
+    symbol: '1Piece',
+    decimals: 18,
+    tokenFee: getFixedRoutingFeeConfig(
+      getWarpFeeOwner('eni'),
+      ['bsc'],
+      WARP_FEE_BPS,
+    ),
+  };
+
+  const bsc: HypTokenRouterConfig = {
+    ...routerConfig.bsc,
+    owner: owners.bsc,
+    type: TokenType.collateral,
+    token: tokens.bsc['1Piece'],
+    decimals: 18,
+    name: 'OnePiece',
+    symbol: '1Piece',
+  };
+
+  return {
+    eni,
+    bsc,
+  };
+}
