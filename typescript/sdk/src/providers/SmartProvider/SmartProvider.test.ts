@@ -96,10 +96,20 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
       reqId,
     );
   }
+
+  public async simpleProbePerform(method: string, reqId: number): Promise<any> {
+    return this.performWithFallbackForPolicy(
+      method,
+      {},
+      this.mockProviders as any,
+      reqId,
+      this.getProbeRequestPolicy(),
+    );
+  }
 }
 
 class RetrySpySmartProvider extends HyperlaneSmartProvider {
-  public performWithFallbackCallCount = 0;
+  public performWithFallbackForPolicyCallCount = 0;
 
   constructor() {
     super({ chainId: 1, name: 'test' }, [{ http: 'http://provider' }], [], {
@@ -109,13 +119,20 @@ class RetrySpySmartProvider extends HyperlaneSmartProvider {
     });
   }
 
-  protected override async performWithFallback(
+  public async probeCallForTest(): Promise<string> {
+    return this.probeCall({
+      to: '0x0000000000000000000000000000000000000001',
+    });
+  }
+
+  protected override async performWithFallbackForPolicy(
     _method: string,
     _params: { [name: string]: any },
     _providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
     _reqId: number,
+    _policy: unknown,
   ): Promise<any> {
-    this.performWithFallbackCallCount += 1;
+    this.performWithFallbackForPolicyCallCount += 1;
     throw new ProviderError('connection refused', EthersError.SERVER_ERROR);
   }
 }
@@ -364,6 +381,21 @@ describe('SmartProvider', () => {
       expect(e).to.be.instanceOf(Error);
       expect(e).to.not.be.instanceOf(BlockchainError);
       expect(e.isRecoverable).to.be.undefined;
+      expect(e.cause).to.equal(error);
+    });
+
+    it('treats invalid provider response as recoverable', () => {
+      const error = new Error('Invalid response from provider');
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e.message).to.equal('Test fallback message');
       expect(e.cause).to.equal(error);
     });
 
@@ -721,7 +753,21 @@ describe('SmartProvider', () => {
       }
       expect(threw, 'perform should have thrown').to.be.true;
       // performWithFallback should be called exactly once (no retryAsync wrapping)
-      expect(smartProvider.performWithFallbackCallCount).to.equal(1);
+      expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(1);
+    });
+
+    it('probeCall bypasses retryAsync to fail fast on probe transport errors', async () => {
+      const smartProvider = new RetrySpySmartProvider();
+
+      let threw = false;
+      try {
+        await smartProvider.probeCallForTest();
+      } catch {
+        threw = true;
+      }
+
+      expect(threw, 'probeCall should have thrown').to.be.true;
+      expect(smartProvider.performWithFallbackForPolicyCallCount).to.equal(1);
     });
 
     it('sendTransaction waits for provider instead of racing against timeout', async () => {
@@ -740,6 +786,26 @@ describe('SmartProvider', () => {
       expect(provider1.called).to.be.true;
       expect(provider1.callCount).to.equal(1);
       expect(provider2.called).to.be.false;
+    });
+
+    it('probe requests still fall through to the next provider on transient errors', async () => {
+      const serverError = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+
+      const provider1 = MockProvider.error(serverError);
+      const provider2 = MockProvider.success('success2');
+      const smartProvider = new TestableSmartProvider([provider1, provider2]);
+
+      const result = await smartProvider.simpleProbePerform(
+        ProviderMethod.Call,
+        1,
+      );
+
+      expect(result).to.deep.equal('success2');
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.true;
     });
   });
 });
