@@ -49,7 +49,7 @@ jobs:
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs: [change-detection]
-    if: needs.change-detection.outputs.skip_ts != 'true'
+    if: needs.change-detection.outputs.run_lint_prettier == 'true'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -87,14 +87,20 @@ jobs:
       - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' | \
-          xargs -r pnpm exec oxfmt --ignore-path .gitignore --check --no-error-on-unmatched-pattern
+          mapfile -t oxfmt_files < <(
+            grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' changed_files.txt || true
+          )
+          if ((${#oxfmt_files[@]})); then
+            pnpm exec oxfmt --ignore-path .gitignore --check --no-error-on-unmatched-pattern "${oxfmt_files[@]}"
+          fi
 
       - name: Run prettier for Solidity (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.sol$' | \
-          xargs -r pnpm exec prettier --check --no-error-on-unmatched-pattern
+          mapfile -t prettier_files < <(grep -E '\.sol$' changed_files.txt || true)
+          if ((${#prettier_files[@]})); then
+            pnpm exec prettier --check --no-error-on-unmatched-pattern "${prettier_files[@]}"
+          fi
 
       - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
@@ -103,7 +109,7 @@ jobs:
 
       - name: Run prettier for Solidity (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol' 'solidity/multicollateral/**/*.sol'
+        run: pnpm exec prettier --check 'solidity/**/*.sol' 'typescript/helloworld/contracts/**/*.sol'
         continue-on-error: true
 
       - name: Check YAML sort order
@@ -147,6 +153,7 @@ jobs:
     needs: [set-base-sha]
     outputs:
       skip_ts: ${{ steps.decide.outputs.skip_ts }}
+      run_lint_prettier: ${{ steps.decide.outputs.run_lint_prettier }}
       run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
       ci_tier: ${{ steps.decide.outputs.ci_tier }}
       has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
@@ -179,6 +186,14 @@ jobs:
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
           path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
           path_pattern_only: 'true'
+
+      - name: Check if workflow files changed
+        id: check-github
+        uses: ./.github/actions/check-path-changes
+        with:
+          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
+          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
+          path_pattern: '\.github/'
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
@@ -260,6 +275,7 @@ jobs:
 
           if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
             echo "skip_ts=true" >> $GITHUB_OUTPUT
+            echo "run_lint_prettier=false" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=false" >> $GITHUB_OUTPUT
             echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
@@ -275,6 +291,7 @@ jobs:
 
           if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
             echo "skip_ts=false" >> $GITHUB_OUTPUT
+            echo "run_lint_prettier=true" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=true" >> $GITHUB_OUTPUT
             echo "ci_tier=full" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
@@ -288,7 +305,14 @@ jobs:
             exit 0
           fi
 
-          echo "skip_ts=${{ steps.check-skip-ts.outputs.only_changes }}" >> $GITHUB_OUTPUT
+          SKIP_TS="${{ steps.check-skip-ts.outputs.only_changes }}"
+          RUN_LINT_PRETTIER=false
+          if [[ "$SKIP_TS" != "true" || "${{ steps.check-github.outputs.has_changes }}" == "true" ]]; then
+            RUN_LINT_PRETTIER=true
+          fi
+
+          echo "skip_ts=$SKIP_TS" >> $GITHUB_OUTPUT
+          echo "run_lint_prettier=$RUN_LINT_PRETTIER" >> $GITHUB_OUTPUT
           echo "run_cli_e2e=${{ steps.check-vm.outputs.has_cli_changes }}" >> $GITHUB_OUTPUT
           echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
           echo "has_cosmos=${{ steps.check-vm.outputs.has_cosmos }}" >> $GITHUB_OUTPUT

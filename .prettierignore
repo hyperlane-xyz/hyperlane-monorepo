@@ -1,6 +1,14 @@
 # Prettier is only used for Solidity files.
 # All other formatting is handled by oxfmt.
 *
-!solidity/contracts/**/*.sol
-!solidity/test/**/*.sol
-!solidity/multicollateral/**/*.sol
+!*/
+!solidity/**/*.sol
+!typescript/helloworld/contracts/**/*.sol
+**/node_modules/**
+solidity/artifacts/**
+solidity/cache/**
+solidity/core-utils/typechain/**
+solidity/dependencies/**
+typescript/helloworld/artifacts/**
+typescript/helloworld/cache/**
+typescript/helloworld/src/types/**

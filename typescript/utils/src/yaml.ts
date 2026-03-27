@@ -3,6 +3,7 @@ import {
   Node as YamlNode,
   parseDocument,
   parse as yamlParse,
+  type ToStringOptions,
 } from 'yaml';
 
 import { sortArrayByKey } from './arrays.js';
@@ -353,12 +354,13 @@ function addContentLineWithInlineComment(
 export function transformYaml<T extends YamlNode = YamlNode>(
   content: string,
   transformer: (data: T) => T,
+  options?: ToStringOptions,
 ): string {
   const parsedDoc = parseDocument(content, { keepSourceTokens: true });
   const newDoc = new Document();
   newDoc.contents = transformer(parsedDoc.toJSON());
 
-  return preserveYamlComments(content, newDoc.toString());
+  return preserveYamlComments(content, newDoc.toString(options));
 }
 
 export type ArraySortConfig = {

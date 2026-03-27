@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
+import { parse as yamlParse } from 'yaml';
 
 import {
   sortNestedArrays,
   sortObjectKeys,
+  transformYaml,
   WARP_YAML_SORT_CONFIG,
 } from '../typescript/utils/src/yaml.ts';
 
@@ -58,18 +59,35 @@ let failed = false;
 for (const file of targetFiles) {
   try {
     const content = fs.readFileSync(file, 'utf8');
+
+    if (content.trim() === '') {
+      continue;
+    }
+
     const parsed = yamlParse(content);
-    const sorted = yamlStringify(
-      sortObjectKeys(sortNestedArrays(parsed, WARP_YAML_SORT_CONFIG)),
-      undefined,
+
+    if (parsed == null) {
+      continue;
+    }
+
+    const sorted = `${transformYaml(
+      content,
+      (data) =>
+        sortObjectKeys(
+          sortNestedArrays(data, WARP_YAML_SORT_CONFIG),
+        ) as typeof data,
       { singleQuote: true },
-    );
+    ).trimEnd()}\n`;
 
     if (check) {
       if (content !== sorted) {
         console.log(`UNSORTED: ${file}`);
         failed = true;
       }
+      continue;
+    }
+
+    if (content === sorted) {
       continue;
     }
 

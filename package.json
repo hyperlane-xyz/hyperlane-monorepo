@@ -9,7 +9,7 @@
     "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "format": "turbo run format",
-    "format:check": "oxfmt --ignore-path .gitignore --check . && pnpm exec tsx ./scripts/sort-yaml.ts --check && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol' 'solidity/multicollateral/**/*.sol'",
+    "format:check": "oxfmt --ignore-path .gitignore --check . && pnpm exec tsx ./scripts/sort-yaml.ts --check && prettier --check 'solidity/**/*.sol' 'typescript/helloworld/contracts/**/*.sol'",
     "lint": "oxlint -c oxlint.json",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
