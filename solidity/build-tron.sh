@@ -11,20 +11,27 @@ rm -rf ./cache-tron ./artifacts-tron ./dist/tron/typechain
 # gracefully since deps may already be present (e.g. forge v1.1.0 soldeer bug).
 forge soldeer install --quiet || echo "Warning: soldeer install failed, assuming dependencies are already present"
 
-# Files to patch for Tron compatibility
-PATCH_FILES=(
-  # Patch Create2.sol with Tron-specific version (0x41 prefix)
-  "dependencies/@openzeppelin-contracts-4.9.3/contracts/utils/Create2.sol:overrides/tron/Create2.sol"
-  # Patch SafeERC20.sol with Tron-specific safeTransfer overwrites
-  "dependencies/@openzeppelin-contracts-4.9.3/contracts/token/ERC20/utils/SafeERC20.sol:overrides/tron/SafeERC20.sol"
-)
+# Files to patch for Tron compatibility (newline-separated, dest:src)
+PATCH_FILES="dependencies/@openzeppelin-contracts-4.9.3/contracts/utils/Create2.sol:overrides/tron/Create2.sol
+dependencies/@openzeppelin-contracts-4.9.3/contracts/token/ERC20/utils/SafeERC20.sol:overrides/tron/SafeERC20.sol"
+
+# Iterate PATCH_FILES and run a command on each entry.
+# Usage: for_each_patch cmd  →  cmd is called with each "dest:src" line as $1
+for_each_patch() {
+  _saved_ifs="$IFS"; IFS="
+"
+  for _entry in $PATCH_FILES; do
+    "$@" "$_entry"
+  done
+  IFS="$_saved_ifs"
+}
 
 # Collect all .sol files that use isContract (contracts + dependencies),
 # excluding files already handled by PATCH_FILES to avoid double-backup.
 PATCH_DESTS=""
-for patch in "${PATCH_FILES[@]}"; do
-  PATCH_DESTS="$PATCH_DESTS ${patch%%:*}"
-done
+_collect_dest() { PATCH_DESTS="$PATCH_DESTS ${1%%:*}"; }
+for_each_patch _collect_dest
+
 ISCONTRACT_FILES=""
 for f in $(grep -rl '\.isContract\b' contracts/ dependencies/ --include='*.sol' || true); do
   case "$PATCH_DESTS" in
@@ -33,26 +40,19 @@ for f in $(grep -rl '\.isContract\b' contracts/ dependencies/ --include='*.sol' 
   esac
 done
 
-# Backup all files we'll modify
+# Backup / restore helpers
+_backup_patch()  { cp "${1%%:*}" "${1%%:*}.bak"; }
+_restore_patch() { mv "${1%%:*}.bak" "${1%%:*}"; }
+_apply_patch()   { cp "${1##*:}" "${1%%:*}"; }
+
 backup_files() {
-  for patch in "${PATCH_FILES[@]}"; do
-    dest="${patch%%:*}"
-    cp "$dest" "$dest.bak"
-  done
-  for f in $ISCONTRACT_FILES; do
-    cp "$f" "$f.bak"
-  done
+  for_each_patch _backup_patch
+  for f in $ISCONTRACT_FILES; do cp "$f" "$f.bak"; done
 }
 
-# Restore all files from backups
 restore_files() {
-  for patch in "${PATCH_FILES[@]}"; do
-    dest="${patch%%:*}"
-    mv "$dest.bak" "$dest"
-  done
-  for f in $ISCONTRACT_FILES; do
-    mv "$f.bak" "$f"
-  done
+  for_each_patch _restore_patch
+  for f in $ISCONTRACT_FILES; do mv "$f.bak" "$f"; done
 }
 
 # Ensure restoration even on failure
@@ -60,12 +60,8 @@ trap restore_files EXIT
 
 backup_files
 
-# Apply Tron-specific patches
-for patch in "${PATCH_FILES[@]}"; do
-  dest="${patch%%:*}"
-  src="${patch##*:}"
-  cp "$src" "$dest"
-done
+# Apply Tron-specific patches (Create2.sol, SafeERC20.sol)
+for_each_patch _apply_patch
 
 # Patch isContract() calls → address.code.length > 0
 # Uses Node script to handle nested parentheses correctly
