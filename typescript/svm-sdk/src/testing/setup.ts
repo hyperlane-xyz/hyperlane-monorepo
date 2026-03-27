@@ -1,9 +1,12 @@
 import { getCreateAccountInstruction } from '@solana-program/system';
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
 import {
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
   lamports as brandLamports,
   generateKeyPairSigner,
   getAddressEncoder,
+  address as parseAddress,
 } from '@solana/kit';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
@@ -115,11 +118,13 @@ export function getPreloadedPrograms(programs: Array<PreloadableProgram>): {
 
 export async function airdropSol(
   rpc: Rpc<SolanaRpcApi>,
-  address: Address,
+  address: string,
   amount: bigint = 10_000_000_000n,
 ): Promise<void> {
+  const parsedAddress = parseAddress(address);
+
   const signature = await retryAsync(() =>
-    rpc.requestAirdrop(address, brandLamports(amount)).send(),
+    rpc.requestAirdrop(parsedAddress, brandLamports(amount)).send(),
   );
 
   let confirmed = false;

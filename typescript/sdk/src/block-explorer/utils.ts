@@ -16,6 +16,7 @@ export function isEvmBlockExplorerAndNotEtherscan(
     [ExplorerFamily.Voyager]: false,
     [ExplorerFamily.ZkSync]: true,
     [ExplorerFamily.RadixDashboard]: false,
+    [ExplorerFamily.TronScan]: false,
     [ExplorerFamily.Unknown]: false,
   };
 

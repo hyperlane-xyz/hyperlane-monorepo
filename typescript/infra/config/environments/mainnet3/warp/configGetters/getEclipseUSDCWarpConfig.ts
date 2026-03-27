@@ -240,7 +240,7 @@ export const buildEclipseUSDCWarpConfig = async (
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(chain),
           destinations,
-          5n,
+          5,
           feeParams,
         ),
       };

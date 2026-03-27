@@ -1,0 +1,24 @@
+blockExplorers:
+  - apiUrl: http://127.0.0.1:5051
+    family: other
+    name: Starknet Local Explorer 2
+    url: http://127.0.0.1:5051
+blocks:
+  confirmations: 0
+  estimateBlockTime: 5
+  reorgPeriod: 0
+chainId: "0x534e5f5345504f4c4941"
+displayName: Starknet2
+domainId: 5854810
+name: starknet2
+nativeToken:
+  decimals: 18
+  denom: "0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7"
+  name: Ether
+  symbol: ETH
+protocol: starknet
+restPort: 5051
+rpcPort: 5051
+rpcUrls:
+  - http: http://127.0.0.1:5051
+technicalStack: other

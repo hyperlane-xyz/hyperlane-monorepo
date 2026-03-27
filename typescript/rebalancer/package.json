@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/rebalancer",
-  "version": "27.1.1",
+  "version": "27.2.1",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
   "keywords": [
     "blockchain",
@@ -68,6 +68,7 @@
     "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/express": "^5.0.3",
     "@types/mocha": "catalog:",

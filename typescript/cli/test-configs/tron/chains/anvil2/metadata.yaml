@@ -1,12 +1,16 @@
 # Tron test chain aliased as anvil2 for test compatibility
 ---
 chainId: 3360022319
-domainId: 3360022318
+domainId: 1212538671
 name: anvil2
 displayName: Tron Local 2
 protocol: tron
 rpcUrls:
-  - http: http://127.0.0.1:9090
+  - http: http://127.0.0.1:9090/jsonrpc
+blocks:
+  confirmations: 1
+  estimateBlockTime: 3
+  reorgPeriod: 0
 nativeToken:
   name: TRX
   symbol: TRX

@@ -78,7 +78,7 @@ export const getVictionETHWarpConfig = async (
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(currentChain),
           feeDestinations,
-          10n,
+          10,
         ),
         proxyAdmin: {
           owner:
