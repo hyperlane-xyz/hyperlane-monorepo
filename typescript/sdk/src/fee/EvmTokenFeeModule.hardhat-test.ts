@@ -19,8 +19,11 @@ import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
+  CrossCollateralRoutingFeeConfigSchema,
+  DEFAULT_ROUTER_KEY,
   LinearFeeConfig,
   OffchainQuotedLinearFeeConfig,
+  ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
@@ -34,7 +37,7 @@ describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
-  let config: TokenFeeConfig;
+  let config: LinearFeeConfig;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -413,7 +416,7 @@ describe('EvmTokenFeeModule', () => {
           owner: newOwner,
           feeContracts: {
             [test4Chain]: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: signer.address,
                 bps: BPS,
@@ -469,7 +472,7 @@ describe('EvmTokenFeeModule', () => {
           owner: signer.address,
           feeContracts: {
             [test4Chain]: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: signer.address,
                 bps: BPS + 1n,
@@ -496,13 +499,66 @@ describe('EvmTokenFeeModule', () => {
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
       assert(
-        onchainConfig.feeContracts[test4Chain]?.default?.type ===
+        onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.type ===
           TokenFeeType.LinearFee,
         `Must be ${TokenFeeType.LinearFee}`,
       );
-      expect(onchainConfig.feeContracts[test4Chain]?.default?.bps).to.equal(
-        BPS + 1n,
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.bps,
+      ).to.equal(BPS + 1n);
+    });
+
+    it('should redeploy an empty CCRF using explicitly resolved child tokens', async () => {
+      const emptyCcrf = await deployCrossCollateralRoutingFee(signer.address);
+      const routingDestination = multiProvider.getDomainId(test4Chain);
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: CrossCollateralRoutingFeeConfigSchema.parse({
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: signer.address,
+          feeContracts: {},
+        }),
+        addresses: { deployedFee: emptyCcrf.address },
+      });
+
+      const targetConfig: ResolvedCrossCollateralRoutingFeeConfigInput = {
+        type: TokenFeeType.CrossCollateralRoutingFee,
+        owner: signer.address,
+        feeContracts: {
+          [test4Chain]: {
+            [DEFAULT_ROUTER_KEY]: {
+              type: TokenFeeType.LinearFee,
+              owner: signer.address,
+              token: token.address,
+              bps: BPS,
+            },
+          },
+        },
+      };
+
+      const txs = await module.update(targetConfig, {
+        routingDestinations: [routingDestination],
+        crossCollateralRouters: {
+          [routingDestination]: [],
+        },
+      });
+
+      expect(txs).to.have.lengthOf(0);
+      expect(module.serialize().deployedFee).to.not.equal(emptyCcrf.address);
+
+      const onchainConfig = await module.read({
+        routingDestinations: [routingDestination],
+        crossCollateralRouters: {
+          [routingDestination]: [],
+        },
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
+        `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
+      expect(
+        onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.token,
+      ).to.equal(token.address);
     });
 
     it('should preserve caller-provided CCR routers when diffing for redeploy', async () => {
@@ -528,9 +584,7 @@ describe('EvmTokenFeeModule', () => {
           owner: signer.address,
           feeContracts: {
             [test4Chain]: {
-              routers: {
-                [routerKey]: config,
-              },
+              [routerKey]: config,
             },
           },
         },
@@ -543,7 +597,7 @@ describe('EvmTokenFeeModule', () => {
           owner: signer.address,
           feeContracts: {
             [test4Chain]: {
-              default: {
+              [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: signer.address,
                 bps: BPS,
@@ -570,12 +624,12 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.CrossCollateralRoutingFee,
         `Must be ${TokenFeeType.CrossCollateralRoutingFee}`,
       );
-      expect(onchainConfig.feeContracts[test4Chain]?.default?.type).to.equal(
-        TokenFeeType.LinearFee,
-      );
       expect(
-        onchainConfig.feeContracts[test4Chain]?.routers ?? {},
-      ).to.deep.equal({});
+        onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.type,
+      ).to.equal(TokenFeeType.LinearFee);
+      expect(onchainConfig.feeContracts[test4Chain]?.[routerKey]).to.equal(
+        undefined,
+      );
     });
 
     it('should redeploy when fee type changes', async () => {
@@ -784,7 +838,7 @@ describe('EvmTokenFeeModule', () => {
             halfAmount: explicitHalfAmount,
           },
         },
-      } as ResolvedTokenFeeConfigInput;
+      } as unknown as ResolvedTokenFeeConfigInput;
 
       const expandedConfig = await EvmTokenFeeModule.expandConfig({
         config: inputConfig,
@@ -821,7 +875,7 @@ describe('EvmTokenFeeModule', () => {
             bps: 8n,
           },
         },
-      } as ResolvedTokenFeeConfigInput;
+      } as unknown as ResolvedTokenFeeConfigInput;
 
       const expandedConfig = await EvmTokenFeeModule.expandConfig({
         config: inputConfig,

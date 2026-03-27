@@ -148,7 +148,6 @@ describe('CrossCollateralRoutingFee schemas', () => {
     const result = CrossCollateralRoutingFeeConfigSchema.safeParse({
       type: TokenFeeType.CrossCollateralRoutingFee,
       owner: SOME_ADDRESS,
-      token: SOME_ADDRESS,
       feeContracts: {
         ethereum: {},
       },

@@ -534,22 +534,13 @@ function populateFeeOwner(params: {
   }
   if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
     objMap(feeConfig.feeContracts, (_, destinationConfig) => {
-      if (destinationConfig.default) {
+      objMap(destinationConfig, (_, innerConfig) => {
         populateFeeOwner({
           tokenConfig,
-          feeConfig: destinationConfig.default,
+          feeConfig: innerConfig,
           inheritedOwner: resolvedOwner,
         });
-      }
-      if (destinationConfig.routers) {
-        objMap(destinationConfig.routers, (_, innerConfig) => {
-          populateFeeOwner({
-            tokenConfig,
-            feeConfig: innerConfig,
-            inheritedOwner: resolvedOwner,
-          });
-        });
-      }
+      });
     });
   }
   return tokenConfig;

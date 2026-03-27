@@ -9,7 +9,6 @@ import {
   ArbL2ToL1Ism__factory,
   CCIPHook,
   CCIPHook__factory,
-  CONTRACTS_PACKAGE_VERSION,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -67,6 +66,11 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
+
+import {
+  VERSION_ERROR_MESSAGE,
+  contractVersionMatchesDependency,
+} from '../token/types.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
@@ -401,8 +405,13 @@ export class EvmHookModule extends HyperlaneModule<
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
     const provider = this.multiProvider.getProvider(this.domainId);
 
-    // Upgrade IGP proxy implementation if outdated
-    if (await isProxy(provider, igpAddress)) {
+    // Upgrade IGP proxy implementation only if contractVersion is specified in config
+    if (targetConfig.contractVersion && (await isProxy(provider, igpAddress))) {
+      assert(
+        contractVersionMatchesDependency(targetConfig.contractVersion),
+        VERSION_ERROR_MESSAGE,
+      );
+
       const currentVersion = await PackageVersioned__factory.connect(
         igpAddress,
         provider,
@@ -412,10 +421,10 @@ export class EvmHookModule extends HyperlaneModule<
 
       if (
         !currentVersion ||
-        compareVersions(CONTRACTS_PACKAGE_VERSION, currentVersion) > 0
+        compareVersions(targetConfig.contractVersion, currentVersion) > 0
       ) {
         this.logger.info(
-          `Upgrading IGP implementation from ${currentVersion ?? 'unknown'} to ${CONTRACTS_PACKAGE_VERSION}`,
+          `Upgrading IGP implementation from ${currentVersion ?? 'unknown'} to ${targetConfig.contractVersion}`,
         );
         const newImpl = await this.deployer.deployContractFromFactory(
           this.chain,
@@ -425,7 +434,7 @@ export class EvmHookModule extends HyperlaneModule<
         );
         const igpProxyAdmin = await proxyAdmin(provider, igpAddress);
         updateTxs.push({
-          annotation: `Upgrade IGP proxy implementation to ${CONTRACTS_PACKAGE_VERSION}`,
+          annotation: `Upgrade IGP proxy implementation to ${targetConfig.contractVersion}`,
           chainId: this.chainId,
           to: igpProxyAdmin,
           data: ProxyAdmin__factory.createInterface().encodeFunctionData(
@@ -490,13 +499,15 @@ export class EvmHookModule extends HyperlaneModule<
       })),
     );
 
-    // update quote signers
-    updateTxs.push(
-      ...this.updateIgpQuoteSigners({
-        currentSigners: currentConfig.quoteSigners ?? [],
-        targetSigners: targetConfig.quoteSigners ?? [],
-      }),
-    );
+    // update quote signers (requires upgraded IGP with quoteSigners support)
+    if (targetConfig.contractVersion) {
+      updateTxs.push(
+        ...this.updateIgpQuoteSigners({
+          currentSigners: currentConfig.quoteSigners ?? [],
+          targetSigners: targetConfig.quoteSigners ?? [],
+        }),
+      );
+    }
 
     return updateTxs;
   }

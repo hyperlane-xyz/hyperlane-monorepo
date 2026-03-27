@@ -23,8 +23,8 @@ export enum TokenFeeType {
   ProgressiveFee = 'ProgressiveFee',
   RegressiveFee = 'RegressiveFee',
   RoutingFee = 'RoutingFee',
-  OffchainQuotedLinearFee = 'OffchainQuotedLinearFee',
   CrossCollateralRoutingFee = 'CrossCollateralRoutingFee',
+  OffchainQuotedLinearFee = 'OffchainQuotedLinearFee',
 }
 
 export const ImmutableTokenFeeType = [
@@ -48,9 +48,13 @@ export const onChainTypeToTokenFeeTypeMap: Record<
     TokenFeeType.OffchainQuotedLinearFee,
 };
 
+// keccak256("RoutingFee.DEFAULT_ROUTER")
+export const DEFAULT_ROUTER_KEY =
+  '0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47';
+
 // ====== SHARED SCHEMAS ======
 
-// For deployed/read configs - token is required
+// For deployed/read configs - token is required for BaseFee implementations
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
@@ -222,35 +226,26 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
-const CrossCollateralRoutingFeeDestinationConfigSchema = z
-  .object({
-    default: z.lazy((): z.ZodSchema => TokenFeeConfigSchema).optional(), // DEFAULT_ROUTER sentinel
-    routers: z
-      .record(
-        ZHash, // bytes32 router key
-        z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
-      )
-      .optional(),
-  })
-  .refine(
-    (value) =>
-      value.default !== undefined ||
-      Object.keys(value.routers ?? {}).length > 0,
-    {
-      message:
-        'CrossCollateralRoutingFee destinations must define a default fee or at least one router fee',
-    },
-  );
+const CROSS_COLLATERAL_DESTINATION_MESSAGE =
+  'CrossCollateralRoutingFee destinations must define at least one router fee';
 
-export const CrossCollateralRoutingFeeConfigSchema = BaseFeeConfigSchema.extend(
-  {
-    type: z.literal(TokenFeeType.CrossCollateralRoutingFee),
-    feeContracts: z.record(
-      ZChainName,
-      CrossCollateralRoutingFeeDestinationConfigSchema,
-    ), // Destination -> { default?, routers? }
-  },
-);
+const CrossCollateralRoutingFeeDestinationConfigSchema = z
+  .record(
+    ZHash,
+    z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
+  )
+  .refine((value) => Object.keys(value).length > 0, {
+    message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
+  });
+
+export const CrossCollateralRoutingFeeConfigSchema = z.object({
+  type: z.literal(TokenFeeType.CrossCollateralRoutingFee),
+  owner: ZHash,
+  feeContracts: z.record(
+    ZChainName,
+    CrossCollateralRoutingFeeDestinationConfigSchema,
+  ), // Destination -> { routerKey -> Fee }, including DEFAULT_ROUTER_KEY
+});
 export type CrossCollateralRoutingFeeConfig = z.infer<
   typeof CrossCollateralRoutingFeeConfigSchema
 >;
@@ -269,24 +264,13 @@ export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
 export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 
 const CrossCollateralRoutingFeeDestinationInputConfigSchema = z
-  .object({
-    default: z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema).optional(),
-    routers: z
-      .record(
-        ZHash, // bytes32 router key
-        z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
-      )
-      .optional(),
-  })
-  .refine(
-    (value) =>
-      value.default !== undefined ||
-      Object.keys(value.routers ?? {}).length > 0,
-    {
-      message:
-        'CrossCollateralRoutingFee destinations must define a default fee or at least one router fee',
-    },
-  );
+  .record(
+    ZHash,
+    z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
+  )
+  .refine((value) => Object.keys(value).length > 0, {
+    message: CROSS_COLLATERAL_DESTINATION_MESSAGE,
+  });
 
 export const CrossCollateralRoutingFeeInputConfigSchema =
   BaseFeeConfigInputSchema.extend({
@@ -326,8 +310,13 @@ export const TokenFeeConfigInputSchema = z.union([
 ]);
 export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
 
-// After resolveTokenFeeAddress() adds the token field
-export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
+export type ResolvedLinearFeeConfigInput = LinearFeeInputConfig & {
+  token: string;
+};
+export type ResolvedProgressiveFeeConfigInput = ProgressiveFeeInputConfig & {
+  token: string;
+};
+export type ResolvedRegressiveFeeConfigInput = RegressiveFeeInputConfig & {
   token: string;
 };
 
@@ -339,12 +328,18 @@ export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
 
 export type ResolvedCrossCollateralRoutingFeeConfigInput =
   CrossCollateralRoutingFeeInputConfig & {
-    token: string;
-    feeContracts: Record<
-      string,
-      {
-        default?: ResolvedTokenFeeConfigInput;
-        routers?: Record<string, ResolvedTokenFeeConfigInput>;
-      }
-    >;
+    feeContracts: Record<string, Record<string, ResolvedTokenFeeConfigInput>>;
   };
+
+export type ResolvedOffchainQuotedLinearFeeConfigInput =
+  OffchainQuotedLinearFeeInputConfig & {
+    token: string;
+  };
+
+export type ResolvedTokenFeeConfigInput =
+  | ResolvedLinearFeeConfigInput
+  | ResolvedOffchainQuotedLinearFeeConfigInput
+  | ResolvedProgressiveFeeConfigInput
+  | ResolvedRegressiveFeeConfigInput
+  | ResolvedRoutingFeeConfigInput
+  | ResolvedCrossCollateralRoutingFeeConfigInput;
