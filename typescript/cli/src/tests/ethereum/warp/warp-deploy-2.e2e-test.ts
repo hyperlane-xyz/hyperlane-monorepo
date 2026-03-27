@@ -14,7 +14,6 @@ import {
 import {
   type ChainMetadata,
   type LinearFeeConfig,
-  type TokenFeeConfig,
   type TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
@@ -349,8 +348,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         )
       )[CHAIN_NAME_2];
 
+      expect(collateralConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
       expect(
-        (collateralConfig.tokenFee as TokenFeeConfig | undefined)?.token,
+        collateralConfig.tokenFee && 'token' in collateralConfig.tokenFee
+          ? collateralConfig.tokenFee.token
+          : undefined,
       ).to.equal(tokenChain2.address);
     });
 
@@ -452,7 +454,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
       // For synthetic tokens, fee token should be resolved to the router address
       expect(
-        (syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token,
+        syntheticConfig.tokenFee && 'token' in syntheticConfig.tokenFee
+          ? syntheticConfig.tokenFee.token
+          : undefined,
       ).to.equal(syntheticTokenConfig.addressOrDenom);
     });
 

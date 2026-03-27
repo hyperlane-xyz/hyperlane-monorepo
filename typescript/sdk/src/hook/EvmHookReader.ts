@@ -13,6 +13,7 @@ import {
   InterchainGasPaymaster__factory,
   MerkleTreeHook__factory,
   OPStackHook__factory,
+  PackageVersioned__factory,
   PausableHook__factory,
   ProtocolFee__factory,
   StaticAggregationHook__factory,
@@ -381,18 +382,22 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     );
 
     // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary, quoteSigners] = await Promise.all([
-      hook.hookType(),
-      hook.owner(),
-      hook.beneficiary(),
-      // quoteSigners() not available on IGP versions before offchain fee quoting
-      hook.quoteSigners().catch(() => {
-        this.logger.debug(
-          'quoteSigners() not available on this IGP version, skipping',
-        );
-        return [] as string[];
-      }),
-    ]);
+    const [hookType, owner, beneficiary, quoteSigners, contractVersion] =
+      await Promise.all([
+        hook.hookType(),
+        hook.owner(),
+        hook.beneficiary(),
+        // quoteSigners() not available on IGP versions before offchain fee quoting
+        hook.quoteSigners().catch(() => {
+          this.logger.debug(
+            'quoteSigners() not available on this IGP version, skipping',
+          );
+          return [] as string[];
+        }),
+        PackageVersioned__factory.connect(address, this.provider)
+          .PACKAGE_VERSION()
+          .catch(() => undefined),
+      ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
 
@@ -457,6 +462,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       overhead,
       oracleConfig,
       ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
+      ...(contractVersion ? { contractVersion } : {}),
     };
 
     this._cache.set(address, config);

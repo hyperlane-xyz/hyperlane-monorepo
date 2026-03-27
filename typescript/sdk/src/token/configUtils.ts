@@ -47,6 +47,7 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -130,6 +131,41 @@ export function getRouterAddressesFromWarpCoreConfig(
 }
 
 /**
+ * Gets the chain names from a WarpCoreConfig
+ */
+export function getChainsFromWarpCoreConfig(
+  warpCoreConfig: WarpCoreConfig,
+): string[] {
+  return warpCoreConfig.tokens.map((token) => token.chainName);
+}
+
+/**
+ * Checks if a WarpCoreConfig includes all specified chains.
+ */
+export function warpCoreConfigMatchesChains(
+  config: WarpCoreConfig,
+  chains: string[],
+): boolean {
+  const configChains = new Set(getChainsFromWarpCoreConfig(config));
+  return chains.every((chain) => configChains.has(chain));
+}
+
+/**
+ * Filters a map of WarpCoreConfigs to only include routes that span all specified chains.
+ */
+export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
+  configMap: Record<string, T>,
+  chains: string[],
+): Record<string, T> {
+  if (chains.length === 0) {
+    return configMap;
+  }
+  return objFilter(configMap, (_, config): config is T =>
+    warpCoreConfigMatchesChains(config, chains),
+  );
+}
+
+/**
  * Expands a Warp deploy config with additional data
  *
  * @param multiProvider
@@ -208,9 +244,38 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.remoteRouters = formattedRemoteRouters;
 
+      const selfDomain = multiProvider.getDomainId(chain).toString();
+      const ccrGasDomains = isCrossCollateralTokenConfig(chainConfig)
+        ? Object.keys(chainConfig.crossCollateralRouters ?? {}).filter(
+            (domain) => domain !== selfDomain,
+          )
+        : [];
+      const gasDomainsToKeep = new Set([
+        ...Object.keys(formattedRemoteRouters),
+        ...ccrGasDomains,
+      ]);
+
+      // CrossCollateralRouter may require destination gas for CCR-only domains
+      // that are not present in Router._routers.
+      if (isCrossCollateralTokenConfig(chainConfig)) {
+        for (const domain of ccrGasDomains) {
+          gasDomainsToKeep.add(domain);
+          // Ensure CCR-only destinations get destinationGas defaults so
+          // warp check/apply can enforce gas config on enrolled CCR domains.
+          if (!chainConfig.destinationGas?.[domain]) {
+            chainConfig.destinationGas = {
+              ...chainConfig.destinationGas,
+              [domain]:
+                chainConfig.gas?.toString() ||
+                gasOverhead(chainConfig.type).toString(),
+            };
+          }
+        }
+      }
+
       const remoteGasDomainsToKeep = intersection(
         new Set(Object.keys(chainConfig.destinationGas ?? {})),
-        new Set(Object.keys(formattedRemoteRouters)),
+        gasDomainsToKeep,
       );
 
       // If the deploy config specified a custom config for remote routers
@@ -331,31 +396,52 @@ export async function expandWarpDeployConfig(params: {
  * - Collateral tokens: fee token is the collateral token address
  * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
  */
+function getFeeTokenAddress(
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+): Address {
+  if (isNativeTokenConfig(tokenConfig)) {
+    return constants.AddressZero;
+  }
+
+  if (
+    isCollateralTokenConfig(tokenConfig) ||
+    isCrossCollateralTokenConfig(tokenConfig)
+  ) {
+    return tokenConfig.token;
+  }
+
+  if (
+    isSyntheticTokenConfig(tokenConfig) ||
+    isSyntheticRebaseTokenConfig(tokenConfig)
+  ) {
+    return routerAddress;
+  }
+
+  throw new Error(`Unsupported token type for fee resolution`);
+}
+
+function resolveCrossCollateralFeeContracts(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, subFee]) => [
+      router,
+      resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+    ]),
+  );
+}
+
 export function resolveTokenFeeAddress(
   feeConfig: TokenFeeConfigInput,
   routerAddress: Address,
   tokenConfig: HypTokenConfig,
 ): ResolvedTokenFeeConfigInput {
-  let feeToken: Address;
+  const feeToken = getFeeTokenAddress(routerAddress, tokenConfig);
 
-  if (isNativeTokenConfig(tokenConfig)) {
-    feeToken = constants.AddressZero;
-  } else if (isCollateralTokenConfig(tokenConfig)) {
-    feeToken = tokenConfig.token;
-  } else if (
-    isSyntheticTokenConfig(tokenConfig) ||
-    isSyntheticRebaseTokenConfig(tokenConfig)
-  ) {
-    feeToken = routerAddress;
-  } else {
-    throw new Error(`Unsupported token type for fee resolution`);
-  }
-
-  if (
-    feeConfig.type === TokenFeeType.RoutingFee &&
-    'feeContracts' in feeConfig &&
-    feeConfig.feeContracts
-  ) {
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
     return {
       ...feeConfig,
       token: feeToken,
@@ -363,6 +449,22 @@ export function resolveTokenFeeAddress(
         Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
           chain,
           resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    return {
+      ...feeConfig,
+      feeContracts: Object.fromEntries(
+        Object.keys(feeConfig.feeContracts).map((chain) => [
+          chain,
+          resolveCrossCollateralFeeContracts(
+            feeConfig.feeContracts[chain],
+            routerAddress,
+            tokenConfig,
+          ),
         ]),
       ),
     } satisfies ResolvedTokenFeeConfigInput;
@@ -455,6 +557,69 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
+function normalizeCrossCollateralFeeContractsForCheck(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, nestedFee]) => [
+      router,
+      normalizeTokenFeeForCheck(nestedFee),
+    ]),
+  );
+}
+
+function normalizeTokenFeeForCheck(
+  feeConfig: TokenFeeConfigInput | undefined,
+): TokenFeeConfigInput | undefined {
+  if (!feeConfig) return feeConfig;
+
+  const tokenConfig =
+    'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
+        chain,
+        normalizeTokenFeeForCheck(nestedFee),
+      ]),
+    );
+
+    return {
+      type: TokenFeeType.RoutingFee,
+      owner: feeConfig.owner,
+      ...tokenConfig,
+      feeContracts: normalizedFeeContracts,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.keys(feeConfig.feeContracts).map((chain) => [
+        chain,
+        normalizeCrossCollateralFeeContractsForCheck(
+          feeConfig.feeContracts[chain],
+        ),
+      ]),
+    );
+    return {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: feeConfig.owner,
+      feeContracts: normalizedFeeContracts,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.LinearFee) {
+    return {
+      type: TokenFeeType.LinearFee,
+      owner: feeConfig.owner,
+      bps: feeConfig.bps,
+      ...tokenConfig,
+    };
+  }
+
+  return feeConfig;
+}
+
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -481,6 +646,12 @@ export function transformConfigToCheck(
     )
       ? clonedTokenConfig.allowedRebalancingBridges
       : undefined;
+  }
+
+  if (clonedTokenConfig.tokenFee) {
+    clonedTokenConfig.tokenFee = normalizeTokenFeeForCheck(
+      clonedTokenConfig.tokenFee,
+    );
   }
 
   return sortArraysInObject(
