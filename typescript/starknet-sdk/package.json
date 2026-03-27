@@ -49,7 +49,6 @@
     "@types/node": "catalog:",
     "chai": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
     "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"

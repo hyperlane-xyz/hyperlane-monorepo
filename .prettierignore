@@ -1,6 +1,0 @@
-# Prettier is only used for Solidity files.
-# All other formatting is handled by oxfmt.
-*
-!solidity/contracts/**/*.sol
-!solidity/test/**/*.sol
-!solidity/multicollateral/**/*.sol
