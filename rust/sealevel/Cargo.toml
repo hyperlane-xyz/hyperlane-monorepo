@@ -18,6 +18,7 @@ members = [
     "programs/hyperlane-sealevel-token",
     "programs/hyperlane-sealevel-token-collateral",
     "programs/hyperlane-sealevel-token-native",
+    "programs/ism/composite-ism",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",
     "programs/mailbox",
@@ -207,6 +208,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-token-native]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-composite-ism]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-multisig-ism-message-id]

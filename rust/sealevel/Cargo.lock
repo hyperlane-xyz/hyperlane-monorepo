@@ -3449,6 +3449,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-composite-ism"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "ecdsa-signature",
+ "getrandom 0.2.17",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "multisig-ism",
+ "num-derive",
+ "num-traits",
+ "rand 0.8.5",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-connection-client"
 version = "0.1.0"
 dependencies = [
