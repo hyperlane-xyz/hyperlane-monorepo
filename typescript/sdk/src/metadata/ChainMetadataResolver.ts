@@ -38,7 +38,7 @@ export function createChainMetadataResolver<MetaExt = {}>(
     if (typeof chain === 'string') {
       return metadata[chain] || byChainId.get(chain) || null;
     }
-    return byDomainId.get(chain) || byChainId.get(chain) || null;
+    return byChainId.get(chain) || byDomainId.get(chain) || null;
   };
 
   return {

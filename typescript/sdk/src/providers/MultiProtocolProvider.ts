@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, pick } from '@hyperlane-xyz/utils';
 
 import { multiProtocolTestChainMetadata } from '../consts/testChains.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -78,11 +78,7 @@ export class MultiProtocolProvider<
       intersection,
       result: new MultiProtocolProvider(result.metadata, {
         ...this.options,
-        providers: Object.fromEntries(
-          Object.entries(this.providers).filter(([chain]) =>
-            intersection.includes(chain),
-          ),
-        ),
+        providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,
       }),
     };
