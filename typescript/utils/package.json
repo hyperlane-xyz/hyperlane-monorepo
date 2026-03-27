@@ -23,7 +23,7 @@
       ],
       "anvil": [
         "./dist/anvil/index.d.ts"
-      ],
+      ]
     }
   },
   "exports": {
@@ -34,7 +34,7 @@
     "./fs": {
       "types": "./dist/fs/index.d.ts",
       "default": "./dist/fs/index.js"
-    },
+    }
   },
   "scripts": {
     "dev": "tsc -w",
