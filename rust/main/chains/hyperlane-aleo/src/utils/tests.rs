@@ -209,3 +209,49 @@ fn test_pad_to_length_custom_pad_byte() {
     let res = pad_to_length::<4>(data, 0x7F);
     assert_eq!(res, [0xAB, 0x7F, 0x7F, 0x7F]);
 }
+
+#[test]
+fn test_parse_aleo_tx_hash_valid() {
+    // Real Aleo tx hash format: at1...
+    let tx_hash = "at1zktn37djmxfzdgzg74utgqv9veuy2u2c5lk03qkm25lpg2035y9s5vajya";
+    let result = parse_aleo_tx_hash(tx_hash);
+    assert!(result.is_ok());
+    let parsed = result.unwrap();
+    // Ensure it's not all zeros
+    assert_ne!(parsed, hyperlane_core::H512::zero());
+}
+
+#[test]
+fn test_parse_aleo_tx_hash_invalid_bech32() {
+    let tx_hash = "invalid_bech32_string";
+    let result = parse_aleo_tx_hash(tx_hash);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Invalid bech32"));
+}
+
+#[test]
+fn test_parse_aleo_tx_hash_empty() {
+    let tx_hash = "";
+    let result = parse_aleo_tx_hash(tx_hash);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_parse_aleo_tx_hash_padding() {
+    // Test that shorter hashes are properly padded
+    // Create a simple bech32 encoded value (using "test" as HRP)
+    use bech32::{Bech32m, Hrp};
+    let hrp = Hrp::parse("test").unwrap();
+    let data = vec![1u8, 2, 3, 4];
+    let encoded = bech32::encode::<Bech32m>(hrp, &data).unwrap();
+
+    let result = parse_aleo_tx_hash(&encoded);
+    assert!(result.is_ok());
+    let parsed = result.unwrap();
+
+    // Check that the data is at the end (right-padded with zeros on left)
+    let bytes: [u8; 64] = parsed.into();
+    assert_eq!(&bytes[60..], &[1u8, 2, 3, 4]);
+    // Check that the rest is zeros
+    assert!(bytes[..60].iter().all(|&b| b == 0));
+}

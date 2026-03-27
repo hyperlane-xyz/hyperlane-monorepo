@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 
 use crate::provider::{AleoClient, BaseHttpClient};
-use crate::utils::aleo_hash_to_h256;
+use crate::utils::{aleo_hash_to_h256, parse_aleo_tx_hash};
 use crate::AleoHash;
 use crate::{indexer::AleoIndexer, AleoMailboxStruct, AleoProvider, ConnectionConf};
 
@@ -74,6 +74,10 @@ impl HyperlaneContract for AleoDeliveryIndexer {
 
 #[async_trait]
 impl<C: AleoClient> Indexer<H256> for AleoDeliveryIndexer<C> {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        parse_aleo_tx_hash(tx_hash)
+    }
+
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
     async fn fetch_logs_in_range(
         &self,

@@ -5,7 +5,7 @@ use scrypto::{
     types::{ComponentAddress, NodeId},
 };
 
-use hyperlane_core::{ChainResult, H256, U256};
+use hyperlane_core::{ChainResult, H256, H512, U256};
 
 use crate::HyperlaneRadixError;
 
@@ -45,6 +45,24 @@ pub fn encode_tx(network: &NetworkDefinition, address: H256) -> ChainResult<Stri
 pub fn decode_bech32(bech32_address: &str) -> ChainResult<Vec<u8>> {
     let (_, value) = bech32::decode(bech32_address).map_err(HyperlaneRadixError::from)?;
     Ok(value)
+}
+
+/// Parse a bech32m-encoded Radix transaction hash to H512
+pub(crate) fn parse_radix_tx_hash(tx_hash: &str) -> ChainResult<H512> {
+    use hyperlane_core::ChainCommunicationError;
+
+    let bytes = decode_bech32(tx_hash)?;
+
+    if bytes.len() > 64 {
+        return Err(ChainCommunicationError::from_other_str(
+            "Radix tx hash exceeds 64 bytes",
+        ));
+    }
+
+    let mut padded = [0u8; 64];
+    let start = 64usize.saturating_sub(bytes.len());
+    padded[start..].copy_from_slice(&bytes);
+    Ok(H512::from_slice(&padded))
 }
 
 /// converts an internal radix address to a H256
@@ -208,5 +226,46 @@ mod tests {
 
         // Negative decimals should return zero
         assert_eq!(result, U256::zero());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_valid() {
+        let network = get_test_network();
+        let test_hash = H256::from([1u8; 32]);
+        let encoded = encode_tx(&network, test_hash).unwrap();
+
+        let result = parse_radix_tx_hash(&encoded);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        // Check that the parsed hash contains our original data
+        let bytes: [u8; 64] = parsed.into();
+        // The first 32 bytes should be zeros (padding), last 32 should be our hash
+        assert_eq!(&bytes[32..], test_hash.as_bytes());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_real_format() {
+        // Real Radix tx hash format: txid_rdx1...
+        let tx_hash = "txid_rdx1t6vqltn0x3wyer7d4eh2eetf52ldx98utnxd4jafqczz545a7szs0nd48r";
+        let result = parse_radix_tx_hash(tx_hash);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        // Ensure it's not all zeros
+        assert_ne!(parsed, H512::zero());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_invalid_bech32() {
+        let tx_hash = "invalid_bech32_string";
+        let result = parse_radix_tx_hash(tx_hash);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_radix_tx_hash_empty() {
+        let tx_hash = "";
+        let result = parse_radix_tx_hash(tx_hash);
+        assert!(result.is_err());
     }
 }

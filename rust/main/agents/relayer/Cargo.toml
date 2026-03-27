@@ -48,6 +48,7 @@ tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
 uuid.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
 
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = [
@@ -55,9 +56,16 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "async",
     "matching-list",
 ] }
+hyperlane-aleo = { path = "../../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-fuel = { path = "../../chains/hyperlane-fuel" }
+hyperlane-radix = { path = "../../chains/hyperlane-radix" }
 hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" }
+hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
+hyperlane-tron = { path = "../../chains/hyperlane-tron" }
 solana-sdk.workspace = true
+hex.workspace = true
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 lander = { path = "../../lander" }
@@ -83,4 +91,4 @@ oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
 test-utils = ["hyperlane-base/test-utils"]
 memory-profiling = ["dep:ctrlc", "dep:dhat"]
-aleo = ["hyperlane-base/aleo", "lander/aleo"]
+aleo = ["dep:hyperlane-aleo", "hyperlane-base/aleo", "lander/aleo"]

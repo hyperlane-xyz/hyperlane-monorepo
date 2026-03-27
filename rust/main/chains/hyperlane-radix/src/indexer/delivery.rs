@@ -6,7 +6,10 @@ use hyperlane_core::{
     ChainResult, ContractLocator, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{encode_component_address, parse_process_id_event, ConnectionConf, RadixProvider};
+use crate::{
+    encode_component_address, parse_process_id_event, parse_radix_tx_hash, ConnectionConf,
+    RadixProvider,
+};
 
 /// Radix Delivery Indexer
 #[derive(Debug)]
@@ -29,6 +32,10 @@ impl RadixDeliveryIndexer {
 
 #[async_trait]
 impl Indexer<H256> for RadixDeliveryIndexer {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        parse_radix_tx_hash(tx_hash)
+    }
+
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,

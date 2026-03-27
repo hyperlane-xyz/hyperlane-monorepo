@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock as StdRwLock};
 
 use axum::Router;
 use derive_new::new;
@@ -8,14 +8,18 @@ use tokio::sync::broadcast::Sender;
 use tokio::sync::RwLock;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, Indexer};
 use lander::CommandEntrypoint;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
+use crate::relay_api::handlers::TxHashCache;
+
 use crate::server::environment_variable::EnvironmentVariableApi;
+use hyperlane_core::QueueOperation;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
@@ -45,6 +49,22 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
+    #[new(default)]
+    relay_send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
+    #[new(default)]
+    relay_indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
+    #[new(default)]
+    relay_tx_hash_cache: Option<Arc<StdRwLock<TxHashCache>>>,
+    #[new(default)]
+    relay_api_metrics: Option<crate::relay_api::RelayApiMetrics>,
+    #[new(default)]
+    relay_rate_limiter: Option<Arc<StdRwLock<crate::relay_api::handlers::RateLimiter>>>,
+    #[new(default)]
+    message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
+    #[new(default)]
+    message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
+    #[new(default)]
+    address_blacklist: Option<Arc<crate::msg::blacklist::AddressBlacklist>>,
 }
 
 impl Server {
@@ -95,6 +115,52 @@ impl Server {
         self
     }
 
+    pub fn with_relay_send_channels(
+        mut self,
+        channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) -> Self {
+        self.relay_send_channels = Some(channels);
+        self
+    }
+
+    pub fn with_indexers(
+        mut self,
+        indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+    ) -> Self {
+        self.relay_indexers = Some(indexers);
+        self
+    }
+
+    pub fn with_tx_hash_cache(mut self, cache: Arc<StdRwLock<TxHashCache>>) -> Self {
+        self.relay_tx_hash_cache = Some(cache);
+        self
+    }
+
+    pub fn with_relay_api_metrics(mut self, metrics: crate::relay_api::RelayApiMetrics) -> Self {
+        self.relay_api_metrics = Some(metrics);
+        self
+    }
+
+    pub fn with_rate_limiter(
+        mut self,
+        limiter: Arc<StdRwLock<crate::relay_api::handlers::RateLimiter>>,
+    ) -> Self {
+        self.relay_rate_limiter = Some(limiter);
+        self
+    }
+
+    pub fn with_message_filters(
+        mut self,
+        message_whitelist: Arc<crate::settings::matching_list::MatchingList>,
+        message_blacklist: Arc<crate::settings::matching_list::MatchingList>,
+        address_blacklist: Arc<crate::msg::blacklist::AddressBlacklist>,
+    ) -> Self {
+        self.message_whitelist = Some(message_whitelist);
+        self.message_blacklist = Some(message_blacklist);
+        self.address_blacklist = Some(address_blacklist);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -139,6 +205,48 @@ impl Server {
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
+
+        // Add relay API
+        if let (Some(dbs), Some(indexers), Some(send_channels)) = (
+            self.dbs.as_ref(),
+            self.relay_indexers,
+            self.relay_send_channels.as_ref(),
+        ) {
+            let mut relay_state = crate::relay_api::handlers::ServerState::new()
+                .with_indexers(indexers)
+                .with_dbs(dbs.clone())
+                .with_send_channels(send_channels.clone())
+                .with_msg_ctxs(self.msg_ctxs.clone());
+
+            // Add tx hash cache if available
+            if let Some(cache) = self.relay_tx_hash_cache {
+                relay_state = relay_state.with_tx_hash_cache(cache);
+            }
+
+            // Add metrics if available
+            if let Some(metrics) = self.relay_api_metrics {
+                relay_state = relay_state.with_metrics(metrics);
+            }
+
+            // Add rate limiter if available
+            if let Some(limiter) = self.relay_rate_limiter {
+                relay_state = relay_state.with_rate_limiter(limiter);
+            }
+
+            // Add message filters if available
+            if let Some(whitelist) = self.message_whitelist {
+                relay_state = relay_state.with_message_whitelist(whitelist);
+            }
+            if let Some(blacklist) = self.message_blacklist {
+                relay_state = relay_state.with_message_blacklist(blacklist);
+            }
+            if let Some(addr_blacklist) = self.address_blacklist {
+                relay_state = relay_state.with_address_blacklist(addr_blacklist);
+            }
+
+            router = router.merge(relay_state.router());
+        }
+
         router
     }
 }

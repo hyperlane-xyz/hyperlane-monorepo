@@ -50,3 +50,4 @@ indexmap = "2.0"
 rand_chacha = { version = "0.3.0" }
 sodiumbox = "0.1.0"
 base64.workspace = true
+bech32.workspace = true

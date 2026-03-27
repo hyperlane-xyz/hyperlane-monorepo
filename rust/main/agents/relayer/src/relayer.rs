@@ -92,6 +92,8 @@ pub struct Relayer {
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
+    relay_api_rate_limit_max_requests: Option<usize>,
+    relay_api_rate_limit_window_secs: Option<u64>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -289,6 +291,8 @@ impl BaseAgent for Relayer {
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
             max_retries: settings.max_retries,
+            relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
+            relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -524,7 +528,9 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
-        let relayer_router = self.build_router(prep_queues, sender.clone()).await;
+        let relayer_router = self
+            .build_router(prep_queues, send_channels, sender.clone())
+            .await;
         let server = self
             .core
             .settings
@@ -564,6 +570,7 @@ impl Relayer {
     async fn build_router(
         &self,
         prep_queues: PrepQueue,
+        send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> Router {
         // create a db mapping for server handlers
@@ -606,7 +613,8 @@ impl Relayer {
                 })
             })
             .collect();
-        relayer_server::Server::new(self.destinations.len())
+
+        let mut server = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -614,7 +622,81 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
-            .router()
+            .with_relay_send_channels(send_channels)
+            .with_message_filters(
+                self.message_whitelist.clone(),
+                self.message_blacklist.clone(),
+                self.address_blacklist.clone(),
+            );
+
+        // Add relay API
+        use crate::relay_api::handlers::TxHashCache;
+        use crate::relay_api::RelayApiMetrics;
+        use hyperlane_core::{HyperlaneMessage, Indexer};
+        use std::collections::HashMap;
+        use std::sync::RwLock;
+
+        // Initialize relay API metrics
+        let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())
+            .expect("Failed to initialize relay API metrics");
+
+        // Initialize tx hash cache for DoS protection (10k entries max)
+        let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
+
+        // Initialize rate limiter (default: 100 requests per 60 seconds)
+        use crate::relay_api::handlers::RateLimiter;
+        let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
+        let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
+        let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
+        info!(
+            max_requests,
+            window_secs, "Initialized relay API rate limiter"
+        );
+
+        let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
+
+        info!(
+            origin_count = self.origins.len(),
+            "Setting up relay API indexers"
+        );
+
+        for (domain, origin) in &self.origins {
+            info!(
+                domain = %domain.name(),
+                protocol = ?domain.domain_protocol(),
+                "Processing chain for relay API"
+            );
+
+            match origin
+                .chain_conf
+                .build_message_indexer(&self.core_metrics, false)
+                .await
+            {
+                Ok(indexer) => {
+                    indexers.insert(domain.name().to_string(), Arc::new(indexer));
+                    info!(
+                        domain = %domain.name(),
+                        protocol = ?domain.domain_protocol(),
+                        "Added chain to relay API"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        domain = %domain.name(),
+                        error = ?e,
+                        "Failed to create mailbox indexer for relay API"
+                    );
+                }
+            }
+        }
+
+        server = server
+            .with_indexers(indexers)
+            .with_tx_hash_cache(tx_hash_cache)
+            .with_relay_api_metrics(relay_api_metrics)
+            .with_rate_limiter(rate_limiter);
+
+        server.router()
     }
 
     fn record_critical_error(

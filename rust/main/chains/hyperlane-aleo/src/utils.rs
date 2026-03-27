@@ -3,7 +3,7 @@ use snarkvm::prelude::{Identifier, Network, Plaintext, ProgramID};
 use snarkvm_console_account::{Field, FromBytes, Itertools, ToBits, ToBytes};
 use sodiumbox::{public_key_from_bytes, seal};
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, H256, H512};
 
 use crate::{AleoHash, HyperlaneAleoError, MESSAGE_BODY_U128_WORDS};
 
@@ -52,6 +52,24 @@ pub(crate) fn to_h256<T: ToBytes>(id: T) -> ChainResult<H256> {
         ));
     }
     Ok(H256::from_slice(&bytes))
+}
+
+/// Parse a bech32m-encoded Aleo transaction hash to H512
+pub(crate) fn parse_aleo_tx_hash(tx_hash: &str) -> ChainResult<H512> {
+    let (_, bytes) = bech32::decode(tx_hash).map_err(|e| {
+        ChainCommunicationError::from_other_str(&format!("Invalid bech32 tx hash: {e}"))
+    })?;
+
+    if bytes.len() > 64 {
+        return Err(ChainCommunicationError::from_other_str(
+            "Aleo tx hash exceeds 64 bytes",
+        ));
+    }
+
+    let mut padded = [0u8; 64];
+    let start = 64usize.saturating_sub(bytes.len());
+    padded[start..].copy_from_slice(&bytes);
+    Ok(H512::from_slice(&padded))
 }
 
 /// Returns the key ID for the given `program ID`, `mapping name`, and `key`.
