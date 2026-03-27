@@ -97,7 +97,7 @@ jobs:
 
       - name: Run prettier for Solidity (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'
+        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol' 'solidity/multicollateral/**/*.sol'
         continue-on-error: true
 
       - name: Check YAML sort order
