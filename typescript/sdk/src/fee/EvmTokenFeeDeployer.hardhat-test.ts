@@ -370,4 +370,52 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await routerFeeContract.owner()).to.equal(config.owner);
     expect(await routerFeeContract.token()).to.equal(token.address);
   });
+
+  it('should deploy CrossCollateralRoutingFee with OffchainQuotedLinearFee children', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+    const config = CrossCollateralRoutingFeeConfigSchema.parse({
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: signer.address,
+      feeContracts: {
+        [TestChainName.test2]: {
+          [DEFAULT_ROUTER_KEY]: {
+            type: TokenFeeType.OffchainQuotedLinearFee,
+            token: token.address,
+            owner: signer.address,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
+            bps: BPS,
+            quoteSigners: [signer.address, otherSigner.address],
+          },
+        },
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][
+        TokenFeeType.CrossCollateralRoutingFee
+      ];
+    const defaultRouter = await routingFeeContract.DEFAULT_ROUTER();
+    const destinationDomain = multiProvider.getDomainId(TestChainName.test2);
+    const childFeeAddress = await routingFeeContract.feeContracts(
+      destinationDomain,
+      defaultRouter,
+    );
+    const childFeeContract = OffchainQuotedLinearFee__factory.connect(
+      childFeeAddress,
+      signer,
+    );
+
+    expect(childFeeAddress).to.not.equal(hre.ethers.constants.AddressZero);
+    expect(await childFeeContract.owner()).to.equal(config.owner);
+    expect(await childFeeContract.token()).to.equal(token.address);
+    expect(await childFeeContract.quoteSigners()).to.deep.equal([
+      signer.address,
+      otherSigner.address,
+    ]);
+  });
 });
