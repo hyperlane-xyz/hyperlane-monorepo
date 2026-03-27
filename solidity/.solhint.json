@@ -10,12 +10,11 @@
     "var-name-mixedcase": "off",
     "func-name-mixedcase": "off",
     "reason-string": ["warn", { "maxLength": 64 }],
-    "prettier/prettier": "error",
     "gas-custom-errors": "off",
     "named-parameters-mapping": "error",
     "hyperlane/no-virtual-override": "error",
     "hyperlane/no-virtual-initializer": "error",
     "hyperlane/enumerable-domain-mapping": "error"
   },
-  "plugins": ["prettier", "hyperlane"]
+  "plugins": ["hyperlane"]
 }

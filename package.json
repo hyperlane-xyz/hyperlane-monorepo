@@ -9,7 +9,7 @@
     "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "format": "turbo run format",
-    "format:check": "oxfmt --ignore-path .gitignore --check . && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol' 'solidity/multicollateral/**/*.sol'",
+    "format:check": "oxfmt --ignore-path .gitignore --check . && forge fmt --check --root solidity && forge fmt --check --root solidity/multicollateral",
     "lint": "oxlint -c oxlint.json",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
@@ -31,8 +31,6 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
-    "prettier": "catalog:",
-    "prettier-plugin-solidity": "catalog:",
     "tsx": "catalog:",
     "turbo": "^2.8.11"
   },

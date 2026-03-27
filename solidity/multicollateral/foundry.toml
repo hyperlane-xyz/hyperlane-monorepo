@@ -13,5 +13,18 @@ allow_paths = [".."]
 mainnet = "${RPC_URL_MAINNET}"
 arbitrum = "${RPC_URL_ARBITRUM}"
 
+[fmt]
+line_length = 80
+tab_width = 4
+bracket_spacing = false
+int_types = "preserve"
+quote_style = "double"
+number_underscore = "preserve"
+hex_underscore = "preserve"
+single_line_statement_blocks = "preserve"
+multiline_func_header = "params_first"
+docs_style = "preserve"
+ignore = ["../dependencies/**", "../lib/**"]
+
 [fuzz]
 runs = 50

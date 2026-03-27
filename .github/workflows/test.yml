@@ -84,20 +84,12 @@ jobs:
           cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' | \
           xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
 
-      - name: Run prettier for Solidity (changed files)
-        if: github.event_name == 'pull_request'
-        run: |
-          cat changed_files.txt | grep -E '\.sol$' | \
-          xargs -r pnpm exec prettier --check --no-error-on-unmatched-pattern
+      - name: Run forge fmt check for Solidity
+        run: forge fmt --check --root solidity && forge fmt --check --root solidity/multicollateral
 
       - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
         run: pnpm exec oxfmt --check .
-        continue-on-error: true
-
-      - name: Run prettier for Solidity (all files)
-        if: github.event_name != 'pull_request'
-        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol' 'solidity/multicollateral/**/*.sol'
         continue-on-error: true
 
       - name: Check YAML sort order

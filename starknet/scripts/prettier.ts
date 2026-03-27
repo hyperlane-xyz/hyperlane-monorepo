@@ -1,7 +1,10 @@
-import prettier from 'prettier';
+import { execSync } from 'child_process';
 
 export async function prettierOutputTransformer(
   output: string,
 ): Promise<string> {
-  return prettier.format(output, { parser: 'typescript' });
+  return execSync('pnpm exec oxfmt --stdin-filepath generated.ts', {
+    input: output,
+    encoding: 'utf-8',
+  });
 }
