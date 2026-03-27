@@ -1,93 +1,100 @@
-externalBridges:
-  lifi:
-    integrator: rebalancer
+warpRouteId: USDC/eclipsemainnet
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
   sealevel: '5seKh2p3B8Kq9nAE7X4svfX9uLt81wWAiDJuLK1XNgXf'
+externalBridges:
+  lifi:
+    integrator: rebalancer
 strategy:
+  rebalanceStrategy: weighted
   chains:
-    arbitrum:
-      bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
-      bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 3500
-      override:
-        solanamainnet:
-          executionType: inventory
-          externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 17
-    base:
-      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
-      bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 3500
-      override:
-        solanamainnet:
-          executionType: inventory
-          externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 24
     ethereum:
-      bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
-      bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 3500
-      override:
-        solanamainnet:
-          executionType: inventory
-          externalBridge: lifi
       weighted:
-        tolerance: 5
         weight: 29
-    ink:
-      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
-      bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 2500
-      override:
-        solanamainnet:
-          executionType: inventory
-          externalBridge: lifi
-      weighted:
-        tolerance: 3
-        weight: 5
-    optimism:
-      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+        tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
+      bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
       override:
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
+
+    base:
       weighted:
+        weight: 24
         tolerance: 5
-        weight: 10
-    polygon:
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    arbitrum:
+      weighted:
+        weight: 17
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    optimism:
+      weighted:
+        weight: 10
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    polygon:
+      weighted:
+        weight: 5
+        tolerance: 3
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       override:
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
+
+    unichain:
       weighted:
-        tolerance: 3
+        weight: 10
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    ink:
+      weighted:
         weight: 5
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
     solanamainnet:
+      weighted:
+        weight: 10
+        tolerance: 5
       executionType: inventory
       externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 10
-    unichain:
-      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
-      bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 3500
-      override:
-        solanamainnet:
-          executionType: inventory
-          externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 10
-  rebalanceStrategy: weighted
-warpRouteId: USDC/eclipsemainnet

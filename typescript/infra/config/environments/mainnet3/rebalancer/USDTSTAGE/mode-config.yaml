@@ -1,26 +1,31 @@
-externalBridges:
-  lifi:
-    integrator: "rebalancer"
-inventorySigner: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
-strategy:
-  chains:
-    arbitrum:
-      executionType: inventory
-      externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 25
-    ethereum:
-      executionType: inventory
-      externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 50
-    plasma:
-      executionType: inventory
-      externalBridge: lifi
-      weighted:
-        tolerance: 5
-        weight: 25
-  rebalanceStrategy: weighted
 warpRouteId: USDTSTAGE/mode
+
+inventorySigner: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+
+externalBridges:
+    lifi:
+        integrator: "rebalancer"
+
+strategy:
+    rebalanceStrategy: weighted
+    chains:
+        ethereum:
+            weighted:
+                weight: 50
+                tolerance: 5
+            executionType: inventory
+            externalBridge: lifi
+
+        arbitrum:
+            weighted:
+                weight: 25
+                tolerance: 5
+            executionType: inventory
+            externalBridge: lifi
+
+        plasma:
+            weighted:
+                weight: 25
+                tolerance: 5
+            executionType: inventory
+            externalBridge: lifi

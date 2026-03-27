@@ -28,6 +28,7 @@ if [ ${#FILES[@]} -eq 0 ]; then
     grep -v '/helm/' | \
     grep -v '/node_modules/' | \
     grep -v '/dist/' | \
+    grep -v '/rebalancer/' | \
     tr '\n' '\0')
 fi
 
