@@ -1,9 +1,11 @@
 import {
   BaseFee,
+  BaseFee__factory,
   CrossCollateralRoutingFee,
+  OffchainQuotedLinearFee,
   RoutingFee,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import type { HyperlaneContracts } from '../contracts/types.js';
 import {
@@ -17,6 +19,7 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   CrossCollateralRoutingFeeConfig,
+  OffchainQuotedLinearFeeConfig,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -53,6 +56,10 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
           parsedConfig,
         );
         break;
+      case TokenFeeType.OffchainQuotedLinearFee:
+        deployedContract[parsedConfig.type] =
+          await this.deployOffchainQuotedLinearFee(chain, parsedConfig);
+        break;
       case TokenFeeType.RoutingFee: {
         deployedContract[TokenFeeType.RoutingFee] = await this.deployRoutingFee(
           chain,
@@ -75,6 +82,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       TokenFeeConfig,
       | { type: TokenFeeType.RoutingFee }
       | { type: TokenFeeType.CrossCollateralRoutingFee }
+      | { type: TokenFeeType.OffchainQuotedLinearFee }
     >,
   ): Promise<BaseFee> {
     let { maxFee, halfAmount } = config;
@@ -96,6 +104,55 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     ]);
   }
 
+  private async deployOffchainQuotedLinearFee(
+    chain: ChainName,
+    config: OffchainQuotedLinearFeeConfig,
+  ): Promise<OffchainQuotedLinearFee> {
+    let { maxFee, halfAmount } = config;
+    if (config.bps && (!maxFee || !halfAmount)) {
+      const derived = this.tokenFeeReader.convertFromBps(config.bps);
+      maxFee = derived.maxFee;
+      halfAmount = derived.halfAmount;
+    }
+
+    assert(
+      config.quoteSigners?.length,
+      'At least one quote signer is required for OffchainQuotedLinearFee',
+    );
+
+    const signerAddress = await this.multiProvider.getSignerAddress(chain);
+    const [firstSigner, ...additionalSigners] = config.quoteSigners;
+
+    // addQuoteSigner is onlyOwner, so deploy with signer as temporary owner
+    const contract = await this.deployContract(
+      chain,
+      TokenFeeType.OffchainQuotedLinearFee,
+      [firstSigner, config.token, maxFee, halfAmount, signerAddress],
+    );
+
+    for (const signer of additionalSigners) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.addQuoteSigner(
+          signer,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.transferOwnership(
+          config.owner,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    return contract;
+  }
+
   private async deployRoutingFee(
     chain: ChainName,
     config: RoutingFeeConfig,
@@ -114,7 +171,23 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     for (const [destinationChain, feeConfig] of Object.entries(
       config.feeContracts,
     )) {
-      const deployedFeeContract = await this.deployFee(chain, feeConfig);
+      // Sub-fee configs inherit the routing fee's token if not explicitly set
+      const resolvedFeeConfig = {
+        ...feeConfig,
+        token: feeConfig.token ?? config.token,
+      };
+      const deployedFeeContract =
+        resolvedFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
+          ? BaseFee__factory.connect(
+              (
+                await this.deployOffchainQuotedLinearFee(
+                  chain,
+                  resolvedFeeConfig,
+                )
+              ).address,
+              this.multiProvider.getSigner(chain),
+            )
+          : await this.deployFee(chain, resolvedFeeConfig);
 
       await this.multiProvider.handleTx(
         chain,

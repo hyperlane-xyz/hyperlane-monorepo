@@ -1,10 +1,17 @@
 import { constants } from 'ethers';
 
 import {
+  OffchainQuotedLinearFee__factory,
+  RoutingFee__factory,
+} from '@hyperlane-xyz/core';
+import {
   Address,
   ProtocolType,
   deepEquals,
+  difference,
+  eqAddress,
   objMap,
+  objMerge,
   objOmit,
   promiseObjAll,
   rootLogger,
@@ -27,6 +34,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
+  DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
   TokenFeeReaderParams,
@@ -38,6 +46,7 @@ import {
 } from './crossCollateralUtils.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
+  ResolvedCrossCollateralRoutingFeeConfigInput,
   ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -66,6 +75,8 @@ function getDeployedFeeAddress(
       return contracts.RoutingFee.address;
     case TokenFeeType.CrossCollateralRoutingFee:
       return contracts.CrossCollateralRoutingFee.address;
+    case TokenFeeType.OffchainQuotedLinearFee:
+      return contracts.OffchainQuotedLinearFee.address;
   }
 }
 
@@ -139,7 +150,7 @@ function resolveTokenForFeeConfig(
           resolveTokenForFeeConfig(subFee, nestedFallbackToken),
         ),
       ),
-    };
+    } as ResolvedCrossCollateralRoutingFeeConfigInput;
   }
   return {
     ...config,
@@ -213,7 +224,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   // Processes the Input config to the Final config
-  // For LinearFee, it converts the bps to maxFee and halfAmount
+  // For LinearFee/OffchainQuotedLinearFee, it converts the bps to maxFee and halfAmount
   public static async expandConfig(params: {
     config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
@@ -221,7 +232,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }): Promise<TokenFeeConfig> {
     const { config, multiProvider, chainName } = params;
     let intermediaryConfig: TokenFeeConfig;
-    if (config.type === TokenFeeType.LinearFee) {
+    if (
+      config.type === TokenFeeType.LinearFee ||
+      config.type === TokenFeeType.OffchainQuotedLinearFee
+    ) {
       const { token } = config;
 
       let maxFee: bigint;
@@ -266,14 +280,26 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         );
       }
 
-      intermediaryConfig = {
-        type: TokenFeeType.LinearFee,
-        token,
-        owner: config.owner,
-        bps,
-        maxFee,
-        halfAmount,
-      };
+      if (config.type === TokenFeeType.OffchainQuotedLinearFee) {
+        intermediaryConfig = {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          token,
+          owner: config.owner,
+          bps,
+          maxFee,
+          halfAmount,
+          quoteSigners: config.quoteSigners,
+        };
+      } else {
+        intermediaryConfig = {
+          type: TokenFeeType.LinearFee,
+          token,
+          owner: config.owner,
+          bps,
+          maxFee,
+          halfAmount,
+        };
+      }
     } else if (config.type === TokenFeeType.RoutingFee) {
       const { token, owner } = config;
       const feeContracts = await promiseObjAll(
@@ -395,12 +421,19 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     actualConfig: TokenFeeConfig,
     targetConfig: TokenFeeConfig,
   ): boolean {
-    return (
-      actualConfig.type !== targetConfig.type ||
-      !deepEquals(
-        objOmit(actualConfig, { owner: true }),
-        objOmit(targetConfig, { owner: true }),
-      )
+    if (actualConfig.type !== targetConfig.type) return true;
+
+    const mutableFields: Record<string, true> = { owner: true };
+    if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+      mutableFields.quoteSigners = true;
+    }
+    if (targetConfig.type === TokenFeeType.RoutingFee) {
+      mutableFields.feeContracts = true;
+    }
+
+    return !deepEquals(
+      objOmit(actualConfig, mutableFields),
+      objOmit(targetConfig, mutableFields),
     );
   }
 
@@ -471,10 +504,161 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       return [];
     }
+
+    // OffchainQuotedLinearFee: signers are mutable (fee params handled by shouldRedeploy)
+    if (
+      normalizedTargetConfig.type === TokenFeeType.OffchainQuotedLinearFee &&
+      normalizedActualConfig.type === TokenFeeType.OffchainQuotedLinearFee
+    ) {
+      return [
+        ...this.createQuoteSignerUpdateTxs(
+          normalizedActualConfig.quoteSigners,
+          normalizedTargetConfig.quoteSigners,
+        ),
+        ...this.createOwnershipUpdateTxs(
+          normalizedActualConfig,
+          normalizedTargetConfig,
+        ),
+      ];
+    }
+
+    // Routing fee: update sub-fee contracts
+    if (
+      normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
+      normalizedActualConfig.type === TokenFeeType.RoutingFee
+    ) {
+      return [
+        ...(await this.updateRoutingFee(
+          objMerge(
+            actualConfig,
+            normalizedTargetConfig,
+            10,
+            true,
+          ) as DerivedRoutingFeeConfig,
+        )),
+        ...this.createOwnershipUpdateTxs(
+          normalizedActualConfig,
+          normalizedTargetConfig,
+        ),
+      ];
+    }
+
     return this.createOwnershipUpdateTxs(
       normalizedActualConfig,
       normalizedTargetConfig,
     );
+  }
+
+  private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    if (!targetConfig.feeContracts) return [];
+    const currentRoutingAddress = this.args.addresses.deployedFee;
+    for (const [chainName, config] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      const address = config.address;
+
+      let subFeeModule: EvmTokenFeeModule;
+      let deployedSubFee: string;
+
+      if (!address) {
+        // Sub-fee contract doesn't exist yet, deploy a new one
+        this.logger.info(
+          `No existing sub-fee contract for ${chainName}, deploying new one`,
+        );
+        subFeeModule = await EvmTokenFeeModule.create({
+          multiProvider: this.multiProvider,
+          chain: this.chainName,
+          config,
+          contractVerifier: this.contractVerifier,
+        });
+        deployedSubFee = subFeeModule.serialize().deployedFee;
+
+        const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
+        this.logger.debug(annotation);
+        updateTransactions.push({
+          annotation: annotation,
+          chainId: this.chainId,
+          to: currentRoutingAddress,
+          data: RoutingFee__factory.createInterface().encodeFunctionData(
+            'setFeeContract(uint32,address)',
+            [this.multiProvider.getDomainId(chainName), deployedSubFee],
+          ),
+        });
+      } else {
+        // Update existing sub-fee contract
+        subFeeModule = new EvmTokenFeeModule(
+          this.multiProvider,
+          {
+            addresses: {
+              deployedFee: address,
+            },
+            chain: this.chainName,
+            config,
+          },
+          this.contractVerifier,
+        );
+        const subFeeUpdateTransactions = await subFeeModule.update(config, {
+          address,
+        });
+        deployedSubFee = subFeeModule.serialize().deployedFee;
+
+        updateTransactions.push(...subFeeUpdateTransactions);
+
+        if (!eqAddress(deployedSubFee, address)) {
+          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
+          this.logger.debug(annotation);
+          updateTransactions.push({
+            annotation: annotation,
+            chainId: this.chainId,
+            to: currentRoutingAddress,
+            data: RoutingFee__factory.createInterface().encodeFunctionData(
+              'setFeeContract(uint32,address)',
+              [this.multiProvider.getDomainId(chainName), deployedSubFee],
+            ),
+          });
+        }
+      }
+    }
+
+    return updateTransactions;
+  }
+
+  private createQuoteSignerUpdateTxs(
+    actualSigners: string[] | undefined,
+    targetSigners: string[] | undefined,
+  ): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+    const iface = OffchainQuotedLinearFee__factory.createInterface();
+    const contractAddress = this.args.addresses.deployedFee;
+
+    const actualSet = new Set(
+      (actualSigners ?? []).map((s) => s.toLowerCase()),
+    );
+    const targetSet = new Set(
+      (targetSigners ?? []).map((s) => s.toLowerCase()),
+    );
+
+    for (const signer of difference(targetSet, actualSet)) {
+      txs.push({
+        annotation: `Add quote signer ${signer}`,
+        chainId: this.chainId,
+        to: contractAddress,
+        data: iface.encodeFunctionData('addQuoteSigner', [signer]),
+      });
+    }
+
+    for (const signer of difference(actualSet, targetSet)) {
+      txs.push({
+        annotation: `Remove quote signer ${signer}`,
+        chainId: this.chainId,
+        to: contractAddress,
+        data: iface.encodeFunctionData('removeQuoteSigner', [signer]),
+      });
+    }
+
+    return txs;
   }
 
   private createOwnershipUpdateTxs(

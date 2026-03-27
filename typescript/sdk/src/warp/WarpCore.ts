@@ -758,6 +758,7 @@ export class WarpCore {
       isEVMLike(token.protocol),
       'QuotedCalls is only supported on EVM origins',
     );
+    assert(!token.isNft(), 'QuotedCalls does not support NFT routes');
 
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     // For collateral routes, the ERC20 token is collateralAddressOrDenom.
@@ -767,7 +768,7 @@ export class WarpCore {
     const tokenAddress = (
       collateral && !isZeroishAddress(collateral)
         ? collateral
-        : token.isNft() || token.isNative()
+        : token.isNative()
           ? '0x0000000000000000000000000000000000000000'
           : token.addressOrDenom
     ) as `0x${string}`;
