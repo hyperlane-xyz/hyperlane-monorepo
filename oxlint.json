@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["import", "typescript", "unicorn", "jest", "react"],
+  "plugins": ["import", "typescript", "unicorn", "jest"],
   "options": {
     "typeAware": true
   },
@@ -22,7 +22,8 @@
     "**/*.cts",
     "**/*.mjs",
     "jest.config.js",
-    "solidity/**"
+    "solidity/**",
+    "**/examples/**"
   ],
   "rules": {
     "no-unused-vars": [
