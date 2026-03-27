@@ -443,28 +443,16 @@ export function warpArtifactToDerivedConfig(
 ): DerivedWarpConfig {
   const config = artifact.config;
 
-  // Convert remoteRouters from domain IDs back to chain names
+  // Keep remoteRouters with domain IDs as keys
   const remoteRouters: RemoteRouters = {};
   for (const [domainIdStr, router] of Object.entries(config.remoteRouters)) {
-    const domainId = parseInt(domainIdStr);
-    const chainName = chainLookup.getChainName(domainId);
-    if (!chainName) {
-      // Skip unknown domains
-      continue;
-    }
-    remoteRouters[chainName] = router;
+    remoteRouters[domainIdStr] = router;
   }
 
-  // Convert destinationGas from domain IDs back to chain names
+  // Keep destinationGas with domain IDs as keys
   const destinationGas: DestinationGas = {};
   for (const [domainIdStr, gas] of Object.entries(config.destinationGas)) {
-    const domainId = parseInt(domainIdStr);
-    const chainName = chainLookup.getChainName(domainId);
-    if (!chainName) {
-      // Skip unknown domains
-      continue;
-    }
-    destinationGas[chainName] = gas;
+    destinationGas[domainIdStr] = gas;
   }
 
   // Convert ISM artifact to config if present
