@@ -1,7 +1,11 @@
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { objMap, sortNestedArrays, ArraySortConfig } from '@hyperlane-xyz/utils';
+import {
+  objMap,
+  sortNestedArrays,
+  ArraySortConfig,
+} from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
@@ -29,9 +33,7 @@ function sortObjectKeys(obj: unknown): unknown {
       .sort()
       .reduce(
         (sorted, key) => {
-          sorted[key] = sortObjectKeys(
-            (obj as Record<string, unknown>)[key],
-          );
+          sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
           return sorted;
         },
         {} as Record<string, unknown>,

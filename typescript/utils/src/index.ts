@@ -237,10 +237,6 @@ export {
 export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
-export {
-  tryParseJsonOrYaml,
-  sortNestedArrays,
-  transformYaml,
-} from './yaml.js';
+export { tryParseJsonOrYaml, sortNestedArrays, transformYaml } from './yaml.js';
 export type { ArraySortConfig } from './yaml.js';
 export { createServiceLogger } from './logging.js';
