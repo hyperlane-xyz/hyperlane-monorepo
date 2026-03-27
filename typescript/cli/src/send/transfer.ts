@@ -232,10 +232,14 @@ async function executeDelivery({
       apiKey: feeQuotingApiKey,
     });
 
+    const command = destToken
+      ? FeeQuotingCommand.TransferRemoteTo
+      : FeeQuotingCommand.TransferRemote;
+
     logBlue('Fetching offchain fee quotes...');
     const { quotes } = await feeQuotingClient.getQuote({
       origin,
-      command: FeeQuotingCommand.TransferRemote,
+      command,
       router: token.addressOrDenom as Address,
       destination: destinationDomainId,
       salt,
@@ -256,6 +260,7 @@ async function executeDelivery({
       sender: signerAddress,
       recipient: recipient!,
       quotedCalls,
+      destinationToken: destToken,
     });
     quotedCalls.feeQuotes = feeQuotes;
   }

@@ -40,14 +40,14 @@ export function createMetrics(register: Registry) {
   function middleware(req: Request, res: Response, next: NextFunction) {
     const end = httpRequestDuration.startTimer({
       method: req.method,
-      endpoint: req.path,
     });
 
     res.on('finish', () => {
-      end();
+      const resolvedEndpoint = req.route?.path ?? 'unmatched';
+      end({ endpoint: resolvedEndpoint });
       httpRequestsTotal.inc({
         method: req.method,
-        endpoint: req.path,
+        endpoint: resolvedEndpoint,
         status: String(res.statusCode),
       });
     });
