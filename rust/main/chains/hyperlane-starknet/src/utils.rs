@@ -320,6 +320,14 @@ pub(crate) async fn get_block_height_u32(
         .map_err(ChainCommunicationError::from_other)
 }
 
+/// The starknet-rs SDK defaults `gas_estimate_multiplier` to 1.5x, which has
+/// proven insufficient for L1 data gas on some StarkNet chains (e.g. Paradex)
+/// during transient L1 blob gas price fluctuations. Actual L1 data gas can
+/// exceed the 1.5x-buffered estimate by a small margin (~3%), causing
+/// "Insufficient max L1DataGas" reverts. A 1.75x multiplier provides adequate
+/// headroom without over-budgeting. Unused gas budget is not charged.
+const GAS_ESTIMATE_MULTIPLIER: f64 = 1.75;
+
 /// Sends a transaction and gets the transaction receipt.
 /// Returns the transaction outcome if the receipt is available.
 pub async fn send_and_confirm(
@@ -327,6 +335,7 @@ pub async fn send_and_confirm(
     contract_call: ExecutionV3<'_, SingleOwnerAccount<JsonProvider, LocalWallet>>,
 ) -> ChainResult<TxOutcome> {
     let tx = contract_call
+        .gas_estimate_multiplier(GAS_ESTIMATE_MULTIPLIER)
         .send()
         .await
         .map_err(HyperlaneStarknetError::from)?;
