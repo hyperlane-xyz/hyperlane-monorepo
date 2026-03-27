@@ -19,7 +19,6 @@ import {
   OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
-  PackageVersioned__factory,
   PausableHook,
   PausableHook__factory,
   ProxyAdmin__factory,
@@ -178,7 +177,22 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     // If configs match, no updates needed
-    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
+    // Spread contractVersion from current into target so its absence doesn't cause a spurious diff
+    // (upgrades are gated separately by targetConfig.contractVersion in updateIgpHook)
+    if (
+      deepEquals(
+        normalizedCurrentConfig,
+        typeof normalizedCurrentConfig !== 'string' &&
+          typeof normalizedTargetConfig !== 'string'
+          ? {
+              ...normalizedTargetConfig,
+              contractVersion: (
+                normalizedCurrentConfig as Record<string, unknown>
+              ).contractVersion,
+            }
+          : normalizedTargetConfig,
+      )
+    ) {
       return [];
     }
 
@@ -412,13 +426,7 @@ export class EvmHookModule extends HyperlaneModule<
         VERSION_ERROR_MESSAGE,
       );
 
-      const currentVersion = await PackageVersioned__factory.connect(
-        igpAddress,
-        provider,
-      )
-        .PACKAGE_VERSION()
-        .catch(() => undefined);
-
+      const currentVersion = currentConfig.contractVersion;
       if (
         !currentVersion ||
         compareVersions(targetConfig.contractVersion, currentVersion) > 0
