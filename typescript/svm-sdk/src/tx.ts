@@ -19,7 +19,10 @@ import {
 import type { SvmInstruction, SvmTransaction } from './types.js';
 import { DEFAULT_COMPUTE_UNITS } from './constants.js';
 
-export const DEFAULT_WRITE_CHUNK_SIZE = 880;
+// Max data per BPFLoaderUpgradeable Write tx: 1232 packet limit minus tx
+// overhead. With 2 signers (payer != authority) overhead is ~355 bytes,
+// giving ~877 bytes max. Use 850 to leave margin for all signer configs.
+export const DEFAULT_WRITE_CHUNK_SIZE = 850;
 export const DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS = 1;
 
 // Hand-rolled to avoid adding @solana-program/compute-budget as a dependency

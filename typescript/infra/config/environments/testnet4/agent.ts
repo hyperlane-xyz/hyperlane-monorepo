@@ -448,7 +448,7 @@ const fastPath: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo: DockerImageRepos.AGENT,
-      tag: testnetDockerTags.relayer,
+      tag: testnetDockerTags.relayerFastPath,
     },
     gasPaymentEnforcement,
     reorgPeriodOverrides: { sepolia: 1 },
