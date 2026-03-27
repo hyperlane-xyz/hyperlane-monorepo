@@ -1,13 +1,44 @@
-import { ESLint } from 'eslint';
-import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objMap, sortNestedArrays, ArraySortConfig } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
 import { getArgs, withWarpRouteIds } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+
+const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
+  arrays: [
+    { path: 'tokens', sortKey: 'chainName' },
+    { path: 'tokens[].connections', sortKey: 'token' },
+    { path: '*.interchainSecurityModule.modules', sortKey: 'type' },
+    {
+      path: '*.interchainSecurityModule.modules[].domains.*.modules',
+      sortKey: 'type',
+    },
+  ],
+};
+
+function sortObjectKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map(sortObjectKeys);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj as Record<string, unknown>)
+      .sort()
+      .reduce(
+        (sorted, key) => {
+          sorted[key] = sortObjectKeys(
+            (obj as Record<string, unknown>)[key],
+          );
+          return sorted;
+        },
+        {} as Record<string, unknown>,
+      );
+  }
+  return obj;
+}
 
 // Writes the warp configs into the Registry
 async function main() {
@@ -20,9 +51,6 @@ async function main() {
     !warpRouteIds || warpRouteIds.length === 0
       ? Object.keys(warpConfigGetterMap)
       : warpRouteIds;
-  const eslint = new ESLint({
-    fix: true,
-  });
 
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`Generating Warp config for ${warpRouteId}`);
@@ -41,23 +69,18 @@ async function main() {
       },
     );
 
-    console.log(`Linting Warp config for ${warpRouteId}`);
-    // Convert the object to a YAML string for linting
-    const configString = yamlStringify(registryConfig, (_key, value) =>
+    console.log(`Sorting Warp config for ${warpRouteId}`);
+    const sorted = sortObjectKeys(
+      sortNestedArrays(registryConfig, WARP_YAML_SORT_CONFIG),
+    );
+    const configString = yamlStringify(sorted, (_key, value) =>
       typeof value === 'bigint' ? value.toString() : value,
     );
-    const results = await eslint.lintText(configString, {
-      // The `filePath` is required for ESLint to work with in-memory text
-      // This filepath does not need to exist. It simply matches one of the filepaths pattern in the eslint config
-      filePath: `chains/${warpRouteId}-nonexistent-file.yaml`,
-    });
 
-    const lintedConfig = results[0].output ?? configString;
-    registry.addWarpRouteConfig(yamlParse(lintedConfig), {
+    registry.addWarpRouteConfig(yamlParse(configString), {
       warpRouteId,
     });
 
-    // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
       `Warp config successfully created at ${registry.getUri()}/deployments/warp_routes/${warpRouteId}-deploy.yaml`,
     );
