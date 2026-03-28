@@ -8,7 +8,6 @@ import {
   HyperlaneIgp,
   MultiProtocolProvider,
   MultiProvider,
-  ProtocolType,
 } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
@@ -19,6 +18,7 @@ import {
 import { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
 import { KeyFunder } from './core/KeyFunder.js';
 import { KeyFunderMetrics } from './metrics/Metrics.js';
+import { normalizeKeyFunderProtocol } from './utils.js';
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
@@ -113,10 +113,7 @@ async function main(): Promise<void> {
         if (cached) return cached;
 
         const metadata = multiProtocolProvider.getChainMetadata(chain);
-        const protocol =
-          metadata.protocol === ProtocolType.Cosmos
-            ? ProtocolType.CosmosNative
-            : metadata.protocol;
+        const protocol = normalizeKeyFunderProtocol(metadata.protocol);
         const chainSigner = await getSignerForChain(
           chain,
           {

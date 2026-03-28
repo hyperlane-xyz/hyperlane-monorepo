@@ -7,6 +7,9 @@ const AddressSchema = z
     'Must be a valid Ethereum address (0x-prefixed, 40 hex characters)',
   );
 
+// RoleAddressSchema intentionally accepts protocol-specific account formats
+// such as EVM `0x...` and Cosmos bech32 `<prefix>1...`. Final validation is
+// deferred to the runtime signer/token adapter used for the configured chain.
 const RoleAddressSchema = z
   .string()
   .min(1, 'Role addresses must be a non-empty string');

@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 import type { Logger } from 'pino';
 
@@ -19,9 +19,10 @@ import type {
   ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
+import { normalizeKeyFunderProtocol } from '../utils.js';
 
-const MIN_DELTA_NUMERATOR = BigNumber.from(6);
-const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
+const MIN_DELTA_NUMERATOR = 6n;
+const MIN_DELTA_DENOMINATOR = 10n;
 
 const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
 
@@ -311,12 +312,7 @@ export class KeyFunder {
       return 0n;
     }
     const delta = desiredBalance - currentBalance;
-    const minDelta = BigInt(
-      BigNumber.from(desiredBalance.toString())
-        .mul(MIN_DELTA_NUMERATOR)
-        .div(MIN_DELTA_DENOMINATOR)
-        .toString(),
-    );
+    const minDelta = (desiredBalance * MIN_DELTA_NUMERATOR) / MIN_DELTA_DENOMINATOR;
     return delta > minDelta ? delta : 0n;
   }
 
@@ -458,8 +454,8 @@ export class KeyFunder {
 }
 
 /**
- * Multiplies a BigNumber by a decimal multiplier with 2 decimal precision (floored).
- * e.g., 1 ETH * 1.555 = 1.55 ETH (not 1.56 ETH)
+ * Multiplies a native-token balance by a decimal multiplier with 2 decimal
+ * precision (floored). e.g. 1 ETH * 1.555 = 1.55 ETH (not 1.56 ETH).
  */
 export function calculateMultipliedBalance(
   base: bigint,
@@ -483,10 +479,4 @@ function createTimeoutPromise(
     promise,
     cleanup: () => clearTimeout(timeoutId),
   };
-}
-
-function normalizeKeyFunderProtocol(protocol: ProtocolType): ProtocolType {
-  return protocol === ProtocolType.Cosmos
-    ? ProtocolType.CosmosNative
-    : protocol;
 }
