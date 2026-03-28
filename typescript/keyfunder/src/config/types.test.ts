@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 
 import { calculateMultipliedBalance } from '../core/KeyFunder.js';
 
@@ -20,16 +19,16 @@ describe('KeyFunderConfig Schemas', () => {
       expect(result.success).to.be.true;
     });
 
-    it('should reject invalid address', () => {
+    it('should validate a valid bech32 role address', () => {
       const config = {
-        address: 'invalid-address',
+        address: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
       };
       const result = RoleConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).to.be.true;
     });
 
-    it('should reject missing address', () => {
-      const config = {};
+    it('should reject empty address', () => {
+      const config = { address: '' };
       const result = RoleConfigSchema.safeParse(config);
       expect(result.success).to.be.false;
     });
@@ -217,7 +216,7 @@ describe('KeyFunderConfig Schemas', () => {
   });
 
   describe('Multiplier precision (calculateMultipliedBalance)', () => {
-    const oneEther = BigNumber.from('1000000000000000000');
+    const oneEther = 1000000000000000000n;
 
     it('should calculate 1.5x correctly (1 ETH * 1.5 = 1.5 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 1.5);
