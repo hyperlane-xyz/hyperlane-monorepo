@@ -6,7 +6,7 @@ import type {
   XERC20Limit,
 } from '@hyperlane-xyz/metrics';
 
-import type { WarpMonitorConfig } from './types.js';
+import type { WarpMonitorConfig, WarpNativeDustConfig } from './types.js';
 
 describe('Warp Monitor Types', () => {
   describe('WarpRouteBalance', () => {
@@ -78,6 +78,16 @@ describe('Warp Monitor Types', () => {
         explorerApiUrl: 'https://explorer4.hasura.app/v1/graphql',
         explorerQueryLimit: 500,
         inventoryAddress: '0x1234567890123456789012345678901234567890',
+        nativeDusting: {
+          privateKey:
+            '0x0123456789012345678901234567890123456789012345678901234567890123',
+          defaultAmount: '0.0001',
+          amountByChain: { base: '0.0002' },
+          maxRecipientBalance: '0',
+          sourceChains: ['ethereum'],
+          destinationChains: ['base'],
+          eventLookbackBlocks: 128,
+        },
       };
 
       expect(config.warpRouteId).to.equal('ETH/ethereum-polygon');
@@ -93,6 +103,8 @@ describe('Warp Monitor Types', () => {
       expect(config.inventoryAddress).to.equal(
         '0x1234567890123456789012345678901234567890',
       );
+      expect(config.nativeDusting?.defaultAmount).to.equal('0.0001');
+      expect(config.nativeDusting?.amountByChain?.base).to.equal('0.0002');
     });
 
     it('should allow optional fields', () => {
@@ -106,6 +118,32 @@ describe('Warp Monitor Types', () => {
       expect(config.explorerApiUrl).to.be.undefined;
       expect(config.explorerQueryLimit).to.be.undefined;
       expect(config.inventoryAddress).to.be.undefined;
+      expect(config.nativeDusting).to.be.undefined;
+    });
+  });
+
+  describe('WarpNativeDustConfig', () => {
+    it('should create a valid native dust config', () => {
+      const config: WarpNativeDustConfig = {
+        privateKey:
+          '0x0123456789012345678901234567890123456789012345678901234567890123',
+        defaultAmount: '0.0001',
+        amountByChain: {
+          base: '0.0002',
+        },
+        maxRecipientBalance: '0',
+        sourceChains: ['ethereum'],
+        destinationChains: ['base'],
+        eventLookbackBlocks: 64,
+      };
+
+      expect(config.privateKey).to.contain('0x');
+      expect(config.defaultAmount).to.equal('0.0001');
+      expect(config.amountByChain?.base).to.equal('0.0002');
+      expect(config.maxRecipientBalance).to.equal('0');
+      expect(config.sourceChains).to.deep.equal(['ethereum']);
+      expect(config.destinationChains).to.deep.equal(['base']);
+      expect(config.eventLookbackBlocks).to.equal(64);
     });
   });
 });
