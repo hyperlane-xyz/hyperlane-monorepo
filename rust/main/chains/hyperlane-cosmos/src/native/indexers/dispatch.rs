@@ -118,7 +118,9 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
             .mailbox(self.address.encode_hex(), Some(tip as u64))
             .await?;
         match mailbox.mailbox {
-            Some(mailbox) => Ok((Some(mailbox.message_sent), tip)),
+            // Convert count to the last indexed sequence (count - 1)
+            // If count is 0, there are no messages sent yet
+            Some(mailbox) => Ok((mailbox.message_sent.checked_sub(1), tip)),
             _ => Ok((None, tip)),
         }
     }
