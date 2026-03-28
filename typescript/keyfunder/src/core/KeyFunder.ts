@@ -431,7 +431,9 @@ export class KeyFunder {
   ): Promise<string> {
     const signer = await this.options.getSigner(chain);
     const fromAddress = await signer.address();
-    const protocol = this.multiProtocolProvider.getChainMetadata(chain).protocol;
+    const protocol = normalizeKeyFunderProtocol(
+      this.multiProtocolProvider.getChainMetadata(chain).protocol,
+    );
     const type = PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
 
     if (!type) {
@@ -446,6 +448,8 @@ export class KeyFunder {
         fromAccountOwner: fromAddress,
       });
 
+    // CAST: `signer` and `type` are derived from the same normalized chain protocol above,
+    // so the populated native transfer transaction matches the signer implementation.
     return signer.sendAndConfirmTransaction({
       transaction,
       type,
@@ -476,4 +480,10 @@ function createTimeoutPromise(
     promise,
     cleanup: () => clearTimeout(timeoutId),
   };
+}
+
+function normalizeKeyFunderProtocol(protocol: ProtocolType): ProtocolType {
+  return protocol === ProtocolType.Cosmos
+    ? ProtocolType.CosmosNative
+    : protocol;
 }

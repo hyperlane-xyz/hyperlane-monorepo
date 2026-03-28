@@ -273,9 +273,7 @@ export class KeyFunderHelmManager extends HelmManager {
         const roleName = this.getRoleName(
           context,
           role,
-          role === Role.Relayer && !isEthereumProtocolChain(chain)
-            ? chain
-            : undefined,
+          role === Role.Relayer ? chain : undefined,
         );
         if (!roleAddressMap[roleName]) continue;
 
@@ -406,7 +404,11 @@ export class KeyFunderHelmManager extends HelmManager {
 
 function isKeyFunderSupportedChain(chain: string): boolean {
   if (isEthereumProtocolChain(chain)) return true;
-  return getChain(chain).protocol === ProtocolType.CosmosNative;
+  const protocol = getChain(chain).protocol;
+  return (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative
+  );
 }
 
 interface RoleYamlConfig {
