@@ -5,6 +5,8 @@ use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
+use grug::{Addr, HexByteArray, Inner};
+use hyperlane_dango::DangoConvertor;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
@@ -60,6 +62,13 @@ pub enum SignerConf {
     /// Assume node will sign on RPC calls
     #[default]
     Node,
+    /// Dango Specific key
+    Dango {
+        /// Private key in hex
+        key: HexByteArray<32>,
+        /// Account address
+        address: Addr,
+    },
 }
 
 impl SignerConf {
@@ -114,6 +123,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             SignerConf::Node => bail!("Node signer"),
             SignerConf::RadixKey { .. } => {
                 bail!("radixKey signer is not supported by Ethereum")
+            }
+            SignerConf::Dango { .. } => {
+                bail!("dangoKey signer is not supported by Ethereum")
             }
         })
     }
@@ -316,6 +328,34 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 
     fn address_h256(&self) -> H256 {
         self.address_h256()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_dango::DangoSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::Dango {
+            key,
+            address,
+        } = conf
+        {
+            Ok(hyperlane_dango::DangoSigner::new(
+                key.into_inner(),
+                *address,
+            )?)
+        } else {
+            bail!("{conf:?} key is not supported by dango");
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_dango::DangoSigner {
+    fn address_string(&self) -> String {
+        self.address.to_string()
+    }
+
+    fn address_h256(&self) -> H256 {
+        self.address.convert()
     }
 }
 

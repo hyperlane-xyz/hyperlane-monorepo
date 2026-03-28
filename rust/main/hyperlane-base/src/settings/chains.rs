@@ -36,6 +36,8 @@ use hyperlane_sealevel::{
 use hyperlane_starknet::{self as h_starknet, StarknetProvider};
 use hyperlane_tron::{self as h_tron, TronProvider};
 
+use hyperlane_dango as h_dango;
+
 use crate::{
     metrics::AgentMetricsConf,
     settings::signers::{BuildableWithSignerConf, SignerConf},
@@ -189,6 +191,8 @@ pub enum ChainConnectionConf {
     /// Aleo configuration
     #[cfg(feature = "aleo")]
     Aleo(h_aleo::ConnectionConf),
+    /// Dango configuration
+    Dango(h_dango::ConnectionConf),
     /// Tron configuration
     Tron(h_tron::ConnectionConf),
 }
@@ -207,6 +211,7 @@ impl ChainConnectionConf {
             Self::Tron(_) => HyperlaneDomainProtocol::Tron,
             #[cfg(feature = "aleo")]
             Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
+            Self::Dango(_) => HyperlaneDomainProtocol::Dango,
         }
     }
 
@@ -298,6 +303,9 @@ impl ChainConf {
                 h_aleo::application::AleoApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Dango(_) => Ok(Box::new(
+                h_dango::application::DangoApplicationOperationVerifier::default(),
+            )),
         };
 
         result.context(ctx)
@@ -354,6 +362,7 @@ impl ChainConf {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
+            ChainConnectionConf::Dango(conf) => Ok(conf.build_provider(locator.domain, None)?),
         }
         .context(ctx)
     }
@@ -435,6 +444,13 @@ impl ChainConf {
                 let mailbox = h_aleo::AleoMailbox::new(provider, &locator, conf);
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
+            ChainConnectionConf::Dango(conf) => {
+                let signer: Option<hyperlane_dango::DangoSigner> =
+                    self.dango_signer().await.context(ctx)?;
+                Ok(Box::new(h_dango::contracts::DangoMailbox::new(
+                    conf, &locator, signer,
+                )?) as Box<dyn Mailbox>)
+            }
         }
         .context(ctx)
     }
@@ -502,6 +518,12 @@ impl ChainConf {
                 let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Dango(conf) => {
+                let signer = self.dango_signer().await.context(ctx)?;
+                Ok(Box::new(h_dango::contracts::DangoMerkleTree::new(
+                    conf, &locator, signer,
+                )?) as Box<dyn MerkleTreeHook>)
             }
         }
         .context(ctx)
@@ -592,6 +614,13 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Dango(conf) => {
+                let signer = self.dango_signer().await.context(ctx)?;
+                let indexer = Box::new(h_dango::contracts::DangoMailbox::new(
+                    conf, &locator, signer,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
         }
         .context(ctx)
     }
@@ -677,6 +706,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Dango(confg) => {
+                let indexer = Box::new(h_dango::contracts::DangoMailbox::new(
+                    confg, &locator, None,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -754,6 +789,8 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
             }
+            // Not be implemented because dango does not support IGP.
+            ChainConnectionConf::Dango(_) => unimplemented!(),
         }
         .context(ctx)
     }
@@ -833,6 +870,10 @@ impl ChainConf {
                 let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Dango(conf) => {
+                let igp = h_dango::contracts::DangoIGP::new(conf, locator.domain)?;
+                Ok(Box::new(igp) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)
@@ -922,6 +963,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Dango(conf) => {
+                let indexer = Box::new(h_dango::contracts::DangoMerkleTree::new(
+                    conf, &locator, None,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
@@ -1010,6 +1057,12 @@ impl ChainConf {
                     h_aleo::AleoValidatorAnnounce::new(provider, &locator, conf);
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Dango(conf) => {
+                let signer = self.dango_signer().await.context(ctx)?;
+                Ok(Box::new(h_dango::contracts::DangoValidatorAnnounce::new(
+                    conf, &locator, signer,
+                )?) as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }
@@ -1084,6 +1137,10 @@ impl ChainConf {
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Dango(conf) => {
+                let ism = Box::new(h_dango::contracts::DangoIsm::new(conf, &locator, None)?);
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -1149,6 +1206,10 @@ impl ChainConf {
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Dango(conf) => {
+                let ism = Box::new(h_dango::contracts::DangoIsm::new(conf, &locator, None)?);
+                Ok(ism as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -1209,6 +1270,9 @@ impl ChainConf {
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Dango(_) => {
+                Err(eyre!("Dango does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1265,6 +1329,9 @@ impl ChainConf {
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Dango(_) => {
+                Err(eyre!("Dango does not support aggregation ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1307,6 +1374,9 @@ impl ChainConf {
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Dango(_) => {
+                Err(eyre!("Dango does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1343,6 +1413,9 @@ impl ChainConf {
                 ChainConnectionConf::Tron(_) => Box::new(conf.build::<h_tron::TronSigner>().await?),
                 #[cfg(feature = "aleo")]
                 ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
+                ChainConnectionConf::Dango(_) => {
+                    Box::new(conf.build::<h_dango::DangoSigner>().await?)
+                }
             };
             Ok(Some(chain_signer))
         } else {
@@ -1383,6 +1456,10 @@ impl ChainConf {
     }
 
     async fn tron_signer(&self) -> Result<Option<h_tron::TronSigner>> {
+        self.signer().await
+    }
+
+    async fn dango_signer(&self) -> Result<Option<h_dango::DangoSigner>> {
         self.signer().await
     }
 
