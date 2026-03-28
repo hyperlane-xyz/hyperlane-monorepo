@@ -20,7 +20,7 @@ import { DeployEnvironment, EnvironmentConfig } from '../config/environment.js';
 import { DEFAULT_SWEEP_ADDRESS, KeyFunderConfig } from '../config/funding.js';
 import { FundableRole, Role } from '../roles.js';
 import { HelmManager } from '../utils/helm.js';
-import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
+import { getInfraPath } from '../utils/utils.js';
 
 const RC_FUNDING_DISCOUNT_NUMERATOR = BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = BigNumber.from(10);
@@ -55,7 +55,7 @@ export class KeyFunderHelmManager extends HelmManager {
     readonly config: KeyFunderConfig<string[]>,
     readonly agentConfig: AgentContextConfig,
     readonly registryCommit: string,
-    // Per-context EVM chain allowlist for relayer funding. If set for a context,
+    // Per-context chain allowlist for relayer funding. If set for a context,
     // only those chains will be funded for that context's relayer.
     private readonly contextRelayerChains: Partial<
       Record<Contexts, string[]>
@@ -80,9 +80,8 @@ export class KeyFunderHelmManager extends HelmManager {
       const context = contextStr as Contexts;
       try {
         const ctxAgentConfig = getAgentConfig(context, environment);
-        contextRelayerChains[context] = ctxAgentConfig.contextChainNames[
-          Role.Relayer
-        ].filter(isEthereumProtocolChain);
+        contextRelayerChains[context] =
+          ctxAgentConfig.contextChainNames[Role.Relayer];
       } catch {
         // context may not have an agent config in this environment
       }
@@ -110,7 +109,7 @@ export class KeyFunderHelmManager extends HelmManager {
       },
       hyperlane: {
         runEnv: this.agentConfig.runEnv,
-        chains: this.getEthereumChains(),
+        chains: this.getSupportedFundingChains(),
         registryUri,
         keyfunderConfig,
         chainsToSkip: this.config.chainsToSkip,
@@ -125,9 +124,9 @@ export class KeyFunderHelmManager extends HelmManager {
     };
   }
 
-  private getEthereumChains(): string[] {
+  private getSupportedFundingChains(): string[] {
     return this.agentConfig.environmentChainNames.filter((chain) =>
-      isEthereumProtocolChain(chain),
+      this.hasFundingConfig(chain),
     );
   }
 
@@ -142,7 +141,7 @@ export class KeyFunderHelmManager extends HelmManager {
       roles[roleName] = { address };
     }
 
-    for (const chain of this.getEthereumChains()) {
+    for (const chain of this.getSupportedFundingChains()) {
       if (this.config.chainsToSkip?.includes(chain)) continue;
 
       const chainConfig: ChainYamlConfig = {};
@@ -317,6 +316,16 @@ export class KeyFunderHelmManager extends HelmManager {
       default:
         return undefined;
     }
+  }
+
+  private hasFundingConfig(chain: string): boolean {
+    return Boolean(
+      this.config.desiredBalancePerChain[chain] ||
+        this.config.desiredRebalancerBalancePerChain?.[chain] ||
+        this.config.desiredInventoryRebalancerBalancePerChain?.[chain] ||
+        this.config.igpClaimThresholdPerChain?.[chain] ||
+        this.config.lowUrgencyKeyFunderBalances?.[chain],
+    );
   }
 
   private getIgpClaimThreshold(chain: string): string | undefined {
