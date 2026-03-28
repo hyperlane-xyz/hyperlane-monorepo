@@ -294,6 +294,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         },
         'Failed to get quotes for route.',
       );
+      this.metrics?.recordTxFailure(origin, destination, 'quote_fetch_failed');
       return null;
     }
 
@@ -316,6 +317,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           error,
         },
         'Failed to populate transaction for route.',
+      );
+      this.metrics?.recordTxFailure(
+        origin,
+        destination,
+        'tx_population_failed',
       );
       return null;
     }
@@ -472,6 +478,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
             error: result.reason,
           },
           'Gas estimation failed for route.',
+        );
+        this.metrics?.recordTxFailure(
+          failedTransaction.route.origin,
+          failedTransaction.route.destination,
+          'gas_estimation_failed',
         );
         results.push({
           route: failedTransaction.route,
@@ -637,6 +648,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           },
           'Transaction send failed for route.',
         );
+        this.metrics?.recordTxFailure(
+          origin,
+          transaction.route.destination,
+          'tx_send_failed',
+        );
         results.push({ transaction, error: String(error) });
       }
     }
@@ -659,6 +675,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       this.logger.error(
         { origin, destination, txHash: receipt.transactionHash },
         'No Dispatch event found in confirmed rebalance receipt',
+      );
+      this.metrics?.recordTxFailure(
+        origin,
+        destination,
+        'dispatch_event_missing',
       );
       return {
         route: transaction.route,
