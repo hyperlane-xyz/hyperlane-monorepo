@@ -465,7 +465,10 @@ export function calculateMultipliedBalance(
   base: bigint,
   multiplier: number,
 ): bigint {
-  return (base * BigInt(Math.floor(multiplier * 100))) / 100n;
+  const [whole, fractional = ''] = multiplier.toString().split('.');
+  const scaledMultiplier =
+    BigInt(whole) * 100n + BigInt(fractional.padEnd(2, '0').slice(0, 2));
+  return (base * scaledMultiplier) / 100n;
 }
 
 function createTimeoutPromise(

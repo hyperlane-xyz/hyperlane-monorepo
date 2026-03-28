@@ -228,6 +228,11 @@ describe('KeyFunderConfig Schemas', () => {
       expect(result.toString()).to.equal('2000000000000000000');
     });
 
+    it('should ignore float rounding artifacts beyond the second decimal', () => {
+      const result = calculateMultipliedBalance(oneEther, 1.005);
+      expect(result.toString()).to.equal('1000000000000000000');
+    });
+
     it('should floor third decimal (1 ETH * 1.555 = 1.55 ETH, not 1.56 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 1.555);
       expect(result.toString()).to.equal('1550000000000000000');

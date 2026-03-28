@@ -88,8 +88,10 @@ export class KeyFunderHelmManager extends HelmManager {
         contextRelayerChains[context] = ctxAgentConfig.contextChainNames[
           Role.Relayer
         ].filter(isKeyFunderSupportedChain);
-      } catch {
-        // context may not have an agent config in this environment
+      } catch (error) {
+        if (!isMissingAgentConfigError(error, context, environment)) {
+          throw error;
+        }
       }
     }
 
@@ -408,6 +410,18 @@ function isKeyFunderSupportedChain(chain: string): boolean {
   return (
     protocol === ProtocolType.Cosmos ||
     protocol === ProtocolType.CosmosNative
+  );
+}
+
+function isMissingAgentConfigError(
+  error: unknown,
+  context: Contexts,
+  environment: DeployEnvironment,
+): boolean {
+  return (
+    error instanceof Error &&
+    error.message ===
+      `Context ${context} does not exist in agents for environment ${environment}`
   );
 }
 
