@@ -16,12 +16,14 @@ import {
   ProtocolType,
   applyRpcUrlOverridesFromEnv,
   bytesToProtocolAddress,
+  objMap,
+  objMerge,
   sleep,
   tryFn,
 } from '@hyperlane-xyz/utils';
 
 import type { WarpMonitorConfig, WarpNativeDustConfig } from './types.js';
-import { getLogger, setLoggerBindings } from './utils.js';
+import { getLogger } from './utils.js';
 
 type SentTransferRemoteEvent = {
   args?: {
@@ -42,23 +44,15 @@ export class WarpTransferDuster {
   }
 
   async start(): Promise<void> {
-    const logger = getLogger();
+    const logger = this.getLogger();
     const { nativeDusting, warpRouteId, checkFrequency } = this.config;
     if (!nativeDusting) {
       logger.info('Warp transfer duster disabled');
       return;
     }
 
-    setLoggerBindings({
-      warp_route: warpRouteId,
-      dusting: 'native-recipient',
-    });
-
     const chainMetadata = await this.registry.getMetadata();
-    const chainAddresses = (await this.registry.getAddresses()) as Record<
-      string,
-      { mailbox?: string }
-    >;
+    const chainAddresses = await this.registry.getAddresses();
     const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
     if (overriddenChains.length > 0) {
       logger.info(
@@ -67,16 +61,12 @@ export class WarpTransferDuster {
       );
     }
 
-    const mailboxes = Object.fromEntries(
-      Object.entries(chainAddresses).map(([chain, addresses]) => [
-        chain,
-        { mailbox: addresses.mailbox },
-      ]),
+    const mailboxes = objMap(chainAddresses, (_, { mailbox }) => ({
+      mailbox,
+    }));
+    const multiProtocolProvider = new MultiProtocolProvider(
+      objMerge(chainMetadata, mailboxes),
     );
-    const multiProtocolProvider = new MultiProtocolProvider({
-      ...chainMetadata,
-      ...mailboxes,
-    });
 
     const warpCoreConfig = await this.registry.getWarpRoute(warpRouteId);
     if (!warpCoreConfig) {
@@ -157,6 +147,8 @@ export class WarpTransferDuster {
       const latestBlock = await eventContract.provider.getBlockNumber();
       if (latestBlock <= fromBlock) continue;
 
+      // CAST: the SentTransferRemote filter narrows the generic ethers event payloads
+      // to events that expose destination and recipient args.
       const events = (await eventContract.queryFilter(
         eventContract.filters.SentTransferRemote(),
         fromBlock + 1,
@@ -180,13 +172,13 @@ export class WarpTransferDuster {
     chainMetadata: Record<string, ChainMetadata>,
     multiProtocolProvider: MultiProtocolProvider,
   ): Promise<void> {
-    const logger = getLogger();
+    const logger = this.getLogger();
     const nativeDusting = this.config.nativeDusting;
     if (!nativeDusting) return;
 
     const destinationDomain = event.args?.destination;
     const recipientBytes32 = event.args?.recipient;
-    if (!destinationDomain || !recipientBytes32) return;
+    if (destinationDomain == null || !recipientBytes32) return;
 
     const destinationChain = this.findChainNameByDomainId(
       chainMetadata,
@@ -234,7 +226,7 @@ export class WarpTransferDuster {
     recipient: string,
     multiProtocolProvider: MultiProtocolProvider,
   ): Promise<void> {
-    const logger = getLogger();
+    const logger = this.getLogger();
     const nativeDusting = this.config.nativeDusting;
     if (!nativeDusting) return;
 
@@ -398,6 +390,9 @@ export class WarpTransferDuster {
     token: WarpCore['tokens'][number],
     multiProtocolProvider: MultiProtocolProvider,
   ) {
+    // CAST: the SDK's adapter interface does not expose the underlying event-emitting
+    // contract handles, but Hyperlane token adapters provide either contract or
+    // collateralContract with SentTransferRemote on EVM routes.
     const hypAdapter = token.getHypAdapter(multiProtocolProvider) as {
       contract?: {
         provider?: { getBlockNumber: () => Promise<number> };
@@ -428,7 +423,7 @@ export class WarpTransferDuster {
   ): ChainName | undefined {
     return Object.entries(chainMetadata).find(
       ([, metadata]) => metadata.domainId === domainId,
-    )?.[0] as ChainName | undefined;
+    )?.[0] as ChainName | undefined; // CAST: chainMetadata keys are ChainNames by construction.
   }
 
   private isSupportedDustDestinationProtocol(protocol: ProtocolType): boolean {
@@ -443,9 +438,18 @@ export class WarpTransferDuster {
       case ProtocolType.Tron:
       case ProtocolType.CosmosNative:
         return protocol;
+      case ProtocolType.Cosmos:
+        return ProtocolType.CosmosNative;
       default:
         return undefined;
     }
+  }
+
+  private getLogger() {
+    return getLogger().child({
+      warp_route: this.config.warpRouteId,
+      dusting: 'native-recipient',
+    });
   }
 
   private getCursorKey(chain: string, routerAddress: string): string {
