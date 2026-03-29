@@ -229,7 +229,9 @@ export class KeyFunderHelmManager extends HelmManager {
 
       for (const role of roles) {
         if (role === Role.Relayer) {
-          const relayerChains = this.contextRelayerChains[context] ?? [];
+          const relayerChains =
+            this.contextRelayerChains[context] ??
+            this.getDefaultRelayerChainsForContext();
           for (const chain of relayerChains) {
             const address = await this.getRelayerAddressForChain(
               environment,
@@ -291,6 +293,10 @@ export class KeyFunderHelmManager extends HelmManager {
     }
 
     return balances;
+  }
+
+  private getDefaultRelayerChainsForContext(): string[] {
+    return this.getSupportedChains().filter(isEthereumProtocolChain);
   }
 
   private getAddressForRole(
