@@ -5,7 +5,7 @@ import { fromZodError } from 'zod-validation-error';
 
 import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
 import { Contexts } from '../../config/contexts.js';
@@ -83,16 +83,13 @@ export class KeyFunderHelmManager extends HelmManager {
     )) {
       if (!roles?.includes(Role.Relayer)) continue;
       const context = contextStr as Contexts;
-      try {
-        const ctxAgentConfig = getAgentConfig(context, environment);
-        contextRelayerChains[context] = ctxAgentConfig.contextChainNames[
-          Role.Relayer
-        ].filter(isKeyFunderSupportedChain);
-      } catch (error) {
-        if (!isMissingAgentConfigError(error, context, environment)) {
-          throw error;
-        }
+      const ctxAgentConfig = getAgentConfigIfExists(context, environment);
+      if (!ctxAgentConfig) {
+        continue;
       }
+      contextRelayerChains[context] = ctxAgentConfig.contextChainNames[
+        Role.Relayer
+      ].filter(isKeyFunderSupportedChain);
     }
 
     return new KeyFunderHelmManager(
@@ -171,13 +168,12 @@ export class KeyFunderHelmManager extends HelmManager {
       // Add sweep config only for chains in CHAINS_TO_SWEEP with valid thresholds
       if (CHAINS_TO_SWEEP.has(chain)) {
         const sweepThreshold = this.config.lowUrgencyKeyFunderBalances?.[chain];
-        if (!sweepThreshold) {
-          throw new Error(`Sweep threshold is missing for chain ${chain}`);
-        }
+        assert(sweepThreshold, `Sweep threshold is missing for chain ${chain}`);
         const thresholdNum = Number(sweepThreshold);
-        if (!Number.isFinite(thresholdNum) || thresholdNum <= 0) {
-          throw new Error(`Sweep threshold is invalid for chain ${chain}`);
-        }
+        assert(
+          Number.isFinite(thresholdNum) && thresholdNum > 0,
+          `Sweep threshold is invalid for chain ${chain}`,
+        );
 
         const override = this.config.sweepOverrides?.[chain];
         chainConfig.sweep = {
@@ -232,7 +228,9 @@ export class KeyFunderHelmManager extends HelmManager {
           const relayerChains =
             this.contextRelayerChains[context] ??
             this.getDefaultRelayerChainsForContext();
+          const skippedChains = new Set(this.config.chainsToSkip ?? []);
           for (const chain of relayerChains) {
+            if (skippedChains.has(chain)) continue;
             const address = await this.getRelayerAddressForChain(
               environment,
               context,
@@ -244,12 +242,11 @@ export class KeyFunderHelmManager extends HelmManager {
         }
 
         const address = this.getAddressForRole(environment, context, role);
-        if (!address) {
-          throw new Error(
-            `No address found for role ${role} in context ${context} for environment ${environment}. ` +
-              `Ensure the role is configured in the appropriate addresses file.`,
-          );
-        }
+        assert(
+          address,
+          `No address found for role ${role} in context ${context} for environment ${environment}. ` +
+            `Ensure the role is configured in the appropriate addresses file.`,
+        );
         roleAddressMap[this.getRoleName(context, role)] = address;
       }
     }
@@ -315,11 +312,10 @@ export class KeyFunderHelmManager extends HelmManager {
   ): Promise<string> {
     if (isEthereumProtocolChain(chain)) {
       const address = relayerAddresses?.[environment]?.[context];
-      if (!address) {
-        throw new Error(
-          `No relayer address found for context ${context} in environment ${environment}`,
-        );
-      }
+      assert(
+        address,
+        `No relayer address found for context ${context} in environment ${environment}`,
+      );
       return address;
     }
 
@@ -328,11 +324,10 @@ export class KeyFunderHelmManager extends HelmManager {
     await key.fetch();
     const metadata = getChain(chain);
     const address = key.addressForProtocol(metadata.protocol, metadata.bech32Prefix);
-    if (!address) {
-      throw new Error(
-        `Unable to derive relayer address for protocol ${metadata.protocol} on chain ${chain}`,
-      );
-    }
+    assert(
+      address,
+      `Unable to derive relayer address for protocol ${metadata.protocol} on chain ${chain}`,
+    );
     return address;
   }
 
@@ -419,6 +414,20 @@ function isKeyFunderSupportedChain(chain: string): boolean {
   );
 }
 
+function getAgentConfigIfExists(
+  context: Contexts,
+  environment: DeployEnvironment,
+): AgentContextConfig | undefined {
+  try {
+    return getAgentConfig(context, environment);
+  } catch (error) {
+    if (isMissingAgentConfigError(error, context, environment)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 function isMissingAgentConfigError(
   error: unknown,
   context: Contexts,
@@ -454,10 +463,9 @@ export function getKeyFunderConfig(
   coreConfig: EnvironmentConfig,
 ): KeyFunderConfig<string[]> {
   const keyFunderConfig = coreConfig.keyFunderConfig;
-  if (!keyFunderConfig) {
-    throw new Error(
-      `Environment ${coreConfig.environment} does not have a KeyFunderConfig config`,
-    );
-  }
+  assert(
+    keyFunderConfig,
+    `Environment ${coreConfig.environment} does not have a KeyFunderConfig config`,
+  );
   return keyFunderConfig;
 }
