@@ -283,7 +283,7 @@ export class KeyFunderHelmManager extends HelmManager {
         if (desiredBalance && desiredBalance !== '0') {
           const adjustedBalance =
             context === Contexts.ReleaseCandidate
-              ? this.applyRcDiscount(desiredBalance)
+              ? this.applyRcDiscount(desiredBalance, chain)
               : desiredBalance;
           balances[roleName] = adjustedBalance;
         }
@@ -390,17 +390,24 @@ export class KeyFunderHelmManager extends HelmManager {
     }
 
     // Default threshold is 20% of relayer desired balance.
-    return ethers.utils.formatEther(
-      ethers.utils.parseEther(desiredRelayerBalance).div(5),
+    const decimals = this.getNativeTokenDecimals(chain);
+    return ethers.utils.formatUnits(
+      ethers.utils.parseUnits(desiredRelayerBalance, decimals).div(5),
+      decimals,
     );
   }
 
-  private applyRcDiscount(balance: string): string {
+  private applyRcDiscount(balance: string, chain: string): string {
+    const decimals = this.getNativeTokenDecimals(chain);
     const discountedBalance = ethers.utils
-      .parseEther(balance)
+      .parseUnits(balance, decimals)
       .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
       .div(RC_FUNDING_DISCOUNT_DENOMINATOR);
-    return ethers.utils.formatEther(discountedBalance);
+    return ethers.utils.formatUnits(discountedBalance, decimals);
+  }
+
+  private getNativeTokenDecimals(chain: string): number {
+    return getChain(chain).nativeToken?.decimals ?? 18;
   }
 }
 

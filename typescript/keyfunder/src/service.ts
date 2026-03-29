@@ -130,11 +130,11 @@ async function main(): Promise<void> {
       },
     });
 
-    let fundingError: Error | undefined;
+    let fundingError: unknown;
     try {
       await funder.fundAllChains();
     } catch (error) {
-      fundingError = error as Error;
+      fundingError = error;
     }
 
     // Always push metrics, even on failure (matches original fund-keys-from-deployer.ts behavior)
@@ -148,14 +148,18 @@ async function main(): Promise<void> {
     logger.info('KeyFunder completed successfully');
     process.exit(0);
   } catch (error) {
-    const err = error as Error;
+    const err = normalizeError(error);
     logger.error({ error: err.message, stack: err.stack }, 'KeyFunder failed');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  const err = error as Error;
+  const err = normalizeError(error);
   rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
   process.exit(1);
 });
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}

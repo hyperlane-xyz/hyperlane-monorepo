@@ -150,13 +150,18 @@ function parseNativeDustingConfigFromEnv(): WarpNativeDustConfig | undefined {
   }
 
   const amountByChain = Object.entries(process.env)
-    .filter(([key, value]) => key.startsWith('DUST_AMOUNT_') && !!value)
+    .filter(
+      (entry): entry is [string, string] =>
+        entry[0].startsWith('DUST_AMOUNT_') &&
+        typeof entry[1] === 'string' &&
+        entry[1].length > 0,
+    )
     .reduce<Record<string, string>>((acc, [key, value]) => {
       const chain = key
         .replace('DUST_AMOUNT_', '')
         .toLowerCase()
         .replaceAll('_', '-');
-      acc[chain] = value!;
+      acc[chain] = value;
       return acc;
     }, {});
 

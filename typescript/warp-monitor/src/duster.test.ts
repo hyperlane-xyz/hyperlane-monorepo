@@ -1,23 +1,32 @@
 import { expect } from 'chai';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
+import {
+  MultiProtocolProvider,
+  WarpCore,
+  type ChainMetadata,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { WarpTransferDuster } from './duster.js';
 
 async function invokeProcessDustingCycle(
   duster: WarpTransferDuster,
-  warpCore: any,
-  multiProtocolProvider: any,
-  chainMetadata: Record<string, any>,
+  warpCore: WarpCore,
+  multiProtocolProvider: MultiProtocolProvider,
+  chainMetadata: Record<string, ChainMetadata>,
   sourceCursors: Map<string, number>,
 ) {
-  const processDustingCycle = (duster as any).processDustingCycle as (
-    warpCore: any,
-    multiProtocolProvider: any,
-    chainMetadata: Record<string, any>,
-    sourceCursors: Map<string, number>,
-  ) => Promise<void>;
+  // CAST: tests intentionally call a private helper to exercise a single dusting cycle
+  // without starting the long-running service loop.
+  const processDustingCycle = (duster as unknown as {
+    processDustingCycle: (
+      warpCore: WarpCore,
+      multiProtocolProvider: MultiProtocolProvider,
+      chainMetadata: Record<string, ChainMetadata>,
+      sourceCursors: Map<string, number>,
+    ) => Promise<void>;
+  }).processDustingCycle;
 
   await processDustingCycle.call(
     duster,
@@ -86,19 +95,28 @@ describe('WarpTransferDuster', () => {
           defaultAmount: '0.0001',
         },
       },
+      // CAST: this test calls processDustingCycle directly, so registry methods are never read.
       {} as IRegistry,
     );
 
     let dustedRecipient: string | undefined;
-    (duster as any).ensureRecipientDusted = async (chain: string, recipient: string) => {
+    // CAST: tests replace the internal side-effect method with a spy implementation.
+    (duster as unknown as {
+      ensureRecipientDusted: (chain: string, recipient: string) => Promise<void>;
+    }).ensureRecipientDusted = async (chain: string, recipient: string) => {
       expect(chain).to.equal('base');
       dustedRecipient = recipient;
     };
 
+    // CAST: the private helper only reads the WarpCore fields defined in this test stub.
+    const warpCoreStub = warpCore as WarpCore;
+    // CAST: ensureRecipientDusted is stubbed above, so this helper never dereferences the provider.
+    const multiProtocolProviderStub = {} as MultiProtocolProvider;
+
     await invokeProcessDustingCycle(
       duster,
-      warpCore,
-      {} as any,
+      warpCoreStub,
+      multiProtocolProviderStub,
       chainMetadata,
       new Map([['ethereum:0xrouter', 100]]),
     );
@@ -166,18 +184,27 @@ describe('WarpTransferDuster', () => {
           defaultAmount: '0.0001',
         },
       },
+      // CAST: this test calls processDustingCycle directly, so registry methods are never read.
       {} as IRegistry,
     );
 
     let calls = 0;
-    (duster as any).ensureRecipientDusted = async () => {
+    // CAST: tests replace the internal side-effect method with a spy implementation.
+    (duster as unknown as {
+      ensureRecipientDusted: () => Promise<void>;
+    }).ensureRecipientDusted = async () => {
       calls += 1;
     };
 
+    // CAST: the private helper only reads the WarpCore fields defined in this test stub.
+    const warpCoreStub = warpCore as WarpCore;
+    // CAST: ensureRecipientDusted is stubbed above, so this helper never dereferences the provider.
+    const multiProtocolProviderStub = {} as MultiProtocolProvider;
+
     await invokeProcessDustingCycle(
       duster,
-      warpCore,
-      {} as any,
+      warpCoreStub,
+      multiProtocolProviderStub,
       chainMetadata,
       new Map([['ethereum:0xrouter', 100]]),
     );

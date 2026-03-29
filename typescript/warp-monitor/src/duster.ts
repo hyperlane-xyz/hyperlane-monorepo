@@ -26,6 +26,8 @@ import type { WarpMonitorConfig, WarpNativeDustConfig } from './types.js';
 import { getLogger } from './utils.js';
 
 type SentTransferRemoteEvent = {
+  blockNumber?: number;
+  transactionHash?: string;
   args?: {
     destination?: number;
     recipient?: string;
@@ -156,6 +158,16 @@ export class WarpTransferDuster {
       )) as SentTransferRemoteEvent[];
 
       for (const event of events) {
+        if (event.args?.destination == null || !event.args.recipient) {
+          this.getLogger().warn(
+            {
+              blockNumber: event.blockNumber,
+              transactionHash: event.transactionHash,
+            },
+            'Skipping malformed SentTransferRemote event',
+          );
+          continue;
+        }
         await this.handleSentTransferRemoteEvent(
           event,
           chainMetadata,
