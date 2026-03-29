@@ -171,6 +171,10 @@
     "amount": "10.038",
     "decimals": 9
   },
+  "fluent": {
+    "amount": "0.001000007",
+    "decimals": 9
+  },
   "fluence": {
     "amount": "0.1",
     "decimals": 9
@@ -237,6 +241,10 @@
   },
   "katana": {
     "amount": "0.001000251",
+    "decimals": 9
+  },
+  "kiichain": {
+    "amount": "0.374999999",
     "decimals": 9
   },
   "krown": {
@@ -313,6 +321,10 @@
   },
   "mitosis": {
     "amount": "20.624797455",
+    "decimals": 9
+  },
+  "mocachain": {
+    "amount": "1.125",
     "decimals": 9
   },
   "mode": {
@@ -509,6 +521,10 @@
   },
   "tangle": {
     "amount": "1.0",
+    "decimals": 9
+  },
+  "tempo": {
+    "amount": "20.0",
     "decimals": 9
   },
   "torus": {

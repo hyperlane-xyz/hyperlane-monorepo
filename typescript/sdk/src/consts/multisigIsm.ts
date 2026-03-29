@@ -807,6 +807,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fluent: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   forma: {
     threshold: 5,
     validators: [
@@ -1080,6 +1090,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  kiichain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x5513bc60f0a3a8520edc03828c1bc6111008b54e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1418,6 +1438,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x340058f071e8376c2ecff219e1e6620deea8a3c7',
         alias: 'Substance Labs',
+      },
+    ],
+  },
+
+  mocachain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x31ab8fc95d941defa077f8501c6800e935c3b081',
+        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },
@@ -2266,6 +2296,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xe271ef9a6e312540f099a378865432fa73f26689',
         alias: 'Tangle',
+      },
+    ],
+  },
+
+  tempo: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44',
+        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },

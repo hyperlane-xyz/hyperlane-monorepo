@@ -1613,5 +1613,45 @@ export const validatorChainConfig = (
         'tron',
       ),
     },
+    mocachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mocachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x31ab8fc95d941defa077f8501c6800e935c3b081'],
+        },
+        'mocachain',
+      ),
+    },
+    tempo: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('tempo'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44'],
+        },
+        'tempo',
+      ),
+    },
+    fluent: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('fluent'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406'],
+        },
+        'fluent',
+      ),
+    },
+    kiichain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('kiichain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5513bc60f0a3a8520edc03828c1bc6111008b54e'],
+        },
+        'kiichain',
+      ),
+    },
   };
 };

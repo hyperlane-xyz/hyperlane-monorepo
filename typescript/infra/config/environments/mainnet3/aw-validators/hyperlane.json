@@ -418,5 +418,17 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "mocachain": {
+    "validators": ["0x31ab8fc95d941defa077f8501c6800e935c3b081"]
+  },
+  "tempo": {
+    "validators": ["0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44"]
+  },
+  "fluent": {
+    "validators": ["0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406"]
+  },
+  "kiichain": {
+    "validators": ["0x5513bc60f0a3a8520edc03828c1bc6111008b54e"]
   }
 }
