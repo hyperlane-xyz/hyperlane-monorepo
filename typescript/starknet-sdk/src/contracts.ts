@@ -24,6 +24,7 @@ import {
   isNullish,
   isZeroishAddress,
   normalizeAddressStarknet,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { StarknetAnnotatedTx } from './types.js';
@@ -373,8 +374,11 @@ async function resolveImplementationHash(
     if (hasAbiMethod(contract, 'implementation')) {
       return coerceClassHash(await callContract(contract, 'implementation'));
     }
-  } catch {
-    // Not a proxy or proxy resolution failed; use the contract's own ABI
+  } catch (error) {
+    rootLogger.warn(
+      { address: contract.address, error },
+      'Proxy resolution failed; falling back to contract own ABI',
+    );
   }
 
   return undefined;
