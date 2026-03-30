@@ -2,80 +2,68 @@
 pragma solidity >=0.8.0;
 
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
+import {IInterchainAccountRouter} from "../interfaces/IInterchainAccountRouter.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {Quotes} from "./libs/Quotes.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+import {TokenBridgeOft} from "./TokenBridgeOft.sol";
+import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {TokenBridgeOft} from "./TokenBridgeOft.sol";
-import {IInterchainAccountRouter} from "../interfaces/IInterchainAccountRouter.sol";
-import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
-
 /**
  * @title TokenBridgeKatanaRedeemIca
  * @notice Katana-side bridge wrapper for the vbUSDC -> Ethereum helper flow.
- * @dev Uses an existing TokenBridgeOft instance for the token send and dispatches
+ * @dev Uses an existing TokenBridgeOft instance for the share send and dispatches
  *      a Hyperlane ICA call that instructs the Ethereum helper to redeem.
  * @dev Alternatives considered:
  *      - A compose-aware OFT wrapper was rejected here to avoid specializing
  *        the generic TokenBridgeOft path just for Katana redemption.
- *      - Sending funds to the ICA itself was rejected; the OFT send goes
+ *      - Sending funds to the ICA itself was rejected; the share send goes
  *        directly to the Ethereum helper and the ICA only handles execution.
  *      - We accept the tradeoff that a manual permissionless redeem can make
  *        the ICA poke revert forever, because funds still settle to the fixed
- *        beneficiary and the simpler route-specific model was preferred.
+ *        Ethereum beneficiary and the simpler route-specific model was preferred.
  */
-contract TokenBridgeKatanaRedeemIca is
-    ITokenBridge,
-    Ownable,
-    PackageVersioned
-{
+contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
+    using Quotes for Quote[];
     using SafeERC20 for IERC20;
     using TypeCasts for address;
 
-    error TokenBridgeKatanaRedeemIca__UnsupportedDestination(
-        uint32 destination
-    );
-    error TokenBridgeKatanaRedeemIca__UnexpectedRecipient(
-        bytes32 expectedRecipient,
-        bytes32 actualRecipient
-    );
+    error TokenBridgeKatanaRedeemIca__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
+    error TokenBridgeKatanaRedeemIca__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
+    error TokenBridgeKatanaRedeemIca__UnsupportedDestination(uint32 destination);
     error TokenBridgeKatanaRedeemIca__ZeroAddress();
     error TokenBridgeKatanaRedeemIca__ZeroBeneficiary();
     error TokenBridgeKatanaRedeemIca__ZeroGasLimit();
-    error TokenBridgeKatanaRedeemIca__MissingTokenQuote(address token);
-    error TokenBridgeKatanaRedeemIca__InsufficientNativeFee(
-        uint256 requiredFee,
-        uint256 providedFee
-    );
 
     event SentTransferRemote(
         uint32 indexed destination,
         bytes32 indexed recipient,
         uint256 amount,
-        bytes32 oftMessageId,
+        bytes32 shareBridgeMessageId,
         bytes32 icaMessageId
     );
     event IcaGasLimitSet(uint256 gasLimit);
 
-    /// @notice Generic OFT-backed transport used to move vbUSDC from Katana to Ethereum.
-    TokenBridgeOft public immutable oftBridge;
+    /// @notice Generic OFT-backed transport used to move vbUSDC shares from Katana to Ethereum.
+    TokenBridgeOft public immutable shareBridge;
 
-    /// @notice Local vbUSDC token approved into `oftBridge` for outbound sends.
-    IERC20 public immutable wrappedToken;
+    /// @notice Local Katana share token approved into `shareBridge` for outbound sends.
+    IERC20 public immutable shareToken;
 
     /// @notice ICA router used to dispatch the follow-up redemption poke to Ethereum.
     IInterchainAccountRouter public immutable icaRouter;
 
-    /// @notice Ethereum helper that receives bridged vbUSDC and exposes `redeem(shares)`.
-    address public immutable ethereumHelper;
+    /// @notice Ethereum helper that receives bridged shares and exposes `redeem(shares)`.
+    address public immutable ethereumVaultHelper;
 
     /// @notice Fixed Ethereum beneficiary expected by movable collateral config and helper redemption.
-    address public immutable beneficiary;
+    address public immutable ethereumBeneficiary;
 
     /// @notice Hyperlane domain for Ethereum; this bridge only supports sends to this domain.
     uint32 public immutable ethereumDomain;
@@ -84,39 +72,39 @@ contract TokenBridgeKatanaRedeemIca is
     uint256 public icaGasLimit;
 
     constructor(
-        address _oftBridge,
+        address _shareBridge,
         address _icaRouter,
-        address _ethereumHelper,
-        address _beneficiary,
+        address _ethereumVaultHelper,
+        address _ethereumBeneficiary,
         uint32 _ethereumDomain,
         uint256 _icaGasLimit,
         address _owner
     ) {
         if (
-            _oftBridge == address(0) || _icaRouter == address(0)
-                || _ethereumHelper == address(0) || _owner == address(0)
+            _shareBridge == address(0) || _icaRouter == address(0) || _ethereumVaultHelper == address(0)
+                || _owner == address(0)
         ) revert TokenBridgeKatanaRedeemIca__ZeroAddress();
-        if (_beneficiary == address(0)) {
+        if (_ethereumBeneficiary == address(0)) {
             revert TokenBridgeKatanaRedeemIca__ZeroBeneficiary();
         }
         if (_icaGasLimit == 0) {
             revert TokenBridgeKatanaRedeemIca__ZeroGasLimit();
         }
 
-        oftBridge = TokenBridgeOft(_oftBridge);
-        wrappedToken = IERC20(TokenBridgeOft(_oftBridge).token());
+        shareBridge = TokenBridgeOft(_shareBridge);
+        shareToken = IERC20(TokenBridgeOft(_shareBridge).token());
         icaRouter = IInterchainAccountRouter(_icaRouter);
-        ethereumHelper = _ethereumHelper;
-        beneficiary = _beneficiary;
+        ethereumVaultHelper = _ethereumVaultHelper;
+        ethereumBeneficiary = _ethereumBeneficiary;
         ethereumDomain = _ethereumDomain;
         icaGasLimit = _icaGasLimit;
 
-        wrappedToken.forceApprove(_oftBridge, type(uint256).max);
+        shareToken.forceApprove(_shareBridge, type(uint256).max);
         _transferOwnership(_owner);
     }
 
     function token() public view returns (address) {
-        return address(wrappedToken);
+        return address(shareToken);
     }
 
     function setIcaGasLimit(uint256 _gasLimit) external onlyOwner {
@@ -125,137 +113,74 @@ contract TokenBridgeKatanaRedeemIca is
         emit IcaGasLimitSet(_gasLimit);
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
+    function quoteTransferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
+        external
+        view
+        override
+        returns (Quote[] memory quotes)
+    {
         _checkOutbound(_destination, _recipient);
 
-        Quote[] memory oftQuotes =
-            oftBridge.quoteTransferRemote(_destination, _helperRecipient(), _amount);
-        uint256 icaFee = icaRouter.quoteGasPayment(_destination, icaGasLimit);
+        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _helperRecipient(), _amount);
+        uint256 nativeFee = shareQuotes.extract(address(0)) + icaRouter.quoteGasPayment(_destination, icaGasLimit);
 
-        quotes = _mergeNativeQuote(oftQuotes, icaFee);
+        quotes = new Quote[](2);
+        quotes[0] = Quote({token: address(0), amount: nativeFee});
+        quotes[1] = Quote({token: address(shareToken), amount: shareQuotes.extract(address(shareToken))});
     }
 
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external payable override returns (bytes32 messageId) {
+    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
+        external
+        payable
+        override
+        returns (bytes32 messageId)
+    {
         _checkOutbound(_destination, _recipient);
 
-        Quote[] memory oftQuotes =
-            oftBridge.quoteTransferRemote(_destination, _helperRecipient(), _amount);
-        uint256 oftNativeFee = _extractQuoteAmount(oftQuotes, address(0));
-        uint256 collateralFee =
-            _extractQuoteAmount(oftQuotes, address(wrappedToken));
+        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _helperRecipient(), _amount);
+        uint256 shareBridgeNativeFee = shareQuotes.extract(address(0));
+        uint256 shareAmount = shareQuotes.extract(address(shareToken));
         uint256 icaFee = icaRouter.quoteGasPayment(_destination, icaGasLimit);
-        uint256 totalNativeFee = oftNativeFee + icaFee;
+        uint256 totalNativeFee = shareBridgeNativeFee + icaFee;
 
         if (msg.value < totalNativeFee) {
-            revert TokenBridgeKatanaRedeemIca__InsufficientNativeFee(
-                totalNativeFee,
-                msg.value
-            );
+            revert TokenBridgeKatanaRedeemIca__InsufficientNativeFee(totalNativeFee, msg.value);
         }
 
-        wrappedToken.safeTransferFrom(msg.sender, address(this), collateralFee);
+        shareToken.safeTransferFrom(msg.sender, address(this), shareAmount);
 
-        bytes32 oftMessageId = oftBridge.transferRemote{value: oftNativeFee}(
-            _destination,
-            _helperRecipient(),
-            _amount
-        );
+        bytes32 shareBridgeMessageId =
+            shareBridge.transferRemote{value: shareBridgeNativeFee}(_destination, _helperRecipient(), _amount);
 
         // The ICA poke carries only the expected share amount. The helper uses
-        // that value as a readiness gate and reverts until the OFT delivery arrives.
+        // that value as a readiness gate and reverts until the share delivery arrives.
         CallLib.Call[] memory calls = new CallLib.Call[](1);
-        calls[0] = CallLib.build(
-            ethereumHelper,
-            0,
-            abi.encodeCall(IKatanaVaultRedeemer.redeem, (_amount))
-        );
+        calls[0] = CallLib.build(ethereumVaultHelper, 0, abi.encodeCall(IKatanaVaultRedeemer.redeem, (_amount)));
 
-        bytes32 icaMessageId = icaRouter.callRemote{value: icaFee}(
-            _destination,
-            calls,
-            StandardHookMetadata.overrideGasLimit(icaGasLimit)
-        );
+        bytes32 icaMessageId =
+            icaRouter.callRemote{value: icaFee}(_destination, calls, StandardHookMetadata.overrideGasLimit(icaGasLimit));
 
         uint256 excessNative = msg.value - totalNativeFee;
         if (excessNative > 0) {
             Address.sendValue(payable(msg.sender), excessNative);
         }
 
-        emit SentTransferRemote(
-            _destination,
-            _recipient,
-            _amount,
-            oftMessageId,
-            icaMessageId
-        );
+        emit SentTransferRemote(_destination, _recipient, _amount, shareBridgeMessageId, icaMessageId);
 
-        return keccak256(abi.encode(oftMessageId, icaMessageId));
+        return keccak256(abi.encode(shareBridgeMessageId, icaMessageId));
     }
 
-    function _checkOutbound(uint32 _destination, bytes32 _recipient)
-        internal
-        view
-    {
+    function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
         if (_destination != ethereumDomain) {
-            revert TokenBridgeKatanaRedeemIca__UnsupportedDestination(
-                _destination
-            );
+            revert TokenBridgeKatanaRedeemIca__UnsupportedDestination(_destination);
         }
-        bytes32 expectedRecipient = beneficiary.addressToBytes32();
+        bytes32 expectedRecipient = ethereumBeneficiary.addressToBytes32();
         if (_recipient != expectedRecipient) {
-            revert TokenBridgeKatanaRedeemIca__UnexpectedRecipient(
-                expectedRecipient,
-                _recipient
-            );
+            revert TokenBridgeKatanaRedeemIca__UnexpectedRecipient(expectedRecipient, _recipient);
         }
     }
 
     function _helperRecipient() internal view returns (bytes32) {
-        return ethereumHelper.addressToBytes32();
-    }
-
-    function _extractQuoteAmount(
-        Quote[] memory _quotes,
-        address _token
-    ) internal pure returns (uint256 amount) {
-        for (uint256 i = 0; i < _quotes.length; i += 1) {
-            if (_quotes[i].token == _token) return _quotes[i].amount;
-        }
-        revert TokenBridgeKatanaRedeemIca__MissingTokenQuote(_token);
-    }
-
-    function _mergeNativeQuote(
-        Quote[] memory _quotes,
-        uint256 _additionalNativeFee
-    ) internal pure returns (Quote[] memory mergedQuotes) {
-        bool foundNative = false;
-        for (uint256 i = 0; i < _quotes.length; i += 1) {
-            if (_quotes[i].token == address(0)) {
-                foundNative = true;
-                break;
-            }
-        }
-
-        uint256 mergedLength = foundNative ? _quotes.length : _quotes.length + 1;
-        mergedQuotes = new Quote[](mergedLength);
-        for (uint256 i = 0; i < _quotes.length; i += 1) {
-            mergedQuotes[i] = _quotes[i];
-            if (mergedQuotes[i].token == address(0)) {
-                mergedQuotes[i].amount += _additionalNativeFee;
-            }
-        }
-
-        if (!foundNative) {
-            mergedQuotes[_quotes.length] =
-                Quote({token: address(0), amount: _additionalNativeFee});
-        }
+        return ethereumVaultHelper.addressToBytes32();
     }
 }

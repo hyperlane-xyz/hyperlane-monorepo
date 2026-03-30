@@ -3,246 +3,169 @@ pragma solidity >=0.8.0;
 
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
+import {Quotes} from "./libs/Quotes.sol";
+import {TokenBridgeOft} from "./TokenBridgeOft.sol";
+import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-import {IKatanaVaultComposer} from "./interfaces/IKatanaVaultComposer.sol";
-import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
-import {IVaultBridgeToken} from "./interfaces/IVaultBridgeToken.sol";
-import {IOFT, SendParam, MessagingFee} from "./interfaces/layerzero/IOFT.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title TokenBridgeKatanaVaultHelper
  * @notice Ethereum-side helper for the Katana USDC/vbUSDC bridge flow.
- * @dev Outbound transfers deposit USDC into the Katana vault composer.
- *      Inbound redemptions are permissionless and always pay the fixed beneficiary.
+ * @dev Outbound transfers pull the local asset, mint the exact vault shares
+ *      required for the LayerZero send, then hand transport to an existing
+ *      TokenBridgeOft. Inbound redemptions are permissionless and always pay
+ *      the fixed Ethereum beneficiary.
  * @dev Alternatives considered:
  *      - AggLayer-specific bridging was rejected because Katana already exposes
- *        the vault + LayerZero OFT path we need.
+ *        the vault-share + LayerZero OFT path we need.
+ *      - A bespoke composer/OFT integration was rejected in favor of direct
+ *        IERC4626 minting plus TokenBridgeOft so we can reuse existing quote,
+ *        fee, and Hyperlane-domain-to-LayerZero-EID logic.
  *      - A dynamic redeem beneficiary was rejected for now in favor of a
  *        route-specific fixed beneficiary to keep the reasoning and config
  *        surface smaller.
  *      - An ICA-owned balance on Ethereum was rejected; this helper holds the
- *        inbound vbUSDC directly and the ICA only needs to poke redemption.
+ *        inbound shares directly and the ICA only needs to poke redemption.
  */
-contract TokenBridgeKatanaVaultHelper is
-    ITokenBridge,
-    IKatanaVaultRedeemer,
-    Ownable,
-    PackageVersioned
-{
+contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, PackageVersioned {
+    using Quotes for Quote[];
     using SafeERC20 for IERC20;
 
-    error TokenBridgeKatanaVaultHelper__UnsupportedDestination(
-        uint32 destination
-    );
-    error TokenBridgeKatanaVaultHelper__UnexpectedRecipient(
-        bytes32 expectedRecipient,
-        bytes32 actualRecipient
-    );
+    error TokenBridgeKatanaVaultHelper__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
+    error TokenBridgeKatanaVaultHelper__InsufficientShares(uint256 expectedShares, uint256 actualShares);
+    error TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(address expectedToken, address actualToken);
+    error TokenBridgeKatanaVaultHelper__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
+    error TokenBridgeKatanaVaultHelper__UnsupportedDestination(uint32 destination);
     error TokenBridgeKatanaVaultHelper__ZeroAddress();
-    error TokenBridgeKatanaVaultHelper__InsufficientShares(
-        uint256 expectedShares,
-        uint256 actualShares
-    );
 
-    event KatanaExtraOptionsSet(bytes extraOptions);
     event TransferRemoteInitiated(
-        uint32 indexed destination,
-        bytes32 indexed recipient,
-        uint256 assets,
-        uint256 expectedShares,
-        bytes32 transferId
+        uint32 indexed destination, bytes32 indexed recipient, uint256 shares, uint256 assetsIn, bytes32 messageId
     );
-    event RedemptionCompleted(
-        address indexed redeemer,
-        uint256 shares,
-        uint256 assetsOut
-    );
+    event RedemptionCompleted(address indexed redeemer, uint256 shares, uint256 assetsOut);
 
-    /// @notice Local USDC asset deposited into Katana's vault composer on outbound sends.
-    IERC20 public immutable usdc;
+    /// @notice Local ERC4626 share vault. For Katana this is the Ethereum vbUSDC vault.
+    IERC4626 public immutable shareVault;
 
-    /// @notice Ethereum vbUSDC share token redeemed from inbound OFT deliveries.
-    IVaultBridgeToken public immutable vbUsdc;
+    /// @notice Local underlying asset deposited into `shareVault`. For Katana this is USDC.
+    IERC20 public immutable assetToken;
 
-    /// @notice Katana composer contract that converts local USDC into bridged vbUSDC shares.
-    IKatanaVaultComposer public immutable composer;
-
-    /// @notice Ethereum-side OFT adapter used only for fee quoting on the deposit path.
-    IOFT public immutable ethShareOftAdapter;
+    /// @notice Existing OFT-backed bridge that transports vault shares to Katana.
+    TokenBridgeOft public immutable shareBridge;
 
     /// @notice Hyperlane domain for Katana; this helper only supports sends to this domain.
     uint32 public immutable katanaDomain;
 
-    /// @notice LayerZero endpoint ID paired with `katanaDomain` for share bridging.
-    uint32 public immutable katanaLzEid;
+    /// @notice Fixed Katana beneficiary that receives bridged vault shares.
+    bytes32 public immutable katanaBeneficiary;
 
-    /// @notice Katana-side recipient that receives vbUSDC shares after deposit.
-    bytes32 public immutable katanaRecipient;
-
-    /// @notice Fixed Ethereum beneficiary that receives USDC after inbound redemption.
-    address public immutable beneficiary;
-
-    /// @notice Optional LayerZero execution options forwarded into `depositAndSend`.
-    bytes public katanaExtraOptions;
-
-    /// @notice Local counter used only to derive synthetic transfer IDs for emitted events.
-    uint256 public nonce;
+    /// @notice Fixed Ethereum beneficiary that receives local assets after redemption.
+    address public immutable ethereumBeneficiary;
 
     constructor(
-        address _usdc,
-        address _vbUsdc,
-        address _composer,
-        address _ethShareOftAdapter,
+        address _shareVault,
+        address _shareBridge,
         uint32 _katanaDomain,
-        uint32 _katanaLzEid,
-        bytes32 _katanaRecipient,
-        address _beneficiary,
-        address _owner
+        bytes32 _katanaBeneficiary,
+        address _ethereumBeneficiary
     ) {
-        if (
-            _usdc == address(0) || _vbUsdc == address(0)
-                || _composer == address(0)
-                || _ethShareOftAdapter == address(0)
-                || _beneficiary == address(0) || _owner == address(0)
-        ) revert TokenBridgeKatanaVaultHelper__ZeroAddress();
+        if (_shareVault == address(0) || _shareBridge == address(0) || _ethereumBeneficiary == address(0)) {
+            revert TokenBridgeKatanaVaultHelper__ZeroAddress();
+        }
 
-        usdc = IERC20(_usdc);
-        vbUsdc = IVaultBridgeToken(_vbUsdc);
-        composer = IKatanaVaultComposer(_composer);
-        ethShareOftAdapter = IOFT(_ethShareOftAdapter);
+        address shareToken = TokenBridgeOft(_shareBridge).token();
+        if (shareToken != _shareVault) {
+            revert TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(_shareVault, shareToken);
+        }
+
+        shareVault = IERC4626(_shareVault);
+        assetToken = IERC20(IERC4626(_shareVault).asset());
+        shareBridge = TokenBridgeOft(_shareBridge);
         katanaDomain = _katanaDomain;
-        katanaLzEid = _katanaLzEid;
-        katanaRecipient = _katanaRecipient;
-        beneficiary = _beneficiary;
+        katanaBeneficiary = _katanaBeneficiary;
+        ethereumBeneficiary = _ethereumBeneficiary;
 
-        usdc.forceApprove(_composer, type(uint256).max);
-        _transferOwnership(_owner);
+        assetToken.forceApprove(_shareVault, type(uint256).max);
+        IERC20(_shareVault).forceApprove(_shareBridge, type(uint256).max);
     }
 
     function token() public view returns (address) {
-        return address(usdc);
+        return address(assetToken);
     }
 
-    function setKatanaExtraOptions(
-        bytes calldata _extraOptions
-    ) external onlyOwner {
-        katanaExtraOptions = _extraOptions;
-        emit KatanaExtraOptionsSet(_extraOptions);
-    }
-
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
+    function quoteTransferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
+        external
+        view
+        override
+        returns (Quote[] memory quotes)
+    {
         _checkOutbound(_destination, _recipient);
 
-        uint256 expectedShares = vbUsdc.previewDeposit(_amount);
-        uint256 nativeFee = _quoteGasPayment(expectedShares);
+        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _recipient, _amount);
+        uint256 requiredShares = shareQuotes.extract(address(shareVault));
+        uint256 requiredAssets = shareVault.previewMint(requiredShares);
 
         quotes = new Quote[](2);
-        quotes[0] = Quote({token: address(0), amount: nativeFee});
-        quotes[1] = Quote({token: address(usdc), amount: _amount});
+        quotes[0] = Quote({token: address(0), amount: shareQuotes.extract(address(0))});
+        quotes[1] = Quote({token: address(assetToken), amount: requiredAssets});
     }
 
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external payable override returns (bytes32 transferId) {
+    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
+        external
+        payable
+        override
+        returns (bytes32 messageId)
+    {
         _checkOutbound(_destination, _recipient);
 
-        uint256 expectedShares = vbUsdc.previewDeposit(_amount);
-        usdc.safeTransferFrom(msg.sender, address(this), _amount);
+        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _recipient, _amount);
+        uint256 nativeFee = shareQuotes.extract(address(0));
+        uint256 requiredShares = shareQuotes.extract(address(shareVault));
+        uint256 maxAssetsIn = shareVault.previewMint(requiredShares);
 
-        composer.depositAndSend{value: msg.value}(
-            _amount,
-            _buildSendParam(expectedShares),
-            msg.sender
-        );
+        if (msg.value < nativeFee) {
+            revert TokenBridgeKatanaVaultHelper__InsufficientNativeFee(nativeFee, msg.value);
+        }
 
-        transferId = keccak256(
-            abi.encode(
-                block.chainid,
-                address(this),
-                nonce++,
-                msg.sender,
-                _destination,
-                _recipient,
-                _amount,
-                expectedShares
-            )
-        );
+        assetToken.safeTransferFrom(msg.sender, address(this), maxAssetsIn);
+        uint256 assetsIn = shareVault.mint(requiredShares, address(this));
+        uint256 assetRefund = maxAssetsIn - assetsIn;
+        if (assetRefund > 0) assetToken.safeTransfer(msg.sender, assetRefund);
 
-        emit TransferRemoteInitiated(
-            _destination,
-            _recipient,
-            _amount,
-            expectedShares,
-            transferId
-        );
+        messageId = shareBridge.transferRemote{value: nativeFee}(_destination, _recipient, _amount);
+
+        uint256 excessNative = msg.value - nativeFee;
+        if (excessNative > 0) {
+            Address.sendValue(payable(msg.sender), excessNative);
+        }
+
+        emit TransferRemoteInitiated(_destination, _recipient, _amount, assetsIn, messageId);
     }
 
-    /// @notice Redeems inbound vbUSDC shares to the fixed beneficiary.
+    /// @notice Redeems inbound shares to the fixed Ethereum beneficiary.
     /// @dev `_shares` serves as the readiness gate for the ICA poke:
     ///      the call reverts until this helper holds at least that many shares.
     ///      Under the current route assumptions we treat vbUSDC and USDC as 1:1,
     ///      so the ICA only needs to carry a single share amount.
     function redeem(uint256 _shares) external returns (uint256 assetsOut) {
-        uint256 balance = IERC20(address(vbUsdc)).balanceOf(address(this));
+        uint256 balance = shareVault.balanceOf(address(this));
         if (balance < _shares) {
-            revert TokenBridgeKatanaVaultHelper__InsufficientShares(
-                _shares,
-                balance
-            );
+            revert TokenBridgeKatanaVaultHelper__InsufficientShares(_shares, balance);
         }
 
-        assetsOut = vbUsdc.redeem(_shares, beneficiary, address(this));
+        assetsOut = shareVault.redeem(_shares, ethereumBeneficiary, address(this));
 
         emit RedemptionCompleted(msg.sender, _shares, assetsOut);
     }
 
-    function _checkOutbound(uint32 _destination, bytes32 _recipient)
-        internal
-        view
-    {
+    function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
         if (_destination != katanaDomain) {
-            revert TokenBridgeKatanaVaultHelper__UnsupportedDestination(
-                _destination
-            );
+            revert TokenBridgeKatanaVaultHelper__UnsupportedDestination(_destination);
         }
-        if (_recipient != katanaRecipient) {
-            revert TokenBridgeKatanaVaultHelper__UnexpectedRecipient(
-                katanaRecipient,
-                _recipient
-            );
+        if (_recipient != katanaBeneficiary) {
+            revert TokenBridgeKatanaVaultHelper__UnexpectedRecipient(katanaBeneficiary, _recipient);
         }
-    }
-
-    function _buildSendParam(
-        uint256 _shares
-    ) internal view returns (SendParam memory) {
-        return SendParam({
-            dstEid: katanaLzEid,
-            to: katanaRecipient,
-            amountLD: _shares,
-            minAmountLD: _shares,
-            extraOptions: katanaExtraOptions,
-            composeMsg: "",
-            oftCmd: ""
-        });
-    }
-
-    function _quoteGasPayment(
-        uint256 _shares
-    ) internal view returns (uint256) {
-        MessagingFee memory msgFee = ethShareOftAdapter.quoteSend(
-            _buildSendParam(_shares),
-            false
-        );
-        return msgFee.nativeFee;
     }
 }

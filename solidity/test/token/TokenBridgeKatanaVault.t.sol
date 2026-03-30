@@ -5,14 +5,13 @@ import "forge-std/Test.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 import {TokenBridgeKatanaVaultHelper} from "../../contracts/token/TokenBridgeKatanaVaultHelper.sol";
 import {TokenBridgeKatanaRedeemIca} from "../../contracts/token/TokenBridgeKatanaRedeemIca.sol";
 import {TokenBridgeOft} from "../../contracts/token/TokenBridgeOft.sol";
-import {IKatanaVaultComposer} from "../../contracts/token/interfaces/IKatanaVaultComposer.sol";
 import {IKatanaVaultRedeemer} from "../../contracts/token/interfaces/IKatanaVaultRedeemer.sol";
 import {IInterchainAccountRouter} from "../../contracts/interfaces/IInterchainAccountRouter.sol";
-import {IVaultBridgeToken} from "../../contracts/token/interfaces/IVaultBridgeToken.sol";
 import {
     IOFT,
     SendParam,
@@ -30,11 +29,7 @@ import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetad
 contract MockERC20 is ERC20 {
     uint8 private immutable _decimals;
 
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        uint8 decimals_
-    ) ERC20(name_, symbol_) {
+    constructor(string memory name_, string memory symbol_, uint8 decimals_) ERC20(name_, symbol_) {
         _decimals = decimals_;
     }
 
@@ -51,67 +46,18 @@ contract MockERC20 is ERC20 {
     }
 }
 
-contract MockVaultBridgeToken is MockERC20, IVaultBridgeToken {
-    MockERC20 public immutable underlying;
+contract MockShareVault is ERC4626 {
     bool public revertRedeem;
 
-    constructor(
-        address _underlying
-    ) MockERC20("Vault Bridge USDC", "vbUSDC", 6) {
-        underlying = MockERC20(_underlying);
-    }
-
-    function asset() external view returns (address) {
-        return address(underlying);
-    }
-
-    function previewDeposit(uint256 assets) external pure returns (uint256) {
-        return assets;
-    }
+    constructor(address _asset) ERC4626(IERC20(_asset)) ERC20("Vault Bridge USDC", "vbUSDC") {}
 
     function setRevertRedeem(bool _revert) external {
         revertRedeem = _revert;
     }
 
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external returns (uint256 assets) {
-        require(!revertRedeem, "MockVaultBridgeToken: redeem reverted");
-        if (owner != msg.sender) {
-            _spendAllowance(owner, msg.sender, shares);
-        }
-        _burn(owner, shares);
-        underlying.mint(receiver, shares);
-        return shares;
-    }
-}
-
-contract MockKatanaVaultComposer is IKatanaVaultComposer {
-    MockERC20 public immutable underlying;
-
-    uint256 public lastAssets;
-    address public lastRefundAddress;
-    SendParam internal _lastSendParam;
-
-    constructor(address _underlying) {
-        underlying = MockERC20(_underlying);
-    }
-
-    function depositAndSend(
-        uint256 assets,
-        SendParam calldata sendParam,
-        address refundAddress
-    ) external payable {
-        lastAssets = assets;
-        lastRefundAddress = refundAddress;
-        _lastSendParam = sendParam;
-        underlying.transferFrom(msg.sender, address(this), assets);
-    }
-
-    function lastSendParam() external view returns (SendParam memory) {
-        return _lastSendParam;
+    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256 assets) {
+        require(!revertRedeem, "MockShareVault: redeem reverted");
+        return super.redeem(shares, receiver, owner);
     }
 }
 
@@ -163,10 +109,7 @@ contract MockComposeOFT is IOFT {
         return sharedDecimalsValue;
     }
 
-    function quoteSend(
-        SendParam calldata,
-        bool
-    ) external view returns (MessagingFee memory) {
+    function quoteSend(SendParam calldata, bool) external view returns (MessagingFee memory) {
         return MessagingFee({nativeFee: nativeFeeToReturn, lzTokenFee: 0});
     }
 
@@ -184,38 +127,23 @@ contract MockComposeOFT is IOFT {
         );
     }
 
-    function send(
-        SendParam calldata _sendParam,
-        MessagingFee calldata _fee,
-        address _refundAddress
-    ) external payable returns (MessagingReceipt memory, OFTReceipt memory) {
+    function send(SendParam calldata _sendParam, MessagingFee calldata _fee, address _refundAddress)
+        external
+        payable
+        returns (MessagingReceipt memory, OFTReceipt memory)
+    {
         _lastSendParam = _sendParam;
         lastRefundAddress = _refundAddress;
         lastNativeFee = msg.value;
 
-        if (approvalRequiredValue) {
-            IERC20(tokenAddress).transferFrom(
-                msg.sender,
-                address(this),
-                _sendParam.amountLD
-            );
-        } else {
-            MockERC20(tokenAddress).burn(msg.sender, _sendParam.amountLD);
-        }
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), _sendParam.amountLD);
 
-        uint256 received =
-            _sendParam.amountLD - ((_sendParam.amountLD * feeBps) / 10000);
-        require(
-            received >= _sendParam.minAmountLD,
-            "MockComposeOFT: SlippageExceeded"
-        );
+        uint256 received = _sendParam.amountLD - ((_sendParam.amountLD * feeBps) / 10000);
+        require(received >= _sendParam.minAmountLD, "MockComposeOFT: SlippageExceeded");
 
         return (
             MessagingReceipt({guid: guidToReturn, nonce: 1, fee: _fee}),
-            OFTReceipt({
-                amountSentLD: _sendParam.amountLD,
-                amountReceivedLD: received
-            })
+            OFTReceipt({amountSentLD: _sendParam.amountLD, amountReceivedLD: received})
         );
     }
 
@@ -239,18 +167,15 @@ contract MockInterchainAccountRouter is IInterchainAccountRouter {
         gasFeeToReturn = _fee;
     }
 
-    function quoteGasPayment(
-        uint32,
-        uint256
-    ) external view returns (uint256) {
+    function quoteGasPayment(uint32, uint256) external view returns (uint256) {
         return gasFeeToReturn;
     }
 
-    function callRemote(
-        uint32 _destination,
-        CallLib.Call[] calldata _calls,
-        bytes memory _hookMetadata
-    ) external payable returns (bytes32) {
+    function callRemote(uint32 _destination, CallLib.Call[] calldata _calls, bytes memory _hookMetadata)
+        external
+        payable
+        returns (bytes32)
+    {
         lastDestination = _destination;
         lastCallTo = TypeCasts.bytes32ToAddress(_calls[0].to);
         lastCallValue = _calls[0].value;
@@ -266,82 +191,89 @@ contract TokenBridgeKatanaVaultHelperTest is Test {
     uint32 constant KATANA_EID = 30375;
 
     MockERC20 internal usdc;
-    MockVaultBridgeToken internal vbUsdc;
-    MockKatanaVaultComposer internal composer;
-    MockComposeOFT internal shareOftAdapter;
+    MockShareVault internal shareVault;
+    MockComposeOFT internal shareOft;
+    TokenBridgeOft internal shareBridge;
     TokenBridgeKatanaVaultHelper internal helper;
 
     address internal owner = makeAddr("owner");
     address internal caller = makeAddr("caller");
-    address internal beneficiary = makeAddr("beneficiary");
-    bytes32 internal katanaRecipient =
-        bytes32(uint256(uint160(makeAddr("katanaRecipient"))));
+    address internal ethereumBeneficiary = makeAddr("beneficiary");
+    bytes32 internal katanaBeneficiary = bytes32(uint256(uint160(makeAddr("katanaBeneficiary"))));
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);
-        vbUsdc = new MockVaultBridgeToken(address(usdc));
-        composer = new MockKatanaVaultComposer(address(usdc));
-        shareOftAdapter = new MockComposeOFT(address(vbUsdc), true);
+        shareVault = new MockShareVault(address(usdc));
+        shareOft = new MockComposeOFT(address(shareVault), true);
+        shareBridge = new TokenBridgeOft(address(shareOft), owner);
+
+        vm.prank(owner);
+        shareBridge.addDomain(KATANA_DOMAIN, KATANA_EID);
 
         helper = new TokenBridgeKatanaVaultHelper(
-            address(usdc),
-            address(vbUsdc),
-            address(composer),
-            address(shareOftAdapter),
-            KATANA_DOMAIN,
-            KATANA_EID,
-            katanaRecipient,
-            beneficiary,
-            owner
+            address(shareVault), address(shareBridge), KATANA_DOMAIN, katanaBeneficiary, ethereumBeneficiary
         );
 
         usdc.mint(caller, 1_000e6);
         vm.deal(caller, 10 ether);
     }
 
-    function test_quoteTransferRemote() public view {
-        Quote[] memory quotes =
-            helper.quoteTransferRemote(KATANA_DOMAIN, katanaRecipient, 100e6);
+    function test_quoteTransferRemote_usesVaultAndShareBridgeQuotes() public {
+        shareOft.setFeeBps(100);
+
+        Quote[] memory quotes = helper.quoteTransferRemote(KATANA_DOMAIN, katanaBeneficiary, 100e6);
 
         assertEq(quotes.length, 2);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0.001 ether);
         assertEq(quotes[1].token, address(usdc));
-        assertEq(quotes[1].amount, 100e6);
+        assertEq(quotes[1].amount, 101010102);
     }
 
-    function test_transferRemote_callsComposer() public {
+    function test_transferRemote_mintsSharesAndBridgesThem() public {
+        shareOft.setFeeBps(100);
+
         vm.startPrank(caller);
         usdc.approve(address(helper), type(uint256).max);
 
-        bytes32 transferId = helper.transferRemote{value: 0.001 ether}(
-            KATANA_DOMAIN,
-            katanaRecipient,
-            100e6
-        );
+        bytes32 messageId = helper.transferRemote{value: 0.001 ether}(KATANA_DOMAIN, katanaBeneficiary, 100e6);
         vm.stopPrank();
 
-        assertNotEq(transferId, bytes32(0));
-        assertEq(composer.lastAssets(), 100e6);
-        assertEq(composer.lastRefundAddress(), caller);
+        assertEq(messageId, keccak256("mock-guid"));
 
-        SendParam memory sendParam = composer.lastSendParam();
+        SendParam memory sendParam = shareOft.lastSendParam();
         assertEq(sendParam.dstEid, KATANA_EID);
-        assertEq(sendParam.to, katanaRecipient);
-        assertEq(sendParam.amountLD, 100e6);
+        assertEq(sendParam.to, katanaBeneficiary);
+        assertEq(sendParam.amountLD, 101010102);
         assertEq(sendParam.minAmountLD, 100e6);
         assertEq(sendParam.composeMsg.length, 0);
-        assertEq(usdc.balanceOf(address(composer)), 100e6);
+
+        assertEq(usdc.balanceOf(address(shareVault)), 101010102);
+        assertEq(shareVault.balanceOf(address(helper)), 0);
+        assertEq(usdc.balanceOf(caller), 898989898);
+    }
+
+    function test_transferRemote_refundsExcessNative() public {
+        uint256 callerBalanceBefore = caller.balance;
+
+        vm.startPrank(caller);
+        usdc.approve(address(helper), type(uint256).max);
+        helper.transferRemote{value: 0.01 ether}(KATANA_DOMAIN, katanaBeneficiary, 25e6);
+        vm.stopPrank();
+
+        assertEq(caller.balance, callerBalanceBefore - 0.001 ether);
     }
 
     function test_redeem_isPermissionless() public {
-        vbUsdc.mint(address(helper), 55e6);
+        usdc.mint(address(this), 55e6);
+        usdc.approve(address(shareVault), 55e6);
+        shareVault.deposit(55e6, address(helper));
 
         vm.prank(makeAddr("poker"));
         helper.redeem(55e6);
 
-        assertEq(usdc.balanceOf(beneficiary), 55e6);
-        assertEq(vbUsdc.balanceOf(address(helper)), 0);
+        assertEq(usdc.balanceOf(ethereumBeneficiary), 55e6);
+        assertEq(shareVault.balanceOf(address(helper)), 0);
     }
 }
 
@@ -352,113 +284,92 @@ contract TokenBridgeKatanaRedeemIcaTest is Test {
     uint32 constant ETH_EID = 30101;
     uint256 constant ICA_GAS_LIMIT = 500_000;
 
-    MockVaultBridgeToken internal vbUsdc;
     MockERC20 internal usdc;
-    MockComposeOFT internal oft;
+    MockShareVault internal shareVault;
+    MockComposeOFT internal shareOft;
     MockInterchainAccountRouter internal icaRouter;
-    TokenBridgeOft internal oftBridge;
+    TokenBridgeOft internal shareBridge;
     TokenBridgeKatanaRedeemIca internal bridge;
 
     address internal owner = makeAddr("owner");
     address internal caller = makeAddr("caller");
-    address internal ethereumHelper = makeAddr("ethereumHelper");
-    address internal beneficiary = makeAddr("beneficiary");
+    address internal ethereumVaultHelper = makeAddr("ethereumHelper");
+    address internal ethereumBeneficiary = makeAddr("beneficiary");
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);
-        vbUsdc = new MockVaultBridgeToken(address(usdc));
-        oft = new MockComposeOFT(address(vbUsdc), false);
+        shareVault = new MockShareVault(address(usdc));
+        shareOft = new MockComposeOFT(address(shareVault), false);
         icaRouter = new MockInterchainAccountRouter();
 
-        oftBridge = new TokenBridgeOft(address(oft), owner);
+        shareBridge = new TokenBridgeOft(address(shareOft), owner);
         vm.prank(owner);
-        oftBridge.addDomain(ETH_DOMAIN, ETH_EID);
+        shareBridge.addDomain(ETH_DOMAIN, ETH_EID);
 
         bridge = new TokenBridgeKatanaRedeemIca(
-            address(oftBridge),
+            address(shareBridge),
             address(icaRouter),
-            ethereumHelper,
-            beneficiary,
+            ethereumVaultHelper,
+            ethereumBeneficiary,
             ETH_DOMAIN,
             ICA_GAS_LIMIT,
             owner
         );
 
-        vbUsdc.mint(caller, 1_000e6);
+        usdc.mint(caller, 1_000e6);
+        vm.startPrank(caller);
+        usdc.approve(address(shareVault), type(uint256).max);
+        shareVault.deposit(1_000e6, caller);
+        vm.stopPrank();
         vm.deal(caller, 10 ether);
     }
 
     function test_quoteTransferRemote() public {
-        oft.setFeeBps(100);
-        Quote[] memory quotes = bridge.quoteTransferRemote(
-            ETH_DOMAIN,
-            beneficiary.addressToBytes32(),
-            100e6
-        );
+        shareOft.setFeeBps(100);
+        Quote[] memory quotes = bridge.quoteTransferRemote(ETH_DOMAIN, ethereumBeneficiary.addressToBytes32(), 100e6);
 
         assertEq(quotes.length, 2);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0.003 ether);
-        assertEq(quotes[1].token, address(vbUsdc));
+        assertEq(quotes[1].token, address(shareVault));
         assertEq(quotes[1].amount, 101010102);
     }
 
     function test_quoteTransferRemote_revertsForUnexpectedRecipient() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                TokenBridgeKatanaRedeemIca
-                    .TokenBridgeKatanaRedeemIca__UnexpectedRecipient
-                    .selector,
-                beneficiary.addressToBytes32(),
+                TokenBridgeKatanaRedeemIca.TokenBridgeKatanaRedeemIca__UnexpectedRecipient.selector,
+                ethereumBeneficiary.addressToBytes32(),
                 bytes32(uint256(uint160(makeAddr("wrongBeneficiary"))))
             )
         );
 
-        bridge.quoteTransferRemote(
-            ETH_DOMAIN,
-            bytes32(uint256(uint160(makeAddr("wrongBeneficiary")))),
-            100e6
-        );
+        bridge.quoteTransferRemote(ETH_DOMAIN, bytes32(uint256(uint160(makeAddr("wrongBeneficiary")))), 100e6);
     }
 
     function test_transferRemote_sendsToHelperAndDispatchesIca() public {
         vm.startPrank(caller);
-        vbUsdc.approve(address(bridge), type(uint256).max);
+        shareVault.approve(address(bridge), type(uint256).max);
 
-        bytes32 transferId = bridge.transferRemote{value: 0.003 ether}(
-            ETH_DOMAIN,
-            beneficiary.addressToBytes32(),
-            50e6
-        );
+        bytes32 transferId =
+            bridge.transferRemote{value: 0.003 ether}(ETH_DOMAIN, ethereumBeneficiary.addressToBytes32(), 50e6);
         vm.stopPrank();
 
         assertNotEq(transferId, bytes32(0));
 
-        SendParam memory sendParam = oft.lastSendParam();
+        SendParam memory sendParam = shareOft.lastSendParam();
         assertEq(sendParam.dstEid, ETH_EID);
-        assertEq(sendParam.to, ethereumHelper.addressToBytes32());
+        assertEq(sendParam.to, ethereumVaultHelper.addressToBytes32());
         assertEq(sendParam.amountLD, 50e6);
         assertEq(sendParam.minAmountLD, 50e6);
         assertEq(sendParam.composeMsg.length, 0);
 
         assertEq(icaRouter.lastDestination(), ETH_DOMAIN);
-        assertEq(icaRouter.lastCallTo(), ethereumHelper);
+        assertEq(icaRouter.lastCallTo(), ethereumVaultHelper);
         assertEq(icaRouter.lastCallValue(), 0);
-        assertEq(
-            icaRouter.lastCallData(),
-            abi.encodeCall(IKatanaVaultRedeemer.redeem, (50e6))
-        );
-        assertEq(
-            StandardHookMetadata.gasLimit(icaRouter.lastHookMetadata()),
-            ICA_GAS_LIMIT
-        );
-        assertEq(
-            StandardHookMetadata.getRefundAddress(
-                icaRouter.lastHookMetadata(),
-                address(0)
-            ),
-            caller
-        );
+        assertEq(icaRouter.lastCallData(), abi.encodeCall(IKatanaVaultRedeemer.redeem, (50e6)));
+        assertEq(StandardHookMetadata.gasLimit(icaRouter.lastHookMetadata()), ICA_GAS_LIMIT);
+        assertEq(StandardHookMetadata.getRefundAddress(icaRouter.lastHookMetadata(), address(0)), caller);
         assertEq(icaRouter.lastNativeFee(), 0.002 ether);
     }
 
@@ -466,12 +377,8 @@ contract TokenBridgeKatanaRedeemIcaTest is Test {
         uint256 callerBalanceBefore = caller.balance;
 
         vm.startPrank(caller);
-        vbUsdc.approve(address(bridge), type(uint256).max);
-        bridge.transferRemote{value: 0.01 ether}(
-            ETH_DOMAIN,
-            beneficiary.addressToBytes32(),
-            25e6
-        );
+        shareVault.approve(address(bridge), type(uint256).max);
+        bridge.transferRemote{value: 0.01 ether}(ETH_DOMAIN, ethereumBeneficiary.addressToBytes32(), 25e6);
         vm.stopPrank();
 
         assertEq(caller.balance, callerBalanceBefore - 0.003 ether);
