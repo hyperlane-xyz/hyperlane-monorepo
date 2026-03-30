@@ -93,29 +93,30 @@ contract MockComposeOFT is IOFT {
         guidToReturn = _guid;
     }
 
-    function oftVersion() external pure returns (bytes4, uint64) {
+    function oftVersion() external pure override returns (bytes4, uint64) {
         return (bytes4(0x02e49c2c), 1);
     }
 
-    function token() external view returns (address) {
+    function token() external view override returns (address) {
         return tokenAddress;
     }
 
-    function approvalRequired() external view returns (bool) {
+    function approvalRequired() external view override returns (bool) {
         return approvalRequiredValue;
     }
 
-    function sharedDecimals() external view returns (uint8) {
+    function sharedDecimals() external view override returns (uint8) {
         return sharedDecimalsValue;
     }
 
-    function quoteSend(SendParam calldata, bool) external view returns (MessagingFee memory) {
+    function quoteSend(SendParam calldata, bool) external view override returns (MessagingFee memory) {
         return MessagingFee({nativeFee: nativeFeeToReturn, lzTokenFee: 0});
     }
 
     function quoteOFT(SendParam calldata _sendParam)
         external
         view
+        override
         returns (OFTLimit memory, OFTFeeDetail[] memory, OFTReceipt memory)
     {
         uint256 sent = _sendParam.amountLD;
@@ -130,6 +131,7 @@ contract MockComposeOFT is IOFT {
     function send(SendParam calldata _sendParam, MessagingFee calldata _fee, address _refundAddress)
         external
         payable
+        override
         returns (MessagingReceipt memory, OFTReceipt memory)
     {
         _lastSendParam = _sendParam;
@@ -167,13 +169,14 @@ contract MockInterchainAccountRouter is IInterchainAccountRouter {
         gasFeeToReturn = _fee;
     }
 
-    function quoteGasPayment(uint32, uint256) external view returns (uint256) {
+    function quoteGasPayment(uint32, uint256) external view override returns (uint256) {
         return gasFeeToReturn;
     }
 
     function callRemote(uint32 _destination, CallLib.Call[] calldata _calls, bytes memory _hookMetadata)
         external
         payable
+        override
         returns (bytes32)
     {
         lastDestination = _destination;
@@ -228,6 +231,20 @@ contract TokenBridgeKatanaVaultHelperTest is Test {
         assertEq(quotes[0].amount, 0.001 ether);
         assertEq(quotes[1].token, address(usdc));
         assertEq(quotes[1].amount, 101010102);
+    }
+
+    function test_constructor_revertsForZeroKatanaBeneficiary() public {
+        vm.expectRevert(TokenBridgeKatanaVaultHelper.TokenBridgeKatanaVaultHelper__ZeroKatanaBeneficiary.selector);
+        new TokenBridgeKatanaVaultHelper(address(shareVault), address(shareBridge), bytes32(0), ethereumBeneficiary);
+    }
+
+    function test_quoteTransferRemote_revertsForZeroShareQuote() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper.TokenBridgeKatanaVaultHelper__ZeroShareQuote.selector, 0
+            )
+        );
+        helper.quoteTransferRemote(KATANA_DOMAIN, katanaBeneficiary, 0);
     }
 
     function test_transferRemote_mintsSharesAndBridgesThem() public {

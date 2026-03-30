@@ -28,6 +28,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *      - We accept the tradeoff that a manual permissionless redeem can make
  *        the ICA poke revert forever, because funds still settle to the fixed
  *        Ethereum beneficiary and the simpler route-specific model was preferred.
+ * @dev Token support assumptions:
+ *      - Fee-on-transfer tokens: NOT supported.
+ *      - Rebasing tokens: NOT supported.
+ *      - ERC-777 hooks/callbacks: NOT explicitly supported.
  */
 contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     using Quotes for Quote[];
@@ -38,6 +42,7 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     uint32 public constant ETHEREUM_DOMAIN = 1;
 
     error TokenBridgeKatanaRedeemIca__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
+    error TokenBridgeKatanaRedeemIca__UnexpectedDecimalConversionRate(uint256 actualRate);
     error TokenBridgeKatanaRedeemIca__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
     error TokenBridgeKatanaRedeemIca__UnsupportedDestination(uint32 destination);
     error TokenBridgeKatanaRedeemIca__ZeroAddress();
@@ -45,6 +50,7 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     error TokenBridgeKatanaRedeemIca__ZeroGasLimit();
 
     event SentTransferRemote(
+        address indexed sender,
         uint32 indexed destination,
         bytes32 indexed recipient,
         uint256 amount,
@@ -90,8 +96,14 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
             revert TokenBridgeKatanaRedeemIca__ZeroGasLimit();
         }
 
-        shareBridge = TokenBridgeOft(_shareBridge);
-        shareToken = IERC20(TokenBridgeOft(_shareBridge).token());
+        TokenBridgeOft shareBridge_ = TokenBridgeOft(_shareBridge);
+        uint256 decimalConversionRate = shareBridge_.decimalConversionRate();
+        if (decimalConversionRate != 1) {
+            revert TokenBridgeKatanaRedeemIca__UnexpectedDecimalConversionRate(decimalConversionRate);
+        }
+
+        shareBridge = shareBridge_;
+        shareToken = IERC20(shareBridge_.token());
         icaRouter = IInterchainAccountRouter(_icaRouter);
         ethereumVaultHelper = _ethereumVaultHelper;
         ethereumBeneficiary = _ethereumBeneficiary;
@@ -119,7 +131,8 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     {
         _checkOutbound(_destination, _recipient);
 
-        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _helperRecipient(), _amount);
+        Quote[] memory shareQuotes =
+            shareBridge.quoteTransferRemote(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
         uint256 nativeFee = shareQuotes.extract(address(0)) + icaRouter.quoteGasPayment(_destination, icaGasLimit);
 
         quotes = new Quote[](2);
@@ -135,7 +148,8 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     {
         _checkOutbound(_destination, _recipient);
 
-        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _helperRecipient(), _amount);
+        Quote[] memory shareQuotes =
+            shareBridge.quoteTransferRemote(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
         uint256 shareBridgeNativeFee = shareQuotes.extract(address(0));
         uint256 shareAmount = shareQuotes.extract(address(shareToken));
         uint256 icaFee = icaRouter.quoteGasPayment(_destination, icaGasLimit);
@@ -147,8 +161,9 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
 
         shareToken.safeTransferFrom(msg.sender, address(this), shareAmount);
 
-        bytes32 shareBridgeMessageId =
-            shareBridge.transferRemote{value: shareBridgeNativeFee}(_destination, _helperRecipient(), _amount);
+        bytes32 shareBridgeMessageId = shareBridge.transferRemote{value: shareBridgeNativeFee}(
+            _destination, ethereumVaultHelper.addressToBytes32(), _amount
+        );
 
         // The ICA poke carries only the expected share amount. The helper uses
         // that value as a readiness gate and reverts until the share delivery arrives.
@@ -163,11 +178,12 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
             Address.sendValue(payable(msg.sender), excessNative);
         }
 
-        emit SentTransferRemote(_destination, _recipient, _amount, shareBridgeMessageId, icaMessageId);
+        emit SentTransferRemote(msg.sender, _destination, _recipient, _amount, shareBridgeMessageId, icaMessageId);
 
         return keccak256(abi.encode(shareBridgeMessageId, icaMessageId));
     }
 
+    /// @dev Confirms the caller is using the route's fixed Ethereum domain and beneficiary.
     function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
         if (_destination != ETHEREUM_DOMAIN) {
             revert TokenBridgeKatanaRedeemIca__UnsupportedDestination(_destination);
@@ -176,9 +192,5 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
         if (_recipient != expectedRecipient) {
             revert TokenBridgeKatanaRedeemIca__UnexpectedRecipient(expectedRecipient, _recipient);
         }
-    }
-
-    function _helperRecipient() internal view returns (bytes32) {
-        return ethereumVaultHelper.addressToBytes32();
     }
 }

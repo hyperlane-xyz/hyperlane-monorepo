@@ -29,6 +29,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  *        surface smaller.
  *      - An ICA-owned balance on Ethereum was rejected; this helper holds the
  *        inbound shares directly and the ICA only needs to poke redemption.
+ * @dev Token support assumptions:
+ *      - Fee-on-transfer tokens: NOT supported.
+ *      - Rebasing tokens: NOT supported.
+ *      - ERC-777 hooks/callbacks: NOT explicitly supported.
  */
 contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, PackageVersioned {
     using Quotes for Quote[];
@@ -39,9 +43,12 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
 
     error TokenBridgeKatanaVaultHelper__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
     error TokenBridgeKatanaVaultHelper__InsufficientShares(uint256 expectedShares, uint256 actualShares);
+    error TokenBridgeKatanaVaultHelper__UnexpectedDecimalConversionRate(uint256 actualRate);
     error TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(address expectedToken, address actualToken);
     error TokenBridgeKatanaVaultHelper__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
     error TokenBridgeKatanaVaultHelper__UnsupportedDestination(uint32 destination);
+    error TokenBridgeKatanaVaultHelper__ZeroKatanaBeneficiary();
+    error TokenBridgeKatanaVaultHelper__ZeroShareQuote(uint256 amount);
     error TokenBridgeKatanaVaultHelper__ZeroAddress();
 
     event TransferRemoteInitiated(
@@ -68,15 +75,21 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         if (_shareVault == address(0) || _shareBridge == address(0) || _ethereumBeneficiary == address(0)) {
             revert TokenBridgeKatanaVaultHelper__ZeroAddress();
         }
+        if (_katanaBeneficiary == bytes32(0)) revert TokenBridgeKatanaVaultHelper__ZeroKatanaBeneficiary();
 
-        address shareToken = TokenBridgeOft(_shareBridge).token();
+        TokenBridgeOft shareBridge_ = TokenBridgeOft(_shareBridge);
+        address shareToken = shareBridge_.token();
         if (shareToken != _shareVault) {
             revert TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(_shareVault, shareToken);
+        }
+        uint256 decimalConversionRate = shareBridge_.decimalConversionRate();
+        if (decimalConversionRate != 1) {
+            revert TokenBridgeKatanaVaultHelper__UnexpectedDecimalConversionRate(decimalConversionRate);
         }
 
         shareVault = IERC4626(_shareVault);
         assetToken = IERC20(IERC4626(_shareVault).asset());
-        shareBridge = TokenBridgeOft(_shareBridge);
+        shareBridge = shareBridge_;
         katanaBeneficiary = _katanaBeneficiary;
         ethereumBeneficiary = _ethereumBeneficiary;
 
@@ -98,6 +111,7 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
 
         Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _recipient, _amount);
         uint256 requiredShares = shareQuotes.extract(address(shareVault));
+        if (requiredShares == 0) revert TokenBridgeKatanaVaultHelper__ZeroShareQuote(_amount);
         uint256 requiredAssets = shareVault.previewMint(requiredShares);
 
         quotes = new Quote[](2);
@@ -116,6 +130,7 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _recipient, _amount);
         uint256 nativeFee = shareQuotes.extract(address(0));
         uint256 requiredShares = shareQuotes.extract(address(shareVault));
+        if (requiredShares == 0) revert TokenBridgeKatanaVaultHelper__ZeroShareQuote(_amount);
         uint256 maxAssetsIn = shareVault.previewMint(requiredShares);
 
         if (msg.value < nativeFee) {
@@ -140,9 +155,7 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     /// @notice Redeems inbound shares to the fixed Ethereum beneficiary.
     /// @dev `_shares` serves as the readiness gate for the ICA poke:
     ///      the call reverts until this helper holds at least that many shares.
-    ///      Under the current route assumptions we treat vbUSDC and USDC as 1:1,
-    ///      so the ICA only needs to carry a single share amount.
-    function redeem(uint256 _shares) external returns (uint256 assetsOut) {
+    function redeem(uint256 _shares) external override returns (uint256 assetsOut) {
         uint256 balance = shareVault.balanceOf(address(this));
         if (balance < _shares) {
             revert TokenBridgeKatanaVaultHelper__InsufficientShares(_shares, balance);
