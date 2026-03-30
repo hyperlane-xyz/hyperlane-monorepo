@@ -3420,6 +3420,7 @@ dependencies = [
  "ethers",
  "hex",
  "hyperlane-core",
+ "hyperlane-sealevel-composite-ism",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",

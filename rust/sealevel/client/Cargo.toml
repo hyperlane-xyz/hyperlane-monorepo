@@ -36,6 +36,9 @@ hyperlane-sealevel-mailbox = { path = "../programs/mailbox", features = [
     "no-entrypoint",
     "serde",
 ] }
+hyperlane-sealevel-composite-ism = { path = "../programs/ism/composite-ism", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-ism-message-id", features = [
     "no-entrypoint",
 ] }

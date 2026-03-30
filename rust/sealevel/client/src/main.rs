@@ -68,6 +68,7 @@ use warp_route::parse_token_account_data;
 mod alt;
 mod artifacts;
 mod cmd_utils;
+mod composite_ism;
 mod context;
 mod r#core;
 mod helloworld;
@@ -79,6 +80,7 @@ mod serde;
 mod squads;
 mod warp_route;
 
+use crate::composite_ism::process_composite_ism_cmd;
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
@@ -122,6 +124,7 @@ enum HyperlaneSealevelCmd {
     Igp(IgpCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
+    CompositeIsm(CompositeIsmCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
     Squads(SquadsCmd),
@@ -228,6 +231,10 @@ struct CoreDeploy {
     remote_domains: Vec<u32>,
     #[arg(long)]
     built_so_dir: PathBuf,
+    /// If provided, deploy a composite ISM with this config as the mailbox default ISM
+    /// instead of the multisig ISM.
+    #[arg(long)]
+    composite_ism_config_file: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -728,6 +735,48 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
 }
 
 #[derive(Args)]
+pub(crate) struct CompositeIsmCmd {
+    #[command(subcommand)]
+    cmd: CompositeIsmSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum CompositeIsmSubCmd {
+    Deploy(CompositeIsmDeploy),
+    Update(CompositeIsmUpdate),
+    Read(CompositeIsmRead),
+    TransferOwnership(TransferOwnership),
+}
+
+#[derive(Args)]
+pub(crate) struct CompositeIsmDeploy {
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    local_domain: u32,
+    #[arg(long)]
+    config_file: PathBuf,
+}
+
+#[derive(Args)]
+pub(crate) struct CompositeIsmUpdate {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long)]
+    config_file: PathBuf,
+}
+
+#[derive(Args)]
+pub(crate) struct CompositeIsmRead {
+    #[arg(long, short)]
+    program_id: Pubkey,
+}
+
+#[derive(Args)]
 pub(crate) struct HelloWorldCmd {
     #[command(subcommand)]
     cmd: HelloWorldSubCmd,
@@ -833,6 +882,7 @@ fn main() {
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
+        HyperlaneSealevelCmd::CompositeIsm(cmd) => process_composite_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
