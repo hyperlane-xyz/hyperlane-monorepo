@@ -89,6 +89,14 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     ) external onlyOwner {
         require(_domains.length == _routers.length, "CCR: length mismatch");
         for (uint256 i = 0; i < _domains.length; i++) {
+            if (_domains[i] == localDomain) {
+                address target = _routers[i].bytes32ToAddress();
+                require(
+                    target.code.length > 0,
+                    "CCR: target router not contract"
+                );
+                _requireCompatibleLocalRouter(target);
+            }
             if (_crossCollateralRouters[_domains[i]].add(_routers[i])) {
                 _crossCollateralDomains.add(uint256(_domains[i]));
                 emit CrossCollateralRouterEnrolled(_domains[i], _routers[i]);
@@ -382,7 +390,6 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             require(msg.value == 0, "CCR: local transfer no msg.value");
             address target = _targetRouter.bytes32ToAddress();
             require(target.code.length > 0, "CCR: target router not contract");
-            _requireCompatibleLocalRouter(target);
         }
 
         (, uint256 remainingValue) = _calculateFeesAndChargeForRouter(
@@ -448,7 +455,6 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         if (_destination == localDomain) {
             address target = _targetRouter.bytes32ToAddress();
             require(target.code.length > 0, "CCR: target router not contract");
-            _requireCompatibleLocalRouter(target);
         }
 
         quotes = new Quote[](3);

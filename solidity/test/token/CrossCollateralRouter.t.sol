@@ -420,21 +420,16 @@ contract CrossCollateralRouterTest is Test {
         assertEq(originUSDC.balanceOf(address(hook)), 0);
     }
 
-    function test_revert_sameChain_swap_targetRouterNotContract() public {
+    function test_revert_enrollCrossCollateralRouters_sameChainTargetRouterNotContract()
+        public
+    {
         uint32[] memory domains = new uint32[](1);
         bytes32[] memory routers = new bytes32[](1);
         domains[0] = ORIGIN;
         routers[0] = address(0xdead).addressToBytes32();
-        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
 
-        vm.prank(ALICE);
         vm.expectRevert("CCR: target router not contract");
-        usdcRouterA.transferRemoteTo(
-            ORIGIN,
-            ALICE.addressToBytes32(),
-            1000e6,
-            address(0xdead).addressToBytes32()
-        );
+        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
     }
 
     function test_revert_sameChain_swap_nonzeroMsgValue() public {
@@ -616,7 +611,7 @@ contract CrossCollateralRouterTest is Test {
         assertEq(originUSDC.balanceOf(ALICE), aliceUSDCBefore + 1234e6);
     }
 
-    function test_revert_transferRemoteTo_sameChainIncompatibleLocalScales()
+    function test_revert_enrollCrossCollateralRouters_sameChainIncompatibleLocalScales()
         public
     {
         CrossCollateralRouter badUsdcRouter = _deployRouter(
@@ -625,48 +620,10 @@ contract CrossCollateralRouterTest is Test {
             1,
             address(originMailbox)
         );
-        _batchEnroll(
-            usdtRouterA,
+        vm.expectRevert("CCR: incompatible local scales");
+        usdtRouterA.enrollCrossCollateralRouters(
             _arr1(ORIGIN),
             _arr1(address(badUsdcRouter).addressToBytes32())
-        );
-        _batchEnroll(
-            badUsdcRouter,
-            _arr1(ORIGIN),
-            _arr1(address(usdtRouterA).addressToBytes32())
-        );
-
-        vm.prank(ALICE);
-        vm.expectRevert("CCR: incompatible local scales");
-        usdtRouterA.transferRemoteTo(
-            ORIGIN,
-            ALICE.addressToBytes32(),
-            1e18,
-            address(badUsdcRouter).addressToBytes32()
-        );
-    }
-
-    function test_revert_quoteTransferRemoteTo_sameChainIncompatibleLocalScales()
-        public
-    {
-        CrossCollateralRouter badUsdcRouter = _deployRouter(
-            address(originUSDC),
-            1,
-            1,
-            address(originMailbox)
-        );
-        _batchEnroll(
-            usdtRouterA,
-            _arr1(ORIGIN),
-            _arr1(address(badUsdcRouter).addressToBytes32())
-        );
-
-        vm.expectRevert("CCR: incompatible local scales");
-        usdtRouterA.quoteTransferRemoteTo(
-            ORIGIN,
-            ALICE.addressToBytes32(),
-            1e18,
-            address(badUsdcRouter).addressToBytes32()
         );
     }
 
@@ -838,24 +795,6 @@ contract CrossCollateralRouterTest is Test {
         usdcRouterA.quoteTransferRemoteTo(
             DESTINATION,
             BOB.addressToBytes32(),
-            1000e6,
-            address(0xdead).addressToBytes32()
-        );
-    }
-
-    function test_quoteTransferRemoteTo_revert_sameDomain_targetRouterNotContract()
-        public
-    {
-        uint32[] memory domains = new uint32[](1);
-        bytes32[] memory routers = new bytes32[](1);
-        domains[0] = ORIGIN;
-        routers[0] = address(0xdead).addressToBytes32();
-        usdcRouterA.enrollCrossCollateralRouters(domains, routers);
-
-        vm.expectRevert("CCR: target router not contract");
-        usdcRouterA.quoteTransferRemoteTo(
-            ORIGIN,
-            ALICE.addressToBytes32(),
             1000e6,
             address(0xdead).addressToBytes32()
         );
