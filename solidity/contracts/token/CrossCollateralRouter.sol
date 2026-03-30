@@ -190,7 +190,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         return _a;
     }
 
-    function _reducedCanonicalWholeTokenRatio(
+    function _reducedMessageAmountTokenScale(
         address _token,
         uint256 _routerScaleNumerator,
         uint256 _routerScaleDenominator
@@ -207,7 +207,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         (
             uint256 localNumerator,
             uint256 localDenominator
-        ) = _reducedCanonicalWholeTokenRatio(
+        ) = _reducedMessageAmountTokenScale(
                 token(),
                 scaleNumerator,
                 scaleDenominator
@@ -215,7 +215,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         (
             uint256 targetNumerator,
             uint256 targetDenominator
-        ) = _reducedCanonicalWholeTokenRatio(
+        ) = _reducedMessageAmountTokenScale(
                 CrossCollateralRouter(_target).token(),
                 CrossCollateralRouter(_target).scaleNumerator(),
                 CrossCollateralRouter(_target).scaleDenominator()
