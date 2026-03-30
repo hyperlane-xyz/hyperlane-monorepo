@@ -34,6 +34,9 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     using SafeERC20 for IERC20;
     using TypeCasts for address;
 
+    /// @notice Hardcoded Hyperlane domain for Ethereum on this route.
+    uint32 public constant ETHEREUM_DOMAIN = 1;
+
     error TokenBridgeKatanaRedeemIca__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
     error TokenBridgeKatanaRedeemIca__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
     error TokenBridgeKatanaRedeemIca__UnsupportedDestination(uint32 destination);
@@ -65,9 +68,6 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     /// @notice Fixed Ethereum beneficiary expected by movable collateral config and helper redemption.
     address public immutable ethereumBeneficiary;
 
-    /// @notice Hyperlane domain for Ethereum; this bridge only supports sends to this domain.
-    uint32 public immutable ethereumDomain;
-
     /// @notice Gas limit used when quoting and dispatching the ICA redemption poke.
     uint256 public icaGasLimit;
 
@@ -76,7 +76,6 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
         address _icaRouter,
         address _ethereumVaultHelper,
         address _ethereumBeneficiary,
-        uint32 _ethereumDomain,
         uint256 _icaGasLimit,
         address _owner
     ) {
@@ -96,7 +95,6 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
         icaRouter = IInterchainAccountRouter(_icaRouter);
         ethereumVaultHelper = _ethereumVaultHelper;
         ethereumBeneficiary = _ethereumBeneficiary;
-        ethereumDomain = _ethereumDomain;
         icaGasLimit = _icaGasLimit;
 
         shareToken.forceApprove(_shareBridge, type(uint256).max);
@@ -171,7 +169,7 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     }
 
     function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
-        if (_destination != ethereumDomain) {
+        if (_destination != ETHEREUM_DOMAIN) {
             revert TokenBridgeKatanaRedeemIca__UnsupportedDestination(_destination);
         }
         bytes32 expectedRecipient = ethereumBeneficiary.addressToBytes32();

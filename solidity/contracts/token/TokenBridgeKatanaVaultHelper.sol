@@ -34,6 +34,9 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     using Quotes for Quote[];
     using SafeERC20 for IERC20;
 
+    /// @notice Hardcoded Hyperlane domain for Katana on this route.
+    uint32 public constant KATANA_DOMAIN = 747474;
+
     error TokenBridgeKatanaVaultHelper__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
     error TokenBridgeKatanaVaultHelper__InsufficientShares(uint256 expectedShares, uint256 actualShares);
     error TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(address expectedToken, address actualToken);
@@ -55,22 +58,13 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     /// @notice Existing OFT-backed bridge that transports vault shares to Katana.
     TokenBridgeOft public immutable shareBridge;
 
-    /// @notice Hyperlane domain for Katana; this helper only supports sends to this domain.
-    uint32 public immutable katanaDomain;
-
     /// @notice Fixed Katana beneficiary that receives bridged vault shares.
     bytes32 public immutable katanaBeneficiary;
 
     /// @notice Fixed Ethereum beneficiary that receives local assets after redemption.
     address public immutable ethereumBeneficiary;
 
-    constructor(
-        address _shareVault,
-        address _shareBridge,
-        uint32 _katanaDomain,
-        bytes32 _katanaBeneficiary,
-        address _ethereumBeneficiary
-    ) {
+    constructor(address _shareVault, address _shareBridge, bytes32 _katanaBeneficiary, address _ethereumBeneficiary) {
         if (_shareVault == address(0) || _shareBridge == address(0) || _ethereumBeneficiary == address(0)) {
             revert TokenBridgeKatanaVaultHelper__ZeroAddress();
         }
@@ -83,7 +77,6 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         shareVault = IERC4626(_shareVault);
         assetToken = IERC20(IERC4626(_shareVault).asset());
         shareBridge = TokenBridgeOft(_shareBridge);
-        katanaDomain = _katanaDomain;
         katanaBeneficiary = _katanaBeneficiary;
         ethereumBeneficiary = _ethereumBeneficiary;
 
@@ -161,7 +154,7 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     }
 
     function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
-        if (_destination != katanaDomain) {
+        if (_destination != KATANA_DOMAIN) {
             revert TokenBridgeKatanaVaultHelper__UnsupportedDestination(_destination);
         }
         if (_recipient != katanaBeneficiary) {
