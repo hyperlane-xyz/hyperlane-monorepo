@@ -16,7 +16,7 @@ pragma solidity >=0.8.0;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
@@ -165,7 +165,7 @@ library CalldataHeadLib {
  *      to the caller. Quote submitter = address(this) — only this contract
  *      can submit. The signer authorizes a specific user's quotes.
  */
-contract QuotedCalls is PackageVersioned, ReentrancyGuard {
+contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     // ============ Immutables ============
