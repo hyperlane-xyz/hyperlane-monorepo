@@ -65,16 +65,34 @@ contract TokenBridgeKatanaVaultHelper is
         uint256 assetsOut
     );
 
+    /// @notice Local USDC asset deposited into Katana's vault composer on outbound sends.
     IERC20 public immutable usdc;
+
+    /// @notice Ethereum vbUSDC share token redeemed from inbound OFT deliveries.
     IVaultBridgeToken public immutable vbUsdc;
+
+    /// @notice Katana composer contract that converts local USDC into bridged vbUSDC shares.
     IKatanaVaultComposer public immutable composer;
+
+    /// @notice Ethereum-side OFT adapter used only for fee quoting on the deposit path.
     IOFT public immutable ethShareOftAdapter;
+
+    /// @notice Hyperlane domain for Katana; this helper only supports sends to this domain.
     uint32 public immutable katanaDomain;
+
+    /// @notice LayerZero endpoint ID paired with `katanaDomain` for share bridging.
     uint32 public immutable katanaLzEid;
+
+    /// @notice Katana-side recipient that receives vbUSDC shares after deposit.
     bytes32 public immutable katanaRecipient;
+
+    /// @notice Fixed Ethereum beneficiary that receives USDC after inbound redemption.
     address public immutable beneficiary;
 
+    /// @notice Optional LayerZero execution options forwarded into `depositAndSend`.
     bytes public katanaExtraOptions;
+
+    /// @notice Local counter used only to derive synthetic transfer IDs for emitted events.
     uint256 public nonce;
 
     constructor(

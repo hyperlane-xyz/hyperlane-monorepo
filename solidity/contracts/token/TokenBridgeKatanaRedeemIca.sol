@@ -62,13 +62,25 @@ contract TokenBridgeKatanaRedeemIca is
     );
     event IcaGasLimitSet(uint256 gasLimit);
 
+    /// @notice Generic OFT-backed transport used to move vbUSDC from Katana to Ethereum.
     TokenBridgeOft public immutable oftBridge;
+
+    /// @notice Local vbUSDC token approved into `oftBridge` for outbound sends.
     IERC20 public immutable wrappedToken;
+
+    /// @notice ICA router used to dispatch the follow-up redemption poke to Ethereum.
     IInterchainAccountRouter public immutable icaRouter;
+
+    /// @notice Ethereum helper that receives bridged vbUSDC and exposes `redeem(...)`.
     address public immutable ethereumHelper;
+
+    /// @notice Fixed Ethereum beneficiary expected by movable collateral config and helper redemption.
     address public immutable beneficiary;
+
+    /// @notice Hyperlane domain for Ethereum; this bridge only supports sends to this domain.
     uint32 public immutable ethereumDomain;
 
+    /// @notice Gas limit used when quoting and dispatching the ICA redemption poke.
     uint256 public icaGasLimit;
 
     constructor(
