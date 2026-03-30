@@ -56,6 +56,7 @@ export class DeBridgeBridge implements IExternalBridge {
   readonly logger: Logger;
   private readonly apiUrl: string;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
+  private readonly txHashToOrderId = new Map<string, string>();
 
   constructor(
     config: { apiUrl?: string; chainMetadata?: ChainMap<ChainMetadata> },
@@ -259,13 +260,12 @@ export class DeBridgeBridge implements IExternalBridge {
     );
   }
 
-  // txHash parameter is the orderId stored in BridgeTransferResult.transferId
   async getStatus(
     txHash: string,
     _fromChain: number,
     _toChain: number,
   ): Promise<BridgeTransferStatus> {
-    const orderId = txHash;
+    const orderId = this.txHashToOrderId.get(txHash) ?? txHash;
     const url = `${DEBRIDGE_STATUS_API}/dln/order/${orderId}/status`;
 
     this.logger.debug({ orderId }, 'Checking deBridge order status');
@@ -388,6 +388,10 @@ export class DeBridgeBridge implements IExternalBridge {
       { txHash: tx.hash, orderId },
       'deBridge EVM transaction confirmed',
     );
+
+    if (orderId) {
+      this.txHashToOrderId.set(tx.hash, orderId);
+    }
 
     return {
       txHash: tx.hash,
