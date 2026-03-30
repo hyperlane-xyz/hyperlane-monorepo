@@ -126,4 +126,47 @@ describe('validateCrossCollateralGraph', () => {
     expect(thrown?.message).to.include('USDT');
     expect(thrown?.message).to.include('chain-c');
   });
+
+  it('allows disconnected components to use different messageAmountTokenScale values', async () => {
+    const componentAChain1 = addNode({
+      chainName: 'chain-a',
+      routerAddress: '0x1111111111111111111111111111111111111111',
+      decimals: 18,
+      peers: [],
+      symbol: 'USDC',
+    });
+    const componentAChain2 = addNode({
+      chainName: 'chain-b',
+      routerAddress: '0x2222222222222222222222222222222222222222',
+      decimals: 6,
+      peers: [],
+      scale: 1_000_000_000_000,
+      symbol: 'USDC',
+    });
+    const componentBChain1 = addNode({
+      chainName: 'chain-c',
+      routerAddress: '0x3333333333333333333333333333333333333333',
+      decimals: 18,
+      peers: [],
+      symbol: 'WBTC',
+    });
+    const componentBChain2 = addNode({
+      chainName: 'chain-d',
+      routerAddress: '0x4444444444444444444444444444444444444444',
+      decimals: 8,
+      peers: [],
+      scale: 10_000_000_000,
+      symbol: 'WBTC',
+    });
+
+    componentAChain1.peers = [componentAChain2];
+    componentAChain2.peers = [componentAChain1];
+    componentBChain1.peers = [componentBChain2];
+    componentBChain2.peers = [componentBChain1];
+
+    await validateCrossCollateralGraph({
+      roots: [componentAChain1, componentBChain1],
+      loadNode,
+    });
+  });
 });

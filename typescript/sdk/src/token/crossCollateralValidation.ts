@@ -112,22 +112,33 @@ export async function validateCrossCollateralGraph({
   };
 
   while (queue.length > 0) {
-    const ref = queue.shift()!;
-    const routerId = getCrossCollateralRouterId(ref);
-    if (visited.has(routerId)) {
+    const root = queue.shift()!;
+    const rootRouterId = getCrossCollateralRouterId(root);
+    if (visited.has(rootRouterId)) {
       continue;
     }
-    visited.add(routerId);
+    const componentNodes: CrossCollateralValidationNode[] = [];
+    const componentQueue = [root];
 
-    const node = await getNode(ref);
-    for (const peer of dedupeRouterRefs(node.peers)) {
-      const peerNode = await getNode(peer);
-      assertCompatibleCrossCollateralNodes(node, peerNode, describe);
+    while (componentQueue.length > 0) {
+      const ref = componentQueue.shift()!;
+      const routerId = getCrossCollateralRouterId(ref);
+      if (visited.has(routerId)) {
+        continue;
+      }
+      visited.add(routerId);
 
-      if (!visited.has(getCrossCollateralRouterId(peer))) {
-        queue.push(peer);
+      const node = await getNode(ref);
+      componentNodes.push(node);
+
+      for (const peer of dedupeRouterRefs(node.peers)) {
+        if (!visited.has(getCrossCollateralRouterId(peer))) {
+          componentQueue.push(peer);
+        }
       }
     }
+
+    assertConsistentCrossCollateralComponent(componentNodes, describe);
   }
 }
 
@@ -302,26 +313,34 @@ export async function validateOnchainCrossCollateralGraph({
   });
 }
 
-function assertCompatibleCrossCollateralNodes(
-  left: CrossCollateralValidationNode,
-  right: CrossCollateralValidationNode,
+function assertConsistentCrossCollateralComponent(
+  nodes: CrossCollateralValidationNode[],
   describeRef: (ref: CrossCollateralRouterReference) => string,
 ) {
-  const leftMessageAmountTokenScale = getMessageAmountTokenScale(left);
-  const rightMessageAmountTokenScale = getMessageAmountTokenScale(right);
-  const isCompatible =
-    leftMessageAmountTokenScale.numerator *
-      rightMessageAmountTokenScale.denominator ===
-    rightMessageAmountTokenScale.numerator *
-      leftMessageAmountTokenScale.denominator;
+  if (nodes.length <= 1) {
+    return;
+  }
 
-  assert(
-    isCompatible,
-    `Incompatible CrossCollateralRouter decimals/scale between ${describeRef(left)} ` +
-      `(${left.symbol}, decimals=${left.decimals}, scale=${formatCrossCollateralScaleForLogs(left.scale)}) ` +
-      `and ${describeRef(right)} ` +
-      `(${right.symbol}, decimals=${right.decimals}, scale=${formatCrossCollateralScaleForLogs(right.scale)}).`,
-  );
+  const [baseNode, ...candidateNodes] = nodes;
+  const baseMessageAmountTokenScale = getMessageAmountTokenScale(baseNode);
+
+  for (const candidateNode of candidateNodes) {
+    const candidateMessageAmountTokenScale =
+      getMessageAmountTokenScale(candidateNode);
+    const isCompatible =
+      baseMessageAmountTokenScale.numerator *
+        candidateMessageAmountTokenScale.denominator ===
+      candidateMessageAmountTokenScale.numerator *
+        baseMessageAmountTokenScale.denominator;
+
+    assert(
+      isCompatible,
+      `Incompatible CrossCollateralRouter decimals/scale between ${describeRef(baseNode)} ` +
+        `(${baseNode.symbol}, decimals=${baseNode.decimals}, scale=${formatCrossCollateralScaleForLogs(baseNode.scale)}) ` +
+        `and ${describeRef(candidateNode)} ` +
+        `(${candidateNode.symbol}, decimals=${candidateNode.decimals}, scale=${formatCrossCollateralScaleForLogs(candidateNode.scale)}).`,
+    );
+  }
 }
 
 function dedupeRouterRefs(
