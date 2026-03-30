@@ -206,7 +206,7 @@ jobs:
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
           has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo true || echo false)
-          has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
+          has_tron=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/tron-sdk/|solidity/overrides/tron/)' && echo true || echo false)
           has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/svm-sdk/)' && echo true || echo false)
 
           # Package-specific changes (run only their targeted CLI e2e tests)
@@ -319,6 +319,35 @@ jobs:
         with:
           job_name: "PNPM Test"
           result: ${{ needs.pnpm-test-run.result }}
+
+  solidity-tron-test-run:
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    timeout-minutes: 10
+    if: needs.change-detection.outputs.has_tron == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Tron Solidity Tests
+        run: pnpm -C solidity test:tron
+
+  solidity-tron-test:
+    runs-on: ubuntu-latest
+    needs: [solidity-tron-test-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check solidity-tron-test status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: "Solidity Tron Test"
+          result: ${{ needs.solidity-tron-test-run.result }}
 
   infra-test:
     runs-on: depot-ubuntu-24.04
