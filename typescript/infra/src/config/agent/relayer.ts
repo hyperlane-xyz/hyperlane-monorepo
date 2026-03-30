@@ -85,6 +85,7 @@ export interface BaseRelayerConfig {
   batch?: RelayerBatchConfig;
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
+  reorgPeriodOverrides?: ChainMap<number>;
 }
 
 // Full relayer-specific agent config for a single chain

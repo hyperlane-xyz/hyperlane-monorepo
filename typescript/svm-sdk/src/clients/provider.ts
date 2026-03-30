@@ -13,11 +13,11 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
+  DEFAULT_COMPUTE_UNITS,
   LAMPORTS_PER_SIGNATURE,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
 import { createRpc } from '../rpc.js';
-import { DEFAULT_COMPUTE_UNITS } from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 export class SvmProvider implements AltVM.IProvider<SvmTransaction> {

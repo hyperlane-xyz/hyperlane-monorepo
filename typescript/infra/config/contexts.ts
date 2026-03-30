@@ -3,6 +3,7 @@ export enum Contexts {
   Hyperlane = 'hyperlane',
   ReleaseCandidate = 'rc',
   Neutron = 'neutron',
+  FastPath = 'fastpath',
 }
 
 function isValidContext(context: string): context is Contexts {

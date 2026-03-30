@@ -2,7 +2,8 @@
   "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "types": ["node", "mocha"]
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "include": ["./src/*.ts", "./src/eslint-rules/*.ts", "./src/fs/*.ts"]

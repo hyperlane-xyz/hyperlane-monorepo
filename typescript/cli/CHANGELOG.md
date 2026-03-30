@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 29.1.0
+
+### Minor Changes
+
+- e4d56e9: Added tron support for hyperlane send message command
+
+## 29.0.1
+
+## 29.0.0
+
+### Minor Changes
+
+- 09d6760: Added Starknet artifact API support across the TypeScript AltVM toolchain. The new `@hyperlane-xyz/starknet-sdk` package provides Starknet protocol, signer, provider, ISM, hook, mailbox, validator announce, and end-to-end test coverage. Deploy SDK protocol loading and the CLI context/signer flows were updated so Starknet chains can be resolved and used through the shared AltVM paths.
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+
 ## 28.1.0
 
 ### Minor Changes

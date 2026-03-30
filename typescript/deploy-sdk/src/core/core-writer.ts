@@ -1,5 +1,6 @@
 import {
   ChainMetadataForAltVM,
+  ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -100,6 +101,22 @@ export class CoreWriter extends CoreArtifactReader {
     );
   }
 
+  private getInitialHookArtifact(
+    hookArtifact: Artifact<HookArtifactConfig, DeployedHookAddress>,
+  ): ArtifactOnChain<HookArtifactConfig, DeployedHookAddress> {
+    if (
+      this.chainMetadata.protocol === ProtocolType.Starknet &&
+      !isArtifactNew(hookArtifact)
+    ) {
+      return hookArtifact;
+    }
+
+    return {
+      artifactState: ArtifactState.UNDERIVED,
+      deployed: { address: ZERO_ADDRESS_HEX_32 },
+    };
+  }
+
   async create(artifact: ArtifactNew<MailboxArtifactConfig>): Promise<
     [
       {
@@ -133,28 +150,23 @@ export class CoreWriter extends CoreArtifactReader {
       onChainIsmArtifact = config.defaultIsm;
     }
 
-    // Step 2: Create mailbox with ISM + zero hooks initially
+    // Step 2: Create mailbox with the ISM plus temporary hook placeholders.
     const mailboxWriter = this.mailboxArtifactManager.createWriter(
       'mailbox',
       this.signer,
     );
 
-    // Create mailbox with ISM but zero hooks initially.
     // Hooks require the mailbox address for deployment (circular dependency),
     // so we create mailbox first, deploy hooks in Step 3, then update mailbox in Step 4.
+    // Most protocols accept zero hooks for this bootstrap step; the Starknet
+    // mailbox writer materializes a temporary noop hook when it sees zero hooks.
     const initialMailboxArtifact: ArtifactNew<MailboxOnChain> = {
       artifactState: ArtifactState.NEW,
       config: {
         owner: this.signer.getSignerAddress(), // Signer owns initially; transferred in Step 4
         defaultIsm: onChainIsmArtifact,
-        defaultHook: {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: ZERO_ADDRESS_HEX_32 },
-        },
-        requiredHook: {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: ZERO_ADDRESS_HEX_32 },
-        },
+        defaultHook: this.getInitialHookArtifact(config.defaultHook),
+        requiredHook: this.getInitialHookArtifact(config.requiredHook),
       },
     };
 

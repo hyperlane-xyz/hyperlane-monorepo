@@ -44,10 +44,12 @@ COPY typescript/rebalancer-sim/package.json ./typescript/rebalancer-sim/
 COPY typescript/relayer/package.json ./typescript/relayer/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/svm-sdk/package.json ./typescript/svm-sdk/
+COPY typescript/starknet-sdk/package.json ./typescript/starknet-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
+COPY typescript/warp-widget/package.json ./typescript/warp-widget/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY solidity/package.json ./solidity/
 COPY solidity/multicollateral/package.json ./solidity/multicollateral/

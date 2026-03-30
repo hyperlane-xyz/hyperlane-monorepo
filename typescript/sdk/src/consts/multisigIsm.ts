@@ -992,12 +992,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   igra: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x485f0739639e46d3b06b1b92debe2ade56d8bfb1',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2282,12 +2283,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   tron: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 

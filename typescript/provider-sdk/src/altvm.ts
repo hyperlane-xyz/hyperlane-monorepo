@@ -205,6 +205,8 @@ export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
   defaultIsmAddress?: string;
+  defaultHookAddress?: string;
+  requiredHookAddress?: string;
   proxyAdminAddress?: string;
 };
 export type ResCreateMailbox = {
