@@ -66,7 +66,10 @@ export class DeBridgeBridge implements IExternalBridge {
     this.chainMetadataByChainId = new Map();
     if (config.chainMetadata) {
       for (const metadata of Object.values(config.chainMetadata)) {
-        if (metadata.chainId !== undefined) {
+        if (
+          metadata.chainId !== undefined &&
+          metadata.protocol === ProtocolType.Ethereum
+        ) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
       }
@@ -327,7 +330,10 @@ export class DeBridgeBridge implements IExternalBridge {
     assert(evmKey, 'Missing private key for EVM chain');
 
     const rpcUrl = this.getRpcUrl(fromChain);
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      rpcUrl,
+      fromChain,
+    );
     const wallet = new ethers.Wallet(evmKey, provider);
 
     this.logger.info(
