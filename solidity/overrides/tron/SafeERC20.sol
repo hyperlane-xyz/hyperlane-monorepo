@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.9.3) (token/ERC20/utils/SafeERC20.sol)
-// Modified for Tron: safeTransfer bypasses return-value check for Tron USDT only.
 
 pragma solidity ^0.8.0;
 
+// ===== BEGIN TRON OVERRIDE =====
+// Modified for Tron: safeTransfer bypasses return-value check for Tron USDT only.
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -19,14 +20,11 @@ import "@openzeppelin/contracts/utils/Address.sol";
  */
 library SafeERC20 {
     using Address for address;
-
-    // ===== BEGIN TRON OVERRIDE =====
     // Tron USDT (TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t)
     // transfer() returns false despite success because the source code discards
     // super.transfer()'s return value without its own `return true`.
     // See: https://gist.github.com/yorhodes/a6eccbeba27ff76355c3d761e84d6a35
-    address private constant TRON_USDT =
-        0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
+    address private constant TRON_USDT = 0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
 
     /**
      * @dev Transfer `value` amount of `token` from the calling contract to `to`. If `token` returns no value,
@@ -37,33 +35,20 @@ library SafeERC20 {
      */
     function safeTransfer(IERC20 token, address to, uint256 value) internal {
         if (address(token) == TRON_USDT) {
-            (bool success, ) = address(token).call(
-                abi.encodeWithSelector(token.transfer.selector, to, value)
-            );
+            (bool success, ) = address(token).call(abi.encodeWithSelector(token.transfer.selector, to, value));
             require(success, "SafeERC20: ERC20 transfer failed");
-        } else {
-            _callOptionalReturn(
-                token,
-                abi.encodeWithSelector(token.transfer.selector, to, value)
-            );
+            return;
         }
+        // ===== END TRON OVERRIDE =====
+        _callOptionalReturn(token, abi.encodeWithSelector(token.transfer.selector, to, value));
     }
-    // ===== END TRON OVERRIDE =====
 
     /**
      * @dev Transfer `value` amount of `token` from `from` to `to`, spending the approval given by `from` to the
      * calling contract. If `token` returns no value, non-reverting calls are assumed to be successful.
      */
-    function safeTransferFrom(
-        IERC20 token,
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.transferFrom.selector, from, to, value)
-        );
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeWithSelector(token.transferFrom.selector, from, to, value));
     }
 
     /**
@@ -73,11 +58,7 @@ library SafeERC20 {
      * Whenever possible, use {safeIncreaseAllowance} and
      * {safeDecreaseAllowance} instead.
      */
-    function safeApprove(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
+    function safeApprove(IERC20 token, address spender, uint256 value) internal {
         // safeApprove should only be called when setting an initial allowance,
         // or when resetting it to zero. To increase and decrease it, use
         // 'safeIncreaseAllowance' and 'safeDecreaseAllowance'
@@ -85,55 +66,27 @@ library SafeERC20 {
             (value == 0) || (token.allowance(address(this), spender) == 0),
             "SafeERC20: approve from non-zero to non-zero allowance"
         );
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.approve.selector, spender, value)
-        );
+        _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, value));
     }
 
     /**
      * @dev Increase the calling contract's allowance toward `spender` by `value`. If `token` returns no value,
      * non-reverting calls are assumed to be successful.
      */
-    function safeIncreaseAllowance(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
+    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
         uint256 oldAllowance = token.allowance(address(this), spender);
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(
-                token.approve.selector,
-                spender,
-                oldAllowance + value
-            )
-        );
+        _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, oldAllowance + value));
     }
 
     /**
      * @dev Decrease the calling contract's allowance toward `spender` by `value`. If `token` returns no value,
      * non-reverting calls are assumed to be successful.
      */
-    function safeDecreaseAllowance(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
+    function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
         unchecked {
             uint256 oldAllowance = token.allowance(address(this), spender);
-            require(
-                oldAllowance >= value,
-                "SafeERC20: decreased allowance below zero"
-            );
-            _callOptionalReturn(
-                token,
-                abi.encodeWithSelector(
-                    token.approve.selector,
-                    spender,
-                    oldAllowance - value
-                )
-            );
+            require(oldAllowance >= value, "SafeERC20: decreased allowance below zero");
+            _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, oldAllowance - value));
         }
     }
 
@@ -142,22 +95,11 @@ library SafeERC20 {
      * non-reverting calls are assumed to be successful. Meant to be used with tokens that require the approval
      * to be set to zero before setting it to a non-zero value, such as USDT.
      */
-    function forceApprove(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
-        bytes memory approvalCall = abi.encodeWithSelector(
-            token.approve.selector,
-            spender,
-            value
-        );
+    function forceApprove(IERC20 token, address spender, uint256 value) internal {
+        bytes memory approvalCall = abi.encodeWithSelector(token.approve.selector, spender, value);
 
         if (!_callOptionalReturnBool(token, approvalCall)) {
-            _callOptionalReturn(
-                token,
-                abi.encodeWithSelector(token.approve.selector, spender, 0)
-            );
+            _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, 0));
             _callOptionalReturn(token, approvalCall);
         }
     }
@@ -179,10 +121,7 @@ library SafeERC20 {
         uint256 nonceBefore = token.nonces(owner);
         token.permit(owner, spender, value, deadline, v, r, s);
         uint256 nonceAfter = token.nonces(owner);
-        require(
-            nonceAfter == nonceBefore + 1,
-            "SafeERC20: permit did not succeed"
-        );
+        require(nonceAfter == nonceBefore + 1, "SafeERC20: permit did not succeed");
     }
 
     /**
@@ -196,14 +135,8 @@ library SafeERC20 {
         // we're implementing it ourselves. We use {Address-functionCall} to perform this call, which verifies that
         // the target address contains contract code and also asserts for success in the low-level call.
 
-        bytes memory returndata = address(token).functionCall(
-            data,
-            "SafeERC20: low-level call failed"
-        );
-        require(
-            returndata.length == 0 || abi.decode(returndata, (bool)),
-            "SafeERC20: ERC20 operation did not succeed"
-        );
+        bytes memory returndata = address(token).functionCall(data, "SafeERC20: low-level call failed");
+        require(returndata.length == 0 || abi.decode(returndata, (bool)), "SafeERC20: ERC20 operation did not succeed");
     }
 
     /**
@@ -214,18 +147,13 @@ library SafeERC20 {
      *
      * This is a variant of {_callOptionalReturn} that silents catches all reverts and returns a bool instead.
      */
-    function _callOptionalReturnBool(
-        IERC20 token,
-        bytes memory data
-    ) private returns (bool) {
+    function _callOptionalReturnBool(IERC20 token, bytes memory data) private returns (bool) {
         // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
         // we're implementing it ourselves. We cannot use {Address-functionCall} here since this should return false
         // and not revert is the subcall reverts.
 
         (bool success, bytes memory returndata) = address(token).call(data);
         return
-            success &&
-            (returndata.length == 0 || abi.decode(returndata, (bool))) &&
-            Address.isContract(address(token));
+            success && (returndata.length == 0 || abi.decode(returndata, (bool))) && Address.isContract(address(token));
     }
 }

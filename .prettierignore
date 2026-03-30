@@ -18,6 +18,7 @@ solidity/artifacts/
 solidity/cache/
 solidity/core-utils/typechain/
 solidity/lib/
+solidity/overrides/
 tools/
 typescript/cli/configs/
 typescript/helloworld/artifacts/
