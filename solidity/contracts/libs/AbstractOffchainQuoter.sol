@@ -84,6 +84,7 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         SignedQuote calldata sq,
         bytes calldata signature
     ) external {
+        if (sq.expiry < sq.issuedAt) revert StaleQuote();
         if (uint48(block.timestamp) > sq.expiry) revert QuoteExpired();
         // submitter field restricts who can submit (e.g. QuotedCalls only).
         // address(0) means unrestricted — any caller may submit.
@@ -93,6 +94,8 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         _verifyQuoteSigner(sq, signature);
 
         // transient quotes (expiry == issuedAt) auto-clear at end of tx.
+        // NOTE: Keep transient quote expiry windows as short as possible (ideally
+        // same-block) to minimize the window for price manipulation or front-running.
         // standing quotes persist in storage until they expire or are overwritten.
         if (sq.expiry == sq.issuedAt) {
             _storeTransient(sq);

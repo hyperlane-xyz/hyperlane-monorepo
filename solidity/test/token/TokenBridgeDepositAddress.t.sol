@@ -164,7 +164,8 @@ contract TokenBridgeDepositAddressTest is Test {
             depositAddress,
             amount,
             feeAmount,
-            FEE_BPS
+            FEE_BPS,
+            1
         );
         bridge.transferRemote(DOMAIN_ARB, recipient, amount);
     }
@@ -360,7 +361,8 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
             depositAddress,
             collateralAmount,
             feeAmount,
-            FEE_BPS
+            FEE_BPS,
+            1
         );
         vm.expectEmit(true, true, true, true, address(router));
         emit MovableCollateralRouter.CollateralMoved(
