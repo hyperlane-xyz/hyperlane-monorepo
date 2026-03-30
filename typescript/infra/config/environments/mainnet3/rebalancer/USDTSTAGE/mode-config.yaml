@@ -1,31 +1,34 @@
 warpRouteId: USDTSTAGE/mode
 
-inventorySigner: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
+inventorySigners:
+    ethereum:
+        address: "0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5"
 
 externalBridges:
     lifi:
         integrator: "rebalancer"
+    layerzero: {}
 
 strategy:
     rebalanceStrategy: weighted
     chains:
         ethereum:
             weighted:
-                weight: 50
+                weight: 10
                 tolerance: 5
             executionType: inventory
-            externalBridge: lifi
+            externalBridge: layerzero
 
         arbitrum:
             weighted:
-                weight: 25
+                weight: 10
                 tolerance: 5
             executionType: inventory
-            externalBridge: lifi
+            externalBridge: layerzero
 
         plasma:
             weighted:
-                weight: 25
+                weight: 80
                 tolerance: 5
             executionType: inventory
-            externalBridge: lifi
+            externalBridge: layerzero
