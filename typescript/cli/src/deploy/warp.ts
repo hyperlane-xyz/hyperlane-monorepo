@@ -42,14 +42,12 @@ import {
   type WarpRouteDeployConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
-  TokenStandard,
   altVmChainLookup,
   enrollCrossChainRouters,
   executeWarpDeploy,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
-  getCrossCollateralRouterId,
   getSubmitterBuilder,
   getTokenConnectionId,
   isCollateralTokenConfig,
@@ -57,13 +55,12 @@ import {
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
-  validateCrossCollateralGraph,
+  validateConfiguredCrossCollateralGraph,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   addressToBytes32,
   assert,
-  bytes32ToAddress,
   isEVMLike,
   mapAllSettled,
   mustGet,
@@ -1271,106 +1268,6 @@ type CombineRouteConfig = {
   deployConfig: WarpRouteDeployConfig;
 };
 
-function assertCombineRoutesAreCrossCollateral(
-  routes: CombineRouteConfig[],
-): void {
-  for (const route of routes) {
-    const invalidDeployChains = Object.entries(route.deployConfig)
-      .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
-      .map(([chain]) => chain);
-    assert(
-      invalidDeployChains.length === 0,
-      `Route "${route.id}" contains non-CrossCollateralRouter deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
-    );
-
-    const invalidCoreTokens = route.coreConfig.tokens.filter(
-      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
-    );
-    assert(
-      invalidCoreTokens.length === 0,
-      `Route "${route.id}" contains non-CrossCollateralRouter warp config token(s): ${invalidCoreTokens
-        .map((token) => `${token.chainName}:${token.addressOrDenom}`)
-        .join(', ')}`,
-    );
-  }
-}
-
-function buildCombineValidationGraph({
-  multiProvider,
-  routes,
-}: {
-  multiProvider: MultiProvider;
-  routes: CombineRouteConfig[];
-}) {
-  const nodes = new Map<
-    string,
-    {
-      chainName: string;
-      routerAddress: Address;
-      decimals: number;
-      peers: Array<{ chainName: string; routerAddress: Address }>;
-      scale?: WarpCoreConfig['tokens'][number]['scale'];
-      symbol: string;
-    }
-  >();
-  const descriptions = new Map<string, string>();
-
-  for (const route of routes) {
-    const routeRefs = route.coreConfig.tokens.map((token) => ({
-      chainName: token.chainName,
-      routerAddress: token.addressOrDenom!,
-    }));
-
-    for (const token of route.coreConfig.tokens) {
-      assert(
-        token.addressOrDenom,
-        `Route "${route.id}" token on chain "${token.chainName}" is missing addressOrDenom`,
-      );
-
-      const chainConfig = route.deployConfig[token.chainName];
-      assert(
-        isCrossCollateralTokenConfig(chainConfig),
-        `Route "${route.id}" is missing CrossCollateralRouter deploy config on chain "${token.chainName}"`,
-      );
-
-      const crossCollateralPeers = Object.entries(
-        chainConfig.crossCollateralRouters ?? {},
-      ).flatMap(([domain, routers]) => {
-        const peerChainName = multiProvider.getChainName(Number(domain));
-        return routers.map((router) => ({
-          chainName: peerChainName,
-          routerAddress: bytes32ToAddress(router),
-        }));
-      });
-
-      const ref = {
-        chainName: token.chainName,
-        routerAddress: token.addressOrDenom,
-      };
-      const routerId = getCrossCollateralRouterId(ref);
-      descriptions.set(
-        routerId,
-        `route "${route.id}" on chain "${token.chainName}"`,
-      );
-      nodes.set(routerId, {
-        ...ref,
-        decimals: token.decimals,
-        peers: routeRefs
-          .filter(
-            (peer) =>
-              getCrossCollateralRouterId(peer) !==
-              getCrossCollateralRouterId(ref),
-          )
-          .concat(crossCollateralPeers),
-        scale: token.scale,
-        symbol: token.symbol,
-      });
-    }
-  }
-
-  return { descriptions, nodes };
-}
-
 /**
  * Combines multiple warp routes into a single merged WarpCoreConfig and updates
  * each route's deploy config with cross-route crossCollateralRouters.
@@ -1408,8 +1305,6 @@ export async function runWarpRouteCombine({
       deployConfig,
     });
   }
-
-  assertCombineRoutesAreCrossCollateral(routes);
 
   // 2. For each route, update crossCollateralRouters with routers from other routes
   for (const route of routes) {
@@ -1472,27 +1367,9 @@ export async function runWarpRouteCombine({
     }
   }
 
-  const { descriptions, nodes } = buildCombineValidationGraph({
+  await validateConfiguredCrossCollateralGraph({
     multiProvider: context.multiProvider,
     routes,
-  });
-
-  await validateCrossCollateralGraph({
-    roots: [...nodes.values()].map(({ chainName, routerAddress }) => ({
-      chainName,
-      routerAddress,
-    })),
-    describeRef: (ref: { chainName: string; routerAddress: Address }) =>
-      descriptions.get(getCrossCollateralRouterId(ref)) ??
-      `"${ref.chainName}:${ref.routerAddress}"`,
-    loadNode: async (ref: { chainName: string; routerAddress: Address }) => {
-      const node = nodes.get(getCrossCollateralRouterId(ref));
-      assert(
-        node,
-        `Missing combined CrossCollateralRouter metadata for "${ref.chainName}:${ref.routerAddress}"`,
-      );
-      return node;
-    },
   });
 
   for (const route of routes) {
