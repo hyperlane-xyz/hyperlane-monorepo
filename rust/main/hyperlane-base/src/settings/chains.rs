@@ -75,6 +75,10 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// Identity keypair used as the relayer's on-chain identity (e.g. for TrustedRelayer ISMs).
+    /// Only valid for Sealevel chains — an error is returned if set on other protocols.
+    /// Falls back to `signer` if not set.
+    pub identity: Option<SignerConf>,
     /// Submitter type for this chain
     pub submitter: SubmitterType,
     /// The estimated block time, i.e. the average time the next block is added to the chain

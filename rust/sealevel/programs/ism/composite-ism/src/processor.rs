@@ -78,7 +78,7 @@ fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         Some(IsmNode::MultisigMessageId { .. }) => ModuleType::MessageIdMultisig,
         Some(IsmNode::Aggregation { .. }) => ModuleType::Aggregation,
         Some(IsmNode::Routing { .. }) => ModuleType::Routing,
-        Some(IsmNode::Test { .. }) => ModuleType::Unused,
+        Some(IsmNode::Test { .. }) => ModuleType::Null,
         Some(IsmNode::Pausable { .. }) => ModuleType::Null,
         Some(IsmNode::AmountRouting { .. }) => ModuleType::Routing,
         None => return Err(Error::ConfigNotSet.into()),
