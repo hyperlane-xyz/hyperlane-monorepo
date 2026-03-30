@@ -4,11 +4,13 @@ import { type CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
+  buildExpectedCrossCollateralConnections,
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  validateOnchainCrossCollateralGraph,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -582,6 +584,34 @@ export const check: CommandModuleWithContext<
       (chain, _config): _config is any =>
         isEVMLike(context.multiProvider.getChainMetadata(chain).protocol),
     );
+
+    const crossCollateralRouterAddresses = Object.fromEntries(
+      Object.entries(deployedRoutersAddresses).filter(
+        ([chain]) =>
+          expandedOnChainWarpConfig[chain]?.type === 'crossCollateral',
+      ),
+    );
+    const crossCollateralRoots = Object.entries(
+      crossCollateralRouterAddresses,
+    ).map(([chainName, routerAddress]) => ({
+      chainName,
+      routerAddress,
+    }));
+
+    if (crossCollateralRoots.length > 0) {
+      const expectedConnectionsByRouterId =
+        buildExpectedCrossCollateralConnections({
+          configMap: expandedWarpDeployConfig,
+          multiProvider: context.multiProvider,
+          routerAddresses: crossCollateralRouterAddresses,
+        });
+
+      await validateOnchainCrossCollateralGraph({
+        expectedConnectionsByRouterId,
+        multiProvider: context.multiProvider,
+        roots: crossCollateralRoots,
+      });
+    }
 
     await runWarpRouteCheck({
       onChainWarpConfig: expandedOnChainWarpConfig,

@@ -64,6 +64,10 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
+import {
+  buildExpectedCrossCollateralConnections,
+  validateOnchainCrossCollateralGraph,
+} from './crossCollateralValidation.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
@@ -151,6 +155,41 @@ export class EvmWarpModule extends HyperlaneModule<
     );
   }
 
+  protected async validateCrossCollateralGraphUpdate(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<void> {
+    if (
+      !isCrossCollateralTokenConfig(actualConfig) ||
+      !isCrossCollateralTokenConfig(expectedConfig)
+    ) {
+      return;
+    }
+
+    const roots = [
+      {
+        chainName: this.chainName,
+        routerAddress: this.args.addresses.deployedTokenRoute,
+      },
+    ];
+    const expectedConnectionsByRouterId =
+      buildExpectedCrossCollateralConnections({
+        configMap: {
+          [this.chainName]: expectedConfig,
+        },
+        multiProvider: this.multiProvider,
+        routerAddresses: {
+          [this.chainName]: this.args.addresses.deployedTokenRoute,
+        },
+      });
+
+    await validateOnchainCrossCollateralGraph({
+      expectedConnectionsByRouterId,
+      multiProvider: this.multiProvider,
+      roots,
+    });
+  }
+
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
@@ -163,6 +202,7 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    await this.validateCrossCollateralGraphUpdate(actualConfig, expectedConfig);
     const transactions = [];
 
     let xerc20Txs: AnnotatedEV5Transaction[] = [];

@@ -71,6 +71,11 @@ function buildContext(
         getDomainId(chain: string) {
           return DOMAIN_BY_CHAIN[chain];
         },
+        getChainName(domainId: number) {
+          return Object.entries(DOMAIN_BY_CHAIN).find(
+            ([, domain]) => domain === domainId,
+          )?.[0];
+        },
         getProtocol() {
           return ProtocolType.Ethereum;
         },
@@ -255,7 +260,7 @@ describe('runWarpRouteCombine', () => {
     );
   });
 
-  it('rejects routes with incompatible decimals/scale on the same chain', async () => {
+  it('rejects routes with incompatible decimals/scale in the combined graph', async () => {
     const routeA = {
       coreConfig: {
         tokens: [
@@ -316,8 +321,10 @@ describe('runWarpRouteCombine', () => {
     }
 
     expect(thrown?.message).to.include(
-      'Incompatible decimals/scale on chain "anvil2"',
+      'Incompatible CrossCollateralRouter decimals/scale',
     );
+    expect(thrown?.message).to.include('route "route-a" on chain "anvil2"');
+    expect(thrown?.message).to.include('route "route-b" on chain "anvil2"');
   });
 
   it('formats ratio scales in incompatibility error messages', async () => {
@@ -383,5 +390,83 @@ describe('runWarpRouteCombine', () => {
     expect(thrown?.message).to.include('scale=3/2');
     expect(thrown?.message).to.include('scale=1');
     expect(thrown?.message).to.not.include('[object Object]');
+  });
+
+  it('rejects incompatible graphs even when routes do not overlap on the same chain', async () => {
+    const routeA = {
+      coreConfig: {
+        tokens: [
+          buildCrossCollateralToken({
+            chainName: 'anvil2',
+            symbol: 'USDC',
+            address: ROUTER_A,
+            decimals: 18,
+          }),
+          buildCrossCollateralToken({
+            chainName: 'anvil3',
+            symbol: 'USDC',
+            address: ROUTER_B,
+            decimals: 6,
+            scale: 1_000_000_000_000,
+          }),
+        ],
+      } as WarpCoreConfig,
+      deployConfig: {
+        anvil2: {
+          type: TokenType.crossCollateral,
+          owner: ROUTER_A,
+          token: ROUTER_A,
+        },
+        anvil3: {
+          type: TokenType.crossCollateral,
+          owner: ROUTER_B,
+          token: ROUTER_B,
+          scale: 1_000_000_000_000,
+        },
+      },
+    };
+    const routeB = {
+      coreConfig: {
+        tokens: [
+          buildCrossCollateralToken({
+            chainName: 'anvil4',
+            symbol: 'USDT',
+            address: ROUTER_C,
+            decimals: 18,
+            scale: 2,
+          }),
+        ],
+      } as WarpCoreConfig,
+      deployConfig: {
+        anvil4: {
+          type: TokenType.crossCollateral,
+          owner: ROUTER_C,
+          token: ROUTER_C,
+          scale: 2,
+        },
+      },
+    };
+
+    const { context } = buildContext({
+      'route-a': routeA,
+      'route-b': routeB,
+    });
+
+    let thrown: Error | undefined;
+    try {
+      await runWarpRouteCombine({
+        context,
+        routeIds: ['route-a', 'route-b'],
+        outputWarpRouteId: 'MULTI/test',
+      });
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    expect(thrown?.message).to.include(
+      'Incompatible CrossCollateralRouter decimals/scale',
+    );
+    expect(thrown?.message).to.include('route "route-a" on chain "anvil2"');
+    expect(thrown?.message).to.include('route "route-b" on chain "anvil4"');
   });
 });

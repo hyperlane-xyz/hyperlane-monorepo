@@ -49,19 +49,21 @@ import {
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
+  getCrossCollateralRouterId,
   getSubmitterBuilder,
   getTokenConnectionId,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
   isXERC20TokenConfig,
-  normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  validateCrossCollateralGraph,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   addressToBytes32,
   assert,
+  bytes32ToAddress,
   isEVMLike,
   mapAllSettled,
   mustGet,
@@ -1269,34 +1271,9 @@ type CombineRouteConfig = {
   deployConfig: WarpRouteDeployConfig;
 };
 
-type CanonicalWholeTokenRatio = {
-  numerator: bigint;
-  denominator: bigint;
-};
-
-function formatScaleForLogs(
-  scale: WarpCoreConfig['tokens'][number]['scale'],
-): string {
-  if (!scale) return '1';
-  const normalizedScale = normalizeScale(scale);
-  if (normalizedScale.denominator === 1n) {
-    return normalizedScale.numerator.toString();
-  }
-  return `${normalizedScale.numerator}/${normalizedScale.denominator}`;
-}
-
-function getCanonicalWholeTokenRatio(
-  token: WarpCoreConfig['tokens'][number],
-): CanonicalWholeTokenRatio {
-  const normalizedScale = normalizeScale(token.scale);
-  const oneTokenBaseUnits = 10n ** BigInt(token.decimals);
-  return {
-    numerator: oneTokenBaseUnits * normalizedScale.numerator,
-    denominator: normalizedScale.denominator,
-  };
-}
-
-function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
+function assertCombineRoutesAreCrossCollateral(
+  routes: CombineRouteConfig[],
+): void {
   for (const route of routes) {
     const invalidDeployChains = Object.entries(route.deployConfig)
       .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
@@ -1316,37 +1293,82 @@ function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
         .join(', ')}`,
     );
   }
+}
 
-  const tokensByChain = new Map<
+function buildCombineValidationGraph({
+  multiProvider,
+  routes,
+}: {
+  multiProvider: MultiProvider;
+  routes: CombineRouteConfig[];
+}) {
+  const nodes = new Map<
     string,
-    Array<{ routeId: string; token: WarpCoreConfig['tokens'][number] }>
+    {
+      chainName: string;
+      routerAddress: Address;
+      decimals: number;
+      peers: Array<{ chainName: string; routerAddress: Address }>;
+      scale?: WarpCoreConfig['tokens'][number]['scale'];
+      symbol: string;
+    }
   >();
+  const descriptions = new Map<string, string>();
+
   for (const route of routes) {
+    const routeRefs = route.coreConfig.tokens.map((token) => ({
+      chainName: token.chainName,
+      routerAddress: token.addressOrDenom!,
+    }));
+
     for (const token of route.coreConfig.tokens) {
-      const chainTokens = tokensByChain.get(token.chainName) ?? [];
-      chainTokens.push({ routeId: route.id, token });
-      tokensByChain.set(token.chainName, chainTokens);
-    }
-  }
-
-  for (const [chainName, chainTokens] of tokensByChain.entries()) {
-    if (chainTokens.length <= 1) continue;
-
-    const [base, ...rest] = chainTokens;
-    const baseRatio = getCanonicalWholeTokenRatio(base.token);
-
-    for (const candidate of rest) {
-      const candidateRatio = getCanonicalWholeTokenRatio(candidate.token);
-      const isCompatible =
-        baseRatio.numerator * candidateRatio.denominator ===
-        candidateRatio.numerator * baseRatio.denominator;
-
       assert(
-        isCompatible,
-        `Incompatible decimals/scale on chain "${chainName}" between route "${base.routeId}" (${base.token.symbol}, decimals=${base.token.decimals}, scale=${formatScaleForLogs(base.token.scale)}) and route "${candidate.routeId}" (${candidate.token.symbol}, decimals=${candidate.token.decimals}, scale=${formatScaleForLogs(candidate.token.scale)}).`,
+        token.addressOrDenom,
+        `Route "${route.id}" token on chain "${token.chainName}" is missing addressOrDenom`,
       );
+
+      const chainConfig = route.deployConfig[token.chainName];
+      assert(
+        isCrossCollateralTokenConfig(chainConfig),
+        `Route "${route.id}" is missing CrossCollateralRouter deploy config on chain "${token.chainName}"`,
+      );
+
+      const crossCollateralPeers = Object.entries(
+        chainConfig.crossCollateralRouters ?? {},
+      ).flatMap(([domain, routers]) => {
+        const peerChainName = multiProvider.getChainName(Number(domain));
+        return routers.map((router) => ({
+          chainName: peerChainName,
+          routerAddress: bytes32ToAddress(router),
+        }));
+      });
+
+      const ref = {
+        chainName: token.chainName,
+        routerAddress: token.addressOrDenom,
+      };
+      const routerId = getCrossCollateralRouterId(ref);
+      descriptions.set(
+        routerId,
+        `route "${route.id}" on chain "${token.chainName}"`,
+      );
+      nodes.set(routerId, {
+        ...ref,
+        decimals: token.decimals,
+        peers: routeRefs
+          .filter(
+            (peer) =>
+              getCrossCollateralRouterId(peer) !==
+              getCrossCollateralRouterId(ref),
+          )
+          .concat(crossCollateralPeers),
+        scale: token.scale,
+        symbol: token.symbol,
+      });
     }
   }
+
+  return { descriptions, nodes };
 }
 
 /**
@@ -1387,7 +1409,7 @@ export async function runWarpRouteCombine({
     });
   }
 
-  assertCombineRoutesAreValid(routes);
+  assertCombineRoutesAreCrossCollateral(routes);
 
   // 2. For each route, update crossCollateralRouters with routers from other routes
   for (const route of routes) {
@@ -1448,8 +1470,32 @@ export async function runWarpRouteCombine({
           ? reconciledEnrolledRouters
           : undefined;
     }
+  }
 
-    // Write updated deploy config back
+  const { descriptions, nodes } = buildCombineValidationGraph({
+    multiProvider: context.multiProvider,
+    routes,
+  });
+
+  await validateCrossCollateralGraph({
+    roots: [...nodes.values()].map(({ chainName, routerAddress }) => ({
+      chainName,
+      routerAddress,
+    })),
+    describeRef: (ref: { chainName: string; routerAddress: Address }) =>
+      descriptions.get(getCrossCollateralRouterId(ref)) ??
+      `"${ref.chainName}:${ref.routerAddress}"`,
+    loadNode: async (ref: { chainName: string; routerAddress: Address }) => {
+      const node = nodes.get(getCrossCollateralRouterId(ref));
+      assert(
+        node,
+        `Missing combined CrossCollateralRouter metadata for "${ref.chainName}:${ref.routerAddress}"`,
+      );
+      return node;
+    },
+  });
+
+  for (const route of routes) {
     await context.registry.addWarpRouteConfig(route.deployConfig, {
       warpRouteId: route.id,
     });

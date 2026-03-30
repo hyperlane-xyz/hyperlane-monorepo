@@ -50,6 +50,10 @@ import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { DeployableTokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
+  buildExpectedCrossCollateralConnections,
+  validateOnchainCrossCollateralGraph,
+} from './crossCollateralValidation.js';
+import {
   HypERC20Factories,
   HypERC20contracts,
   HypERC721Factories,
@@ -808,6 +812,38 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async validateCrossCollateralGraph(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const roots = Object.entries(configMap)
+      .filter(([, config]) => isCrossCollateralTokenConfig(config))
+      .map(([chain]) => ({
+        chainName: chain,
+        routerAddress: this.router(deployedContractsMap[chain]).address,
+      }));
+
+    if (roots.length === 0) {
+      return;
+    }
+
+    const routerAddresses = Object.fromEntries(
+      roots.map(({ chainName, routerAddress }) => [chainName, routerAddress]),
+    ) as ChainMap<Address>;
+    const expectedConnectionsByRouterId =
+      buildExpectedCrossCollateralConnections({
+        configMap,
+        multiProvider: this.multiProvider,
+        routerAddresses,
+      });
+
+    await validateOnchainCrossCollateralGraph({
+      expectedConnectionsByRouterId,
+      multiProvider: this.multiProvider,
+      roots,
+    });
+  }
+
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
@@ -914,6 +950,8 @@ abstract class TokenDeployer<
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.validateCrossCollateralGraph(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
