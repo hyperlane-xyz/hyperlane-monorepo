@@ -377,7 +377,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         );
     }
 
-    function test_standingQuote_staleQuote_reverts() public {
+    function test_standingQuote_staleQuote_skipped() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
             DEST,
@@ -389,7 +389,7 @@ contract OffchainQuotedLinearFeeTest is Test {
             now_ + 3600
         );
 
-        // Try to submit older quote
+        // Older issuedAt should be silently skipped (no revert)
         SignedQuote memory sq = SignedQuote({
             context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
             data: _encodeFeeData(MAX_FEE + 1, HALF_AMOUNT),
@@ -399,8 +399,15 @@ contract OffchainQuotedLinearFeeTest is Test {
             submitter: address(0)
         });
         bytes memory sig = _signQuote(sq);
-        vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
         quotedFee.submitQuote(sq, sig);
+
+        // Original quote values should be preserved (MAX_FEE, not MAX_FEE + 1)
+        Quote[] memory result = quotedFee.quoteTransferRemote(
+            DEST,
+            RECIPIENT,
+            AMOUNT
+        );
+        assertEq(result[0].amount, _computeFee(MAX_FEE, HALF_AMOUNT, AMOUNT));
     }
 
     function test_standingQuote_nonWildcardAmount_reverts() public {

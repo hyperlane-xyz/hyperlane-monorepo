@@ -251,8 +251,8 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
             sender
         ];
 
-        // ensure signed quote is issued more recently than standing quote
-        if (sq.issuedAt <= existing.issuedAt) revert StaleQuote();
+        // skip if a newer standing quote already exists
+        if (sq.issuedAt <= existing.issuedAt) return;
 
         // update gas oracle params for matching postDispatch
         (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
