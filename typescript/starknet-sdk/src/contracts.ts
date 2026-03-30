@@ -352,7 +352,7 @@ export async function getOnChainStarknetContract(
   const contract = new Contract(abi, normalized, provider);
 
   const implHash = await resolveImplementationHash(contract);
-  if (isNullish(implHash)) return contract;
+  if (isNullish(implHash) || implHash === 0n) return contract;
 
   const implClass = await provider.getClassByHash(`0x${implHash.toString(16)}`);
   return new Contract(implClass.abi, normalized, provider);
@@ -361,14 +361,20 @@ export async function getOnChainStarknetContract(
 async function resolveImplementationHash(
   contract: Contract,
 ): Promise<bigint | undefined> {
-  // Cairo 1 proxy pattern
-  if (hasAbiMethod(contract, 'get_implementation')) {
-    return coerceClassHash(await callContract(contract, 'get_implementation'));
-  }
+  try {
+    // Cairo 1 proxy pattern
+    if (hasAbiMethod(contract, 'get_implementation')) {
+      return coerceClassHash(
+        await callContract(contract, 'get_implementation'),
+      );
+    }
 
-  // Cairo 0 proxy pattern
-  if (hasAbiMethod(contract, 'implementation')) {
-    return coerceClassHash(await callContract(contract, 'implementation'));
+    // Cairo 0 proxy pattern
+    if (hasAbiMethod(contract, 'implementation')) {
+      return coerceClassHash(await callContract(contract, 'implementation'));
+    }
+  } catch {
+    // Not a proxy or proxy resolution failed; use the contract's own ABI
   }
 
   return undefined;
@@ -390,4 +396,35 @@ function coerceClassHash(value: unknown): bigint {
   }
 
   return toBigInt(value);
+}
+
+/**
+ * Determines whether a storage read error should trigger a fallback
+ * to contract call-based reading. Some Starknet chains (e.g. Paradex)
+ * have privacy enabled that disallows direct storage reads.
+ */
+export function shouldFallbackStorageRead(error: unknown): boolean {
+  const code =
+    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+  if (code === -32601 || code === -32000) return true;
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : String(
+            error && typeof error === 'object'
+              ? Reflect.get(error, 'message')
+              : error,
+          );
+  const normalizedMessage = message.toLowerCase();
+
+  return [
+    'method not found',
+    'method not allowed',
+    'not supported',
+    'unsupported',
+    'not implemented',
+  ].some((fragment) => normalizedMessage.includes(fragment));
 }

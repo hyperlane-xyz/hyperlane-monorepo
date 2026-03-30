@@ -31,6 +31,7 @@ import {
   getStarknetContract,
   normalizeStarknetAddressSafe,
   populateInvokeTx,
+  shouldFallbackStorageRead,
   toBigInt,
 } from '../contracts.js';
 import { type StarknetDeployTx } from '../types.js';
@@ -43,34 +44,6 @@ const MAX_PROTOCOL_FEE_STORAGE_KEYS = [
   'max_protocol_fee',
   '_max_protocol_fee',
 ].map((name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND);
-
-function shouldFallbackStorageRead(error: unknown): boolean {
-  const code =
-    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
-  // The starknet chain might have privacy
-  // enabled disallowing direct storage reads
-  if (code === -32601 || code === -32000) return true;
-
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : String(
-            error && typeof error === 'object'
-              ? Reflect.get(error, 'message')
-              : error,
-          );
-  const normalizedMessage = message.toLowerCase();
-
-  return [
-    'method not found',
-    'method not allowed',
-    'not supported',
-    'unsupported',
-    'not implemented',
-  ].some((fragment) => normalizedMessage.includes(fragment));
-}
 
 async function readUint256Storage(
   provider: StarknetProvider,
