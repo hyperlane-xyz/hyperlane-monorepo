@@ -47,7 +47,9 @@ const MAX_PROTOCOL_FEE_STORAGE_KEYS = [
 function shouldFallbackStorageRead(error: unknown): boolean {
   const code =
     error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
-  if (code === -32601) return true;
+  // The starknet chain might have privacy
+  // enabled disallowing direct storage reads
+  if (code === -32601 || code === -32000) return true;
 
   const message =
     error instanceof Error
@@ -63,6 +65,7 @@ function shouldFallbackStorageRead(error: unknown): boolean {
 
   return [
     'method not found',
+    'method not allowed',
     'not supported',
     'unsupported',
     'not implemented',
