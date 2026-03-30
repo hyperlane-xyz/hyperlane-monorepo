@@ -46,10 +46,6 @@ contract TokenBridgeKatanaVaultHelper is
         uint256 expectedShares,
         uint256 actualShares
     );
-    error TokenBridgeKatanaVaultHelper__InsufficientAssetsOut(
-        uint256 minAssetsOut,
-        uint256 actualAssetsOut
-    );
 
     event KatanaExtraOptionsSet(bytes extraOptions);
     event TransferRemoteInitiated(
@@ -190,10 +186,12 @@ contract TokenBridgeKatanaVaultHelper is
         );
     }
 
-    function redeem(
-        uint256 _shares,
-        uint256 _minAssetsOut
-    ) external returns (uint256 assetsOut) {
+    /// @notice Redeems inbound vbUSDC shares to the fixed beneficiary.
+    /// @dev `_shares` serves as the readiness gate for the ICA poke:
+    ///      the call reverts until this helper holds at least that many shares.
+    ///      Under the current route assumptions we treat vbUSDC and USDC as 1:1,
+    ///      so the ICA only needs to carry a single share amount.
+    function redeem(uint256 _shares) external returns (uint256 assetsOut) {
         uint256 balance = IERC20(address(vbUsdc)).balanceOf(address(this));
         if (balance < _shares) {
             revert TokenBridgeKatanaVaultHelper__InsufficientShares(
@@ -203,12 +201,6 @@ contract TokenBridgeKatanaVaultHelper is
         }
 
         assetsOut = vbUsdc.redeem(_shares, beneficiary, address(this));
-        if (assetsOut < _minAssetsOut) {
-            revert TokenBridgeKatanaVaultHelper__InsufficientAssetsOut(
-                _minAssetsOut,
-                assetsOut
-            );
-        }
 
         emit RedemptionCompleted(msg.sender, _shares, assetsOut);
     }

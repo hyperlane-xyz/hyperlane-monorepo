@@ -71,7 +71,7 @@ contract TokenBridgeKatanaRedeemIca is
     /// @notice ICA router used to dispatch the follow-up redemption poke to Ethereum.
     IInterchainAccountRouter public immutable icaRouter;
 
-    /// @notice Ethereum helper that receives bridged vbUSDC and exposes `redeem(...)`.
+    /// @notice Ethereum helper that receives bridged vbUSDC and exposes `redeem(shares)`.
     address public immutable ethereumHelper;
 
     /// @notice Fixed Ethereum beneficiary expected by movable collateral config and helper redemption.
@@ -169,11 +169,13 @@ contract TokenBridgeKatanaRedeemIca is
             _amount
         );
 
+        // The ICA poke carries only the expected share amount. The helper uses
+        // that value as a readiness gate and reverts until the OFT delivery arrives.
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.build(
             ethereumHelper,
             0,
-            abi.encodeCall(IKatanaVaultRedeemer.redeem, (_amount, _amount))
+            abi.encodeCall(IKatanaVaultRedeemer.redeem, (_amount))
         );
 
         bytes32 icaMessageId = icaRouter.callRemote{value: icaFee}(

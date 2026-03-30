@@ -338,7 +338,7 @@ contract TokenBridgeKatanaVaultHelperTest is Test {
         vbUsdc.mint(address(helper), 55e6);
 
         vm.prank(makeAddr("poker"));
-        helper.redeem(55e6, 55e6);
+        helper.redeem(55e6);
 
         assertEq(usdc.balanceOf(beneficiary), 55e6);
         assertEq(vbUsdc.balanceOf(address(helper)), 0);
@@ -446,7 +446,7 @@ contract TokenBridgeKatanaRedeemIcaTest is Test {
         assertEq(icaRouter.lastCallValue(), 0);
         assertEq(
             icaRouter.lastCallData(),
-            abi.encodeCall(IKatanaVaultRedeemer.redeem, (50e6, 50e6))
+            abi.encodeCall(IKatanaVaultRedeemer.redeem, (50e6))
         );
         assertEq(
             StandardHookMetadata.gasLimit(icaRouter.lastHookMetadata()),
