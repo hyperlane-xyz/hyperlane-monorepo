@@ -19,15 +19,34 @@ import "../../../utils/Address.sol";
 library SafeERC20 {
     using Address for address;
 
+    // Tron USDT (TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t)
+    // transfer() returns false despite success because the source code discards
+    // super.transfer()'s return value without providing its own return statement.
+    // The solc-tron compiler correctly allocates return data, but the missing
+    // `return true` causes the default false to be returned per the ERC20 spec.
+    // See: https://gist.github.com/yorhodes/a6eccbeba27ff76355c3d761e84d6a35
+    address private constant TRON_USDT =
+        0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C;
+
     /**
      * @dev Transfer `value` amount of `token` from the calling contract to `to`. If `token` returns no value,
      * non-reverting calls are assumed to be successful.
+     *
+     * For Tron USDT specifically, the return value is ignored because its transfer()
+     * returns false on success due to a missing `return true` in the source code.
      */
     function safeTransfer(IERC20 token, address to, uint256 value) internal {
-        (bool success, ) = address(token).call(
-            abi.encodeWithSelector(IERC20.transfer.selector, to, value)
-        );
-        require(success, "SafeERC20: ERC20 transfer failed");
+        if (address(token) == TRON_USDT) {
+            (bool success, ) = address(token).call(
+                abi.encodeWithSelector(IERC20.transfer.selector, to, value)
+            );
+            require(success, "SafeERC20: ERC20 transfer failed");
+        } else {
+            _callOptionalReturn(
+                token,
+                abi.encodeWithSelector(token.transfer.selector, to, value)
+            );
+        }
     }
 
     /**
