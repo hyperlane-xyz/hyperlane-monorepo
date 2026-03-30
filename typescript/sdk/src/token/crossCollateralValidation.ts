@@ -61,7 +61,7 @@ export function formatCrossCollateralScaleForLogs(
   return `${normalizedScale.numerator}/${normalizedScale.denominator}`;
 }
 
-export function getCanonicalWholeTokenRatio({
+export function getMessageAmountTokenScale({
   decimals,
   scale,
 }: {
@@ -307,11 +307,13 @@ function assertCompatibleCrossCollateralNodes(
   right: CrossCollateralValidationNode,
   describeRef: (ref: CrossCollateralRouterReference) => string,
 ) {
-  const leftRatio = getCanonicalWholeTokenRatio(left);
-  const rightRatio = getCanonicalWholeTokenRatio(right);
+  const leftMessageAmountTokenScale = getMessageAmountTokenScale(left);
+  const rightMessageAmountTokenScale = getMessageAmountTokenScale(right);
   const isCompatible =
-    leftRatio.numerator * rightRatio.denominator ===
-    rightRatio.numerator * leftRatio.denominator;
+    leftMessageAmountTokenScale.numerator *
+      rightMessageAmountTokenScale.denominator ===
+    rightMessageAmountTokenScale.numerator *
+      leftMessageAmountTokenScale.denominator;
 
   assert(
     isCompatible,
