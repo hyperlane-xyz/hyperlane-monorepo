@@ -36,6 +36,7 @@
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "pnpm test:unit",
+    "test:ci": "pnpm test",
     "test:e2e": "./scripts/run-e2e-test.sh",
     "test:unit": "mocha --require tsx --timeout 10000 'src/tests/**/*.unit-test.ts'"
   },

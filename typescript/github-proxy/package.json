@@ -20,6 +20,7 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
+    "test:ci": "pnpm test",
     "format": "oxfmt --write ./src ./test",
     "cf-typegen": "wrangler types"
   },

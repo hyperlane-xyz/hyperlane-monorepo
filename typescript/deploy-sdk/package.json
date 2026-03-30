@@ -20,7 +20,8 @@
     "lint": "eslint",
     "clean": "rm -rf ./dist",
     "format": "oxfmt --write .",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:ci": "pnpm test"
   },
   "dependencies": {
     "@hyperlane-xyz/aleo-sdk": "workspace:*",

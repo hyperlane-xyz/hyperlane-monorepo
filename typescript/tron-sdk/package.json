@@ -34,6 +34,7 @@
     "clean": "rm -rf ./dist ./cache ./coverage",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
+    "test:ci": "pnpm test",
     "coverage": "c8 pnpm test"
   },
   "dependencies": {
