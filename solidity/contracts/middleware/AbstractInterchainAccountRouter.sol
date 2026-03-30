@@ -239,6 +239,8 @@ abstract contract AbstractInterchainAccountRouter is Router {
             );
 
             IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
+            // Infinite standing approval is safe despite hook postDispatch replay
+            // because tokens are never held in this contract
             IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
         }
 

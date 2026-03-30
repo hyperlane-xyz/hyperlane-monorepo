@@ -64,7 +64,7 @@ interface IInterchainGasPaymaster {
         bytes32 _messageId,
         uint32 _destinationDomain,
         uint256 _gasAmount
-    ) external;
+    ) external payable;
 
     function quoteGasPayment(
         uint32 _destinationDomain,

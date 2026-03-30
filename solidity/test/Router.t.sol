@@ -31,7 +31,7 @@ contract RouterTest is Test {
 
     function setUp() public {
         mailbox = new TestMailbox(localDomain);
-        igp = new TestInterchainGasPaymaster();
+        igp = new TestInterchainGasPaymaster(address(mailbox));
         router = new TestRouter(address(mailbox));
         ism = new TestIsm();
         requiredHook = new TestMerkleTreeHook(address(mailbox));

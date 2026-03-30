@@ -61,7 +61,9 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
-        igp = new TestInterchainGasPaymaster();
+        igp = new TestInterchainGasPaymaster(
+            address(environment.mailboxes(origin))
+        );
         environment.mailboxes(origin).setDefaultHook(address(igp));
 
         vm.etch(

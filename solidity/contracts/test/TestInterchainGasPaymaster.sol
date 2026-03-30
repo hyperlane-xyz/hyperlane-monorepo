@@ -7,7 +7,7 @@ import {InterchainGasPaymaster} from "../hooks/igp/InterchainGasPaymaster.sol";
 contract TestInterchainGasPaymaster is InterchainGasPaymaster {
     uint256 public constant gasPrice = 10;
 
-    constructor() {
+    constructor(address _mailbox) InterchainGasPaymaster(_mailbox) {
         initialize(msg.sender, msg.sender);
     }
 

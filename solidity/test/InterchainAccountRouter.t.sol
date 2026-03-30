@@ -120,7 +120,9 @@ contract InterchainAccountRouterTestBase is Test {
     function setUp() public virtual {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
-        igp = new TestInterchainGasPaymaster();
+        igp = new TestInterchainGasPaymaster(
+            address(environment.mailboxes(origin))
+        );
         gasPaymentQuote = igp.quoteGasPayment(
             destination,
             igp.getDefaultGasUsage()

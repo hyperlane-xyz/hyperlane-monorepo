@@ -255,6 +255,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             }
 
             // Approve fee hook to pull fee tokens
+            // Infinite standing approval is avoided due to hook postDispatch replay
+            // which could drain tokens held in this contract
             IERC20(_token).approve(_feeHook, hookFee);
         }
 

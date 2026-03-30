@@ -18,6 +18,7 @@ import {MessageUtils} from "../isms/IsmTestUtils.sol";
 
 contract IGPOffchainQuotingTest is Test {
     using TypeCasts for address;
+    using Message for bytes;
     using MessageUtils for bytes;
 
     InterchainGasPaymaster igp;
