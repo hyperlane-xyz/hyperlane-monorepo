@@ -181,17 +181,20 @@ const encodeMessageCommand: CommandModuleWithContext<EncodeMessageArgs> = {
 
     let messageBody = body ?? '0x';
 
+    assert(
+      !warpAmount || warpRecipient,
+      '--warp-amount requires --warp-recipient',
+    );
+
     if (warpRecipient) {
-      assert(
-        !body,
-        '--body and --warp-recipient are mutually exclusive',
-      );
+      assert(!body, '--body and --warp-recipient are mutually exclusive');
       assert(warpAmount, '--warp-amount is required with --warp-recipient');
       const recipientBytes32 = addressToBytes32(warpRecipient);
       messageBody = ethers.utils.solidityPack(
         ['bytes32', 'uint256'],
         [recipientBytes32, BigInt(warpAmount)],
       );
+    }
 
     const originId = Number.isNaN(Number(origin))
       ? context.multiProvider.getDomainId(origin)
