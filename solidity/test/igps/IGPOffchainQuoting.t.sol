@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 import {AbstractOffchainQuoter} from "../../contracts/libs/AbstractOffchainQuoter.sol";
 import {SignedQuote} from "../../contracts/interfaces/IOffchainQuoter.sol";
 import {IGPQuoteContext, IGPQuoteData, OffchainQuotedIGP} from "../../contracts/hooks/igp/OffchainQuotedIGP.sol";
@@ -19,6 +21,7 @@ contract IGPOffchainQuotingTest is Test {
     using MessageUtils for bytes;
 
     InterchainGasPaymaster igp;
+    TestMailbox testMailbox;
     StorageGasOracle oracle;
 
     uint256 signerPk = 0xA11CE;
@@ -36,7 +39,8 @@ contract IGPOffchainQuotingTest is Test {
     function setUp() public {
         signer = vm.addr(signerPk);
 
-        igp = new InterchainGasPaymaster();
+        testMailbox = new TestMailbox(1);
+        igp = new InterchainGasPaymaster(address(testMailbox));
         igp.initialize(address(this), BENEFICIARY);
 
         oracle = new StorageGasOracle();
@@ -284,6 +288,7 @@ contract IGPOffchainQuotingTest is Test {
 
         uint256 quote = igp.quoteDispatch(metadata, message);
         vm.deal(address(this), quote);
+        testMailbox.updateLatestDispatchedId(message.id());
         igp.postDispatch{value: quote}(metadata, message);
 
         // Transient persists after postDispatch

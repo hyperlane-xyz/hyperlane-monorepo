@@ -19,6 +19,7 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {IGasOracle} from "../../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {OffchainQuotedIGP} from "./OffchainQuotedIGP.sol";
 import {Indexed} from "../../libs/Indexed.sol";
@@ -61,6 +62,8 @@ contract InterchainGasPaymaster is
     /// @notice Sentinel address for native gas oracle lookups in tokenGasOracles
     address public constant NATIVE_TOKEN = address(0);
 
+    /// @notice The Mailbox used to verify dispatched messages.
+    IMailbox public immutable mailbox;
     // ============ Public Storage ============
 
     /// @dev Deprecated storage slot, previously destinationGasConfigs mapping.
@@ -117,6 +120,9 @@ contract InterchainGasPaymaster is
 
     // ============ External Functions ============
 
+    constructor(address _mailbox) {
+        mailbox = IMailbox(_mailbox);
+    }
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
         return uint8(IPostDispatchHook.HookTypes.INTERCHAIN_GAS_PAYMASTER);
@@ -498,6 +504,10 @@ contract InterchainGasPaymaster is
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
+        require(
+            mailbox.latestDispatchedId() == message.id(),
+            "IGP: message not dispatching"
+        );
         address _feeToken = metadata.feeToken(address(0));
         uint32 _destinationDomain = message.destination();
         uint256 _gasLimit = destinationGasLimit(

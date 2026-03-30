@@ -14,17 +14,17 @@ import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
-
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using MessageUtils for bytes;
-
+    using Message for bytes;
     InterchainGasPaymaster igp;
     StorageGasOracle testOracle;
     StorageGasOracle tokenOracle;
     ERC20Test feeToken;
-
+    TestMailbox testMailbox;
     address constant beneficiary = address(0x444444);
 
     uint32 constant testOriginDomain = 22222;
@@ -66,7 +66,8 @@ contract InterchainGasPaymasterTest is Test {
 
     function setUp() public {
         blockNumber = block.number;
-        igp = new InterchainGasPaymaster();
+        testMailbox = new TestMailbox(testOriginDomain);
+        igp = new InterchainGasPaymaster(address(testMailbox));
         igp.initialize(address(this), beneficiary);
         testOracle = new StorageGasOracle();
         setTestDestinationGasConfig(
@@ -85,6 +86,7 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         testEncodedMessage = _encodeTestMessage();
+        testMailbox.updateLatestDispatchedId(testEncodedMessage.id());
     }
 
     // ============ constructor ============
@@ -960,7 +962,9 @@ contract InterchainGasPaymasterTest is Test {
     // ============ domains ============
 
     function testDomains_empty() public {
-        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster(
+            address(testMailbox)
+        );
         newIgp.initialize(address(this), beneficiary);
         uint32[] memory domains = newIgp.domains();
         assertEq(domains.length, 0);
@@ -1037,7 +1041,9 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     function testDomains_removeNonExistentNoOp() public {
-        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster(
+            address(testMailbox)
+        );
         newIgp.initialize(address(this), beneficiary);
 
         // Remove non-existent domain should not revert
@@ -1092,7 +1098,9 @@ contract InterchainGasPaymasterTest is Test {
         public
     {
         // Create a fresh IGP with no domains configured
-        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster(
+            address(testMailbox)
+        );
         newIgp.initialize(address(this), beneficiary);
 
         // Try to set non-native token oracle without native token configured first

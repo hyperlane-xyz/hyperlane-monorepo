@@ -164,7 +164,9 @@ contract InterchainAccountRouterTestBase is Test {
         feeToken = new ERC20Test("Fee Token", "FEE", 1_000_000e18, 18);
 
         // Deploy real IGP with ERC20 support
-        erc20Igp = new InterchainGasPaymaster();
+        erc20Igp = new InterchainGasPaymaster(
+            address(environment.mailboxes(origin))
+        );
         erc20Igp.initialize(address(this), address(this));
 
         // Deploy and configure gas oracle
