@@ -616,6 +616,60 @@ contract CrossCollateralRouterTest is Test {
         assertEq(originUSDC.balanceOf(ALICE), aliceUSDCBefore + 1234e6);
     }
 
+    function test_revert_transferRemoteTo_sameChainIncompatibleLocalScales()
+        public
+    {
+        CrossCollateralRouter badUsdcRouter = _deployRouter(
+            address(originUSDC),
+            1,
+            1,
+            address(originMailbox)
+        );
+        _batchEnroll(
+            usdtRouterA,
+            _arr1(ORIGIN),
+            _arr1(address(badUsdcRouter).addressToBytes32())
+        );
+        _batchEnroll(
+            badUsdcRouter,
+            _arr1(ORIGIN),
+            _arr1(address(usdtRouterA).addressToBytes32())
+        );
+
+        vm.prank(ALICE);
+        vm.expectRevert("CCR: incompatible local scales");
+        usdtRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            1e18,
+            address(badUsdcRouter).addressToBytes32()
+        );
+    }
+
+    function test_revert_quoteTransferRemoteTo_sameChainIncompatibleLocalScales()
+        public
+    {
+        CrossCollateralRouter badUsdcRouter = _deployRouter(
+            address(originUSDC),
+            1,
+            1,
+            address(originMailbox)
+        );
+        _batchEnroll(
+            usdtRouterA,
+            _arr1(ORIGIN),
+            _arr1(address(badUsdcRouter).addressToBytes32())
+        );
+
+        vm.expectRevert("CCR: incompatible local scales");
+        usdtRouterA.quoteTransferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            1e18,
+            address(badUsdcRouter).addressToBytes32()
+        );
+    }
+
     // ============ 7. Reject unauthorized router in handle ============
 
     function test_revert_handle_unauthorizedRouter() public {
@@ -1660,6 +1714,16 @@ contract CrossCollateralRouterTest is Test {
         bytes32[] memory _routers
     ) internal {
         _router.enrollCrossCollateralRouters(_domains, _routers);
+    }
+
+    function _arr1(uint32 a) internal pure returns (uint32[] memory arr) {
+        arr = new uint32[](1);
+        arr[0] = a;
+    }
+
+    function _arr1(bytes32 a) internal pure returns (bytes32[] memory arr) {
+        arr = new bytes32[](1);
+        arr[0] = a;
     }
 
     function _arr2(

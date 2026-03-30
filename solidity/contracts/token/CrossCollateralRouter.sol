@@ -20,6 +20,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {Quote} from "../interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
@@ -166,6 +167,56 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             _isRemoteRouter(_domain, _router) ||
                 _crossCollateralRouters[_domain].contains(_router),
             "CCR: unauthorized router"
+        );
+    }
+
+    function _greatestCommonDivisor(
+        uint256 _a,
+        uint256 _b
+    ) internal pure returns (uint256) {
+        while (_b != 0) {
+            uint256 remainder = _a % _b;
+            _a = _b;
+            _b = remainder;
+        }
+        return _a;
+    }
+
+    function _reducedCanonicalWholeTokenRatio(
+        address _token,
+        uint256 _routerScaleNumerator,
+        uint256 _routerScaleDenominator
+    ) internal view returns (uint256 numerator, uint256 denominator) {
+        uint256 wholeToken = 10 ** uint256(IERC20Metadata(_token).decimals());
+        numerator = wholeToken * _routerScaleNumerator;
+        denominator = _routerScaleDenominator;
+
+        uint256 gcd = _greatestCommonDivisor(numerator, denominator);
+        return (numerator / gcd, denominator / gcd);
+    }
+
+    function _requireCompatibleLocalRouter(address _target) internal view {
+        (
+            uint256 localNumerator,
+            uint256 localDenominator
+        ) = _reducedCanonicalWholeTokenRatio(
+                token(),
+                scaleNumerator,
+                scaleDenominator
+            );
+        (
+            uint256 targetNumerator,
+            uint256 targetDenominator
+        ) = _reducedCanonicalWholeTokenRatio(
+                CrossCollateralRouter(_target).token(),
+                CrossCollateralRouter(_target).scaleNumerator(),
+                CrossCollateralRouter(_target).scaleDenominator()
+            );
+
+        require(
+            localNumerator == targetNumerator &&
+                localDenominator == targetDenominator,
+            "CCR: incompatible local scales"
         );
     }
 
@@ -329,6 +380,9 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             // Local transfers call handle() directly without mailbox dispatch,
             // so any msg.value would be stuck in this contract permanently.
             require(msg.value == 0, "CCR: local transfer no msg.value");
+            address target = _targetRouter.bytes32ToAddress();
+            require(target.code.length > 0, "CCR: target router not contract");
+            _requireCompatibleLocalRouter(target);
         }
 
         (, uint256 remainingValue) = _calculateFeesAndChargeForRouter(
@@ -345,7 +399,6 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         if (_destination == localDomain) {
             // Same-domain: call target router's handle directly
             address target = _targetRouter.bytes32ToAddress();
-            require(target.code.length > 0, "CCR: target router not contract");
             CrossCollateralRouter(target).handle(
                 localDomain,
                 TypeCasts.addressToBytes32(address(this)),
@@ -393,10 +446,9 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     ) public view override returns (Quote[] memory quotes) {
         _requireAuthorizedRouter(_destination, _targetRouter);
         if (_destination == localDomain) {
-            require(
-                _targetRouter.bytes32ToAddress().code.length > 0,
-                "CCR: target router not contract"
-            );
+            address target = _targetRouter.bytes32ToAddress();
+            require(target.code.length > 0, "CCR: target router not contract");
+            _requireCompatibleLocalRouter(target);
         }
 
         quotes = new Quote[](3);
