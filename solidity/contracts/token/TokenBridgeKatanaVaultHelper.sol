@@ -17,6 +17,14 @@ import {IOFT, SendParam, MessagingFee} from "./interfaces/layerzero/IOFT.sol";
  * @notice Ethereum-side helper for the Katana USDC/vbUSDC bridge flow.
  * @dev Outbound transfers deposit USDC into the Katana vault composer.
  *      Inbound redemptions are permissionless and always pay the fixed beneficiary.
+ * @dev Alternatives considered:
+ *      - AggLayer-specific bridging was rejected because Katana already exposes
+ *        the vault + LayerZero OFT path we need.
+ *      - A dynamic redeem beneficiary was rejected for now in favor of a
+ *        route-specific fixed beneficiary to keep the reasoning and config
+ *        surface smaller.
+ *      - An ICA-owned balance on Ethereum was rejected; this helper holds the
+ *        inbound vbUSDC directly and the ICA only needs to poke redemption.
  */
 contract TokenBridgeKatanaVaultHelper is
     ITokenBridge,

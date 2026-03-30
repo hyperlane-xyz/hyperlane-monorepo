@@ -20,6 +20,14 @@ import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
  * @notice Katana-side bridge wrapper for the vbUSDC -> Ethereum helper flow.
  * @dev Uses an existing TokenBridgeOft instance for the token send and dispatches
  *      a Hyperlane ICA call that instructs the Ethereum helper to redeem.
+ * @dev Alternatives considered:
+ *      - A compose-aware OFT wrapper was rejected here to avoid specializing
+ *        the generic TokenBridgeOft path just for Katana redemption.
+ *      - Sending funds to the ICA itself was rejected; the OFT send goes
+ *        directly to the Ethereum helper and the ICA only handles execution.
+ *      - We accept the tradeoff that a manual permissionless redeem can make
+ *        the ICA poke revert forever, because funds still settle to the fixed
+ *        beneficiary and the simpler route-specific model was preferred.
  */
 contract TokenBridgeKatanaRedeemIca is
     ITokenBridge,
