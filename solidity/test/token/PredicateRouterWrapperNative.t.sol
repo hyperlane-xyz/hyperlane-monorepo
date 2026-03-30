@@ -288,8 +288,9 @@ contract PredicateRouterWrapperNativeTest is Test {
         }(attestation, DESTINATION, BOB.addressToBytes32(), TRANSFER_AMT);
 
         assertTrue(messageId != bytes32(0));
-        // Alice pays the full excess amount
-        assertEq(ALICE.balance, aliceBalanceBefore - excessValue);
+        // Alice is refunded the excess; only pays the required amount
+        uint256 totalRequired = TRANSFER_AMT + gasValue;
+        assertEq(ALICE.balance, aliceBalanceBefore - totalRequired);
     }
 
     function test_native_bypassPrevention_directTransferRemoteReverts() public {

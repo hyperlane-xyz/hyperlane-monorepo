@@ -119,6 +119,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when re-entry is detected
     error PredicateRouterWrapper__ReentryDetected();
 
+    /// @notice Thrown when ETH refund to caller fails
+    error PredicateRouterWrapper__RefundFailed();
+
     // ============ Events ============
 
     /// @notice Emitted when a transfer is authorized via attestation
@@ -233,14 +236,13 @@ contract PredicateRouterWrapper is
             _amount
         );
 
-        // 5. Handle token transfer based on type, pulling total quoted amount
-        if (tokenType == TokenType.Native) {
-            // For native tokens, sum all native quote amounts
-            uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-            if (msg.value < totalNativeRequired)
-                revert PredicateRouterWrapper__InsufficientValue();
-        } else {
-            // For ERC20 tokens, sum all token quote amounts and pull from user
+        // 5. Compute total native value required (fees + token amount for native type)
+        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
+        if (msg.value < totalNativeRequired)
+            revert PredicateRouterWrapper__InsufficientValue();
+
+        // 6. Handle ERC20 token transfer if applicable
+        if (tokenType != TokenType.Native) {
             uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
             token.safeTransferFrom(
                 msg.sender,
@@ -249,14 +251,12 @@ contract PredicateRouterWrapper is
             );
         }
 
-        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
-        // This reuses the same calldata that was validated in the attestation
+        // 7. Call warp route forwarding only the required native amount
         (bool success, bytes memory returnData) = address(warpRoute).call{
-            value: msg.value
+            value: totalNativeRequired
         }(encodedSigAndArgs);
 
         if (!success) {
-            // Bubble up revert reason from warpRoute
             assembly {
                 revert(add(returnData, 32), mload(returnData))
             }
@@ -269,8 +269,13 @@ contract PredicateRouterWrapper is
             revert PredicateRouterWrapper__PostDispatchNotExecuted();
         }
 
-        // Note: pendingAttestation is cleared in _postDispatch()
-        // If we reach here, the transfer succeeded
+        // 8. Refund excess native value to caller
+        uint256 excess = msg.value - totalNativeRequired;
+        if (excess > 0) {
+            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
+            if (!refundSuccess) revert PredicateRouterWrapper__RefundFailed();
+        }
+
         return messageId;
     }
 
