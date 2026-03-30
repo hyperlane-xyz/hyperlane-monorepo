@@ -17,7 +17,38 @@
   "sideEffects": false,
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./consts/*": {
+      "types": "./dist/consts/*.d.ts",
+      "default": "./dist/consts/*.js"
+    },
+    "./metadata/*": {
+      "types": "./dist/metadata/*.d.ts",
+      "default": "./dist/metadata/*.js"
+    },
+    "./providers/builders/*": {
+      "types": "./dist/providers/builders/*.d.ts",
+      "default": "./dist/providers/builders/*.js"
+    },
+    "./providers/*": {
+      "types": "./dist/providers/*.d.ts",
+      "default": "./dist/providers/*.js"
+    },
+    "./token/*": {
+      "types": "./dist/token/*.d.ts",
+      "default": "./dist/token/*.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./warp/*": {
+      "types": "./dist/warp/*.d.ts",
+      "default": "./dist/warp/*.js"
+    }
   },
   "scripts": {
     "build": "tsc",

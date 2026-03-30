@@ -1,6 +1,6 @@
 import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ChainName } from '../types.js';
 
 import { CosmosNativeMultiProtocolSignerAdapter } from './cosmos/cosmjs.js';
@@ -34,7 +34,7 @@ export type MultiProtocolSignerSignerAccountInfo =
 export async function getSignerForChain<TProtocol extends ProtocolType>(
   chainName: ChainName,
   accountConfig: MultiProtocolSignerSignerAccountInfo,
-  multiProtocolProvider: MultiProtocolProvider,
+  multiProtocolProvider: MultiProviderAdapter,
 ): Promise<IMultiProtocolSigner<TProtocol>> {
   const protocol = accountConfig.protocol;
 

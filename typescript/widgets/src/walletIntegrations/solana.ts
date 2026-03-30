@@ -1,92 +1,32 @@
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection } from '@solana/web3.js';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
-import { findChainByRpcUrl } from './utils.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/solana' });
-
-export function useSolanaAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { publicKey, connected, wallet } = useWallet();
-  const isReady = !!(publicKey && wallet && connected);
-  const address = publicKey?.toBase58();
-
-  return useMemo<AccountInfo>(
-    () => ({
-      protocol: ProtocolType.Sealevel,
-      addresses: address ? [{ address: address }] : [],
-      isReady: isReady,
-    }),
-    [address, isReady],
-  );
-}
-
-export function useSolanaWalletDetails() {
-  const { wallet } = useWallet();
-  const { name, icon } = wallet?.adapter || {};
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name,
-      logoUrl: icon,
-    }),
-    [name, icon],
-  );
-}
-
-export function useSolanaConnectFn(): () => void {
-  const { setVisible } = useWalletModal();
-  return useCallback(() => setVisible(true), [setVisible]);
-}
-
-export function useSolanaDisconnectFn(): () => Promise<void> {
-  const { disconnect } = useWallet();
-  return disconnect;
-}
-
-export function useSolanaActiveChain(
-  multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  const { connection } = useConnection();
-  const connectionEndpoint = connection?.rpcEndpoint;
-  return useMemo<ActiveChainInfo>(() => {
-    try {
-      const hostname = new URL(connectionEndpoint).hostname;
-      const metadata = findChainByRpcUrl(multiProvider, hostname);
-      if (!metadata) return {};
-      return {
-        chainDisplayName: metadata.displayName,
-        chainName: metadata.name,
-      };
-    } catch (error) {
-      logger.warn('Error finding sol active chain', error);
-      return {};
-    }
-  }, [connectionEndpoint, multiProvider]);
-}
+export {
+  useSolanaAccount,
+  useSolanaActiveChain,
+  useSolanaConnectFn,
+  useSolanaDisconnectFn,
+  useSolanaWalletDetails,
+} from './solanaWallet.js';
 
 export function useSolanaSwitchNetwork(): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
@@ -97,10 +37,10 @@ export function useSolanaSwitchNetwork(): SwitchNetworkFns {
 }
 
 export function useSolanaWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
-    async (_token: IToken, _activeChainName: ChainName) => {
+    async (_token: ITokenMetadata, _activeChainName: ChainName) => {
       throw new Error('Watch asset not available for solana');
     },
     [],
@@ -110,7 +50,7 @@ export function useSolanaWatchAsset(
 }
 
 export function useSolanaTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const { sendTransaction: sendSolTransaction } = useWallet();
   const { switchNetwork } = useSolanaSwitchNetwork();

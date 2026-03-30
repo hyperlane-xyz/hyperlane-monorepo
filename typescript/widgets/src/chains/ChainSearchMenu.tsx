@@ -1,12 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
-  ChainStatus,
   mergeChainMetadataMap,
-} from '@hyperlane-xyz/sdk';
+  type ChainMetadata,
+  ChainStatus,
+} from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
+import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk/types';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import {
