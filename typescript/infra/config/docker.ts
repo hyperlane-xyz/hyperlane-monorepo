@@ -38,7 +38,7 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '6bbc7b5-20260326-002348',
+  relayer: '1663fd7-20260327-165421',
   relayerRC: '1663fd7-20260327-165421',
   relayerFastPath: '1663fd7-20260327-165421',
   validator: '910e8e8-20260318-204227',
