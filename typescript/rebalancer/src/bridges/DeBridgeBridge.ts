@@ -254,6 +254,8 @@ export class DeBridgeBridge implements IExternalBridge {
       orderId,
       params.fromChain,
       params.toChain,
+      params.fromToken,
+      quote.fromAmount,
     );
   }
 
@@ -325,6 +327,8 @@ export class DeBridgeBridge implements IExternalBridge {
     orderId: string | undefined,
     fromChain: number,
     toChain: number,
+    tokenAddress?: string,
+    amount?: bigint,
   ): Promise<BridgeTransferResult> {
     const evmKey = privateKeys[ProtocolType.Ethereum];
     assert(evmKey, 'Missing private key for EVM chain');
@@ -335,6 +339,38 @@ export class DeBridgeBridge implements IExternalBridge {
       fromChain,
     );
     const wallet = new ethers.Wallet(evmKey, provider);
+
+    // Approve DlnSource contract to spend source token if needed
+    if (
+      tokenAddress &&
+      tokenAddress !== ethers.constants.AddressZero &&
+      amount
+    ) {
+      const erc20 = new ethers.Contract(
+        tokenAddress,
+        [
+          'function allowance(address,address) view returns (uint256)',
+          'function approve(address,uint256) returns (bool)',
+        ],
+        wallet,
+      );
+      const currentAllowance: ethers.BigNumber = await erc20.allowance(
+        wallet.address,
+        to,
+      );
+      if (currentAllowance.lt(amount.toString())) {
+        this.logger.info(
+          { token: tokenAddress, spender: to, amount: amount.toString() },
+          'Approving token for deBridge DlnSource contract',
+        );
+        const approveTx = await erc20.approve(to, ethers.constants.MaxUint256);
+        await approveTx.wait();
+        this.logger.info(
+          { token: tokenAddress, spender: to, txHash: approveTx.hash },
+          'Token approval confirmed',
+        );
+      }
+    }
 
     this.logger.info(
       { from: wallet.address, to, fromChain },
