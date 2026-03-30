@@ -233,14 +233,13 @@ contract PredicateRouterWrapper is
             _amount
         );
 
-        // 5. Handle token transfer based on type, pulling total quoted amount
-        if (tokenType == TokenType.Native) {
-            // For native tokens, sum all native quote amounts
-            uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-            if (msg.value < totalNativeRequired)
-                revert PredicateRouterWrapper__InsufficientValue();
-        } else {
-            // For ERC20 tokens, sum all token quote amounts and pull from user
+        // 5. Validate msg.value covers native fees (dispatch fee for all types, plus token amount for native)
+        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
+        if (msg.value < totalNativeRequired)
+            revert PredicateRouterWrapper__InsufficientValue();
+
+        // 6. For ERC20 tokens, pull token amount from user
+        if (tokenType != TokenType.Native) {
             uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
             token.safeTransferFrom(
                 msg.sender,
@@ -249,7 +248,7 @@ contract PredicateRouterWrapper is
             );
         }
 
-        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
+        // 7. Call warp route using already-encoded calldata (avoids re-encoding)
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(warpRoute).call{
             value: msg.value
