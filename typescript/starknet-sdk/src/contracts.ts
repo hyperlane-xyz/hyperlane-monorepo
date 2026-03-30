@@ -333,3 +333,60 @@ export function normalizeRoutersAddress(value: unknown): string {
   }
   return normalizeStarknetAddressSafe(value);
 }
+
+/**
+ * Creates a Contract instance using the on-chain ABI fetched from the provider.
+ * If the contract is a proxy, resolves the implementation class ABI so
+ * starknet.js parses responses with the correct types.
+ *
+ * Handles both Cairo 1 proxies (`get_implementation` returning a struct)
+ * and Cairo 0 proxies (`implementation` returning a felt).
+ */
+export async function getOnChainStarknetContract(
+  provider: ProviderInterface,
+  address: string,
+): Promise<Contract> {
+  const normalized = normalizeStarknetAddressSafe(address);
+  const { abi } = await provider.getClassAt(normalized);
+  const contract = new Contract(abi, normalized, provider);
+
+  const implHash = await resolveImplementationHash(contract);
+  if (isNullish(implHash)) return contract;
+
+  const implClass = await provider.getClassByHash(`0x${implHash.toString(16)}`);
+  return new Contract(implClass.abi, normalized, provider);
+}
+
+async function resolveImplementationHash(
+  contract: Contract,
+): Promise<bigint | undefined> {
+  // Cairo 1 proxy pattern
+  if (hasAbiMethod(contract, 'get_implementation')) {
+    return coerceClassHash(await callContract(contract, 'get_implementation'));
+  }
+
+  // Cairo 0 proxy pattern
+  if (hasAbiMethod(contract, 'implementation')) {
+    return coerceClassHash(await callContract(contract, 'implementation'));
+  }
+
+  return undefined;
+}
+
+/**
+ * Coerces a proxy implementation call result to a bigint class hash.
+ * Handles both direct values (bigint/string) and single-field structs
+ * returned by Cairo 0 (e.g. `{ implementation_hash_: bigint }`).
+ */
+function coerceClassHash(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'string') return BigInt(value);
+  if (typeof value === 'number') return BigInt(value);
+
+  if (isObjectRecord(value)) {
+    const values = Object.values(value);
+    if (values.length === 1) return coerceClassHash(values[0]);
+  }
+
+  return toBigInt(value);
+}

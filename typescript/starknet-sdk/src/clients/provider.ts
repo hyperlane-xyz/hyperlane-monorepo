@@ -29,6 +29,7 @@ import {
   callContract,
   extractEnumVariant,
   getFeeTokenAddress,
+  getOnChainStarknetContract,
   getStarknetContract,
   normalizeRoutersAddress,
   normalizeStarknetAddressSafe,
@@ -238,6 +239,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     return AltVM.TokenType.synthetic;
   }
 
+  /**
+   * Reads ERC20 metadata by fetching the contract's own ABI from chain,
+   * so starknet.js parses responses correctly regardless of whether
+   * the contract uses felt252 (Cairo 0) or ByteArray (Cairo 1).
+   */
   protected async getTokenMetadata(tokenAddress: string): Promise<{
     name: string;
     symbol: string;
@@ -256,12 +262,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       };
     }
 
-    const token = this.withContract(
-      StarknetContractName.HYP_ERC20,
-      tokenAddress,
-      this.provider,
-      ContractType.TOKEN,
-    );
+    const address = normalizeStarknetAddressSafe(tokenAddress);
+    const token = await getOnChainStarknetContract(this.provider, address);
 
     const [name, symbol, decimals] = await Promise.all([
       callContract(token, 'name'),
