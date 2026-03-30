@@ -1,5 +1,24 @@
 # @hyperlane-xyz/sdk
 
+## 29.1.0
+
+### Minor Changes
+
+- a8192d7: Added TronScan ExplorerFamily
+- a891402: Added M0PortalAdapter for M0 Portal token transfers
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@29.1.0
+- @hyperlane-xyz/starknet-core@29.1.0
+- @hyperlane-xyz/cosmos-sdk@29.1.0
+- @hyperlane-xyz/radix-sdk@29.1.0
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/deploy-sdk@4.2.2
+- @hyperlane-xyz/core@11.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+- @hyperlane-xyz/tron-sdk@22.1.6
+
 ## 29.0.1
 
 ### Patch Changes

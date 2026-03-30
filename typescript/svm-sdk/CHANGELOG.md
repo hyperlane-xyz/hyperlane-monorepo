@@ -1,5 +1,12 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 29.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+
 ## 29.0.1
 
 ### Patch Changes

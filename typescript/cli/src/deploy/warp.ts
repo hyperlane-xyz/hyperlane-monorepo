@@ -796,7 +796,6 @@ async function updateExistingWarpRoute(
               signer,
             );
             const artifact = warpConfigToArtifact(validatedConfig, chainLookup);
-
             const artifactToUpdate = {
               artifactState: ArtifactState.DEPLOYED,
               config: artifact.config,

@@ -414,9 +414,11 @@ jobs:
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
       has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
       has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
     runs-on: ubuntu-latest

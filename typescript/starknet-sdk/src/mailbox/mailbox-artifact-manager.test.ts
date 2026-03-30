@@ -21,6 +21,8 @@ describe('StarknetMailboxArtifactManager', () => {
   };
 
   class MockStarknetSigner extends StarknetSigner {
+    sentTxs: StarknetAnnotatedTx[] = [];
+
     constructor() {
       super(
         new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
@@ -32,9 +34,12 @@ describe('StarknetMailboxArtifactManager', () => {
     }
 
     override async sendAndConfirmTransaction(
-      _tx: StarknetAnnotatedTx,
+      tx: StarknetAnnotatedTx,
     ): Promise<StarknetTxReceipt> {
-      return { transactionHash: '0x1', contractAddress: '0xabc' };
+      this.sentTxs.push(tx);
+      const contractAddress =
+        tx.kind === 'deploy' && tx.contractName === 'hook' ? '0xdef' : '0xabc';
+      return { transactionHash: `0x${this.sentTxs.length}`, contractAddress };
     }
   }
 
@@ -89,5 +94,38 @@ describe('StarknetMailboxArtifactManager', () => {
       normalizeStarknetAddressSafe('0xabc'),
     );
     expect(artifact.deployed.domainId).to.equal(chainMetadata.domainId);
+  });
+
+  it('deploys a noop placeholder hook when Starknet mailbox hooks are unset', async () => {
+    const manager = new StarknetMailboxArtifactManager(chainMetadata);
+    const signer = new MockStarknetSigner();
+
+    const writer = manager.createWriter('mailbox', signer);
+    const [artifact, receipts] = await writer.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        owner: signer.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: '0x111' },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: '0x0' },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: '0x0' },
+        },
+      },
+    });
+
+    expect(receipts).to.have.length(2);
+    expect(signer.sentTxs).to.have.length(2);
+    expect(signer.sentTxs[0]?.kind).to.equal('deploy');
+    expect(signer.sentTxs[1]?.kind).to.equal('deploy');
+    expect(artifact.deployed.address).to.equal(
+      normalizeStarknetAddressSafe('0xabc'),
+    );
   });
 });

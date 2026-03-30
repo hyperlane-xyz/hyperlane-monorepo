@@ -30,6 +30,7 @@ export enum ExplorerFamily {
   Voyager = 'voyager',
   ZkSync = 'zksync',
   RadixDashboard = 'radixdashboard',
+  TronScan = 'tronscan',
   Other = 'other',
   Unknown = 'unknown',
 }

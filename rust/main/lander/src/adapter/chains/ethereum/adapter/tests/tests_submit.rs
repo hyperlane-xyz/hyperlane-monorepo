@@ -5,14 +5,14 @@ use ethers::abi::{Function, StateMutability};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip2930::AccessList;
 use ethers::types::{Address, Eip1559TransactionRequest, NameOrAddress, U256 as EthersU256, U64};
-use hyperlane_core::{H256, U256};
+use hyperlane_core::{ChainCommunicationError, H256, U256};
 
 use crate::adapter::chains::ethereum::tests::MockEvmProvider;
 use crate::adapter::chains::ethereum::transaction::Precursor;
 use crate::adapter::{AdaptsChain, AdaptsChainAction};
 use crate::tests::evm::test_utils::mock_ethereum_adapter;
 use crate::tests::test_utils::tmp_dbs;
-use crate::{FullPayload, TransactionUuid};
+use crate::{FullPayload, LanderError, TransactionUuid};
 
 fn build_mock_typed_tx_and_function() -> (TypedTransaction, Function) {
     let typed_tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
@@ -417,6 +417,76 @@ async fn test_multiple_submissions_after_reset() {
         hyperlane_core::U256::from(104),
         "Upper nonce should be 104 after three submissions"
     );
+}
+
+#[tokio::test]
+async fn test_submit_treats_ethermint_nonce_errors_as_tx_already_exists() {
+    let send_errors = [
+        "nonce too low",
+        "gas wanted -1, gas fee is insufficient",
+        "tx already exists in tx pool cache",
+        "Tx already exist in the fetch queue",
+    ];
+
+    for send_error in send_errors {
+        let (payload_db, tx_db, nonce_db) = tmp_dbs();
+
+        let mut provider = MockEvmProvider::new();
+
+        provider
+            .expect_get_finalized_block_number()
+            .returning(|_| Ok(43));
+
+        provider
+            .expect_get_next_nonce_on_finalized_block()
+            .returning(|_, _| Ok(hyperlane_core::U256::from(51)));
+
+        provider.expect_get_block().returning(|_| {
+            Ok(Some(ethers::types::Block {
+                number: Some(42.into()),
+                base_fee_per_gas: Some(100.into()),
+                gas_limit: 30000000.into(),
+                ..Default::default()
+            }))
+        });
+
+        provider.expect_fee_history().returning(|_, _, _| {
+            Ok(ethers::types::FeeHistory {
+                oldest_block: 0.into(),
+                reward: vec![vec![10.into()]],
+                base_fee_per_gas: vec![200000.into()],
+                gas_used_ratio: vec![0.0],
+            })
+        });
+
+        let send_error_str = send_error.to_string();
+        let send_error_display = send_error_str.clone();
+        provider.expect_send().returning(move |_, _| {
+            Err(ChainCommunicationError::CustomError(send_error_str.clone()))
+        });
+
+        let signer = Address::random();
+        let block_time = Duration::from_millis(100);
+        let minimum_time_between_resubmissions = Duration::from_millis(100);
+
+        let adapter = mock_ethereum_adapter(
+            provider,
+            payload_db.clone(),
+            tx_db,
+            nonce_db,
+            signer,
+            block_time,
+            minimum_time_between_resubmissions,
+        );
+
+        let mut tx = build_and_store_transaction(&adapter, &payload_db).await;
+        let result = adapter.submit(&mut tx).await;
+
+        assert!(
+            matches!(result, Err(LanderError::TxAlreadyExists)),
+            "Expected TxAlreadyExists for send error: {send_error_display:?}, got: {result:?}"
+        );
+    }
 }
 
 /// Test that submit handles nonce reset to finalized + 1

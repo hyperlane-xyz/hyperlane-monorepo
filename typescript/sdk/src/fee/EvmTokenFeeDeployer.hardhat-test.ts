@@ -10,7 +10,6 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
-import { BPS_PRECISION } from './utils.js';
 import {
   LinearFeeConfig,
   ProgressiveFeeConfig,
@@ -19,7 +18,7 @@ import {
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
-import { convertToBps } from './utils.js';
+import { BPS_PRECISION, convertToBps } from './utils.js';
 
 type DistributiveOmit<T, K extends keyof T> = T extends any
   ? Omit<T, K>
