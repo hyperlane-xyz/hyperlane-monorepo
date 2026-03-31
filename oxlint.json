@@ -23,7 +23,7 @@
     "**/*.mjs",
     "jest.config.js",
     "solidity/**/*.sol",
-    "!solidity/multicollateral/**",
+    "!solidity/multicollateral/index.ts",
     "**/examples/**"
   ],
   "rules": {
