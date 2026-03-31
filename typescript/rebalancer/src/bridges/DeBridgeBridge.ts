@@ -359,11 +359,25 @@ export class DeBridgeBridge implements IExternalBridge {
         to,
       );
       if (currentAllowance.lt(amount.toString())) {
+        // USDT requires allowance to be reset to 0 before setting a new non-zero value
+        if (currentAllowance.gt(0)) {
+          this.logger.info(
+            { token: tokenAddress, spender: to },
+            'Resetting token allowance to 0 (required by USDT)',
+          );
+          const resetTx = await erc20.approve(to, 0);
+          await resetTx.wait();
+        }
+        const approveAmount = (amount * 130n) / 100n;
         this.logger.info(
-          { token: tokenAddress, spender: to, amount: amount.toString() },
-          'Approving token for deBridge DlnSource contract',
+          {
+            token: tokenAddress,
+            spender: to,
+            amount: approveAmount.toString(),
+          },
+          'Approving deBridge DlnSource contract with 30% buffer for operating expense drift',
         );
-        const approveTx = await erc20.approve(to, ethers.constants.MaxUint256);
+        const approveTx = await erc20.approve(to, approveAmount.toString());
         await approveTx.wait();
         this.logger.info(
           { token: tokenAddress, spender: to, txHash: approveTx.hash },
