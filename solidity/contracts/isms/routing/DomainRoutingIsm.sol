@@ -29,6 +29,10 @@ contract DomainRoutingIsm is
     using Address for address;
     using Strings for uint32;
 
+    // ============ Events ============
+    event ModuleSet(uint32 indexed domain, address module);
+    event ModuleRemoved(uint32 indexed domain);
+
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
 
@@ -159,6 +163,7 @@ contract DomainRoutingIsm is
      */
     function _remove(uint32 _domain) internal {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
+        emit ModuleRemoved(_domain);
     }
 
     function _originNotFoundError(
@@ -186,5 +191,6 @@ contract DomainRoutingIsm is
     function _set(uint32 _domain, address _module) internal {
         require(_module.isContract(), "ISM must be a contract");
         _modules.set(_domain, _module.addressToBytes32());
+        emit ModuleSet(_domain, _module);
     }
 }

@@ -58,6 +58,8 @@ contract DomainRoutingIsmTest is Test {
         ism.set(domain, IInterchainSecurityModule(address(0x0)));
 
         TestIsm _ism = deployTestIsm(bytes32(0));
+        vm.expectEmit(true, false, false, true);
+        emit DomainRoutingIsm.ModuleSet(domain, address(_ism));
         ism.set(domain, _ism);
         assertEq(address(ism.module(domain)), address(_ism));
     }
@@ -75,7 +77,7 @@ contract DomainRoutingIsmTest is Test {
                 module: modules[i]
             });
         }
-        ism.set(domainModules);
+        ism.setBatch(domainModules);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(domains[i])), address(modules[i]));
         }
@@ -86,6 +88,8 @@ contract DomainRoutingIsmTest is Test {
         ism.add(domain, IInterchainSecurityModule(address(0x0)));
 
         TestIsm _ism = deployTestIsm(bytes32(0));
+        vm.expectEmit(true, false, false, true);
+        emit DomainRoutingIsm.ModuleSet(domain, address(_ism));
         ism.add(domain, _ism);
         assertEq(address(ism.module(domain)), address(_ism));
 
@@ -106,12 +110,12 @@ contract DomainRoutingIsmTest is Test {
                 module: modules[i]
             });
         }
-        ism.add(domainModules);
+        ism.addBatch(domainModules);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(domains[i])), address(modules[i]));
         }
         vm.expectRevert();
-        ism.add(domainModules);
+        ism.addBatch(domainModules);
     }
 
     function testRemove(uint32 domain) public {
@@ -120,6 +124,8 @@ contract DomainRoutingIsmTest is Test {
 
         TestIsm _ism = deployTestIsm(bytes32(0));
         ism.set(domain, _ism);
+        vm.expectEmit(true, false, false, false);
+        emit DomainRoutingIsm.ModuleRemoved(domain);
         ism.remove(domain);
     }
 
@@ -135,8 +141,8 @@ contract DomainRoutingIsmTest is Test {
                 module: modules[i]
             });
         }
-        ism.add(domainModules);
-        ism.remove(domainModules);
+        ism.addBatch(domainModules);
+        ism.removeBatch(domainModules);
         for (uint256 i = 0; i < count; ++i) {
             vm.expectRevert();
             ism.module(domains[i]);
