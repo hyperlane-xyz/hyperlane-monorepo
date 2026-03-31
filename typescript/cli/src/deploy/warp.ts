@@ -66,7 +66,6 @@ import {
   isEVMLike,
   mapAllSettled,
   mustGet,
-  normalizeAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
@@ -1370,7 +1369,6 @@ export async function runWarpRouteCombine({
     }
   }
 
-  const crossCollateralLabels = new Map<string, string>();
   const crossCollateralRouters = routes.flatMap((route) => {
     const invalidDeployChains = Object.entries(route.deployConfig)
       .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
@@ -1396,11 +1394,6 @@ export async function runWarpRouteCombine({
           token.addressOrDenom,
           `Route "${route.id}" token on chain "${token.chainName}" is missing addressOrDenom`,
         );
-        const routerId = `${token.chainName}:${normalizeAddressEvm(token.addressOrDenom)}`;
-        crossCollateralLabels.set(
-          routerId,
-          `route "${route.id}" on chain "${token.chainName}"`,
-        );
         return [token.chainName, token.addressOrDenom];
       }),
     ) as ChainMap<Address>;
@@ -1415,7 +1408,6 @@ export async function runWarpRouteCombine({
   await validateCrossCollateralRouterScales(
     context.multiProvider,
     crossCollateralRouters,
-    crossCollateralLabels,
   );
 
   for (const route of routes) {

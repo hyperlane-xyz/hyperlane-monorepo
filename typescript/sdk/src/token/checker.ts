@@ -30,13 +30,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
-import {
-  DEFAULT_SCALE,
-  ScaleInput,
-  getMessageAmountTokenScale,
-  normalizeScale,
-  verifyScale,
-} from '../utils/decimals.js';
+import { DEFAULT_SCALE, ScaleInput, verifyScale } from '../utils/decimals.js';
 
 import { HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -110,43 +104,9 @@ export function buildExpectedCrossCollateralRouters(
   return [...routers.values()];
 }
 
-export function assertCrossCollateralRouterScales(
-  nodes: CrossCollateralRouterScaleMetadata[],
-  labelsByRouterId?: Map<string, string>,
-): void {
-  const [baseNode, ...candidateNodes] = nodes;
-  if (!baseNode) return;
-
-  const baseScale = getMessageAmountTokenScale(baseNode);
-  const baseId = getCrossCollateralRouterId(baseNode);
-  const baseLabel = labelsByRouterId?.get(baseId) ?? baseId;
-
-  for (const candidateNode of candidateNodes) {
-    const candidateScale = getMessageAmountTokenScale(candidateNode);
-    if (
-      baseScale.numerator * candidateScale.denominator ===
-      candidateScale.numerator * baseScale.denominator
-    ) {
-      continue;
-    }
-
-    const candidateId = getCrossCollateralRouterId(candidateNode);
-    const candidateLabel = labelsByRouterId?.get(candidateId) ?? candidateId;
-
-    assert(
-      false,
-      `Incompatible CrossCollateralRouter decimals/scale between ${baseLabel} ` +
-        `(${baseNode.symbol}, decimals=${baseNode.decimals}, scale=${formatScaleForLogs(baseNode.scale)}) ` +
-        `and ${candidateLabel} ` +
-        `(${candidateNode.symbol}, decimals=${candidateNode.decimals}, scale=${formatScaleForLogs(candidateNode.scale)}).`,
-    );
-  }
-}
-
 export async function validateCrossCollateralRouterScales(
   multiProvider: MultiProvider,
   routers: CrossCollateralRouterReference[],
-  labelsByRouterId?: Map<string, string>,
 ): Promise<void> {
   const uniqueRouters = new Map<string, CrossCollateralRouterReference>();
   for (const router of routers) {
@@ -165,21 +125,27 @@ export async function validateCrossCollateralRouterScales(
       loadCrossCollateralRouterScaleMetadata(multiProvider, router),
     ),
   );
-  assertCrossCollateralRouterScales(nodes, labelsByRouterId);
+  const metadata = new Map<string, TokenMetadata>(
+    nodes.map((node) => [
+      getCrossCollateralRouterId(node),
+      {
+        name: node.symbol,
+        symbol: node.symbol,
+        decimals: node.decimals,
+        scale: node.scale,
+      },
+    ]),
+  );
+  assert(
+    verifyScale(metadata),
+    'Incompatible CrossCollateralRouter decimals/scale',
+  );
 }
 
 function getCrossCollateralRouterId(
   router: CrossCollateralRouterReference,
 ): string {
   return `${router.chainName}:${normalizeAddressEvm(router.routerAddress)}`;
-}
-
-function formatScaleForLogs(scale: ScaleInput | undefined): string {
-  const normalizedScale = normalizeScale(scale);
-  if (normalizedScale.denominator === 1n) {
-    return normalizedScale.numerator.toString();
-  }
-  return `${normalizedScale.numerator}/${normalizedScale.denominator}`;
 }
 
 async function loadCrossCollateralRouterScaleMetadata(
