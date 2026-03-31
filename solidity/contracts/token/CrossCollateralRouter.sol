@@ -443,7 +443,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             mailbox.quoteDispatch(
                 _destination,
                 _targetRouter,
-                TokenMessage.format(_recipient, _amount),
+                TokenMessage.format(_recipient, _outboundAmount(_amount)),
                 _generateHookMetadata(_destination, _feeToken),
                 IPostDispatchHook(address(hook))
             );

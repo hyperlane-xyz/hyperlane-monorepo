@@ -81,7 +81,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
         bytes32 withdrawMessageId = _Router_dispatch(
             _destination,
             address(this).balance - _amount,
-            TokenMessage.format(_recipient, _amount),
+            TokenMessage.format(_recipient, _outboundAmount(_amount)),
             _finalizeHookMetadata(),
             address(hook)
         );
