@@ -97,8 +97,10 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         if (sq.expiry == sq.issuedAt) {
             _storeTransient(sq);
         } else {
-            _storeStanding(sq);
-            emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
+            bool updated = _storeStanding(sq);
+            if (updated) {
+                emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
+            }
         }
     }
 
@@ -167,5 +169,5 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     // ============ Abstract ============
 
     function _storeTransient(SignedQuote calldata sq) internal virtual;
-    function _storeStanding(SignedQuote calldata sq) internal virtual;
+    function _storeStanding(SignedQuote calldata sq) internal virtual returns (bool updated);
 }
