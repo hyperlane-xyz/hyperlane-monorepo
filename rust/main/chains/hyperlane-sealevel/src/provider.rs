@@ -505,6 +505,10 @@ impl SealevelProvider {
     /// Builds a transaction with estimated costs for a given instruction.
     /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
     /// or `SealevelTxType::Legacy` otherwise.
+    ///
+    /// `additional_signers` are extra keypairs that must co-sign the transaction (e.g. the
+    /// identity keypair when a TrustedRelayer ISM is in use). Pass an empty slice when not
+    /// needed.
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
@@ -512,6 +516,7 @@ impl SealevelProvider {
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_address: Option<Pubkey>,
+        additional_signers: &[&SealevelKeypair],
     ) -> ChainResult<SealevelTxType> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -533,20 +538,68 @@ impl SealevelProvider {
             "Got compute units and compute unit price / priority fee for transaction"
         );
 
-        // Build the final transaction with the correct compute unit limit and price.
-        let tx = self
+        if additional_signers.is_empty() {
+            // Fast path: single signer — reuse the existing signing path.
+            let tx = self
+                .create_transaction_for_instruction(
+                    compute_units,
+                    compute_unit_price_micro_lamports,
+                    instruction,
+                    payer,
+                    tx_submitter,
+                    true,
+                    alt_address,
+                )
+                .await?;
+            return Ok(tx);
+        }
+
+        // Multi-signer path: build unsigned, then sign with all keypairs.
+        let unsigned_tx = self
             .create_transaction_for_instruction(
                 compute_units,
                 compute_unit_price_micro_lamports,
                 instruction,
                 payer,
                 tx_submitter,
-                true,
+                false,
                 alt_address,
             )
             .await?;
 
-        Ok(tx)
+        let recent_blockhash = self
+            .rpc_client()
+            .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
+            .chain(
+                additional_signers
+                    .iter()
+                    .map(|k| k.keypair() as &dyn Signer),
+            )
+            .collect();
+
+        let signed_tx = match unsigned_tx {
+            SealevelTxType::Legacy(mut tx) => {
+                tx.sign(&all_signers, recent_blockhash);
+                SealevelTxType::Legacy(tx)
+            }
+            SealevelTxType::Versioned(vtx) => {
+                // Rebuild with the real blockhash then sign with all keypairs.
+                let mut message = vtx.message;
+                match &mut message {
+                    VersionedMessage::V0(msg) => msg.recent_blockhash = recent_blockhash,
+                    VersionedMessage::Legacy(msg) => msg.recent_blockhash = recent_blockhash,
+                }
+                let signed = VersionedTransaction::try_new(message, &all_signers)
+                    .map_err(ChainCommunicationError::from_other)?;
+                SealevelTxType::Versioned(signed)
+            }
+        };
+
+        Ok(signed_tx)
     }
 
     async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {

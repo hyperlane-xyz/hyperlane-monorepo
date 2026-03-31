@@ -34,16 +34,22 @@ pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
 
 /// Sanitizes untrusted dynamic account metas.
 /// Requires that:
-/// - All provided account metas are non-signers (these are made non-signers even if they're requested)
+/// - All provided account metas are non-signers, except optionally the `identity` account which
+///   is explicitly trusted as a signer (e.g. for TrustedRelayer ISMs)
 /// - The payer account is not present in the provided account metas (this is a failure condition)
+///
+/// `identity` must differ from `payer` (the caller is responsible for ensuring this).
 pub fn sanitize_dynamic_accounts(
     mut account_metas: Vec<AccountMeta>,
     payer: &Pubkey,
+    identity: Option<&Pubkey>,
 ) -> ChainResult<Vec<AccountMeta>> {
+    // Force all accounts to non-signer, except the explicitly trusted identity.
     account_metas.iter_mut().for_each(|meta| {
-        if meta.is_signer {
+        let is_identity = identity.map_or(false, |id| meta.pubkey == *id);
+        if meta.is_signer && !is_identity {
             tracing::warn!(meta = ?meta, "Forcing account meta to be non-signer");
-            meta.is_signer = false
+            meta.is_signer = false;
         }
     });
 
@@ -78,7 +84,7 @@ mod test {
         ];
 
         let account_metas =
-            sanitize_dynamic_accounts(account_metas.clone(), &Pubkey::new_unique()).unwrap();
+            sanitize_dynamic_accounts(account_metas.clone(), &Pubkey::new_unique(), None).unwrap();
 
         assert_eq!(
             account_metas,
@@ -102,6 +108,25 @@ mod test {
             AccountMeta::new(payer, true),
         ];
 
-        assert!(sanitize_dynamic_accounts(account_metas, &payer).is_err());
+        assert!(sanitize_dynamic_accounts(account_metas, &payer, None).is_err());
+    }
+
+    #[test]
+    fn test_sanitize_dynamic_accounts_preserves_identity_signer() {
+        use solana_sdk::instruction::AccountMeta;
+
+        let payer = Pubkey::new_unique();
+        let identity = Pubkey::new_unique();
+
+        let account_metas = vec![
+            AccountMeta::new_readonly([0u8; 32].into(), true),
+            AccountMeta::new_readonly(identity, true),
+        ];
+
+        let result = sanitize_dynamic_accounts(account_metas, &payer, Some(&identity)).unwrap();
+
+        // The identity's is_signer flag is preserved; the other is forced to false.
+        assert!(!result[0].is_signer);
+        assert!(result[1].is_signer);
     }
 }

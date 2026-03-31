@@ -86,6 +86,10 @@ pub struct SealevelMailbox {
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
+    /// Optional identity keypair used as the relayer's on-chain identity (e.g. for
+    /// TrustedRelayer ISMs). When set it must differ from `payer`; if absent, `payer`
+    /// is used and TrustedRelayer ISMs with the relayer set to `payer` will not work.
+    signer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
     /// Optional ALT address for versioned transactions (from config)
@@ -105,6 +109,7 @@ impl SealevelMailbox {
         conf: &ConnectionConf,
         locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
+        signer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
@@ -126,6 +131,7 @@ impl SealevelMailbox {
             inbox,
             outbox,
             payer,
+            signer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
             mailbox_process_alt: conf.mailbox_process_alt,
@@ -304,7 +310,14 @@ impl SealevelMailbox {
         let account_metas = self.get_account_metas(instruction).await?;
 
         // Ensure dynamically provided account metas are safe to prevent theft from the payer.
-        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
+        // The identity signer (if configured and distinct from payer) is allowed through as a
+        // trusted co-signer (e.g. required by TrustedRelayer ISMs).
+        let identity = self.get_signer_if_separate().map(|s| s.pubkey());
+        sanitize_dynamic_accounts(
+            account_metas,
+            &self.get_payer()?.pubkey(),
+            identity.as_ref(),
+        )
     }
 
     async fn get_process_payload(
@@ -419,6 +432,19 @@ impl SealevelMailbox {
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
     }
 
+    /// Returns the identity signer only when it is distinct from the payer.
+    /// Used to co-sign transactions for ISMs that require the relayer's identity as a signer
+    /// (e.g. TrustedRelayer) without conflating fee-payer and identity roles.
+    fn get_signer_if_separate(&self) -> Option<&SealevelKeypair> {
+        let signer = self.signer.as_ref()?;
+        let payer = self.payer.as_ref()?;
+        if signer.pubkey() != payer.pubkey() {
+            Some(signer)
+        } else {
+            None
+        }
+    }
+
     fn processed_message_account(&self, message_id: H256) -> Pubkey {
         let (processed_message_account_key, _processed_message_account_bump) =
             Pubkey::find_program_address(
@@ -519,6 +545,8 @@ impl Mailbox for SealevelMailbox {
         let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
+        let additional_signers: Vec<&SealevelKeypair> =
+            self.get_signer_if_separate().into_iter().collect();
         let tx = self
             .provider
             .build_estimated_tx_for_instruction(
@@ -527,6 +555,7 @@ impl Mailbox for SealevelMailbox {
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
                 payload.alt_address,
+                &additional_signers,
             )
             .await?;
 

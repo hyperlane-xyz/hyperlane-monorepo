@@ -61,6 +61,7 @@ fn generate_test_chain_conf(
     ChainConf {
         domain,
         signer,
+        identity: None,
         submitter: Default::default(),
         estimated_block_time: Duration::from_secs_f64(1.1),
         reorg_period: ReorgPeriod::None,
