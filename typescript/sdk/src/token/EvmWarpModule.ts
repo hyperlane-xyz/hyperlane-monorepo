@@ -67,7 +67,7 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 import {
   buildExpectedCrossCollateralConnections,
   validateOnchainCrossCollateralGraph,
-} from './crossCollateralValidation.js';
+} from './crossCollateralOnchainValidation.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
