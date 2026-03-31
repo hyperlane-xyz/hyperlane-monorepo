@@ -14,7 +14,10 @@ import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
 import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
 import { getEnvAddresses } from '../../config/registry.js';
-import { getAgentConfig } from '../../scripts/agent-utils.js';
+import {
+  getAgentConfig,
+  MissingAgentConfigError,
+} from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { getCloudAgentKey, relayerAddresses } from '../agents/key-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
@@ -427,9 +430,9 @@ function isMissingAgentConfigError(
   environment: DeployEnvironment,
 ): boolean {
   return (
-    error instanceof Error &&
-    error.message ===
-      `Context ${context} does not exist in agents for environment ${environment}`
+    error instanceof MissingAgentConfigError &&
+    error.context === context &&
+    error.environment === environment
   );
 }
 
