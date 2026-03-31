@@ -92,14 +92,15 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         }
         _verifyQuoteSigner(sq, signature);
 
-        // transient quotes (expiry == issuedAt) auto-clear at end of tx.
-        // standing quotes persist in storage until they expire or are overwritten.
+        // transient quotes (expiry == issuedAt) auto-clear at end of tx
         if (sq.expiry == sq.issuedAt) {
             _storeTransient(sq);
-        } else {
-            if (_storeStanding(sq)) {
-                emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
-            }
+            return;
+        }
+
+        // standing quotes persist in storage until they expire or are overwritten
+        if (_storeStanding(sq)) {
+            emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
         }
     }
 
