@@ -4,13 +4,14 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
+import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
-import { getFixedRoutingFeeConfig } from './utils.js';
+import { getFixedRoutingFeeConfig, scaleDownConfig } from './utils.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
-import { awIcas } from '../../governance/ica/aw.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
 
 const contractVersion = '11.1.0';
 
@@ -47,37 +48,6 @@ const chainDecimals: Record<string, number> = {
 // The contract does not enforce this — each router independently applies its own scale.
 // We derive scales here so that all routers agree on the same message amount encoding.
 const MESSAGE_DECIMALS = Math.min(...Object.values(chainDecimals));
-
-/**
- * Returns the scale config for a chain based on its local decimals vs message decimals.
- * - Chains at MESSAGE_DECIMALS: no scale (1/1, omitted)
- * - Chains above (e.g. BSC 18-dec): scale down with {numerator: 1, denominator: 10^diff}
- */
-function scaleDownConfig(localDecimals: number) {
-  const diff = localDecimals - MESSAGE_DECIMALS;
-  assert(
-    diff >= 0,
-    `Local decimals ${localDecimals} < message decimals ${MESSAGE_DECIMALS}`,
-  );
-  if (diff === 0) return { scale: { numerator: 1, denominator: 1 } };
-  return { scale: { numerator: 1, denominator: Math.pow(10, diff) } };
-}
-
-const awProxyAdminAddresses: ChainMap<string | undefined> = {
-  ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
-  arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
-  bsc: undefined,
-  plasma: undefined,
-  tron: undefined,
-};
-
-const awProxyAdminOwners: ChainMap<string | undefined> = {
-  ethereum: awSafes.ethereum,
-  arbitrum: awSafes.arbitrum,
-  bsc: awSafes.bsc,
-  plasma: awSafes.plasma,
-  tron: awIcas.tron,
-} as const;
 
 // also including tron
 export const evmDeploymentChains = [
@@ -156,7 +126,7 @@ export const buildEclipseUSDTWarpConfig = async (
           destinations,
           1.5,
         ),
-        ...scaleDownConfig(decimals),
+        ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
       },
     ]);
   }
@@ -193,17 +163,6 @@ export const buildEclipseUSDTWarpConfig = async (
 
   return Object.fromEntries(configs);
 };
-
-const awProxyAdmins: ChainMap<{ address?: string; owner: string }> =
-  Object.fromEntries(
-    Object.entries(awProxyAdminAddresses).map(([chain, address]) => [
-      chain,
-      {
-        address,
-        owner: awProxyAdminOwners[chain] ?? chainOwners[chain].owner,
-      },
-    ]),
-  );
 
 export const getEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

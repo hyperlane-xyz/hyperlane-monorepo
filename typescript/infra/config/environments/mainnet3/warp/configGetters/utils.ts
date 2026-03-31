@@ -184,6 +184,24 @@ export const getNativeTokenConfigForChain = <
 };
 
 /**
+ * Returns the scale config for a chain based on its local decimals vs message decimals.
+ * - Chains at messageDecimals: no scale (1/1)
+ * - Chains above (e.g. BSC 18-dec): scale down with {numerator: 1, denominator: 10^diff}
+ */
+export function scaleDownConfig(
+  localDecimals: number,
+  messageDecimals: number,
+) {
+  const diff = localDecimals - messageDecimals;
+  assert(
+    diff >= 0,
+    `Local decimals ${localDecimals} < message decimals ${messageDecimals}`,
+  );
+  if (diff === 0) return { scale: { numerator: 1, denominator: 1 } };
+  return { scale: { numerator: 1, denominator: Math.pow(10, diff) } };
+}
+
+/**
  * Creates a RoutingFee configuration with a fixed fee for specified destinations.
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
  * The fee token is auto-derived at deploy time based on the warp route token type.
