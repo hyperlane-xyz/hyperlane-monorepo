@@ -178,6 +178,6 @@ export const getEclipseUSDTGnosisSafeBuilderStrategyConfig =
   getGnosisSafeBuilderStrategyConfigGenerator(
     objFilter(
       productionOwnersByChain,
-      (chain, _v): _v is string => !nonEvmDeploymentChains.includes(chain),
+      (chain, _v): _v is string => chain === 'ethereum',
     ),
   );
