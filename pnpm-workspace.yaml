@@ -1,3 +1,6 @@
+# Reject packages published less than 7 days ago (supply chain protection)
+minimumReleaseAge: 10080
+
 packages:
   - 'solhint-plugin'
   - 'solidity'
