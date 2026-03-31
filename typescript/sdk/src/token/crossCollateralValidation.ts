@@ -100,56 +100,20 @@ export async function validateCrossCollateralGraph({
     return;
   }
 
-  const queue = dedupeRouterRefs(roots);
   const visited = new Set<string>();
-  const nodePromises = new Map<
-    string,
-    Promise<CrossCollateralValidationNode>
-  >();
-  const describe =
-    describeRef ??
-    ((ref: CrossCollateralRouterReference) =>
-      `"${ref.chainName}:${normalizeAddressEvm(ref.routerAddress)}"`);
+  const getNode = getCachedCrossCollateralNodeLoader(loadNode);
+  const describe = describeRef ?? describeCrossCollateralRouterRef;
 
-  const getNode = (ref: CrossCollateralRouterReference) => {
-    const routerId = getCrossCollateralRouterId(ref);
-    const existing = nodePromises.get(routerId);
-    if (existing) {
-      return existing;
-    }
-
-    const next = loadNode(ref);
-    nodePromises.set(routerId, next);
-    return next;
-  };
-
-  while (queue.length > 0) {
-    const root = queue.shift()!;
+  for (const root of dedupeRouterRefs(roots)) {
     const rootRouterId = getCrossCollateralRouterId(root);
     if (visited.has(rootRouterId)) {
       continue;
     }
-    const componentNodes: CrossCollateralValidationNode[] = [];
-    const componentQueue = [root];
-
-    while (componentQueue.length > 0) {
-      const ref = componentQueue.shift()!;
-      const routerId = getCrossCollateralRouterId(ref);
-      if (visited.has(routerId)) {
-        continue;
-      }
-      visited.add(routerId);
-
-      const node = await getNode(ref);
-      componentNodes.push(node);
-
-      for (const peer of dedupeRouterRefs(node.peers)) {
-        if (!visited.has(getCrossCollateralRouterId(peer))) {
-          componentQueue.push(peer);
-        }
-      }
-    }
-
+    const componentNodes = await collectCrossCollateralComponent({
+      root,
+      getNode,
+      visited,
+    });
     assertConsistentCrossCollateralComponent(componentNodes, describe);
   }
 }
@@ -453,6 +417,66 @@ function assertConsistentCrossCollateralComponent(
         `(${candidateNode.symbol}, decimals=${candidateNode.decimals}, scale=${formatCrossCollateralScaleForLogs(candidateNode.scale)}).`,
     );
   }
+}
+
+function describeCrossCollateralRouterRef(
+  ref: CrossCollateralRouterReference,
+): string {
+  return `"${ref.chainName}:${normalizeAddressEvm(ref.routerAddress)}"`;
+}
+
+function getCachedCrossCollateralNodeLoader(
+  loadNode: CrossCollateralValidationNodeLoader,
+): CrossCollateralValidationNodeLoader {
+  const nodePromises = new Map<
+    string,
+    Promise<CrossCollateralValidationNode>
+  >();
+
+  return (ref) => {
+    const routerId = getCrossCollateralRouterId(ref);
+    const existing = nodePromises.get(routerId);
+    if (existing) {
+      return existing;
+    }
+
+    const next = loadNode(ref);
+    nodePromises.set(routerId, next);
+    return next;
+  };
+}
+
+async function collectCrossCollateralComponent({
+  root,
+  getNode,
+  visited,
+}: {
+  root: CrossCollateralRouterReference;
+  getNode: CrossCollateralValidationNodeLoader;
+  visited: Set<string>;
+}): Promise<CrossCollateralValidationNode[]> {
+  const componentNodes: CrossCollateralValidationNode[] = [];
+  const componentQueue = [root];
+
+  while (componentQueue.length > 0) {
+    const ref = componentQueue.shift()!;
+    const routerId = getCrossCollateralRouterId(ref);
+    if (visited.has(routerId)) {
+      continue;
+    }
+    visited.add(routerId);
+
+    const node = await getNode(ref);
+    componentNodes.push(node);
+
+    for (const peer of dedupeRouterRefs(node.peers)) {
+      if (!visited.has(getCrossCollateralRouterId(peer))) {
+        componentQueue.push(peer);
+      }
+    }
+  }
+
+  return componentNodes;
 }
 
 function dedupeRouterRefs(
