@@ -166,16 +166,6 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
 
     // ============ Abstract ============
 
-    /// @dev Reverts if sq.issuedAt < existing, returns false if equal (no-op).
-    function _checkStaleQuote(
-        uint48 existingIssuedAt,
-        uint48 newIssuedAt
-    ) internal pure returns (bool) {
-        if (newIssuedAt < existingIssuedAt) revert StaleQuote();
-        if (newIssuedAt == existingIssuedAt) return false;
-        return true;
-    }
-
     function _storeTransient(SignedQuote calldata sq) internal virtual;
     function _storeStanding(SignedQuote calldata sq) internal virtual;
 }

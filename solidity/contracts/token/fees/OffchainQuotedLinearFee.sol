@@ -271,7 +271,8 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
 
         StoredQuote storage existing = quotes[dest][recipient];
 
-        if (!_checkStaleQuote(existing.issuedAt, sq.issuedAt)) return;
+        if (sq.issuedAt < existing.issuedAt) revert StaleQuote();
+        if (sq.issuedAt == existing.issuedAt) return;
 
         (uint256 maxFee_, uint256 halfAmount_) = FeeQuoteData.decode(sq.data);
         quotes[dest][recipient] = StoredQuote(
