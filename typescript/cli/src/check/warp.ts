@@ -1,15 +1,18 @@
 import { stringify as yamlStringify } from 'yaml';
 
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
 import {
   type AccountConfig,
   type DerivedWarpRouteDeployConfig,
   EvmWarpRouteReader,
   type HypTokenRouterVirtualConfig,
   InterchainAccount,
+  type MultiProvider,
   type TokenMetadata,
   type WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
+  isCrossCollateralTokenConfig,
   resolveRouterMapConfig,
   transformConfigToCheck,
   verifyScale,
@@ -30,11 +33,16 @@ import { type CommandContext } from '../context/types.js';
 import { log, logGreen, logRed, warnYellow } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
-const CROSS_COLLATERAL_TYPE = 'crossCollateral';
+type ScaleValidationMultiProvider = MultiProvider;
 
-type CrossCollateralConfigWithRouters = {
-  type: string;
-  crossCollateralRouters?: Record<string, string[]>;
+type ScaleValidationWarpRouteConfig = WarpRouteDeployConfigMailboxRequired &
+  Record<string, Partial<HypTokenRouterVirtualConfig>>;
+
+type CrossCollateralRouterRef = {
+  chain: string;
+  metadataKey: string;
+  routerAddress: string;
+  routerId: string;
 };
 
 export async function runWarpRouteCheck({
@@ -112,9 +120,8 @@ async function buildScaleValidationMetadataMap({
   multiProvider,
   warpRouteConfig,
 }: {
-  multiProvider: CommandContext['multiProvider'];
-  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+  multiProvider: ScaleValidationMultiProvider;
+  warpRouteConfig: ScaleValidationWarpRouteConfig;
 }): Promise<Map<string, TokenMetadata>> {
   const metadataByKey = new Map<string, TokenMetadata>(
     Object.entries(warpRouteConfig).map(([chain, config]) => [
@@ -128,81 +135,111 @@ async function buildScaleValidationMetadataMap({
     ]),
   );
   const readerByChain = new Map<string, EvmWarpRouteReader>();
-  const routerMetadataPromises = new Map<string, Promise<TokenMetadata>>();
+  const configuredRouters = collectConfiguredCrossCollateralRouters({
+    multiProvider,
+    warpRouteConfig,
+  });
 
-  for (const [, config] of Object.entries(warpRouteConfig)) {
-    const crossCollateralConfig = config as CrossCollateralConfigWithRouters;
+  const configuredRouterMetadata = await Promise.all(
+    configuredRouters.map((routerRef) =>
+      fetchConfiguredCrossCollateralRouterMetadata({
+        multiProvider,
+        readerByChain,
+        routerRef,
+      }),
+    ),
+  );
+
+  for (const [metadataKey, metadata] of configuredRouterMetadata) {
+    metadataByKey.set(metadataKey, metadata);
+  }
+
+  return metadataByKey;
+}
+
+function collectConfiguredCrossCollateralRouters({
+  multiProvider,
+  warpRouteConfig,
+}: {
+  multiProvider: ScaleValidationMultiProvider;
+  warpRouteConfig: ScaleValidationWarpRouteConfig;
+}): CrossCollateralRouterRef[] {
+  const routerRefs = new Map<string, CrossCollateralRouterRef>();
+
+  for (const config of Object.values(warpRouteConfig)) {
     if (
-      crossCollateralConfig.type !== CROSS_COLLATERAL_TYPE ||
-      !crossCollateralConfig.crossCollateralRouters
+      !isCrossCollateralTokenConfig(config) ||
+      !config.crossCollateralRouters
     ) {
       continue;
     }
 
     const crossCollateralRouters = resolveRouterMapConfig(
       multiProvider,
-      crossCollateralConfig.crossCollateralRouters,
+      config.crossCollateralRouters,
     );
 
     for (const [domain, routers] of Object.entries(crossCollateralRouters)) {
       const chain = multiProvider.getChainName(Number(domain));
 
-      for (const routerId of routers as string[]) {
+      for (const routerId of routers) {
         const routerAddress = normalizeAddressEvm(
           isAddressEvm(routerId) ? routerId : bytes32ToAddress(routerId),
         );
         const metadataKey = `${chain}:${routerAddress.toLowerCase()}`;
-
-        if (routerMetadataPromises.has(metadataKey)) {
-          continue;
-        }
-
-        const reader =
-          readerByChain.get(chain) ??
-          new EvmWarpRouteReader(multiProvider, chain);
-        readerByChain.set(chain, reader);
-        routerMetadataPromises.set(
+        routerRefs.set(metadataKey, {
+          chain,
           metadataKey,
-          (async () => {
-            try {
-              const routerConfig =
-                await reader.deriveWarpRouteConfig(routerAddress);
-              return {
-                name: routerConfig.name ?? 'unknown',
-                symbol: routerConfig.symbol ?? 'unknown',
-                decimals: routerConfig.decimals,
-                scale: routerConfig.scale,
-              };
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : String(error);
-              throw new Error(
-                `Failed to derive configured crossCollateral router ${routerId} on ${chain}: ${message}`,
-              );
-            }
-          })(),
-        );
+          routerAddress,
+          routerId,
+        });
       }
     }
   }
 
-  for (const [
-    metadataKey,
-    metadataPromise,
-  ] of routerMetadataPromises.entries()) {
-    metadataByKey.set(metadataKey, await metadataPromise);
-  }
+  return [...routerRefs.values()];
+}
 
-  return metadataByKey;
+async function fetchConfiguredCrossCollateralRouterMetadata({
+  multiProvider,
+  readerByChain,
+  routerRef,
+}: {
+  multiProvider: ScaleValidationMultiProvider;
+  readerByChain: Map<string, EvmWarpRouteReader>;
+  routerRef: CrossCollateralRouterRef;
+}): Promise<readonly [string, TokenMetadata]> {
+  const { chain, metadataKey, routerAddress, routerId } = routerRef;
+  const reader =
+    readerByChain.get(chain) ?? new EvmWarpRouteReader(multiProvider, chain);
+  readerByChain.set(chain, reader);
+
+  try {
+    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+      routerAddress,
+      multiProvider.getProvider(chain),
+    );
+    const [wrappedTokenAddress, scale] = await Promise.all([
+      crossCollateralRouter.wrappedToken(),
+      reader.fetchScale(routerAddress),
+    ]);
+    const metadata = await reader.fetchERC20Metadata(wrappedTokenAddress);
+
+    return [metadataKey, { ...metadata, scale }] as const;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to derive configured crossCollateral router ${routerId} on ${chain}: ${message}`,
+    );
+  }
 }
 
 export async function verifyDecimalsAndScale({
   multiProvider,
   warpRouteConfig,
 }: {
-  multiProvider: CommandContext['multiProvider'];
-  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+  multiProvider: ScaleValidationMultiProvider;
+  warpRouteConfig: ScaleValidationWarpRouteConfig;
 }): Promise<boolean> {
   let valid = true;
   const scaleValidationMetadata = await buildScaleValidationMetadataMap({

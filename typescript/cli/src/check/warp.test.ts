@@ -1,11 +1,15 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
 import {
   EvmWarpRouteReader,
-  type HypTokenRouterVirtualConfig,
+  MultiProvider,
+  type NormalizedScale,
   TokenType,
+  type TokenMetadata,
   type WarpRouteDeployConfigMailboxRequired,
+  test1,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -16,37 +20,116 @@ const DOMAIN_BY_CHAIN = {
   anvil3: 31338,
 } as const;
 
-const CHAIN_BY_DOMAIN = {
-  [DOMAIN_BY_CHAIN.anvil2]: 'anvil2',
-  [DOMAIN_BY_CHAIN.anvil3]: 'anvil3',
-} as const;
-
 const MAILBOX = '0x000000000000000000000000000000000000b001';
 const OWNER = '0x000000000000000000000000000000000000dEaD';
-const ROUTER_A = '0x1111111111111111111111111111111111111111';
 const ROUTER_B = '0x2222222222222222222222222222222222222222';
 const ROUTER_C = '0x3333333333333333333333333333333333333333';
+const TOKEN_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const TOKEN_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const TOKEN_C = '0xcccccccccccccccccccccccccccccccccccccccc';
 
 type CrossCollateralRouterConfig = Extract<
   WarpRouteDeployConfigMailboxRequired[string],
   { type: typeof TokenType.crossCollateral }
 >;
 
-function buildMultiProvider() {
-  return {
-    getProvider: sinon.stub().returns({}),
-    tryGetRpcConcurrency: sinon.stub().returns(undefined),
-    getChainName: sinon.stub().callsFake((domain: number) => {
-      const chain = CHAIN_BY_DOMAIN[domain as keyof typeof CHAIN_BY_DOMAIN];
-      if (!chain) throw new Error(`Unknown domain ${domain}`);
-      return chain;
-    }),
-    getChainMetadata: sinon.stub().callsFake((chain: string) => {
-      const domainId = DOMAIN_BY_CHAIN[chain as keyof typeof DOMAIN_BY_CHAIN];
-      if (!domainId) throw new Error(`Unknown chain ${chain}`);
-      return { domainId };
-    }),
-  } as any;
+type VerifyDecimalsAndScaleParams = Parameters<
+  typeof verifyDecimalsAndScale
+>[0];
+type ScaleValidationMultiProvider =
+  VerifyDecimalsAndScaleParams['multiProvider'];
+type ScaleValidationWarpRouteConfig =
+  VerifyDecimalsAndScaleParams['warpRouteConfig'];
+
+type ConfiguredRouterMetadata = {
+  wrappedToken: string;
+  metadata: TokenMetadata;
+  scale?: NormalizedScale;
+  error?: Error;
+};
+
+function buildMultiProvider(): ScaleValidationMultiProvider {
+  return new MultiProvider({
+    anvil2: {
+      ...test1,
+      chainId: DOMAIN_BY_CHAIN.anvil2,
+      displayName: 'anvil2',
+      domainId: DOMAIN_BY_CHAIN.anvil2,
+      name: 'anvil2',
+    },
+    anvil3: {
+      ...test1,
+      chainId: DOMAIN_BY_CHAIN.anvil3,
+      displayName: 'anvil3',
+      domainId: DOMAIN_BY_CHAIN.anvil3,
+      name: 'anvil3',
+    },
+  });
+}
+
+function stubConfiguredRouterMetadata(
+  routerMetadataByAddress: Record<string, ConfiguredRouterMetadata>,
+) {
+  const configuredRouters = new Map(
+    Object.entries(routerMetadataByAddress).map(([routerAddress, metadata]) => [
+      routerAddress.toLowerCase(),
+      metadata,
+    ]),
+  );
+  const metadataByWrappedToken = new Map(
+    [...configuredRouters.values()].map((metadata) => [
+      metadata.wrappedToken.toLowerCase(),
+      metadata.metadata,
+    ]),
+  );
+
+  const connectStub = sinon
+    .stub(CrossCollateralRouter__factory, 'connect')
+    .callsFake((routerAddress) => {
+      const configuredRouter = configuredRouters.get(
+        routerAddress.toLowerCase(),
+      );
+      if (!configuredRouter) {
+        throw new Error(`Unexpected router ${routerAddress}`);
+      }
+
+      return {
+        wrappedToken: async () => {
+          if (configuredRouter.error) {
+            throw configuredRouter.error;
+          }
+
+          return configuredRouter.wrappedToken;
+        },
+        // CAST: unit test only needs wrappedToken(), which is the only method used here.
+      } as ReturnType<typeof CrossCollateralRouter__factory.connect>;
+    });
+  const metadataStub = sinon
+    .stub(EvmWarpRouteReader.prototype, 'fetchERC20Metadata')
+    .callsFake(async (wrappedTokenAddress: string) => {
+      const metadata = metadataByWrappedToken.get(
+        wrappedTokenAddress.toLowerCase(),
+      );
+      if (!metadata) {
+        throw new Error(`Unexpected token ${wrappedTokenAddress}`);
+      }
+
+      return metadata;
+    });
+  const scaleStub = sinon
+    .stub(EvmWarpRouteReader.prototype, 'fetchScale')
+    .callsFake(async (routerAddress: string) => {
+      const configuredRouter = configuredRouters.get(
+        routerAddress.toLowerCase(),
+      );
+      if (!configuredRouter) {
+        throw new Error(`Unexpected router ${routerAddress}`);
+      }
+
+      return configuredRouter.scale;
+    });
+
+  return { connectStub, metadataStub, scaleStub };
 }
 
 function buildCrossCollateralConfig({
@@ -78,34 +161,28 @@ describe('verifyDecimalsAndScale', () => {
     sinon.restore();
   });
 
-  it('passes when top-level routes and configured CCR routers share one effective scale', async () => {
-    const deriveStub = sinon
-      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
-      .callsFake(async function (this: any, address: string) {
-        if (this.chain === 'anvil3' && address.toLowerCase() === ROUTER_B) {
-          return {
-            type: TokenType.crossCollateral,
+  it('passes when an off-subroute configured CCR router shares the same effective scale', async () => {
+    const { connectStub, metadataStub, scaleStub } =
+      stubConfiguredRouterMetadata({
+        [ROUTER_B]: {
+          wrappedToken: TOKEN_B,
+          metadata: {
             name: 'TOKEN',
             symbol: 'TOKEN',
             decimals: 18,
-          } as any;
-        }
-        throw new Error(`Unexpected router ${address} on ${this.chain}`);
+            isNft: false,
+          },
+        },
       });
 
-    const warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-      Record<string, Partial<HypTokenRouterVirtualConfig>> = {
+    const warpRouteConfig: ScaleValidationWarpRouteConfig = {
       anvil2: buildCrossCollateralConfig({
-        token: ROUTER_A,
+        token: TOKEN_A,
         decimals: 6,
         scale: 1_000_000_000_000,
         crossCollateralRouters: {
           [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_B)],
         },
-      }),
-      anvil3: buildCrossCollateralConfig({
-        token: ROUTER_B,
-        decimals: 18,
       }),
     };
 
@@ -115,37 +192,34 @@ describe('verifyDecimalsAndScale', () => {
     });
 
     expect(isValid).to.equal(true);
-    expect(deriveStub.calledOnceWithExactly(ROUTER_B)).to.equal(true);
+    expect(
+      connectStub.calledOnceWithExactly(ROUTER_B, sinon.match.object),
+    ).to.equal(true);
+    expect(metadataStub.calledOnceWithExactly(TOKEN_B)).to.equal(true);
+    expect(scaleStub.calledOnceWithExactly(ROUTER_B)).to.equal(true);
   });
 
-  it('fails when a configured CCR router has mismatched decimals/scale', async () => {
-    sinon
-      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
-      .callsFake(async function (this: any, address: string) {
-        if (this.chain === 'anvil3' && address.toLowerCase() === ROUTER_B) {
-          return {
-            type: TokenType.crossCollateral,
-            name: 'TOKEN',
-            symbol: 'TOKEN',
-            decimals: 8,
-          } as any;
-        }
-        throw new Error(`Unexpected router ${address} on ${this.chain}`);
-      });
+  it('fails when an off-subroute configured CCR router has mismatched decimals', async () => {
+    stubConfiguredRouterMetadata({
+      [ROUTER_B]: {
+        wrappedToken: TOKEN_B,
+        metadata: {
+          name: 'TOKEN',
+          symbol: 'TOKEN',
+          decimals: 8,
+          isNft: false,
+        },
+      },
+    });
 
-    const warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-      Record<string, Partial<HypTokenRouterVirtualConfig>> = {
+    const warpRouteConfig: ScaleValidationWarpRouteConfig = {
       anvil2: buildCrossCollateralConfig({
-        token: ROUTER_A,
+        token: TOKEN_A,
         decimals: 6,
         scale: 1_000_000_000_000,
         crossCollateralRouters: {
           [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_B)],
         },
-      }),
-      anvil3: buildCrossCollateralConfig({
-        token: ROUTER_B,
-        decimals: 18,
       }),
     };
 
@@ -158,24 +232,21 @@ describe('verifyDecimalsAndScale', () => {
   });
 
   it('includes same-chain CCR routers specified by chain name', async () => {
-    const deriveStub = sinon
-      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
-      .callsFake(async function (this: any, address: string) {
-        if (this.chain === 'anvil2' && address.toLowerCase() === ROUTER_B) {
-          return {
-            type: TokenType.crossCollateral,
-            name: 'TOKEN',
-            symbol: 'TOKEN',
-            decimals: 18,
-          } as any;
-        }
-        throw new Error(`Unexpected router ${address} on ${this.chain}`);
-      });
+    const { connectStub } = stubConfiguredRouterMetadata({
+      [ROUTER_B]: {
+        wrappedToken: TOKEN_B,
+        metadata: {
+          name: 'TOKEN',
+          symbol: 'TOKEN',
+          decimals: 18,
+          isNft: false,
+        },
+      },
+    });
 
-    const warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-      Record<string, Partial<HypTokenRouterVirtualConfig>> = {
+    const warpRouteConfig: ScaleValidationWarpRouteConfig = {
       anvil2: buildCrossCollateralConfig({
-        token: ROUTER_A,
+        token: TOKEN_A,
         decimals: 6,
         scale: 1_000_000_000_000,
         crossCollateralRouters: {
@@ -190,47 +261,42 @@ describe('verifyDecimalsAndScale', () => {
     });
 
     expect(isValid).to.equal(true);
-    expect(deriveStub.calledOnceWithExactly(ROUTER_B)).to.equal(true);
+    expect(
+      connectStub.calledOnceWithExactly(ROUTER_B, sinon.match.object),
+    ).to.equal(true);
   });
 
   it('dedupes repeated configured CCR router references', async () => {
-    const deriveStub = sinon
-      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
-      .callsFake(async function (this: any, address: string) {
-        if (this.chain === 'anvil3' && address.toLowerCase() === ROUTER_B) {
-          return {
-            type: TokenType.crossCollateral,
+    const { connectStub, metadataStub, scaleStub } =
+      stubConfiguredRouterMetadata({
+        [ROUTER_B]: {
+          wrappedToken: TOKEN_B,
+          metadata: {
             name: 'TOKEN',
             symbol: 'TOKEN',
             decimals: 18,
-          } as any;
-        }
-        if (this.chain === 'anvil2' && address.toLowerCase() === ROUTER_C) {
-          return {
-            type: TokenType.crossCollateral,
+            isNft: false,
+          },
+        },
+        [ROUTER_C]: {
+          wrappedToken: TOKEN_C,
+          metadata: {
             name: 'TOKEN',
             symbol: 'TOKEN',
             decimals: 18,
-          } as any;
-        }
-        throw new Error(`Unexpected router ${address} on ${this.chain}`);
+            isNft: false,
+          },
+        },
       });
 
     const repeatedRouter = addressToBytes32(ROUTER_B);
-    const warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-      Record<string, Partial<HypTokenRouterVirtualConfig>> = {
+    const warpRouteConfig: ScaleValidationWarpRouteConfig = {
       anvil2: buildCrossCollateralConfig({
-        token: ROUTER_A,
+        token: TOKEN_A,
         decimals: 6,
         scale: 1_000_000_000_000,
         crossCollateralRouters: {
           [DOMAIN_BY_CHAIN.anvil3.toString()]: [repeatedRouter, repeatedRouter],
-        },
-      }),
-      anvil3: buildCrossCollateralConfig({
-        token: ROUTER_B,
-        decimals: 18,
-        crossCollateralRouters: {
           [DOMAIN_BY_CHAIN.anvil2.toString()]: [addressToBytes32(ROUTER_C)],
         },
       }),
@@ -242,18 +308,28 @@ describe('verifyDecimalsAndScale', () => {
     });
 
     expect(isValid).to.equal(true);
-    expect(deriveStub.callCount).to.equal(2);
+    expect(connectStub.callCount).to.equal(2);
+    expect(metadataStub.callCount).to.equal(2);
+    expect(scaleStub.callCount).to.equal(2);
   });
 
   it('throws when a configured CCR router cannot be read', async () => {
-    sinon
-      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
-      .rejects(new Error('boom'));
+    stubConfiguredRouterMetadata({
+      [ROUTER_B]: {
+        wrappedToken: TOKEN_B,
+        metadata: {
+          name: 'TOKEN',
+          symbol: 'TOKEN',
+          decimals: 18,
+          isNft: false,
+        },
+        error: new Error('boom'),
+      },
+    });
 
-    const warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-      Record<string, Partial<HypTokenRouterVirtualConfig>> = {
+    const warpRouteConfig: ScaleValidationWarpRouteConfig = {
       anvil2: buildCrossCollateralConfig({
-        token: ROUTER_A,
+        token: TOKEN_A,
         decimals: 6,
         scale: 1_000_000_000_000,
         crossCollateralRouters: {
@@ -269,7 +345,7 @@ describe('verifyDecimalsAndScale', () => {
         warpRouteConfig,
       });
     } catch (error) {
-      thrown = error as Error;
+      thrown = error instanceof Error ? error : new Error(String(error));
     }
 
     expect(thrown?.message).to.equal(
