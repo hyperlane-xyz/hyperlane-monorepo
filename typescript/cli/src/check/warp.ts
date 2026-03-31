@@ -21,6 +21,7 @@ import {
   type ObjectDiff,
   assert,
   bytes32ToAddress,
+  concurrentMap,
   diffObjMerge,
   eqAddress,
   isAddressEvm,
@@ -139,15 +140,21 @@ async function buildScaleValidationMetadataMap({
     multiProvider,
     warpRouteConfig,
   });
+  const concurrency = configuredRouters.reduce(
+    (maxConcurrency, { chain }) =>
+      Math.max(maxConcurrency, multiProvider.tryGetRpcConcurrency(chain) ?? 1),
+    1,
+  );
 
-  const configuredRouterMetadata = await Promise.all(
-    configuredRouters.map((routerRef) =>
+  const configuredRouterMetadata = await concurrentMap(
+    concurrency,
+    configuredRouters,
+    async (routerRef) =>
       fetchConfiguredCrossCollateralRouterMetadata({
         multiProvider,
         readerByChain,
         routerRef,
       }),
-    ),
   );
 
   for (const [metadataKey, metadata] of configuredRouterMetadata) {
