@@ -107,6 +107,7 @@ mock! {
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
             alt_address: Option<Pubkey>,
+            additional_signers: &[&SealevelKeypair],
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
@@ -198,7 +199,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _, _| {
             let keypair = payer;
             let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],

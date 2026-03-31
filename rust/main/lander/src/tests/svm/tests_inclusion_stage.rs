@@ -564,7 +564,8 @@ fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) 
              payer: &SealevelKeypair,
              tx_submitter: Arc<dyn TransactionSubmitter>,
              _sign: bool,
-             _alt_address: Option<Pubkey>| {
+             _alt_address: Option<Pubkey>,
+             _additional_signers: &[&SealevelKeypair]| {
                 let instructions = vec![
                     // Set the compute unit limit.
                     ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),

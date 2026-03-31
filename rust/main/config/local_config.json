@@ -42,6 +42,10 @@
         "type": "hexKey",
         "key": "B1ufVWBpoLLQCZr5XSULEXV85DFPrzbgLUbbdD4qe2rj"
       },
+      "identity": {
+        "type": "hexKey",
+        "key": "9BecQ7jke4md9d5zQG2e3SRkQYUS7TvB9JuxoGz1eGup"
+      },
       "index": {
         "from": 1
       }

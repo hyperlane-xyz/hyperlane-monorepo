@@ -88,6 +88,7 @@ pub trait SealevelProviderForLander: Send + Sync {
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_address: Option<Pubkey>,
+        additional_signers: &[&SealevelKeypair],
     ) -> ChainResult<SealevelTxType>;
 
     /// Estimates cost for Sealevel instruction.
@@ -158,6 +159,7 @@ impl SealevelProviderForLander for SealevelProvider {
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_address: Option<Pubkey>,
+        additional_signers: &[&SealevelKeypair],
     ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
             // Set the compute unit limit.
@@ -198,7 +200,15 @@ impl SealevelProviderForLander for SealevelProvider {
             .map_err(ChainCommunicationError::from_other)?;
 
             let versioned_tx = if sign {
-                VersionedTransaction::try_new(VersionedMessage::V0(message), &[payer.keypair()])
+                // Build signer list after all awaits to avoid Send issues with &dyn Signer.
+                let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
+                    .chain(
+                        additional_signers
+                            .iter()
+                            .map(|k| k.keypair() as &dyn Signer),
+                    )
+                    .collect();
+                VersionedTransaction::try_new(VersionedMessage::V0(message), &all_signers)
                     .map_err(ChainCommunicationError::from_other)?
             } else {
                 VersionedTransaction {
@@ -212,7 +222,15 @@ impl SealevelProviderForLander for SealevelProvider {
             // No ALT - use pure legacy Transaction (NOT wrapped in VersionedTransaction)
             let message = Message::new(&instructions, Some(&payer.pubkey()));
             let legacy_tx = if sign {
-                Transaction::new(&[payer.keypair()], message, recent_blockhash)
+                // Build signer list after all awaits to avoid Send issues with &dyn Signer.
+                let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
+                    .chain(
+                        additional_signers
+                            .iter()
+                            .map(|k| k.keypair() as &dyn Signer),
+                    )
+                    .collect();
+                Transaction::new(&all_signers, message, recent_blockhash)
             } else {
                 Transaction::new_unsigned(message)
             };
@@ -245,6 +263,7 @@ impl SealevelProviderForLander for SealevelProvider {
                 tx_submitter,
                 false,
                 alt_address,
+                &[],
             )
             .await?;
 
@@ -549,6 +568,7 @@ impl SealevelProvider {
                     tx_submitter,
                     true,
                     alt_address,
+                    &[],
                 )
                 .await?;
             return Ok(tx);
@@ -564,6 +584,7 @@ impl SealevelProvider {
                 tx_submitter,
                 false,
                 alt_address,
+                &[],
             )
             .await?;
 
