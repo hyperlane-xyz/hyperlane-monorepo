@@ -29,7 +29,7 @@ pnpm build
 pnpm test
 
 # Lint and format
-pnpm lint && pnpm prettier
+pnpm lint && pnpm format
 
 # Solidity tests (both Hardhat and Forge)
 pnpm -C solidity test
@@ -50,8 +50,8 @@ pnpm -C typescript/cli test:radix:e2e
 
 ```bash
 # TypeScript/Solidity
-pnpm lint          # Must pass
-pnpm prettier      # Auto-formats code
+pnpm lint          # Must pass (oxlint)
+pnpm format        # Auto-formats code (oxfmt + prettier for Solidity)
 pnpm test          # Run relevant tests
 pnpm changeset     # Add changeset if modifying published packages
 
@@ -208,8 +208,8 @@ cd rust/main && cargo test --release --package run-locally --features sealevel -
 ### Linting & Formatting
 
 ```bash
-pnpm lint                               # Lint all packages
-pnpm prettier                           # Format all packages
+pnpm lint                               # Lint all packages (oxlint)
+pnpm format                             # Format all packages (oxfmt)
 pnpm -C solidity lint                   # Solidity linting (solhint)
 cd rust/main && cargo clippy            # Rust linting
 cd rust/main && cargo fmt               # Rust formatting
@@ -442,7 +442,7 @@ if (config.type === MyType.Foo) { ... }
 
 ### What NOT to Flag
 
-- Minor style issues handled by prettier/linters
+- Minor style issues handled by oxfmt/oxlint
 - Existing intentional patterns (check git history if unsure)
 - Theoretical issues without practical exploit paths
 

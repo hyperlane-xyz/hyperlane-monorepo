@@ -46,7 +46,7 @@ export const dispatchMessage = async (
   const receipt = await tx.wait();
   const dispatch = receipt.events![0] as DispatchEvent;
   expect(dispatch.event).to.equal('Dispatch');
-  return dispatch.args!;
+  return dispatch.args;
 };
 
 export const dispatchMessageAndReturnProof = async (

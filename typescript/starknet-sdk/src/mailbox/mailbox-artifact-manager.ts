@@ -277,16 +277,13 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     return signer;
   }
 
-  readMailbox(address: string): Promise<DeployedRawMailboxArtifact> {
+  async readMailbox(address: string): Promise<DeployedRawMailboxArtifact> {
     return this.createReader('mailbox').read(address);
   }
 
   createReader<T extends MailboxType>(
     type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    if (type !== 'mailbox') {
-      throw new Error('Unsupported Starknet mailbox type');
-    }
     const readers: {
       [K in MailboxType]: ArtifactReader<
         RawMailboxArtifactConfigs[K],
@@ -295,29 +292,30 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     } = {
       mailbox: new StarknetMailboxReader(this.provider),
     };
-    return readers[type];
+    const reader = readers[type];
+    assert(reader, 'Unsupported Starknet mailbox type');
+    return reader;
   }
 
   createWriter<T extends MailboxType>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    if (type !== 'mailbox') {
-      throw new Error('Unsupported Starknet mailbox type');
-    }
-    const starknetSigner = this.requireStarknetSigner(signer);
-    const writers: {
-      [K in MailboxType]: ArtifactWriter<
+    const writerFactories: {
+      [K in MailboxType]: () => ArtifactWriter<
         RawMailboxArtifactConfigs[K],
         DeployedMailboxAddress
       >;
     } = {
-      mailbox: new StarknetMailboxWriter(
-        this.provider,
-        starknetSigner,
-        this.chainMetadata,
-      ),
+      mailbox: () =>
+        new StarknetMailboxWriter(
+          this.provider,
+          this.requireStarknetSigner(signer),
+          this.chainMetadata,
+        ),
     };
-    return writers[type];
+    const writerFactory = writerFactories[type];
+    assert(writerFactory, 'Unsupported Starknet mailbox type');
+    return writerFactory();
   }
 }
