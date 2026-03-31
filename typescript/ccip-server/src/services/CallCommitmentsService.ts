@@ -128,7 +128,7 @@ export class CallCommitmentsService extends BaseService {
       if (isPostCallsIca(data)) {
         ica = await this.deriveIcaFromConfig(data, logger);
       } else {
-        ica = await this.deriveIcaFromDispatchTx(data, commitment, logger);
+        ica = await this.deriveIcaFromDispatchTx(data, logger);
       }
     } catch (error: any) {
       logger.warn(
@@ -174,9 +174,8 @@ export class CallCommitmentsService extends BaseService {
     const log = this.addLoggerServiceContext(logger);
     log.info({ message, relayer }, 'Handling fetch commitment request');
 
-    const { body } = parseMessage(message);
-
     try {
+      const { body } = parseMessage(message);
       const commitment = commitmentFromRevealMessage(body);
       log.info(
         { commitment, message, relayer },
@@ -332,7 +331,6 @@ export class CallCommitmentsService extends BaseService {
    */
   private async deriveIcaFromDispatchTx(
     data: PostCallsLegacyType,
-    commitment: string,
     logger: Logger,
   ): Promise<string> {
     const provider = this.multiProvider.getProvider(data.originDomain);
