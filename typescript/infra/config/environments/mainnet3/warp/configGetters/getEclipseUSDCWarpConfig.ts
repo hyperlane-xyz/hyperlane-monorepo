@@ -217,7 +217,7 @@ export const buildEclipseUSDCWarpConfig = async (
       currentChain === 'bsc'
         ? {
             numerator: 1,
-            denominator: 12,
+            denominator: 10 ** 12,
           }
         : {
             numerator: 1,
@@ -313,6 +313,10 @@ export const getEclipseUSDCWarpConfig = async (
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
+    tokenMetadata: {
+      name: 'USDC Coin',
+      symbol: 'USDC',
+    },
   });
 
 // Strategies
@@ -327,9 +331,10 @@ const ORIGIN_CHAIN = 'ethereum';
 export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   const safeAddress = awSafes[ORIGIN_CHAIN];
   const originSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_SAFE as const,
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
     chain: ORIGIN_CHAIN,
     safeAddress,
+    version: '1',
   };
 
   const chainAddress = getChainAddresses();
