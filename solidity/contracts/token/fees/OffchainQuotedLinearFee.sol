@@ -258,8 +258,9 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
         return (false, 0);
     }
 
-    // Decode context and data, write to persistent storage. Rejects stale quotes.
-    function _storeStanding(SignedQuote calldata sq) internal override {
+    function _storeStanding(
+        SignedQuote calldata sq
+    ) internal override returns (bool) {
         // amount is signed in the EIP-712 digest but not used as a standing storage key —
         // linear fee params scale with any transfer amount. Require wildcard to make this
         // explicit and prevent signers from accidentally committing to a specific amount.
@@ -269,18 +270,16 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
             amount == WILDCARD_AMOUNT,
             "standing quote amount must be wildcard"
         );
+
         StoredQuote storage existing = quotes[dest][recipient];
 
-        // skip if a newer standing quote already exists
-        if (sq.issuedAt <= existing.issuedAt) return;
+        if (!_checkStaleQuote(existing.issuedAt, sq.issuedAt)) return false;
 
-        // update linear fee params for matching transferRemote
         (uint256 maxFee_, uint256 halfAmount_) = FeeQuoteData.decode(sq.data);
-        quotes[dest][recipient] = StoredQuote(
-            maxFee_,
-            halfAmount_,
-            sq.issuedAt,
-            sq.expiry
-        );
+        existing.maxFee = maxFee_;
+        existing.halfAmount = halfAmount_;
+        existing.issuedAt = sq.issuedAt;
+        existing.expiry = sq.expiry;
+        return true;
     }
 }

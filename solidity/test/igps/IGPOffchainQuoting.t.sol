@@ -38,7 +38,6 @@ contract IGPOffchainQuotingTest is Test {
 
         igp = new InterchainGasPaymaster();
         igp.initialize(address(this), BENEFICIARY);
-        igp.setMailbox(address(this));
 
         oracle = new StorageGasOracle();
         _setGasConfig(DEST, oracle, GAS_OVERHEAD);
@@ -362,7 +361,7 @@ contract IGPOffchainQuotingTest is Test {
         assertEq(fee, 30_000_000); // oracle
     }
 
-    function test_standingQuote_staleSkipped() public {
+    function test_standingQuote_staleReverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
             address(0),
@@ -374,11 +373,37 @@ contract IGPOffchainQuotingTest is Test {
             now_ + 3600
         );
 
-        // Older issuedAt should be silently skipped (no revert)
+        // Older issuedAt should revert
         SignedQuote memory sq = SignedQuote({
             context: abi.encodePacked(address(0), DEST, address(this)),
             data: _encodeGasData(3e10, 200),
             issuedAt: now_ - 1,
+            expiry: now_ + 7200,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
+        igp.submitQuote(sq, sig);
+    }
+
+    function test_standingQuote_equalIssuedAt_noop() public {
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            address(0),
+            DEST,
+            address(this),
+            EXCHANGE_RATE,
+            GAS_PRICE,
+            now_,
+            now_ + 3600
+        );
+
+        // Same issuedAt should be silently skipped (no revert, no update)
+        SignedQuote memory sq = SignedQuote({
+            context: abi.encodePacked(address(0), DEST, address(this)),
+            data: _encodeGasData(3e10, 200),
+            issuedAt: now_,
             expiry: now_ + 7200,
             salt: bytes32(0),
             submitter: address(0)
