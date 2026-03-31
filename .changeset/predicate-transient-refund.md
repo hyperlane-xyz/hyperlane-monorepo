@@ -2,4 +2,4 @@
 "@hyperlane-xyz/core": minor
 ---
 
-PredicateRouterWrapper was updated to use transient storage for the pending attestation flag, eliminating cold SLOAD/SSTORE costs. Native fee refund logic was added to return excess ETH to callers.
+Native fee refund logic was added to PredicateRouterWrapper to return excess ETH to callers using address(this).balance after the warp route call.
