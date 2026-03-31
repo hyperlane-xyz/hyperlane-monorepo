@@ -92,14 +92,12 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         }
         _verifyQuoteSigner(sq, signature);
 
-        // transient quotes (expiry == issuedAt) auto-clear at end of tx
+        // transient quotes (expiry == issuedAt) auto-clear at end of tx.
+        // standing quotes persist in storage until they expire or are overwritten.
         if (sq.expiry == sq.issuedAt) {
             _storeTransient(sq);
-            return;
-        }
-
-        // standing quotes persist in storage until they expire or are overwritten
-        if (_storeStanding(sq)) {
+        } else {
+            _storeStanding(sq);
             emit QuoteSubmitted(sq.context, sq.issuedAt, sq.expiry);
         }
     }
@@ -179,8 +177,5 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     }
 
     function _storeTransient(SignedQuote calldata sq) internal virtual;
-    /// @dev Returns true if stored, false if skipped (equal issuedAt).
-    function _storeStanding(
-        SignedQuote calldata sq
-    ) internal virtual returns (bool);
+    function _storeStanding(SignedQuote calldata sq) internal virtual;
 }

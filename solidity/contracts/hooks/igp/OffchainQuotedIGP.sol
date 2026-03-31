@@ -240,9 +240,7 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
         TRANSIENT_GAS_PRICE_SLOT.store(gasPrice);
     }
 
-    function _storeStanding(
-        SignedQuote calldata sq
-    ) internal override returns (bool) {
+    function _storeStanding(SignedQuote calldata sq) internal override {
         (address feeToken_, uint32 dest, address sender) = IGPQuoteContext
             .decode(sq.context);
         OffchainQuotedIGPStorage storage $ = _getOffchainQuotedIGPStorage();
@@ -250,7 +248,7 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
             sender
         ];
 
-        if (!_checkStaleQuote(existing.issuedAt, sq.issuedAt)) return false;
+        if (!_checkStaleQuote(existing.issuedAt, sq.issuedAt)) return;
 
         (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
         $.offchainQuotes[feeToken_][dest][sender] = StoredGasQuote(
@@ -259,6 +257,5 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
             sq.issuedAt,
             sq.expiry
         );
-        return true;
     }
 }
