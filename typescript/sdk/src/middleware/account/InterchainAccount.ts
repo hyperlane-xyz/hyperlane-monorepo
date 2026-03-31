@@ -11,7 +11,6 @@ import {
   CallData,
   addBufferToGasLimit,
   addressToBytes32,
-  assert,
   arrayToObject,
   bytes32ToAddress,
   eqAddress,
@@ -86,59 +85,29 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 
+  static EMPTY_SALT = '0x' + '00'.repeat(32);
+
   async getAccount(
     destinationChain: ChainName,
     config: AccountConfig,
+    userSalt?: string,
   ): Promise<Address> {
-    return this.getOrDeployAccount(false, destinationChain, config);
-  }
-
-  async getAccountWithSalt(
-    destinationChain: ChainName,
-    config: AccountConfig,
-    userSalt: string,
-  ): Promise<Address> {
-    const originDomain = this.multiProvider.tryGetDomainId(config.origin);
-    assert(originDomain, `Unknown origin chain: ${config.origin}`);
-
-    const destinationRouter = this.router(this.contractsMap[destinationChain]);
-    const originRouterAddress =
-      config.localRouter ??
-      bytes32ToAddress(await destinationRouter.routers(originDomain));
-    assert(
-      !isZeroishAddress(originRouterAddress),
-      `Origin router address is zero for ${config.origin} on ${destinationChain}`,
-    );
-
-    const ismAddress = bytes32ToAddress(
-      addressToBytes32(
-        config.ismOverride ?? (await destinationRouter.isms(originDomain)),
-      ),
-    );
-
-    const account = await destinationRouter[
-      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-    ](
-      originDomain,
-      addressToBytes32(config.owner),
-      addressToBytes32(originRouterAddress),
-      ismAddress,
-      userSalt,
-    );
-    return account;
+    return this.getOrDeployAccount(false, destinationChain, config, userSalt);
   }
 
   async deployAccount(
     destinationChain: ChainName,
     config: AccountConfig,
+    userSalt?: string,
   ): Promise<Address> {
-    return this.getOrDeployAccount(true, destinationChain, config);
+    return this.getOrDeployAccount(true, destinationChain, config, userSalt);
   }
 
   protected async getOrDeployAccount(
     deployIfNotExists: boolean,
     destinationChain: ChainName,
     config: AccountConfig,
+    userSalt: string = InterchainAccount.EMPTY_SALT,
   ): Promise<Address> {
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
@@ -162,8 +131,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       ),
     );
     const destinationAccount = await destinationRouter[
-      'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](
+      originDomain,
+      addressToBytes32(config.owner),
+      addressToBytes32(originRouterAddress),
+      destinationIsmAddress,
+      userSalt,
+    );
 
     // If not deploying anything, return the account address.
     if (!deployIfNotExists) {
