@@ -1041,6 +1041,7 @@ const fastPathUsdcMatchingList = chainMapMatchingList({
 const fastPathUsdtMatchingList = chainMapMatchingList({
   arbitrum: '0x824353938ee1361265097acC9E329828e3455c15',
   base: '0xA9A434f0aBCE2f3e7073752046545530e32DE6cF',
+  ethereum: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
 });
 
 const fastPath: RootAgentConfig = {
