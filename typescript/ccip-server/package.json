@@ -18,6 +18,7 @@
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
     "test": "mocha './tests/**/CallCommitmentsService.test.ts' --exit",
+    "test:ci": "pnpm test",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src ./tests"
   },
