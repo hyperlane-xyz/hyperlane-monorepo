@@ -1,4 +1,5 @@
-import { describe, expect, jest, test } from '@jest/globals';
+import { expect } from 'chai';
+import sinon from 'sinon';
 
 import {
   PostCallsSchema,
@@ -7,23 +8,23 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk';
 
-import { CallCommitmentsService } from '../../src/services/CallCommitmentsService';
+import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
 
 function mockLogger() {
   return {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-    setBindings: jest.fn(),
-    child: jest.fn().mockReturnThis(),
+    info: sinon.stub(),
+    warn: sinon.stub(),
+    error: sinon.stub(),
+    debug: sinon.stub(),
+    setBindings: sinon.stub(),
+    child: sinon.stub().returnsThis(),
   };
 }
 
 function mockRes() {
-  const json = jest.fn();
-  const status = jest.fn().mockReturnValue({ json });
-  const sendStatus = jest.fn();
+  const json = sinon.stub();
+  const status = sinon.stub().returns({ json });
+  const sendStatus = sinon.stub();
   return { status, json, sendStatus };
 }
 
@@ -51,36 +52,36 @@ const legacyPayload = {
 };
 
 describe('PostCallsSchema union', () => {
-  test('accepts new ICA shape', () => {
+  it('accepts new ICA shape', () => {
     const result = PostCallsSchema.safeParse(icaPayload);
-    expect(result.success).toBe(true);
+    expect(result.success).to.be.true;
   });
 
-  test('accepts legacy shape', () => {
+  it('accepts legacy shape', () => {
     const result = PostCallsSchema.safeParse(legacyPayload);
-    expect(result.success).toBe(true);
+    expect(result.success).to.be.true;
   });
 
-  test('rejects payload missing both discriminants', () => {
+  it('rejects payload missing both discriminants', () => {
     const result = PostCallsSchema.safeParse({
       calls: baseCalls,
       relayers: baseRelayers,
       salt,
       originDomain: 1,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).to.be.false;
   });
 });
 
 describe('isPostCallsIca type guard', () => {
-  test('returns true for ICA shape', () => {
+  it('returns true for ICA shape', () => {
     const parsed = PostCallsSchema.parse(icaPayload);
-    expect(isPostCallsIca(parsed)).toBe(true);
+    expect(isPostCallsIca(parsed)).to.be.true;
   });
 
-  test('returns false for legacy shape', () => {
+  it('returns false for legacy shape', () => {
     const parsed = PostCallsSchema.parse(legacyPayload);
-    expect(isPostCallsIca(parsed)).toBe(false);
+    expect(isPostCallsIca(parsed)).to.be.false;
   });
 });
 
@@ -93,7 +94,7 @@ describe('CallCommitmentsService.handleCommitment', () => {
     return service;
   }
 
-  test('returns 400 when schema rejects invalid to address', async () => {
+  it('returns 400 when schema rejects invalid to address', async () => {
     const logger = mockLogger();
     const service = createService();
     service.addLoggerServiceContext = () => logger;
@@ -112,37 +113,36 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     await service.handleCommitment(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalled();
+    expect(res.status.calledWith(400)).to.be.true;
+    expect(res.json.called).to.be.true;
   });
 
-  test('routes ICA payload to deriveIcaFromConfig', async () => {
+  it('routes ICA payload to deriveIcaFromConfig', async () => {
     const mockIca = '0x' + 'ff'.repeat(20);
     const icaApp = {
-      getAccount: jest.fn<() => Promise<string>>().mockResolvedValue(mockIca),
+      getAccount: sinon.stub().resolves(mockIca),
     };
     const multiProvider = {
-      getChainName: jest.fn().mockReturnValue('ethereum'),
-      getProvider: jest.fn(),
+      getChainName: sinon.stub().returns('ethereum'),
+      getProvider: sinon.stub(),
     };
     const service = createService({ icaApp, multiProvider });
-    // Mock upsertCommitmentInDB to avoid DB calls
-    service.upsertCommitmentInDB = jest.fn().mockResolvedValue(undefined);
+    service.upsertCommitmentInDB = sinon.stub().resolves();
 
     const req = { body: icaPayload, log: mockLogger() };
     const res = mockRes();
 
     await service.handleCommitment(req, res);
 
-    expect(icaApp.getAccount).toHaveBeenCalled();
-    expect(res.sendStatus).toHaveBeenCalledWith(200);
+    expect(icaApp.getAccount.called).to.be.true;
+    expect(res.sendStatus.calledWith(200)).to.be.true;
   });
 
-  test('routes legacy payload to deriveIcaFromDispatchTx', async () => {
+  it('routes legacy payload to deriveIcaFromDispatchTx', async () => {
     const multiProvider = {
-      getChainName: jest.fn().mockReturnValue('ethereum'),
-      getProvider: jest.fn().mockReturnValue({
-        getTransactionReceipt: jest.fn().mockResolvedValue(null),
+      getChainName: sinon.stub().returns('ethereum'),
+      getProvider: sinon.stub().returns({
+        getTransactionReceipt: sinon.stub().resolves(null),
       }),
     };
     const service = createService({ multiProvider });
@@ -153,26 +153,25 @@ describe('CallCommitmentsService.handleCommitment', () => {
     await service.handleCommitment(req, res);
 
     // Should fail because receipt is null, returning 400
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(multiProvider.getProvider).toHaveBeenCalledWith(
-      legacyPayload.originDomain,
-    );
+    expect(res.status.calledWith(400)).to.be.true;
+    expect(multiProvider.getProvider.calledWith(legacyPayload.originDomain)).to
+      .be.true;
   });
 });
 
 describe('normalizeCalls', () => {
-  test('throws on malformed address that bypasses schema', () => {
+  it('throws on malformed address that bypasses schema', () => {
     expect(() => {
       normalizeCalls([{ to: 'not-an-address', data: '0x', value: '0' }]);
-    }).toThrow('address bytes must not be empty');
+    }).to.throw('address bytes must not be empty');
   });
 
-  test('commitmentFromIcaCalls works with valid normalized calls', () => {
+  it('commitmentFromIcaCalls works with valid normalized calls', () => {
     const result = commitmentFromIcaCalls(
       normalizeCalls([{ to: validAddress, data: '0x', value: '0' }]),
       salt,
     );
-    expect(result).toBeDefined();
-    expect(result.startsWith('0x')).toBe(true);
+    expect(result).to.not.be.undefined;
+    expect(result.startsWith('0x')).to.be.true;
   });
 });
