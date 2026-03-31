@@ -31,11 +31,6 @@ async function fetchWithRetry(url, options, attempts = 3, timeoutMs = 30000) {
 }
 
 const main = async () => {
-  if (fs.existsSync(outputFile) && fs.statSync(outputFile).size > 0) {
-    console.log('artifacts.ts already present, skipping fetch');
-    return;
-  }
-
   const res = await fetchWithRetry(
     `https://github.com/hyperlane-xyz/hyperlane-aleo/releases/download/${VERSION}/programs.zip`,
     { cache: 'no-store' },
