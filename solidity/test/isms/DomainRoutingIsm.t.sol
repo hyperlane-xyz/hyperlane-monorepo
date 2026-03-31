@@ -178,6 +178,53 @@ contract DomainRoutingIsmTest is Test {
         ism.set(domain, _ism);
     }
 
+    function testSetBatchNonOwner(uint32 domain) public {
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](1);
+        domainModules[0] = DomainRoutingIsm.DomainModule({
+            domain: domain,
+            module: IInterchainSecurityModule(address(0))
+        });
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.setBatch(domainModules);
+    }
+
+    function testAddNonOwner(
+        uint32 domain,
+        IInterchainSecurityModule _ism
+    ) public {
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.add(domain, _ism);
+    }
+
+    function testAddBatchNonOwner(uint32 domain) public {
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](1);
+        domainModules[0] = DomainRoutingIsm.DomainModule({
+            domain: domain,
+            module: IInterchainSecurityModule(address(0))
+        });
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.addBatch(domainModules);
+    }
+
+    function testRemoveNonOwner(uint32 domain) public {
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.remove(domain);
+    }
+
+    function testRemoveBatchNonOwner(uint32 domain) public {
+        uint32[] memory domains = new uint32[](1);
+        domains[0] = domain;
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.removeBatch(domains);
+    }
+
     function testVerify(uint32 domain, bytes32 seed) public {
         ism.set(domain, deployTestIsm(seed));
 
