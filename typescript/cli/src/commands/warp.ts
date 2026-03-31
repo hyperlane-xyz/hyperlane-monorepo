@@ -4,7 +4,7 @@ import { type CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
-  buildExpectedCrossCollateralConnections,
+  buildExpectedCrossCollateralRouters,
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
@@ -591,25 +591,16 @@ export const check: CommandModuleWithContext<
           expandedOnChainWarpConfig[chain]?.type === 'crossCollateral',
       ),
     );
-    const crossCollateralRoots = Object.entries(
-      crossCollateralRouterAddresses,
-    ).map(([chainName, routerAddress]) => ({
-      chainName,
-      routerAddress,
-    }));
+    const crossCollateralRouters = buildExpectedCrossCollateralRouters({
+      configMap: expandedWarpDeployConfig,
+      multiProvider: context.multiProvider,
+      routerAddresses: crossCollateralRouterAddresses,
+    });
 
-    if (crossCollateralRoots.length > 0) {
-      const expectedConnectionsByRouterId =
-        buildExpectedCrossCollateralConnections({
-          configMap: expandedWarpDeployConfig,
-          multiProvider: context.multiProvider,
-          routerAddresses: crossCollateralRouterAddresses,
-        });
-
+    if (crossCollateralRouters.length > 0) {
       await validateOnchainCrossCollateralGraph({
-        expectedConnectionsByRouterId,
         multiProvider: context.multiProvider,
-        roots: crossCollateralRoots,
+        routers: crossCollateralRouters,
       });
     }
 

@@ -50,7 +50,7 @@ import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { DeployableTokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
-  buildExpectedCrossCollateralConnections,
+  buildExpectedCrossCollateralRouters,
   validateOnchainCrossCollateralGraph,
 } from './crossCollateralValidation.js';
 import {
@@ -830,17 +830,15 @@ abstract class TokenDeployer<
     const routerAddresses = Object.fromEntries(
       roots.map(({ chainName, routerAddress }) => [chainName, routerAddress]),
     ) as ChainMap<Address>;
-    const expectedConnectionsByRouterId =
-      buildExpectedCrossCollateralConnections({
-        configMap,
-        multiProvider: this.multiProvider,
-        routerAddresses,
-      });
+    const routers = buildExpectedCrossCollateralRouters({
+      configMap,
+      multiProvider: this.multiProvider,
+      routerAddresses,
+    });
 
     await validateOnchainCrossCollateralGraph({
-      expectedConnectionsByRouterId,
       multiProvider: this.multiProvider,
-      roots,
+      routers,
     });
   }
 

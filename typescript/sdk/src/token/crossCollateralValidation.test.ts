@@ -30,91 +30,60 @@ describe('validateCrossCollateralGraph', () => {
     nodes.clear();
   });
 
-  it('accepts a compatible connected graph', async () => {
+  it('accepts a compatible router set', async () => {
     const routeAChain1 = addNode({
       chainName: 'chain-a',
       routerAddress: '0x1111111111111111111111111111111111111111',
       decimals: 18,
-      peers: [],
       symbol: 'USDC',
     });
     const routeAChain2 = addNode({
       chainName: 'chain-b',
       routerAddress: '0x2222222222222222222222222222222222222222',
       decimals: 6,
-      peers: [],
       scale: 1_000_000_000_000,
       symbol: 'USDC',
     });
     const routeBChain1 = addNode({
-      chainName: 'chain-a',
+      chainName: 'chain-c',
       routerAddress: '0x3333333333333333333333333333333333333333',
       decimals: 18,
-      peers: [],
       symbol: 'USDT',
     });
-    const routeBChain2 = addNode({
-      chainName: 'chain-c',
-      routerAddress: '0x4444444444444444444444444444444444444444',
-      decimals: 6,
-      peers: [],
-      scale: 1_000_000_000_000,
-      symbol: 'USDT',
-    });
-
-    routeAChain1.peers = [routeAChain2, routeBChain1];
-    routeAChain2.peers = [routeAChain1];
-    routeBChain1.peers = [routeAChain1, routeBChain2];
-    routeBChain2.peers = [routeBChain1];
 
     await validateCrossCollateralGraph({
-      roots: [routeAChain1],
       loadNode,
+      routers: [routeAChain1, routeAChain2, routeBChain1],
     });
   });
 
-  it('rejects an incompatible graph even without same-chain overlap', async () => {
+  it('rejects an incompatible router set', async () => {
     const routeAChain1 = addNode({
       chainName: 'chain-a',
       routerAddress: '0x1111111111111111111111111111111111111111',
       decimals: 18,
-      peers: [],
       symbol: 'USDC',
     });
     const routeAChain2 = addNode({
       chainName: 'chain-b',
       routerAddress: '0x2222222222222222222222222222222222222222',
       decimals: 6,
-      peers: [],
       scale: 1_000_000_000_000,
       symbol: 'USDC',
     });
     const routeBChain1 = addNode({
-      chainName: 'chain-a',
+      chainName: 'chain-c',
       routerAddress: '0x3333333333333333333333333333333333333333',
       decimals: 18,
-      peers: [],
-      symbol: 'USDT',
-    });
-    const routeBChain2 = addNode({
-      chainName: 'chain-c',
-      routerAddress: '0x4444444444444444444444444444444444444444',
-      decimals: 18,
-      peers: [],
       scale: 2,
       symbol: 'USDT',
     });
 
-    routeAChain1.peers = [routeAChain2, routeBChain1];
-    routeAChain2.peers = [routeAChain1];
-    routeBChain1.peers = [routeAChain1, routeBChain2];
-    routeBChain2.peers = [routeBChain1];
-
     let thrown: Error | undefined;
     try {
       await validateCrossCollateralGraph({
-        roots: [routeAChain1],
         loadNode,
+        routers: [routeAChain1, routeAChain2, routeBChain1],
       });
     } catch (error) {
       thrown = error as Error;
@@ -127,46 +96,30 @@ describe('validateCrossCollateralGraph', () => {
     expect(thrown?.message).to.include('chain-c');
   });
 
-  it('allows disconnected components to use different messageAmountTokenScale values', async () => {
-    const componentAChain1 = addNode({
+  it('dedupes router refs before loading metadata', async () => {
+    const routeAChain1 = addNode({
       chainName: 'chain-a',
       routerAddress: '0x1111111111111111111111111111111111111111',
       decimals: 18,
-      peers: [],
       symbol: 'USDC',
     });
-    const componentAChain2 = addNode({
+    const routeAChain2 = addNode({
       chainName: 'chain-b',
       routerAddress: '0x2222222222222222222222222222222222222222',
       decimals: 6,
-      peers: [],
       scale: 1_000_000_000_000,
       symbol: 'USDC',
     });
-    const componentBChain1 = addNode({
-      chainName: 'chain-c',
-      routerAddress: '0x3333333333333333333333333333333333333333',
-      decimals: 18,
-      peers: [],
-      symbol: 'WBTC',
-    });
-    const componentBChain2 = addNode({
-      chainName: 'chain-d',
-      routerAddress: '0x4444444444444444444444444444444444444444',
-      decimals: 8,
-      peers: [],
-      scale: 10_000_000_000,
-      symbol: 'WBTC',
-    });
-
-    componentAChain1.peers = [componentAChain2];
-    componentAChain2.peers = [componentAChain1];
-    componentBChain1.peers = [componentBChain2];
-    componentBChain2.peers = [componentBChain1];
+    let loads = 0;
 
     await validateCrossCollateralGraph({
-      roots: [componentAChain1, componentBChain1],
-      loadNode,
+      loadNode: async (ref) => {
+        loads += 1;
+        return loadNode(ref);
+      },
+      routers: [routeAChain1, routeAChain1, routeAChain2],
     });
+
+    expect(loads).to.equal(2);
   });
 });

@@ -735,11 +735,11 @@ export {
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export {
-  buildExpectedCrossCollateralConnections,
+  buildExpectedCrossCollateralRouters,
   type ConfiguredCrossCollateralRoute,
   formatCrossCollateralScaleForLogs,
-  getMessageAmountTokenScale,
   getCrossCollateralRouterId,
+  getMessageAmountTokenScale,
   validateConfiguredCrossCollateralGraph,
   validateCrossCollateralGraph,
   validateOnchainCrossCollateralGraph,

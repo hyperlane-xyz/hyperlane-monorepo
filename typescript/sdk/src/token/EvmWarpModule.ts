@@ -65,7 +65,7 @@ import { scalesEqual } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import {
-  buildExpectedCrossCollateralConnections,
+  buildExpectedCrossCollateralRouters,
   validateOnchainCrossCollateralGraph,
 } from './crossCollateralValidation.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -166,27 +166,19 @@ export class EvmWarpModule extends HyperlaneModule<
       return;
     }
 
-    const roots = [
-      {
-        chainName: this.chainName,
-        routerAddress: this.args.addresses.deployedTokenRoute,
+    const routers = buildExpectedCrossCollateralRouters({
+      configMap: {
+        [this.chainName]: expectedConfig,
       },
-    ];
-    const expectedConnectionsByRouterId =
-      buildExpectedCrossCollateralConnections({
-        configMap: {
-          [this.chainName]: expectedConfig,
-        },
-        multiProvider: this.multiProvider,
-        routerAddresses: {
-          [this.chainName]: this.args.addresses.deployedTokenRoute,
-        },
-      });
+      multiProvider: this.multiProvider,
+      routerAddresses: {
+        [this.chainName]: this.args.addresses.deployedTokenRoute,
+      },
+    });
 
     await validateOnchainCrossCollateralGraph({
-      expectedConnectionsByRouterId,
       multiProvider: this.multiProvider,
-      roots,
+      routers,
     });
   }
 
