@@ -6,7 +6,10 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { getKeysFromKvStore } from '../utils/base-query.js';
 import { RadixBase } from '../utils/base.js';
-import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
+import {
+  EPOCH_VALIDITY_RANGE,
+  READ_ACCOUNT_HEX_PUBLIC_KEY,
+} from '../utils/constants.js';
 import { EntityDetails, EntityField, Receipt } from '../utils/types.js';
 
 export class RadixWarpQuery {
@@ -227,7 +230,8 @@ CALL_METHOD
             use_free_credit: true,
           },
           start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
-          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+          end_epoch_exclusive:
+            constructionMetadata.ledger_state.epoch + EPOCH_VALIDITY_RANGE,
         },
       });
 

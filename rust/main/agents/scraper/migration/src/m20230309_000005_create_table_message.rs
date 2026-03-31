@@ -6,7 +6,7 @@ use crate::m20230309_000001_create_table_domain::Domain;
 use crate::m20230309_000002_create_table_block::Block;
 use crate::m20230309_000003_create_table_transaction::Transaction;
 use crate::m20230309_000004_create_table_delivered_message::DeliveredMessage;
-use crate::m20230309_000004_create_table_gas_payment::TotalGasPayment;
+use crate::m20230309_000004_create_table_gas_payment::{GasPayment, TotalGasPayment};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -30,7 +30,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Message::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(ColumnDef::new_with_type(Message::MsgId, Hash).not_null())
                     .col(ColumnDef::new(Message::Origin).unsigned().not_null())
@@ -54,8 +54,8 @@ impl MigrationTrait for Migration {
                     .index(
                         Index::create()
                             .unique()
-                            .col(Message::OriginMailbox)
                             .col(Message::Origin)
+                            .col(Message::OriginMailbox)
                             .col(Message::Nonce),
                     )
                     .to_owned(),
@@ -88,6 +88,16 @@ impl MigrationTrait for Migration {
                     .name("message_msg_id_idx")
                     .col(Message::MsgId)
                     .index_type(IndexType::Hash)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Message::Table)
+                    .name("message_destination_idx")
+                    .col(Message::Destination)
+                    .index_type(IndexType::BTree)
                     .to_owned(),
             )
             .await?;
@@ -174,9 +184,15 @@ impl MigrationTrait for Migration {
                 LEFT JOIN "{block_table}"
                     AS "origin_block"
                     ON "origin_block"."{block_id}" = "origin_tx"."{tx_block_id}"
-                LEFT JOIN "{tgp_table}"
-                    AS "tgp"
-                    ON "tgp"."{tgp_mid}" = "msg"."{msg_mid}"
+                LEFT JOIN LATERAL
+                (
+                    SELECT
+                        COUNT(*)::bigint AS {tgp_num_payments},
+                        SUM(gp.{gas_payment_payment}) AS {tgp_payment},
+                        SUM(gp.{gas_payment_gas_amount}) AS {tgp_gas_amount}
+                    FROM {gas_payment_table} gp
+                    WHERE "gp"."{gas_payment_mid}" = "msg"."{msg_mid}"
+                ) tgp ON true
                 LEFT JOIN "{dmsg_table}"
                     AS "dmsg"
                     ON "dmsg"."{dmsg_mid}" = "msg"."{msg_mid}"
@@ -222,8 +238,10 @@ impl MigrationTrait for Migration {
             block_hash = Block::Hash.to_string(),
             block_height = Block::Height.to_string(),
             block_timestamp = Block::Timestamp.to_string(),
-            tgp_table = TotalGasPayment::Table.to_string(),
-            tgp_mid = TotalGasPayment::MsgId.to_string(),
+            gas_payment_table = GasPayment::Table.to_string(),
+            gas_payment_mid = GasPayment::MsgId.to_string(),
+            gas_payment_payment = GasPayment::Payment.to_string(),
+            gas_payment_gas_amount = GasPayment::GasAmount.to_string(),
             tgp_num_payments = TotalGasPayment::NumPayments.to_string(),
             tgp_payment = TotalGasPayment::TotalPayment.to_string(),
             tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),

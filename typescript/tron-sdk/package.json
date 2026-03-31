@@ -1,0 +1,68 @@
+{
+  "name": "@hyperlane-xyz/tron-sdk",
+  "version": "22.1.6",
+  "description": "Hyperlane TypeScript SDK for Tron",
+  "keywords": [
+    "blockchain",
+    "hyperlane",
+    "sdk",
+    "tron"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist",
+    "local-node"
+  ],
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf ./dist && tsc",
+    "format": "oxfmt --write src/**/*.ts",
+    "lint": "oxlint -c ../../oxlint.json",
+    "clean": "rm -rf ./dist ./cache ./coverage",
+    "dev": "tsc --watch",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
+    "coverage": "c8 pnpm test"
+  },
+  "dependencies": {
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "bignumber.js": "catalog:",
+    "ethers": "catalog:",
+    "tronweb": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/unzipper": "^0",
+    "c8": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "mocha": "catalog:",
+    "mocha-steps": "catalog:",
+    "node-fetch": "^3.3.2",
+    "testcontainers": "catalog:",
+    "ts-node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

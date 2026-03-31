@@ -1,3 +1,41 @@
+## [2.2.0] - 2026-03-09
+
+* chore: migrate spellchecker from codespell to typos (#8214)
+
+## [2.1.0] - 2026-03-04
+
+* feat(agents): add chain configuration metrics (#8185)
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
+* feat(tron): lander (#7846)
+* feat(tron): protocol type (#7827)
+* feat: Store Raw Message Dispatches (#7714)
+* fix(agents): Fix flaky CI tests in lander and relayer (#7949)
+* fix(agents): skip block gas limit cap when RPC returns zero (#8152)
+* fix(lander): Stackoverflow for Aleo (#7757)
+* fix(lander): add tolerance buffer to flaky timing test (#7983)
+* fix: Update upper nonce and finalised nonce when transaction is finalised (#7715)
+* fix: increase wait time for aleo tx resubmission (#7928)
+
+## [2.0.0] - 2026-01-06
+
+* feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
+* feat: Aleo HyperlaneProvider (#7344)
+* feat: Implement building transactions for Aleo in Lander (#7506)
+* feat: Improve Transaction Drop Error Classification in InclusionStage (#7574)
+* feat: Lander Aleo transaction submission (#7533)
+* feat: Lander for Aleo: Add check of transaction status (#7586)
+* feat: Lander for Aleo: Implement payload reverted method (#7591)
+* feat: Lander for Aleo: check if transaction is ready for resubmission (#7590)
+* feat: Lander integration tests for Sealevel (#7571)
+* feat: add integration test for no tx receipt getting dropped (#7413)
+* feat: add relayer API endpoint to reset upper nonce for a given evm chain (#7372)
+* feat: dedupe sealevel transaction hashes (#7555)
+* feat: remove redundant tx status network call for finalized transactions (#7551)
+* feat: rotate provider if eth_getTransactionReceipt returns JSON null (#7489)
+* feat: store newly assigned nonce to tx and db (#7317)
+* revert: handling sealevel failed transaction (#7554)
+* test(lander): aleo integration tests for finality and inclusion stages (#7614)
+
 ## [1.6.0] - 2025-11-06
 
 * feat(lander): EVM `tx_ready_for_resubmission` impl; update block_time configs (#6680)

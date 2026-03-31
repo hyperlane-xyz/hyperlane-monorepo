@@ -2,6 +2,10 @@ use std::collections::HashSet;
 
 use lazy_static::lazy_static;
 use solana_sdk::pubkey::Pubkey;
+use solana_sdk_ids::{
+    bpf_loader_upgradeable, compute_budget, config, ed25519_program, secp256k1_program, stake,
+    system_program, vote,
+};
 use solana_transaction_status::{
     UiInstruction, UiParsedInstruction, UiPartiallyDecodedInstruction, UiTransaction,
 };
@@ -14,14 +18,14 @@ use crate::utils::decode_pubkey;
 
 lazy_static! {
     static ref NATIVE_PROGRAMS: HashSet<String> = HashSet::from([
-        solana_sdk::bpf_loader_upgradeable::ID.to_string(),
-        solana_sdk::compute_budget::ID.to_string(),
-        solana_sdk::config::program::ID.to_string(),
-        solana_sdk::ed25519_program::ID.to_string(),
-        solana_sdk::secp256k1_program::ID.to_string(),
-        solana_sdk::stake::program::ID.to_string(),
-        solana_sdk::system_program::ID.to_string(),
-        solana_sdk::vote::program::ID.to_string(),
+        bpf_loader_upgradeable::id().to_string(),
+        compute_budget::id().to_string(),
+        config::id().to_string(),
+        ed25519_program::id().to_string(),
+        secp256k1_program::id().to_string(),
+        stake::id().to_string(),
+        system_program::id().to_string(),
+        vote::id().to_string(),
     ]);
 }
 

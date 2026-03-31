@@ -19,10 +19,10 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
+use solana_commitment_config::CommitmentConfig;
 use solana_program::pubkey;
-use solana_sdk::account::Account;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
+    account::Account,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signer::Signer as _,
@@ -38,7 +38,10 @@ use hyperlane_core::{
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::sanitize_dynamic_accounts;
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForLander};
+use crate::{
+    ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
+    SealevelProviderForLander,
+};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -63,6 +66,19 @@ lazy_static! {
     ]);
 }
 
+/// Sealevel process instruction payload with optional ALT address.
+///
+/// ALT (Address Lookup Table) is optional and helps reduce transaction size
+/// by allowing accounts to be referenced by 1-byte index rather than 32-byte pubkey.
+/// When provided, the ALT is assumed to be static and lazily loaded by the tx builder.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SealevelProcessPayload {
+    /// The process instruction to execute
+    pub instruction: Instruction,
+    /// Optional ALT address for versioned transactions
+    pub alt_address: Option<Pubkey>,
+}
+
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
@@ -72,6 +88,10 @@ pub struct SealevelMailbox {
     payer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
+    /// Optional ALT address for versioned transactions (from config)
+    mailbox_process_alt: Option<Pubkey>,
+    /// Per-message ALT overrides (first match wins, falls back to mailbox_process_alt)
+    process_alt_overrides: Vec<ProcessAltOverride>,
 
     system_program: Pubkey,
     spl_noop: Pubkey,
@@ -108,6 +128,8 @@ impl SealevelMailbox {
             payer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
+            mailbox_process_alt: conf.mailbox_process_alt,
+            process_alt_overrides: conf.process_alt_overrides.clone(),
             provider,
 
             system_program,
@@ -285,11 +307,11 @@ impl SealevelMailbox {
         sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
-    async fn get_process_instruction(
+    async fn get_process_payload(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> ChainResult<Instruction> {
+    ) -> ChainResult<SealevelProcessPayload> {
         let recipient: Pubkey = message.recipient.0.into();
         let mut encoded_message = vec![];
         message
@@ -362,13 +384,20 @@ impl SealevelMailbox {
         let handle_account_metas = self.get_handle_account_metas(message).await?;
         accounts.extend(handle_account_metas);
 
-        let process_instruction = Instruction {
+        let instruction = Instruction {
             program_id: self.program_id,
             data: ixn_data,
             accounts,
         };
 
-        Ok(process_instruction)
+        Ok(SealevelProcessPayload {
+            instruction,
+            alt_address: resolve_process_alt(
+                &self.process_alt_overrides,
+                self.mailbox_process_alt,
+                message,
+            ),
+        })
     }
 
     /// Get inbox account
@@ -487,16 +516,17 @@ impl Mailbox for SealevelMailbox {
         // is retry logic in the agents.
         let commitment = CommitmentConfig::processed();
 
-        let process_instruction = self.get_process_instruction(message, metadata).await?;
+        let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
         let tx = self
             .provider
             .build_estimated_tx_for_instruction(
-                process_instruction,
+                payload.instruction,
                 payer,
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
+                payload.alt_address,
             )
             .await?;
 
@@ -541,10 +571,10 @@ impl Mailbox for SealevelMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
-        // Getting a process instruction in Sealevel is a pretty expensive operation
-        // that involves some view calls. Consider reusing the instruction with subsequent
+        // Getting a process payload in Sealevel is a pretty expensive operation
+        // that involves some view calls. Consider reusing the payload with subsequent
         // calls to `process` to avoid this cost.
-        let process_instruction = self.get_process_instruction(message, metadata).await?;
+        let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
         // The returned costs are unused at the moment - we simply want to perform a simulation to
@@ -552,10 +582,11 @@ impl Mailbox for SealevelMailbox {
         let _ = self
             .provider
             .get_estimated_costs_for_instruction(
-                process_instruction,
+                payload.instruction,
                 payer,
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
+                payload.alt_address,
             )
             .await?;
 
@@ -575,12 +606,148 @@ impl Mailbox for SealevelMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
-        let process_instruction = self.get_process_instruction(message, metadata).await?;
-        serde_json::to_vec(&process_instruction).map_err(Into::into)
+        let payload = self.get_process_payload(message, metadata).await?;
+        serde_json::to_vec(&payload).map_err(Into::into)
     }
 
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let account = self.processed_message_account(message_id);
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
+    }
+}
+
+/// Resolve which ALT to use for a given message.
+/// Checks per-message overrides first (first match wins), then falls back to
+/// the given fallback ALT.
+///
+/// Note: an empty `matchingList` (`[]` / `MatchingList(None)`) will never match
+/// because `msg_matches` is called with `default: false`. Use `[{}]` (a wildcard
+/// rule) if you want to match all messages.
+fn resolve_process_alt(
+    overrides: &[ProcessAltOverride],
+    fallback: Option<Pubkey>,
+    message: &HyperlaneMessage,
+) -> Option<Pubkey> {
+    for entry in overrides {
+        if entry.matching_list.msg_matches(message, false) {
+            debug!(alt = ?entry.alt_address, "Using per-message ALT override");
+            return Some(entry.alt_address);
+        }
+    }
+    fallback
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::matching_list::MatchingList;
+
+    fn test_message(recipient: H256) -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: 1,
+            sender: H256::zero(),
+            destination: 2,
+            recipient,
+            body: vec![],
+        }
+    }
+
+    fn h256_from_u8(v: u8) -> H256 {
+        let mut bytes = [0u8; 32];
+        bytes[31] = v;
+        H256::from(bytes)
+    }
+
+    fn h256_to_hex(h: H256) -> String {
+        format!("0x{h:x}")
+    }
+
+    #[test]
+    fn test_resolve_alt_override_match() {
+        let alt_key = Pubkey::new_unique();
+        let fallback_key = Pubkey::new_unique();
+        let recipient_a = h256_from_u8(1);
+        let recipient_a_hex = h256_to_hex(recipient_a);
+
+        let overrides = vec![ProcessAltOverride {
+            matching_list: serde_json::from_str::<MatchingList>(&format!(
+                r#"[{{"recipientaddress": "{recipient_a_hex}"}}]"#
+            ))
+            .unwrap(),
+            alt_address: alt_key,
+        }];
+
+        let msg = test_message(recipient_a);
+        let result = resolve_process_alt(&overrides, Some(fallback_key), &msg);
+        assert_eq!(result, Some(alt_key));
+    }
+
+    #[test]
+    fn test_resolve_alt_no_match_uses_fallback() {
+        let alt_key = Pubkey::new_unique();
+        let fallback_key = Pubkey::new_unique();
+        let recipient_a = h256_from_u8(1);
+        let recipient_a_hex = h256_to_hex(recipient_a);
+        let recipient_b = h256_from_u8(2);
+
+        let overrides = vec![ProcessAltOverride {
+            matching_list: serde_json::from_str::<MatchingList>(&format!(
+                r#"[{{"recipientaddress": "{recipient_a_hex}"}}]"#
+            ))
+            .unwrap(),
+            alt_address: alt_key,
+        }];
+
+        // recipient_b should not match recipient_a
+        let msg = test_message(recipient_b);
+        let result = resolve_process_alt(&overrides, Some(fallback_key), &msg);
+        assert_eq!(result, Some(fallback_key));
+    }
+
+    #[test]
+    fn test_resolve_alt_no_match_no_fallback() {
+        let overrides = vec![];
+        let msg = test_message(H256::zero());
+        let result = resolve_process_alt(&overrides, None, &msg);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_alt_empty_matching_list_does_not_match() {
+        let alt_key = Pubkey::new_unique();
+
+        // An empty matching list (no rules) should NOT match any message
+        let overrides = vec![ProcessAltOverride {
+            matching_list: serde_json::from_str::<MatchingList>(r#"[]"#).unwrap(),
+            alt_address: alt_key,
+        }];
+
+        let msg = test_message(h256_from_u8(1));
+        let result = resolve_process_alt(&overrides, None, &msg);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_alt_first_match_wins() {
+        let alt1 = Pubkey::new_unique();
+        let alt2 = Pubkey::new_unique();
+
+        // Both overrides use a wildcard rule [{}] that matches any message
+        let overrides = vec![
+            ProcessAltOverride {
+                matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
+                alt_address: alt1,
+            },
+            ProcessAltOverride {
+                matching_list: serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap(),
+                alt_address: alt2,
+            },
+        ];
+
+        let msg = test_message(H256::zero());
+        let result = resolve_process_alt(&overrides, None, &msg);
+        assert_eq!(result, Some(alt1));
     }
 }

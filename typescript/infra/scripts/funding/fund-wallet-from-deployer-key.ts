@@ -231,6 +231,10 @@ async function fundAccount({
 
   const chainMetadata = multiProtocolProvider.getChainMetadata(chainName);
   const protocol = chainMetadata.protocol;
+  assert(
+    protocol !== ProtocolType.Unknown,
+    `Cannot fund wallet on chain with unknown protocol: ${chainName}`,
+  );
 
   const fundingLogger = logger.child({
     chainName,

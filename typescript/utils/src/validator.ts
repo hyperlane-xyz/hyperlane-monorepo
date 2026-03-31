@@ -126,16 +126,23 @@ export const createAnnounce = async (
   domainIdBytes.writeUInt32BE(localDomain);
 
   const domainHashBytes = toHexString(
-    Buffer.concat([
-      domainIdBytes,
-      fromHexString(mailboxAddress),
-      Buffer.from('HYPERLANE_ANNOUNCEMENT'),
-    ]),
+    Buffer.from(
+      ethers.utils.concat([
+        domainIdBytes,
+        fromHexString(mailboxAddress),
+        ethers.utils.toUtf8Bytes('HYPERLANE_ANNOUNCEMENT'),
+      ]),
+    ),
   );
   const domainHash = ethers.utils.keccak256(domainHashBytes);
 
   const announcementDigestBytes = toHexString(
-    Buffer.concat([fromHexString(domainHash), Buffer.from(storageLocation)]),
+    Buffer.from(
+      ethers.utils.concat([
+        fromHexString(domainHash),
+        ethers.utils.toUtf8Bytes(storageLocation),
+      ]),
+    ),
   );
   const announcementDigest = ethers.utils.keccak256(announcementDigestBytes);
 

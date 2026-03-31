@@ -4,6 +4,7 @@
 /configs
 /prisma/dev.db
 /src/generated
+/bundle
 
 # allow check-in of .env.example
 !.env.example

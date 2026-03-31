@@ -1,6 +1,9 @@
 {
-  "*.js": "prettier --write",
-  "*.ts": "prettier --write",
-  "*.md": "prettier --write",
+  "*.{js,ts,tsx,jsx}": [
+    "oxlint -c oxlint.json",
+    "oxfmt --ignore-path .gitignore --write"
+  ],
+  "typescript/infra/**/*.{yaml,yml}": "tsx ./scripts/sort-yaml.ts",
+  "*.{md,json,yaml,yml}": "oxfmt --no-error-on-unmatched-pattern --ignore-path .gitignore --write",
   "*.sol": "prettier --write"
 }

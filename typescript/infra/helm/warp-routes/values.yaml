@@ -1,6 +1,7 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-warp-monitor
+  repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   tag:
+serviceName: warp-monitor
 hyperlane:
   runEnv: mainnet3
   context: hyperlane

@@ -68,6 +68,8 @@ The warp-routes container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
+  - name: SERVICE_NAME
+    value: {{ .Values.serviceName | default "warp-monitor" | quote }}
   - name: LOG_FORMAT
     value: json
   - name: LOG_LEVEL
@@ -80,8 +82,6 @@ The warp-routes container
     value: {{ .Values.warpRouteId }}
   - name: CHECK_FREQUENCY
     value: "30000"
-  - name: COINGECKO_API_KEY
-    value: $(COINGECKO_API_KEY)
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret

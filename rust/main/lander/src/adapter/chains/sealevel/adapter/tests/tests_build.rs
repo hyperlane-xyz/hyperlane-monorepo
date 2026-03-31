@@ -16,6 +16,7 @@ async fn test_build_transactions() {
     let payload = payload();
     let data = VmSpecificTxData::Svm(Box::new(SealevelTxPrecursor::new(
         instruction(),
+        None,
         SealevelTxCostEstimate::default(),
     )));
     let expected = (payload.details.clone(), data);

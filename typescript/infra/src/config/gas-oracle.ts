@@ -6,6 +6,7 @@ import {
   ChainGasOracleParams,
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   GasPriceConfig,
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
@@ -21,6 +22,7 @@ import {
   assert,
   convertDecimals,
   fromWei,
+  isEVMLike,
   rootLogger,
   toWei,
 } from '@hyperlane-xyz/utils';
@@ -247,6 +249,10 @@ export function getTypicalHandleGasAmount(
     return 30_000_000;
   }
 
+  if (remoteProtocolType === ProtocolType.Sealevel) {
+    return 300_000;
+  }
+
   // A fairly arbitrary amount of gas used in a message's handle function,
   // generally fits most VMs.
   return 50_000;
@@ -287,21 +293,23 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,
     taiko: 0.5,
-    // For Solana, special min cost
-    solanamainnet: 1.2,
+
+    // Tron uses an energy model, not gas. Delivery costs 80-110K energy
+    // ≈ 9-12 TRX ≈ $2.60-$3.50. Standard EVM gas math underestimates Tron costs.
+    tron: 4.0,
+
+    // skunkchain special
+    solanamainnet: 0.35,
+    ethereum: 0.07,
+    arbitrum: 0.09,
+    optimism: 0.05,
+    base: 0.05,
+    polygon: 0.05,
+    unichain: 0.05,
+    eclipsemainnet: 0.22,
   };
 
-  if (local === 'ethereum' && remote === 'solanamainnet') {
-    minUsdCost = 0.5;
-    remoteMinCostOverrides['solanamainnet'] = 0.9;
-  }
-
-  const override = remoteMinCostOverrides[remote];
-  if (override !== undefined) {
-    minUsdCost = Math.max(minUsdCost, override);
-  }
-
-  return minUsdCost;
+  return remoteMinCostOverrides[remote] ?? minUsdCost;
 }
 
 function getUsdQuote(
@@ -342,7 +350,7 @@ const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 export function getOverhead(local: ChainName, remote: ChainName): number {
   const remoteProtocol = getChain(remote).protocol;
 
-  if (remoteProtocol === ProtocolType.Ethereum) {
+  if (isEVMLike(remoteProtocol)) {
     return multisigIsmVerificationCost(
       defaultMultisigConfigs[local].threshold,
       defaultMultisigConfigs[local].validators.length,
@@ -359,6 +367,46 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
 
   // Default non-EVM overhead
   return FOREIGN_DEFAULT_OVERHEAD;
+}
+
+// Overhead with chain-specific multipliers for chains with non-standard gas usage.
+export function getOverheadWithOverrides(
+  local: ChainName,
+  remote: ChainName,
+): number {
+  let overhead = getOverhead(local, remote);
+
+  if (remote === 'megaeth') {
+    overhead *= 10;
+  }
+
+  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
+  if (remote === 'moonbeam' || remote === 'torus') {
+    overhead *= 4;
+  }
+
+  // Somnia gas usage is higher than the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (remote === 'somnia') {
+    overhead *= 2;
+  }
+
+  // ZkSync gas usage is different from the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (
+    getChain(remote).technicalStack === ChainTechnicalStack.ZkSync ||
+    remote === 'adichain'
+  ) {
+    overhead *= 2;
+
+    // Zero Network gas usage has changed recently and now requires
+    // another 3x multiplier on top of the ZKSync overhead.
+    if (remote === 'zeronetwork') {
+      overhead *= 3;
+    }
+  }
+
+  return overhead;
 }
 
 // Gets the map of remote gas oracle configs for each local chain
@@ -384,31 +432,20 @@ export function getAllStorageGasOracleConfigs(
     }
   });
 
-  return chainNames
-    .filter((chain) => {
-      // For now, only support Ethereum and Sealevel chains.
-      // Cosmos chains should be supported in the future, but at the moment
-      // are more subject to loss of precision issues in the exchange rate,
-      // where we'd need to scale the gas price accordingly.
-      const protocol = getChain(chain).protocol;
-      return (
-        protocol === ProtocolType.Ethereum || protocol === ProtocolType.Sealevel
-      );
-    })
-    .reduce((agg, local) => {
-      const remotes = chainNames.filter((chain) => local !== chain);
-      return {
-        ...agg,
-        [local]: getLocalStorageGasOracleConfigOverride(
-          local,
-          remotes,
-          tokenPrices,
-          gasPrices,
-          getOverhead,
-          applyMinUsdCost,
-        ),
-      };
-    }, {}) as AllStorageGasOracleConfigs;
+  return chainNames.reduce((agg, local) => {
+    const remotes = chainNames.filter((chain) => local !== chain);
+    return {
+      ...agg,
+      [local]: getLocalStorageGasOracleConfigOverride(
+        local,
+        remotes,
+        tokenPrices,
+        gasPrices,
+        getOverhead,
+        applyMinUsdCost,
+      ),
+    };
+  }, {}) as AllStorageGasOracleConfigs;
 }
 
 // 5% threshold, adjust as needed

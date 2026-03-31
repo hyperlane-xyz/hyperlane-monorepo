@@ -8,11 +8,20 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use mockall::mock;
 use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    account::Account, commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction, instruction::Instruction as SealevelInstruction,
-    message::Message, pubkey::Pubkey, signature::Signature, signature::Signer,
-    transaction::Transaction as SealevelTransaction,
+    account::Account,
+    hash::Hash,
+    instruction::Instruction as SealevelInstruction,
+    message::{v0::Message as MessageV0, Message, VersionedMessage},
+    pubkey::Pubkey,
+    signature::Signature,
+    signature::Signer,
+    transaction::{
+        Transaction as SealevelLegacyTransaction,
+        VersionedTransaction as SealevelVersionedTransaction,
+    },
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
@@ -24,7 +33,7 @@ use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::{ChainResult, HyperlaneDomain, KnownHyperlaneDomain};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
-    SealevelTxCostEstimate, TransactionSubmitter,
+    SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
 use lander::{
@@ -44,7 +53,8 @@ mock! {
         async fn get_block_with_commitment(&self, slot: u64, commitment: CommitmentConfig) -> ChainResult<UiConfirmedBlock>;
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn get_transaction_with_commitment(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
-        async fn simulate_transaction(&self, transaction: &SealevelTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+        async fn simulate_transaction(&self, transaction: &SealevelLegacyTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+        async fn simulate_versioned_transaction(&self, transaction: &SealevelVersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
 
@@ -53,7 +63,7 @@ mock! {
 
     #[async_trait]
     impl PriorityFeeOracle for Oracle {
-        async fn get_priority_fee(&self, transaction: &SealevelTransaction) -> ChainResult<u64>;
+        async fn get_priority_fee(&self, transaction: &SealevelTxType) -> ChainResult<u64>;
     }
 }
 
@@ -63,8 +73,8 @@ mock! {
     #[async_trait]
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
-        async fn send_transaction(&self, transaction: &SealevelTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction) -> ChainResult<()>;
+        async fn send_transaction(&self, transaction: &SealevelTxType, skip_preflight: bool) -> ChainResult<Signature>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
     }
 }
@@ -82,7 +92,8 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-        ) -> ChainResult<SealevelTransaction>;
+            alt_address: Option<Pubkey>,
+        ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
@@ -90,9 +101,10 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+            alt_address: Option<Pubkey>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
-        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction) -> ChainResult<()>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
         async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
     }
@@ -116,7 +128,7 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
 
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| {
+        .returning(|_, _, _, _, _| {
             Ok(SealevelTxCostEstimate {
                 compute_units: GAS_LIMIT,
                 compute_unit_price_micro_lamports: 0,
@@ -125,11 +137,55 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _| {
-            Ok(SealevelTransaction::new_unsigned(Message::new(
+        .returning(|_, _, instruction, payer, _, _, _| {
+            let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
-            )))
+            ));
+            Ok(SealevelTxType::Legacy(tx))
+        });
+
+    provider
+        .expect_wait_for_transaction_confirmation()
+        .returning(|_| Ok(()));
+
+    provider
+        .expect_confirm_transaction()
+        .returning(|_, _| Ok(true));
+
+    provider.expect_get_account().returning(|_| Ok(None));
+
+    provider
+}
+
+fn create_sealevel_provider_for_successful_versioned_tx() -> MockSvmProvider {
+    let mut provider = MockSvmProvider::new();
+
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(|_, _, _, _, _| {
+            Ok(SealevelTxCostEstimate {
+                compute_units: GAS_LIMIT,
+                compute_unit_price_micro_lamports: 0,
+            })
+        });
+
+    provider
+        .expect_create_transaction_for_instruction()
+        .returning(|_, _, instruction, payer, _, _, _| {
+            // Create a versioned transaction with V0 message
+            let message = MessageV0::try_compile(
+                &payer.pubkey(),
+                &[instruction],
+                &[], // No ALT accounts needed for test
+                Hash::default(),
+            )
+            .unwrap();
+            let tx = SealevelVersionedTransaction {
+                signatures: vec![Signature::default()],
+                message: VersionedMessage::V0(message),
+            };
+            Ok(SealevelTxType::Versioned(tx))
         });
 
     provider
@@ -152,6 +208,15 @@ fn create_sealevel_client() -> MockClient {
         accounts: None,
         units_consumed: None,
         return_data: None,
+        replacement_blockhash: None,
+        inner_instructions: None,
+        fee: None,
+        loaded_accounts_data_size: None,
+        loaded_addresses: None,
+        post_balances: None,
+        post_token_balances: None,
+        pre_balances: None,
+        pre_token_balances: None,
     };
 
     let mut client = MockClient::new();
@@ -161,8 +226,12 @@ fn create_sealevel_client() -> MockClient {
     client
         .expect_get_transaction_with_commitment()
         .returning(move |_, _| Ok(encoded_svm_transaction()));
+    let result_clone = result.clone();
     client
         .expect_simulate_transaction()
+        .returning(move |_| Ok(result_clone.clone()));
+    client
+        .expect_simulate_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
@@ -193,6 +262,7 @@ fn svm_block() -> UiConfirmedBlock {
         rewards: None,
         block_time: None,
         block_height: None,
+        num_reward_partitions: None,
     }
 }
 
@@ -215,6 +285,7 @@ fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
                 loaded_addresses: OptionSerializer::None,
                 return_data: OptionSerializer::None,
                 compute_units_consumed: OptionSerializer::None,
+                cost_units: OptionSerializer::None,
             }),
             version: None,
         },
@@ -223,8 +294,16 @@ fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
 }
 
 fn create_sealevel_payload() -> FullPayload {
+    create_sealevel_payload_with_alt(None)
+}
+
+fn create_sealevel_payload_with_alt(alt_address: Option<Pubkey>) -> FullPayload {
     let instruction = ComputeBudgetInstruction::set_compute_unit_limit(GAS_LIMIT);
-    let data = serde_json::to_vec(&instruction).unwrap();
+    let process_payload = hyperlane_sealevel::SealevelProcessPayload {
+        instruction,
+        alt_address,
+    };
+    let data = serde_json::to_vec(&process_payload).unwrap();
 
     FullPayload {
         data,
@@ -322,6 +401,66 @@ async fn test_sealevel_payload_reaches_finalized_status() {
     );
 }
 
+/// Test that a Sealevel payload with versioned transaction (ALT) reaches finalized status
+#[tokio::test]
+async fn test_sealevel_versioned_tx_payload_reaches_finalized_status() {
+    // Create payload with ALT address to trigger versioned transaction
+    let alt_address = Pubkey::new_unique();
+    let payload = create_sealevel_payload_with_alt(Some(alt_address));
+
+    // Create Sealevel adapter with mocked providers for versioned transactions
+    let client = create_sealevel_client();
+    let provider = create_sealevel_provider_for_successful_versioned_tx();
+    let oracle = MockOracle::new();
+    let submitter = create_sealevel_submitter();
+
+    let adapter = lander::create_test_sealevel_adapter(
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
+        Duration::from_millis(100),
+    );
+
+    // Create dispatcher with real Sealevel adapter
+    let (payload_db, tx_db) = tmp_dbs();
+    let (entrypoint, dispatcher) =
+        lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
+
+    // Spawn dispatcher
+    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+
+    // Send payload
+    entrypoint
+        .send_payload(&payload)
+        .await
+        .expect("Failed to send payload");
+
+    // Wait for finalized status
+    let final_status = wait_until_payload_status(
+        &entrypoint,
+        payload.uuid(),
+        |status| {
+            matches!(
+                status,
+                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+            )
+        },
+        Duration::from_secs(5),
+    )
+    .await
+    .expect("Payload with versioned tx did not reach finalized status");
+
+    // Verify
+    assert!(
+        matches!(
+            final_status,
+            PayloadStatus::InTransaction(TransactionStatus::Finalized)
+        ),
+        "Expected finalized status for versioned tx, got: {final_status:?}"
+    );
+}
+
 /// Test that simulation failure results in dropped payload status
 #[tokio::test]
 async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
@@ -335,7 +474,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
     client
         .expect_get_transaction_with_commitment()
         .returning(move |_, _| Ok(encoded_svm_transaction()));
-    // Simulation fails
+    // Simulation fails (legacy tx - payload has no ALT)
     client
         .expect_simulate_transaction()
         .returning(|_| Err(eyre::eyre!("Simulation failed").into()));
@@ -402,15 +541,16 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     // Estimation fails
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| Err(eyre::eyre!("Estimation failed").into()));
+        .returning(|_, _, _, _, _| Err(eyre::eyre!("Estimation failed").into()));
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _| {
-            Ok(SealevelTransaction::new_unsigned(Message::new(
+        .returning(|_, _, instruction, payer, _, _, _| {
+            let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
-            )))
+            ));
+            Ok(SealevelTxType::Legacy(tx))
         });
 
     provider
@@ -469,6 +609,95 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
             PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
         ),
         "Expected dropped status, got: {final_status:?}"
+    );
+}
+
+/// Test that estimation failure with versioned transaction (ALT payload) results in dropped status
+#[tokio::test]
+async fn test_sealevel_versioned_tx_estimation_failure_results_in_dropped() {
+    // Create payload with ALT address to use versioned transaction path
+    let alt_address = Pubkey::new_unique();
+    let payload = create_sealevel_payload_with_alt(Some(alt_address));
+
+    // Create Sealevel adapter with estimation failure
+    let client = create_sealevel_client();
+
+    let mut provider = MockSvmProvider::new();
+    // Estimation fails
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(|_, _, _, _, _| Err(eyre::eyre!("Estimation failed").into()));
+
+    // Mock still needed even though estimation fails - may be called during simulation
+    provider
+        .expect_create_transaction_for_instruction()
+        .returning(|_, _, instruction, payer, _, _, _| {
+            let message =
+                MessageV0::try_compile(&payer.pubkey(), &[instruction], &[], Hash::default())
+                    .unwrap();
+            let tx = SealevelVersionedTransaction {
+                signatures: vec![Signature::default()],
+                message: VersionedMessage::V0(message),
+            };
+            Ok(SealevelTxType::Versioned(tx))
+        });
+
+    provider
+        .expect_wait_for_transaction_confirmation()
+        .returning(|_| Ok(()));
+
+    provider
+        .expect_confirm_transaction()
+        .returning(|_, _| Ok(true));
+
+    provider.expect_get_account().returning(|_| Ok(None));
+
+    let oracle = MockOracle::new();
+    let submitter = create_sealevel_submitter();
+
+    let adapter = lander::create_test_sealevel_adapter(
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
+        Duration::from_millis(100),
+    );
+
+    // Create dispatcher
+    let (payload_db, tx_db) = tmp_dbs();
+    let (entrypoint, dispatcher) =
+        lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
+
+    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
+
+    // Send payload
+    entrypoint
+        .send_payload(&payload)
+        .await
+        .expect("Failed to send payload");
+
+    // Wait for dropped status
+    let final_status = wait_until_payload_status(
+        &entrypoint,
+        payload.uuid(),
+        |status| {
+            matches!(
+                status,
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+            )
+        },
+        Duration::from_secs(5),
+    )
+    .await
+    .expect("Versioned tx payload did not reach dropped status");
+
+    // Verify
+    assert!(
+        matches!(
+            final_status,
+            PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+        ),
+        "Expected dropped status for versioned tx, got: {final_status:?}"
     );
 }
 

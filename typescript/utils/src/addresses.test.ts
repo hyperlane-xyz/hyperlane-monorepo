@@ -2,7 +2,10 @@ import { expect } from 'chai';
 
 import {
   addressToBytes,
+  addressToBytes32,
   bytesToProtocolAddress,
+  isAddressStarknet,
+  isValidAddressStarknet,
   isZeroishAddress,
   padBytesToLength,
 } from './addresses.js';
@@ -24,6 +27,16 @@ const STARKNET_ZERO_ADDR =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
 const STARKNET_NON_ZERO_ADDR =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
+const STARKNET_ADDRESSES = [
+  // 65 characters (0x + 63 hex chars)
+  '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a53',
+  // 66 characters (0x + 64 hex chars)
+  '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
+  // 63 characters (no 0x prefix)
+  '5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a53',
+  // 64 characters (no 0x prefix)
+  '049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
+];
 
 // TODO increase address utility test coverage
 describe('Address utilities', () => {
@@ -61,11 +74,13 @@ describe('Address utilities', () => {
 
   describe('padBytesToLength', () => {
     it('Pads bytes to a given length', () => {
-      const bytes = Buffer.from([1, 2, 3]);
-      expect(padBytesToLength(bytes, 5).equals(Buffer.from([0, 0, 1, 2, 3])));
+      const bytes = new Uint8Array([1, 2, 3]);
+      expect(Array.from(padBytesToLength(bytes, 5))).to.deep.equal([
+        0, 0, 1, 2, 3,
+      ]);
     });
     it('Rejects bytes that exceed the target length', () => {
-      const bytes = Buffer.from([1, 2, 3]);
+      const bytes = new Uint8Array([1, 2, 3]);
       expect(() => padBytesToLength(bytes, 2)).to.throw(Error);
     });
   });
@@ -99,6 +114,66 @@ describe('Address utilities', () => {
           ProtocolType.Ethereum,
         ),
       ).to.throw(Error);
+    });
+  });
+
+  describe('isAddressStarknet', () => {
+    it('Validates correct Starknet addresses', () => {
+      for (const address of STARKNET_ADDRESSES) {
+        expect(isAddressStarknet(address)).to.be.true;
+      }
+    });
+
+    it('Rejects EVM addresses', () => {
+      const evmAddress = '0x67C6390e8782b0B4F913f4dA99c065238Fb7DB30';
+      expect(isAddressStarknet(evmAddress)).to.be.false;
+    });
+
+    it('Rejects addresses exceeding felt252 bounds', () => {
+      const outOfBoundsAddress =
+        '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
+      expect(isAddressStarknet(outOfBoundsAddress)).to.be.false;
+    });
+  });
+
+  describe('addressToBytes32', () => {
+    it('Converts a base58 Solana address to bytes32 hex', () => {
+      // mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X
+      const solAddress = 'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X';
+      const result = addressToBytes32(solAddress);
+      expect(result).to.equal(
+        '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794',
+      );
+    });
+    it('Converts an EVM address to bytes32 hex', () => {
+      const result = addressToBytes32(ETH_NON_ZERO_ADDR);
+      expect(result).to.equal(
+        '0x0000000000000000000000000000000000000000000000000000000000000001',
+      );
+    });
+    it('Returns an already-bytes32 hex address unchanged', () => {
+      const bytes32 =
+        '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794';
+      expect(addressToBytes32(bytes32)).to.equal(bytes32);
+    });
+  });
+
+  describe('isValidAddressStarknet', () => {
+    it('Validates correct Starknet addresses', () => {
+      for (const address of STARKNET_ADDRESSES) {
+        expect(isValidAddressStarknet(address)).to.be.true;
+      }
+    });
+
+    it('Rejects EVM addresses', () => {
+      const evmAddress = '0x67C6390e8782b0B4F913f4dA99c065238Fb7DB30';
+      expect(isValidAddressStarknet(evmAddress)).to.be.false;
+    });
+
+    it('Rejects addresses exceeding felt252 bounds', () => {
+      const outOfBoundsAddress =
+        '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
+      expect(isValidAddressStarknet(outOfBoundsAddress)).to.be.false;
     });
   });
 });

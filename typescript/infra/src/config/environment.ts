@@ -25,7 +25,6 @@ import { Role } from '../roles.js';
 
 import { RootAgentConfig } from './agent/agent.js';
 import { CheckWarpDeployConfig, KeyFunderConfig } from './funding.js';
-import { HelloWorldConfig } from './helloworld/types.js';
 import { InfrastructureConfig } from './infrastructure.js';
 
 export type DeployEnvironment = keyof typeof environments;
@@ -47,7 +46,11 @@ export type EnvironmentConfig = {
   environment: DeployEnvironment;
   supportedChainNames: ChainName[];
   // Get the registry with or without environment-specific secrets.
-  getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
+  // Optionally filter to specific chains for performance optimization.
+  getRegistry: (
+    useSecrets?: boolean,
+    chains?: ChainName[],
+  ) => Promise<IRegistry>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
@@ -65,7 +68,6 @@ export type EnvironmentConfig = {
     context?: Contexts,
     role?: Role,
   ) => Promise<ChainMap<CloudAgentKey>>;
-  helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig<string[]>;
   checkWarpDeployConfig?: CheckWarpDeployConfig;
 };

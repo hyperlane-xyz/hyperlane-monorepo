@@ -22,7 +22,10 @@ import { Decimal } from 'decimal.js';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { READ_ACCOUNT_HEX_PUBLIC_KEY } from './constants.js';
+import {
+  EPOCH_VALIDITY_RANGE,
+  READ_ACCOUNT_HEX_PUBLIC_KEY,
+} from './constants.js';
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
 import { stringToTransactionManifest } from './utils.js';
 
@@ -42,6 +45,10 @@ export class RadixBase {
     this.gateway = gateway;
     this.gasMultiplier = gasMultiplier;
     this.hyperlanePackageDefAddress = hyperlanePackageDefAddress;
+  }
+
+  public getNetworkId(): number {
+    return this.networkId;
   }
 
   public async getXrdAddress() {
@@ -130,7 +137,8 @@ export class RadixBase {
             assume_all_signature_proofs: true,
           },
           start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
-          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+          end_epoch_exclusive:
+            constructionMetadata.ledger_state.epoch + EPOCH_VALIDITY_RANGE,
         },
       });
 
@@ -178,18 +186,18 @@ export class RadixBase {
       name:
         (
           details.metadata.items.find((i) => i.key === 'name')?.value
-            .typed as any
-        ).value ?? '',
+            ?.typed as any
+        )?.value ?? '',
       symbol:
         (
           details.metadata.items.find((i) => i.key === 'symbol')?.value
-            .typed as any
-        ).value ?? '',
+            ?.typed as any
+        )?.value ?? '',
       description:
         (
           details.metadata.items.find((i) => i.key === 'description')?.value
-            .typed as any
-        ).value ?? '',
+            ?.typed as any
+        )?.value ?? '',
       decimals: (details.details as any).divisibility as number,
     };
 

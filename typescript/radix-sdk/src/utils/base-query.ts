@@ -7,12 +7,33 @@ import {
 
 import { assert, isNullish, sleep } from '@hyperlane-xyz/utils';
 
-import { EntityDetails, RadixElement } from './types.js';
+import { EntityDetails, EntityField, RadixElement } from './types.js';
 
 type RadixComponentDetails = Extract<
   StateEntityDetailsResponseItemDetails,
   { type: 'Component' }
 >;
+
+function isComponentOwner(
+  value: unknown,
+): value is EntityDetails['role_assignments']['owner'] {
+  if (typeof value !== 'object' || value === null) return false;
+  const rule = Reflect.get(value, 'rule');
+  if (typeof rule !== 'object' || rule === null) return false;
+  const accessRule = Reflect.get(rule, 'access_rule');
+  if (typeof accessRule !== 'object' || accessRule === null) return false;
+  const proofRule = Reflect.get(accessRule, 'proof_rule');
+  if (typeof proofRule !== 'object' || proofRule === null) return false;
+  const requirement = Reflect.get(proofRule, 'requirement');
+  if (typeof requirement !== 'object' || requirement === null) return false;
+  const resource = Reflect.get(requirement, 'resource');
+  return typeof resource === 'string';
+}
+
+function isComponentState(value: unknown): value is EntityDetails['state'] {
+  if (typeof value !== 'object' || value === null) return false;
+  return Array.isArray(Reflect.get(value, 'fields'));
+}
 
 /**
  * Fetches and validates Radix component details from the gateway.
@@ -98,11 +119,9 @@ export function getComponentOwnershipInfo(
   entityAddress: string,
   entityDetails: RadixComponentDetails,
 ): EntityDetails['role_assignments']['owner'] {
-  const ownershipInfo = entityDetails?.role_assignments?.owner as
-    | EntityDetails['role_assignments']['owner']
-    | undefined;
+  const ownershipInfo = entityDetails?.role_assignments?.owner;
   assert(
-    ownershipInfo,
+    isComponentOwner(ownershipInfo),
     `Expected ownership info to be defined for radix component at address ${entityAddress}`,
   );
 
@@ -159,11 +178,107 @@ export function getComponentState(
   entityDetails: RadixComponentDetails,
 ): EntityDetails['state'] {
   assert(
-    entityDetails.state,
+    isComponentState(entityDetails.state),
     `Expected state to be defined for component at address ${entityAddress}`,
   );
 
-  return entityDetails.state as EntityDetails['state'];
+  return entityDetails.state;
+}
+
+/**
+ * Internal helper to extract a field property from a Radix component's entity state.
+ *
+ * Handles both regular fields and Radix Option enums. For Option enums, it automatically
+ * extracts the property from the Some variant.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @param property - The property to extract ('value' or 'hex')
+ * @param formatter - Optional function to transform the string value into a different type
+ * @returns The field property value or undefined if not found
+ */
+function tryGetFieldPropertyFromEntityState<TKey extends keyof EntityField, T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  property: TKey,
+  formatter?: (value: NonNullable<EntityField[TKey]>) => T,
+): T | string | undefined {
+  const [result] = entityState.fields
+    .filter((f) => f.field_name === fieldName)
+    .map((f) =>
+      // If the current value is an Option we need to extract
+      // its property otherwise we can use the property directly
+      f.kind === 'Enum' && f.type_name === 'Option'
+        ? f.fields?.at(0)?.[property]
+        : f[property],
+    );
+
+  return !isNullish(result) && formatter ? formatter(result) : result;
+}
+
+export function getFieldPropertyFromEntityState<
+  TKey extends keyof EntityField,
+  T,
+>(
+  fieldName: string,
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+  property: TKey,
+  formatter?: (value: NonNullable<EntityField[TKey]>) => T,
+): T | NonNullable<EntityField[TKey]> {
+  const result: T | NonNullable<EntityField[TKey]> | undefined =
+    tryGetFieldPropertyFromEntityState(
+      fieldName,
+      entityState,
+      property,
+      formatter,
+    );
+
+  assert(
+    !isNullish(result),
+    `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
+  );
+
+  return result;
+}
+
+/**
+ * Tries to extracts a field value from a Radix component's entity state.
+ *
+ * Handles both regular fields and Radix Option enums. For Option enums, it automatically
+ * extracts the value from the Some variant.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @returns The field value as a string or undefined if it was not found
+ *
+ *
+ * @overload
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @param formatter - Function to transform the string value into a different type
+ * @returns The formatted field value or undefined if it was not found
+ */
+export function tryGetFieldValueFromEntityState(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+): string | undefined;
+export function tryGetFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter: (value: string) => T,
+): T | undefined;
+export function tryGetFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter?: (value: string) => T,
+): T | string | undefined {
+  return tryGetFieldPropertyFromEntityState(
+    fieldName,
+    entityState,
+    'value',
+    formatter,
+  );
 }
 
 /**
@@ -203,21 +318,145 @@ export function getFieldValueFromEntityState<T>(
   entityState: EntityDetails['state'],
   formatter?: (value: string) => T,
 ): T | string {
-  const [value]: string[] | undefined = entityState.fields
-    .filter((f) => f.field_name === fieldName)
-    .map((f) =>
-      // If the current value is an Option we need to extract
-      // its value otherwise we can use the .value property
-      // directly
-      f.kind === 'Enum' && f.type_name === 'Option'
-        ? f.fields?.at(0)?.value
-        : f.value,
-    );
+  const value = formatter
+    ? tryGetFieldValueFromEntityState(fieldName, entityState, formatter)
+    : tryGetFieldValueFromEntityState(fieldName, entityState);
 
   assert(
     !isNullish(value),
     `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
   );
+
+  return value;
+}
+
+/**
+ * Tries to extract a hex field value from a Radix component's entity state.
+ *
+ * Similar to tryGetFieldValueFromEntityState but extracts the hex representation
+ * instead of the regular value. Handles both regular fields and Radix Option enums.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @returns The field hex value as a string or undefined if it was not found
+ *
+ * @overload
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @param formatter - Function to transform the hex string value into a different type
+ * @returns The formatted field hex value or undefined if it was not found
+ */
+export function tryGetFieldHexValueFromEntityState(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+): string | undefined;
+export function tryGetFieldHexValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter: (value: string) => T,
+): T | undefined;
+export function tryGetFieldHexValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter?: (value: string) => T,
+): T | string | undefined {
+  return tryGetFieldPropertyFromEntityState(
+    fieldName,
+    entityState,
+    'hex',
+    formatter,
+  );
+}
+
+/**
+ * Extracts a hex field value from a Radix component's entity state.
+ *
+ * Similar to getFieldValueFromEntityState but extracts the hex representation
+ * instead of the regular value. Handles both regular fields and Radix Option enums.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @returns The field hex value as a string
+ *
+ * @throws {Error} If the field is not found in the state
+ *
+ * @overload
+ * @param fieldName - The name of the field to extract
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @param formatter - Function to transform the hex string value into a different type
+ * @returns The formatted field hex value
+ */
+export function getFieldHexValueFromEntityState(
+  fieldName: string,
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+): string;
+export function getFieldHexValueFromEntityState<T>(
+  fieldName: string,
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+  formatter: (value: string) => T,
+): T;
+export function getFieldHexValueFromEntityState<T>(
+  fieldName: string,
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+  formatter?: (value: string) => T,
+): T | string {
+  const hexValue = formatter
+    ? tryGetFieldHexValueFromEntityState(fieldName, entityState, formatter)
+    : tryGetFieldHexValueFromEntityState(fieldName, entityState);
+
+  assert(
+    !isNullish(hexValue),
+    `Expected ${fieldName} hex field to be defined on radix component at ${entityAddress}`,
+  );
+
+  return hexValue;
+}
+
+/**
+ * Extracts an optional field value from a Radix component's entity state.
+ *
+ * Similar to getFieldValueFromEntityState, but returns undefined instead of throwing
+ * if the field is not found or if it's an Option::None variant.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @returns The field value as a string, or undefined if not found/None
+ */
+export function getOptionalFieldValueFromEntityState(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+): string | undefined;
+export function getOptionalFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter: (value: string) => T,
+): T | undefined;
+export function getOptionalFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter?: (value: string) => T,
+): T | string | undefined {
+  const field = entityState.fields.find((f) => f.field_name === fieldName);
+  if (
+    !field ||
+    (field.type_name === 'Option' && field.variant_name === 'None')
+  ) {
+    return undefined;
+  }
+
+  const value =
+    field.kind === 'Enum' && field.type_name === 'Option'
+      ? field.fields?.at(0)?.value
+      : field.value;
+
+  if (isNullish(value)) {
+    return undefined;
+  }
 
   return formatter ? formatter(value) : value;
 }
@@ -267,4 +506,32 @@ export function getFieldElementsFromEntityState<T>(
   );
 
   return formatter ? formatter(value) : value;
+}
+
+/**
+ * Extracts the resource address from a Radix component's entity state.
+ *
+ * Searches the component state fields for a ResourceAddress type and returns its value.
+ * Used for identifying token resources associated with warp route components.
+ *
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @returns The resource address as a string
+ *
+ * @throws {Error} If no ResourceAddress field is found in the component state
+ */
+export function getResourceAddress(
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+): string {
+  const resourceAddress = entityState.fields.find(
+    (t) => t.type_name === 'ResourceAddress',
+  )?.value;
+
+  assert(
+    typeof resourceAddress === 'string',
+    `Expected a resource address to be defined on the state of the component at address ${entityAddress}`,
+  );
+
+  return resourceAddress;
 }

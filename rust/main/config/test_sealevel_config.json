@@ -47,6 +47,30 @@
         "from": 0,
         "mode": "sequence"
       }
+    },
+    "sealeveltest3": {
+      "name": "sealeveltest3",
+      "chainId": 13377,
+      "domainId": 13377,
+      "mailbox": "5AEv1DvuDhN15vTmY7LdfFwYH9ek5ncqv9rBsAqN1Sfe",
+      "merkleTreeHook": "5AEv1DvuDhN15vTmY7LdfFwYH9ek5ncqv9rBsAqN1Sfe",
+      "interchainGasPaymaster": "6WRi3t8GZMyarPD8TWgFvhKCeErqpkDCXYCnnzqA46qj",
+      "validatorAnnounce": "aiVmiRYXcETNVnbZRxcefxU3WxgmGa4hz1x6qGFC1cJ",
+      "protocol": "sealevel",
+      "blocks": {
+        "reorgPeriod": 0,
+        "estimateBlockTime": 0.4,
+        "confirmations": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:8899"
+        }
+      ],
+      "index": {
+        "from": 0,
+        "mode": "sequence"
+      }
     }
   }
 }

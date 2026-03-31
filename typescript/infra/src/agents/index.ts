@@ -93,7 +93,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
         aws: !!this.config.aws,
         chains: this.config.contextChainNames[this.role].map((chain) => {
           const metadata = getChain(chain);
-          const reorgPeriod = metadata.blocks?.reorgPeriod;
+          const reorgPeriod =
+            this.config.rawConfig.relayer?.reorgPeriodOverrides?.[chain] ??
+            metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }
@@ -126,7 +128,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             maxBatchSize: batchConfig.maxBatchSize,
             bypassBatchSimulation: batchConfig.bypassBatchSimulation,
             ...(batchConfig.maxSubmitQueueLength
-              ? { maxSubmitQueueLength: batchConfig.maxSubmitQueueLength }
+              ? {
+                  maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
+                }
               : {}),
             priorityFeeOracle,
             transactionSubmitter,
@@ -200,6 +204,17 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
+
+    // Inject per-chain processAltOverrides into Sealevel chain configs
+    const processAltOverrides =
+      this.config.relayerConfig.processAltOverrides ?? {};
+    values.hyperlane.chains = values.hyperlane.chains.map((chain) => {
+      const overrides = processAltOverrides[chain.name];
+      if (overrides && overrides.length > 0) {
+        return { ...chain, processAltOverrides: JSON.stringify(overrides) };
+      }
+      return chain;
+    });
 
     const config = await this.config.buildConfig();
 
@@ -387,6 +402,11 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     }
 
     return helmValues;
+  }
+
+  protected compareChainConfigurations() {
+    // Validators are always scoped to a single origin chain; skip chain diffs.
+    return { hasChanges: false, added: [], removed: [] };
   }
 }
 

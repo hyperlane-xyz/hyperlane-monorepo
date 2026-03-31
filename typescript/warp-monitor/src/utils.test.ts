@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 
-import { getLogger, setLoggerBindings, tryFn } from './utils.js';
+import { tryFn } from '@hyperlane-xyz/utils';
+
+import { getLogger, setLoggerBindings } from './utils.js';
 
 describe('Warp Monitor Utils', () => {
   describe('getLogger', () => {
@@ -14,28 +16,35 @@ describe('Warp Monitor Utils', () => {
 
   describe('setLoggerBindings', () => {
     it('should not throw when setting bindings', () => {
-      expect(() =>
-        setLoggerBindings({ warp_route: 'test-route' }),
-      ).to.not.throw();
+      expect(() => {
+        setLoggerBindings({ warp_route: 'test-route' });
+      }).to.not.throw();
     });
   });
 
   describe('tryFn', () => {
     it('should execute the function successfully', async () => {
+      const logger = getLogger();
       let executed = false;
-      await tryFn(async () => {
-        executed = true;
-      }, 'test context');
+      await tryFn(
+        async () => {
+          executed = true;
+        },
+        'test context',
+        logger,
+      );
       expect(executed).to.be.true;
     });
 
+    // eslint-disable-next-line jest/expect-expect -- testing no-throw behavior
     it('should catch and log errors without throwing', async () => {
+      const logger = getLogger();
       const errorFn = async () => {
         throw new Error('Test error');
       };
 
       // Should not throw
-      await tryFn(errorFn, 'error test context');
+      await tryFn(errorFn, 'error test context', logger);
     });
   });
 });

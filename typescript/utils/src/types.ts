@@ -9,9 +9,17 @@ export enum ProtocolType {
   Starknet = 'starknet',
   Radix = 'radix',
   Aleo = 'aleo',
+  Tron = 'tron',
+  Unknown = 'unknown',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
+// All protocol types except Unknown - for use in mappings that only support known protocols
+export type KnownProtocolType = Exclude<ProtocolType, ProtocolType.Unknown>;
+
+export function isEVMLike(protocol: ProtocolType): boolean {
+  return protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron;
+}
 
 export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
@@ -21,6 +29,8 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
   [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Tron]: 'SUN',
+  [ProtocolType.Unknown]: 'unknown',
 };
 
 /********* BASIC TYPES *********/

@@ -1,4 +1,21 @@
-import { WithAddress } from '@hyperlane-xyz/utils';
+import {
+  Logger,
+  WithAddress,
+  assert,
+  deepEquals,
+  normalizeConfig,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
+import * as AltVM from './altvm.js';
+import {
+  ArtifactDeployed,
+  ArtifactNew,
+  ArtifactState,
+  IArtifactManager,
+  isArtifactDeployed,
+} from './artifact.js';
+import { ChainLookup } from './chain.js';
 
 export type HookModuleType = {
   config: HookConfig;
@@ -7,23 +24,42 @@ export type HookModuleType = {
 };
 
 export interface HookConfigs {
-  interchainGasPaymaster: IgpHookConfig;
+  interchainGasPaymaster: IgpHookModuleConfig;
+  protocolFee: ProtocolFeeHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
 export type DerivedHookConfig = WithAddress<HookConfig>;
 
+export function altVmHookTypeToProviderHookType(
+  hookType: AltVM.HookType,
+): HookType {
+  switch (hookType) {
+    case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
+      return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+    case AltVM.HookType.PROTOCOL_FEE:
+      return AltVM.HookType.PROTOCOL_FEE;
+    case AltVM.HookType.MERKLE_TREE:
+      return AltVM.HookType.MERKLE_TREE;
+    default:
+      throw new Error(`Unsupported hook type in provider API: ${hookType}`);
+  }
+}
+
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   'interchainGasPaymaster',
-  // 'protocolFee',
+  'protocolFee',
   // 'domainRoutingHook',
   // 'fallbackRoutingHook',
   // 'pausableHook',
 ];
 
-export interface IgpHookConfig {
+export interface IgpHookModuleConfig {
   type: 'interchainGasPaymaster';
+  // FIXME: oracleKey and owner should be nullable but the change requires too many files to be touched
+  // address is an separate PR
   owner: string;
   beneficiary: string;
   oracleKey: string;
@@ -42,7 +78,483 @@ export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
 }
 
+export interface UnknownHookConfig {
+  type: 'unknownHook';
+  [key: string]: unknown;
+}
+
+export interface ProtocolFeeHookModuleConfig {
+  type: 'protocolFee';
+  owner: string;
+  beneficiary: string;
+  maxProtocolFee: string;
+  protocolFee: string;
+}
+
+// Protocol fee config has identical shapes for Config API and Artifact API.
+export type ProtocolFeeHookConfig = ProtocolFeeHookModuleConfig;
+
 export type HookModuleAddresses = {
   deployedHook: string;
   mailbox: string;
 };
+
+// Artifact API types
+
+export interface DeployedHookAddress {
+  address: string;
+}
+
+/**
+ * IGP Hook config for Artifact API.
+ * Uses domain IDs (numbers) instead of chain names (strings) for overhead and oracleConfig keys.
+ * This differs from IgpHookModuleConfig which uses chain names for the Config API.
+ */
+export interface IgpHookConfig {
+  type: 'interchainGasPaymaster';
+  // FIXME: oracleKey and owner should be nullable but the change requires too many files to be touched
+  // address is an separate PR
+  owner: string;
+  beneficiary: string;
+  oracleKey: string;
+  overhead: Record<number, number>;
+  oracleConfig: Record<
+    number,
+    {
+      gasPrice: string;
+      tokenExchangeRate: string;
+      tokenDecimals?: number;
+    }
+  >;
+}
+
+export interface HookArtifactConfigs {
+  interchainGasPaymaster: IgpHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
+  merkleTreeHook: MerkleTreeHookConfig;
+  unknownHook: UnknownHookConfig;
+}
+
+/**
+ * Should be used for the specific artifact code that
+ * deploys or reads any kind of Hook
+ */
+export type HookArtifactConfig = HookArtifactConfigs[HookType];
+
+/**
+ * Describes the configuration of deployed Hook
+ */
+export type DeployedHookArtifact = ArtifactDeployed<
+  HookArtifactConfig,
+  DeployedHookAddress
+>;
+
+/**
+ * Should be used to implement an object/closure or class that is in charge of coordinating
+ * deployment of a Hook config
+ */
+export type IHookArtifactManager = IArtifactManager<
+  HookType,
+  HookArtifactConfigs,
+  DeployedHookAddress
+>;
+
+/**
+ * Raw hook artifact configs (no nested artifacts for now, but kept for consistency)
+ */
+export interface RawHookArtifactConfigs {
+  interchainGasPaymaster: IgpHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
+  merkleTreeHook: MerkleTreeHookConfig;
+  unknownHook: UnknownHookConfig;
+}
+
+/**
+ * Should be used for the specific artifact code that
+ * deploys or reads a single hook artifact on chain
+ */
+export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
+
+function isProtocolFeeHookConfig(
+  config: HookArtifactConfig,
+): config is ProtocolFeeHookConfig {
+  return config.type === AltVM.HookType.PROTOCOL_FEE;
+}
+
+function hasUnreadableProtocolFeeMax(config: HookArtifactConfig): boolean {
+  return (
+    isProtocolFeeHookConfig(config) &&
+    // CAST: Reflect.get requires an object argument; HookArtifactConfig is always an object here.
+    Reflect.get(config as object, '__maxProtocolFeeUnknown') === true
+  );
+}
+
+/**
+ * Should be used to implement an object/closure or class that individually deploys
+ * Hooks on chain
+ */
+export interface IRawHookArtifactManager extends IArtifactManager<
+  HookType,
+  RawHookArtifactConfigs,
+  DeployedHookAddress
+> {
+  /**
+   * Read any hook by detecting its type and delegating to the appropriate reader.
+   * This is the generic entry point for reading hooks of unknown types.
+   * @param address The on-chain address of the hook
+   * @returns The artifact configuration and deployment data
+   */
+  readHook(address: string): Promise<DeployedHookArtifact>;
+}
+
+function formatUnhandledHookType(value: unknown): string {
+  if (value && typeof value === 'object') {
+    const hookType = Reflect.get(value, 'type');
+    if (hookType !== undefined) return String(hookType);
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      const constructor = Reflect.get(value, 'constructor');
+      const constructorName =
+        typeof constructor === 'function'
+          ? Reflect.get(constructor, 'name')
+          : undefined;
+      return typeof constructorName === 'string'
+        ? `[object ${constructorName}]`
+        : '[object]';
+    }
+  }
+
+  return String(value);
+}
+
+function throwUnhandledHookType(value: unknown, context: string): never {
+  throw new Error(
+    `Unhandled hook type in ${context}: ${formatUnhandledHookType(value)}`,
+  );
+}
+
+export function throwUnsupportedHookType(
+  hookType: string,
+  protocolName: string,
+): never {
+  throw new Error(
+    `Unsupported hook artifact type ${hookType} for protocol ${protocolName}`,
+  );
+}
+
+// Hook Config Utilities
+
+const logger: Logger = rootLogger.child({ module: 'hook-config-utils' });
+
+/**
+ * Converts HookConfig (Config API) to HookArtifactConfig (Artifact API).
+ *
+ * Key transformations:
+ * - IGP hooks: String chain names → numeric domain IDs for overhead/oracleConfig keys
+ * - MerkleTree hooks: Pass through unchanged
+ *
+ * @param config The hook configuration using Config API format
+ * @param chainLookup Chain lookup interface for resolving chain names to domain IDs
+ * @returns Artifact wrapper around HookArtifactConfig suitable for artifact writers
+ *
+ * @example
+ * ```typescript
+ * // Config API format (user-facing)
+ * const hookConfig: HookConfig = {
+ *   type: 'interchainGasPaymaster',
+ *   owner: '0x123...',
+ *   overhead: {
+ *     ethereum: 50000,
+ *     polygon: 100000
+ *   },
+ *   oracleConfig: {
+ *     ethereum: { gasPrice: '10', tokenExchangeRate: '1' },
+ *     polygon: { gasPrice: '50', tokenExchangeRate: '1.5' }
+ *   }
+ * };
+ *
+ * // Convert to Artifact API format (internal)
+ * const artifact = hookConfigToArtifact(hookConfig, chainLookup);
+ * // artifact.config.overhead is now Record<number, number> with domain IDs as keys
+ * // artifact.config.oracleConfig is now Record<number, {...}> with domain IDs as keys
+ * ```
+ */
+export function hookConfigToArtifact(
+  config: HookConfig,
+  chainLookup: ChainLookup,
+): ArtifactNew<HookArtifactConfig> {
+  switch (config.type) {
+    case 'interchainGasPaymaster': {
+      // Handle IGP hooks - need to convert chain names to domain IDs
+      const overhead: Record<number, number> = {};
+      const oracleConfig: Record<
+        number,
+        {
+          gasPrice: string;
+          tokenExchangeRate: string;
+          tokenDecimals?: number;
+        }
+      > = {};
+
+      // Convert overhead map from chain names to domain IDs
+      for (const [chainName, value] of Object.entries(config.overhead)) {
+        const domainId = chainLookup.getDomainId(chainName);
+        if (domainId === null) {
+          logger.warn(
+            `Skipping overhead config for unknown chain: ${chainName}. ` +
+              `Chain not found in chain lookup.`,
+          );
+          continue;
+        }
+        overhead[domainId] = value;
+      }
+
+      // Convert oracleConfig map from chain names to domain IDs
+      for (const [chainName, value] of Object.entries(config.oracleConfig)) {
+        const domainId = chainLookup.getDomainId(chainName);
+        if (domainId === null) {
+          logger.warn(
+            `Skipping oracle config for unknown chain: ${chainName}. ` +
+              `Chain not found in chain lookup.`,
+          );
+          continue;
+        }
+        oracleConfig[domainId] = value;
+      }
+
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          owner: config.owner,
+          beneficiary: config.beneficiary,
+          oracleKey: config.oracleKey,
+          overhead,
+          oracleConfig,
+        },
+      };
+    }
+
+    case 'merkleTreeHook':
+      // MerkleTree hooks have identical structure between Config API and Artifact API
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.MERKLE_TREE,
+        },
+      };
+
+    case 'unknownHook':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'unknownHook',
+        },
+      };
+
+    case 'protocolFee':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.PROTOCOL_FEE,
+          owner: config.owner,
+          beneficiary: config.beneficiary,
+          maxProtocolFee: config.maxProtocolFee,
+          protocolFee: config.protocolFee,
+        },
+      };
+
+    default: {
+      return throwUnhandledHookType(config, 'hookConfigToArtifact');
+    }
+  }
+}
+
+/**
+ * Determines if a new hook should be deployed instead of updating the existing one.
+ * Deploy new hook if:
+ * - Hook type changed
+ * - Hook config changed (for immutable hooks like MerkleTree)
+ *
+ * For mutable hooks (IGP), they can be updated in-place.
+ *
+ * @param actual The current deployed hook configuration
+ * @param expected The desired hook configuration
+ * @returns true if a new hook should be deployed, false if existing can be updated
+ */
+export function shouldDeployNewHook(
+  actual: HookArtifactConfig,
+  expected: HookArtifactConfig,
+): boolean {
+  // Type changed - must deploy new
+  if (actual.type !== expected.type) return true;
+
+  // Normalize and compare configs
+  const normalizedActual = normalizeConfig(actual);
+  const normalizedExpected = normalizeConfig(expected);
+
+  // Check mutability based on hook type
+  switch (expected.type) {
+    case AltVM.HookType.MERKLE_TREE:
+      // MerkleTree hooks are immutable - must deploy new if config changed
+      return !deepEquals(normalizedActual, normalizedExpected);
+
+    case 'unknownHook':
+      return false;
+
+    case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
+      // IGP hooks are mutable - can be updated
+      return false;
+    case AltVM.HookType.PROTOCOL_FEE: {
+      assert(
+        isProtocolFeeHookConfig(actual),
+        'expected protocolFee hook config',
+      );
+      if (hasUnreadableProtocolFeeMax(actual)) {
+        throw new Error(
+          'Cannot compare protocolFee maxProtocolFee because the current hook does not expose a readable maxProtocolFee',
+        );
+      }
+      const expectedProtocolFee: ProtocolFeeHookConfig = expected;
+      // maxProtocolFee is immutable (constructor-only) and requires redeploy.
+      return actual.maxProtocolFee !== expectedProtocolFee.maxProtocolFee;
+    }
+
+    default: {
+      return throwUnhandledHookType(expected, 'shouldDeployNewHook');
+    }
+  }
+}
+
+/**
+ * Merges current on-chain hook artifact with expected hook artifact.
+ * Determines whether to deploy a new hook or update/reuse existing one.
+ *
+ * @param currentArtifact Current deployed hook artifact (from on-chain state)
+ * @param expectedArtifact Expected hook artifact (desired configuration)
+ * @returns Merged artifact - either NEW (deploy needed) or DEPLOYED (update/reuse)
+ */
+export function mergeHookArtifacts(
+  currentArtifact: DeployedHookArtifact | undefined,
+  expectedArtifact: ArtifactNew<HookArtifactConfig> | DeployedHookArtifact,
+): ArtifactNew<HookArtifactConfig> | DeployedHookArtifact {
+  const expectedConfig = expectedArtifact.config;
+
+  // No current hook - return expected as-is
+  if (!currentArtifact) {
+    return expectedArtifact;
+  }
+
+  const currentConfig = currentArtifact.config;
+
+  // Type changed or config requires new deployment
+  if (shouldDeployNewHook(currentConfig, expectedConfig)) {
+    return {
+      artifactState: ArtifactState.NEW,
+      config: expectedConfig,
+    };
+  }
+
+  // Hook can be updated/reused
+  // If expected is DEPLOYED (has address), use that address (switching to different deployed hook)
+  // Otherwise use current address (updating current hook)
+  const deployedAddress = isArtifactDeployed(expectedArtifact)
+    ? expectedArtifact.deployed
+    : currentArtifact.deployed;
+
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: expectedConfig,
+    deployed: deployedAddress,
+  };
+}
+
+/**
+ * Converts a DeployedHookArtifact to DerivedHookConfig format.
+ * This handles the conversion between the new Artifact API and the old Config API.
+ *
+ * @param artifact The deployed hook artifact from the Artifact API
+ * @param chainLookup Chain lookup interface for resolving domain IDs to chain names
+ * @returns Hook configuration in Config API format with address
+ */
+export function hookArtifactToDerivedConfig(
+  artifact: DeployedHookArtifact,
+  chainLookup: ChainLookup,
+): DerivedHookConfig {
+  const config = artifact.config;
+  const address = artifact.deployed.address;
+
+  switch (config.type) {
+    case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER: {
+      // For IGP hooks, convert domain IDs back to chain names
+      const overhead: Record<string, number> = {};
+      const oracleConfig: Record<
+        string,
+        {
+          gasPrice: string;
+          tokenExchangeRate: string;
+          tokenDecimals?: number;
+        }
+      > = {};
+
+      for (const [domainIdStr, value] of Object.entries(config.overhead)) {
+        const domainId = parseInt(domainIdStr);
+        const chainName = chainLookup.getChainName(domainId);
+        if (!chainName) {
+          // Skip unknown domains (already warned during read if needed)
+          continue;
+        }
+        overhead[chainName] = value;
+      }
+
+      for (const [domainIdStr, value] of Object.entries(config.oracleConfig)) {
+        const domainId = parseInt(domainIdStr);
+        const chainName = chainLookup.getChainName(domainId);
+        if (!chainName) {
+          // Skip unknown domains
+          continue;
+        }
+        oracleConfig[chainName] = value;
+      }
+
+      return {
+        type: 'interchainGasPaymaster',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        oracleKey: config.oracleKey,
+        overhead,
+        oracleConfig,
+        address,
+      };
+    }
+
+    case AltVM.HookType.MERKLE_TREE:
+      // For MerkleTree hooks, just add the address
+      return {
+        ...config,
+        address,
+      };
+
+    case 'unknownHook':
+      return {
+        type: 'unknownHook',
+        address,
+      };
+
+    case AltVM.HookType.PROTOCOL_FEE:
+      return {
+        type: 'protocolFee',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        maxProtocolFee: config.maxProtocolFee,
+        protocolFee: config.protocolFee,
+        address,
+      };
+
+    default: {
+      return throwUnhandledHookType(config, 'hookArtifactToDerivedConfig');
+    }
+  }
+}

@@ -85,10 +85,7 @@ export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
-export {
-  HyperlaneRelayer,
-  RelayerCacheSchema,
-} from './core/HyperlaneRelayer.js';
+
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -117,6 +114,10 @@ export {
 } from './deploy/HyperlaneDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+} from './deploy/contracts.js';
+export {
   CheckerViolation,
   OwnerViolation,
   ProxyAdminViolation,
@@ -135,7 +136,11 @@ export {
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
+export {
+  executeWarpDeploy,
+  enrollCrossChainRouters,
+  validateWarpConfigForAltVM,
+} from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelIgpProgramAdapter,
@@ -188,6 +193,8 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DeployableHookType,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfig,
@@ -203,18 +210,19 @@ export {
   IgpSchema,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
+  normalizeUnknownHookTypes,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  SafeParseHookConfigSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
-export { BaseMetadataBuilder } from './ism/metadata/builder.js';
-export { decodeIsmMetadata } from './ism/metadata/decode.js';
+// Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -248,10 +256,12 @@ export {
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
   ArbL2ToL1IsmConfigSchema,
+  DeployableIsmType,
   DeployedIsm,
   DeployedIsmType,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  isDynamicallyRoutedIsmType,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -260,12 +270,16 @@ export {
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  normalizeUnknownIsmTypes,
+  NullIsmConfig,
+  OffchainLookupIsmConfig,
   OpStackIsmConfig,
   OpStackIsmConfigSchema,
   PausableIsmConfig,
   PausableIsmConfigSchema,
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
+  SafeParseIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
@@ -277,6 +291,7 @@ export {
   isStaticDeploymentSupported,
   isStaticIsm,
   moduleCanCertainlyVerify,
+  offchainLookupRequestMessageHash,
 } from './ism/utils.js';
 export {
   AgentChainMetadata,
@@ -385,6 +400,7 @@ export {
 export {
   MultiProvider,
   MultiProviderOptions,
+  SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
   defaultEthersV5ProviderBuilder,
@@ -465,6 +481,7 @@ export {
   randomStarknetAddress,
   randomHookConfig,
   randomIsmConfig,
+  randomDeployableIsmConfig,
 } from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -558,12 +575,14 @@ export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
+  FeeTokenApproval,
+  FeeTokenApprovalSchema,
   IcaRouterConfig,
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
+  IcaRouterType,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToStarknetChain,
@@ -657,21 +676,43 @@ export {
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
 export {
+  SealevelEnrollRemoteRouterInstruction,
+  SealevelEnrollRemoteRouterInstructionSchema,
+  SealevelEnrollRemoteRoutersInstruction,
+  SealevelEnrollRemoteRoutersInstructionSchema,
+  SealevelGasRouterConfig,
+  SealevelGasRouterConfigSchema,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelHypTokenInstruction,
+  SealevelHypTokenInstructionName,
+  SealevelHypTokenTransferOwnershipInstruction,
+  SealevelHypTokenTransferOwnershipInstructionSchema,
+  SealevelIgpConfig,
+  SealevelIgpConfigSchema,
+  SealevelRemoteRouterConfig,
+  SealevelRemoteRouterConfigSchema,
+  SealevelSetDestinationGasConfigsInstruction,
+  SealevelSetDestinationGasConfigsInstructionSchema,
+  SealevelSetInterchainGasPaymasterInstruction,
+  SealevelSetInterchainGasPaymasterInstructionSchema,
+  SealevelSetInterchainSecurityModuleInstruction,
+  SealevelSetInterchainSecurityModuleInstructionSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export { TokenType } from './token/config.js';
+export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
+  filterWarpCoreConfigMapByChains,
+  getChainsFromWarpCoreConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
+  warpCoreConfigMatchesChains,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
@@ -681,8 +722,22 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
+export { EvmWarpModule } from './token/EvmWarpModule.js';
+export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
+export {
+  EvmXERC20Reader,
+  StandardXERC20Limits,
+  VeloXERC20Limits,
+  XERC20Limits,
+  XERC20LimitsMap,
+  limitsAreZero,
+  limitsMatch,
+} from './token/EvmXERC20Reader.js';
+export {
+  EvmXERC20Module,
+  XERC20ModuleAddresses,
+  XERC20ModuleConfig,
+} from './token/EvmXERC20Module.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
@@ -746,7 +801,12 @@ export {
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
+  isCrossCollateralTokenConfig,
+  isOftTokenConfig,
+  CrossCollateralTokenConfig,
   NativeTokenConfig,
+  OftTokenConfig,
+  OftTokenConfigSchema,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
   SyntheticRebaseTokenConfigSchema,
@@ -764,7 +824,16 @@ export {
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
-export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export {
+  deriveBridgesConfig,
+  deriveStandardBridgesConfig,
+  deriveXERC20TokenType,
+  getExtraLockBoxConfigs,
+} from './token/xerc20.js';
+export {
+  CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_VS_ABI,
+} from './token/xerc20-abi.js';
 export {
   ChainMap,
   ChainName,
@@ -783,14 +852,27 @@ export {
   IMultiProtocolSignerManager,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
-export { verifyScale } from './utils/decimals.js';
+export {
+  DEFAULT_SCALE,
+  normalizeScale,
+  scalesEqual,
+  verifyScale,
+} from './utils/decimals.js';
+export type { NormalizedScale, ScaleInput } from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,
   getLocalProvider,
   impersonateAccount,
+  impersonateAccounts,
+  increaseTime,
+  mine,
   resetFork,
+  revertToSnapshot,
+  setBalance,
   setFork,
+  setStorageAt,
+  snapshot,
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export {
@@ -826,6 +908,7 @@ export {
   getValidatorFromStorageLocation,
   isValidValidatorStorageLocation,
 } from './utils/validator.js';
+export { findMatchingLogEvents } from './utils/logUtils.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -864,11 +947,14 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  OnchainTokenFeeType,
+  onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
   TokenFeeConfig,
   TokenFeeConfigSchema,
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
+  LinearFeeConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 
@@ -878,3 +964,4 @@ export {
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
+export { IMultiProtocolSigner } from './signers/types.js';

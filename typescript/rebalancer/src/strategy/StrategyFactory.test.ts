@@ -5,11 +5,11 @@ import { pino } from 'pino';
 import { type ChainMap, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
 import {
-  MinAmountStrategyConfig,
+  type MinAmountStrategyConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
-  StrategyConfig,
-  WeightedStrategyConfig,
+  type StrategyConfig,
+  type WeightedStrategyConfig,
 } from '../config/types.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
@@ -61,7 +61,7 @@ describe('StrategyFactory', () => {
       };
 
       const strategy = StrategyFactory.createStrategy(
-        strategyConfig,
+        [strategyConfig],
         tokensByChainName,
         totalCollateral,
         testLogger,
@@ -97,7 +97,7 @@ describe('StrategyFactory', () => {
       };
 
       const strategy = StrategyFactory.createStrategy(
-        strategyConfig,
+        [strategyConfig],
         tokensByChainName,
         totalCollateral,
         testLogger,

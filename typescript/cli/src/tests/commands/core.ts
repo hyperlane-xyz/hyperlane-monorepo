@@ -1,11 +1,13 @@
-import { $, ProcessPromise } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { ChainName, DerivedCoreConfig } from '@hyperlane-xyz/sdk';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainName, type DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { readYamlOrJson } from '../../utils/files.js';
+
+import { IS_TRON_TEST } from '../ethereum/consts.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -38,20 +40,28 @@ export class HyperlaneE2ECoreTestCommands {
     this.coreOutputPath = coreOutputPath;
   }
 
-  protected get privateKeyFlag() {
-    if (this.protocol === ProtocolType.Ethereum) {
-      return '--key';
+  protected getPrivateKeyFlags(key: string): string[] {
+    if (
+      this.protocol === ProtocolType.Ethereum ||
+      this.protocol === ProtocolType.Tron
+    ) {
+      if (IS_TRON_TEST) {
+        return ['--key.ethereum', key, '--key.tron', key];
+      }
+      return ['--key', key];
     }
 
-    return `--key.${this.protocol}`;
+    return [`--key.${this.protocol}`, key];
   }
 
-  protected get hypKeyEnvName() {
-    if (this.protocol === ProtocolType.Ethereum) {
-      return 'HYP_KEY';
+  protected get hypKeyEnvNames(): string[] {
+    if (IS_TRON_TEST) {
+      return ['HYP_KEY', 'HYP_KEY_TRON'];
     }
-
-    return `HYP_KEY_${this.protocol.toUpperCase()}`;
+    if (this.protocol === ProtocolType.Ethereum) {
+      return ['HYP_KEY'];
+    }
+    return [`HYP_KEY_${this.protocol.toUpperCase()}`];
   }
 
   public setCoreInputPath(coreInputPath: string) {
@@ -77,11 +87,13 @@ export class HyperlaneE2ECoreTestCommands {
     ];
 
     if (privateKey) {
-      flags.push(this.privateKeyFlag, privateKey);
+      flags.push(...this.getPrivateKeyFlags(privateKey));
     }
 
     return $`${
-      privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
+      privateKeyEnv
+        ? this.hypKeyEnvNames.map((name) => `${name}=${privateKeyEnv}`)
+        : []
     } ${this.cmdPrefix} hyperlane core init ${flags}`;
   }
 
@@ -147,7 +159,7 @@ export class HyperlaneE2ECoreTestCommands {
     ];
 
     if (privateKey) {
-      flags.push(this.privateKeyFlag, privateKey);
+      flags.push(...this.getPrivateKeyFlags(privateKey));
     }
 
     if (skipConfirmationPrompts) {
@@ -159,7 +171,9 @@ export class HyperlaneE2ECoreTestCommands {
     }
 
     return $`${
-      privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
+      privateKeyEnv
+        ? this.hypKeyEnvNames.map((name) => `${name}=${privateKeyEnv}`)
+        : []
     } ${this.cmdPrefix} hyperlane core deploy ${flags}`;
   }
 
@@ -171,7 +185,7 @@ export class HyperlaneE2ECoreTestCommands {
         --registry ${this.registryPath} \
         --config ${this.coreInputPath} \
         --chain ${this.chain} \
-        ${this.privateKeyFlag} ${privateKey} \
+        ${this.getPrivateKeyFlags(privateKey)} \
         --verbosity debug \
         --yes`;
   }
@@ -206,7 +220,7 @@ export class HyperlaneE2ECoreTestCommands {
         --registry ${this.registryPath} \
         --config ${this.coreOutputPath} \
         --chain ${this.chain} \
-        ${this.privateKeyFlag} ${privateKey} \
+        ${this.getPrivateKeyFlags(privateKey)} \
         --verbosity debug \
         --yes`;
   }

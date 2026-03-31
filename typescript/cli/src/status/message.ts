@@ -1,14 +1,20 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
-  ChainName,
-  DispatchedMessage,
+  type ChainName,
+  type DispatchedMessage,
   HyperlaneCore,
-  HyperlaneRelayer,
 } from '@hyperlane-xyz/sdk';
 
-import { CommandContext, WriteCommandContext } from '../context/types.js';
+import { isNullish } from '@hyperlane-xyz/utils';
+
+import { ensureEvmSignersForChains } from '../context/context.js';
+import {
+  type CommandContext,
+  type WriteCommandContext,
+} from '../context/types.js';
 import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
@@ -68,6 +74,27 @@ export async function checkMessageStatus({
   const messages = messageId
     ? dispatched.filter((m) => m.id === messageId)
     : dispatched;
+
+  if (selfRelay && context.key) {
+    const destinationChains = [
+      ...new Set(
+        messages
+          .map((m) => m.parsed.destinationChain)
+          .filter((c): c is string => !isNullish(c)),
+      ),
+    ];
+    if (destinationChains.length > 0) {
+      await ensureEvmSignersForChains(
+        {
+          key: context.key,
+          multiProtocolProvider: context.multiProtocolProvider,
+          multiProvider: context.multiProvider,
+          strategyPath: context.strategyPath,
+        },
+        destinationChains,
+      );
+    }
+  }
 
   const undelivered = [];
   for (const message of messages) {

@@ -1,11 +1,54 @@
 # @hyperlane-xyz/starknet-core
 
+## 29.1.0
+
+## 29.0.1
+
+## 29.0.0
+
+## 28.1.0
+
+## 28.0.0
+
+## 27.1.0
+
+## 27.0.0
+
+## 26.0.0
+
+## 25.5.0
+
+## 25.4.1
+
+## 25.4.0
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+## 25.2.0
+
+## 25.1.0
+
+## 25.0.0
+
+## 24.0.0
+
+## 23.0.0
+
+## 22.0.0
+
+## 21.1.0
+
+## 21.0.0
+
 ## 20.1.0
 
 ### Patch Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility

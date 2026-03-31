@@ -15,6 +15,7 @@ async function main() {
     govern,
     warpRouteId,
     registry,
+    forceRegistryConfig,
   } = await getCheckDeployArgs().argv;
 
   const governor = await getGovernor(
@@ -28,6 +29,7 @@ async function main() {
     govern,
     undefined,
     registry,
+    forceRegistryConfig,
   );
 
   if (fork) {

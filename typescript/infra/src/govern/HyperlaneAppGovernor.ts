@@ -22,6 +22,7 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  formatStandardHookMetadata,
   objMap,
   retryAsync,
   rootLogger,
@@ -199,7 +200,7 @@ export abstract class HyperlaneAppGovernor<
             ),
           );
           try {
-            // Process calls in batches up to max size of 100
+            // Process calls in batches up to max size of 120
             const maxBatchSize = 120;
             for (
               let i = 0;
@@ -207,17 +208,31 @@ export abstract class HyperlaneAppGovernor<
               i += maxBatchSize
             ) {
               const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
-              await multiSend.sendTransactions(
-                batch.map((call) => ({
-                  to: call.to,
-                  data: call.data,
-                  value: call.value,
-                })),
-              );
+              const sendBatch = () =>
+                multiSend.sendTransactions(
+                  batch.map((call) => ({
+                    to: call.to,
+                    data: call.data,
+                    value: call.value,
+                  })),
+                );
+              // Retry each batch individually for SAFE to avoid
+              // re-submitting already-successful batches on failure.
+              if (submissionType === SubmissionType.SAFE) {
+                await retryAsync(sendBatch, 10);
+              } else {
+                await sendBatch();
+              }
             }
-          } catch (error) {
+          } catch (error: unknown) {
+            // Re-throw for SAFE so the outer catch (with more context) handles logging.
+            // SIGNER/MANUAL log here and continue to avoid aborting remaining submissions.
+            if (submissionType === SubmissionType.SAFE) {
+              throw error;
+            }
+            const msg = error instanceof Error ? error.message : String(error);
             rootLogger.error(
-              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+              chalk.red(`Error submitting calls on ${chain}: ${msg}`),
             );
           }
         } else {
@@ -238,23 +253,37 @@ export abstract class HyperlaneAppGovernor<
 
     // Then propose transactions on safes for all governance types
     for (const governanceType of Object.values(GovernanceType)) {
+      // Avoid initializing Safe (which can trigger external key fetches)
+      // when there are no SAFE calls for this governance type.
+      const safeCalls = filterCalls(SubmissionType.SAFE, governanceType);
+      if (safeCalls.length === 0) continue;
+
       const safeOwner = getGovernanceSafes(governanceType)[chain];
-      if (safeOwner) {
+      try {
+        assert(
+          safeOwner,
+          `No safe owner found for chain ${chain} with governance type ${governanceType}`,
+        );
+
         // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
         const safeMultiSend = await SafeMultiSend.initialize(
           this.checker.multiProvider,
           chain,
           safeOwner,
         );
-        await retryAsync(
-          () =>
-            sendCallsForType(
-              SubmissionType.SAFE,
-              safeMultiSend,
-              governanceType,
-            ),
-          10,
+        await sendCallsForType(
+          SubmissionType.SAFE,
+          safeMultiSend,
+          governanceType,
         );
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        rootLogger.error(
+          chalk.red(
+            `Error processing SAFE calls for governance type ${governanceType} on ${chain}: ${msg}`,
+          ),
+        );
+        // Continue with remaining governance types rather than aborting.
       }
     }
 
@@ -448,26 +477,39 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
+    const refundAddress = bytes32ToAddress(accountConfig.owner);
     rootLogger.info(
       chalk.gray(
-        `Inferred call for ICA remote owner ${bytes32ToAddress(
-          accountConfig.owner,
-        )} on ${origin} to ${chain}`,
+        `Inferred call for ICA remote owner ${refundAddress} on ${origin} to ${chain}`,
       ),
     );
 
-    // Get the encoded call to the remote ICA
+    const innerCalls = [
+      {
+        to: call.to,
+        data: call.data,
+        value: call.value?.toString() || '0',
+      },
+    ];
+
+    const gasLimit = await this.interchainAccount.estimateIcaHandleGas({
+      origin,
+      destination: chain,
+      innerCalls,
+      config: accountConfig,
+    });
+
+    const hookMetadata = formatStandardHookMetadata({
+      gasLimit: gasLimit.toBigInt(),
+      refundAddress,
+    });
+
     const callRemoteArgs: GetCallRemoteSettings = {
       chain: origin,
       destination: chain,
-      innerCalls: [
-        {
-          to: call.to,
-          data: call.data,
-          value: call.value?.toString() || '0',
-        },
-      ],
+      innerCalls,
       config: accountConfig,
+      hookMetadata,
     };
     const callRemote =
       await this.interchainAccount.getCallRemote(callRemoteArgs);

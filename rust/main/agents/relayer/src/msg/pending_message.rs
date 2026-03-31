@@ -1203,14 +1203,16 @@ mod test {
             .sum();
 
         // Have a window that is acceptable for "around 2 weeks".
-        // Give or take 1 day.
+        // The backoff calculation adds random jitter of 0-6 hours for retries 50-65
+        // (16 retries), giving up to 96 hours of variance. Use ±5 days tolerance
+        // to account for this randomness.
         let max_backoff_duration = chrono::Duration::weeks(2)
-            .checked_add(&TimeDelta::days(1))
+            .checked_add(&TimeDelta::days(5))
             .expect("Failed to compute duration")
             .to_std()
             .expect("Failed to convert TimeDelta to Duration");
         let min_backoff_duration = chrono::Duration::weeks(2)
-            .checked_sub(&TimeDelta::days(1))
+            .checked_sub(&TimeDelta::days(5))
             .expect("Failed to compute duration")
             .to_std()
             .expect("Failed to convert TimeDelta to Duration");

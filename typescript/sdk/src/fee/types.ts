@@ -2,11 +2,16 @@ import { z } from 'zod';
 
 import {
   ZBigNumberish,
+  ZBps,
   ZChainName,
   ZHash,
 } from '../metadata/customZodTypes.js';
 
-import { convertToBps } from './utils.js';
+import {
+  MAX_BPS_DECIMALS,
+  convertToBps,
+  isBpsPrecisionValid,
+} from './utils.js';
 
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
@@ -42,11 +47,17 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 
 // ====== SHARED SCHEMAS ======
 
+// For deployed/read configs - token is required
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
 });
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
+
+// For input configs - token is NOT specified by user, resolved at deploy time based on token type
+export const BaseFeeConfigInputSchema = z.object({
+  owner: ZHash,
+});
 
 export const FeeParametersSchema = z.object({
   maxFee: ZBigNumberish,
@@ -61,19 +72,20 @@ const StandardFeeConfigBaseSchema =
 
 export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish,
+  bps: ZBps,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
-// Linear Fee Input - only requires bps & type
-export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
+// Linear Fee Input - only requires bps & type, token is optional
+export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish.optional(),
+  bps: ZBps.optional(),
   ...FeeParametersSchema.partial().shape,
 })
   .superRefine((v, ctx) => {
     const hasBps = v.bps !== undefined;
     const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
+
     if (!hasBps && !hasFeeParams) {
       ctx.addIssue({
         code: 'custom',
@@ -81,6 +93,23 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
         message: 'Provide bps or both maxFee and halfAmount',
       });
     }
+
+    if (hasBps && v.bps! <= 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: 'bps must be > 0',
+      });
+    }
+
+    if (hasBps && !isBpsPrecisionValid(v.bps!)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
+      });
+    }
+
     if (v.halfAmount === 0n) {
       // Prevents divide by 0
       ctx.addIssue({
@@ -101,10 +130,34 @@ export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
 });
 export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
+export const ProgressiveFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
+  type: z.literal(TokenFeeType.ProgressiveFee),
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
+}).refine((v) => BigInt(v.halfAmount) > 0n, {
+  path: ['halfAmount'],
+  message: 'halfAmount must be > 0',
+});
+export type ProgressiveFeeInputConfig = z.infer<
+  typeof ProgressiveFeeInputConfigSchema
+>;
+
 export const RegressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.RegressiveFee),
 });
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
+
+export const RegressiveFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
+  type: z.literal(TokenFeeType.RegressiveFee),
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
+}).refine((v) => BigInt(v.halfAmount) > 0n, {
+  path: ['halfAmount'],
+  message: 'halfAmount must be > 0',
+});
+export type RegressiveFeeInputConfig = z.infer<
+  typeof RegressiveFeeInputConfigSchema
+>;
 
 export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
   type: z.literal(TokenFeeType.RoutingFee),
@@ -119,13 +172,15 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
-export const RoutingFeeInputConfigSchema = RoutingFeeConfigSchema.extend({
+// Routing Fee Input - maxFee/halfAmount NOT configurable (contract hardcodes to max uint256)
+export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
+  type: z.literal(TokenFeeType.RoutingFee),
   feeContracts: z
     .record(
       ZChainName,
       z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
     )
-    .optional(), // Destination -> Fee
+    .optional(),
 });
 export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 
@@ -141,8 +196,19 @@ export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
 export const TokenFeeConfigInputSchema = z.union([
   LinearFeeInputConfigSchema,
-  ProgressiveFeeConfigSchema,
-  RegressiveFeeConfigSchema,
+  ProgressiveFeeInputConfigSchema,
+  RegressiveFeeInputConfigSchema,
   RoutingFeeInputConfigSchema,
 ]);
 export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
+
+// After resolveTokenFeeAddress() adds the token field
+export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
+  token: string;
+};
+
+// Resolved routing fee config with nested resolved fee contracts
+export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
+  token: string;
+  feeContracts?: Record<string, ResolvedTokenFeeConfigInput>;
+};

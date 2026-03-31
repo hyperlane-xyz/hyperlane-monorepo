@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike, strip0x } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
@@ -50,7 +50,7 @@ export function getExplorerApi(
 } | null {
   const { protocol, blockExplorers } = metadata;
   // TODO solana + cosmos support here as needed
-  if (protocol !== ProtocolType.Ethereum) return null;
+  if (!isEVMLike(protocol)) return null;
   if (!blockExplorers?.length || !blockExplorers[index].apiUrl) return null;
 
   // Convert to V2 format if it's an Etherscan-like API
@@ -97,9 +97,20 @@ export function getExplorerTxUrl(
     'proteustestnet',
     'radix',
     'radixtestnet',
+    'aleo',
+    'aleotestnet',
   ].includes(chainName)
     ? 'transaction'
     : 'tx';
+
+  // TronScan uses 'transaction' instead of 'tx' for transaction URLs and doesn't support the 0x prefix for transaction hashes
+  if (
+    metadata.blockExplorers &&
+    metadata.blockExplorers.length &&
+    metadata.blockExplorers[0].family === ExplorerFamily.TronScan
+  ) {
+    return appendToPath(baseUrl, `transaction/${strip0x(hash)}`).toString();
+  }
   return appendToPath(baseUrl, `${urlPathStub}/${hash}`).toString();
 }
 
@@ -117,6 +128,15 @@ export function getExplorerAddressUrl(
 }
 
 function appendToPath(baseUrl: string, pathExtension: string) {
+  // Handle URLs with hash fragments (e.g., TronScan uses explorer.com/#/path)
+  const hashIndex = baseUrl.indexOf('#');
+  if (hashIndex !== -1) {
+    const urlPart = baseUrl.slice(0, hashIndex);
+    const hashPart = baseUrl.slice(hashIndex + 1);
+    const hashPath = hashPart.endsWith('/') ? hashPart.slice(0, -1) : hashPart;
+    return new URL(`${urlPart}#${hashPath}/${pathExtension}`);
+  }
+
   const base = new URL(baseUrl);
   let currentPath = base.pathname;
   if (currentPath.endsWith('/')) currentPath = currentPath.slice(0, -1);

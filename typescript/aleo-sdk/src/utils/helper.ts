@@ -1,15 +1,42 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
-import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  isValidAddressAleo,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
-import { AleoProgram, programRegistry } from '../artifacts.js';
+import { type AleoProgram, programRegistry } from '../artifacts.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
+
+import { AleoNetworkId, AleoTokenType } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
+
+function getCustomWarpSuffixFromEnv(): string | undefined {
+  return process.env['ALEO_WARP_SUFFIX'];
+}
+
+export const MAINNET_PREFIX = 'hyp';
+export const TESTNET_PREFIX = 'test_hyp';
+
+export function getNetworkPrefix(aleoNetworkId: AleoNetworkId): string {
+  return aleoNetworkId === AleoNetworkId.TESTNET
+    ? TESTNET_PREFIX
+    : MAINNET_PREFIX;
+}
+
+export const RETRY_ATTEMPTS = 10;
+export const RETRY_DELAY_MS = 100;
+
+export const SUFFIX_LENGTH_LONG = 6;
+export const SUFFIX_LENGTH_SHORT = 3;
 
 export function loadProgramsInDeployOrder(
+  prefix: string,
   programName: AleoProgram,
   coreSuffix: string,
   warpSuffix?: string,
@@ -36,6 +63,23 @@ export function loadProgramsInDeployOrder(
 
   visit(programName);
 
+  programs = programs.map((p) => {
+    let output = p.toString();
+
+    for (const r of Object.keys(programRegistry)) {
+      if (r === 'credits' || r === 'token_registry') {
+        continue;
+      }
+
+      output = output.replaceAll(
+        `${r}.aleo`,
+        `${prefix}_${r.replaceAll('hyp_', '')}.aleo`,
+      );
+    }
+
+    return Program.fromString(output);
+  });
+
   if (!skipSuffixes) {
     programs = programs.map((p) =>
       Program.fromString(
@@ -48,7 +92,7 @@ export function loadProgramsInDeployOrder(
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
             (_, p1) =>
-              `${p1}_${customWarpSuffix || warpSuffix || coreSuffix}.aleo`,
+              `${p1}_${getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix}.aleo`,
           ),
       ),
     );
@@ -79,46 +123,69 @@ export function loadProgramsInDeployOrder(
           ),
         ),
       );
-    } else if (upgradeAuthority.split('/').length === 3) {
-      const [program, mapping, key] = upgradeAuthority.split('/');
-
+    } else if (new RegExp(/^[a-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
       programs = programs.map((p) =>
         Program.fromString(
-          p.toString().includes(`constructor:
-    assert.eq edition 0u16;`)
-            ? `import ${program};\n` +
-                p.toString().replaceAll(
-                  `constructor:
+          `import ${upgradeAuthority};\n` +
+            p.toString().replaceAll(
+              `constructor:
     assert.eq edition 0u16;`,
-                  `constructor:
-    branch.eq edition 0u16 to end;
-    get ${program}/${mapping}[${key}] into r0;
-    assert.eq checksum r0;
-    position end;`,
-                )
-            : p.toString(),
+              `struct ChecksumEdition:
+    checksum as [u8; 32u32];
+    edition as u16;
+
+struct WalletEcdsaSigner:
+    wallet_id as address;
+    ecdsa_signer as [u8; 20u32];
+
+struct WalletSigningOpId:
+    wallet_id as address;
+    signing_op_id as field;
+
+struct AdminOp:
+    op as u8;
+    threshold as u8;
+    aleo_signer as address;
+    ecdsa_signer as [u8; 20u32];
+    
+constructor:
+    gt edition 0u16 into r0;
+    branch.eq r0 false to end_then_0_2;
+    cast checksum edition into r1 as ChecksumEdition;
+    hash.bhp256 r1 into r2 as field;
+    cast ${p.id()} r2 into r3 as WalletSigningOpId;
+    hash.bhp256 r3 into r4 as field;
+    contains ${upgradeAuthority}/completed_signing_ops[r4] into r5;
+    assert.eq r5 true;
+    branch.eq true true to end_otherwise_0_3;
+    position end_then_0_2;
+    position end_otherwise_0_3;`,
+            ),
         ),
       );
     } else {
       throw new Error(
-        `upgrade authority must be an aleo account address or of format "program.aleo/mapping/key"`,
+        `upgrade authority must be an aleo account address or the program id of a multisig program`,
       );
     }
   }
 
   return programs.map((p) => ({
     id: p.id(),
-    name: Object.keys(programRegistry).find((r) => p.id().startsWith(r)) || '',
+    name:
+      Object.keys(programRegistry).find((r) =>
+        p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`),
+      ) || '',
     program: p.toString(),
   }));
 }
 
 export const ALEO_NULL_ADDRESS =
   'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
-export const ALEO_NATIVE_DENOM = '0field';
+export const ALEO_NATIVE_DENOM = 'credits';
 
 export function formatAddress(address: string): string {
-  return address === ALEO_NULL_ADDRESS ? '' : address;
+  return isZeroishAddress(address) ? '' : address;
 }
 
 export function fillArray(array: any[], length: number, fillValue: any): any[] {
@@ -152,7 +219,19 @@ export function fromAleoAddress(aleoAddress: string): {
     throw new Error(`address ${aleoAddress} is no valid aleo address`);
   }
 
-  const [programId, address] = aleoAddress.split('/');
+  const [programId, address]: (string | undefined)[] = aleoAddress.split('/');
+
+  // If address is not defined, then it means that the address
+  // does not have a programId prefix but it is still a valid aleo address
+  // because it passed validation
+  if (!address) {
+    return {
+      // FIXME, change this function return type signature to make it explicit
+      // that the programId might not be found
+      programId: '',
+      address: aleoAddress,
+    };
+  }
 
   return {
     programId,
@@ -162,6 +241,10 @@ export function fromAleoAddress(aleoAddress: string): {
 
 export function getProgramSuffix(address: string): string {
   let suffix = address;
+
+  for (const prefix of [`${TESTNET_PREFIX}_`, `${MAINNET_PREFIX}_`]) {
+    suffix = suffix.replaceAll(prefix, '');
+  }
 
   for (const key of Object.keys(programRegistry)) {
     suffix = suffix.replaceAll(key, '');
@@ -173,12 +256,26 @@ export function getProgramSuffix(address: string): string {
   return suffix;
 }
 
-export function getProgramIdFromSuffix(program: AleoProgram, suffix: string) {
-  if (skipSuffixes || !suffix) {
-    return `${program}.aleo`;
+export function getProgramPrefix(programId: string): string {
+  for (const programIdPrefix of [TESTNET_PREFIX, MAINNET_PREFIX]) {
+    if (programId.startsWith(programIdPrefix)) {
+      return programIdPrefix;
+    }
   }
 
-  return `${program}_${suffix}.aleo`;
+  throw new Error(`Provided program address did not include a valid prefix`);
+}
+
+export function getProgramIdFromSuffix(
+  prefix: string,
+  program: AleoProgram,
+  suffix: string,
+) {
+  if (skipSuffixes || !suffix) {
+    return `${prefix}_${program}.aleo`;
+  }
+
+  return `${prefix}_${program}_${suffix}.aleo`;
 }
 
 export function stringToU128(str: string, littleEndian = false): bigint {
@@ -238,4 +335,116 @@ export function getBalanceKey(address: string, denom: string): string {
       Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
     )
     .toString();
+}
+
+/**
+ * Convert AleoTokenType to provider-sdk TokenType
+ */
+export function providerWarpTokenTypeFromAleoTokenType(
+  aleoType: AleoTokenType,
+): TokenType {
+  switch (aleoType) {
+    case AleoTokenType.NATIVE:
+      return TokenType.native;
+    case AleoTokenType.SYNTHETIC:
+      return TokenType.synthetic;
+    case AleoTokenType.COLLATERAL:
+      return TokenType.collateral;
+    default:
+      throw new Error(`Unknown AleoTokenType: ${aleoType}`);
+  }
+}
+
+/**
+ * Generate a random suffix of length n using alphanumeric characters
+ */
+export function generateSuffix(n: number): string {
+  const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+
+  for (let i = 0; i < n; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+
+  return result;
+}
+
+/**
+ * Check if a program is already deployed on chain.
+ */
+export async function isProgramDeployed(
+  aleoClient: AnyAleoNetworkClient,
+  programId: string,
+): Promise<boolean> {
+  try {
+    await aleoClient.getProgram(programId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Generate a random suffix and verify it is not already deployed on chain.
+ */
+export async function getUnusedSuffix(
+  aleoClient: AnyAleoNetworkClient,
+  prefix: string,
+  programName: AleoProgram,
+  length: number,
+  maxAttempts = 20,
+): Promise<string> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const suffix = generateSuffix(length);
+    const programId = getProgramIdFromSuffix(prefix, programName, suffix);
+    if (!(await isProgramDeployed(aleoClient, programId))) {
+      return suffix;
+    }
+  }
+
+  throw new Error(
+    `Could not find an unused suffix for ${programName} after ${maxAttempts} attempts`,
+  );
+}
+
+/**
+ * Format ISM address by combining manager program ID with plain address.
+ * Returns null address for zeroish addresses.
+ */
+export function formatIsmAddress(
+  ismAddress: string,
+  ismManagerProgramId: string,
+): string {
+  if (isZeroishAddress(ismAddress)) {
+    return ALEO_NULL_ADDRESS;
+  }
+
+  return `${ismManagerProgramId}/${ismAddress}`;
+}
+
+/**
+ * Format Hook address by combining manager program ID with plain address.
+ * Returns null address for zeroish addresses.
+ *
+ */
+export function formatHookAddress(
+  hookAddress: string,
+  // The mailboxProgramId is required as in the current deployment
+  // flow the hook address is generated based on the mailbox address
+  mailboxProgramId: string,
+): string {
+  if (isZeroishAddress(hookAddress)) {
+    return ALEO_NULL_ADDRESS;
+  }
+
+  const mailboxPrefix = getProgramPrefix(mailboxProgramId);
+  const mailboxSuffix = getProgramSuffix(mailboxProgramId);
+  const hookManagerProgramId = getProgramIdFromSuffix(
+    mailboxPrefix,
+    'hook_manager',
+    mailboxSuffix,
+  );
+
+  return `${hookManagerProgramId}/${hookAddress}`;
 }

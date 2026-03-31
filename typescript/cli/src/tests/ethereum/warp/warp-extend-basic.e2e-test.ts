@@ -1,11 +1,12 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -17,6 +18,7 @@ import {
   hyperlaneWarpDeploy,
   readWarpConfig,
 } from '../commands/warp.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -25,13 +27,13 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   EXAMPLES_PATH,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
   WARP_DEPLOY_CONFIG_CHAIN_2,
-  getCombinedWarpRoutePath,
 } from '../consts.js';
 
 describe('hyperlane warp apply basic extension tests', async function () {
@@ -82,12 +84,10 @@ describe('hyperlane warp apply basic extension tests', async function () {
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig1 = await readWarpConfig(
@@ -141,12 +141,10 @@ describe('hyperlane warp apply basic extension tests', async function () {
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
       strategyUrl: `${EXAMPLES_PATH}/submit/strategy/json-rpc-chain-strategy.yaml`,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig1 = await readWarpConfig(
@@ -201,12 +199,12 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    await hyperlaneWarpApply(
+    syncWarpDeployConfigToRegistry({
       warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     const updatedWarpDeployConfig_2 = await readWarpConfig(
       CHAIN_NAME_2,
@@ -267,12 +265,12 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
-    await hyperlaneWarpApply(
-      WARP_DEPLOY_CONFIG_CHAIN_2,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig_2 = await readWarpConfig(
@@ -300,5 +298,50 @@ describe('hyperlane warp apply basic extension tests', async function () {
       updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas!;
     expect(Object.keys(destinationGas_3)).to.include(chain2Id);
     expect(destinationGas_3[chain2Id]).to.equal('7777');
+  });
+
+  it('should preserve metadata fields when extending warp route', async () => {
+    const TEST_LOGO_URI = 'https://example.com/logo.png';
+    const TEST_COINGECKO_ID = 'ethereum';
+
+    // Read and modify warp core config to add metadata
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH_2,
+    );
+    warpCoreConfig.tokens[0].logoURI = TEST_LOGO_URI;
+    warpCoreConfig.tokens[0].coinGeckoId = TEST_COINGECKO_ID;
+    writeYamlOrJson(WARP_CORE_CONFIG_PATH_2, warpCoreConfig);
+
+    // Extend with new config
+    const config: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain3Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      type: TokenType.native,
+    };
+
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: config,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
+    });
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
+
+    // Read resulting config and verify metadata preserved
+    const resultConfig: WarpCoreConfig = readYamlOrJson(
+      COMBINED_WARP_CORE_CONFIG_PATH,
+    );
+    const chain2Token = resultConfig.tokens.find(
+      (t) => t.chainName === CHAIN_NAME_2,
+    );
+
+    expect(chain2Token?.logoURI).to.equal(TEST_LOGO_URI);
+    expect(chain2Token?.coinGeckoId).to.equal(TEST_COINGECKO_ID);
   });
 });

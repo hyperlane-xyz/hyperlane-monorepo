@@ -23,7 +23,7 @@ use super::super::super::transaction::Precursor;
 use super::super::super::VisibleComponents;
 use super::tests_common::{adapter, payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY};
 
-const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
+const MAILBOX_METHOD_NAME_PROCESS: &str = "process";
 
 const ADDRESSES: &[&str] = &[
     "component_rdx1cznxpn5m3kutzr6jrhgnvv0x7uhcs0rf8fl2w59hkclm6m7axzlqgu",
@@ -77,13 +77,13 @@ async fn test_simulate_tx() {
 
     let data = VmSpecificTxData::Radix(Box::new(RadixTxPrecursor::new(
         MAILBOX_ADDRESS.into(),
-        MAILBOX_METHOD_NAME_RPOCESS.into(),
+        MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments.clone(),
     )));
 
     let process_calldata = RadixTxCalldata {
         component_address: MAILBOX_ADDRESS.into(),
-        method_name: MAILBOX_METHOD_NAME_RPOCESS.into(),
+        method_name: MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments,
     };
 
@@ -170,13 +170,13 @@ async fn test_simulate_tx_failed() {
 
     let data = VmSpecificTxData::Radix(Box::new(RadixTxPrecursor::new(
         MAILBOX_ADDRESS.into(),
-        MAILBOX_METHOD_NAME_RPOCESS.into(),
+        MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments.clone(),
     )));
 
     let process_calldata = RadixTxCalldata {
         component_address: MAILBOX_ADDRESS.into(),
-        method_name: MAILBOX_METHOD_NAME_RPOCESS.into(),
+        method_name: MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments,
     };
 

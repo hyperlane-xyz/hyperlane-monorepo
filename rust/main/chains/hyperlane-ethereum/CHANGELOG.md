@@ -1,3 +1,14 @@
+## [2.1.0] - 2026-03-04
+
+* feat(tron): add ethereum compatibility & tron aws signer (#8222)
+* fix(agents): skip block gas limit cap when RPC returns zero (#8152)
+* fix: use Plume mainnet in test instead of removed PlumeTestnet
+
+## [2.0.0] - 2026-01-06
+
+* feat: always log metadata bytes as hex (#7566)
+* feat: rotate provider if eth_getTransactionReceipt returns JSON null (#7489)
+
 ## [1.6.0] - 2025-11-06
 
 * feat(lander): Builder stage popping several payloads at a time (#6557)

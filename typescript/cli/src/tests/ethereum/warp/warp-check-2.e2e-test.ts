@@ -1,21 +1,24 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { type Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { ERC20Test, HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ERC20Test,
+  HypERC20Collateral__factory,
+} from '@hyperlane-xyz/core';
+import {
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   TokenStandard,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -33,7 +36,6 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
 } from '../consts.js';
 
@@ -74,23 +76,24 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
   });
 
-  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    // currently warp deploy is not writing the deploy config to the registry
-    // should remove this once the deploy config is written to the registry
-    writeYamlOrJson(
-      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-      warpConfig,
-    );
-
+  async function deployAndExportWarpRoute(): Promise<{
+    warpConfig: WarpRouteDeployConfig;
+    warpRouteId: string;
+  }> {
     const currentWarpId = createWarpRouteConfigId(
       await token.symbol(),
       CHAIN_NAME_3,
     );
 
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
+    const registryDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-deploy.yaml',
+    );
+    writeYamlOrJson(registryDeployPath, warpConfig);
 
-    return warpConfig;
+    await hyperlaneWarpDeploy(currentWarpId);
+
+    return { warpConfig, warpRouteId: currentWarpId };
   }
 
   // Reset config before each test to avoid test changes intertwining
@@ -111,48 +114,7 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  describe('hyperlane warp check --config ... and hyperlane warp check --warp ...', () => {
-    const expectedError =
-      'Both --config/-wd and --warp/-wc must be provided together when using individual file paths';
-    it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
-      await deployAndExportWarpRoute();
-
-      const output1 = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      const output2 = await hyperlaneWarpCheckRaw({
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output1.exitCode).to.equal(1);
-      expect(output1.text()).to.include(expectedError);
-      expect(output2.exitCode).to.equal(1);
-      expect(output2.text()).to.include(expectedError);
-    });
-  });
-
-  describe('hyperlane warp check --symbol ...', () => {
-    it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
-      // only one route exists for this token so no need to interact with prompts
-      const output = await hyperlaneWarpCheckRaw({
-        symbol: tokenSymbol,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output.exitCode).to.equal(0);
-      expect(output.text()).to.include('No violations found');
-    });
-  });
-
-  describe('hyperlane warp check --warpRouteId ...', () => {
+  describe('hyperlane warp check --warp-route-id ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
@@ -181,6 +143,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const contract = new HypERC20Collateral__factory(signer);
       const tx = await contract.deploy(
         collateral.address,
+        1,
         1,
         chain2Addresses.mailbox,
       );
@@ -241,11 +204,10 @@ describe('hyperlane warp check e2e tests', async function () {
       'Expected config to be for a collateral token',
     );
     warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
-    await deployAndExportWarpRoute();
+    const { warpRouteId } = await deployAndExportWarpRoute();
 
     const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
+      warpRouteId,
     })
       .stdio('pipe')
       .nothrow();
@@ -260,18 +222,17 @@ describe('hyperlane warp check e2e tests', async function () {
       'Expected config to be for a collateral token',
     );
     warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
-    await deployAndExportWarpRoute();
+    const { warpRouteId } = await deployAndExportWarpRoute();
 
     warpConfig[CHAIN_NAME_2].allowedRebalancers = undefined;
-    const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
+    const registryDeployPath = combinedWarpCoreConfigPath.replace(
       '-config.yaml',
       '-deploy.yaml',
     );
-    writeYamlOrJson(wrongDeployConfigPath, warpConfig);
+    writeYamlOrJson(registryDeployPath, warpConfig);
 
     const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: wrongDeployConfigPath,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
+      warpRouteId,
     })
       .stdio('pipe')
       .nothrow();
@@ -287,11 +248,46 @@ describe('hyperlane warp check e2e tests', async function () {
     warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
       [chain3DomainId]: [{ bridge: randomAddress() }],
     };
-    await deployAndExportWarpRoute();
+    const { warpRouteId } = await deployAndExportWarpRoute();
 
     const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
+      warpRouteId,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
+
+  it('should pass warp check when allowed rebalancing bridges are in different order', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+
+    // Deploy with bridges in ascending order
+    const bridge1 = randomAddress();
+    const bridge2 = randomAddress();
+    const [sortedBridge1, sortedBridge2] = [bridge1, bridge2].sort();
+
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: sortedBridge1 }, { bridge: sortedBridge2 }],
+    };
+    const { warpRouteId } = await deployAndExportWarpRoute();
+
+    // Check with bridges in descending order (opposite of deployed)
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: sortedBridge2 }, { bridge: sortedBridge1 }],
+    };
+    const registryDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-deploy.yaml',
+    );
+    writeYamlOrJson(registryDeployPath, warpConfig);
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId,
     })
       .stdio('pipe')
       .nothrow();
@@ -308,18 +304,17 @@ describe('hyperlane warp check e2e tests', async function () {
     warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
       [chain3DomainId]: [{ bridge: randomAddress() }],
     };
-    await deployAndExportWarpRoute();
+    const { warpRouteId } = await deployAndExportWarpRoute();
 
     warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = undefined;
-    const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
+    const registryDeployPath = combinedWarpCoreConfigPath.replace(
       '-config.yaml',
       '-deploy.yaml',
     );
-    writeYamlOrJson(wrongDeployConfigPath, warpConfig);
+    writeYamlOrJson(registryDeployPath, warpConfig);
 
     const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: wrongDeployConfigPath,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
+      warpRouteId,
     })
       .stdio('pipe')
       .nothrow();

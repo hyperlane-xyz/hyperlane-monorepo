@@ -1,24 +1,29 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { type Signer, Wallet, ethers } from 'ethers';
 
 import {
   InterchainAccountRouter__factory,
   MockSafe__factory,
-  TimelockController,
+  type TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  CallData,
-  ChainSubmissionStrategy,
+  type CallData,
+  type ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
-  DerivedCoreConfig,
-  SubmissionStrategy,
+  type DerivedCoreConfig,
+  type SubmissionStrategy,
   TokenType,
   TxSubmitterType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, Domain, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type Domain,
+  ProtocolType,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
@@ -130,7 +135,6 @@ describe('hyperlane warp apply with submitters', async function () {
     // should remove this once the deploy config is written to the registry
     writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );

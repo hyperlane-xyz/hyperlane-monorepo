@@ -23,7 +23,9 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
-  transactionToPrintableJson(_transaction: MockTransaction): Promise<object> {
+  async transactionToPrintableJson(
+    _transaction: MockTransaction,
+  ): Promise<object> {
     throw new Error(`not implemented`);
   }
 
@@ -152,6 +154,18 @@ export class MockSigner
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
+    throw new Error(`not implemented`);
+  }
+
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error(`not implemented`);
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
     throw new Error(`not implemented`);
   }
 

@@ -11,11 +11,11 @@ import {
 import {
   Address,
   AddressBytes32,
-  ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
   assert,
   bytes32ToAddress,
+  isEVMLike,
   isZeroishAddress,
   messageId,
   objFilter,
@@ -38,6 +38,7 @@ import { DerivedIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import { estimateHandleGasForRecipient } from '../utils/gas.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
@@ -68,7 +69,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const evmContractsMap = objFilter(
       this.contractsMap,
       (chainName, _): _ is HyperlaneContracts<CoreFactories> =>
-        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
+        isEVMLike(this.multiProvider.getProtocol(chainName)),
     );
 
     // get config
@@ -206,16 +207,31 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
-          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+          let dispatched: DispatchedMessage;
+          try {
+            dispatched = HyperlaneCore.parseDispatchedMessage(message);
 
-          // add human readable chain names
-          dispatched.parsed.originChain = this.getOrigin(dispatched);
-          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+            // add human readable chain names
+            dispatched.parsed.originChain = this.getOrigin(dispatched);
+            dispatched.parsed.destinationChain =
+              this.getDestination(dispatched);
+          } catch (err: unknown) {
+            this.logger.error(
+              `Failed to parse dispatched message on ${originChain}`,
+              err instanceof Error ? err.message : String(err),
+            );
+            return;
+          }
 
           this.logger.info(
             `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
           );
-          return handler(dispatched, event);
+          return handler(dispatched, event).catch((err: unknown) => {
+            this.logger.error(
+              `Error in dispatch handler on ${originChain}`,
+              err instanceof Error ? err.message : String(err),
+            );
+          });
         },
       );
     });
@@ -257,20 +273,58 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     // This estimation overrides transaction.from which requires a funded signer
     // on ZkSync-based chains. We catch estimation failures and return '0' to
     // allow the caller to handle gas estimation differently.
+    return this.estimateHandleGas({
+      destination: this.getDestination(message),
+      recipient: bytes32ToAddress(message.parsed.recipient),
+      origin: message.parsed.origin,
+      sender: message.parsed.sender,
+      body: message.parsed.body,
+    });
+  }
+
+  /**
+   * Estimates gas for calling handle() on a recipient contract.
+   *
+   * This is a flexible utility that accepts minimal parameters (destination,
+   * recipient, origin, sender, body) instead of requiring a full DispatchedMessage.
+   * Use this when you have message components but not a complete DispatchedMessage object.
+   *
+   * @param params - Object containing:
+   *   - destination: The destination chain name
+   *   - recipient: The recipient contract address (or any IMessageRecipient implementation like ICA router)
+   *   - origin: The origin domain ID
+   *   - sender: The sender address (as bytes32 string)
+   *   - body: The message body (as hex string)
+   *   - mailbox: Optional mailbox address override (defaults to chain's configured mailbox)
+   * @returns Gas estimate as a string, or '0' if estimation fails
+   */
+  async estimateHandleGas(params: {
+    destination: ChainName;
+    recipient: Address;
+    origin: number;
+    sender: string;
+    body: string;
+    mailbox?: Address;
+  }): Promise<string> {
     try {
-      return (
-        await this.getRecipient(message).estimateGas.handle(
-          message.parsed.origin,
-          message.parsed.sender,
-          message.parsed.body,
-          { from: this.getAddresses(this.getDestination(message)).mailbox },
-        )
-      ).toString();
-    } catch (error) {
-      this.logger.debug(
-        { error, destination: this.getDestination(message) },
-        'Failed to estimate handle gas, returning 0',
+      const provider = this.multiProvider.getProvider(params.destination);
+      const mailbox =
+        params.mailbox ?? this.getAddresses(params.destination).mailbox;
+      const recipientContract = IMessageRecipient__factory.connect(
+        params.recipient,
+        provider,
       );
+
+      const gasEstimate = await estimateHandleGasForRecipient({
+        recipient: recipientContract,
+        origin: params.origin,
+        sender: params.sender,
+        body: params.body,
+        mailbox,
+      });
+
+      return gasEstimate?.toString() ?? '0';
+    } catch {
       return '0';
     }
   }
@@ -355,7 +409,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
       mailbox.once(filter, (emittedId, event) => {
         if (id !== emittedId) {
-          reject(`Expected message id ${id} but got ${emittedId}`);
+          reject(new Error(`Expected message id ${id} but got ${emittedId}`));
+          return;
         }
         resolve(
           this.multiProvider.handleTx(destinationChain, event.getTransaction()),
@@ -427,7 +482,10 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         this.multiProvider.tryGetChainName(parsed.origin) ?? undefined;
       const destinationChain =
         this.multiProvider.tryGetChainName(parsed.destination) ?? undefined;
-      return { parsed: { ...parsed, originChain, destinationChain }, ...other };
+      return {
+        parsed: { ...parsed, originChain, destinationChain },
+        ...other,
+      };
     });
   }
 

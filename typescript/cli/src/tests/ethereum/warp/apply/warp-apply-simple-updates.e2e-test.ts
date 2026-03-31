@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -82,7 +82,6 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     fixture.writeConfigs();
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );

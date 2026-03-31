@@ -2,20 +2,24 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import {
-  CoreConfig,
+  type CoreConfig,
   HookType,
-  MerkleTreeHookConfig,
-  ProtocolFeeHookConfig,
+  type MerkleTreeHookConfig,
+  type ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  normalizeAddress,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CONFIRM_DETECTED_OWNER_STEP,
   KeyBoardKeys,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import {

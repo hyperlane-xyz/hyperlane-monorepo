@@ -104,6 +104,9 @@
   "eclipsemainnet": {
     "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
   },
+  "eden": {
+    "validators": ["0x1c61e6379443e2842d3e9db28e962b6c717fdab1"]
+  },
   "electroneum": {
     "validators": ["0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83"]
   },
@@ -124,6 +127,9 @@
   },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
+  },
+  "flowmainnet": {
+    "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
   },
   "fluence": {
     "validators": ["0xabc8dd7594783c90a3c0fb760943f78c37ea6d75"]
@@ -154,6 +160,9 @@
   },
   "hyperevm": {
     "validators": ["0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f"]
+  },
+  "igra": {
+    "validators": ["0x485f0739639e46d3b06b1b92debe2ade56d8bfb1"]
   },
   "immutablezkevmmainnet": {
     "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
@@ -367,6 +376,9 @@
   },
   "torus": {
     "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
+  },
+  "tron": {
+    "validators": ["0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb"]
   },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]

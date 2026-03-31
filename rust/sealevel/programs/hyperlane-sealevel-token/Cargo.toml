@@ -10,9 +10,13 @@ no-entrypoint = []
 
 [dependencies]
 borsh.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://solana.com/news/rust-to-solana
+getrandom = { workspace = true, features = ["custom"] }
 num-derive.workspace = true
 num-traits.workspace = true
 solana-program.workspace = true
+solana-system-interface.workspace = true
 spl-associated-token-account.workspace = true
 spl-noop.workspace = true
 spl-token-2022.workspace = true

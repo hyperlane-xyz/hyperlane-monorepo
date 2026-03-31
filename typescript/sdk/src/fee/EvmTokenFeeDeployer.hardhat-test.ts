@@ -18,7 +18,7 @@ import {
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
-import { convertToBps } from './utils.js';
+import { BPS_PRECISION, convertToBps } from './utils.js';
 
 type DistributiveOmit<T, K extends keyof T> = T extends any
   ? Omit<T, K>
@@ -140,22 +140,20 @@ describe('EvmTokenFeeDeployer', () => {
     await routingFeeContract.setFeeContract(1, linearFeeContract.address);
 
     const amount = randomInt(1, 10000000000000);
-    const quote = await routingFeeContract.quoteTransferRemote(
-      1,
-      addressToBytes32(signer.address),
-      amount,
-    );
+    const quote = await routingFeeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](1, addressToBytes32(signer.address), amount);
 
     expect(quote.length).to.equal(1);
-    expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
+    expect(quote[0].amount).to.be.equal(
+      (BigInt(amount) * BigInt(BPS)) / BPS_PRECISION,
+    );
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero
-    const quote2 = await routingFeeContract.quoteTransferRemote(
-      122222,
-      addressToBytes32(signer.address),
-      MAX_FEE,
-    );
+    const quote2 = await routingFeeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](122222, addressToBytes32(signer.address), MAX_FEE);
     expect(quote2.length).to.equal(0);
   });
 
@@ -194,5 +192,62 @@ describe('EvmTokenFeeDeployer', () => {
     expect(actualLinearFeeAddress).to.equal(
       deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
     );
+  });
+
+  it('should deploy RoutingFee with fee contracts when owner differs from signer', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+
+    const config = RoutingFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: otherSigner.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test2]: {
+          type: TokenFeeType.LinearFee,
+          token: token.address,
+          owner: otherSigner.address,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          bps: BPS,
+        },
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+    const linearFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
+
+    expect(await routingFeeContract.owner()).to.equal(config.owner);
+
+    const actualLinearFeeAddress = await routingFeeContract.feeContracts(
+      multiProvider.getChainId(TestChainName.test2),
+    );
+    expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
+    expect(await linearFeeContract.owner()).to.equal(otherSigner.address);
+  });
+
+  it('should deploy RoutingFee and transfer ownership when owner differs from signer (no fee contracts)', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+
+    const config = TokenFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: otherSigner.address,
+      token: token.address,
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+
+    expect(await routingFeeContract.owner()).to.equal(otherSigner.address);
+    expect(await routingFeeContract.token()).to.equal(token.address);
   });
 });

@@ -1,8 +1,9 @@
 {
   "extends": ["//"],
   "tasks": {
-    "build": {
-      "outputs": ["dist/**", "src/generated/**"]
+    "bundle": {
+      "dependsOn": ["build"],
+      "outputs": ["bundle/**"]
     }
   }
 }

@@ -1,23 +1,29 @@
 import { confirm } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { type ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVM,
+  type AltVM,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  isEVMLike,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -28,29 +34,88 @@ import { createAltVMSigners } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
-  CommandContext,
-  ContextSettings,
-  SignerKeyProtocolMap,
+  type CommandContext,
+  type ContextSettings,
+  type SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
 } from './types.js';
 
-export async function contextMiddleware(argv: Record<string, any>) {
+type ContextMiddlewareArgv = Record<string, unknown> & {
+  context?: CommandContext;
+};
+
+function hasIterator(value: unknown): value is Iterable<unknown> {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value === 'object' &&
+    Symbol.iterator in value
+  );
+}
+
+function parseRegistryUris(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (typeof value === 'string') return [value];
+
+  const values = Array.isArray(value)
+    ? value
+    : hasIterator(value)
+      ? Array.from(value)
+      : null;
+
+  assert(
+    values !== null,
+    `Invalid --registry value type: expected string or iterable of strings, got ${typeof value}`,
+  );
+  assert(
+    values.every((entry) => typeof entry === 'string'),
+    'Invalid --registry value: expected only string entries',
+  );
+
+  return values;
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function toOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function toOptionalSignerKey(value: unknown): ContextSettings['key'] {
+  if (typeof value === 'string') return value;
+  if (value === undefined) return undefined;
+  return SignerKeyProtocolMapSchema.parse(value);
+}
+
+export async function contextMiddleware(argv: ContextMiddlewareArgv) {
   const requiresKey = isSignCommand(argv);
 
   const settings: ContextSettings = {
-    registryUris: [...argv.registry],
-    key: argv.key,
+    registryUris: parseRegistryUris(argv.registry),
+    key: toOptionalSignerKey(argv.key),
     requiresKey,
-    disableProxy: argv.disableProxy,
-    skipConfirmation: argv.yes,
-    strategyPath: argv.strategy,
-    authToken: argv.authToken,
+    disableProxy: toOptionalBoolean(argv.disableProxy),
+    skipConfirmation: toOptionalBoolean(argv.yes),
+    strategyPath: toOptionalString(argv.strategy),
+    authToken: toOptionalString(argv.authToken),
   };
 
   argv.context = await getContext(settings);
 }
 
-export async function signerMiddleware(argv: Record<string, any>) {
+function hasCommandContext(
+  argv: ContextMiddlewareArgv,
+): argv is ContextMiddlewareArgv & { context: CommandContext } {
+  return typeof argv.context === 'object' && argv.context !== null;
+}
+
+export async function signerMiddleware(argv: ContextMiddlewareArgv) {
+  assert(
+    hasCommandContext(argv),
+    'Expected command context in signerMiddleware',
+  );
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
@@ -67,8 +132,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * Load and create AltVM Providers
    */
   const altVmChains = chains.filter(
-    (chain) =>
-      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    (chain) => !isEVMLike(argv.context.multiProvider.getProtocol(chain)),
   );
 
   try {
@@ -92,13 +156,18 @@ export async function signerMiddleware(argv: Record<string, any>) {
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
-      if (hasProtocol(protocol))
-        altVmProviders[chain] =
+      if (hasProtocol(protocol)) {
+        const provider =
           await getProtocolProvider(protocol).createProvider(metadata);
+        altVmProviders[chain] = provider;
+        // multiProtocolProvider keeps its own typed providers from metadata/rpcUrls.
+        // Avoid injecting AltVM.IProvider here because it requires unsafe casting.
+      }
     }),
   );
 
-  if (!requiresKey) return argv;
+  if (!requiresKey) return;
+  assert(key, 'Expected signer keys when running signer middleware');
 
   /**
    * Extracts signer config
@@ -125,7 +194,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
     strategyConfig,
   );
 
-  return argv;
+  return;
 }
 
 /**
@@ -161,8 +230,12 @@ export async function getContext({
 
   const supportedProtocols = [
     ProtocolType.Ethereum,
+    ProtocolType.Tron,
     ProtocolType.CosmosNative,
     ProtocolType.Radix,
+    ProtocolType.Aleo,
+    ProtocolType.Sealevel,
+    ProtocolType.Starknet,
   ];
 
   return {
@@ -172,6 +245,7 @@ export async function getContext({
     multiProvider,
     multiProtocolProvider,
     altVmProviders,
+    altVmSigners: {},
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
@@ -293,4 +367,61 @@ export async function requestAndSaveApiKeys(
   }
 
   return apiKeys;
+}
+
+/**
+ * Ensures EVM signers are attached to multiProvider for the specified chains.
+ * This is useful for commands that do interactive chain selection after the
+ * initial signer middleware has run.
+ *
+ * Uses the same signer strategy infrastructure as the middleware, which properly
+ * handles ZkSync chains and strategy-based keys.
+ *
+ * @param context - The write command context with key, multiProvider, and multiProtocolProvider
+ * @param chains - The chains to ensure signers for
+ */
+export async function ensureEvmSignersForChains(
+  context: {
+    key: SignerKeyProtocolMap;
+    multiProvider: MultiProvider;
+    multiProtocolProvider: MultiProtocolProvider;
+    strategyPath?: string;
+  },
+  chains: ChainName[],
+): Promise<void> {
+  // Filter to only EVM chains
+  const evmChains = chains.filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
+  );
+
+  // Find chains that are missing signers
+  const missingSignerChains = evmChains.filter(
+    (chain) => !context.multiProvider.tryGetSigner(chain),
+  );
+
+  // If all signers already exist, nothing to do
+  if (missingSignerChains.length === 0) {
+    return;
+  }
+
+  // Load strategy config if provided
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  // Use MultiProtocolSignerManager to create signers properly
+  // This handles ZkSync chains and strategy-based keys
+  const signerManager = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    missingSignerChains,
+    context.multiProtocolProvider,
+    { key: context.key },
+  );
+
+  // Attach the created signers to multiProvider
+  for (const chain of missingSignerChains) {
+    const signer = signerManager.getEVMSigner(chain);
+    const provider = context.multiProvider.getProvider(chain);
+    context.multiProvider.setSigner(chain, signer.connect(provider));
+  }
 }

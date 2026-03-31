@@ -344,7 +344,7 @@ mod test {
             remote_routers: HashMap::from([(1000, H256::random()), (200, H256::random())]),
             plugin_data: Foo { bar: 69 },
         };
-        let serialized = hyperlane_token_foo.try_to_vec().unwrap();
+        let serialized = borsh::to_vec(&hyperlane_token_foo).unwrap();
 
         assert_eq!(serialized.len(), hyperlane_token_foo.size());
     }

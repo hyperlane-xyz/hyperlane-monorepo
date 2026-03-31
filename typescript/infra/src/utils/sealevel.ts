@@ -4,6 +4,7 @@ import {
   Connection,
   PublicKey,
   SystemProgram,
+  Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
 import { deserializeUnchecked, serialize } from 'borsh';
@@ -16,6 +17,7 @@ import {
   IsmType,
   MultiProtocolProvider,
   MultisigIsmConfig,
+  SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType,
   SealevelDomainData,
   SealevelDomainDataSchema,
   SealevelInstructionWrapper,
@@ -25,7 +27,6 @@ import {
   SealevelRemoteGasData,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -80,9 +81,9 @@ export const OPTION_NONE_DISCRIMINATOR = 0;
 // ============================================================================
 
 /**
- * Mailbox instruction discriminator size (4 byte Borsh u32 enum discriminator)
+ * Mailbox instruction discriminator size (1 byte Borsh u8 enum discriminator)
  */
-export const MAILBOX_DISCRIMINATOR_SIZE = 4;
+export const MAILBOX_DISCRIMINATOR_SIZE = 1;
 
 /**
  * Hyperlane Sealevel program instruction discriminator size
@@ -148,6 +149,7 @@ export const COMPUTE_BUDGET_PROGRAM_ID = new PublicKey(
 export enum ProgramName {
   MAILBOX = 'Mailbox',
   MULTISIG_ISM = 'MultisigIsmMessageId',
+  WARP_ROUTE = 'WarpRoute',
   SQUADS_V4 = 'SquadsV4',
   SYSTEM_PROGRAM = 'System Program',
   COMPUTE_BUDGET = 'Compute Budget Program',
@@ -175,7 +177,7 @@ export enum InstructionType {
 /**
  * Mailbox instruction discriminator values
  * Matches rust/sealevel/programs/mailbox/src/instruction.rs
- * Borsh enum serialization uses u32 discriminators
+ * Borsh enum serialization uses u8 discriminators
  */
 export enum MailboxInstructionType {
   INIT = 0,
@@ -305,9 +307,124 @@ export type SvmMultisigConfig = Omit<MultisigIsmConfig, 'type'> & {
 };
 export type SvmMultisigConfigMap = ChainMap<SvmMultisigConfig>;
 
-// SOLANA_TX_SIZE_LIMIT = 1232 bytes
-// batches of 10 fill up about 60% of the limit
+/**
+ * Solana transaction size limit in bytes
+ * See: https://solana.com/docs/core/transactions#transaction-size
+ */
+export const SOLANA_TX_SIZE_LIMIT = 1232;
+
+/**
+ * Safety margin for transaction size estimation
+ * Accounts for signature overhead and other serialization variance
+ */
+export const TX_SIZE_SAFETY_MARGIN = 100;
+
+/**
+ * Maximum transaction size we'll target (with safety margin)
+ */
+export const MAX_TX_SIZE = SOLANA_TX_SIZE_LIMIT - TX_SIZE_SAFETY_MARGIN;
+
+/**
+ * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
+ *
+ * When submitting to Squads multisig, our instructions are embedded inside a
+ * vaultTransactionCreate instruction + proposalCreate instruction. This adds
+ * significant overhead (~450-500 bytes) that must be accounted for when batching.
+ *
+ * Components:
+ * - vaultTransactionCreate instruction: ~300-350 bytes (accounts, discriminator, serialized message)
+ * - proposalCreate instruction: ~100-150 bytes (accounts, discriminator)
+ * - Additional account keys in outer transaction
+ */
+export const SQUADS_PROPOSAL_OVERHEAD = 500;
+
+/**
+ * Default batch size for fixed-count batching
+ * Batches of 10 fill up about 60% of the limit for typical instructions
+ */
 export const DEFAULT_MAX_SEALEVEL_BATCH_SIZE = 10;
+
+/**
+ * Estimate the serialized size of a transaction with given instructions
+ * Uses a dummy blockhash and feePayer to get accurate size estimation
+ *
+ * @param instructions - Array of transaction instructions
+ * @param feePayer - Public key of the fee payer
+ * @returns Estimated transaction size in bytes
+ */
+export function estimateTransactionSize(
+  instructions: TransactionInstruction[],
+  feePayer: PublicKey,
+): number {
+  const transaction = new Transaction({
+    feePayer,
+    blockhash: 'GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi', // dummy blockhash (32 bytes base58)
+    lastValidBlockHeight: 0,
+  });
+  instructions.forEach((ix) => transaction.add(ix));
+
+  try {
+    // serialize() throws if over limit, so we catch and return a large number
+    const serialized = transaction.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    });
+    return serialized.length;
+  } catch {
+    // If serialization fails (e.g., too large), return a size larger than the limit
+    return SOLANA_TX_SIZE_LIMIT + 1000;
+  }
+}
+
+/**
+ * Batch instructions into groups that fit within Solana's transaction size limit
+ *
+ * Uses a greedy algorithm: adds instructions until the next one would exceed the limit.
+ * Each batch is guaranteed to serialize within the effective size limit.
+ *
+ * @param instructions - Array of transaction instructions to batch
+ * @param feePayer - Public key of the fee payer (needed for size estimation)
+ * @param additionalOverhead - Additional bytes to reserve (e.g., SQUADS_PROPOSAL_OVERHEAD for multisig)
+ * @returns Array of instruction batches, each fitting within the size limit
+ */
+export function batchInstructionsBySize(
+  instructions: TransactionInstruction[],
+  feePayer: PublicKey,
+  additionalOverhead: number = 0,
+): TransactionInstruction[][] {
+  const effectiveMaxSize = MAX_TX_SIZE - additionalOverhead;
+  const batches: TransactionInstruction[][] = [];
+  let currentBatch: TransactionInstruction[] = [];
+
+  for (const instruction of instructions) {
+    // Try adding this instruction to current batch
+    const testBatch = [...currentBatch, instruction];
+    const estimatedSize = estimateTransactionSize(testBatch, feePayer);
+
+    if (estimatedSize <= effectiveMaxSize) {
+      // Fits in current batch
+      currentBatch.push(instruction);
+    } else if (currentBatch.length === 0) {
+      // Single instruction exceeds limit - add it anyway (will fail at submit time)
+      // This is a safeguard; in practice, single instructions should always fit
+      rootLogger.warn(
+        `Single instruction exceeds transaction size limit (${estimatedSize} > ${effectiveMaxSize})`,
+      );
+      batches.push([instruction]);
+    } else {
+      // Start a new batch with this instruction
+      batches.push(currentBatch);
+      currentBatch = [instruction];
+    }
+  }
+
+  // Don't forget the last batch
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+}
 
 export async function batchAndSendTransactions<T>(params: {
   /** Chain name for logging */
@@ -385,7 +502,7 @@ export function loadCoreProgramIds(
 
   try {
     return readJson(programIdsPath);
-  } catch (error) {
+  } catch {
     throw new Error(`Failed to load program IDs from ${programIdsPath}.`);
   }
 }

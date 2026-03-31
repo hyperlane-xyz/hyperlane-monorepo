@@ -25,13 +25,13 @@ env:
 
 jobs:
   fork-tests:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-
+          persist-credentials: false
       - name: Set Foundry RPC URLs for fork tests
         env:
           MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
@@ -52,4 +52,8 @@ jobs:
 
       - name: Run Fork Tests
         working-directory: ./solidity
+        run: pnpm run test:fork
+
+      - name: Run Multicollateral Fork Tests
+        working-directory: ./solidity/multicollateral
         run: pnpm run test:fork

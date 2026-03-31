@@ -1583,5 +1583,35 @@ export const validatorChainConfig = (
         'krown',
       ),
     },
+    eden: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eden'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x1c61e6379443e2842d3e9db28e962b6c717fdab1'],
+        },
+        'eden',
+      ),
+    },
+    igra: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('igra'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x485f0739639e46d3b06b1b92debe2ade56d8bfb1'],
+        },
+        'igra',
+      ),
+    },
+    tron: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('tron'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb'],
+        },
+        'tron',
+      ),
+    },
   };
 };

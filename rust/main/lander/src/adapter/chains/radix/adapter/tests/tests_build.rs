@@ -18,7 +18,7 @@ use super::super::super::precursor::RadixTxPrecursor;
 
 use super::tests_common::{adapter, payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY};
 
-const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
+const MAILBOX_METHOD_NAME_PROCESS: &str = "process";
 
 #[tokio::test]
 async fn test_build_transactions() {
@@ -42,13 +42,13 @@ async fn test_build_transactions() {
 
     let data = VmSpecificTxData::Radix(Box::new(RadixTxPrecursor::new(
         MAILBOX_ADDRESS.into(),
-        MAILBOX_METHOD_NAME_RPOCESS.into(),
+        MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments.clone(),
     )));
 
     let process_calldata = RadixTxCalldata {
         component_address: MAILBOX_ADDRESS.into(),
-        method_name: MAILBOX_METHOD_NAME_RPOCESS.into(),
+        method_name: MAILBOX_METHOD_NAME_PROCESS.into(),
         encoded_arguments,
     };
 

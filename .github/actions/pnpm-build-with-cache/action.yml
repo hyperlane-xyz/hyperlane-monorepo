@@ -1,6 +1,11 @@
 name: 'PNPM Build with Cache'
 description: 'Run pnpm build using pnpm cache'
 
+inputs:
+  build-filter:
+    description: 'Optional turbo filter to scope the build (e.g. @hyperlane-xyz/cli...)'
+    required: false
+
 runs:
   using: 'composite'
   steps:
@@ -11,6 +16,12 @@ runs:
       id: pnpm-cache
       uses: ./.github/actions/pnpm-cache
 
+    - name: Cache Hardhat compilers
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/hardhat-nodejs/compilers-v2
+        key: hardhat-compilers-${{ runner.os }}
+
     # Always run install - pnpm needs to create symlinks from the cached store
     # The cache makes this much faster by restoring the pnpm store
     - name: Install dependencies
@@ -19,4 +30,9 @@ runs:
 
     - name: Build
       shell: bash
-      run: pnpm run build
+      run: |
+        if [ -n "${{ inputs.build-filter }}" ]; then
+          pnpm exec turbo run build --filter='${{ inputs.build-filter }}'
+        else
+          pnpm run build
+        fi

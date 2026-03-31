@@ -1,51 +1,65 @@
-import { Contract, type PopulatedTransaction } from 'ethers';
+import { utils as ethersUtils } from 'ethers';
 
-import { IXERC20VS__factory } from '@hyperlane-xyz/core';
+import {
+  type TokenPriceGetter,
+  getExtraLockboxBalance,
+  getExtraLockboxInfo,
+  getManagedLockBoxCollateralInfo,
+  getSealevelAtaPayerBalance,
+  getTokenBridgedBalance,
+  getXERC20Info,
+  startMetricsServer,
+} from '@hyperlane-xyz/metrics';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
   type ChainMetadata,
   CoinGeckoTokenPriceGetter,
-  EvmHypXERC20Adapter,
-  EvmHypXERC20LockboxAdapter,
-  EvmTokenAdapter,
-  type IHypXERC20Adapter,
   MultiProtocolProvider,
-  SealevelHypTokenAdapter,
   Token,
-  TokenStandard,
   TokenType,
   WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  type Address,
   ProtocolType,
+  applyRpcUrlOverridesFromEnv,
   objMap,
   objMerge,
   sleep,
+  tryFn,
 } from '@hyperlane-xyz/utils';
 
 import {
+  ExplorerPendingTransfersClient,
+  type RouterNodeMetadata,
+} from './explorer.js';
+import {
   metricsRegister,
-  startMetricsServer,
+  resetInventoryBalanceMetrics,
+  resetPendingDestinationMetrics,
+  updateInventoryBalanceMetrics,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
+  updatePendingDestinationMetrics,
+  updateProjectedDeficitMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
-import type {
-  NativeWalletBalance,
-  WarpMonitorConfig,
-  WarpRouteBalance,
-  XERC20Limit,
-} from './types.js';
-import { getLogger, setLoggerBindings, tryFn } from './utils.js';
+import type { WarpMonitorConfig } from './types.js';
+import { getLogger, setLoggerBindings } from './utils.js';
 
-interface XERC20Info {
-  limits: XERC20Limit;
-  xERC20Address: Address;
-}
+type RouterCollateralSnapshot = {
+  nodeId: string;
+  routerCollateralBaseUnits: bigint;
+  token: Token;
+};
+
+type PendingDestinationAggregate = {
+  amountBaseUnits: bigint;
+  count: number;
+  oldestPendingSeconds: number;
+};
 
 export class WarpMonitor {
   private readonly config: WarpMonitorConfig;
@@ -58,7 +72,14 @@ export class WarpMonitor {
 
   async start(): Promise<void> {
     const logger = getLogger();
-    const { warpRouteId, checkFrequency, coingeckoApiKey } = this.config;
+    const {
+      warpRouteId,
+      checkFrequency,
+      coingeckoApiKey,
+      explorerApiUrl,
+      explorerQueryLimit,
+      inventoryAddress,
+    } = this.config;
 
     setLoggerBindings({
       warp_route: warpRouteId,
@@ -66,13 +87,20 @@ export class WarpMonitor {
 
     startMetricsServer(metricsRegister);
     logger.info(
-      { port: process.env['PROMETHEUS_PORT'] || '9090' },
+      { port: process.env['PROMETHEUS_PORT'] ?? '9090' },
       'Metrics server started',
     );
 
     // Get chain metadata and addresses from registry
     const chainMetadata = await this.registry.getMetadata();
     const chainAddresses = await this.registry.getAddresses();
+    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
+    if (overriddenChains.length > 0) {
+      logger.info(
+        { chains: overriddenChains, count: overriddenChains.length },
+        'Applied RPC overrides from environment variables',
+      );
+    }
 
     // The Sealevel warp adapters require the Mailbox address, so we
     // get mailboxes for all chains and merge them with the chain metadata.
@@ -94,6 +122,10 @@ export class WarpMonitor {
     const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
     const warpDeployConfig =
       await this.registry.getWarpDeployConfig(warpRouteId);
+    const routerNodes = this.buildRouterNodes(warpCore, chainMetadata);
+    const pendingTransfersClient = explorerApiUrl
+      ? new ExplorerPendingTransfersClient(explorerApiUrl, routerNodes, logger)
+      : undefined;
 
     logger.info(
       {
@@ -101,6 +133,9 @@ export class WarpMonitor {
         checkFrequency,
         tokenCount: warpCore.tokens.length,
         chains: warpCore.getTokenChains(),
+        crossCollateralNodeCount: routerNodes.length,
+        explorerEnabled: !!pendingTransfersClient,
+        inventoryTrackingEnabled: !!inventoryAddress,
       },
       'Starting warp route monitor',
     );
@@ -112,6 +147,10 @@ export class WarpMonitor {
       chainMetadata,
       warpRouteId,
       coingeckoApiKey,
+      routerNodes,
+      pendingTransfersClient,
+      explorerQueryLimit,
+      inventoryAddress,
     );
   }
 
@@ -122,7 +161,11 @@ export class WarpMonitor {
     warpDeployConfig: WarpRouteDeployConfig | null,
     chainMetadata: ChainMap<ChainMetadata>,
     warpRouteId: string,
-    coingeckoApiKey?: string,
+    coingeckoApiKey: string | undefined,
+    routerNodes: RouterNodeMetadata[],
+    pendingTransfersClient?: ExplorerPendingTransfersClient,
+    explorerQueryLimit = 200,
+    inventoryAddress?: string,
   ): Promise<void> {
     const logger = getLogger();
     const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
@@ -136,22 +179,210 @@ export class WarpMonitor {
       );
     }
 
-    while (true) {
-      await tryFn(async () => {
-        await Promise.all(
-          warpCore.tokens.map((token) =>
-            this.updateTokenMetrics(
-              warpCore,
-              warpDeployConfig,
-              token,
-              tokenPriceGetter,
-              warpRouteId,
+    // Wrap CoinGeckoTokenPriceGetter to match TokenPriceGetter interface
+    const priceGetter: TokenPriceGetter = {
+      tryGetTokenPrice: async (token: Token) => {
+        return this.tryGetTokenPrice(token, tokenPriceGetter);
+      },
+    };
+
+    for (;;) {
+      await tryFn(
+        async () => {
+          const collateralSnapshots = await Promise.all(
+            warpCore.tokens.map(async (token) =>
+              this.updateTokenMetrics(
+                warpCore,
+                warpDeployConfig,
+                token,
+                priceGetter,
+                warpRouteId,
+              ),
             ),
-          ),
-        );
-      }, 'Updating warp route metrics');
+          );
+
+          const collateralByNodeId = new Map<string, bigint>();
+          for (const snapshot of collateralSnapshots) {
+            if (!snapshot) continue;
+            collateralByNodeId.set(
+              snapshot.nodeId,
+              snapshot.routerCollateralBaseUnits,
+            );
+          }
+
+          await this.updatePendingAndInventoryMetrics(
+            warpCore,
+            routerNodes,
+            collateralByNodeId,
+            warpRouteId,
+            pendingTransfersClient,
+            explorerQueryLimit,
+            inventoryAddress,
+          );
+        },
+        'Updating warp route metrics',
+        logger,
+      );
       await sleep(checkFrequency);
     }
+  }
+
+  private async updatePendingAndInventoryMetrics(
+    warpCore: WarpCore,
+    routerNodes: RouterNodeMetadata[],
+    collateralByNodeId: Map<string, bigint>,
+    warpRouteId: string,
+    pendingTransfersClient?: ExplorerPendingTransfersClient,
+    explorerQueryLimit = 200,
+    inventoryAddress?: string,
+  ): Promise<void> {
+    const logger = getLogger();
+    const now = Date.now();
+
+    resetPendingDestinationMetrics();
+    resetInventoryBalanceMetrics();
+
+    const pendingByNodeId = new Map<string, PendingDestinationAggregate>();
+    if (pendingTransfersClient) {
+      try {
+        const pendingTransfers =
+          await pendingTransfersClient.getPendingDestinationTransfers(
+            explorerQueryLimit,
+          );
+
+        for (const transfer of pendingTransfers) {
+          const aggregate = pendingByNodeId.get(transfer.destinationNodeId) ?? {
+            amountBaseUnits: 0n,
+            count: 0,
+            oldestPendingSeconds: 0,
+          };
+
+          aggregate.amountBaseUnits += transfer.amountBaseUnits;
+          aggregate.count += 1;
+
+          if (transfer.sendOccurredAtMs) {
+            const ageSeconds = Math.max(
+              0,
+              Math.floor((now - transfer.sendOccurredAtMs) / 1000),
+            );
+            aggregate.oldestPendingSeconds = Math.max(
+              aggregate.oldestPendingSeconds,
+              ageSeconds,
+            );
+          }
+
+          pendingByNodeId.set(transfer.destinationNodeId, aggregate);
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(
+          {
+            error: message,
+          },
+          'Failed to query explorer pending transfers',
+        );
+      }
+    }
+
+    const deficits: Array<{ nodeId: string; projectedDeficit: string }> = [];
+    for (const node of routerNodes) {
+      const aggregate = pendingByNodeId.get(node.nodeId) ?? {
+        amountBaseUnits: 0n,
+        count: 0,
+        oldestPendingSeconds: 0,
+      };
+
+      const routerCollateral = collateralByNodeId.get(node.nodeId) ?? 0n;
+
+      updatePendingDestinationMetrics({
+        warpRouteId,
+        nodeId: node.nodeId,
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
+        pendingAmount: this.formatTokenAmount(
+          node.token,
+          aggregate.amountBaseUnits,
+        ),
+        pendingCount: aggregate.count,
+        oldestPendingSeconds: aggregate.oldestPendingSeconds,
+      });
+
+      if (!node.token.isCollateralized()) {
+        continue;
+      }
+
+      const projectedDeficitBaseUnits =
+        aggregate.amountBaseUnits > routerCollateral
+          ? aggregate.amountBaseUnits - routerCollateral
+          : 0n;
+
+      updateProjectedDeficitMetrics({
+        warpRouteId,
+        nodeId: node.nodeId,
+        chainName: node.chainName,
+        routerAddress: node.routerAddress,
+        tokenAddress: node.tokenAddress,
+        tokenSymbol: node.tokenSymbol,
+        tokenName: node.tokenName,
+        projectedDeficit: this.formatTokenAmount(
+          node.token,
+          projectedDeficitBaseUnits,
+        ),
+      });
+
+      if (projectedDeficitBaseUnits > 0n) {
+        deficits.push({
+          nodeId: node.nodeId,
+          projectedDeficit: projectedDeficitBaseUnits.toString(),
+        });
+      }
+    }
+
+    if (deficits.length > 0) {
+      logger.warn(
+        {
+          deficits,
+          deficitNodeCount: deficits.length,
+        },
+        'Detected projected destination deficits from pending transfers',
+      );
+    }
+
+    if (!inventoryAddress) return;
+
+    await Promise.all(
+      routerNodes.map(async (node) => {
+        try {
+          const adapter = node.token.getAdapter(warpCore.multiProvider);
+          const inventoryBalance = await adapter.getBalance(inventoryAddress);
+
+          updateInventoryBalanceMetrics({
+            warpRouteId,
+            nodeId: node.nodeId,
+            chainName: node.chainName,
+            routerAddress: node.routerAddress,
+            tokenAddress: node.tokenAddress,
+            tokenSymbol: node.tokenSymbol,
+            tokenName: node.tokenName,
+            inventoryAddress,
+            inventoryBalance: this.formatTokenAmount(
+              node.token,
+              inventoryBalance,
+            ),
+          });
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          logger.error(
+            { nodeId: node.nodeId, error: message },
+            `Reading inventory balance for ${node.nodeId} failed`,
+          );
+        }
+      }),
+    );
   }
 
   // Updates the metrics for a single token in a warp route.
@@ -159,22 +390,43 @@ export class WarpMonitor {
     warpCore: WarpCore,
     warpDeployConfig: WarpRouteDeployConfig | null,
     token: Token,
-    tokenPriceGetter: CoinGeckoTokenPriceGetter,
+    tokenPriceGetter: TokenPriceGetter,
     warpRouteId: string,
-  ): Promise<void> {
+  ): Promise<RouterCollateralSnapshot | null> {
     const logger = getLogger();
+    let collateralSnapshot: RouterCollateralSnapshot | null = null;
     const promises = [
-      tryFn(async () => {
-        const balanceInfo = await this.getTokenBridgedBalance(
-          warpCore,
-          token,
-          tokenPriceGetter,
-        );
-        if (!balanceInfo) {
-          return;
-        }
-        updateTokenBalanceMetrics(warpCore, token, balanceInfo, warpRouteId);
-      }, 'Getting bridged balance and value'),
+      tryFn(
+        async () => {
+          const bridgedSupply = token.isHypToken()
+            ? await token
+                .getHypAdapter(warpCore.multiProvider)
+                .getBridgedSupply()
+            : undefined;
+
+          const balanceInfo = await getTokenBridgedBalance(
+            warpCore,
+            token,
+            tokenPriceGetter,
+            logger,
+            bridgedSupply,
+          );
+          if (!balanceInfo) {
+            return;
+          }
+          updateTokenBalanceMetrics(warpCore, token, balanceInfo, warpRouteId);
+
+          if (bridgedSupply !== undefined) {
+            collateralSnapshot = {
+              nodeId: this.buildNodeId(token),
+              routerCollateralBaseUnits: bridgedSupply,
+              token,
+            };
+          }
+        },
+        'Getting bridged balance and value',
+        logger,
+      ),
     ];
 
     // For Sealevel collateral and synthetic tokens, there is an
@@ -183,33 +435,41 @@ export class WarpMonitor {
     // This is necessary if the recipient has never received any tokens before.
     if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
       promises.push(
-        tryFn(async () => {
-          const balance = await this.getSealevelAtaPayerBalance(
-            warpCore,
-            token,
-            warpRouteId,
-          );
-          updateNativeWalletBalanceMetrics(balance);
-        }, 'Getting ATA payer balance'),
+        tryFn(
+          async () => {
+            const balance = await getSealevelAtaPayerBalance(
+              warpCore,
+              token,
+              warpRouteId,
+            );
+            updateNativeWalletBalanceMetrics(balance);
+          },
+          'Getting ATA payer balance',
+          logger,
+        ),
       );
     }
 
     if (token.isXerc20()) {
       promises.push(
-        tryFn(async () => {
-          const { limits, xERC20Address } = await this.getXERC20Info(
-            warpCore,
-            token,
-          );
-          const routerAddress = token.addressOrDenom;
-          updateXERC20LimitsMetrics(
-            token,
-            limits,
-            routerAddress,
-            token.standard,
-            xERC20Address,
-          );
-        }, 'Getting xERC20 limits'),
+        tryFn(
+          async () => {
+            const { limits, xERC20Address } = await getXERC20Info(
+              warpCore,
+              token,
+            );
+            const routerAddress = token.addressOrDenom;
+            updateXERC20LimitsMetrics(
+              token,
+              limits,
+              routerAddress,
+              token.standard,
+              xERC20Address,
+            );
+          },
+          'Getting xERC20 limits',
+          logger,
+        ),
       );
 
       if (!warpDeployConfig) {
@@ -218,7 +478,7 @@ export class WarpMonitor {
           'Failed to read warp deploy config, skipping extra lockboxes',
         );
         await Promise.all(promises);
-        return;
+        return collateralSnapshot;
       }
 
       // If the current token is an xERC20, we need to check if there are any extra lockboxes
@@ -237,7 +497,7 @@ export class WarpMonitor {
           'Invalid deploy config type for xERC20 token',
         );
         await Promise.all(promises);
-        return;
+        return collateralSnapshot;
       }
 
       const extraLockboxes =
@@ -245,335 +505,112 @@ export class WarpMonitor {
 
       for (const lockbox of extraLockboxes) {
         promises.push(
-          tryFn(async () => {
-            const { limits, xERC20Address } = await this.getExtraLockboxInfo(
-              token,
-              warpCore.multiProvider,
-              lockbox.lockbox,
-            );
-
-            updateXERC20LimitsMetrics(
-              token,
-              limits,
-              lockbox.lockbox,
-              'EvmManagedLockbox',
-              xERC20Address,
-            );
-          }, 'Getting extra lockbox limits'),
-          tryFn(async () => {
-            const balance = await this.getExtraLockboxBalance(
-              token,
-              warpCore.multiProvider,
-              tokenPriceGetter,
-              lockbox.lockbox,
-            );
-
-            if (balance) {
-              const { tokenName, tokenAddress } =
-                await this.getManagedLockBoxCollateralInfo(
-                  token,
-                  warpCore.multiProvider,
-                  lockbox.lockbox,
-                );
-
-              updateManagedLockboxBalanceMetrics(
-                warpCore,
-                token.chainName,
-                tokenName,
-                tokenAddress,
+          tryFn(
+            async () => {
+              const { limits, xERC20Address } = await getExtraLockboxInfo(
+                warpCore.multiProvider,
+                token,
                 lockbox.lockbox,
-                balance,
-                warpRouteId,
               );
-            }
-          }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
+
+              updateXERC20LimitsMetrics(
+                token,
+                limits,
+                lockbox.lockbox,
+                'EvmManagedLockbox',
+                xERC20Address,
+              );
+            },
+            'Getting extra lockbox limits',
+            logger,
+          ),
+          tryFn(
+            async () => {
+              const balance = await getExtraLockboxBalance(
+                warpCore.multiProvider,
+                token,
+                tokenPriceGetter,
+                lockbox.lockbox,
+                logger,
+              );
+
+              if (balance) {
+                const { tokenName, tokenAddress } =
+                  await getManagedLockBoxCollateralInfo(
+                    warpCore.multiProvider,
+                    token,
+                    lockbox.lockbox,
+                  );
+
+                updateManagedLockboxBalanceMetrics(
+                  warpCore,
+                  token.chainName,
+                  tokenName,
+                  tokenAddress,
+                  lockbox.lockbox,
+                  balance,
+                  warpRouteId,
+                );
+              }
+            },
+            `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`,
+            logger,
+          ),
         );
       }
     }
 
     await Promise.all(promises);
+    return collateralSnapshot;
   }
 
-  // Gets the bridged balance and value of a token in a warp route.
-  private async getTokenBridgedBalance(
+  private buildRouterNodes(
     warpCore: WarpCore,
-    token: Token,
-    tokenPriceGetter: CoinGeckoTokenPriceGetter,
-  ): Promise<WarpRouteBalance | undefined> {
-    const logger = getLogger();
-    if (!token.isHypToken()) {
-      logger.warn(
-        { token: token.symbol, chain: token.chainName },
-        'No support for bridged balance on non-Hyperlane token',
-      );
-      return undefined;
+    chainMetadata: ChainMap<ChainMetadata>,
+  ): RouterNodeMetadata[] {
+    const nodeByKey = new Map<string, RouterNodeMetadata>();
+
+    for (const token of warpCore.tokens) {
+      if (
+        !Object.prototype.hasOwnProperty.call(chainMetadata, token.chainName)
+      ) {
+        continue;
+      }
+      const metadata = chainMetadata[token.chainName];
+      if (!ethersUtils.isAddress(token.addressOrDenom)) continue;
+
+      const domainId = metadata.domainId;
+      const routerAddress = ethersUtils
+        .getAddress(token.addressOrDenom)
+        .toLowerCase();
+      const key = `${domainId}:${routerAddress}`;
+      if (nodeByKey.has(key)) continue;
+
+      nodeByKey.set(key, {
+        nodeId: this.buildNodeId(token),
+        chainName: token.chainName,
+        domainId,
+        routerAddress,
+        tokenAddress: (
+          token.collateralAddressOrDenom ?? token.addressOrDenom
+        ).toLowerCase(),
+        tokenName: token.name,
+        tokenSymbol: token.symbol,
+        tokenDecimals: token.decimals,
+        tokenScale: token.scale ?? 1,
+        token,
+      });
     }
 
-    const adapter = token.getHypAdapter(warpCore.multiProvider);
-    let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
-    const bridgedSupply = await adapter.getBridgedSupply();
-    if (bridgedSupply === undefined) {
-      logger.warn(
-        { token: token.symbol, chain: token.chainName },
-        'Failed to get bridged supply',
-      );
-      return undefined;
-    }
-    const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
-
-    let tokenPrice;
-    // Only record value for collateralized and xERC20 lockbox tokens.
-    if (
-      token.isCollateralized() ||
-      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
-      tokenPrice = await this.tryGetTokenPrice(token, tokenPriceGetter);
-    }
-
-    if (
-      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
-      tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
-        .address;
-    }
-
-    return {
-      balance,
-      valueUSD: tokenPrice ? balance * tokenPrice : undefined,
-      tokenAddress,
-    };
+    return [...nodeByKey.values()];
   }
 
-  private async getManagedLockBoxCollateralInfo(
-    warpToken: Token,
-    multiProtocolProvider: MultiProtocolProvider,
-    lockBoxAddress: Address,
-  ): Promise<{ tokenName: string; tokenAddress: Address }> {
-    const lockBoxInstance = await this.getManagedLockBox(
-      warpToken,
-      multiProtocolProvider,
-      lockBoxAddress,
-    );
-
-    const collateralTokenAddress = await lockBoxInstance.ERC20();
-    const collateralTokenAdapter = new EvmTokenAdapter(
-      warpToken.chainName,
-      multiProtocolProvider,
-      {
-        token: collateralTokenAddress,
-      },
-    );
-
-    const { name } = await collateralTokenAdapter.getMetadata();
-
-    return {
-      tokenName: name,
-      tokenAddress: collateralTokenAddress,
-    };
+  private buildNodeId(token: Token): string {
+    return `${token.symbol}|${token.chainName}|${token.addressOrDenom.toLowerCase()}`;
   }
 
-  private formatBigInt(warpToken: Token, num: bigint): number {
-    return warpToken.amount(num).getDecimalFormattedAmount();
-  }
-
-  // Gets the native balance of the ATA payer, which is used to pay for
-  // rent when delivering tokens to an account that previously didn't
-  // have a balance.
-  // Only intended for Collateral or Synthetic Sealevel tokens.
-  private async getSealevelAtaPayerBalance(
-    warpCore: WarpCore,
-    token: Token,
-    warpRouteId: string,
-  ): Promise<NativeWalletBalance> {
-    if (token.protocol !== ProtocolType.Sealevel || token.isNative()) {
-      throw new Error(
-        `Unsupported ATA payer protocol type ${token.protocol} or standard ${token.standard}`,
-      );
-    }
-    const adapter = token.getHypAdapter(
-      warpCore.multiProvider,
-    ) as SealevelHypTokenAdapter;
-
-    const ataPayer = adapter.deriveAtaPayerAccount().toString();
-    const nativeToken = Token.FromChainMetadataNativeToken(
-      warpCore.multiProvider.getChainMetadata(token.chainName),
-    );
-    const ataPayerBalance = await nativeToken.getBalance(
-      warpCore.multiProvider,
-      ataPayer,
-    );
-    return {
-      chain: token.chainName,
-      walletAddress: ataPayer.toString(),
-      walletName: `${warpRouteId}/ata-payer`,
-      balance: ataPayerBalance.getDecimalFormattedAmount(),
-    };
-  }
-
-  private async getXERC20Info(
-    warpCore: WarpCore,
-    token: Token,
-  ): Promise<XERC20Info> {
-    if (token.protocol !== ProtocolType.Ethereum) {
-      throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
-    }
-
-    if (
-      token.standard === TokenStandard.EvmHypXERC20 ||
-      token.standard === TokenStandard.EvmHypVSXERC20
-    ) {
-      const adapter = token.getAdapter(
-        warpCore.multiProvider,
-      ) as EvmHypXERC20Adapter;
-      return {
-        limits: await this.getXERC20Limit(token, adapter),
-        xERC20Address: (await adapter.getXERC20()).address,
-      };
-    } else if (
-      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
-      const adapter = token.getAdapter(
-        warpCore.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
-      return {
-        limits: await this.getXERC20Limit(token, adapter),
-        xERC20Address: (await adapter.getXERC20()).address,
-      };
-    }
-    throw new Error(`Unsupported XERC20 token standard ${token.standard}`);
-  }
-
-  private async getXERC20Limit(
-    token: Token,
-    xerc20: IHypXERC20Adapter<PopulatedTransaction>,
-  ): Promise<XERC20Limit> {
-    const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
-      xerc20.getMintLimit(),
-      xerc20.getMintMaxLimit(),
-      xerc20.getBurnLimit(),
-      xerc20.getBurnMaxLimit(),
-    ]);
-
-    return {
-      mint: this.formatBigInt(token, mintCurrent),
-      mintMax: this.formatBigInt(token, mintMax),
-      burn: this.formatBigInt(token, burnCurrent),
-      burnMax: this.formatBigInt(token, burnMax),
-    };
-  }
-
-  private readonly managedLockBoxMinimalABI = [
-    'function XERC20() view returns (address)',
-    'function ERC20() view returns (address)',
-  ] as const;
-
-  private async getExtraLockboxInfo(
-    warpToken: Token,
-    multiProtocolProvider: MultiProtocolProvider,
-    lockboxAddress: Address,
-  ): Promise<XERC20Info> {
-    const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
-      warpToken.chainName,
-    );
-    const lockboxInstance = await this.getManagedLockBox(
-      warpToken,
-      multiProtocolProvider,
-      lockboxAddress,
-    );
-
-    const xERC20Address = await lockboxInstance.XERC20();
-    const vsXERC20Address = IXERC20VS__factory.connect(
-      xERC20Address,
-      currentChainProvider,
-    ); // todo use adapter
-
-    const [mintMax, burnMax, mint, burn] = await Promise.all([
-      vsXERC20Address.mintingMaxLimitOf(lockboxAddress),
-      vsXERC20Address.burningMaxLimitOf(lockboxAddress),
-      vsXERC20Address.mintingCurrentLimitOf(lockboxAddress),
-      vsXERC20Address.burningCurrentLimitOf(lockboxAddress),
-    ]);
-
-    return {
-      limits: {
-        burn: this.formatBigInt(warpToken, burn.toBigInt()),
-        burnMax: this.formatBigInt(warpToken, burnMax.toBigInt()),
-        mint: this.formatBigInt(warpToken, mint.toBigInt()),
-        mintMax: this.formatBigInt(warpToken, mintMax.toBigInt()),
-      },
-      xERC20Address,
-    };
-  }
-
-  private async getManagedLockBox(
-    warpToken: Token,
-    multiProtocolProvider: MultiProtocolProvider,
-    lockboxAddress: Address,
-  ): Promise<Contract> {
-    const chainName = warpToken.chainName;
-    const provider = multiProtocolProvider.getEthersV5Provider(chainName);
-    return new Contract(
-      lockboxAddress,
-      this.managedLockBoxMinimalABI,
-      provider,
-    );
-  }
-
-  private async getExtraLockboxBalance(
-    warpToken: Token,
-    multiProtocolProvider: MultiProtocolProvider,
-    tokenPriceGetter: CoinGeckoTokenPriceGetter,
-    lockboxAddress: Address,
-  ): Promise<WarpRouteBalance | undefined> {
-    const logger = getLogger();
-    if (!warpToken.isXerc20()) {
-      return undefined;
-    }
-
-    const lockboxInstance = await this.getManagedLockBox(
-      warpToken,
-      multiProtocolProvider,
-      lockboxAddress,
-    );
-
-    const erc20TokenAddress = await lockboxInstance.ERC20();
-    const erc20tokenAdapter = new EvmTokenAdapter(
-      warpToken.chainName,
-      multiProtocolProvider,
-      {
-        token: erc20TokenAddress,
-      },
-    );
-
-    let balance;
-    try {
-      balance = await erc20tokenAdapter.getBalance(lockboxAddress);
-    } catch (err) {
-      logger.error(
-        {
-          err,
-          chain: warpToken.chainName,
-          token: warpToken.symbol,
-          lockboxAddress,
-          erc20TokenAddress,
-        },
-        'Failed to get balance for contract at lockbox address',
-      );
-      return undefined;
-    }
-
-    const tokenPrice = await this.tryGetTokenPrice(warpToken, tokenPriceGetter);
-
-    const balanceNumber = this.formatBigInt(warpToken, balance);
-
-    return {
-      balance: balanceNumber,
-      valueUSD: tokenPrice ? balanceNumber * tokenPrice : undefined,
-      tokenAddress: erc20TokenAddress,
-    };
+  private formatTokenAmount(token: Token, amount: bigint): number {
+    return token.amount(amount).getDecimalFormattedAmount();
   }
 
   // Tries to get the price of a token from CoinGecko. Returns undefined if there's no

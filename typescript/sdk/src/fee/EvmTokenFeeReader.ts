@@ -2,11 +2,10 @@ import { constants } from 'ethers';
 
 import {
   BaseFee__factory,
-  ERC20__factory,
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -18,9 +17,14 @@ import {
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeType,
-  onChainTypeToTokenFeeTypeMap,
 } from './types.js';
-import { MAX_BPS, convertToBps } from './utils.js';
+import {
+  ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
+  BPS_PRECISION,
+  MAX_BPS,
+  assertBpsPrecision,
+  convertToBps,
+} from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
@@ -30,7 +34,7 @@ export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
 
 export type TokenFeeReaderParams = {
   address: Address;
-  routingDestinations?: number[]; // Required for RoutingFee.feeContracts() interface
+  routingDestinations?: number[]; // Optional: when provided, derives feeContracts
 };
 
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -60,10 +64,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         derivedConfig = await this.deriveRegressiveFeeConfig(address);
         break;
       case OnchainTokenFeeType.RoutingFee:
-        assert(
-          routingDestinations,
-          `routingDestinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
-        );
         derivedConfig = await this.deriveRoutingFeeConfig({
           address,
           routingDestinations,
@@ -135,7 +135,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         routingDestinations.map(async (destination) => {
           const subFeeAddress = await routingFee.feeContracts(destination);
           if (subFeeAddress === constants.AddressZero) return;
-          const chainName = this.multiProvider.getChainName(destination);
+          const chainName = this.multiProvider.tryGetChainName(destination);
+          if (!chainName) return;
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
 
@@ -156,16 +157,18 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     };
   }
 
-  async convertFromBps(
-    bps: bigint,
-    tokenAddress: Address,
-  ): Promise<FeeParameters> {
-    // Assume maxFee is uint256.max / token.totalSupply
-    const token = ERC20__factory.connect(tokenAddress, this.provider);
-    const totalSupplyBn = await token.totalSupply();
-    const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
+  convertFromBps(bps: number): FeeParameters {
+    if (!Number.isFinite(bps) || bps <= 0) {
+      throw new Error('bps must be > 0 to prevent division by zero');
+    }
+    assertBpsPrecision(bps);
 
-    const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
+    const maxFee =
+      BigInt(constants.MaxUint256.toString()) /
+      ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
+    const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
+    const halfAmount = ((maxFee / 2n) * MAX_BPS * BPS_PRECISION) / scaledBps;
+
     return {
       maxFee,
       halfAmount,

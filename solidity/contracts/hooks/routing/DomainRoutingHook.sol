@@ -18,6 +18,8 @@ import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {Message} from "../../libs/Message.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
+import {IRoutingHook} from "../../interfaces/hooks/IRoutingHook.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -26,7 +28,12 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @title DomainRoutingHook
  * @notice Delegates to a hook based on the destination domain of the message.
  */
-contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
+contract DomainRoutingHook is
+    IRoutingHook,
+    AbstractPostDispatchHook,
+    MailboxClient,
+    EnumerableDomainSet
+{
     using Strings for uint32;
     using Message for bytes;
 
@@ -50,6 +57,11 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
 
     function setHook(uint32 _destination, address _hook) public onlyOwner {
         hooks[_destination] = IPostDispatchHook(_hook);
+        if (_hook == address(0)) {
+            _removeDomain(_destination);
+        } else {
+            _addDomain(_destination);
+        }
     }
 
     function setHooks(HookConfig[] calldata configs) external onlyOwner {

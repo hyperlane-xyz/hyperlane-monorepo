@@ -11,7 +11,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
@@ -19,7 +19,7 @@ import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
-import { verifyScale } from '../utils/decimals.js';
+import { DEFAULT_SCALE, verifyScale } from '../utils/decimals.js';
 
 import { HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -39,6 +39,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20App,
   HypTokenRouterConfig
 > {
+  private readonly allActualDecimals = new LazyAsync(() =>
+    this.loadAllActualDecimals(),
+  );
+
   async checkChain(chain: ChainName): Promise<void> {
     let expectedChains: string[];
     expectedChains = Object.keys(this.configMap);
@@ -146,11 +150,14 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // Check if configured token type matches actual token type
     if (isNativeTokenConfig(expectedConfig)) {
       try {
-        await this.multiProvider.estimateGas(chain, {
-          to: hypToken.address,
-          from: NON_ZERO_SENDER_ADDRESS,
-          value: BigNumber.from(1),
-        });
+        await this.multiProvider.estimateGas(
+          chain,
+          {
+            to: hypToken.address,
+            value: BigNumber.from(1),
+          },
+          NON_ZERO_SENDER_ADDRESS,
+        );
       } catch {
         const violation: TokenMismatchViolation = {
           type: 'deployed token not payable',
@@ -207,23 +214,18 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     );
   }
 
-  private cachedAllActualDecimals: Record<ChainName, number> | undefined =
-    undefined;
-
   async getEvmActualDecimals(): Promise<Record<ChainName, number>> {
-    if (this.cachedAllActualDecimals) {
-      return this.cachedAllActualDecimals;
-    }
+    return this.allActualDecimals.get();
+  }
+
+  private async loadAllActualDecimals(): Promise<Record<ChainName, number>> {
     const entries = await Promise.all(
       this.getEvmChains().map(async (chain) => {
         const token = this.app.router(this.app.getContracts(chain));
         return [chain, await this.getActualDecimals(chain, token)];
       }),
     );
-
-    this.cachedAllActualDecimals = Object.fromEntries(entries);
-
-    return this.cachedAllActualDecimals!;
+    return Object.fromEntries(entries);
   }
 
   async getActualDecimals(
@@ -343,8 +345,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       return;
     }
 
-    // If unscaled decimals agree, no need to check scale
-    if (uniqueChainDecimals.size <= 1) return;
+    // Even when raw decimals are uniform, scales can still differ
+    // (e.g. {dec:18, scale:1000} vs {dec:18, scale:1}), so always
+    // run verifyScale to catch the mismatch.
+    if (uniqueChainDecimals.size === 0) return;
 
     // Build a TokenMetadata map from all chains; at this point decimals are defined on all chains
     const metadataMap = new Map<string, TokenMetadata>(
@@ -354,7 +358,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           name: this.configMap[chn]?.name ?? 'unknown',
           symbol: this.configMap[chn]?.symbol ?? 'unknown',
           decimals: decimals as number,
-          scale: this.configMap[chn]?.scale ?? 1,
+          scale: this.configMap[chn]?.scale ?? DEFAULT_SCALE,
         },
       ]),
     );

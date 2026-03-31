@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import {
   HookType,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
@@ -57,7 +57,6 @@ describe('hyperlane warp apply E2E (hook updates)', async function () {
     writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
 
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );

@@ -1,5 +1,7 @@
 import React from 'react';
 
+import { Tooltip as ReactTooltip } from 'react-tooltip';
+
 import { ColorPalette } from '../color.js';
 import { AirplaneIcon } from '../icons/Airplane.js';
 import { EnvelopeIcon } from '../icons/Envelope.js';
@@ -9,12 +11,30 @@ import { WideChevronIcon } from '../icons/WideChevron.js';
 
 import { MessageStatus, MessageStage as Stage, StageTimings } from './types.js';
 
+const STAGE_TOOLTIPS: Record<Stage, string> = {
+  [Stage.Preparing]: 'Preparing transaction',
+  [Stage.Sent]: 'Waiting for origin transaction',
+  [Stage.Finalized]: 'Origin transaction has sufficient confirmations',
+  [Stage.Validated]: 'Validators have signed the message bundle',
+  [Stage.Relayed]: 'Destination transaction has been confirmed',
+};
+
 interface Props {
   status: MessageStatus;
   stage: Stage;
   timings: StageTimings;
   timestampSent?: number;
   hideDescriptions?: boolean;
+  /** 'above' (default): icons float above the bar. 'inline': icons render inside the bar. */
+  iconPosition?: 'above' | 'inline';
+  /** Additional CSS class applied to each bar segment (useful for overriding the bar color). */
+  barClassName?: string;
+  /** Override the color of the chevron arrows between stages. */
+  chevronColor?: string;
+  /** Override the color of the stage icons. Defaults to white. */
+  iconColor?: string;
+  /** Show tooltips on hover over each stage bar. */
+  showTooltips?: boolean;
 }
 
 export function MessageTimeline({
@@ -23,9 +43,15 @@ export function MessageTimeline({
   timings,
   timestampSent,
   hideDescriptions,
+  iconPosition = 'above',
+  barClassName,
+  chevronColor,
+  iconColor = ColorPalette.White,
+  showTooltips,
 }: Props) {
   // Ignore stage value if status shows as delivered
   const stage = status === MessageStatus.Delivered ? Stage.Relayed : _stage;
+  const isInline = iconPosition === 'inline';
 
   const timeSent = timestampSent ? new Date(timestampSent) : null;
   const timeSentStr = timeSent
@@ -33,21 +59,39 @@ export function MessageTimeline({
     : null;
 
   return (
-    <div className="htw-pt-14 htw-pb-1 htw-flex htw-w-full">
+    <div
+      className={
+        isInline
+          ? 'htw-pb-1 htw-flex htw-w-full'
+          : 'htw-pt-14 htw-pb-1 htw-flex htw-w-full'
+      }
+    >
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} htw-rounded-l ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} htw-rounded-l ${getStageOpacityClass(
             Stage.Sent,
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Sent],
+              }
+            : {})}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={AirplaneIcon} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronBlue />
+          {isInline ? (
+            <InlineIcon Icon={AirplaneIcon} color={iconColor} />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={AirplaneIcon} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Sent, stage, timings, status)}
@@ -60,22 +104,36 @@ export function MessageTimeline({
           </p>
         )}
       </div>
-      <div className={styles.stageSpacer}></div>
+      <div
+        className={isInline ? styles.stageSpacerInline : styles.stageSpacer}
+      ></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} ${getStageOpacityClass(
             Stage.Finalized,
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Finalized],
+              }
+            : {})}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={LockIcon} size={14} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronWhite />
-          <ChevronBlue />
+          {isInline ? (
+            <InlineIcon Icon={LockIcon} size={14} color={iconColor} isMiddle />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={LockIcon} size={14} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="left" color={ColorPalette.White} />
+          <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Finalized, stage, timings, status)}
@@ -86,22 +144,36 @@ export function MessageTimeline({
           </p>
         )}
       </div>
-      <div className={styles.stageSpacer}></div>
+      <div
+        className={isInline ? styles.stageSpacerInline : styles.stageSpacer}
+      ></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} ${getStageOpacityClass(
             Stage.Validated,
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Validated],
+              }
+            : {})}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={ShieldIcon} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronWhite />
-          <ChevronBlue />
+          {isInline ? (
+            <InlineIcon Icon={ShieldIcon} color={iconColor} isMiddle />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={ShieldIcon} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="left" color={ColorPalette.White} />
+          <Chevron side="right" color={chevronColor} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Validated, stage, timings, status)}
@@ -112,21 +184,35 @@ export function MessageTimeline({
           </p>
         )}
       </div>
-      <div className={styles.stageSpacer}></div>
+      <div
+        className={isInline ? styles.stageSpacerInline : styles.stageSpacer}
+      ></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} htw-rounded-r ${getStageOpacityClass(
+          className={`${styles.stageBar} ${barClassName ?? ''} htw-rounded-r ${getStageOpacityClass(
             Stage.Relayed,
             stage,
             status,
           )}`}
+          {...(showTooltips
+            ? {
+                'data-tooltip-id': 'timeline-tooltip',
+                'data-tooltip-content': STAGE_TOOLTIPS[Stage.Relayed],
+              }
+            : {})}
         >
-          <div className={styles.stageHole}></div>
-          <div className={styles.stageIconContainer}>
-            <StageIcon Icon={EnvelopeIcon} />
-            <div className={styles.stageIconCircle}></div>
-          </div>
-          <ChevronWhite />
+          {isInline ? (
+            <InlineIcon Icon={EnvelopeIcon} color={iconColor} />
+          ) : (
+            <>
+              <div className={styles.stageHole}></div>
+              <div className={styles.stageIconContainer}>
+                <StageIcon Icon={EnvelopeIcon} />
+                <div className={styles.stageIconCircle}></div>
+              </div>
+            </>
+          )}
+          <Chevron side="left" color={ColorPalette.White} />
         </div>
         <h4 className={styles.stageHeader}>
           {getStageHeader(Stage.Relayed, stage, timings, status)}
@@ -137,11 +223,21 @@ export function MessageTimeline({
           </p>
         )}
       </div>
+      {showTooltips && (
+        <ReactTooltip id="timeline-tooltip" positionStrategy="fixed" />
+      )}
     </div>
   );
 }
 
-function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
+type IconComponent = React.ComponentType<{
+  width?: number;
+  height?: number;
+  color?: string;
+  alt?: string;
+}>;
+
+function StageIcon({ Icon, size }: { Icon: IconComponent; size?: number }) {
   return (
     <div className="htw-h-9 htw-w-9 htw-flex htw-items-center htw-justify-center htw-rounded-full htw-bg-blue-500">
       <Icon
@@ -154,23 +250,42 @@ function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
   );
 }
 
-function ChevronWhite() {
+function InlineIcon({
+  Icon,
+  size,
+  color = ColorPalette.White,
+  isMiddle,
+}: {
+  Icon: IconComponent;
+  size?: number;
+  color?: string;
+  isMiddle?: boolean;
+}) {
   return (
-    <div className="htw-absolute htw--left-3 htw-top-0 htw-h-6">
-      <WideChevronIcon
-        direction="e"
-        height="100%"
-        width="auto"
-        color="#ffffff"
-      />
+    <div
+      className={`htw-flex htw-items-center htw-justify-center htw-z-10${isMiddle ? ' htw-pl-2' : ''}`}
+    >
+      <Icon width={size ?? 14} height={size ?? 14} color={color} />
     </div>
   );
 }
 
-function ChevronBlue() {
+function Chevron({
+  side,
+  color = ColorPalette.Blue,
+}: {
+  side: 'left' | 'right';
+  color?: string;
+}) {
+  const posClass = side === 'left' ? 'htw--left-3' : 'htw--right-3';
   return (
-    <div className="htw-absolute htw--right-3 htw-top-0 htw-h-6">
-      <WideChevronIcon direction="e" height="100%" width="auto" />
+    <div className={`htw-absolute ${posClass} htw-top-0 htw-h-6`}>
+      <WideChevronIcon
+        direction="e"
+        height="100%"
+        color={color}
+        style={{ display: 'block', width: 'auto' }}
+      />
     </div>
   );
 }
@@ -217,6 +332,7 @@ function getStageOpacityClass(
 const styles = {
   stageContainer: 'htw-flex-1 htw-flex htw-flex-col htw-items-center',
   stageSpacer: 'htw-flex-0 htw-w-1 xs:htw-w-2 sm:htw-w-3',
+  stageSpacerInline: 'htw-flex-0 htw-w-3',
   stageBar:
     'htw-w-full htw-h-6 htw-flex htw-items-center htw-justify-center htw-bg-blue-500 htw-relative',
   stageHole: 'htw-w-3 htw-h-3 htw-rounded-full htw-bg-white',

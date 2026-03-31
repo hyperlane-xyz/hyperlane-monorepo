@@ -2,7 +2,7 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import {
   getHookType,
@@ -54,7 +54,17 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
-const NETWORKS = {
+type RadixProviderMetadata = {
+  chainId?: string | number;
+  gatewayUrls?: { http: string }[];
+  packageAddress?: string;
+};
+
+type RadixConnectionParams = {
+  metadata?: RadixProviderMetadata;
+};
+
+export const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
@@ -89,17 +99,23 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
-    extraParams?: Record<string, any>,
+    extraParams?: RadixConnectionParams,
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
+    const metadata = extraParams?.metadata;
+    if (metadata?.chainId != null) {
+      const metadataChainId = parseInt(metadata.chainId.toString());
+      assert(
+        metadataChainId === networkId,
+        `mismatched chainId: arg ${chainId} vs metadata ${metadata.chainId}`,
+      );
+    }
 
     return new RadixProvider({
       rpcUrls,
       networkId,
-      gatewayUrls: (
-        extraParams?.metadata?.gatewayUrls as { http: string }[]
-      )?.map(({ http }) => http),
-      packageAddress: extraParams?.metadata?.packageAddress,
+      gatewayUrls: metadata?.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata?.packageAddress,
     });
   }
 
@@ -193,7 +209,13 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    return getMailboxConfig(this.gateway, req.mailboxAddress);
+    const config = await getMailboxConfig(this.gateway, req.mailboxAddress);
+    return {
+      ...config,
+      defaultIsm: config.defaultIsm ?? ZERO_ADDRESS_HEX_32,
+      defaultHook: config.defaultHook ?? ZERO_ADDRESS_HEX_32,
+      requiredHook: config.requiredHook ?? ZERO_ADDRESS_HEX_32,
+    };
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
@@ -578,6 +600,18 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
         req.mailboxAddress,
       ),
     };
+  }
+
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error('ProxyAdmin is not supported on Radix');
   }
 
   // ### GET WARP TXS ###

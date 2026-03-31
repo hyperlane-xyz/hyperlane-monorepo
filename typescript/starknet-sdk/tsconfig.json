@@ -1,0 +1,9 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/base.tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "rootDir": "./src",
+    "types": ["node", "mocha"]
+  },
+  "include": ["./src/**/*.ts"]
+}

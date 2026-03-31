@@ -1,15 +1,39 @@
+import { AleoNetworkClient as AleoMainnetNetworkClient } from '@provablehq/sdk/mainnet.js';
+import { AleoNetworkClient as AleoTestnetNetworkClient } from '@provablehq/sdk/testnet.js';
+
 import {
-  AltVM,
-  ChainMetadataForAltVM,
-  ITransactionSubmitter,
-  MinimumRequiredGasByAction,
-  ProtocolProvider,
-  SignerConfig,
-  TransactionSubmitterConfig,
+  type AltVM,
+  type ChainMetadataForAltVM,
+  type ITransactionSubmitter,
+  type MinimumRequiredGasByAction,
+  type ProtocolProvider,
+  type SignerConfig,
+  type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
-import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
+import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
+import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
+
+import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
+import {
+  fromAleoAddress,
+  getNetworkPrefix,
+  getProgramIdFromSuffix,
+  getProgramSuffix,
+} from '../utils/helper.js';
+import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
+import { AleoValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
+import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { AleoProvider } from './provider.js';
 import { AleoSigner } from './signer.js';
@@ -27,9 +51,12 @@ export class AleoProtocolProvider implements ProtocolProvider {
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    const { privateKey, ...extraParams } = config;
 
-    return AleoSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
+    const { privateKey } = config;
+
+    return AleoSigner.connectWithSigner(rpcUrls, privateKey, {
+      metadata: chainMetadata,
+    });
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -40,12 +67,136 @@ export class AleoProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
+  createIsmArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager {
+    const chainId = parseInt(chainMetadata.chainId.toString());
+    assert(
+      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, `got no rpcUrls`);
+
+    const aleoClient =
+      chainId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoIsmArtifactManager(aleoClient);
+  }
+
+  createHookArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawHookArtifactManager {
+    const chainId = parseInt(chainMetadata.chainId.toString());
+    assert(
+      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      chainId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoHookArtifactManager(aleoClient, context?.mailbox);
+  }
+
+  createWarpArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawWarpArtifactManager {
+    const chainId = parseInt(chainMetadata.chainId.toString());
+    assert(
+      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      chainId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    const prefix = getNetworkPrefix(chainId);
+    const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
+    const ismManagerAddress = customIsmSuffix
+      ? `${prefix}_ism_manager_${customIsmSuffix}.aleo`
+      : `${prefix}_ism_manager.aleo`;
+
+    // Prefer deriving hook manager from mailbox suffix if mailbox is provided.
+    // Fall back to unsuffixed hook manager when context is unavailable.
+    const hookManagerAddress = context?.mailbox
+      ? getProgramIdFromSuffix(
+          prefix,
+          'hook_manager',
+          getProgramSuffix(fromAleoAddress(context.mailbox).programId),
+        )
+      : `${prefix}_hook_manager.aleo`;
+
+    return new AleoWarpArtifactManager(aleoClient, {
+      ismManagerAddress,
+      hookManagerAddress,
+    });
+  }
+
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager {
+    const aleoNetworkId = toAleoNetworkId(
+      parseInt(chainMetadata.chainId.toString()),
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      aleoNetworkId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoMailboxArtifactManager(
+      { domainId: chainMetadata.domainId, aleoNetworkId },
+      aleoClient,
+    );
+  }
+
+  createValidatorAnnounceArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager | null {
+    const aleoNetworkId = toAleoNetworkId(
+      parseInt(chainMetadata.chainId.toString()),
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      aleoNetworkId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoValidatorAnnounceArtifactManager(
+      { domainId: chainMetadata.domainId, aleoNetworkId },
+      aleoClient,
+    );
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: 0n,
       WARP_DEPLOY_GAS: 0n,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
+      ISM_DEPLOY_GAS: 0n,
     };
   }
 }

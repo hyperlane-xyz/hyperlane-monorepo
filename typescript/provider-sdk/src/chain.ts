@@ -1,5 +1,7 @@
 import { ChainId, Domain } from '@hyperlane-xyz/utils';
 
+import { ProtocolType } from './protocol.js';
+
 type ChainNameOrId = string | number;
 
 /**
@@ -10,6 +12,7 @@ type ChainNameOrId = string | number;
 export interface ChainMetadataForAltVM {
   name: string;
   bech32Prefix?: string;
+  protocol: ProtocolType;
   domainId: Domain;
   chainId: ChainId;
   nativeToken?: {
@@ -41,6 +44,10 @@ export interface TestChainMetadata extends ChainMetadataForAltVM {
   rpcUrl: string;
   restPort: number;
   gnosisSafeTransactionServiceUrl?: string;
+  gasPrice?: {
+    amount: string;
+    denom: string;
+  };
 }
 
 /**

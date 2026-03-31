@@ -24,6 +24,11 @@ import {Message} from "../../libs/Message.sol";
 /**
  * @title AbstractPostDispatch
  * @notice Abstract post dispatch hook supporting the current global hook metadata variant.
+ * @dev Hooks that charge fees denominated in native tokens should override
+ * `supportsMetadata` to reject metadata containing a non-zero fee token address.
+ * This prevents denomination mixing when `Mailbox.quoteDispatch` sums quotes from
+ * multiple hooks (e.g. `requiredHook` + `hook`), since the return type is a single
+ * `uint256` with no token denomination indicator.
  */
 abstract contract AbstractPostDispatchHook is
     IPostDispatchHook,
@@ -36,9 +41,13 @@ abstract contract AbstractPostDispatchHook is
     // ============ External functions ============
 
     /// @inheritdoc IPostDispatchHook
+    /// @dev By default, accepts any valid variant-1 metadata including metadata
+    /// with a non-zero fee token. Hooks that charge non-zero native-token fees
+    /// should override this to return false when `metadata.feeToken() != address(0)`,
+    /// ensuring callers cannot mix native and ERC20 fee denominations.
     function supportsMetadata(
         bytes calldata metadata
-    ) public pure virtual returns (bool) {
+    ) public view virtual returns (bool) {
         return
             metadata.length == 0 ||
             metadata.variant() == StandardHookMetadata.VARIANT;

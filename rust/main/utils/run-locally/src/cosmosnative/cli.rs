@@ -6,6 +6,9 @@ use crate::{
     utils::{AgentHandles, TaskHandle},
 };
 
+const TX_MAX_RETRIES: u32 = 5;
+const TX_RETRY_DELAY: Duration = Duration::from_secs(3);
+
 use super::{
     constants::{CHAIN_ID, DENOM, KEY_CHAIN_VALIDATOR},
     types::Contracts,
@@ -78,6 +81,16 @@ impl SimApp {
 
     pub fn init(&self) {
         self.cli().cmd("init-sample-chain").run().join();
+
+        // Speed up block times for faster E2E tests
+        let config_path = format!("{}/config/config.toml", self.home);
+        let contents =
+            std::fs::read_to_string(&config_path).expect("Failed to read config.toml after init");
+        let mut doc = contents
+            .parse::<toml_edit::Document>()
+            .expect("Failed to parse config.toml");
+        doc["consensus"]["timeout_commit"] = toml_edit::value("1s");
+        std::fs::write(&config_path, doc.to_string()).expect("Failed to write config.toml");
     }
 
     pub fn start(&mut self) -> AgentHandles {
@@ -94,16 +107,67 @@ impl SimApp {
             .arg("rpc.pprof_laddr", &self.pprof_addr) // default is localhost:6060
             .arg("log_level", "panic")
             .spawn("SIMAPP", None);
-        sleep(Duration::from_secs(5));
+        self.wait_for_node();
         node
     }
 
-    fn tx<'a>(&self, args: impl IntoIterator<Item = &'a str>) {
+    /// Poll the CometBFT RPC /status endpoint until the node is producing blocks.
+    fn wait_for_node(&self) {
+        use ureq::get;
+        const MAX_ATTEMPTS: u32 = 30;
+        let url = format!("{}/status", self.rpc_addr.replace("tcp", "http"));
+        for attempt in 1..=MAX_ATTEMPTS {
+            if let Ok(resp) = get(&url).call() {
+                if resp.status() == 200 {
+                    if let Ok(body) = resp.into_string() {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+                            if let Some(height) =
+                                json["result"]["sync_info"]["latest_block_height"].as_str()
+                            {
+                                if height.parse::<u64>().unwrap_or(0) > 0 {
+                                    log!("SimApp node ready after {} attempts", attempt);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            sleep(Duration::from_secs(1));
+        }
+        panic!("SimApp node not ready after {MAX_ATTEMPTS} attempts");
+    }
+
+    /// Run a transaction program with retries, panicking if all attempts fail.
+    fn run_tx_with_retry(program: &Program) {
+        for attempt in 1..=TX_MAX_RETRIES {
+            let success = program.clone().run_to_success().join();
+            if success {
+                sleep(Duration::from_secs(2)); // wait for the block to be mined
+                return;
+            }
+            if attempt < TX_MAX_RETRIES {
+                log!(
+                    "Transaction failed (attempt {}/{}), retrying in {}s...",
+                    attempt,
+                    TX_MAX_RETRIES,
+                    TX_RETRY_DELAY.as_secs()
+                );
+                sleep(TX_RETRY_DELAY);
+            }
+        }
+        panic!(
+            "Transaction failed after {} attempts: {:?}",
+            TX_MAX_RETRIES, program
+        );
+    }
+
+    fn tx<'a>(&self, args: Vec<&'a str>) {
         let mut program = Program::new(self.bin.clone()).cmd("tx");
         for arg in args {
             program = program.cmd(arg);
         }
-        program
+        let program = program
             .arg("from", KEY_CHAIN_VALIDATOR.0)
             .arg("chain-id", CHAIN_ID)
             .arg("fees", format!("40000{}", DENOM))
@@ -111,10 +175,8 @@ impl SimApp {
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
             .flag("yes")
-            .filter_logs(|_| false)
-            .run()
-            .join();
-        sleep(Duration::from_secs(5)); // wait for the block to mined
+            .filter_logs(|_| false);
+        Self::run_tx_with_retry(&program);
     }
 
     pub fn remote_transfer(
@@ -125,7 +187,7 @@ impl SimApp {
         recipient: &str,
         amount: u32,
     ) {
-        Program::new(self.bin.clone())
+        let transfer = Program::new(self.bin.clone())
             .cmd("tx")
             .cmd("hyperlane-transfer")
             .cmd("transfer")
@@ -143,10 +205,8 @@ impl SimApp {
             .arg("keyring-backend", "test")
             .arg("gas", "400000")
             .flag("yes")
-            .filter_logs(|_| false)
-            .run()
-            .join();
-        sleep(Duration::from_secs(5)); // wait for the block to mined
+            .filter_logs(|_| false);
+        Self::run_tx_with_retry(&transfer);
     }
 
     pub fn deploy_and_configure_contracts(
@@ -230,7 +290,7 @@ impl SimApp {
 
         // set mailbox to use the hooks
         // cmd is following: mailbox-id --required-hook [id] --default-hook [id]
-        Program::new(self.bin.clone())
+        let mailbox_set = Program::new(self.bin.clone())
             .cmd("tx")
             .cmd("hyperlane")
             .cmd("mailbox")
@@ -245,10 +305,8 @@ impl SimApp {
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
             .filter_logs(|_| false)
-            .flag("yes")
-            .run()
-            .join();
-        sleep(Duration::from_secs(5)); // wait for the block to mined
+            .flag("yes");
+        Self::run_tx_with_retry(&mailbox_set);
 
         // create warp route
         // expected address: 0x726f757465725f61707000000000000000000000000000010000000000000000

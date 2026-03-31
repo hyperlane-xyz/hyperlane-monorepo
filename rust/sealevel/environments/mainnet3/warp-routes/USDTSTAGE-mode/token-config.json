@@ -1,0 +1,34 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "owner": "5seKh2p3B8Kq9nAE7X4svfX9uLt81wWAiDJuLK1XNgXf"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "foreignDeployment": "0x4f7635A2F9795c10DF260C2fc0A23e0F60B4829C"
+  },
+  "plasma": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb",
+    "foreignDeployment": "0xa7E4dC4078bAc6e97Eec52a4F7642fF51cbb17C1"
+  },
+  "arbitrum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+    "foreignDeployment": "0x22eF52C822329E96C3bE0bBB165805603777296C"
+  },
+  "mode": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Tether USD STAGE",
+    "symbol": "USDTSTAGE",
+    "foreignDeployment": "0x01419427C18cC14d66817E90d2e550760230Cf3D"
+  }
+}

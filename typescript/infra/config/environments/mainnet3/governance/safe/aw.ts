@@ -57,4 +57,20 @@ export const awSafes: ChainMap<Address> = {
   ronin: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   metis: '0xf6B817Cf8b4440F38951851cf1160969039966A2',
   metal: '0x41A4e3425c7FeE8711D1C1b2c2acc1879F849b45',
+
+  // Jan 29, 2026 - Migrating Viction to Safes
+  // ----------------------------------------------------------
+  viction: '0x18165B1cb2969B79D2a0f67AECe0bf7bb44a7CaD',
+
+  // Feb 4, 2026 - FPWR ProxyAdmin on Safes
+  // ----------------------------------------------------------
+  monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
+
+  // Mar 12, 2026 - Igra Chain Deployment
+  // ----------------------------------------------------------
+  // igra: '0x0c205894f0cA786AB1693f232F4e19a60Af5c72B',
+
+  // Mar 24, 2026
+  // ----------------------------------------------------------
+  plasma: '0xCcf5e9862D486e71aA47B87Cb3a7eEB1e1f2F624',
 };

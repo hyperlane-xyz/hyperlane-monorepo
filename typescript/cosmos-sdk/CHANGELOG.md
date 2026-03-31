@@ -1,11 +1,268 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 29.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@29.1.0
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+
+## 29.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@29.0.1
+- @hyperlane-xyz/utils@29.0.1
+- @hyperlane-xyz/provider-sdk@4.2.1
+
+## 29.0.0
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/cosmos-types@29.0.0
+
+## 28.1.0
+
+### Patch Changes
+
+- 5caac66: Added `crossCollateral` warp token type to the provider-sdk type system. All protocol SDK artifact managers were updated to handle the new type in their exhaustive switches.
+- Updated dependencies [5caac66]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/cosmos-types@28.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
+## 28.0.0
+
+### Patch Changes
+
+- 228ed9f: Added the mailbox artifact API to cosmos-sdk, providing read and create/update capabilities for mailbox deployments.
+- Updated dependencies [83767b9]
+- Updated dependencies [a6b7bf3]
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/cosmos-types@28.0.0
+  - @hyperlane-xyz/utils@28.0.0
+
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+- Updated dependencies [b892e61]
+  - @hyperlane-xyz/provider-sdk@3.1.0
+  - @hyperlane-xyz/utils@27.1.0
+  - @hyperlane-xyz/cosmos-types@27.1.0
+
+## 27.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@27.0.0
+- @hyperlane-xyz/utils@27.0.0
+- @hyperlane-xyz/provider-sdk@3.0.1
+
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [06aacac]
+- Updated dependencies [1d116d8]
+  - @hyperlane-xyz/utils@26.0.0
+  - @hyperlane-xyz/provider-sdk@3.0.0
+  - @hyperlane-xyz/cosmos-types@26.0.0
+
+## 25.5.0
+
+### Patch Changes
+
+- e197331: Added WarpTokenReader and WarpTokenWriter for artifact API-based warp token operations.
+
+  New exports:
+  - createWarpTokenReader: Factory for reading warp tokens
+  - createWarpTokenWriter: Factory for creating/updating warp tokens
+  - WarpTokenReader: Artifact for reading warp tokens with nested ISM/hook expansion
+  - WarpTokenWriter: Artifact for deploying and updating warp tokens
+
+  Protocol providers now support createWarpArtifactManager method.
+
+- 840fb33: Deprecated AltVM warp module classes were removed from deploy-sdk and replaced with the artifact API.
+
+  deploy-sdk removed public exports:
+  - AltVMWarpModule (use createWarpTokenWriter instead)
+  - AltVMWarpRouteReader (use createWarpTokenReader instead)
+  - AltVMDeployer (use createWarpTokenWriter per-chain instead)
+  - warpModuleProvider (no longer needed)
+  - ismConfigToArtifact (moved to @hyperlane-xyz/provider-sdk/ism)
+  - shouldDeployNewIsm (moved to @hyperlane-xyz/provider-sdk/ism)
+
+  provider-sdk breaking change: warpConfigToArtifact no longer accepts pre-built ismArtifact/hookArtifact parameters; ISM and hook conversion is now handled internally from the config.
+
+  cosmos-sdk: name and symbol for warp tokens without on-chain metadata were changed from empty strings to 'Unknown'.
+
+  CLI and SDK were updated to use the new artifact API via createWarpTokenWriter and createWarpTokenReader.
+
+- Updated dependencies [e197331]
+- Updated dependencies [840fb33]
+  - @hyperlane-xyz/provider-sdk@2.0.0
+  - @hyperlane-xyz/cosmos-types@25.5.0
+  - @hyperlane-xyz/utils@25.5.0
+
+## 25.4.1
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@25.4.1
+- @hyperlane-xyz/utils@25.4.1
+- @hyperlane-xyz/provider-sdk@1.4.1
+
+## 25.4.0
+
+### Minor Changes
+
+- 1f021bf: Implemented warp artifact API for supported Cosmos warp tokens. A CosmosWarpArtifactManager class was added that provides factory methods for creating readers and writers for collateral and synthetic warp tokens. The implementation includes query helpers for reading token configuration, transaction builders for creating and updating tokens, and comprehensive e2e tests. The CosmosNativeProvider was refactored to use the extracted warp functions, reducing code duplication.
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/cosmos-types@25.4.0
+
+## 25.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@25.3.2
+- @hyperlane-xyz/utils@25.3.2
+- @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@25.3.1
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/provider-sdk@1.3.5
+
+## 25.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@25.3.0
+- @hyperlane-xyz/utils@25.3.0
+- @hyperlane-xyz/provider-sdk@1.3.4
+
+## 25.2.0
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/cosmos-types@25.2.0
+
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+  - @hyperlane-xyz/cosmos-types@25.1.0
+
+## 25.0.0
+
+### Patch Changes
+
+- 52ce778: A `LazyAsync` helper was added to `@hyperlane-xyz/utils` for safe, deduplicated async initialization. It replaces the scattered pattern of `if (!cached) { cached = await init(); } return cached` with an approach that deduplicates concurrent callers, clears state on errors to allow retries, and supports reset capability. Consumer packages were migrated to use this utility.
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/cosmos-types@25.0.0
+
+## 24.0.0
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/cosmos-types@24.0.0
+
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-types@23.0.0
+
+## 22.0.0
+
+### Minor Changes
+
+- 7f31d77: Implemented hook artifact API for Cosmos. Added hook query functions, transaction builders, and artifact readers/writers for IGP and MerkleTree hooks. The CosmosHookArtifactManager provides factory methods for creating type-specific hook readers and writers using lazy query client initialization. Hook writers support creating new hooks and updating mutable configurations (IGP owner and gas configs). Existing provider and signer implementations were refactored to use the new shared query and transaction functions, reducing code duplication. Comprehensive e2e tests verify all hook operations following the established artifact API patterns.
+- b0e9d48: Implemented ISM writers using the new artifact API for Cosmos. Added CosmosTestIsmWriter, CosmosMessageIdMultisigIsmWriter, CosmosMerkleRootMultisigIsmWriter, and CosmosRoutingIsmRawWriter classes. These writers support creating and updating ISMs on Cosmos chains, with routing ISM supporting full domain route management and ownership transfers. The CosmosIsmArtifactManager now provides functional createWriter() factory methods for all supported ISM types.
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/cosmos-types@22.0.0
+
+## 21.1.0
+
+### Minor Changes
+
+- db857b5: Fixed cosmos sdk e2e tests failing locally by marking type imports with the `type` keyword to preserve type imports when reading js files directly for local test runs
+- 57a2053: Added `/testing` sub import path to expose testing utils for cosmos environments
+
+### Patch Changes
+
+- Updated dependencies [57a2053]
+  - @hyperlane-xyz/provider-sdk@1.1.0
+  - @hyperlane-xyz/cosmos-types@21.1.0
+  - @hyperlane-xyz/utils@21.1.0
+
+## 21.0.0
+
+### Minor Changes
+
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+
+### Patch Changes
+
+- Updated dependencies [239e1a1]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/provider-sdk@1.0.0
+  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/cosmos-types@21.0.0
+
 ## 20.1.0
 
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility

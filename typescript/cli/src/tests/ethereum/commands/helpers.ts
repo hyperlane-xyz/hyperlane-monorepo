@@ -4,32 +4,45 @@ import path from 'path';
 import { $ } from 'zx';
 
 import {
-  AbstractCcipReadIsm,
+  type AbstractCcipReadIsm,
   AbstractCcipReadIsm__factory,
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
-  FiatTokenTest,
+  type FiatTokenTest,
   FiatTokenTest__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
   MockEverclearAdapter__factory,
   TestCcipReadIsm__factory,
-  XERC20LockboxTest,
+  type XERC20LockboxTest,
   XERC20LockboxTest__factory,
-  XERC20VSTest,
+  type XERC20VSTest,
   XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  WarpCoreConfig,
+  type MultiProvider,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  ensure0x,
+  inCIMode,
+} from '@hyperlane-xyz/utils';
+
+import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 
 import { getContext } from '../../../context/context.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
+import {
+  isFile,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
+import { KeyBoardKeys, type TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
   REGISTRY_PATH,
@@ -41,7 +54,6 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
   symbol: string,
 ): string => {
   const fileName = path.parse(originalDeployConfigPath).name;
-
   return getCombinedWarpRoutePath(symbol, [fileName]);
 };
 
@@ -154,10 +166,16 @@ export function getTokenAddressFromWarpConfig(
  * Retrieves the deployed Warp address from the Warp core config.
  */
 export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
+  assert(isFile(warpCorePath), `File doesn't exist at ${warpCorePath}`);
   const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
   WarpCoreConfigSchema.parse(warpCoreConfig);
-  return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
-    .addressOrDenom;
+  const tokenConfig = warpCoreConfig.tokens.find(
+    (token) => token.chainName === chain,
+  );
+  if (!tokenConfig?.addressOrDenom) {
+    throw new Error(`Could not find token config for ${chain}`);
+  }
+  return tokenConfig.addressOrDenom;
 }
 
 export async function getDomainId(
@@ -170,6 +188,25 @@ export async function getDomainId(
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
   return String(chainMetadata?.domainId);
+}
+
+/**
+ * Set the appropriate signer type on the MultiProvider based on the chain's
+ * technical stack (TronWallet for Tron chains, ethers.Wallet otherwise).
+ */
+function setSignerForChain(
+  multiProvider: MultiProvider,
+  chain: string,
+  privateKey: string,
+): void {
+  const key = ensure0x(privateKey);
+  const { protocol, rpcUrls } = multiProvider.getChainMetadata(chain);
+  if (protocol === ProtocolType.Tron) {
+    assert(rpcUrls?.length, `No rpcUrls configured for chain ${chain}`);
+    multiProvider.setSigner(chain, new TronWallet(key, rpcUrls[0].http));
+  } else {
+    multiProvider.setSigner(chain, new ethers.Wallet(key));
+  }
 }
 
 export async function deployToken(
@@ -185,15 +222,14 @@ export async function deployToken(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
-  const token = await new ERC20Test__factory(
-    multiProvider.getSigner(chain),
-  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
-  await token.deployed();
-
-  return token;
+  return multiProvider.handleDeploy(chain, new ERC20Test__factory(), [
+    name,
+    symbol.toLocaleUpperCase(),
+    '100000000000000000000',
+    decimals,
+  ]);
 }
 
 export async function deployFiatToken(
@@ -208,14 +244,14 @@ export async function deployFiatToken(
     key: privateKey,
   });
 
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
-  const token = await new FiatTokenTest__factory(
-    multiProvider.getSigner(chain),
-  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
-  await token.deployed();
-
-  return token;
+  return multiProvider.handleDeploy(chain, new FiatTokenTest__factory(), [
+    name,
+    symbol.toLocaleUpperCase(),
+    '100000000000000000000',
+    decimals,
+  ]);
 }
 
 export async function deploy4626Vault(
@@ -228,15 +264,13 @@ export async function deploy4626Vault(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
-  const vault = await new ERC4626Test__factory(
-    multiProvider.getSigner(chain),
-  ).deploy(tokenAddress, 'VAULT', 'VAULT');
-  await vault.deployed();
-
-  return vault;
+  return multiProvider.handleDeploy(chain, new ERC4626Test__factory(), [
+    tokenAddress,
+    'VAULT',
+    'VAULT',
+  ]);
 }
 
 export async function deployXERC20VSToken(
@@ -250,20 +284,14 @@ export async function deployXERC20VSToken(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
-  const token = await new XERC20VSTest__factory(
-    multiProvider.getSigner(chain),
-  ).deploy(
+  return multiProvider.handleDeploy(chain, new XERC20VSTest__factory(), [
     'token',
     symbol.toLocaleUpperCase(),
     '100000000000000000000',
     decimals,
-  );
-  await token.deployed();
-
-  return token;
+  ]);
 }
 
 export async function deployXERC20LockboxToken(
@@ -276,8 +304,7 @@ export async function deployXERC20LockboxToken(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
   const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
     await Promise.all([
@@ -287,17 +314,12 @@ export async function deployXERC20LockboxToken(
       token.totalSupply(),
     ]);
 
-  const lockboxToken = await new XERC20LockboxTest__factory(
-    multiProvider.getSigner(chain),
-  ).deploy(
+  return multiProvider.handleDeploy(chain, new XERC20LockboxTest__factory(), [
     tokenName,
     tokenSymbol.toLocaleUpperCase(),
     tokenTotalSupply,
     tokenDecimals,
-  );
-  await lockboxToken.deployed();
-
-  return lockboxToken;
+  ]);
 }
 
 export async function deployTestOffchainLookupISM(
@@ -311,12 +333,13 @@ export async function deployTestOffchainLookupISM(
     key: privateKey,
   });
 
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
-  const testIsm = await new TestCcipReadIsm__factory(
-    multiProvider.getSigner(chain),
-  ).deploy(urls);
-  await testIsm.deployed();
+  const testIsm = await multiProvider.handleDeploy(
+    chain,
+    new TestCcipReadIsm__factory(),
+    [urls],
+  );
 
   return AbstractCcipReadIsm__factory.connect(
     testIsm.address,
@@ -334,14 +357,13 @@ export async function deployEverclearBridgeAdapter(
     key: privateKey,
   });
 
-  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+  setSignerForChain(multiProvider, chain, privateKey);
 
-  const adapter = await new MockEverclearAdapter__factory(
-    multiProvider.getSigner(chain),
-  ).deploy();
-  await adapter.deployed();
-
-  return adapter;
+  return multiProvider.handleDeploy(
+    chain,
+    new MockEverclearAdapter__factory(),
+    [],
+  );
 }
 
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command
@@ -392,11 +414,11 @@ export function hyperlaneStatus({
         --yes`;
 }
 
-export function hyperlaneRelayer(chains: string[], warp?: string) {
+export function hyperlaneRelayer(chains: string[], warpRouteId?: string) {
   return $`${localTestRunCmdPrefix()} hyperlane relayer \
         --registry ${REGISTRY_PATH} \
-        --chains ${chains.join(',')} \
-        --warp ${warp ?? ''} \
+        ${chains.flatMap((c) => ['--chains', c])} \
+        ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;

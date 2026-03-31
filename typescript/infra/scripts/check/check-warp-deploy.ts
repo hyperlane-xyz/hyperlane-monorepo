@@ -1,13 +1,13 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
+import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
-import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -44,6 +44,8 @@ async function main() {
     'AIXBT/base-form',
     'FORM/ethereum-form',
     'GAME/base-form',
+    // Skip until Paradex executes hyperevm upgrade on their side
+    WarpRouteIds.ParadexUSDC,
   ];
 
   const registries = [DEFAULT_REGISTRY_URI];
@@ -66,8 +68,10 @@ async function main() {
     return false;
   };
 
-  const warpConfigChains = new Set<ChainName>();
+  const envConfig = getEnvironmentConfig(environment);
   const warpRouteIds = Object.keys(warpCoreConfigMap);
+
+  const routesWithUnsupportedChains: string[] = [];
 
   const filterResults = await Promise.all(
     warpRouteIds.map(async (warpRouteId) => {
@@ -76,14 +80,42 @@ async function main() {
       const shouldCheck =
         (environment === 'mainnet3' && !isTestnet) ||
         (environment === 'testnet4' && isTestnet);
-      return shouldCheck && !routesToSkip.includes(warpRouteId);
+
+      if (!shouldCheck || routesToSkip.includes(warpRouteId)) {
+        return false;
+      }
+
+      const routeChains = Object.keys(warpRouteConfig);
+      const unsupportedChains = routeChains.filter(
+        (chain) => !envConfig.supportedChainNames.includes(chain),
+      );
+      if (unsupportedChains.length > 0) {
+        routesWithUnsupportedChains.push(
+          `${warpRouteId} (${unsupportedChains.join(', ')})`,
+        );
+        return false;
+      }
+
+      return true;
     }),
   );
+
+  if (routesWithUnsupportedChains.length > 0) {
+    console.log(
+      chalk.yellow(
+        `Skipping ${routesWithUnsupportedChains.length} routes with unsupported chains:`,
+      ),
+    );
+    routesWithUnsupportedChains.forEach((route) =>
+      console.log(chalk.yellow(`  - ${route}`)),
+    );
+  }
 
   const warpIdsToCheck = warpRouteIds.filter(
     (_, index) => filterResults[index],
   );
 
+  const warpConfigChains = new Set<ChainName>();
   warpIdsToCheck.forEach((warpRouteId) => {
     const warpRouteConfig = warpCoreConfigMap[warpRouteId];
     Object.keys(warpRouteConfig).forEach((chain) =>
@@ -92,15 +124,13 @@ async function main() {
   });
 
   console.log(
-    `Found warp configs for chains: ${Array.from(warpConfigChains).join(', ')}`,
+    `Checking ${warpIdsToCheck.length} routes across chains: ${Array.from(warpConfigChains).join(', ')}`,
   );
 
-  // Get the multiprovider once to avoid recreating it for each warp route
+  // Get the multiprovider once to avoid recreating it for each warp route.
   // We specify the chains to avoid creating a multiprovider for all chains.
   // This ensures that we don't fail to fetch secrets for new chains in the cron job.
-  const envConfig = getEnvironmentConfig(environment);
-
-  // Use default values for context, role, and useSecrets
+  // Use default values for context, role, and useSecrets.
   const multiProvider = await envConfig.getMultiProvider(
     undefined,
     undefined,

@@ -13,14 +13,19 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
-import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
+  EvmTokenFeeReader,
+  TokenFeeReaderParams,
+} from './EvmTokenFeeReader.js';
+import {
+  LinearFeeConfig,
+  ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
-  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
+import { convertToBps } from './utils.js';
 
 describe('EvmTokenFeeModule', () => {
   const test4Chain = TestChainName.test4;
@@ -68,7 +73,11 @@ describe('EvmTokenFeeModule', () => {
     });
     const onchainConfig = await module.read();
     expect(normalizeConfig(onchainConfig)).to.deep.equal(
-      normalizeConfig({ ...config, maxFee: MAX_FEE, halfAmount: HALF_AMOUNT }),
+      normalizeConfig({
+        ...config,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+      }),
     );
   });
 
@@ -154,7 +163,7 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config,
       });
-      const updatedConfig: TokenFeeConfigInput = {
+      const updatedConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         owner: config.owner,
         token: config.token,
@@ -170,7 +179,7 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config,
       });
-      const updatedConfig = { ...config, bps: BPS + 1n };
+      const updatedConfig = { ...config, bps: BPS + 1 };
       await expectTxsAndUpdate(module, updatedConfig, 0);
       const onchainConfig = await module.read();
       assert(
@@ -200,7 +209,7 @@ describe('EvmTokenFeeModule', () => {
         feeContracts: {
           [test4Chain]: {
             ...feeContracts[test4Chain],
-            bps: BPS + 1n,
+            bps: BPS + 1,
           },
         },
       };
@@ -252,7 +261,10 @@ describe('EvmTokenFeeModule', () => {
           ...routingFeeConfig,
           owner: newOwner,
           feeContracts: {
-            [test4Chain]: { ...feeContracts[test4Chain], owner: newOwner },
+            [test4Chain]: {
+              ...feeContracts[test4Chain],
+              owner: newOwner,
+            },
           },
         },
         2,
@@ -271,6 +283,303 @@ describe('EvmTokenFeeModule', () => {
       expect(
         normalizeConfig(onchainConfig.feeContracts?.[test4Chain]).owner,
       ).to.equal(newOwner);
+    });
+
+    it('should derive routingDestinations from target config when not provided', async () => {
+      const feeContracts = {
+        [test4Chain]: config,
+      };
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts,
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+
+      // Update without providing routingDestinations - should derive from target config
+      const updatedConfig = {
+        ...routingFeeConfig,
+        feeContracts: {
+          [test4Chain]: {
+            ...feeContracts[test4Chain],
+            bps: BPS + 1,
+          },
+        },
+      };
+
+      // Should work without routingDestinations param
+      // Updating bps triggers a redeploy of the immutable LinearFee sub-contract,
+      // which results in a setFeeContract transaction
+      const txs = await module.update(updatedConfig);
+      expect(txs.length).to.equal(1);
+    });
+
+    it('should deploy new sub-fee contract when adding a new destination', async () => {
+      // Create a routing fee with one destination
+      const initialFeeContracts = {
+        [test4Chain]: config,
+      };
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: initialFeeContracts,
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+
+      // Update with an additional destination (test1)
+      const test1Chain = TestChainName.test1;
+      const updatedConfig: RoutingFeeConfig = {
+        ...routingFeeConfig,
+        feeContracts: {
+          [test4Chain]: initialFeeContracts[test4Chain],
+          [test1Chain]: {
+            ...config,
+            // New destination - should trigger deployment
+          },
+        },
+      };
+
+      // Should generate transaction to set the new fee contract
+      const txs = await module.update(updatedConfig);
+      expect(txs.length).to.be.greaterThan(0);
+
+      // Execute the transactions to actually set the fee contract on-chain
+      for (const tx of txs) {
+        await multiProvider.sendTransaction(test4Chain, tx);
+      }
+
+      // Verify the new sub-fee was deployed by reading the config
+      const onchainConfig = await module.read({
+        routingDestinations: [
+          multiProvider.getDomainId(test4Chain),
+          multiProvider.getDomainId(test1Chain),
+        ],
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(onchainConfig.feeContracts?.[test1Chain]).to.not.be.undefined;
+    });
+  });
+
+  describe('expandConfig', () => {
+    it('should expand config for zero-supply token using safe fallback', async () => {
+      const factory = new ERC20Test__factory(signer);
+      const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
+      await zeroSupplyToken.deployed();
+
+      const inputConfig: ResolvedTokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: zeroSupplyToken.address,
+        bps: 8,
+      };
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
+
+      expect(expandedConfig.maxFee > 0n).to.be.true;
+      expect(expandedConfig.halfAmount > 0n).to.be.true;
+      expect(expandedConfig.bps).to.equal(8);
+
+      const roundTripBps = convertToBps(
+        expandedConfig.maxFee,
+        expandedConfig.halfAmount,
+      );
+      expect(roundTripBps).to.equal(8);
+    });
+
+    it('should expand nested RoutingFee config for zero-supply token', async () => {
+      const factory = new ERC20Test__factory(signer);
+      const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
+      await zeroSupplyToken.deployed();
+
+      const inputConfig: ResolvedTokenFeeConfigInput = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: zeroSupplyToken.address,
+        feeContracts: {
+          [test4Chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            token: zeroSupplyToken.address,
+            bps: 8,
+          },
+        },
+      };
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      const routingConfig = expandedConfig as RoutingFeeConfig;
+      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      assert(nestedFee, 'Nested fee must exist');
+      assert(
+        nestedFee.type === TokenFeeType.LinearFee,
+        `Nested fee must be ${TokenFeeType.LinearFee}`,
+      );
+
+      const linearFee = nestedFee as LinearFeeConfig;
+      expect(linearFee.maxFee > 0n).to.be.true;
+      expect(linearFee.halfAmount > 0n).to.be.true;
+      expect(linearFee.bps).to.equal(8);
+    });
+
+    it('should expand config with explicit maxFee/halfAmount (no bps) and preserve values', async () => {
+      const explicitMaxFee = 10_000n;
+      const explicitHalfAmount = 5_000n;
+      const expectedBps = convertToBps(explicitMaxFee, explicitHalfAmount);
+
+      // Using type assertion because we're testing the pre-schema-transform input path
+      // where bps is computed from maxFee/halfAmount at runtime
+      const inputConfig = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: explicitMaxFee,
+        halfAmount: explicitHalfAmount,
+      } as ResolvedTokenFeeConfigInput;
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
+
+      expect(expandedConfig.maxFee).to.equal(explicitMaxFee);
+      expect(expandedConfig.halfAmount).to.equal(explicitHalfAmount);
+      expect(expandedConfig.bps).to.equal(expectedBps);
+    });
+
+    it('should expand nested RoutingFee with explicit maxFee/halfAmount in child LinearFee', async () => {
+      const explicitMaxFee = 10_000n;
+      const explicitHalfAmount = 5_000n;
+
+      // Using type assertion because we're testing the pre-schema-transform input path
+      const inputConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            token: token.address,
+            maxFee: explicitMaxFee,
+            halfAmount: explicitHalfAmount,
+          },
+        },
+      } as ResolvedTokenFeeConfigInput;
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      const routingConfig = expandedConfig as RoutingFeeConfig;
+      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      assert(nestedFee, 'Nested fee must exist');
+      assert(
+        nestedFee.type === TokenFeeType.LinearFee,
+        `Nested fee must be ${TokenFeeType.LinearFee}`,
+      );
+
+      const linearFee = nestedFee as LinearFeeConfig;
+      expect(linearFee.maxFee).to.equal(explicitMaxFee);
+      expect(linearFee.halfAmount).to.equal(explicitHalfAmount);
+    });
+
+    it('should propagate parent token to nested feeContracts without explicit token', async () => {
+      const inputConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            bps: 8,
+          },
+        },
+      } as ResolvedTokenFeeConfigInput;
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      const routingConfig = expandedConfig as RoutingFeeConfig;
+      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      assert(nestedFee, 'Nested fee must exist');
+      expect(nestedFee.token).to.equal(token.address);
+    });
+
+    it('should expand config with fractional bps (1.5)', async () => {
+      const reader = new EvmTokenFeeReader(multiProvider, test4Chain);
+      const expected = reader.convertFromBps(1.5);
+
+      const inputConfig: ResolvedTokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        bps: 1.5,
+      };
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
+
+      expect(expandedConfig.maxFee).to.equal(expected.maxFee);
+      expect(expandedConfig.halfAmount).to.equal(expected.halfAmount);
+      expect(expandedConfig.bps).to.equal(1.5);
     });
   });
 });

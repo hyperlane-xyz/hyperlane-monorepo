@@ -1,23 +1,27 @@
-import { constants } from 'ethers';
+import { compareVersions } from 'compare-versions';
+import { BigNumber, constants } from 'ethers';
 
 import {
   ERC20__factory,
-  ERC721Enumerable__factory,
   EverclearTokenBridge__factory,
   GasRouter,
-  IERC4626__factory,
   IMessageTransmitter__factory,
-  IXERC20Lockbox__factory,
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
+  PackageVersioned__factory,
   TokenBridgeCctpBase__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
+  CrossCollateralRouter__factory,
+  TokenBridgeOft__factory,
+} from '@hyperlane-xyz/multicollateral';
+import {
   Address,
-  ProtocolType,
   addressToBytes32,
+  isEVMLike,
   assert,
   objFilter,
   objKeys,
@@ -38,8 +42,14 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { normalizeScale } from '../utils/decimals.js';
+import {
+  CCTP_PPM_PRECISION_VERSION,
+  CCTP_PPM_STORAGE_VERSION,
+} from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { TokenType, gasOverhead } from './config.js';
+import { DeployableTokenType, gasOverhead } from './config.js';
+import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
@@ -51,11 +61,12 @@ import {
   hypERC721contracts,
   hypERC721factories,
 } from './contracts.js';
+import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   CctpTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
-  TokenMetadataSchema,
+  OftTokenConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
@@ -64,12 +75,13 @@ import {
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
-  isTokenMetadata,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -84,7 +96,7 @@ const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
-  contractName: HypERC20contracts[TokenType],
+  contractName: HypERC20contracts[DeployableTokenType],
 ) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':
@@ -149,14 +161,19 @@ abstract class TokenDeployer<
     config: HypTokenRouterConfig,
   ): Promise<any> {
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
-    const scale = config.scale ?? 1;
+    const { numerator, denominator } = normalizeScale(config.scale);
 
-    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
-      return [config.token, scale, config.mailbox];
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isCrossCollateralTokenConfig(config)
+    ) {
+      return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
       return [
         config.token,
-        scale,
+        numerator,
+        denominator,
         config.mailbox,
         config.everclearBridgeAddress,
       ];
@@ -167,19 +184,27 @@ abstract class TokenDeployer<
         config.everclearBridgeAddress,
       ];
     } else if (isNativeTokenConfig(config)) {
-      return [scale, config.mailbox];
+      return [numerator, denominator, config.mailbox];
     } else if (isOpL2TokenConfig(config)) {
       return [config.mailbox, config.l2Bridge];
     } else if (isOpL1TokenConfig(config)) {
       return [config.mailbox, config.portal];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, scale, config.mailbox];
+      return [config.decimals, numerator, denominator, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, scale, config.mailbox, collateralDomain];
+      return [
+        config.decimals,
+        numerator,
+        denominator,
+        config.mailbox,
+        collateralDomain,
+      ];
+    } else if (isOftTokenConfig(config)) {
+      return [config.oft, config.owner];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -189,20 +214,27 @@ abstract class TokenDeployer<
             config.messageTransmitter,
             config.tokenMessenger,
           ];
-        case 'V2':
-          assert(config.maxFeeBps, 'maxFeeBps is undefined for CCTP V2 config');
+        case 'V2': {
           assert(
-            config.minFinalityThreshold,
+            config.maxFeeBps !== undefined,
+            'maxFeeBps is undefined for CCTP V2 config',
+          );
+          assert(
+            config.minFinalityThreshold !== undefined,
             'minFinalityThreshold is undefined for CCTP V2 config',
           );
+          // Convert bps to ppm (parts per million) for contract precision
+          // 1 bps = 100 ppm, supports fractional bps (e.g., 1.3 bps = 130 ppm)
+          const maxFeePpm = Math.round(config.maxFeeBps * 100);
           return [
             config.token,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
-            config.maxFeeBps,
+            maxFeePpm,
             config.minFinalityThreshold,
           ];
+        }
         default:
           throw new Error('Unsupported CCTP version');
       }
@@ -226,10 +258,14 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (
+    if (isOftTokenConfig(config)) {
+      // OFT is deployed unproxied — owner is set in constructor, no initialize
+      throw new Error('OFT does not use initialize');
+    } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isNativeTokenConfig(config)
+      isNativeTokenConfig(config) ||
+      isCrossCollateralTokenConfig(config)
     ) {
       return defaultArgs;
     } else if (
@@ -261,109 +297,7 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadataMap> {
-    const metadataMap = new TokenMetadataMap();
-
-    const priorityGetter = (type: string) => {
-      return ['collateral', 'native'].indexOf(type);
-    };
-
-    const sortedEntries = Object.entries(configMap).sort(
-      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
-    );
-
-    for (const [chain, config] of sortedEntries) {
-      if (isTokenMetadata(config)) {
-        metadataMap.set(chain, TokenMetadataSchema.parse(config));
-      }
-
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        // If the config didn't specify the token metadata, we can only now
-        // derive it for Ethereum chains. So here we skip non-Ethereum chains.
-        continue;
-      }
-
-      if (
-        isNativeTokenConfig(config) ||
-        isEverclearEthBridgeTokenConfig(config)
-      ) {
-        const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
-        if (nativeToken) {
-          metadataMap.update(
-            chain,
-            TokenMetadataSchema.parse({
-              ...nativeToken,
-            }),
-          );
-          continue;
-        }
-      }
-
-      if (
-        isCollateralTokenConfig(config) ||
-        isXERC20TokenConfig(config) ||
-        isCctpTokenConfig(config) ||
-        isEverclearCollateralTokenConfig(config)
-      ) {
-        const provider = multiProvider.getProvider(chain);
-
-        if (config.isNft) {
-          const erc721 = ERC721Enumerable__factory.connect(
-            config.token,
-            provider,
-          );
-          const [name, symbol] = await Promise.all([
-            erc721.name(),
-            erc721.symbol(),
-          ]);
-          metadataMap.update(
-            chain,
-            TokenMetadataSchema.parse({
-              name,
-              symbol,
-            }),
-          );
-          continue;
-        }
-
-        let token: string;
-        switch (config.type) {
-          case TokenType.XERC20Lockbox:
-            token = await IXERC20Lockbox__factory.connect(
-              config.token,
-              provider,
-            ).callStatic.ERC20();
-            break;
-          case TokenType.collateralVault:
-            token = await IERC4626__factory.connect(
-              config.token,
-              provider,
-            ).callStatic.asset();
-            break;
-          default:
-            token = config.token;
-            break;
-        }
-
-        const erc20 = ERC20__factory.connect(token, provider);
-        const [name, symbol, decimals] = await Promise.all([
-          erc20.name(),
-          erc20.symbol(),
-          erc20.decimals(),
-        ]);
-
-        metadataMap.update(
-          chain,
-          TokenMetadataSchema.parse({
-            name,
-            symbol,
-            decimals,
-          }),
-        );
-      }
-    }
-
-    metadataMap.finalize();
-    return metadataMap;
+    return deriveTokenMetadata(multiProvider, configMap);
   }
 
   protected async configureCctpDomains(
@@ -411,6 +345,131 @@ abstract class TokenDeployer<
           chain,
           tokenBridge.addDomains(remoteDomains),
         );
+      }),
+    );
+  }
+
+  protected async configureCctpV2MaxFee(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const cctpV2Configs = objFilter(
+      configMap,
+      (_, config): config is CctpTokenConfig =>
+        isCctpTokenConfig(config) &&
+        config.cctpVersion === 'V2' &&
+        config.maxFeeBps !== undefined,
+    );
+
+    await promiseObjAll(
+      objMap(cctpV2Configs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        // Check contract version to determine ppm conversion and function name
+        const versionedContract = PackageVersioned__factory.connect(
+          router,
+          this.multiProvider.getProvider(chain),
+        );
+        const contractVersion = await versionedContract.PACKAGE_VERSION();
+        const usesPpmStorage =
+          compareVersions(contractVersion, CCTP_PPM_STORAGE_VERSION) >= 0;
+        const usesPpmName =
+          compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+
+        // Convert bps to ppm for contracts that store fees in ppm (>= 10.2.0)
+        const targetFee = usesPpmStorage
+          ? Math.round(config.maxFeeBps! * 100)
+          : config.maxFeeBps!;
+
+        // Read current fee: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
+        const currentMaxFee = usesPpmName
+          ? await tokenBridgeV2.maxFeePpm()
+          : BigNumber.from(
+              await tokenBridgeV2.provider.call({
+                to: router,
+                // maxFeeBps() selector
+                data: '0xbf769a3f',
+              }),
+            );
+
+        if (currentMaxFee.toNumber() !== targetFee) {
+          const currentFeeBps = usesPpmStorage
+            ? currentMaxFee.toNumber() / 100
+            : currentMaxFee.toNumber();
+          this.logger.info(
+            `Setting maxFeePpm on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmStorage ? ' (stored as ppm)' : ''}`,
+          );
+          // >= 11.0.0 uses setMaxFeePpm(), older uses setMaxFeeBps()
+          if (usesPpmName) {
+            await this.multiProvider.handleTx(
+              chain,
+              tokenBridgeV2.setMaxFeePpm(targetFee),
+            );
+          } else {
+            await this.multiProvider.handleTx(
+              chain,
+              tokenBridgeV2.signer.sendTransaction({
+                to: router,
+                // setMaxFeeBps(uint256) selector + abi-encoded targetFee
+                data:
+                  '0x246d4569' +
+                  BigNumber.from(targetFee)
+                    .toHexString()
+                    .slice(2)
+                    .padStart(64, '0'),
+              }),
+            );
+          }
+        }
+      }),
+    );
+  }
+
+  protected async configureOftDomains(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const oftConfigs = objFilter(
+      configMap,
+      (_, config): config is OftTokenConfig => isOftTokenConfig(config),
+    );
+
+    await promiseObjAll(
+      objMap(oftConfigs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeOft__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedMappings = resolveRouterMapConfig(
+          this.multiProvider,
+          config.domainMappings,
+        );
+
+        for (const [domainId, lzEid] of Object.entries(resolvedMappings)) {
+          this.logger.info(`Adding OFT domain mapping on ${chain}`, {
+            hyperlaneDomain: domainId,
+            lzEid,
+          });
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.addDomain(Number(domainId), lzEid),
+          );
+        }
+
+        // Set extra options if configured
+        if (config.extraOptions) {
+          this.logger.info(`Setting OFT extra options on ${chain}`);
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridge.setExtraOptions(config.extraOptions),
+          );
+        }
       }),
     );
   }
@@ -640,6 +699,60 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async enrollCrossCollateralRouters(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isCrossCollateralTokenConfig(config)) {
+          return;
+        }
+        if (
+          !config.crossCollateralRouters ||
+          Object.keys(config.crossCollateralRouters).length === 0
+        ) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedRouters = resolveRouterMapConfig(
+          this.multiProvider,
+          config.crossCollateralRouters,
+        );
+
+        const domains: number[] = [];
+        const routers: string[] = [];
+        for (const [domainId, routerAddresses] of Object.entries(
+          resolvedRouters,
+        )) {
+          for (const routerAddr of routerAddresses) {
+            domains.push(Number(domainId));
+            routers.push(addressToBytes32(routerAddr));
+          }
+        }
+
+        if (domains.length > 0) {
+          this.logger.info(
+            `Batch enrolling ${domains.length} routers for ${chain}`,
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            crossCollateralRouter.enrollCrossCollateralRouters(
+              domains,
+              routers,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -666,10 +779,39 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
+    // Deploy OFT contracts separately — they lack Router/MailboxClient interfaces
+    // and must not be in this.deployedContracts during super.deploy(), which calls
+    // enrollRemoteRouters/configureClients on all entries.
+    const oftContracts: Record<string, Record<string, unknown>> = {};
+    for (const [chain, config] of Object.entries(resolvedConfigMap)) {
+      if (!isOftTokenConfig(config)) continue;
+      const contractKey = this.routerContractKey(config);
+      const constructorArgs = await this.constructorArgs(chain, config);
+      const contract = await this.deployContract(
+        chain,
+        contractKey,
+        constructorArgs,
+      );
+      oftContracts[chain] = { [contractKey]: contract };
+      delete resolvedConfigMap[chain];
+    }
+
+    // Deploy remaining (non-OFT) contracts via full Router deployer flow
     const deployedContractsMap = await super.deploy(resolvedConfigMap);
+
+    // Now safe to merge OFT entries — Router-specific methods have already run
+    for (const [chain, contracts] of Object.entries(oftContracts)) {
+      this.addDeployedContracts(chain, contracts);
+    }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
+    await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
+
+    // Configure OFT domain mappings (Hyperlane domain → LZ EID)
+    await this.configureOftDomains(configMap, deployedContractsMap);
 
     await this.setRebalancers(configMap, deployedContractsMap);
 
@@ -680,6 +822,8 @@ abstract class TokenDeployer<
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 
@@ -707,7 +851,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as TokenRouter;
       }
     }
     throw new Error('No matching contract found');
@@ -765,14 +909,21 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         const tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
-        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        if (!isEVMLike(this.multiProvider.getProtocol(chain))) {
           this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
           return;
         }
 
+        const router = this.router(deployedContractsMap[chain]);
+        const resolvedFeeInput = resolveTokenFeeAddress(
+          tokenFeeInput,
+          router.address,
+          config,
+        );
+
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({
-          config: tokenFeeInput,
+          config: resolvedFeeInput,
           multiProvider: this.multiProvider,
           chainName: chain,
         });
@@ -782,7 +933,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           config: processedTokenFee,
         });
 
-        const router = this.router(deployedContractsMap[chain]);
         const { deployedFee } = module.serialize();
         const tx = await router.setFeeRecipient(deployedFee);
         await this.multiProvider.handleTx(chain, tx);

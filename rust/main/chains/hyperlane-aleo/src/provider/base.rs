@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use reqwest::header::{HeaderValue, AUTHORIZATION};
-use reqwest::Client as ReqestClient;
+use reqwest::Client as ReqwestClient;
 use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
 use tokio::sync::RwLock;
@@ -17,13 +17,13 @@ use crate::provider::{HttpClient, HttpClientBuilder};
 use crate::HyperlaneAleoError;
 
 // Default timeouts
-pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct BaseHttpClient {
-    client: ReqestClient,
+    client: ReqwestClient,
     base_url: String,
 }
 
@@ -31,7 +31,7 @@ impl BaseHttpClient {
     pub fn new(base_url: Url, network: u16) -> ChainResult<Self> {
         let (headers, url) =
             parse_custom_rpc_headers(&base_url).map_err(ChainCommunicationError::from_other)?;
-        let client = ReqestClient::builder()
+        let client = ReqwestClient::builder()
             .connect_timeout(DEFAULT_CONNECT_TIMEOUT)
             .timeout(DEFAULT_REQUEST_TIMEOUT)
             .default_headers(headers)
@@ -106,7 +106,7 @@ impl HttpClientBuilder for BaseHttpClient {
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct JWTBaseHttpClient {
-    client: ReqestClient,
+    client: ReqwestClient,
     base_url: String,
     suffix: String,
     auth_url: String,
@@ -123,10 +123,11 @@ impl JWTBaseHttpClient {
             .and_then(|v| v.to_str().ok())
             .unwrap_or_default()
             .to_string();
-        let client = ReqestClient::builder()
+        let client = ReqwestClient::builder()
             .connect_timeout(DEFAULT_CONNECT_TIMEOUT)
             .timeout(DEFAULT_REQUEST_TIMEOUT)
             .default_headers(headers)
+            .cookie_store(true)
             .build()
             .map_err(HyperlaneAleoError::from)?;
         let suffix = match network {
@@ -173,6 +174,11 @@ impl JWTBaseHttpClient {
         *auth_token = Some((result.clone(), expires));
         Ok(result.clone())
     }
+
+    async fn clear_auth_token(&self) {
+        let mut auth_token = self.auth_token.write().await;
+        *auth_token = None;
+    }
 }
 
 #[async_trait]
@@ -194,9 +200,16 @@ impl HttpClient for JWTBaseHttpClient {
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
+
+        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            self.clear_auth_token().await;
+        }
+
         let response = response
             .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
+
         let json = response.json().await.map_err(HyperlaneAleoError::from)?;
         Ok(json)
     }
@@ -217,6 +230,12 @@ impl HttpClient for JWTBaseHttpClient {
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
+
+        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            self.clear_auth_token().await;
+        }
+
         let response = response
             .error_for_status()
             .map_err(HyperlaneAleoError::from)?;

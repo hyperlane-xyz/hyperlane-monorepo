@@ -5,12 +5,25 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import type {
+  providers as EV5Providers,
+  PopulatedTransaction as EV5Transaction,
+} from 'ethers';
 
-import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  Numberish,
+  ProtocolType,
+  assert,
+  convertToProtocolAddress,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  AleoProvider,
+  AleoTransaction,
   CosmJsNativeProvider,
   CosmJsNativeTransaction,
   CosmJsProvider,
@@ -18,7 +31,6 @@ import {
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
   EthersV5Provider,
-  EthersV5Transaction,
   ProviderType,
   RadixProvider,
   RadixTransaction,
@@ -43,17 +55,16 @@ export async function estimateTransactionFeeEthersV5({
   provider,
   sender,
 }: {
-  transaction: EthersV5Transaction;
-  provider: EthersV5Provider;
+  transaction: EV5Transaction;
+  provider: EV5Providers.Provider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  const ethersProvider = provider.provider;
-  const gasUnits = await ethersProvider.estimateGas({
-    ...transaction.transaction,
+  const gasUnits = await provider.estimateGas({
+    ...transaction,
     from: sender,
   });
   return estimateTransactionFeeEthersV5ForGasUnits({
-    provider: ethersProvider,
+    provider,
     gasUnits: BigInt(gasUnits.toString()),
   });
 }
@@ -277,6 +288,18 @@ export async function estimateTransactionFeeRadix({
   });
 }
 
+export async function estimateTransactionFeeAleo({
+  transaction,
+  provider,
+}: {
+  transaction: AleoTransaction;
+  provider: AleoProvider;
+}): Promise<TransactionFeeEstimate> {
+  return provider.provider.estimateTransactionFee({
+    transaction: transaction.transaction,
+  });
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -294,7 +317,11 @@ export function estimateTransactionFee({
     transaction.type === ProviderType.EthersV5 &&
     provider.type === ProviderType.EthersV5
   ) {
-    return estimateTransactionFeeEthersV5({ transaction, provider, sender });
+    return estimateTransactionFeeEthersV5({
+      transaction: transaction.transaction,
+      provider: provider.provider,
+      sender,
+    });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem
@@ -362,6 +389,25 @@ export function estimateTransactionFee({
     return estimateTransactionFeeRadix({
       transaction,
       provider,
+    });
+  } else if (
+    transaction.type === ProviderType.Aleo &&
+    provider.type === ProviderType.Aleo
+  ) {
+    return estimateTransactionFeeAleo({
+      transaction,
+      provider,
+    });
+  } else if (
+    transaction.type === ProviderType.Tron &&
+    provider.type === ProviderType.Tron
+  ) {
+    // Tron is EVM-compatible; its typed transaction/provider use EthersV5 underlying types
+    sender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
+    return estimateTransactionFeeEthersV5({
+      transaction: transaction.transaction,
+      provider: provider.provider,
+      sender,
     });
   } else {
     throw new Error(

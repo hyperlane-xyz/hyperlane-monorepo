@@ -1,7 +1,4 @@
-import { ethers } from 'ethers';
-
 import {
-  AggregationHookConfig,
   ChainMap,
   HookType,
   HypTokenRouterConfig,

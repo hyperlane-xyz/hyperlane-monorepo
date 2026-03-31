@@ -5,28 +5,28 @@ import { Wallet } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
+import { type ERC20Test, type ERC4626Test } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
-  ChainName,
-  HookConfig,
+  type ChainMetadata,
+  type ChainName,
+  type HookConfig,
   HookType,
-  IsmConfig,
+  type IsmConfig,
   IsmType,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   KeyBoardKeys,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -40,6 +40,7 @@ import {
   hyperlaneWarpDeployRaw,
   hyperlaneWarpSendRelay,
   readWarpConfig,
+  resolveWarpRouteIdForDeploy,
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
@@ -48,9 +49,13 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  IS_TRON_TEST,
   REGISTRY_PATH,
   TEMP_PATH,
+  TRON_KEY_1,
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
+  getWarpRouteId,
 } from '../consts.js';
 
 chai.use(chaiAsPromised);
@@ -61,6 +66,9 @@ const WARP_CORE_CONFIG_PATH_2_3 = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
   WARP_DEPLOY_OUTPUT_PATH,
   'VAULT',
 );
+const WARP_ROUTE_ID_2_3 = getWarpRouteId('VAULT', [
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
+]);
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(1.5 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -79,9 +87,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
+    // Use different deployer keys on Tron to avoid "Dup transaction" errors
+    // when deploying identical core bytecodes in parallel to the same node.
+    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
     [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
     ]);
   });
 
@@ -113,7 +124,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
   }
 
-  describe('hyperlane warp deploy --config ...', () => {
+  describe('hyperlane warp deploy', () => {
     it(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -134,7 +145,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: nonExistingFilePath,
+        warpRouteId: nonExistingFilePath,
       })
         .stdio('pipe')
         .nothrow();
@@ -143,7 +154,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route found for symbol "${nonExistingFilePath.toUpperCase()}"`,
       );
     });
 
@@ -183,13 +194,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -204,7 +213,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -247,13 +256,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -268,7 +275,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -282,7 +289,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
-          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          {
+            decimals: expectedTokenDecimals,
+            symbol: expectedTokenSymbol,
+          },
         );
       }
     });
@@ -308,11 +318,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       writeYamlOrJson(warpDeployPath, warpConfig);
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -389,13 +394,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -410,7 +413,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -460,7 +463,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp deploy --config ... --yes', () => {
+  describe('hyperlane warp deploy --yes', () => {
     it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -481,7 +484,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: nonExistingFilePath,
+        warpRouteId: nonExistingFilePath,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
@@ -491,7 +494,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route found for symbol "${nonExistingFilePath.toUpperCase()}"`,
       );
     });
 
@@ -502,7 +505,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token.symbol(),
         token.decimals(),
       ]);
-      console.log(expectedTokenDecimals);
       const COMBINED_WARP_CORE_CONFIG_PATH =
         GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
           WARP_DEPLOY_OUTPUT_PATH,
@@ -524,13 +526,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -540,7 +540,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
@@ -556,13 +556,16 @@ describe('hyperlane warp deploy e2e tests', async function () {
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
-          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          {
+            decimals: expectedTokenDecimals,
+            symbol: expectedTokenSymbol,
+          },
         );
       }
     });
   });
 
-  describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
+  describe(`hyperlane warp deploy --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let vaultChain2: ERC4626Test;
 
@@ -701,7 +704,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const { stdout: chain2Tochain3Stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: WARP_ROUTE_ID_2_3,
       });
       expect(chain2Tochain3Stdout).to.include('anvil2 ➡️ anvil3');
 
@@ -709,7 +712,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const { stdout: chain3Tochain2Stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_3,
         destination: CHAIN_NAME_2,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: WARP_ROUTE_ID_2_3,
       });
       expect(chain3Tochain2Stdout).to.include('anvil3 ➡️ anvil2');
 
@@ -717,7 +720,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       await hyperlaneWarpSendRelay({
         origin: 'anvil1',
         destination: CHAIN_NAME_3,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: WARP_ROUTE_ID_2_3,
       }).should.be.rejectedWith(
         'Error: Chain(s) anvil1 are not part of the warp route.',
       );

@@ -29,7 +29,7 @@ const ownersByChain: DeploymentChains<Address> = {
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   Object.keys(ownersByChain),
-  WarpRouteIds.MainnetCCTPV1,
+  [WarpRouteIds.MainnetCCTPV1],
 );
 
 export const getMantraUSDCWarpConfig = async (

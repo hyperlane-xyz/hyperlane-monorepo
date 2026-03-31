@@ -15,6 +15,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   addBufferToGasLimit,
   addressToBytes32,
+  assert,
   deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -35,6 +36,7 @@ import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
   CCIPHookConfig,
+  DeployableHookType,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -202,7 +204,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         hookConfig,
         coreAddresses,
       );
-      aggregatedHooks.push(subhooks[hookConfig.type].address);
+      assert(
+        hookConfig.type !== HookType.UNKNOWN,
+        `Cannot deploy unknown hook type in aggregation`,
+      );
+      const hookType = hookConfig.type as DeployableHookType;
+      aggregatedHooks.push(subhooks[hookType].address);
       hooks = { ...hooks, ...subhooks };
     }
 
@@ -332,7 +339,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
             config.fallback,
             coreAddresses,
           );
-          fallbackAddress = fallbackHook[config.fallback.type].address;
+          assert(
+            config.fallback.type !== HookType.UNKNOWN,
+            `Cannot deploy unknown hook type as fallback`,
+          );
+          const fallbackType = config.fallback.type as DeployableHookType;
+          fallbackAddress = fallbackHook[fallbackType].address;
         }
         routingHook = await this.deployContract(
           chain,
@@ -374,12 +386,17 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
           hookConfig,
           coreAddresses,
         );
+        assert(
+          hookConfig.type !== HookType.UNKNOWN,
+          `Cannot deploy unknown hook type for routing destination ${dest}`,
+        );
+        const deployedHookType = hookConfig.type as DeployableHookType;
         routingConfigs.push({
           destination: destDomain,
-          hook: hook[hookConfig.type].address,
+          hook: hook[deployedHookType].address,
         });
         prevHookConfig = hookConfig;
-        prevHookAddress = hook[hookConfig.type].address;
+        prevHookAddress = hook[deployedHookType].address;
       }
     }
 
@@ -427,7 +444,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         hookConfig.type,
         this.core[chain],
       );
-      hooks.push(contracts[hookConfig.type].address);
+      assert(
+        hookConfig.type !== HookType.UNKNOWN,
+        `Cannot deploy unknown hook type in amount routing`,
+      );
+      const deployedType = hookConfig.type as DeployableHookType;
+      hooks.push(contracts[deployedType].address);
     }
 
     const [lowerHook, upperHook] = hooks;

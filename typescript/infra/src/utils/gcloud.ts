@@ -3,6 +3,7 @@ import fs from 'fs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { DockerImageNames } from '../../config/docker.js';
 import { rm, writeFile } from 'fs/promises';
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
@@ -386,29 +387,61 @@ function iamConditionsEqual(
 }
 
 async function checkDockerTagExists({
-  repo = 'abacus-labs-dev',
+  org = 'hyperlane-xyz',
   image,
   tag,
 }: {
-  repo?: string;
+  org?: string;
   image: string;
   tag: string;
 }): Promise<boolean> {
-  const url = `https://gcr.io/v2/${repo}/${image}/manifests/${tag}`;
-  const res = await fetch(url, { method: 'HEAD' });
-  return res.status === 200;
+  try {
+    // GHCR requires a bearer token even for public images
+    const tokenRes = await fetch(
+      `https://ghcr.io/token?service=ghcr.io&scope=repository:${org}/${image}:pull`,
+    );
+    if (!tokenRes.ok) return false;
+    const { token } = (await tokenRes.json()) as { token: string };
+    const url = `https://ghcr.io/v2/${org}/${image}/manifests/${tag}`;
+    const res = await fetch(url, {
+      method: 'HEAD',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept:
+          'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json',
+      },
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
 }
 
 export async function checkAgentImageExists(tag: string) {
   return checkDockerTagExists({
-    image: 'hyperlane-agent',
+    image: DockerImageNames.AGENT,
     tag,
   });
 }
 
 export async function checkMonorepoImageExists(tag: string) {
   return checkDockerTagExists({
-    image: 'hyperlane-monorepo',
+    image: DockerImageNames.MONOREPO,
+    tag,
+  });
+}
+
+export function warnIfPrTag(component: string, tag: string) {
+  if (tag.startsWith('pr-')) {
+    logger.warn(
+      `${component} is using a PR image tag: ${tag}. PR images are cleaned up after 1 week. Use a main branch tag for persistent deployments.`,
+    );
+  }
+}
+
+export async function checkNodeServicesImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: DockerImageNames.NODE_SERVICES,
     tag,
   });
 }

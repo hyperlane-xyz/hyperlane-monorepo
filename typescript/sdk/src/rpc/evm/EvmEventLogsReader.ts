@@ -1,19 +1,17 @@
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../../block-explorer/etherscan.js';
 import { assertIsContractAddress } from '../../contracts/contracts.js';
-import {
-  ChainMetadataManager,
-  ChainNameOrId,
-  MultiProvider,
-} from '../../index.js';
+import type { ChainMetadataManager } from '../../metadata/ChainMetadataManager.js';
 import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import type { ChainNameOrId } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
@@ -49,9 +47,7 @@ interface IEvmEventLogsReaderStrategy {
   ): Promise<GetEventLogsResponse[]>;
 }
 
-export class EvmEtherscanLikeEventLogsReader
-  implements IEvmEventLogsReaderStrategy
-{
+export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrategy {
   constructor(
     protected readonly chain: ChainNameOrId,
     protected readonly config: Awaited<
@@ -69,6 +65,10 @@ export class EvmEtherscanLikeEventLogsReader
     const deploymentTransactionReceipt = await this.multiProvider
       .getProvider(this.chain)
       .getTransactionReceipt(contractDeploymentTx.txHash);
+    assert(
+      deploymentTransactionReceipt?.blockNumber != null,
+      `No deployment receipt block number for contract ${address} on ${this.chain}`,
+    );
 
     return deploymentTransactionReceipt.blockNumber;
   }
@@ -126,6 +126,8 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
 }
 
 export class EvmEventLogsReader {
+  private deploymentBlockCache: Map<string, number> = new Map();
+
   protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
     protected readonly multiProvider: MultiProvider,
@@ -185,17 +187,15 @@ export class EvmEventLogsReader {
     );
 
     try {
-      // do NOT remove the await here it is on purpose to catch any error
-      // here to fallback to the rpc if any is set.
-      // Removing the await will cause the caller to handle the error if any
-      // and the fallback logic won't run
-      const res = await this.getLogsByTopicWithStrategy(
-        options,
-        provider,
-        this.logReaderStrategy,
+      // Retry the primary strategy with exponential backoff to handle
+      // transient failures like explorer rate limits
+      return await retryAsync(() =>
+        this.getLogsByTopicWithStrategy(
+          options,
+          provider,
+          this.logReaderStrategy,
+        ),
       );
-
-      return res;
     } catch (err) {
       if (!this.fallbackLogReaderStrategy) {
         throw err;
@@ -213,6 +213,19 @@ export class EvmEventLogsReader {
     }
   }
 
+  private async getDeploymentBlock(
+    contractAddress: string,
+    logReaderStrategy: IEvmEventLogsReaderStrategy,
+  ): Promise<number> {
+    const cached = this.deploymentBlockCache.get(contractAddress);
+    if (cached) return cached;
+
+    const block =
+      await logReaderStrategy.getContractDeploymentBlockNumber(contractAddress);
+    this.deploymentBlockCache.set(contractAddress, block);
+    return block;
+  }
+
   private async getLogsByTopicWithStrategy(
     options: GetLogByTopicOptions,
     provider: ReturnType<MultiProvider['getProvider']>,
@@ -222,8 +235,9 @@ export class EvmEventLogsReader {
 
     const fromBlock =
       parsedOptions.fromBlock ??
-      (await logReaderStrategy.getContractDeploymentBlockNumber(
+      (await this.getDeploymentBlock(
         parsedOptions.contractAddress,
+        logReaderStrategy,
       ));
     const toBlock = parsedOptions.toBlock ?? (await provider.getBlockNumber());
 

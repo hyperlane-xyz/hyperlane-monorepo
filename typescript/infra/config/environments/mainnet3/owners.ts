@@ -23,9 +23,9 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
+      regularSafes[local] ??
       regularIcas[local] ??
       regularIcasLegacy[local] ??
-      regularSafes[local] ??
       awIcasLegacy[local] ??
       awSafes[local] ??
       DEPLOYER;

@@ -1,31 +1,44 @@
 import yargs from 'yargs';
 
 import { InterchainAccount } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  formatStandardHookMetadata,
+  objFilter,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { awSafes } from '../../../config/environments/mainnet3/governance/safe/aw.js';
-import { regularSafes } from '../../../config/environments/mainnet3/governance/safe/regular.js';
+import { getGovernanceSafes } from '../../../config/environments/mainnet3/governance/utils.js';
 import { supportedChainNames } from '../../../config/environments/mainnet3/supportedChainNames.js';
-import { legacyIcaChainRouters } from '../../../src/config/chain.js';
+import {
+  chainsToSkip,
+  legacyIcaChainRouters,
+} from '../../../src/config/chain.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { withGovernanceType } from '../../../src/governance.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../../core-utils.js';
+import { withChains } from '../../agent-utils.js';
 
 const originChain = 'ethereum';
-const accountConfig = {
-  origin: originChain,
-  owner: awSafes[originChain],
-};
 
 // Main function to execute the script
 async function main() {
-  const { governanceType } = await withGovernanceType(
-    yargs(process.argv.slice(2)),
+  const { governanceType, chains } = await withGovernanceType(
+    withChains(yargs(process.argv.slice(2)), supportedChainNames),
   ).argv;
 
-  if (governanceType === 'regular') {
-    accountConfig.owner = regularSafes[originChain];
+  if (!chains || chains.length === 0) {
+    rootLogger.error('No chains provided');
+    process.exit(1);
   }
+
+  const owner = getGovernanceSafes(governanceType)[originChain];
+  assert(owner, `No ${governanceType} safe configured for ${originChain}`);
+  const accountConfig = {
+    origin: originChain,
+    owner,
+  };
+  const hookMetadata = formatStandardHookMetadata({ refundAddress: owner });
 
   const environment = 'mainnet3';
   // Get the multiprovider for the environment
@@ -48,12 +61,13 @@ async function main() {
 
   const remoteCalls = [];
 
-  for (const chain of supportedChainNames) {
+  for (const chain of chains) {
     if (
       chain === 'arcadia' ||
       chain === originChain ||
       !icaChainAddresses[chain] ||
-      legacyIcaChainRouters[chain]
+      legacyIcaChainRouters[chain] ||
+      chainsToSkip.includes(chain)
     ) {
       continue;
     }
@@ -78,6 +92,7 @@ async function main() {
           },
         ],
         config: accountConfig,
+        hookMetadata,
       }),
     );
   }
@@ -92,6 +107,7 @@ async function main() {
     remoteCalls.map((call) => ({
       to: call.to!,
       data: call.data!,
+      value: call.value,
     })),
   );
 }

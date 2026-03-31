@@ -1,0 +1,149 @@
+name: Build and Push Node Services Image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typescript/Dockerfile'
+      - 'typescript/docker-entrypoint.sh'
+      - '.dockerignore'
+      - '.github/workflows/node-services-docker.yml'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'typescript/Dockerfile'
+      - 'typescript/docker-entrypoint.sh'
+      - '.dockerignore'
+      - '.github/workflows/node-services-docker.yml'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+    inputs:
+      include_arm64:
+        description: 'Include arm64 in the build'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: build-push-node-services-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Generate GitHub App Token
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Generate tag data
+        id: taggen
+        run: |
+          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/hyperlane-xyz/hyperlane-node-services
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
+
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read Foundry version
+        run: |
+          FOUNDRY_VERSION=$(cat solidity/.foundryrc)
+          echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_ENV
+
+      - name: Determine platforms
+        id: determine-platforms
+        run: |
+          if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
+            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push
+        id: build
+        uses: depot/build-push-action@v1
+        with:
+          project: 057xstl4t6
+          context: ./
+          file: ./typescript/Dockerfile
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
+            SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
+          platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Generate image tags output
+        id: image-tags
+        if: always()
+        run: |
+          TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}"
+          REGISTRY="ghcr.io/hyperlane-xyz"
+          TAGS="${REGISTRY}/hyperlane-node-services:${TAG_SHA_DATE}"
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Node Services Docker Image
+
+          | Image | Tag |
+          |-------|-----|
+          | hyperlane-node-services | \`${TAG_SHA_DATE}\` |
+
+          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer
+
+          **Full image path:**
+          \`\`\`
+          ${TAGS}
+          \`\`\`
+          EOF
+
+      - name: Comment image tags on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
+        uses: ./.github/actions/docker-image-comment
+        with:
+          comment_tag: typescript-docker-images
+          image_name: Node Services Docker Image
+          emoji: ''
+          image_tags: ${{ steps.image-tags.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          job_status: ${{ job.status }}

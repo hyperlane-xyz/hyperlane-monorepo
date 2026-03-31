@@ -2,16 +2,16 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 
 import {
-  ERC20Test,
+  type ERC20Test,
   EverclearTokenBridge__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
 } from '@hyperlane-xyz/core';
 import {
-  EverclearCollateralTokenConfig,
+  type EverclearCollateralTokenConfig,
   HypTokenRouterConfigMailboxOptionalSchema,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -115,7 +115,6 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     fixture.writeConfigs();
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );
@@ -273,7 +272,6 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );

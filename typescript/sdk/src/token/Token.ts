@@ -3,10 +3,12 @@ import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
   Address,
+  KnownProtocolType,
   Numberish,
   ProtocolType,
   assert,
   eqAddress,
+  isEVMLike,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -29,6 +31,12 @@ import {
   XERC20_STANDARDS,
 } from './TokenStandard.js';
 import {
+  AleoHypCollateralAdapter,
+  AleoHypNativeAdapter,
+  AleoHypSyntheticAdapter,
+  AleoNativeTokenAdapter,
+} from './adapters/AleoTokenAdapter.js';
+import {
   CwHypCollateralAdapter,
   CwHypNativeAdapter,
   CwHypSyntheticAdapter,
@@ -44,6 +52,7 @@ import {
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
 } from './adapters/CosmosTokenAdapter.js';
+import { EvmHypCrossCollateralAdapter } from './adapters/EvmCrossCollateralAdapter.js';
 import {
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
@@ -61,6 +70,7 @@ import type {
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import { M0PortalLiteTokenAdapter } from './adapters/M0PortalLiteTokenAdapter.js';
+import { M0PortalTokenAdapter } from './adapters/M0PortalTokenAdapter.js';
 import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
@@ -101,18 +111,30 @@ export class Token implements IToken {
    * nothing specific is set in the ChainMetadata.
    */
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    const { protocol, name: chainName, logoURI } = chainMetadata;
+    const {
+      protocol,
+      name: chainName,
+      logoURI,
+      gasCurrencyCoinGeckoId,
+    } = chainMetadata;
+    assert(
+      protocol !== ProtocolType.Unknown,
+      'Cannot create native token for unknown protocol',
+    );
+    const knownProtocol = protocol as KnownProtocolType;
     const nativeToken =
-      chainMetadata.nativeToken || PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[protocol];
+      chainMetadata.nativeToken ||
+      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[knownProtocol];
 
     return new Token({
       chainName,
-      standard: PROTOCOL_TO_NATIVE_STANDARD[protocol],
+      standard: PROTOCOL_TO_NATIVE_STANDARD[knownProtocol],
       addressOrDenom: nativeToken.denom ?? '',
       decimals: nativeToken.decimals,
       symbol: nativeToken.symbol,
       name: nativeToken.name,
       logoURI,
+      coinGeckoId: gasCurrencyCoinGeckoId,
     });
   }
 
@@ -130,11 +152,14 @@ export class Token implements IToken {
       `Token chain ${chainName} not found in multiProvider`,
     );
 
-    if (standard === TokenStandard.ERC20) {
+    if (standard === TokenStandard.ERC20 || standard === TokenStandard.TRC20) {
       return new EvmTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmNative) {
+    } else if (
+      standard === TokenStandard.EvmNative ||
+      standard === TokenStandard.TronNative
+    ) {
       return new EvmNativeTokenAdapter(chainName, multiProvider, {});
     } else if (
       standard === TokenStandard.SealevelSpl ||
@@ -173,6 +198,10 @@ export class Token implements IToken {
       return new RadixNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
+    } else if (standard === TokenStandard.AleoNative) {
+      return new AleoNativeTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (this.isHypToken()) {
       return this.getHypAdapter(multiProvider);
     } else if (this.isIbcToken()) {
@@ -204,6 +233,22 @@ export class Token implements IToken {
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
     const mailbox = chainMetadata?.mailbox;
 
+    if (
+      standard === TokenStandard.EvmNative &&
+      this.connections?.length &&
+      this.connections.every(
+        (c) => !c.type || c.type === TokenConnectionType.Hyperlane,
+      )
+    ) {
+      assert(
+        chainMetadata,
+        `Token chain ${chainName} not found in multiProvider`,
+      );
+      return new EvmHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    }
+
     assert(
       this.isMultiChainToken(),
       `Token standard ${standard} not applicable to hyp adapter`,
@@ -214,43 +259,71 @@ export class Token implements IToken {
       `Token chain ${chainName} not found in multiProvider`,
     );
 
-    if (standard === TokenStandard.EvmHypNative) {
+    if (
+      standard === TokenStandard.EvmHypNative ||
+      standard === TokenStandard.TronHypNative
+    ) {
       return new EvmHypNativeAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypOwnerCollateral
+      standard === TokenStandard.EvmHypOwnerCollateral ||
+      standard === TokenStandard.TronHypCollateral ||
+      standard === TokenStandard.TronHypOwnerCollateral
     ) {
       return new EvmMovableCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypRebaseCollateral) {
+    } else if (
+      standard === TokenStandard.EvmHypCrossCollateralRouter ||
+      standard === TokenStandard.TronHypCrossCollateralRouter
+    ) {
+      return new EvmHypCrossCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (
+      standard === TokenStandard.EvmHypRebaseCollateral ||
+      standard === TokenStandard.TronHypRebaseCollateral
+    ) {
       return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypCollateralFiat) {
+    } else if (
+      standard === TokenStandard.EvmHypCollateralFiat ||
+      standard === TokenStandard.TronHypCollateralFiat
+    ) {
       return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypSynthetic) {
+    } else if (
+      standard === TokenStandard.EvmHypSynthetic ||
+      standard === TokenStandard.TronHypSynthetic
+    ) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypSyntheticRebase) {
+    } else if (
+      standard === TokenStandard.EvmHypSyntheticRebase ||
+      standard === TokenStandard.TronHypSyntheticRebase
+    ) {
       return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypXERC20 ||
-      standard === TokenStandard.EvmHypVSXERC20
+      standard === TokenStandard.EvmHypVSXERC20 ||
+      standard === TokenStandard.TronHypXERC20 ||
+      standard === TokenStandard.TronHypVSXERC20
     ) {
       return new EvmHypXERC20Adapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypXERC20Lockbox ||
-      standard === TokenStandard.EvmHypVSXERC20Lockbox
+      standard === TokenStandard.EvmHypVSXERC20Lockbox ||
+      standard === TokenStandard.TronHypXERC20Lockbox ||
+      standard === TokenStandard.TronHypVSXERC20Lockbox
     ) {
       return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
         token: addressOrDenom,
@@ -344,12 +417,38 @@ export class Token implements IToken {
       return new RadixHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmM0PortalLite) {
+    } else if (standard === TokenStandard.AleoHypNative) {
+      return new AleoHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypCollateral) {
+      return new AleoHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypSynthetic) {
+      return new AleoHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (
+      standard === TokenStandard.EvmM0PortalLite ||
+      standard === TokenStandard.TronM0PortalLite
+    ) {
       assert(
         collateralAddressOrDenom,
         'collateralAddressOrDenom (mToken address) required for M0PortalLite',
       );
       return new M0PortalLiteTokenAdapter(
+        multiProvider,
+        chainName,
+        addressOrDenom, // portal address
+        collateralAddressOrDenom, // mToken address
+      );
+    } else if (standard === TokenStandard.EvmM0Portal) {
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom (mToken address) required for M0Portal',
+      );
+      return new M0PortalTokenAdapter(
         multiProvider,
         chainName,
         addressOrDenom, // portal address
@@ -451,6 +550,13 @@ export class Token implements IToken {
     return TOKEN_MULTI_CHAIN_STANDARDS.includes(this.standard);
   }
 
+  isCrossCollateralToken(): boolean {
+    return (
+      this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
+      this.standard === TokenStandard.TronHypCrossCollateralRouter
+    );
+  }
+
   getConnections(): TokenConnection[] {
     return this.connections || [];
   }
@@ -545,7 +651,7 @@ export function getCollateralTokenAdapter({
   const protocolType = multiProvider.getProtocol(chainName);
 
   // ERC20s
-  if (protocolType === ProtocolType.Ethereum) {
+  if (isEVMLike(protocolType)) {
     return new EvmTokenAdapter(chainName, multiProvider, {
       token: tokenAddress,
     });

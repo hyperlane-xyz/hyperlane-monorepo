@@ -15,9 +15,12 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {Router} from "./Router.sol";
+import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 abstract contract GasRouter is Router {
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+
     event GasSet(uint32 domain, uint256 gas);
 
     // ============ Mutable Storage ============
@@ -75,7 +78,11 @@ abstract contract GasRouter is Router {
             StandardHookMetadata.overrideGasLimit(destinationGas[_destination]);
     }
 
-    function _setDestinationGas(uint32 domain, uint256 gas) internal {
+    function _setDestinationGas(uint32 domain, uint256 gas) internal virtual {
+        require(
+            _routers.contains(uint256(domain)),
+            _domainNotFoundError(domain)
+        );
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
     }

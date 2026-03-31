@@ -7,13 +7,31 @@ use crate::accumulator::{
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, new, PartialEq, Eq)]
+#[derive(BorshSerialize, Debug, Clone, new, PartialEq, Eq)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     /// The branch of the tree
     pub branch: [H256; TREE_DEPTH],
     /// The number of leaves in the tree
     pub count: usize,
+}
+
+/// Custom BorshDeserialize to avoid stack overflow in Solana BPF.
+/// The derived impl deserializes `[H256; 32]` in a nested stack frame (1024 bytes),
+/// then copies it back into the caller's frame (another 1024 bytes). These stacked
+/// frames can exceed the 4KB BPF stack limit during CPI calls.
+/// This impl does everything in a single frame, and `#[inline(never)]` prevents it
+/// from being merged with other large-stack callers.
+impl BorshDeserialize for IncrementalMerkle {
+    #[inline(never)]
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut branch = [H256::zero(); TREE_DEPTH];
+        for item in branch.iter_mut() {
+            *item = H256::deserialize_reader(reader)?;
+        }
+        let count = usize::deserialize_reader(reader)?;
+        Ok(Self { branch, count })
+    }
 }
 
 impl Default for IncrementalMerkle {
@@ -89,8 +107,44 @@ impl IncrementalMerkle {
     }
 }
 
-#[cfg(all(test, feature = "ethers"))]
+#[cfg(test)]
 mod test {
+    use super::*;
+
+    #[test]
+    fn borsh_roundtrip() {
+        let mut tree = IncrementalMerkle::default();
+        tree.ingest(H256::from([1u8; 32]));
+        tree.ingest(H256::from([2u8; 32]));
+        let serialized = borsh::to_vec(&tree).unwrap();
+        let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(tree, deserialized);
+    }
+
+    #[test]
+    fn borsh_roundtrip_empty() {
+        let tree = IncrementalMerkle::default();
+        let serialized = borsh::to_vec(&tree).unwrap();
+        let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(tree, deserialized);
+    }
+
+    #[test]
+    fn borsh_roundtrip_deep() {
+        let mut tree = IncrementalMerkle::default();
+        for i in 0u64..100 {
+            let mut leaf = [0u8; 32];
+            leaf[..8].copy_from_slice(&i.to_le_bytes());
+            tree.ingest(H256::from(leaf));
+        }
+        let serialized = borsh::to_vec(&tree).unwrap();
+        let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(tree, deserialized);
+    }
+}
+
+#[cfg(all(test, feature = "ethers"))]
+mod ethers_test {
     use ethers_core::utils::hash_message;
 
     use crate::test_utils;

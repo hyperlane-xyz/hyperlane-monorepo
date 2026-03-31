@@ -1,8 +1,22 @@
 {
   "name": "@hyperlane-xyz/radix-sdk",
-  "version": "20.1.0",
+  "version": "29.1.0",
   "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
+  "keywords": [
+    "blockchain",
+    "hyperlane",
+    "radix",
+    "sdk"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist",
+    "docker-compose.yml"
+  ],
   "type": "module",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,53 +27,16 @@
       "default": "./dist/testing/index.js"
     }
   },
-  "types": "dist/index.d.ts",
-  "files": [
-    "/dist",
-    "docker-compose.yml"
-  ],
-  "homepage": "https://www.hyperlane.xyz",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "radix",
-    "blockchain",
-    "sdk"
-  ],
-  "license": "Apache-2.0",
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "prettier --write .",
-    "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src",
+    "format": "oxfmt --write ./src",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "echo \"no tests in radix-sdk\"",
     "test:unit": "mocha --config .mocharc.json",
     "test:ci": "pnpm test:unit",
     "test:e2e": "mocha --config .mocharc.e2e.json"
-  },
-  "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
-    "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
-    "@types/mocha": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "chai": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
-    "mocha": "catalog:",
-    "mocha-steps": "catalog:",
-    "prettier": "catalog:",
-    "ts-node": "catalog:",
-    "testcontainers": "catalog:",
-    "tsx": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
@@ -70,5 +47,21 @@
     "bignumber.js": "catalog:",
     "decimal.js": "^10.4.3",
     "ethers": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "mocha": "catalog:",
+    "mocha-steps": "catalog:",
+    "oxfmt": "catalog:",
+    "testcontainers": "catalog:",
+    "ts-node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   }
 }

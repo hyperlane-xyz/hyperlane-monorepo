@@ -119,7 +119,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 11. `[writeable]` Gas payment PDA.
 /// 12. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
 /// 13. `[writeable]` The IGP account.
-///      ---- End if ----
+///     ---- End if ----
 /// 14. `[executable]` The spl_token_2022 program.
 /// 15. `[writeable]` The mint / mint authority PDA account.
 /// 16. `[writeable]` The token sender's associated token account, from which tokens will be burned.

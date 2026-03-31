@@ -2,8 +2,11 @@ import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
@@ -41,8 +44,10 @@ export interface ContextSettings extends BaseContext {
   authToken?: string;
 }
 
-export interface CommandContext
-  extends Omit<BaseContext, 'key' | 'skipConfirmation'> {
+export interface CommandContext extends Omit<
+  BaseContext,
+  'key' | 'skipConfirmation'
+> {
   key?: SignerKeyProtocolMap;
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
@@ -51,6 +56,10 @@ export interface CommandContext
   altVmProviders: ChainMap<AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
+  warpCoreConfig?: WarpCoreConfig;
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId?: string;
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }
@@ -58,16 +67,17 @@ export interface CommandContext
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
 }
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId?: string;
 }
 export interface WarpApplyCommandContext extends WriteCommandContext {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
+  resolvedWarpRouteId?: string;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<

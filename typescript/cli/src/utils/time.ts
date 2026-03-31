@@ -1,6 +1,9 @@
 export function getTimestampForFilename() {
   const pad = (n: number) =>
-    n.toLocaleString('en-US', { minimumIntegerDigits: 2, useGrouping: false });
+    n.toLocaleString('en-US', {
+      minimumIntegerDigits: 2,
+      useGrouping: false,
+    });
   const now = new Date();
   const year = now.getFullYear();
   const month = pad(now.getMonth() + 1);

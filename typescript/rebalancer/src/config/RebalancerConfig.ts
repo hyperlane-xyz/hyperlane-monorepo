@@ -1,18 +1,29 @@
+import type { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
-import { isObjEmpty } from '@hyperlane-xyz/utils';
+import type { ProtocolType } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
+import type { InventorySignerConfig } from '../core/InventoryRebalancer.js';
 import {
+  type ExternalBridgesConfigSchema,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
+  getStrategyChainNames,
 } from './types.js';
+
+type ExternalBridgesConfig = z.infer<typeof ExternalBridgesConfigSchema>;
 
 export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
-    public readonly strategyConfig: StrategyConfig,
+    public readonly strategyConfig: StrategyConfig[],
+    public readonly intentTTL: number,
+    public readonly inventorySigners?: Partial<
+      Record<ProtocolType, InventorySignerConfig>
+    >,
+    public readonly externalBridges?: ExternalBridgesConfig,
   ) {}
 
   /**
@@ -28,12 +39,25 @@ export class RebalancerConfig {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, strategy } = validationResult.data;
+    const {
+      warpRouteId,
+      strategy,
+      intentTTL,
+      inventorySigners,
+      externalBridges,
+    } = validationResult.data;
 
-    if (isObjEmpty(strategy.chains)) {
+    const chainNames = getStrategyChainNames(strategy);
+    if (chainNames.length === 0) {
       throw new Error('No chains configured');
     }
 
-    return new RebalancerConfig(warpRouteId, strategy);
+    return new RebalancerConfig(
+      warpRouteId,
+      strategy,
+      intentTTL,
+      inventorySigners,
+      externalBridges,
+    );
   }
 }

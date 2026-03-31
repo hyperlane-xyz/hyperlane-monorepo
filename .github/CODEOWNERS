@@ -1,33 +1,44 @@
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @ltyu @larryob
+solidity/ @yorhodes @nambrot
 starknet/ @yorhodes @troykessler
 
 ## Agents
-rust/ @ameten @kamiyaa @yjamin
+rust/ @tkporter @yjamin
 
 ## SDK
-typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
-typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
-typescript/widgets @xaroz @xeno097 @antigremlin
+typescript/sdk @yorhodes @paulbalaji @xaroz @xeno097
+typescript/utils @yorhodes @paulbalaji @xaroz @xeno097
+typescript/widgets @xaroz @xeno097
 
 ## Multi-VM SDK
-typescript/deploy-sdk @ltyu @xeno097 @troykessler @antigremlin
-typescript/provider-sdk @ltyu @xeno097 @troykessler @antigremlin
+typescript/deploy-sdk @xeno097 @troykessler
+typescript/provider-sdk @xeno097 @troykessler
+typescript/aleo-sdk @xeno097 @troykessler @yjamin
+typescript/cosmos-sdk @xeno097 @troykessler @yjamin
+typescript/cosmos-types @xeno097 @troykessler @yjamin
+typescript/radix-sdk @xeno097 @troykessler @yjamin
+typescript/tron-sdk @xeno097 @troykessler @yjamin
 
 ## CLI
-typescript/cli @yorhodes @ltyu @xeno097 @antigremlin
+typescript/cli @yorhodes @xeno097
 
 ## Infra
-typescript/infra @paulbalaji @Mo-Hussain
+typescript/infra @paulbalaji @Mo-Hussain @tkporter
+typescript/github-proxy @paulbalaji @Mo-Hussain @tkporter
+typescript/helloworld @paulbalaji @Mo-Hussain @tkporter
+typescript/http-registry-server @paulbalaji @Mo-Hussain @tkporter
+typescript/keyfunder @paulbalaji @Mo-Hussain @tkporter
+typescript/metrics @paulbalaji @Mo-Hussain @tkporter
+typescript/warp-monitor @paulbalaji @Mo-Hussain @tkporter @xeno097
 
-## Cosmos
-typescript/cosmos-sdk @troykessler @yjamin
-typescript/cosmos-types @troykessler @yjamin
-
-## CCIP Server
+## Relayer & Rebalancer
 typescript/ccip-server @Mo-Hussain @nambrot
+typescript/rebalancer @Mo-Hussain @nambrot @paulbalaji
+typescript/rebalancer-sim @Mo-Hussain @nambrot @paulbalaji
+typescript/relayer @Mo-Hussain @yorhodes @paulbalaji
 
-## Radix
-typescript/radix-sdk @troykessler @yjamin
+## Shared Tooling
+oxlint.json @xeno097 @paulbalaji
+typescript/tsconfig @xeno097 @paulbalaji

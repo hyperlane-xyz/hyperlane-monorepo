@@ -45,6 +45,16 @@ import { RadixWarpTx } from '../warp/tx.js';
 
 import { RadixProvider } from './provider.js';
 
+type RadixSignerMetadata = {
+  chainId?: string | number;
+  gatewayUrls?: { http: string }[];
+  packageAddress?: string;
+};
+
+type RadixSignerConnectionParams = {
+  metadata?: RadixSignerMetadata;
+};
+
 export class RadixSigner
   extends RadixProvider
   implements AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>
@@ -80,11 +90,11 @@ export class RadixSigner
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
-    extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>> {
+    extraParams?: RadixSignerConnectionParams,
+  ): Promise<RadixSigner> {
     assert(extraParams, `extra params not defined`);
 
-    const metadata = extraParams.metadata as Record<string, unknown>;
+    const metadata = extraParams.metadata;
     assert(metadata, `metadata not defined in extra params`);
     assert(metadata.chainId, `chainId not defined in metadata extra params`);
 
@@ -98,10 +108,8 @@ export class RadixSigner
     return new RadixSigner(account, {
       networkId,
       rpcUrls,
-      gatewayUrls: (metadata?.gatewayUrls as { http: string }[])?.map(
-        ({ http }) => http,
-      ),
-      packageAddress: metadata.packageAddress as string | undefined,
+      gatewayUrls: metadata.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata.packageAddress,
     });
   }
 
@@ -111,6 +119,18 @@ export class RadixSigner
 
   supportsTransactionBatching(): boolean {
     return false;
+  }
+
+  getBaseSigner(): RadixBaseSigner {
+    return this.signer;
+  }
+
+  getGatewayClient() {
+    return this.gateway;
+  }
+
+  getBaseClient() {
+    return this.base;
   }
 
   async transactionToPrintableJson(
@@ -166,6 +186,12 @@ export class RadixSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Radix. Remove proxyAdmin from config.',
+      );
+    }
+
     const transactionManifest = await getCreateMailboxTx(
       this.base,
       this.account.address,
@@ -488,6 +514,18 @@ export class RadixSigner
     };
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
@@ -499,6 +537,12 @@ export class RadixSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Radix. Remove proxyAdmin from config.',
+      );
+    }
+
     return {
       tokenAddress: await this.tx.warp.createCollateralToken({
         mailbox: req.mailboxAddress,
@@ -510,6 +554,12 @@ export class RadixSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Radix. Remove proxyAdmin from config.',
+      );
+    }
+
     return {
       tokenAddress: await this.tx.warp.createSyntheticToken({
         mailbox: req.mailboxAddress,
@@ -542,7 +592,8 @@ export class RadixSigner
     });
 
     return {
-      ismAddress: req.ismAddress,
+      ismAddress:
+        req.ismAddress ?? '0x0000000000000000000000000000000000000000',
     };
   }
 
