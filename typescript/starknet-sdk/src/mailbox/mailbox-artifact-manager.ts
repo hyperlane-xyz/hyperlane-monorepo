@@ -292,11 +292,9 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     } = {
       mailbox: new StarknetMailboxReader(this.provider),
     };
-    assert(
-      Object.prototype.hasOwnProperty.call(readers, type),
-      'Unsupported Starknet mailbox type',
-    );
-    return readers[type];
+    const reader = readers[type];
+    assert(reader, 'Unsupported Starknet mailbox type');
+    return reader;
   }
 
   createWriter<T extends MailboxType>(
@@ -316,10 +314,8 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
           this.chainMetadata,
         ),
     };
-    assert(
-      Object.prototype.hasOwnProperty.call(writerFactories, type),
-      'Unsupported Starknet mailbox type',
-    );
-    return writerFactories[type]();
+    const writerFactory = writerFactories[type];
+    assert(writerFactory, 'Unsupported Starknet mailbox type');
+    return writerFactory();
   }
 }

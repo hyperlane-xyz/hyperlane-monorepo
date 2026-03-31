@@ -246,11 +246,9 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     } = {
       validatorAnnounce: new StarknetValidatorAnnounceReader(this.provider),
     };
-    assert(
-      Object.prototype.hasOwnProperty.call(readers, type),
-      'Unsupported Starknet validator announce type',
-    );
-    return readers[type];
+    const reader = readers[type];
+    assert(reader, 'Unsupported Starknet validator announce type');
+    return reader;
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -272,10 +270,8 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
           this.requireStarknetSigner(signer),
         ),
     };
-    assert(
-      Object.prototype.hasOwnProperty.call(writerFactories, type),
-      'Unsupported Starknet validator announce type',
-    );
-    return writerFactories[type]();
+    const writerFactory = writerFactories[type];
+    assert(writerFactory, 'Unsupported Starknet validator announce type');
+    return writerFactory();
   }
 }
