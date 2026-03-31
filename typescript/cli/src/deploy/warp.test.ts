@@ -2,8 +2,13 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import {
+  CrossCollateralRouter__factory,
+  ERC20__factory,
+} from '@hyperlane-xyz/core';
+import {
   ProtocolType,
   addressToBytes32,
+  normalizeAddressEvm,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
@@ -58,7 +63,48 @@ function buildContext(
 
   const addWarpRouteConfig = sinon.stub().resolves();
   const addWarpRoute = sinon.stub().resolves();
+  const metadataByRouter = new Map<
+    string,
+    {
+      decimals: number;
+      scale?: number | { numerator: number; denominator: number };
+      symbol: string;
+    }
+  >();
 
+  for (const route of Object.values(routes)) {
+    for (const token of route.coreConfig.tokens) {
+      metadataByRouter.set(normalizeAddressEvm(token.addressOrDenom!), {
+        decimals: token.decimals,
+        scale: token.scale,
+        symbol: token.symbol,
+      });
+    }
+  }
+
+  sinon
+    .stub(CrossCollateralRouter__factory, 'connect')
+    .callsFake((routerAddress: string) => {
+      const normalizedAddress = normalizeAddressEvm(routerAddress);
+      const metadata = metadataByRouter.get(normalizedAddress);
+      const scale = metadata?.scale;
+      const scaleNumerator =
+        typeof scale === 'object' ? scale.numerator : (scale ?? 1);
+      const scaleDenominator =
+        typeof scale === 'object' ? scale.denominator : 1;
+      return {
+        wrappedToken: sinon.stub().resolves(normalizedAddress),
+        scaleNumerator: sinon.stub().resolves(scaleNumerator),
+        scaleDenominator: sinon.stub().resolves(scaleDenominator),
+      } as any;
+    });
+  sinon.stub(ERC20__factory, 'connect').callsFake((tokenAddress: string) => {
+    const metadata = metadataByRouter.get(normalizeAddressEvm(tokenAddress));
+    return {
+      decimals: sinon.stub().resolves(metadata?.decimals),
+      symbol: sinon.stub().resolves(metadata?.symbol),
+    } as any;
+  });
   return {
     context: {
       registry: {
@@ -76,8 +122,18 @@ function buildContext(
             ([, domain]) => domain === domainId,
           )?.[0];
         },
+        getChainMetadata(chain: string) {
+          return {
+            domainId: DOMAIN_BY_CHAIN[chain],
+            name: chain,
+            protocol: ProtocolType.Ethereum,
+          };
+        },
         getProtocol() {
           return ProtocolType.Ethereum;
+        },
+        getProvider(chain: string) {
+          return chain;
         },
       },
     } as any,
