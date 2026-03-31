@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { MesonBridge } from '../bridges/MesonBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -628,6 +629,18 @@ export class RebalancerContextFactory {
               this.logger,
             );
           }
+          break;
+        }
+        case ExternalBridgeType.Meson: {
+          const mesonConfig = externalBridges?.meson;
+          registry[ExternalBridgeType.Meson] = new MesonBridge(
+            {
+              apiUrl: mesonConfig?.apiUrl,
+              defaultSlippage: mesonConfig?.defaultSlippage,
+              chainMetadata: this.multiProvider.metadata,
+            },
+            this.logger,
+          );
           break;
         }
         default: {
