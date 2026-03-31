@@ -302,6 +302,7 @@ export class CallCommitmentsService extends BaseService {
 
   /**
    * New path: derive ICA from explicitly provided destination + owner.
+   * Uses the salt-aware contract overload when userSalt is provided.
    */
   private async deriveIcaFromConfig(
     data: PostCallsIcaType,
@@ -319,9 +320,22 @@ export class CallCommitmentsService extends BaseService {
     };
 
     logger.debug(
-      { originChain, destinationChain, owner: data.owner },
+      {
+        originChain,
+        destinationChain,
+        owner: data.owner,
+        userSalt: data.userSalt,
+      },
       'Deriving ICA from config',
     );
+
+    if (data.userSalt) {
+      return this.icaApp.getAccountWithSalt(
+        destinationChain,
+        accountConfig,
+        data.userSalt,
+      );
+    }
 
     return this.icaApp.getAccount(destinationChain, accountConfig);
   }

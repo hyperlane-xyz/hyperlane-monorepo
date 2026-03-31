@@ -11,6 +11,7 @@ import {
   CallData,
   addBufferToGasLimit,
   addressToBytes32,
+  assert,
   arrayToObject,
   bytes32ToAddress,
   eqAddress,
@@ -90,6 +91,41 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     config: AccountConfig,
   ): Promise<Address> {
     return this.getOrDeployAccount(false, destinationChain, config);
+  }
+
+  async getAccountWithSalt(
+    destinationChain: ChainName,
+    config: AccountConfig,
+    userSalt: string,
+  ): Promise<Address> {
+    const originDomain = this.multiProvider.tryGetDomainId(config.origin);
+    assert(originDomain, `Unknown origin chain: ${config.origin}`);
+
+    const destinationRouter = this.router(this.contractsMap[destinationChain]);
+    const originRouterAddress =
+      config.localRouter ??
+      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    assert(
+      !isZeroishAddress(originRouterAddress),
+      `Origin router address is zero for ${config.origin} on ${destinationChain}`,
+    );
+
+    const ismAddress = bytes32ToAddress(
+      addressToBytes32(
+        config.ismOverride ?? (await destinationRouter.isms(originDomain)),
+      ),
+    );
+
+    const account = await destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](
+      originDomain,
+      addressToBytes32(config.owner),
+      addressToBytes32(originRouterAddress),
+      ismAddress,
+      userSalt,
+    );
+    return account;
   }
 
   async deployAccount(
@@ -591,6 +627,7 @@ const PostCallsLegacySchema = PostCallsBaseSchema.extend({
 const PostCallsIcaSchema = PostCallsBaseSchema.extend({
   destinationDomain: z.number(),
   owner: ZHash,
+  userSalt: ZHash.optional(),
 });
 
 export const PostCallsSchema = z.union([
