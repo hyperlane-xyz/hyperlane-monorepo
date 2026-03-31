@@ -53,6 +53,13 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       maxPriorityFeePerGas: 15 * 10 ** 9, // 15 gwei tip
     },
   },
+  fluent: {
+    transactionOverrides: {
+      minGasPrice: 1 * 10 ** 6, // 0.001 gwei
+      minFeePerGas: 1 * 10 ** 6, // 0.001 gwei
+      minPriorityFeePerGas: 1 * 10 ** 6, // 0.001 gwei
+    },
+  },
 };
 
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts

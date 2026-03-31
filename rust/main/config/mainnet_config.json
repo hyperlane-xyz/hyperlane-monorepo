@@ -9795,6 +9795,11 @@
       "validatorAnnounce": "0xc8826EA18D9884A1A335b2Cd7d5f44B159084301",
       "index": {
         "from": 1057148
+      },
+      "transactionOverrides": {
+        "minGasPrice": 1000000,
+        "minFeePerGas": 1000000,
+        "minPriorityFeePerGas": 1000000
       }
     },
     "kiichain": {
