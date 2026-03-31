@@ -36,7 +36,9 @@ import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
  * different token) that this instance trusts to send/receive transfers.
  * CrossCollateralRouter assumes standard ERC20 behavior with exact transfer
  * amounts. Rebasing tokens, fee-on-transfer tokens, and ERC777 tokens are not
- * supported due to exact-amount accounting in transfer/handle flows.
+ * supported due to exact-amount accounting in transfer/handle flows. Same-chain
+ * enrollment compatibility checks also require collateral tokens to implement
+ * IERC20Metadata.decimals().
  *
  * Overrides:
  *  - handle(): accepts messages from the mailbox (cross-chain) or directly
@@ -178,52 +180,44 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         );
     }
 
-    function _greatestCommonDivisor(
-        uint256 _a,
-        uint256 _b
-    ) internal pure returns (uint256) {
+    function _reduceRatio(
+        uint256 _numerator,
+        uint256 _denominator
+    ) internal pure returns (uint256 numerator, uint256 denominator) {
+        uint256 _a = _numerator;
+        uint256 _b = _denominator;
         while (_b != 0) {
             uint256 remainder = _a % _b;
             _a = _b;
             _b = remainder;
         }
-        return _a;
-    }
-
-    function _reducedMessageAmountTokenScale(
-        address _token,
-        uint256 _routerScaleNumerator,
-        uint256 _routerScaleDenominator
-    ) internal view returns (uint256 numerator, uint256 denominator) {
-        uint256 wholeToken = 10 ** uint256(IERC20Metadata(_token).decimals());
-        numerator = wholeToken * _routerScaleNumerator;
-        denominator = _routerScaleDenominator;
-
-        uint256 gcd = _greatestCommonDivisor(numerator, denominator);
-        return (numerator / gcd, denominator / gcd);
+        return (_numerator / _a, _denominator / _a);
     }
 
     function _requireCompatibleLocalRouter(address _target) internal view {
+        CrossCollateralRouter targetRouter = CrossCollateralRouter(_target);
+        uint8 localDecimals = IERC20Metadata(token()).decimals();
+        uint8 targetDecimals = IERC20Metadata(targetRouter.token()).decimals();
         (
-            uint256 localNumerator,
-            uint256 localDenominator
-        ) = _reducedMessageAmountTokenScale(
-                token(),
-                scaleNumerator,
+            uint256 localMessageAmountTokenScaleNumerator,
+            uint256 localMessageAmountTokenScaleDenominator
+        ) = _reduceRatio(
+                (10 ** uint256(localDecimals)) * scaleNumerator,
                 scaleDenominator
             );
         (
-            uint256 targetNumerator,
-            uint256 targetDenominator
-        ) = _reducedMessageAmountTokenScale(
-                CrossCollateralRouter(_target).token(),
-                CrossCollateralRouter(_target).scaleNumerator(),
-                CrossCollateralRouter(_target).scaleDenominator()
+            uint256 targetMessageAmountTokenScaleNumerator,
+            uint256 targetMessageAmountTokenScaleDenominator
+        ) = _reduceRatio(
+                (10 ** uint256(targetDecimals)) * targetRouter.scaleNumerator(),
+                targetRouter.scaleDenominator()
             );
 
         require(
-            localNumerator == targetNumerator &&
-                localDenominator == targetDenominator,
+            localMessageAmountTokenScaleNumerator ==
+                targetMessageAmountTokenScaleNumerator &&
+                localMessageAmountTokenScaleDenominator ==
+                targetMessageAmountTokenScaleDenominator,
             "CCR: incompatible local scales"
         );
     }
