@@ -36,6 +36,7 @@ import {
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
   TxSubmitterType,
+  TokenStandard,
   type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -55,7 +56,8 @@ import {
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
-  validateConfiguredCrossCollateralGraph,
+  buildExpectedCrossCollateralRouters,
+  validateCrossCollateralRouterScales,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -64,6 +66,7 @@ import {
   isEVMLike,
   mapAllSettled,
   mustGet,
+  normalizeAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
@@ -1367,10 +1370,53 @@ export async function runWarpRouteCombine({
     }
   }
 
-  await validateConfiguredCrossCollateralGraph({
-    multiProvider: context.multiProvider,
-    routes,
+  const crossCollateralLabels = new Map<string, string>();
+  const crossCollateralRouters = routes.flatMap((route) => {
+    const invalidDeployChains = Object.entries(route.deployConfig)
+      .filter(([, chainConfig]) => !isCrossCollateralTokenConfig(chainConfig))
+      .map(([chain]) => chain);
+    assert(
+      invalidDeployChains.length === 0,
+      `Route "${route.id}" contains non-CrossCollateralRouter deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
+    );
+
+    const invalidCoreTokens = route.coreConfig.tokens.filter(
+      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
+    );
+    assert(
+      invalidCoreTokens.length === 0,
+      `Route "${route.id}" contains non-CrossCollateralRouter warp config token(s): ${invalidCoreTokens
+        .map((token) => `${token.chainName}:${token.addressOrDenom}`)
+        .join(', ')}`,
+    );
+
+    const routerAddresses = Object.fromEntries(
+      route.coreConfig.tokens.map((token) => {
+        assert(
+          token.addressOrDenom,
+          `Route "${route.id}" token on chain "${token.chainName}" is missing addressOrDenom`,
+        );
+        const routerId = `${token.chainName}:${normalizeAddressEvm(token.addressOrDenom)}`;
+        crossCollateralLabels.set(
+          routerId,
+          `route "${route.id}" on chain "${token.chainName}"`,
+        );
+        return [token.chainName, token.addressOrDenom];
+      }),
+    ) as ChainMap<Address>;
+
+    return buildExpectedCrossCollateralRouters(
+      route.deployConfig,
+      context.multiProvider,
+      routerAddresses,
+    );
   });
+
+  await validateCrossCollateralRouterScales(
+    context.multiProvider,
+    crossCollateralRouters,
+    crossCollateralLabels,
+  );
 
   for (const route of routes) {
     await context.registry.addWarpRouteConfig(route.deployConfig, {

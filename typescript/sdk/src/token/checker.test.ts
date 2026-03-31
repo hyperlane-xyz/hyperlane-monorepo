@@ -7,7 +7,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import { HypERC20App } from './app.js';
-import { HypERC20Checker } from './checker.js';
+import {
+  HypERC20Checker,
+  assertCrossCollateralRouterScales,
+} from './checker.js';
 import { TokenType } from './config.js';
 import { HypTokenRouterConfig } from './types.js';
 
@@ -269,5 +272,61 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
 
     expect(checker.violations).to.have.length(1);
     expect(checker.violations[0].type).to.equal('TokenDecimalsMismatch');
+  });
+});
+
+describe('assertCrossCollateralRouterScales', () => {
+  it('accepts a compatible router set', () => {
+    assertCrossCollateralRouterScales([
+      {
+        chainName: 'chain-a',
+        routerAddress: '0x1111111111111111111111111111111111111111',
+        decimals: 18,
+        symbol: 'USDC',
+      },
+      {
+        chainName: 'chain-b',
+        routerAddress: '0x2222222222222222222222222222222222222222',
+        decimals: 6,
+        scale: 1_000_000_000_000,
+        symbol: 'USDC',
+      },
+      {
+        chainName: 'chain-c',
+        routerAddress: '0x3333333333333333333333333333333333333333',
+        decimals: 18,
+        symbol: 'USDT',
+      },
+    ]);
+  });
+
+  it('rejects an incompatible router set', () => {
+    expect(() =>
+      assertCrossCollateralRouterScales([
+        {
+          chainName: 'chain-a',
+          routerAddress: '0x1111111111111111111111111111111111111111',
+          decimals: 18,
+          symbol: 'USDC',
+        },
+        {
+          chainName: 'chain-b',
+          routerAddress: '0x2222222222222222222222222222222222222222',
+          decimals: 6,
+          scale: 1_000_000_000_000,
+          symbol: 'USDC',
+        },
+        {
+          chainName: 'chain-c',
+          routerAddress: '0x3333333333333333333333333333333333333333',
+          decimals: 18,
+          scale: 2,
+          symbol: 'USDT',
+        },
+      ]),
+    )
+      .to.throw('Incompatible CrossCollateralRouter decimals/scale')
+      .with.property('message')
+      .that.includes('USDT');
   });
 });

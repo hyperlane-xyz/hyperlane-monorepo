@@ -733,14 +733,12 @@ export {
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
-export { HypERC20Checker } from './token/checker.js';
 export {
   buildExpectedCrossCollateralRouters,
-  type ConfiguredCrossCollateralRoute,
-  validateConfiguredCrossCollateralGraph,
-  validateCrossCollateralGraph,
-  validateOnchainCrossCollateralGraph,
-} from './token/crossCollateralValidation.js';
+  type CrossCollateralRouterReference,
+  HypERC20Checker,
+  validateCrossCollateralRouterScales,
+} from './token/checker.js';
 export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,

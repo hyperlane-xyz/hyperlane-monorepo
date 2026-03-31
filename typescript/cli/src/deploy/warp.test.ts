@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -94,8 +95,10 @@ function buildContext(
         typeof scale === 'object' ? scale.denominator : 1;
       return {
         wrappedToken: sinon.stub().resolves(normalizedAddress),
-        scaleNumerator: sinon.stub().resolves(scaleNumerator),
-        scaleDenominator: sinon.stub().resolves(scaleDenominator),
+        scaleNumerator: sinon.stub().resolves(BigNumber.from(scaleNumerator)),
+        scaleDenominator: sinon
+          .stub()
+          .resolves(BigNumber.from(scaleDenominator)),
       } as any;
     });
   sinon.stub(ERC20__factory, 'connect').callsFake((tokenAddress: string) => {

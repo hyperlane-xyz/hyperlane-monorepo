@@ -51,8 +51,8 @@ import { DeployableTokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   buildExpectedCrossCollateralRouters,
-  validateOnchainCrossCollateralGraph,
-} from './crossCollateralValidation.js';
+  validateCrossCollateralRouterScales,
+} from './checker.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
@@ -830,16 +830,13 @@ abstract class TokenDeployer<
     const routerAddresses = Object.fromEntries(
       roots.map(({ chainName, routerAddress }) => [chainName, routerAddress]),
     ) as ChainMap<Address>;
-    const routers = buildExpectedCrossCollateralRouters({
+    const routers = buildExpectedCrossCollateralRouters(
       configMap,
-      multiProvider: this.multiProvider,
+      this.multiProvider,
       routerAddresses,
-    });
+    );
 
-    await validateOnchainCrossCollateralGraph({
-      multiProvider: this.multiProvider,
-      routers,
-    });
+    await validateCrossCollateralRouterScales(this.multiProvider, routers);
   }
 
   async deploy(

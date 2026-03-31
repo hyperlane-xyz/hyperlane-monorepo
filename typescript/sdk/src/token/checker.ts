@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   ERC20,
   ERC20__factory,
   HypERC20Collateral,
@@ -11,15 +12,31 @@ import {
   ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  LazyAsync,
+  assert,
+  bytes32ToAddress,
+  eqAddress,
+  isEVMLike,
+  normalizeAddressEvm,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
-import { ProxiedFactories } from '../router/types.js';
-import { ChainName } from '../types.js';
-import { DEFAULT_SCALE, verifyScale } from '../utils/decimals.js';
+import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
+import {
+  DEFAULT_SCALE,
+  ScaleInput,
+  getMessageAmountTokenScale,
+  normalizeScale,
+  verifyScale,
+} from '../utils/decimals.js';
 
 import { HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -29,10 +46,183 @@ import {
   TokenMetadata,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
+
+type ExpectedCrossCollateralConfig = {
+  type?: string;
+  crossCollateralRouters?: Record<string, string[]>;
+};
+
+export type CrossCollateralRouterReference = {
+  chainName: ChainName;
+  routerAddress: Address;
+};
+
+type CrossCollateralRouterScaleMetadata = CrossCollateralRouterReference & {
+  decimals: number;
+  scale?: ScaleInput;
+  symbol: string;
+};
+
+export function buildExpectedCrossCollateralRouters(
+  configMap: Record<string, ExpectedCrossCollateralConfig>,
+  multiProvider: MultiProvider,
+  routerAddresses: ChainMap<Address>,
+): CrossCollateralRouterReference[] {
+  const routers = new Map<string, CrossCollateralRouterReference>();
+
+  for (const [chainName, config] of Object.entries(configMap)) {
+    if (config.type !== TokenType.crossCollateral) continue;
+
+    const routerAddress = routerAddresses[chainName];
+    assert(
+      routerAddress,
+      `Missing CrossCollateralRouter address for chain "${chainName}"`,
+    );
+
+    const localRef = {
+      chainName,
+      routerAddress: normalizeAddressEvm(routerAddress),
+    };
+    routers.set(getCrossCollateralRouterId(localRef), localRef);
+
+    for (const [domainId, peerRouters] of Object.entries(
+      resolveRouterMapConfig(
+        multiProvider,
+        config.crossCollateralRouters ?? {},
+      ),
+    )) {
+      const peerChainName = multiProvider.getChainName(Number(domainId));
+      for (const peerRouter of peerRouters) {
+        const peerRef = {
+          chainName: peerChainName,
+          routerAddress: normalizeAddressEvm(bytes32ToAddress(peerRouter)),
+        };
+        routers.set(getCrossCollateralRouterId(peerRef), peerRef);
+      }
+    }
+  }
+
+  return [...routers.values()];
+}
+
+export function assertCrossCollateralRouterScales(
+  nodes: CrossCollateralRouterScaleMetadata[],
+  labelsByRouterId?: Map<string, string>,
+): void {
+  const [baseNode, ...candidateNodes] = nodes;
+  if (!baseNode) return;
+
+  const baseScale = getMessageAmountTokenScale(baseNode);
+  const baseId = getCrossCollateralRouterId(baseNode);
+  const baseLabel = labelsByRouterId?.get(baseId) ?? baseId;
+
+  for (const candidateNode of candidateNodes) {
+    const candidateScale = getMessageAmountTokenScale(candidateNode);
+    if (
+      baseScale.numerator * candidateScale.denominator ===
+      candidateScale.numerator * baseScale.denominator
+    ) {
+      continue;
+    }
+
+    const candidateId = getCrossCollateralRouterId(candidateNode);
+    const candidateLabel = labelsByRouterId?.get(candidateId) ?? candidateId;
+
+    assert(
+      false,
+      `Incompatible CrossCollateralRouter decimals/scale between ${baseLabel} ` +
+        `(${baseNode.symbol}, decimals=${baseNode.decimals}, scale=${formatScaleForLogs(baseNode.scale)}) ` +
+        `and ${candidateLabel} ` +
+        `(${candidateNode.symbol}, decimals=${candidateNode.decimals}, scale=${formatScaleForLogs(candidateNode.scale)}).`,
+    );
+  }
+}
+
+export async function validateCrossCollateralRouterScales(
+  multiProvider: MultiProvider,
+  routers: CrossCollateralRouterReference[],
+  labelsByRouterId?: Map<string, string>,
+): Promise<void> {
+  const uniqueRouters = new Map<string, CrossCollateralRouterReference>();
+  for (const router of routers) {
+    const normalizedRouter = {
+      chainName: router.chainName,
+      routerAddress: normalizeAddressEvm(router.routerAddress),
+    };
+    uniqueRouters.set(
+      getCrossCollateralRouterId(normalizedRouter),
+      normalizedRouter,
+    );
+  }
+
+  const nodes = await Promise.all(
+    [...uniqueRouters.values()].map((router) =>
+      loadCrossCollateralRouterScaleMetadata(multiProvider, router),
+    ),
+  );
+  assertCrossCollateralRouterScales(nodes, labelsByRouterId);
+}
+
+function getCrossCollateralRouterId(
+  router: CrossCollateralRouterReference,
+): string {
+  return `${router.chainName}:${normalizeAddressEvm(router.routerAddress)}`;
+}
+
+function formatScaleForLogs(scale: ScaleInput | undefined): string {
+  const normalizedScale = normalizeScale(scale);
+  if (normalizedScale.denominator === 1n) {
+    return normalizedScale.numerator.toString();
+  }
+  return `${normalizedScale.numerator}/${normalizedScale.denominator}`;
+}
+
+async function loadCrossCollateralRouterScaleMetadata(
+  multiProvider: MultiProvider,
+  router: CrossCollateralRouterReference,
+): Promise<CrossCollateralRouterScaleMetadata> {
+  assert(
+    isEVMLike(multiProvider.getProtocol(router.chainName)),
+    `CrossCollateralRouter validation requires an EVM chain, got "${router.chainName}"`,
+  );
+
+  const provider = multiProvider.getProvider(router.chainName);
+  const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+    router.routerAddress,
+    provider,
+  );
+  const wrappedTokenAddress = await crossCollateralRouter.wrappedToken();
+  const wrappedToken = ERC20__factory.connect(wrappedTokenAddress, provider);
+  const [decimals, symbol, scaleNumerator, scaleDenominator] =
+    await Promise.all([
+      wrappedToken.decimals(),
+      wrappedToken.symbol(),
+      crossCollateralRouter.scaleNumerator(),
+      crossCollateralRouter.scaleDenominator(),
+    ]);
+  const normalizedScaleNumerator = BigInt(scaleNumerator.toString());
+  const normalizedScaleDenominator = BigInt(scaleDenominator.toString());
+
+  const scale =
+    normalizedScaleNumerator === 1n && normalizedScaleDenominator === 1n
+      ? undefined
+      : {
+          numerator: normalizedScaleNumerator,
+          denominator: normalizedScaleDenominator,
+        };
+
+  return {
+    ...router,
+    decimals,
+    scale,
+    symbol,
+  };
+}
 
 export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20Factories & ProxiedFactories,
@@ -72,6 +262,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       (isCollateralTokenConfig(this.configMap[chain]) ||
+        isCrossCollateralTokenConfig(this.configMap[chain]) ||
         isXERC20TokenConfig(this.configMap[chain])) &&
       hasCollateralProxyOverrides
     ) {
@@ -172,6 +363,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCrossCollateralTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
@@ -242,6 +434,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals = await (hypToken as unknown as ERC20).decimals();
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCrossCollateralTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig)
     ) {
@@ -262,6 +455,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCrossCollateralTokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {

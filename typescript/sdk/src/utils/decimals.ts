@@ -39,6 +39,20 @@ export function normalizeScale(scale: ScaleInput | undefined): NormalizedScale {
   };
 }
 
+export function getMessageAmountTokenScale({
+  decimals,
+  scale,
+}: {
+  decimals: number;
+  scale?: ScaleInput;
+}): NormalizedScale {
+  const normalizedScale = normalizeScale(scale);
+  return {
+    numerator: 10n ** BigInt(decimals) * normalizedScale.numerator,
+    denominator: normalizedScale.denominator,
+  };
+}
+
 /**
  * Compares two scale values for equality without precision loss.
  * Accepts any scale variant (number, {number,number}, {bigint,bigint}, undefined).

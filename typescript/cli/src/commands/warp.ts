@@ -10,7 +10,7 @@ import {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
-  validateOnchainCrossCollateralGraph,
+  validateCrossCollateralRouterScales,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -591,17 +591,17 @@ export const check: CommandModuleWithContext<
           expandedOnChainWarpConfig[chain]?.type === 'crossCollateral',
       ),
     );
-    const crossCollateralRouters = buildExpectedCrossCollateralRouters({
-      configMap: expandedWarpDeployConfig,
-      multiProvider: context.multiProvider,
-      routerAddresses: crossCollateralRouterAddresses,
-    });
+    const crossCollateralRouters = buildExpectedCrossCollateralRouters(
+      expandedWarpDeployConfig,
+      context.multiProvider,
+      crossCollateralRouterAddresses,
+    );
 
     if (crossCollateralRouters.length > 0) {
-      await validateOnchainCrossCollateralGraph({
-        multiProvider: context.multiProvider,
-        routers: crossCollateralRouters,
-      });
+      await validateCrossCollateralRouterScales(
+        context.multiProvider,
+        crossCollateralRouters,
+      );
     }
 
     await runWarpRouteCheck({
