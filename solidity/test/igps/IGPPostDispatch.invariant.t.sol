@@ -35,6 +35,7 @@ contract IGPAttackerHandler is Test {
     ERC20Test public immutable token; // same token for collateral + fees
     InterchainAccountRouter public immutable icaRouter;
     HypERC20Collateral public immutable warpRouter;
+    HypERC20 public immutable syntheticRouter;
 
     address public immutable user;
     bytes32 public immutable icaRemoteRouter;
@@ -49,6 +50,7 @@ contract IGPAttackerHandler is Test {
         ERC20Test _token,
         InterchainAccountRouter _icaRouter,
         HypERC20Collateral _warpRouter,
+        HypERC20 _syntheticRouter,
         address _user,
         bytes32 _icaRemoteRouter,
         bytes32 _icaIsm
@@ -58,6 +60,7 @@ contract IGPAttackerHandler is Test {
         token = _token;
         icaRouter = _icaRouter;
         warpRouter = _warpRouter;
+        syntheticRouter = _syntheticRouter;
         user = _user;
         icaRemoteRouter = _icaRemoteRouter;
         icaIsm = _icaIsm;
@@ -145,6 +148,44 @@ contract IGPAttackerHandler is Test {
         try igp.postDispatch(replayMetadata, replayMessage) {} catch {}
     }
 
+    /// @dev Legitimate synthetic warp transferRemote as user, then attacker replays.
+    ///      Synthetic router IS the token (token() == address(this)).
+    ///      The fee token for IGP is the synthetic token itself.
+    ///      Router pulls hookFee from user separately, approves IGP transiently.
+    function trySyntheticDispatchAndReplay(uint256 amount) external {
+        amount = bound(amount, 1e18, 10e18);
+        if (syntheticRouter.balanceOf(user) < amount) return;
+
+        // User approves synthetic router and transfers
+        vm.startPrank(user);
+        syntheticRouter.approve(address(syntheticRouter), type(uint256).max);
+        syntheticRouter.transferRemote(
+            DESTINATION,
+            user.addressToBytes32(),
+            amount
+        );
+        vm.stopPrank();
+
+        // Attacker replays postDispatch — synthetic router may hold
+        // residual fee tokens transiently
+        bytes memory replayMessage = MessageUtils.formatMessage(
+            0,
+            mailbox.nonce() - 1,
+            1,
+            address(syntheticRouter).addressToBytes32(),
+            DESTINATION,
+            address(0x1).addressToBytes32(),
+            ""
+        );
+        bytes memory replayMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            GAS_LIMIT,
+            address(0),
+            abi.encodePacked(address(syntheticRouter))
+        );
+        try igp.postDispatch(replayMetadata, replayMessage) {} catch {}
+    }
+
     receive() external payable {}
 }
 
@@ -161,6 +202,7 @@ contract IGPPostDispatchInvariantTest is Test {
     InterchainAccountRouter icaRouter;
     InterchainAccountRouter icaRouterDest;
     HypERC20Collateral warpRouter;
+    HypERC20 syntheticRouter;
 
     IGPAttackerHandler attacker;
 
@@ -284,7 +326,72 @@ contract IGPPostDispatchInvariantTest is Test {
         // Seed warp router with collateral (simulates prior deposits)
         token.transfer(address(warpRouter), WARP_COLLATERAL);
 
-        // Fund user
+        // ---- Synthetic Warp Router (token() == address(router)) ----
+        HypERC20 syntheticImpl = new HypERC20(18, 1, 1, address(originMailbox));
+        TransparentUpgradeableProxy syntheticProxy = new TransparentUpgradeableProxy(
+                address(syntheticImpl),
+                address(0x38),
+                abi.encodeWithSelector(
+                    HypERC20.initialize.selector,
+                    1_000_000e18,
+                    "Synthetic",
+                    "SYN",
+                    address(noopHook),
+                    address(0),
+                    address(this)
+                )
+            );
+        syntheticRouter = HypERC20(address(syntheticProxy));
+
+        // Remote for synthetic
+        HypERC20 synRemoteImpl = new HypERC20(18, 1, 1, address(destMailbox));
+        TransparentUpgradeableProxy synRemoteProxy = new TransparentUpgradeableProxy(
+                address(synRemoteImpl),
+                address(0x39),
+                abi.encodeWithSelector(
+                    HypERC20.initialize.selector,
+                    0,
+                    "SynRemote",
+                    "SYNR",
+                    address(noopHook),
+                    address(0),
+                    address(this)
+                )
+            );
+        syntheticRouter.enrollRemoteRouter(
+            DESTINATION,
+            address(synRemoteProxy).addressToBytes32()
+        );
+        HypERC20(address(synRemoteProxy)).enrollRemoteRouter(
+            ORIGIN,
+            address(syntheticRouter).addressToBytes32()
+        );
+
+        GasRouter.GasRouterConfig[]
+            memory synGasConf = new GasRouter.GasRouterConfig[](1);
+        synGasConf[0] = GasRouter.GasRouterConfig(DESTINATION, 50_000);
+        syntheticRouter.setDestinationGas(synGasConf);
+
+        // Set IGP as fee hook for synthetic router
+        syntheticRouter.setFeeHook(address(igp));
+        syntheticRouter.setHook(address(igp));
+
+        // Configure IGP to accept synthetic token as fee
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory synTokenConfigs = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        synTokenConfigs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            address(syntheticRouter),
+            DESTINATION,
+            gasOracle
+        );
+        igp.setTokenGasOracles(synTokenConfigs);
+
+        // Fund user with synthetic tokens
+        syntheticRouter.transfer(user, USER_TOKENS);
+
+        // Fund user with collateral token
         token.transfer(user, USER_TOKENS);
 
         // Attacker
@@ -294,6 +401,7 @@ contract IGPPostDispatchInvariantTest is Test {
             token,
             icaRouter,
             warpRouter,
+            syntheticRouter,
             user,
             address(icaRouterDest).addressToBytes32(),
             bytes32(0)
@@ -325,13 +433,33 @@ contract IGPPostDispatchInvariantTest is Test {
         );
     }
 
-    /// @dev Token conservation — all tokens accounted for across all addresses.
-    function invariant_tokenConservation() public view {
+    /// @dev Collateral token conservation.
+    function invariant_collateralTokenConservation() public view {
         uint256 total = token.balanceOf(user) +
             token.balanceOf(address(igp)) +
             token.balanceOf(address(icaRouter)) +
             token.balanceOf(address(warpRouter)) +
             token.balanceOf(address(attacker));
-        assertEq(total, USER_TOKENS + WARP_COLLATERAL, "tokens not conserved");
+        assertEq(
+            total,
+            USER_TOKENS + WARP_COLLATERAL,
+            "collateral tokens not conserved"
+        );
+    }
+
+    /// @dev Synthetic token conservation — all tokens accounted for.
+    ///      transferRemote burns from user and IGP may pull fee from router.
+    function invariant_syntheticTokenConservation() public view {
+        uint256 total = syntheticRouter.balanceOf(user) +
+            syntheticRouter.balanceOf(address(igp)) +
+            syntheticRouter.balanceOf(address(syntheticRouter)) +
+            syntheticRouter.balanceOf(address(attacker)) +
+            syntheticRouter.balanceOf(address(this));
+        uint256 burned = 1_000_000e18 - syntheticRouter.totalSupply();
+        assertEq(
+            total + burned,
+            1_000_000e18,
+            "synthetic tokens not conserved"
+        );
     }
 }
