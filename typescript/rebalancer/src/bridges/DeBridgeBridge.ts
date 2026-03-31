@@ -57,13 +57,19 @@ export class DeBridgeBridge implements IExternalBridge {
   private readonly apiUrl: string;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
   private readonly txHashToOrderId = new Map<string, string>();
+  private readonly maxFeePercent: number;
 
   constructor(
-    config: { apiUrl?: string; chainMetadata?: ChainMap<ChainMetadata> },
+    config: {
+      apiUrl?: string;
+      chainMetadata?: ChainMap<ChainMetadata>;
+      maxFeePercent?: number;
+    },
     logger: Logger,
   ) {
     this.logger = logger;
     this.apiUrl = config.apiUrl ?? DEBRIDGE_API_BASE;
+    this.maxFeePercent = config.maxFeePercent ?? 10;
     this.chainMetadataByChainId = new Map();
     if (config.chainMetadata) {
       for (const metadata of Object.values(config.chainMetadata)) {
@@ -105,7 +111,8 @@ export class DeBridgeBridge implements IExternalBridge {
       `&srcChainTokenInAmount=${amountStr}` +
       `&dstChainId=${dstDebridgeChainId}` +
       `&dstChainTokenOut=${dstToken}` +
-      `&prependOperatingExpenses=true`;
+      `&dstChainTokenOutAmount=auto` +
+      `&prependOperatingExpenses=false`;
 
     this.logger.debug(
       { fromChain, toChain, srcDebridgeChainId, dstDebridgeChainId },
@@ -120,20 +127,40 @@ export class DeBridgeBridge implements IExternalBridge {
       `deBridge quote failed: ${data.errorMessage ?? 'no estimation returned'}`,
     );
 
+    const srcAmount = BigInt(data.estimation.srcChainTokenIn.amount);
     const receivedAmount = BigInt(data.estimation.dstChainTokenOut.amount);
+
+    // Fee guard: reject uneconomical bridges
+    const feeAmount = srcAmount - receivedAmount;
+    const feePercent =
+      srcAmount > 0n ? Number((feeAmount * 10000n) / srcAmount) / 100 : 0;
+    this.logger.info(
+      {
+        fromChain,
+        toChain,
+        feePercent: feePercent.toFixed(1),
+        feeAmount: feeAmount.toString(),
+        srcAmount: srcAmount.toString(),
+      },
+      'deBridge fee breakdown',
+    );
+    if (feePercent > this.maxFeePercent) {
+      throw new Error(
+        `deBridge fee too high: ${feePercent.toFixed(1)}% (${feeAmount} of ${srcAmount}). Max allowed: ${this.maxFeePercent}%`,
+      );
+    }
+
     const feeCosts =
       BigInt(data.fixFee ?? '0') + BigInt(data.protocolFee ?? '0');
 
     return {
       id: uuidv4(),
       tool: DEBRIDGE_TOOL,
-      fromAmount:
-        params.fromAmount ?? BigInt(data.estimation.srcChainTokenIn.amount),
+      fromAmount: srcAmount,
       toAmount: receivedAmount,
-      // deBridge guarantees exact output amounts for stablecoins
       toAmountMin: receivedAmount,
       executionDuration: 60,
-      // Gas included in operating expenses via prependOperatingExpenses=true
+      // prependOperatingExpenses=false: fee taken from spread, not added to source
       gasCosts: 0n,
       feeCosts,
       route: data,
@@ -210,7 +237,8 @@ export class DeBridgeBridge implements IExternalBridge {
       `&dstChainTokenOutRecipient=${dstRecipient}` +
       `&srcChainOrderAuthorityAddress=${srcSender}` +
       `&dstChainOrderAuthorityAddress=${dstRecipient}` +
-      `&prependOperatingExpenses=true`;
+      `&dstChainTokenOutAmount=auto` +
+      `&prependOperatingExpenses=false`;
 
     this.logger.info(
       {
@@ -368,14 +396,14 @@ export class DeBridgeBridge implements IExternalBridge {
           const resetTx = await erc20.approve(to, 0);
           await resetTx.wait();
         }
-        const approveAmount = (amount * 130n) / 100n;
+        const approveAmount = amount;
         this.logger.info(
           {
             token: tokenAddress,
             spender: to,
             amount: approveAmount.toString(),
           },
-          'Approving deBridge DlnSource contract with 30% buffer for operating expense drift',
+          'Approving exact amount for deBridge DlnSource contract',
         );
         const approveTx = await erc20.approve(to, approveAmount.toString());
         await approveTx.wait();
