@@ -3,19 +3,24 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   type AccountConfig,
   type DerivedWarpRouteDeployConfig,
+  EvmWarpRouteReader,
   type HypTokenRouterVirtualConfig,
   InterchainAccount,
+  type TokenMetadata,
   type WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
+  resolveRouterMapConfig,
   transformConfigToCheck,
   verifyScale,
 } from '@hyperlane-xyz/sdk';
 import {
   type ObjectDiff,
   assert,
+  bytes32ToAddress,
   diffObjMerge,
   eqAddress,
+  isAddressEvm,
   isEVMLike,
   keepOnlyDiffObjects,
   normalizeAddressEvm,
@@ -25,17 +30,29 @@ import { type CommandContext } from '../context/types.js';
 import { log, logGreen, logRed, warnYellow } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
+const CROSS_COLLATERAL_TYPE = 'crossCollateral';
+
+type CrossCollateralConfigWithRouters = {
+  type: string;
+  crossCollateralRouters?: Record<string, string[]>;
+};
+
 export async function runWarpRouteCheck({
+  multiProvider,
   warpRouteConfig,
   onChainWarpConfig,
 }: {
+  multiProvider: CommandContext['multiProvider'];
   warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
     Record<string, Partial<HypTokenRouterVirtualConfig>>;
   onChainWarpConfig: DerivedWarpRouteDeployConfig &
     Record<string, Partial<HypTokenRouterVirtualConfig>>;
 }): Promise<void> {
   // Check whether the decimals are consistent. If not, ensure that the scale is correct.
-  const decimalsAreValid = verifyDecimalsAndScale(warpRouteConfig);
+  const decimalsAreValid = await verifyDecimalsAndScale({
+    multiProvider,
+    warpRouteConfig,
+  });
 
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
@@ -91,13 +108,112 @@ export async function runWarpRouteCheck({
   logGreen(`No violations found`);
 }
 
-function verifyDecimalsAndScale(
+async function buildScaleValidationMetadataMap({
+  multiProvider,
+  warpRouteConfig,
+}: {
+  multiProvider: CommandContext['multiProvider'];
   warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-    Record<string, Partial<HypTokenRouterVirtualConfig>>,
-): boolean {
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+}): Promise<Map<string, TokenMetadata>> {
+  const metadataByKey = new Map<string, TokenMetadata>(
+    Object.entries(warpRouteConfig).map(([chain, config]) => [
+      chain,
+      {
+        name: config.name ?? 'unknown',
+        symbol: config.symbol ?? 'unknown',
+        decimals: config.decimals,
+        scale: config.scale,
+      },
+    ]),
+  );
+  const readerByChain = new Map<string, EvmWarpRouteReader>();
+  const routerMetadataPromises = new Map<string, Promise<TokenMetadata>>();
+
+  for (const [, config] of Object.entries(warpRouteConfig)) {
+    const crossCollateralConfig = config as CrossCollateralConfigWithRouters;
+    if (
+      crossCollateralConfig.type !== CROSS_COLLATERAL_TYPE ||
+      !crossCollateralConfig.crossCollateralRouters
+    ) {
+      continue;
+    }
+
+    const crossCollateralRouters = resolveRouterMapConfig(
+      multiProvider,
+      crossCollateralConfig.crossCollateralRouters,
+    );
+
+    for (const [domain, routers] of Object.entries(crossCollateralRouters)) {
+      const chain = multiProvider.getChainName(Number(domain));
+
+      for (const routerId of routers as string[]) {
+        const routerAddress = normalizeAddressEvm(
+          isAddressEvm(routerId) ? routerId : bytes32ToAddress(routerId),
+        );
+        const metadataKey = `${chain}:${routerAddress.toLowerCase()}`;
+
+        if (routerMetadataPromises.has(metadataKey)) {
+          continue;
+        }
+
+        const reader =
+          readerByChain.get(chain) ??
+          new EvmWarpRouteReader(multiProvider, chain);
+        readerByChain.set(chain, reader);
+        routerMetadataPromises.set(
+          metadataKey,
+          (async () => {
+            try {
+              const routerConfig =
+                await reader.deriveWarpRouteConfig(routerAddress);
+              return {
+                name: routerConfig.name ?? 'unknown',
+                symbol: routerConfig.symbol ?? 'unknown',
+                decimals: routerConfig.decimals,
+                scale: routerConfig.scale,
+              };
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : String(error);
+              throw new Error(
+                `Failed to derive configured crossCollateral router ${routerId} on ${chain}: ${message}`,
+              );
+            }
+          })(),
+        );
+      }
+    }
+  }
+
+  for (const [
+    metadataKey,
+    metadataPromise,
+  ] of routerMetadataPromises.entries()) {
+    metadataByKey.set(metadataKey, await metadataPromise);
+  }
+
+  return metadataByKey;
+}
+
+export async function verifyDecimalsAndScale({
+  multiProvider,
+  warpRouteConfig,
+}: {
+  multiProvider: CommandContext['multiProvider'];
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+}): Promise<boolean> {
   let valid = true;
-  if (!verifyScale(warpRouteConfig)) {
-    logRed(`Found invalid or missing scale for inconsistent decimals`);
+  const scaleValidationMetadata = await buildScaleValidationMetadataMap({
+    multiProvider,
+    warpRouteConfig,
+  });
+
+  if (!verifyScale(scaleValidationMetadata)) {
+    logRed(
+      `Found inconsistent decimals/scale across route and configured crossCollateralRouters`,
+    );
     valid = false;
   }
   return valid;
