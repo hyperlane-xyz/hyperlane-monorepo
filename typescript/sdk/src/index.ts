@@ -735,19 +735,15 @@ export {
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export {
+  buildExpectedCrossCollateralConnections,
+  type ConfiguredCrossCollateralRoute,
   formatCrossCollateralScaleForLogs,
   getMessageAmountTokenScale,
   getCrossCollateralRouterId,
-  validateCrossCollateralGraph,
-} from './token/crossCollateralValidation.js';
-export {
-  type ConfiguredCrossCollateralRoute,
   validateConfiguredCrossCollateralGraph,
-} from './token/crossCollateralConfiguredValidation.js';
-export {
-  buildExpectedCrossCollateralConnections,
+  validateCrossCollateralGraph,
   validateOnchainCrossCollateralGraph,
-} from './token/crossCollateralOnchainValidation.js';
+} from './token/crossCollateralValidation.js';
 export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,

@@ -52,7 +52,7 @@ import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   buildExpectedCrossCollateralConnections,
   validateOnchainCrossCollateralGraph,
-} from './crossCollateralOnchainValidation.js';
+} from './crossCollateralValidation.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
