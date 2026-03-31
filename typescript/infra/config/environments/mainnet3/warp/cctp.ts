@@ -81,6 +81,7 @@ export const usdcTokenAddresses = {
   arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   avalanche: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
   base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  bsc: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
   celo: '0xcebA9300f2b948710d2653dD7B07f33A8B32118C',
   ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
   flow: 'A.b19436aae4d94622.FiatToken',
@@ -88,6 +89,8 @@ export const usdcTokenAddresses = {
   hyperevm: '0xb88339CB7199b77E23DB6E890353E22632Ba630f',
   ink: '0x2D270e6886d130D724215A266106e6832161EAEd',
   linea: '0x176211869cA2b568f2A7D4EE941E073a821EE1ff',
+  // vbUSDC
+  katana: '0x203A662b0BD271A6ed5a60EdFbd04bFce608FD36',
   near: '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1',
   monad: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
   noble: 'uusdc',
