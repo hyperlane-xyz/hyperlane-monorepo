@@ -90,25 +90,23 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   async getAccount(
     destinationChain: ChainName,
     config: AccountConfig,
-    userSalt?: string,
   ): Promise<Address> {
-    return this.getOrDeployAccount(false, destinationChain, config, userSalt);
+    return this.getOrDeployAccount(false, destinationChain, config);
   }
 
   async deployAccount(
     destinationChain: ChainName,
     config: AccountConfig,
-    userSalt?: string,
   ): Promise<Address> {
-    return this.getOrDeployAccount(true, destinationChain, config, userSalt);
+    return this.getOrDeployAccount(true, destinationChain, config);
   }
 
   protected async getOrDeployAccount(
     deployIfNotExists: boolean,
     destinationChain: ChainName,
     config: AccountConfig,
-    userSalt: string = InterchainAccount.EMPTY_SALT,
   ): Promise<Address> {
+    const userSalt = config.userSalt ?? InterchainAccount.EMPTY_SALT;
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
       throw new Error(

@@ -52,7 +52,6 @@ export function initializeMetrics(register: Registry): void {
   rateLimitedCounter = new Counter({
     name: 'hyperlane_offchain_lookup_server_rate_limited_requests',
     help: 'Total number of rate-limited requests',
-    labelNames: ['ip'],
     registers: [register],
   });
 }
@@ -73,10 +72,10 @@ export const PrometheusMetrics = {
       error_reason: errorReason,
     });
   },
-  logRateLimited(ip: string) {
+  logRateLimited() {
     if (!rateLimitedCounter) {
       throw new Error('Metrics not initialized. Call initializeMetrics first.');
     }
-    rateLimitedCounter.inc({ ip });
+    rateLimitedCounter.inc();
   },
 };

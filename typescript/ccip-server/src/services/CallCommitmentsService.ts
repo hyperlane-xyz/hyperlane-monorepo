@@ -235,7 +235,7 @@ export class CallCommitmentsService extends BaseService {
   private parseCommitmentBody(body: any, res: Response, logger: Logger) {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
-      const errors = result.error.flatten().fieldErrors;
+      const errors = result.error.format();
       logger.warn({ errors, body }, 'Invalid request body received');
       res.status(400).json({ errors });
       return null;
@@ -316,6 +316,7 @@ export class CallCommitmentsService extends BaseService {
       origin: originChain,
       owner: data.owner,
       ismOverride: data.ismOverride,
+      userSalt: data.userSalt,
     };
 
     logger.debug(
@@ -328,11 +329,7 @@ export class CallCommitmentsService extends BaseService {
       'Deriving ICA from config',
     );
 
-    return this.icaApp.getAccount(
-      destinationChain,
-      accountConfig,
-      data.userSalt,
-    );
+    return this.icaApp.getAccount(destinationChain, accountConfig);
   }
 
   /**
@@ -394,9 +391,8 @@ export class CallCommitmentsService extends BaseService {
       max: 20,
       standardHeaders: true,
       legacyHeaders: false,
-      handler: (req, res) => {
-        const ip = req.ip ?? 'unknown';
-        PrometheusMetrics.logRateLimited(ip);
+      handler: (_req, res) => {
+        PrometheusMetrics.logRateLimited();
         res.status(429).json({ error: 'Too many requests' });
       },
     });
