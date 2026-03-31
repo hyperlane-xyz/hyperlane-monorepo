@@ -312,6 +312,31 @@ contract PredicateRouterWrapperNativeTest is Test {
 
     // ============ Fuzz Tests ============
 
+    function test_native_refundFailed_revertsIfCallerRejectsETH() public {
+        // Deploy a contract that rejects ETH to simulate refund failure
+        RefundRejecter rejecter = new RefundRejecter(predicateWrapper);
+        vm.deal(address(rejecter), 10 ether);
+
+        Attestation memory attestation = _createAttestation(
+            "native-refund-fail",
+            block.timestamp + 1 hours
+        );
+
+        uint256 gasValue = noopHook.quoteDispatch("", "");
+        // Send excess so a refund is attempted
+        uint256 excessValue = TRANSFER_AMT + gasValue + 1 ether;
+
+        vm.expectRevert(
+            PredicateRouterWrapper.PredicateRouterWrapper__RefundFailed.selector
+        );
+        rejecter.doTransfer{value: excessValue}(
+            attestation,
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+    }
+
     function testFuzz_native_transferRemoteWithAttestation_variableAmounts(
         uint256 amount
     ) public {
@@ -337,4 +362,29 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         assertEq(ALICE.balance, aliceBalanceBefore - totalValue);
     }
+}
+
+/// @notice Helper contract that rejects ETH refunds to test RefundFailed path
+contract RefundRejecter {
+    PredicateRouterWrapper public wrapper;
+
+    constructor(PredicateRouterWrapper _wrapper) {
+        wrapper = _wrapper;
+    }
+
+    function doTransfer(
+        Attestation calldata _attestation,
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable {
+        wrapper.transferRemoteWithAttestation{value: msg.value}(
+            _attestation,
+            _destination,
+            _recipient,
+            _amount
+        );
+    }
+
+    // No receive() or fallback() — ETH refunds will fail
 }
