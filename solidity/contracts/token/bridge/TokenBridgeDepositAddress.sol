@@ -133,7 +133,7 @@ contract TokenBridgeDepositAddress is
         return bytes32(0);
     }
 
-    function setDestinationConfig(
+    function addDestinationConfig(
         uint32 _destination,
         address _depositAddress,
         bytes32 _recipient,
@@ -146,7 +146,7 @@ contract TokenBridgeDepositAddress is
             revert InvalidFeeBps(_feeBps);
         }
         // Prevent accidental overwrites of existing deposit address configs.
-        // To update, first removeDestinationConfig then setDestinationConfig.
+        // To update, first removeDestinationConfig then addDestinationConfig.
         require(
             _destinationConfigs[_destination][_recipient].depositAddress ==
                 address(0),

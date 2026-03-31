@@ -30,7 +30,7 @@ contract TokenBridgeDepositAddressTest is Test {
         bridge = new TokenBridgeDepositAddress(address(token), owner);
 
         vm.prank(owner);
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DOMAIN_ARB,
             depositAddress,
             recipient,
@@ -58,7 +58,7 @@ contract TokenBridgeDepositAddressTest is Test {
         new TokenBridgeDepositAddress(address(0), owner);
     }
 
-    function test_setDestinationConfig() public {
+    function test_addDestinationConfig() public {
         address newDepositAddress = makeAddr("newDeposit");
         bytes32 newRecipient = bytes32(
             uint256(uint160(makeAddr("newRecipient")))
@@ -72,7 +72,7 @@ contract TokenBridgeDepositAddressTest is Test {
             newRecipient,
             700
         );
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DOMAIN_ETH,
             newDepositAddress,
             newRecipient,
@@ -87,13 +87,13 @@ contract TokenBridgeDepositAddressTest is Test {
         assertEq(config.feeBps, 700);
     }
 
-    function test_setDestinationConfig_revertsNonOwner() public {
+    function test_addDestinationConfig_revertsNonOwner() public {
         vm.prank(caller);
         vm.expectRevert("Ownable: caller is not the owner");
-        bridge.setDestinationConfig(DOMAIN_ETH, depositAddress, recipient, 0);
+        bridge.addDestinationConfig(DOMAIN_ETH, depositAddress, recipient, 0);
     }
 
-    function test_setDestinationConfig_revertsOnInvalidFeeBps() public {
+    function test_addDestinationConfig_revertsOnInvalidFeeBps() public {
         vm.prank(owner);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -101,7 +101,7 @@ contract TokenBridgeDepositAddressTest is Test {
                 MAX_BPS
             )
         );
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DOMAIN_ETH,
             depositAddress,
             recipient,
@@ -210,14 +210,14 @@ contract TokenBridgeDepositAddressTest is Test {
         address depositAddressThree = makeAddr("deposit3");
 
         vm.prank(owner);
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DOMAIN_ETH,
             depositAddressTwo,
             recipientTwo,
             110
         );
         vm.prank(owner);
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DOMAIN_ARB,
             depositAddressThree,
             recipientThree,
@@ -276,7 +276,7 @@ contract TokenBridgeDepositAddressTest is Test {
         address depositAddressTwo = makeAddr("deposit2");
 
         vm.prank(owner);
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DOMAIN_ARB,
             depositAddressTwo,
             recipientTwo,
@@ -332,7 +332,7 @@ contract TokenBridgeDepositAddressRebalanceTest is Test {
         router.enrollRemoteRouter(DESTINATION_DOMAIN, remoteRecipient);
         router.addRebalancer(address(this));
         router.addBridge(DESTINATION_DOMAIN, bridge);
-        bridge.setDestinationConfig(
+        bridge.addDestinationConfig(
             DESTINATION_DOMAIN,
             depositAddress,
             remoteRecipient,
