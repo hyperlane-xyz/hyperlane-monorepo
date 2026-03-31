@@ -55,7 +55,6 @@ import { getCarchainnWBTCWarpConfig } from './environments/mainnet3/warp/configG
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import {
   getEclipseUSDTGnosisSafeBuilderStrategyConfig,
-  getEclipseUSDTStrategyConfig,
   getEclipseUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
