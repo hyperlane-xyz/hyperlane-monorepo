@@ -61,6 +61,8 @@ cd rust/main && cargo test --all-targets --features aleo,integration_test
 cd rust/main && cargo fmt
 ```
 
+**Never skip commit hooks. Do not use `git commit --no-verify` or otherwise bypass `.husky/pre-commit`. Fix hook failures, then commit.**
+
 **Do NOT add `Co-Authored-By` trailers to commit messages.**
 
 ### Changeset Style
