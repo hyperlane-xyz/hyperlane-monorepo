@@ -13,7 +13,6 @@ import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
-import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
@@ -72,7 +71,12 @@ contract ScaledFeeConsistencyTest is Test {
         destMailbox.addRemoteMailbox(ORIGIN, originMailbox);
 
         // Deploy 6-decimal ERC20
-        localErc20 = new ERC20Test("USDC", "USDC", TOTAL_SUPPLY, LOCAL_DECIMALS);
+        localErc20 = new ERC20Test(
+            "USDC",
+            "USDC",
+            TOTAL_SUPPLY,
+            LOCAL_DECIMALS
+        );
 
         // Deploy hooks
         noopHook = new TestPostDispatchHook();
@@ -112,32 +116,23 @@ contract ScaledFeeConsistencyTest is Test {
             SCALE_DENOMINATOR,
             address(originMailbox)
         );
-        localRouter.initialize(
-            address(noopHook),
-            address(0),
-            address(this)
-        );
+        localRouter.initialize(address(noopHook), address(0), address(this));
 
         // Deploy remote synthetic (18-decimal)
-        HypERC20 remoteImpl = new HypERC20(
-            18,
-            1,
-            1,
-            address(destMailbox)
-        );
+        HypERC20 remoteImpl = new HypERC20(18, 1, 1, address(destMailbox));
         TransparentUpgradeableProxy remoteProxy = new TransparentUpgradeableProxy(
-            address(remoteImpl),
-            PROXY_ADMIN,
-            abi.encodeWithSelector(
-                HypERC20.initialize.selector,
-                0,
-                "Remote USDC",
-                "rUSDC",
-                address(noopHook),
-                address(0),
-                address(this)
-            )
-        );
+                address(remoteImpl),
+                PROXY_ADMIN,
+                abi.encodeWithSelector(
+                    HypERC20.initialize.selector,
+                    0,
+                    "Remote USDC",
+                    "rUSDC",
+                    address(noopHook),
+                    address(0),
+                    address(this)
+                )
+            );
         remoteRouter = HypERC20(address(remoteProxy));
 
         // Enroll routers
@@ -199,9 +194,21 @@ contract ScaledFeeConsistencyTest is Test {
         uint256 externalFee = quotes[2].amount;
 
         // All quote tokens should be localErc20 (6-decimal token)
-        assertEq(quotes[0].token, address(localErc20), "hookFee token mismatch");
-        assertEq(quotes[1].token, address(localErc20), "amountPlusFee token mismatch");
-        assertEq(quotes[2].token, address(localErc20), "externalFee token mismatch");
+        assertEq(
+            quotes[0].token,
+            address(localErc20),
+            "hookFee token mismatch"
+        );
+        assertEq(
+            quotes[1].token,
+            address(localErc20),
+            "amountPlusFee token mismatch"
+        );
+        assertEq(
+            quotes[2].token,
+            address(localErc20),
+            "externalFee token mismatch"
+        );
 
         // The fee recipient fee should be reasonable relative to local scale
         uint256 feeRecipientFee = amountPlusFee - TRANSFER_AMT;
@@ -219,11 +226,19 @@ contract ScaledFeeConsistencyTest is Test {
         // totalGas = GAS_LIMIT + GAS_OVERHEAD = 60000
         // fee = 10 * 60000 * 1e10 / 1e10 = 600000
         // This is 0.6 tokens in 6-decimal scale, which is reasonable
-        assertLt(hookFee, 10e6, "hookFee suspiciously large - possible scale mismatch");
+        assertLt(
+            hookFee,
+            10e6,
+            "hookFee suspiciously large - possible scale mismatch"
+        );
 
         // Total charge should be sum of all fees + transfer amount
         uint256 totalCharge = hookFee + amountPlusFee + externalFee;
-        assertLt(totalCharge, TOTAL_SUPPLY, "total charge exceeds supply - scale issue");
+        assertLt(
+            totalCharge,
+            TOTAL_SUPPLY,
+            "total charge exceeds supply - scale issue"
+        );
     }
 
     /// @notice Verify transferRemote succeeds with exactly the quoted amounts
@@ -303,11 +318,7 @@ contract ScaledFeeConsistencyTest is Test {
 
         // IGP should receive exactly the hook fee (in local 6-decimal scale)
         uint256 igpAfter = localErc20.balanceOf(address(igp));
-        assertEq(
-            igpAfter - igpBefore,
-            hookFee,
-            "IGP received wrong amount"
-        );
+        assertEq(igpAfter - igpBefore, hookFee, "IGP received wrong amount");
     }
 
     /// @notice Verify quote-then-transfer roundtrip: no over/undercharge
@@ -346,10 +357,10 @@ contract ScaledFeeConsistencyTest is Test {
     /// @notice Verify with a different transfer amount to ensure fee scaling is consistent
     function test_transferRemote_variousAmounts_feeScaleConsistent() public {
         uint256[] memory amounts = new uint256[](4);
-        amounts[0] = 1e6;       // 1 token
-        amounts[1] = 50e6;      // 50 tokens
-        amounts[2] = 1000e6;    // 1000 tokens
-        amounts[3] = 1;         // 1 wei (smallest unit)
+        amounts[0] = 1e6; // 1 token
+        amounts[1] = 50e6; // 50 tokens
+        amounts[2] = 1000e6; // 1000 tokens
+        amounts[3] = 1; // 1 wei (smallest unit)
 
         for (uint256 i = 0; i < amounts.length; i++) {
             uint256 amt = amounts[i];
@@ -370,12 +381,18 @@ contract ScaledFeeConsistencyTest is Test {
             assertLt(
                 hookFee,
                 100e6,
-                string.concat("hookFee too large for amount index ", vm.toString(i))
+                string.concat(
+                    "hookFee too large for amount index ",
+                    vm.toString(i)
+                )
             );
             assertLt(
                 amountPlusFee - amt,
                 amt + 1, // fee should not exceed amount (LinearFee capped at maxFee=1e6)
-                string.concat("feeRecipientFee too large for amount index ", vm.toString(i))
+                string.concat(
+                    "feeRecipientFee too large for amount index ",
+                    vm.toString(i)
+                )
             );
 
             // Verify transfer succeeds with exact quoted amount
@@ -393,7 +410,10 @@ contract ScaledFeeConsistencyTest is Test {
             assertEq(
                 balBefore - localErc20.balanceOf(ALICE),
                 totalQuoted,
-                string.concat("charge != quote for amount index ", vm.toString(i))
+                string.concat(
+                    "charge != quote for amount index ",
+                    vm.toString(i)
+                )
             );
         }
     }
@@ -407,13 +427,16 @@ contract ScaledFeeConsistencyTest is Test {
             TRANSFER_AMT
         );
 
-        uint256 totalQuoted = quotes[0].amount + quotes[1].amount + quotes[2].amount;
+        uint256 totalQuoted = quotes[0].amount +
+            quotes[1].amount +
+            quotes[2].amount;
 
         vm.startPrank(ALICE);
         localErc20.approve(address(localRouter), totalQuoted);
 
         // Expect the SentTransferRemote event with SCALED amount (18-decimal)
-        uint256 expectedOutbound = TRANSFER_AMT * SCALE_NUMERATOR / SCALE_DENOMINATOR;
+        uint256 expectedOutbound = (TRANSFER_AMT * SCALE_NUMERATOR) /
+            SCALE_DENOMINATOR;
         // 100e6 * 1e18 / 1e6 = 100e18
         assertEq(expectedOutbound, 100e18, "expected outbound sanity check");
 
@@ -452,7 +475,9 @@ contract ScaledFeeConsistencyTest is Test {
         StorageGasOracle _oracle
     ) internal {
         InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](1);
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
         params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
             _token,
             _domain,
