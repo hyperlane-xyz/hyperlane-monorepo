@@ -164,6 +164,8 @@ function collectConfiguredCrossCollateralRouters({
   warpRouteConfig: ScaleValidationWarpRouteConfig;
 }): CrossCollateralRouterRef[] {
   const routerRefs = new Map<string, CrossCollateralRouterRef>();
+  const warnedDomains = new Set<string>();
+  const warnedChains = new Set<string>();
 
   for (const config of Object.values(warpRouteConfig)) {
     if (
@@ -179,7 +181,26 @@ function collectConfiguredCrossCollateralRouters({
     );
 
     for (const [domain, routers] of Object.entries(crossCollateralRouters)) {
-      const chain = multiProvider.getChainName(Number(domain));
+      const chain = multiProvider.tryGetChainName(Number(domain));
+      if (!chain) {
+        if (!warnedDomains.has(domain)) {
+          warnedDomains.add(domain);
+          warnYellow(
+            `Skipping configured crossCollateral routers for unknown domain "${domain}" during scale validation`,
+          );
+        }
+        continue;
+      }
+
+      if (!isEVMLike(multiProvider.getProtocol(chain))) {
+        if (!warnedChains.has(chain)) {
+          warnedChains.add(chain);
+          warnYellow(
+            `Skipping configured crossCollateral routers on non-EVM chain "${chain}" during scale validation`,
+          );
+        }
+        continue;
+      }
 
       for (const routerId of routers) {
         const routerAddress = normalizeAddressEvm(

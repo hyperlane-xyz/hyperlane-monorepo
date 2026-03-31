@@ -10,6 +10,7 @@ import {
   type TokenMetadata,
   type WarpRouteDeployConfigMailboxRequired,
   test1,
+  testSealevelChain,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -62,6 +63,7 @@ function buildMultiProvider(): MultiProvider {
       domainId: DOMAIN_BY_CHAIN.anvil3,
       name: 'anvil3',
     },
+    testsealevel: testSealevelChain,
   });
 }
 
@@ -309,6 +311,31 @@ describe('verifyDecimalsAndScale', () => {
     expect(connectStub.callCount).to.equal(2);
     expect(metadataStub.callCount).to.equal(2);
     expect(scaleStub.callCount).to.equal(2);
+  });
+
+  it('skips non-EVM configured CCR routers during scale validation', async () => {
+    const connectStub = sinon.stub(CrossCollateralRouter__factory, 'connect');
+
+    const warpRouteConfig: ScaleValidationWarpRouteConfig = {
+      anvil2: buildCrossCollateralConfig({
+        token: TOKEN_A,
+        decimals: 6,
+        scale: 1_000_000_000_000,
+        crossCollateralRouters: {
+          [testSealevelChain.domainId.toString()]: [
+            'So11111111111111111111111111111111111111112',
+          ],
+        },
+      }),
+    };
+
+    const isValid = await verifyDecimalsAndScale({
+      multiProvider: buildMultiProvider(),
+      warpRouteConfig,
+    });
+
+    expect(isValid).to.equal(true);
+    expect(connectStub.notCalled).to.equal(true);
   });
 
   it('throws when a configured CCR router cannot be read', async () => {
