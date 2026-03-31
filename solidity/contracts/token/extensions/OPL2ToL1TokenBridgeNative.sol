@@ -162,7 +162,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
     ) internal view override returns (uint256) {
         bytes memory message = TokenMessage.format(
             _recipient,
-            _outboundAmount(_amount)
+            _amount
         );
         uint256 proveQuote = _Router_quoteDispatch(
             _destination,

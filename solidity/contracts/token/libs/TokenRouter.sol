@@ -475,7 +475,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         return
             _Router_quoteDispatch(
                 _destination,
-                TokenMessage.format(_recipient, _outboundAmount(_amount)),
+                TokenMessage.format(_recipient, _amount),
                 _generateHookMetadata(_destination, _feeToken),
                 address(hook)
             );
