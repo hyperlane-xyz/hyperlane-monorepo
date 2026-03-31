@@ -18,6 +18,7 @@
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
     "test": "jest",
+    "test:ci": "pnpm test",
     "lint": "eslint -c ./eslint.config.mjs",
     "format": "oxfmt --write ./src ./tests"
   },

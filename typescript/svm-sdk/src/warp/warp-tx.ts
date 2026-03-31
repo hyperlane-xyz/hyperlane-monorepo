@@ -119,7 +119,8 @@ export function remoteDecimalsToScale(
   remoteDecimals: number,
 ): number | undefined {
   const diff = remoteDecimals - localDecimals;
-  return diff === 0 ? undefined : Math.pow(10, diff);
+  if (diff === 0) return undefined;
+  return diff > 0 ? 10 ** diff : 1 / 10 ** -diff;
 }
 
 /**
