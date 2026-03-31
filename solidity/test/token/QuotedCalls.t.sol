@@ -29,6 +29,41 @@ import {InterchainAccountRouter} from "../../contracts/middleware/InterchainAcco
 import {CallLib} from "../../contracts/middleware/libs/Call.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuardTransient} from "../../contracts/libs/ReentrancyGuardTransient.sol";
+
+/// @dev Contract that attempts reentrancy via the SWEEP ETH callback.
+contract ReentrantAttacker {
+    QuotedCalls target;
+    bool attacked;
+    bytes public reentrantRevertReason;
+
+    constructor(QuotedCalls _target) {
+        target = _target;
+    }
+
+    function attack() external payable {
+        // Execute a SWEEP that sends ETH to this contract, triggering receive()
+        bytes memory commands = hex"08"; // SWEEP
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(address(0));
+        target.execute{value: msg.value}(commands, inputs);
+    }
+
+    receive() external payable {
+        if (!attacked) {
+            attacked = true;
+            // Re-enter execute during ETH sweep
+            bytes memory commands = hex"08"; // SWEEP
+            bytes[] memory inputs = new bytes[](1);
+            inputs[0] = abi.encode(address(0));
+            (bool success, bytes memory reason) = address(target).call(
+                abi.encodeCall(target.execute, (commands, inputs))
+            );
+            require(!success, "reentrancy should have reverted");
+            reentrantRevertReason = reason;
+        }
+    }
+}
 
 /// @dev Minimal mock Permit2. Skips signature verification; just sets allowances and transfers.
 contract MockPermit2 {
@@ -1781,6 +1816,23 @@ contract QuotedCallsTest is Test {
             "no ETH stuck in QuotedCalls"
         );
     }
+    // ============ Tests: Reentrancy Guard ============
+
+    function test_execute_reentrancy_reverts() public {
+        ReentrantAttacker attacker = new ReentrantAttacker(quotedCalls);
+        vm.deal(address(attacker), 1 ether);
+
+        // The attacker's receive() catches the revert and stores the reason
+        attacker.attack{value: 1 ether}();
+
+        assertEq(
+            attacker.reentrantRevertReason(),
+            abi.encodeWithSelector(
+                ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector
+            )
+        );
+    }
+
     // Storage vars for fuzz test (avoids stack-too-deep)
     uint256 totalTokenNeeded;
     uint256 totalNativeNeeded;
