@@ -28,6 +28,7 @@ export enum UnhandledErrorReason {
 
 let requestCounter: Counter<string> | undefined;
 let unhandledErrorCounter: Counter<string> | undefined;
+let rateLimitedCounter: Counter<string> | undefined;
 
 /**
  * Initializes Prometheus metrics with the given registry.
@@ -47,6 +48,13 @@ export function initializeMetrics(register: Registry): void {
     labelNames: ['service', 'error_reason'],
     registers: [register],
   });
+
+  rateLimitedCounter = new Counter({
+    name: 'hyperlane_offchain_lookup_server_rate_limited_requests',
+    help: 'Total number of rate-limited requests',
+    labelNames: ['ip'],
+    registers: [register],
+  });
 }
 
 export const PrometheusMetrics = {
@@ -64,5 +72,11 @@ export const PrometheusMetrics = {
       service,
       error_reason: errorReason,
     });
+  },
+  logRateLimited(ip: string) {
+    if (!rateLimitedCounter) {
+      throw new Error('Metrics not initialized. Call initializeMetrics first.');
+    }
+    rateLimitedCounter.inc({ ip });
   },
 };

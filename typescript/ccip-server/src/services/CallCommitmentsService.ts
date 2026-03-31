@@ -1,5 +1,6 @@
 import type { Log } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -381,7 +382,23 @@ export class CallCommitmentsService extends BaseService {
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
-    router.post('/calls', this.handleCommitment.bind(this));
+    const commitmentRateLimit = rateLimit({
+      windowMs: 60 * 1000,
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+      handler: (req, res) => {
+        const ip = req.ip ?? 'unknown';
+        PrometheusMetrics.logRateLimited(ip);
+        res.status(429).json({ error: 'Too many requests' });
+      },
+    });
+
+    router.post(
+      '/calls',
+      commitmentRateLimit,
+      this.handleCommitment.bind(this),
+    );
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(

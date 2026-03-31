@@ -39,6 +39,7 @@
     "dotenv-flow": "^4.1.0",
     "ethers": "catalog:",
     "express": "^4.17.1",
+    "express-rate-limit": "catalog:",
     "pg": "^8.17.2",
     "pino": "catalog:",
     "pino-http": "^8.6.1",
