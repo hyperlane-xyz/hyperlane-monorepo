@@ -650,8 +650,12 @@ export class RebalancerContextFactory {
           break;
         }
         case ExternalBridgeType.DeBridge: {
+          const debridgeConfig = externalBridges?.debridge;
           registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
-            { chainMetadata: this.multiProvider.metadata },
+            {
+              chainMetadata: this.multiProvider.metadata,
+              maxFeePercent: debridgeConfig?.maxFeePercent,
+            },
             this.logger,
           );
           break;
