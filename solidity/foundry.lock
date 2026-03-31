@@ -1,8 +1,0 @@
-{
-  "lib/forge-std": {
-    "rev": "52715a217dc51d0de15877878ab8213f6cbbbab5"
-  },
-  "lib/fx-portal": {
-    "rev": "ebd046507d76cd03fa2b2559257091471a259ed7"
-  }
-}
