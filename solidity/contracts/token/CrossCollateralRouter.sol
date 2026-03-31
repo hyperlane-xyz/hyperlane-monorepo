@@ -54,6 +54,14 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
 
     // ============ Events ============
 
+    error CrossCollateralLengthMismatch();
+    error CrossCollateralUnauthorizedRouter();
+    error CrossCollateralNoGasForLocalDomain();
+    error CrossCollateralDomainHasNoRouters();
+    error CrossCollateralLocalTransferNoMsgValue();
+    error IncompatibleLocalRouterScales();
+    error TargetRouterNotContract();
+
     event CrossCollateralRouterEnrolled(
         uint32 indexed domain,
         bytes32 indexed router
@@ -89,19 +97,21 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         uint32[] calldata _domains,
         bytes32[] calldata _routers
     ) external onlyOwner {
-        require(_domains.length == _routers.length, "CCR: length mismatch");
-        for (uint256 i = 0; i < _domains.length; i++) {
+        if (_domains.length != _routers.length) {
+            revert CrossCollateralLengthMismatch();
+        }
+        for (uint256 i = 0; i < _domains.length; ) {
             if (_domains[i] == localDomain) {
                 address target = _routers[i].bytes32ToAddress();
-                require(
-                    target.code.length > 0,
-                    "CCR: target router not contract"
-                );
+                if (target.code.length == 0) revert TargetRouterNotContract();
                 _requireCompatibleLocalRouter(target);
             }
             if (_crossCollateralRouters[_domains[i]].add(_routers[i])) {
                 _crossCollateralDomains.add(uint256(_domains[i]));
                 emit CrossCollateralRouterEnrolled(_domains[i], _routers[i]);
+            }
+            unchecked {
+                ++i;
             }
         }
     }
@@ -110,13 +120,18 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         uint32[] calldata _domains,
         bytes32[] calldata _routers
     ) external onlyOwner {
-        require(_domains.length == _routers.length, "CCR: length mismatch");
-        for (uint256 i = 0; i < _domains.length; i++) {
+        if (_domains.length != _routers.length) {
+            revert CrossCollateralLengthMismatch();
+        }
+        for (uint256 i = 0; i < _domains.length; ) {
             if (_crossCollateralRouters[_domains[i]].remove(_routers[i])) {
                 if (_crossCollateralRouters[_domains[i]].length() == 0) {
                     _crossCollateralDomains.remove(uint256(_domains[i]));
                 }
                 emit CrossCollateralRouterUnenrolled(_domains[i], _routers[i]);
+            }
+            unchecked {
+                ++i;
             }
         }
     }
@@ -144,8 +159,11 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     {
         uint256 len = _crossCollateralDomains.length();
         domains = new uint32[](len);
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i = 0; i < len; ) {
             domains[i] = uint32(_crossCollateralDomains.at(i));
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -155,12 +173,13 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     /// domains (not just default Router._routers). Excludes localDomain since
     /// same-chain transfers skip mailbox dispatch.
     function _setDestinationGas(uint32 domain, uint256 gas) internal override {
-        require(domain != localDomain, "CCR: no gas for local domain");
-        require(
-            routers(domain) != bytes32(0) ||
-                _crossCollateralRouters[domain].length() > 0,
-            "CCR: domain has no routers"
-        );
+        if (domain == localDomain) {
+            revert CrossCollateralNoGasForLocalDomain();
+        }
+        if (
+            routers(domain) == bytes32(0) &&
+            _crossCollateralRouters[domain].length() == 0
+        ) revert CrossCollateralDomainHasNoRouters();
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
     }
@@ -172,54 +191,57 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
     function _requireAuthorizedRouter(
         uint32 _domain,
         bytes32 _router
-    ) internal view {
-        require(
-            _isRemoteRouter(_domain, _router) ||
-                _crossCollateralRouters[_domain].contains(_router),
-            "CCR: unauthorized router"
-        );
+    ) private view {
+        if (
+            !_isRemoteRouter(_domain, _router) &&
+            !_crossCollateralRouters[_domain].contains(_router)
+        ) revert CrossCollateralUnauthorizedRouter();
     }
 
     function _reduceRatio(
         uint256 _numerator,
         uint256 _denominator
-    ) internal pure returns (uint256 numerator, uint256 denominator) {
-        uint256 _a = _numerator;
-        uint256 _b = _denominator;
-        while (_b != 0) {
-            uint256 remainder = _a % _b;
-            _a = _b;
-            _b = remainder;
+    ) private pure returns (uint256 numerator, uint256 denominator) {
+        assembly ("memory-safe") {
+            let a := _numerator
+            let b := _denominator
+            for {} b {} {
+                let remainder := mod(a, b)
+                a := b
+                b := remainder
+            }
+            numerator := div(_numerator, a)
+            denominator := div(_denominator, a)
         }
-        return (_numerator / _a, _denominator / _a);
     }
 
-    function _requireCompatibleLocalRouter(address _target) internal view {
-        CrossCollateralRouter targetRouter = CrossCollateralRouter(_target);
-        uint8 localDecimals = IERC20Metadata(token()).decimals();
-        uint8 targetDecimals = IERC20Metadata(targetRouter.token()).decimals();
+    function _requireCompatibleLocalRouter(address _target) private view {
         (
             uint256 localMessageAmountTokenScaleNumerator,
             uint256 localMessageAmountTokenScaleDenominator
         ) = _reduceRatio(
-                (10 ** uint256(localDecimals)) * scaleNumerator,
+                (10 ** uint256(IERC20Metadata(token()).decimals())) *
+                    scaleNumerator,
                 scaleDenominator
             );
         (
             uint256 targetMessageAmountTokenScaleNumerator,
             uint256 targetMessageAmountTokenScaleDenominator
         ) = _reduceRatio(
-                (10 ** uint256(targetDecimals)) * targetRouter.scaleNumerator(),
-                targetRouter.scaleDenominator()
+                (10 **
+                    uint256(
+                        IERC20Metadata(CrossCollateralRouter(_target).token())
+                            .decimals()
+                    )) * CrossCollateralRouter(_target).scaleNumerator(),
+                CrossCollateralRouter(_target).scaleDenominator()
             );
 
-        require(
-            localMessageAmountTokenScaleNumerator ==
-                targetMessageAmountTokenScaleNumerator &&
-                localMessageAmountTokenScaleDenominator ==
-                targetMessageAmountTokenScaleDenominator,
-            "CCR: incompatible local scales"
-        );
+        if (
+            localMessageAmountTokenScaleNumerator !=
+            targetMessageAmountTokenScaleNumerator ||
+            localMessageAmountTokenScaleDenominator !=
+            targetMessageAmountTokenScaleDenominator
+        ) revert IncompatibleLocalRouterScales();
     }
 
     // ============ Handle Override ============
@@ -239,11 +261,9 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             _requireAuthorizedRouter(_origin, _sender);
         } else {
             // Same-chain direct call: caller must be an enrolled router
-            require(
-                _crossCollateralRouters[localDomain].contains(
-                    TypeCasts.addressToBytes32(msg.sender)
-                ),
-                "CCR: unauthorized router"
+            _requireAuthorizedRouter(
+                localDomain,
+                TypeCasts.addressToBytes32(msg.sender)
             );
         }
         _handle(_origin, _sender, _message);
@@ -272,11 +292,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
                 _targetRouter
             );
         if (quotes.length == 0) return (_feeRecipient, 0);
-
-        require(
-            quotes.length == 1 && quotes[0].token == token(),
-            "CCR: fee must match token"
-        );
+        require(quotes.length == 1 && quotes[0].token == token());
         feeAmount = quotes[0].amount;
     }
 
@@ -381,9 +397,9 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         if (_destination == localDomain) {
             // Local transfers call handle() directly without mailbox dispatch,
             // so any msg.value would be stuck in this contract permanently.
-            require(msg.value == 0, "CCR: local transfer no msg.value");
-            address target = _targetRouter.bytes32ToAddress();
-            require(target.code.length > 0, "CCR: target router not contract");
+            if (msg.value != 0) {
+                revert CrossCollateralLocalTransferNoMsgValue();
+            }
         }
 
         (, uint256 remainingValue) = _calculateFeesAndChargeForRouter(
@@ -446,11 +462,6 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         bytes32 _targetRouter
     ) public view override returns (Quote[] memory quotes) {
         _requireAuthorizedRouter(_destination, _targetRouter);
-        if (_destination == localDomain) {
-            address target = _targetRouter.bytes32ToAddress();
-            require(target.code.length > 0, "CCR: target router not contract");
-        }
-
         quotes = new Quote[](3);
 
         // Same-domain: handle() called directly, no interchain gas

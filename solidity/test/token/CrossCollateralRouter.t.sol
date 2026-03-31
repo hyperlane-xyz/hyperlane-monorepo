@@ -428,14 +428,18 @@ contract CrossCollateralRouterTest is Test {
         domains[0] = ORIGIN;
         routers[0] = address(0xdead).addressToBytes32();
 
-        vm.expectRevert("CCR: target router not contract");
+        vm.expectRevert(CrossCollateralRouter.TargetRouterNotContract.selector);
         usdcRouterA.enrollCrossCollateralRouters(domains, routers);
     }
 
     function test_revert_sameChain_swap_nonzeroMsgValue() public {
         vm.deal(ALICE, 1 ether);
         vm.prank(ALICE);
-        vm.expectRevert("CCR: local transfer no msg.value");
+        vm.expectRevert(
+            CrossCollateralRouter
+                .CrossCollateralLocalTransferNoMsgValue
+                .selector
+        );
         usdcRouterA.transferRemoteTo{value: 1}(
             ORIGIN,
             ALICE.addressToBytes32(),
@@ -620,7 +624,9 @@ contract CrossCollateralRouterTest is Test {
             1,
             address(originMailbox)
         );
-        vm.expectRevert("CCR: incompatible local scales");
+        vm.expectRevert(
+            CrossCollateralRouter.IncompatibleLocalRouterScales.selector
+        );
         usdtRouterA.enrollCrossCollateralRouters(
             _arr1(ORIGIN),
             _arr1(address(badUsdcRouter).addressToBytes32())
@@ -643,7 +649,9 @@ contract CrossCollateralRouterTest is Test {
 
         destUSDC.mintTo(address(rogue), 100e6);
         vm.prank(address(destMailbox));
-        vm.expectRevert("CCR: unauthorized router");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralUnauthorizedRouter.selector
+        );
         usdcRouterB.handle(
             ORIGIN,
             address(rogue).addressToBytes32(),
@@ -659,7 +667,9 @@ contract CrossCollateralRouterTest is Test {
             uint256(100e18)
         );
         vm.prank(UNAUTHORIZED);
-        vm.expectRevert("CCR: unauthorized router");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralUnauthorizedRouter.selector
+        );
         usdcRouterA.handle(ORIGIN, UNAUTHORIZED.addressToBytes32(), tokenMsg);
     }
 
@@ -667,7 +677,9 @@ contract CrossCollateralRouterTest is Test {
 
     function test_revert_transferRemoteTo_unauthorizedRouter() public {
         vm.prank(ALICE);
-        vm.expectRevert("CCR: unauthorized router");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralUnauthorizedRouter.selector
+        );
         usdcRouterA.transferRemoteTo(
             DESTINATION,
             BOB.addressToBytes32(),
@@ -791,7 +803,9 @@ contract CrossCollateralRouterTest is Test {
     }
 
     function test_quoteTransferRemoteTo_revert_unauthorizedRouter() public {
-        vm.expectRevert("CCR: unauthorized router");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralUnauthorizedRouter.selector
+        );
         usdcRouterA.quoteTransferRemoteTo(
             DESTINATION,
             BOB.addressToBytes32(),
@@ -872,7 +886,9 @@ contract CrossCollateralRouterTest is Test {
         domains[1] = 100;
         routers[0] = address(0x10).addressToBytes32();
 
-        vm.expectRevert("CCR: length mismatch");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralLengthMismatch.selector
+        );
         usdcRouterA.enrollCrossCollateralRouters(domains, routers);
     }
 
@@ -898,7 +914,9 @@ contract CrossCollateralRouterTest is Test {
         domains[1] = 100;
         routers[0] = address(0x10).addressToBytes32();
 
-        vm.expectRevert("CCR: length mismatch");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralLengthMismatch.selector
+        );
         usdcRouterA.unenrollCrossCollateralRouters(domains, routers);
     }
 
@@ -1449,12 +1467,16 @@ contract CrossCollateralRouterTest is Test {
     }
 
     function test_revert_setDestinationGas_unknownDomain() public {
-        vm.expectRevert("CCR: domain has no routers");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralDomainHasNoRouters.selector
+        );
         usdcRouterA.setDestinationGas(999, 200_000);
     }
 
     function test_revert_setDestinationGas_localDomain() public {
-        vm.expectRevert("CCR: no gas for local domain");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralNoGasForLocalDomain.selector
+        );
         usdcRouterA.setDestinationGas(ORIGIN, 200_000);
     }
 
@@ -1495,7 +1517,9 @@ contract CrossCollateralRouterTest is Test {
             memory configs = new GasRouter.GasRouterConfig[](1);
         configs[0] = GasRouter.GasRouterConfig({domain: ORIGIN, gas: 100_000});
 
-        vm.expectRevert("CCR: no gas for local domain");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralNoGasForLocalDomain.selector
+        );
         usdcRouterA.setDestinationGas(configs);
     }
 
@@ -1504,7 +1528,9 @@ contract CrossCollateralRouterTest is Test {
             memory configs = new GasRouter.GasRouterConfig[](1);
         configs[0] = GasRouter.GasRouterConfig({domain: 999, gas: 100_000});
 
-        vm.expectRevert("CCR: domain has no routers");
+        vm.expectRevert(
+            CrossCollateralRouter.CrossCollateralDomainHasNoRouters.selector
+        );
         usdcRouterA.setDestinationGas(configs);
     }
 

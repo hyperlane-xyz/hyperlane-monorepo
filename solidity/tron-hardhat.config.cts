@@ -28,6 +28,7 @@ const TRON_TEST_ALLOWLIST = [
   "TestStorage.sol",
   "ERC20Test.sol",
   "TestRecipient.sol",
+  "TestIsm.sol",
 ];
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
