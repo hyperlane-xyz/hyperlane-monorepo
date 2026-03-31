@@ -44,7 +44,7 @@ export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 
 // Chains that require MinimalInterchainAccountRouter due to deployment size limits
-export const minimalIcaChains: ChainName[] = ['igra', 'tempo'];
+export const minimalIcaChains: ChainName[] = ['igra'];
 
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily

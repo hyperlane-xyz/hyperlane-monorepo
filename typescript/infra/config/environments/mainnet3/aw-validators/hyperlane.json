@@ -128,6 +128,9 @@
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
+  "fluent": {
+    "validators": ["0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406"]
+  },
   "flowmainnet": {
     "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
   },
@@ -178,6 +181,9 @@
   },
   "katana": {
     "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
+  },
+  "kiichain": {
+    "validators": ["0x5513bc60f0a3a8520edc03828c1bc6111008b54e"]
   },
   "krown": {
     "validators": ["0x4f78f3fca0660716c4b276893d73f6f4c95fe618"]
@@ -235,6 +241,9 @@
   },
   "mitosis": {
     "validators": ["0x3b3eb808d90a4e19bb601790a6b6297812d6a61f"]
+  },
+  "mocachain": {
+    "validators": ["0x31ab8fc95d941defa077f8501c6800e935c3b081"]
   },
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
@@ -418,17 +427,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "mocachain": {
-    "validators": ["0x31ab8fc95d941defa077f8501c6800e935c3b081"]
-  },
-  "tempo": {
-    "validators": ["0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44"]
-  },
-  "fluent": {
-    "validators": ["0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406"]
-  },
-  "kiichain": {
-    "validators": ["0x5513bc60f0a3a8520edc03828c1bc6111008b54e"]
   }
 }

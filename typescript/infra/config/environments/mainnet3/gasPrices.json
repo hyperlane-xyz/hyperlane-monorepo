@@ -523,10 +523,6 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "tempo": {
-    "amount": "20.0",
-    "decimals": 9
-  },
   "torus": {
     "amount": "31.25",
     "decimals": 9

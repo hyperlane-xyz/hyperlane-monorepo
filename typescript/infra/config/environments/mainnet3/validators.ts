@@ -1623,16 +1623,6 @@ export const validatorChainConfig = (
         'mocachain',
       ),
     },
-    tempo: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('tempo'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xcd26114f7951a3dd6bb873b2a1c4b9adc6b00d44'],
-        },
-        'tempo',
-      ),
-    },
     fluent: {
       interval: 5,
       reorgPeriod: getReorgPeriod('fluent'),
