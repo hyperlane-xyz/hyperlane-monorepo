@@ -36,8 +36,6 @@ type CrossCollateralRouterConfig = Extract<
 type VerifyDecimalsAndScaleParams = Parameters<
   typeof verifyDecimalsAndScale
 >[0];
-type ScaleValidationMultiProvider =
-  VerifyDecimalsAndScaleParams['multiProvider'];
 type ScaleValidationWarpRouteConfig =
   VerifyDecimalsAndScaleParams['warpRouteConfig'];
 
@@ -48,7 +46,7 @@ type ConfiguredRouterMetadata = {
   error?: Error;
 };
 
-function buildMultiProvider(): ScaleValidationMultiProvider {
+function buildMultiProvider(): MultiProvider {
   return new MultiProvider({
     anvil2: {
       ...test1,

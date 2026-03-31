@@ -34,8 +34,6 @@ import { type CommandContext } from '../context/types.js';
 import { log, logGreen, logRed, warnYellow } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
-type ScaleValidationMultiProvider = MultiProvider;
-
 type ScaleValidationWarpRouteConfig = WarpRouteDeployConfigMailboxRequired &
   Record<string, Partial<HypTokenRouterVirtualConfig>>;
 
@@ -121,7 +119,7 @@ async function buildScaleValidationMetadataMap({
   multiProvider,
   warpRouteConfig,
 }: {
-  multiProvider: ScaleValidationMultiProvider;
+  multiProvider: MultiProvider;
   warpRouteConfig: ScaleValidationWarpRouteConfig;
 }): Promise<Map<string, TokenMetadata>> {
   const metadataByKey = new Map<string, TokenMetadata>(
@@ -140,14 +138,8 @@ async function buildScaleValidationMetadataMap({
     multiProvider,
     warpRouteConfig,
   });
-  const concurrency = configuredRouters.reduce(
-    (maxConcurrency, { chain }) =>
-      Math.max(maxConcurrency, multiProvider.tryGetRpcConcurrency(chain) ?? 1),
-    1,
-  );
-
   const configuredRouterMetadata = await concurrentMap(
-    concurrency,
+    6,
     configuredRouters,
     async (routerRef) =>
       fetchConfiguredCrossCollateralRouterMetadata({
@@ -168,7 +160,7 @@ function collectConfiguredCrossCollateralRouters({
   multiProvider,
   warpRouteConfig,
 }: {
-  multiProvider: ScaleValidationMultiProvider;
+  multiProvider: MultiProvider;
   warpRouteConfig: ScaleValidationWarpRouteConfig;
 }): CrossCollateralRouterRef[] {
   const routerRefs = new Map<string, CrossCollateralRouterRef>();
@@ -212,7 +204,7 @@ async function fetchConfiguredCrossCollateralRouterMetadata({
   readerByChain,
   routerRef,
 }: {
-  multiProvider: ScaleValidationMultiProvider;
+  multiProvider: MultiProvider;
   readerByChain: Map<string, EvmWarpRouteReader>;
   routerRef: CrossCollateralRouterRef;
 }): Promise<readonly [string, TokenMetadata]> {
@@ -245,7 +237,7 @@ export async function verifyDecimalsAndScale({
   multiProvider,
   warpRouteConfig,
 }: {
-  multiProvider: ScaleValidationMultiProvider;
+  multiProvider: MultiProvider;
   warpRouteConfig: ScaleValidationWarpRouteConfig;
 }): Promise<boolean> {
   let valid = true;
